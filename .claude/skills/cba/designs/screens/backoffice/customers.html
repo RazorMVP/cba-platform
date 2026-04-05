@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CBA Backoffice — Customer Management | Nubeero Design</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-app: #040609; --bg-card: #fff; --bg-subtle: #f4f5f7;
+      --bg-sidebar: #0a1628; --color-primary: #1e2833;
+      --color-text: #000314; --color-muted: #888;
+      --color-border: rgba(47,43,67,0.1);
+      --color-success: #16a34a; --color-warning: #ca8a04; --color-error: #dc2626; --color-info: #2563eb;
+      --radius-md: 12px; --shadow-card: 0 1px 3px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.04);
+      --sidebar-width: 260px; --font: 'Instrument Sans', system-ui, sans-serif;
+    }
+    body { font-family: var(--font); background: var(--bg-app); color: var(--color-text); min-height: 100vh; display: flex; }
+
+    /* Sidebar — simplified */
+    .sidebar { width: var(--sidebar-width); background: var(--bg-sidebar); position: fixed; left:0; top:0; bottom:0; z-index:200; padding: 24px 12px; display:flex; flex-direction:column; }
+    .logo { color:white; font-size:16px; font-weight:600; padding: 0 8px 20px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom:16px; }
+    .nav-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px; color:rgba(255,255,255,0.55); font-size:14px; font-weight:500; margin-bottom:2px; cursor:pointer; }
+    .nav-item.active { background:rgba(255,255,255,0.1); color:white; }
+    .nav-item:hover { background:rgba(255,255,255,0.06); color:rgba(255,255,255,0.85); }
+
+    .main { margin-left: var(--sidebar-width); flex:1; display:flex; flex-direction:column; min-height:100vh; }
+    .topbar { height:64px; background:white; border-bottom:1px solid var(--color-border); display:flex; align-items:center; justify-content:space-between; padding:0 24px; }
+    .topbar h1 { font-size:18px; font-weight:600; }
+    .topbar p { font-size:13px; color:var(--color-muted); }
+
+    /* Toolbar */
+    .toolbar { background:white; border-bottom:1px solid var(--color-border); padding:12px 24px; display:flex; align-items:center; gap:12px; }
+    .search-wrap { position:relative; flex:1; max-width:400px; }
+    .search-wrap input { width:100%; height:40px; border:1px solid var(--color-border); border-radius:8px; padding:0 12px 0 36px; font-family:var(--font); font-size:13px; outline:none; background:var(--bg-subtle); }
+    .search-wrap input::placeholder { color:var(--color-muted); }
+    .search-icon { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--color-muted); font-size:14px; }
+    .filter-btn { height:40px; padding:0 14px; border:1px solid var(--color-border); border-radius:8px; background:white; font-family:var(--font); font-size:13px; font-weight:500; cursor:pointer; display:flex; align-items:center; gap:6px; }
+    .filter-btn:hover { background:var(--bg-subtle); }
+    .btn-primary { height:40px; padding:0 16px; border-radius:999px; background:var(--color-primary); color:white; border:none; font-family:var(--font); font-size:13px; font-weight:500; cursor:pointer; display:flex; align-items:center; gap:6px; margin-left:auto; }
+    .btn-primary:hover { opacity:0.9; }
+
+    .content { padding:24px; background:#f0f2f5; flex:1; }
+
+    /* Stats row */
+    .stats-row { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
+    .stat-card { background:white; border-radius:var(--radius-md); padding:16px 20px; box-shadow:var(--shadow-card); border:1px solid var(--color-border); }
+    .stat-label { font-size:11px; font-weight:600; color:var(--color-muted); text-transform:uppercase; letter-spacing:0.5px; }
+    .stat-value { font-size:24px; font-weight:600; margin:8px 0 4px; }
+    .stat-sub { font-size:12px; color:var(--color-muted); }
+    .stat-up { color: #16a34a; } .stat-down { color: #dc2626; }
+
+    /* Table card */
+    .card { background:white; border-radius:var(--radius-md); box-shadow:var(--shadow-card); border:1px solid var(--color-border); overflow:hidden; }
+    .table-header { padding:16px 20px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--color-border); }
+    .table-title { font-size:14px; font-weight:600; }
+    .tabs { display:flex; gap:0; border:1px solid var(--color-border); border-radius:8px; overflow:hidden; }
+    .tab { padding:6px 14px; font-size:12px; font-weight:500; cursor:pointer; background:white; border:none; font-family:var(--font); color:var(--color-muted); }
+    .tab.active { background:var(--color-primary); color:white; }
+    table { width:100%; border-collapse:collapse; }
+    thead th { text-align:left; font-size:11px; font-weight:600; color:var(--color-muted); text-transform:uppercase; letter-spacing:0.5px; padding:10px 20px; background:var(--bg-subtle); border-bottom:1px solid var(--color-border); white-space:nowrap; }
+    tbody td { padding:14px 20px; font-size:13px; border-bottom:1px solid rgba(0,0,0,0.04); vertical-align:middle; }
+    tbody tr:last-child td { border-bottom:none; }
+    tbody tr:hover td { background:var(--bg-subtle); }
+
+    .customer-cell { display:flex; align-items:center; gap:10px; }
+    .avatar { width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; color:white; flex-shrink:0; }
+    .avatar-name { font-weight:500; font-size:13px; }
+    .avatar-id { font-size:11px; color:var(--color-muted); font-family:monospace; }
+
+    .badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; padding:3px 8px; border-radius:999px; }
+    .badge::before { content:'●'; font-size:7px; }
+    .badge.success { background:#dcfce7; color:#16a34a; }
+    .badge.warning { background:#fef9c3; color:#ca8a04; }
+    .badge.error   { background:#fee2e2; color:#dc2626; }
+    .badge.info    { background:#dbeafe; color:#2563eb; }
+    .badge.neutral { background:var(--bg-subtle); color:var(--color-muted); }
+
+    .action-btn { padding:6px 12px; border:1px solid var(--color-border); border-radius:6px; background:white; font-family:var(--font); font-size:12px; font-weight:500; cursor:pointer; }
+    .action-btn:hover { background:var(--bg-subtle); }
+
+    /* Pagination */
+    .pagination { padding:14px 20px; display:flex; align-items:center; justify-content:space-between; border-top:1px solid var(--color-border); background:var(--bg-subtle); }
+    .page-info { font-size:13px; color:var(--color-muted); }
+    .page-buttons { display:flex; gap:4px; }
+    .page-btn { width:32px; height:32px; border:1px solid var(--color-border); border-radius:6px; background:white; font-family:var(--font); font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+    .page-btn.active { background:var(--color-primary); color:white; border-color:var(--color-primary); }
+  </style>
+</head>
+<body>
+<nav class="sidebar">
+  <div class="logo">⬛ CoreBanking</div>
+  <div class="nav-item">⊞ Dashboard</div>
+  <div class="nav-item active">👥 Customers</div>
+  <div class="nav-item">💳 Accounts</div>
+  <div class="nav-item">🏦 Loans</div>
+  <div class="nav-item">↔️ Payments</div>
+  <div class="nav-item">📦 Products</div>
+  <div class="nav-item" style="margin-top:auto;">⚙️ Settings</div>
+</nav>
+
+<div class="main">
+  <div class="topbar">
+    <div>
+      <h1>Customer Management</h1>
+      <p>Manage customer profiles, KYC, and accounts</p>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" placeholder="Search by name, ID, email, phone...">
+    </div>
+    <button class="filter-btn">📅 Date Range</button>
+    <button class="filter-btn">⚡ KYC Status</button>
+    <button class="filter-btn">🏷️ Account Type</button>
+    <button class="btn-primary">+ New Customer</button>
+  </div>
+
+  <div class="content">
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">Total Customers</div>
+        <div class="stat-value">24,831</div>
+        <div class="stat-sub"><span class="stat-up">↑ 8.2%</span> this month</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">KYC Approved</div>
+        <div class="stat-value">23,104</div>
+        <div class="stat-sub">93.0% approval rate</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Pending KYC</div>
+        <div class="stat-value" style="color:#ca8a04;">1,412</div>
+        <div class="stat-sub">Awaiting review</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Suspended</div>
+        <div class="stat-value" style="color:#dc2626;">315</div>
+        <div class="stat-sub"><span class="stat-down">↑ 12</span> this week</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="table-header">
+        <div class="table-title">All Customers</div>
+        <div class="tabs">
+          <button class="tab active">All</button>
+          <button class="tab">Active</button>
+          <button class="tab">Pending KYC</button>
+          <button class="tab">Suspended</button>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th><input type="checkbox"></th>
+            <th>Customer</th>
+            <th>Customer ID</th>
+            <th>Phone</th>
+            <th>Accounts</th>
+            <th>KYC Status</th>
+            <th>Joined</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td><div class="customer-cell"><div class="avatar" style="background:#3b82f6;">KM</div><div><div class="avatar-name">Kwame Mensah</div><div class="avatar-id">kwame.m@email.com</div></div></div></td>
+            <td style="font-family:monospace;font-size:12px;color:#7E8187;">CUS-0012345</td>
+            <td style="font-size:13px;">+233 24 123 4567</td>
+            <td><span class="badge info">3 accounts</span></td>
+            <td><span class="badge success">Approved</span></td>
+            <td style="font-size:12px;color:#888;">Jan 15, 2025</td>
+            <td><button class="action-btn">View →</button></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td><div class="customer-cell"><div class="avatar" style="background:#16a34a;">AD</div><div><div class="avatar-name">Amara Diallo</div><div class="avatar-id">amara.d@email.com</div></div></div></td>
+            <td style="font-family:monospace;font-size:12px;color:#7E8187;">CUS-0012344</td>
+            <td style="font-size:13px;">+221 77 234 5678</td>
+            <td><span class="badge info">1 account</span></td>
+            <td><span class="badge success">Approved</span></td>
+            <td style="font-size:12px;color:#888;">Jan 14, 2025</td>
+            <td><button class="action-btn">View →</button></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td><div class="customer-cell"><div class="avatar" style="background:#7c3aed;">FA</div><div><div class="avatar-name">Fatima Al-Hassan</div><div class="avatar-id">fatima.h@email.com</div></div></div></td>
+            <td style="font-family:monospace;font-size:12px;color:#7E8187;">CUS-0012343</td>
+            <td style="font-size:13px;">+234 80 345 6789</td>
+            <td><span class="badge info">2 accounts</span></td>
+            <td><span class="badge warning">Pending</span></td>
+            <td style="font-size:12px;color:#888;">Jan 13, 2025</td>
+            <td><button class="action-btn">Review</button></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td><div class="customer-cell"><div class="avatar" style="background:#ea580c;">EO</div><div><div class="avatar-name">Emmanuel Osei</div><div class="avatar-id">emmanuel.o@email.com</div></div></div></td>
+            <td style="font-family:monospace;font-size:12px;color:#7E8187;">CUS-0012342</td>
+            <td style="font-size:13px;">+233 20 456 7890</td>
+            <td><span class="badge neutral">0 accounts</span></td>
+            <td><span class="badge error">Suspended</span></td>
+            <td style="font-size:12px;color:#888;">Jan 12, 2025</td>
+            <td><button class="action-btn">View →</button></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox"></td>
+            <td><div class="customer-cell"><div class="avatar" style="background:#db2777;">NO</div><div><div class="avatar-name">Ngozi Okonkwo</div><div class="avatar-id">ngozi.o@email.com</div></div></div></td>
+            <td style="font-family:monospace;font-size:12px;color:#7E8187;">CUS-0012341</td>
+            <td style="font-size:13px;">+234 81 567 8901</td>
+            <td><span class="badge info">4 accounts</span></td>
+            <td><span class="badge success">Approved</span></td>
+            <td style="font-size:12px;color:#888;">Jan 11, 2025</td>
+            <td><button class="action-btn">View →</button></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="pagination">
+        <span class="page-info">Showing 1–20 of 24,831 customers</span>
+        <div class="page-buttons">
+          <button class="page-btn">‹</button>
+          <button class="page-btn active">1</button>
+          <button class="page-btn">2</button>
+          <button class="page-btn">3</button>
+          <span style="padding:0 4px;color:#888;">…</span>
+          <button class="page-btn">1242</button>
+          <button class="page-btn">›</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

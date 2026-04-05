@@ -1,0 +1,148 @@
+name: Mobile CI/CD (Flutter)
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile-ci.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile-ci.yml'
+
+jobs:
+  # ─── Analyze + Unit Tests ─────────────────────────────────────────────────────
+  test:
+    name: Analyze & Test (Flutter)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Flutter analyze (static analysis)
+        working-directory: mobile
+        run: flutter analyze --fatal-infos --fatal-warnings
+
+      - name: Check for dependency vulnerabilities
+        working-directory: mobile
+        run: dart pub audit
+
+      - name: Run unit tests with coverage
+        working-directory: mobile
+        run: flutter test --coverage --reporter=expanded
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: mobile/coverage/lcov.info
+          flags: mobile
+          name: flutter-coverage
+
+  # ─── Security — Dart Pub Audit ────────────────────────────────────────────────
+  security:
+    name: Dart Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+          channel: stable
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Audit pub dependencies for known vulnerabilities
+        working-directory: mobile
+        run: dart pub audit
+
+      - name: Check for hardcoded secrets (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─── Build Android APK ────────────────────────────────────────────────────────
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    needs: [test, security]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java (required for Android build)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Build release APK
+        working-directory: mobile
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL_STAGING }}
+          KEYCLOAK_URL: ${{ vars.KEYCLOAK_URL_STAGING }}
+        run: flutter build apk --release --dart-define=API_BASE_URL="${API_BASE_URL}" --dart-define=KEYCLOAK_URL="${KEYCLOAK_URL}"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-apk
+          path: mobile/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 14
+
+  # ─── Build iOS (macOS runner) ─────────────────────────────────────────────────
+  build-ios:
+    name: Build iOS
+    runs-on: macos-latest
+    needs: [test, security]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.x'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Build iOS (no codesign for CI)
+        working-directory: mobile
+        run: flutter build ios --release --no-codesign
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build
+          path: mobile/build/ios/iphoneos/Runner.app
+          retention-days: 7

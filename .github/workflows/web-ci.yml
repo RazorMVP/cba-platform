@@ -1,0 +1,229 @@
+name: Web CI/CD (Angular → Vercel)
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'web/**'
+      - '.github/workflows/web-ci.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'web/**'
+      - '.github/workflows/web-ci.yml'
+
+jobs:
+  # ─── Lint + Unit Tests ────────────────────────────────────────────────────────
+  test:
+    name: Lint & Test (Angular)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Lint
+        working-directory: web
+        run: npx ng lint
+
+      - name: Unit tests (headless Chrome)
+        working-directory: web
+        run: npx ng test --watch=false --browsers=ChromeHeadless --code-coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-coverage
+          path: web/coverage/
+
+      - name: Check coverage thresholds
+        working-directory: web
+        run: |
+          node -e "
+            const fs = require('fs');
+            const summary = JSON.parse(fs.readFileSync('coverage/coverage-summary.json','utf8'));
+            const pct = summary.total.lines.pct;
+            if (pct < 70) { console.error('Line coverage ' + pct + '% is below 70% threshold'); process.exit(1); }
+            console.log('Coverage OK: ' + pct + '%');
+          "
+
+  # ─── Security — npm audit + ESLint Security ───────────────────────────────────
+  security:
+    name: Security Audit (npm + ESLint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: npm audit (fail on high/critical)
+        working-directory: web
+        run: npm audit --audit-level=high
+
+      - name: Snyk dependency scan
+        uses: snyk/actions/node@master
+        continue-on-error: false
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --file=web/package.json --severity-threshold=high
+
+  # ─── Production Build ─────────────────────────────────────────────────────────
+  build:
+    name: Production Build (Angular)
+    runs-on: ubuntu-latest
+    needs: [test, security]
+    outputs:
+      vercel-url: ${{ steps.deploy-preview.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install Angular app dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Install Vercel CLI (pinned version)
+        run: npm install -g vercel@latest
+
+      # Pull Vercel project settings and env vars into .vercel/ + .env.local
+      - name: Pull Vercel environment (preview)
+        if: github.event_name == 'pull_request'
+        working-directory: web
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=preview --token="${VERCEL_TOKEN}"
+
+      - name: Pull Vercel environment (production)
+        if: github.event_name == 'push'
+        working-directory: web
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=production --token="${VERCEL_TOKEN}"
+
+      # Vercel builds using its own build pipeline (respects vercel.json)
+      - name: Build (preview)
+        if: github.event_name == 'pull_request'
+        working-directory: web
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel build --token="${VERCEL_TOKEN}"
+
+      - name: Build (production)
+        if: github.event_name == 'push'
+        working-directory: web
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel build --prod --token="${VERCEL_TOKEN}"
+
+      # Deploy the pre-built artifact — no remote rebuild
+      - name: Deploy preview to Vercel
+        if: github.event_name == 'pull_request'
+        id: deploy-preview
+        working-directory: web
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          URL=$(vercel deploy --prebuilt --token="${VERCEL_TOKEN}")
+          echo "url=${URL}" >> "$GITHUB_OUTPUT"
+          echo "Preview URL: ${URL}"
+
+      - name: Comment preview URL on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.deploy-preview.outputs.url }}
+        with:
+          script: |
+            const previewUrl = process.env.PREVIEW_URL;
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: [
+                '## CBA Web Portal — Preview Deployment',
+                '',
+                `**URL**: ${previewUrl}`,
+                '',
+                '> Auto-deployed by the Web CI pipeline. This preview reflects the latest commit on this PR.',
+              ].join('\n')
+            });
+
+      - name: Deploy to production (develop → staging alias)
+        if: github.ref == 'refs/heads/develop'
+        working-directory: web
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel deploy --prebuilt --token="${VERCEL_TOKEN}"
+
+      - name: Deploy to production (main → production)
+        if: github.ref == 'refs/heads/main'
+        id: deploy-prod
+        working-directory: web
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          URL=$(vercel deploy --prebuilt --prod --token="${VERCEL_TOKEN}")
+          echo "url=${URL}" >> "$GITHUB_OUTPUT"
+          echo "Production URL: ${URL}"
+
+  # ─── E2E Tests Against Preview ────────────────────────────────────────────────
+  e2e:
+    name: E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright E2E tests
+        working-directory: web
+        env:
+          BASE_URL: ${{ needs.build.outputs.vercel-url }}
+        run: npx playwright test --reporter=html
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: web/playwright-report/

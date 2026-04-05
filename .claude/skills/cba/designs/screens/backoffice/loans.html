@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CBA Backoffice — Loan Management | Nubeero Design</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-app: #040609; --bg-card: #fff; --bg-subtle: #f4f5f7;
+      --bg-sidebar: #0a1628; --color-primary: #1e2833;
+      --color-text: #000314; --color-muted: #888;
+      --color-border: rgba(47,43,67,0.1);
+      --radius-md: 12px; --shadow-card: 0 1px 3px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.04);
+      --sidebar-width: 260px; --font: 'Instrument Sans', system-ui, sans-serif;
+    }
+    body { font-family: var(--font); background: var(--bg-app); color: var(--color-text); display:flex; min-height:100vh; }
+    .sidebar { width:var(--sidebar-width); background:var(--bg-sidebar); position:fixed; left:0; top:0; bottom:0; padding:24px 12px; display:flex; flex-direction:column; gap:2px; }
+    .logo { color:white; font-size:16px; font-weight:600; padding:0 8px 20px; border-bottom:1px solid rgba(255,255,255,0.08); margin-bottom:16px; }
+    .nav-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px; color:rgba(255,255,255,0.55); font-size:14px; font-weight:500; cursor:pointer; }
+    .nav-item.active { background:rgba(255,255,255,0.1); color:white; }
+    .nav-item:hover:not(.active) { background:rgba(255,255,255,0.06); }
+    .main { margin-left:var(--sidebar-width); flex:1; display:flex; flex-direction:column; }
+    .topbar { height:64px; background:white; border-bottom:1px solid var(--color-border); display:flex; align-items:center; justify-content:space-between; padding:0 24px; position:sticky; top:0; z-index:10; }
+    .topbar h1 { font-size:18px; font-weight:600; }
+    .topbar p { font-size:13px; color:var(--color-muted); }
+    .toolbar { background:white; border-bottom:1px solid var(--color-border); padding:12px 24px; display:flex; align-items:center; gap:12px; }
+    .search-wrap { position:relative; flex:1; max-width:400px; }
+    .search-wrap input { width:100%; height:40px; border:1px solid var(--color-border); border-radius:8px; padding:0 12px 0 36px; font-family:var(--font); font-size:13px; outline:none; background:var(--bg-subtle); }
+    .search-icon { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--color-muted); }
+    .filter-btn { height:40px; padding:0 14px; border:1px solid var(--color-border); border-radius:8px; background:white; font-family:var(--font); font-size:13px; font-weight:500; cursor:pointer; display:flex; align-items:center; gap:6px; }
+    .btn-primary { height:40px; padding:0 16px; border-radius:999px; background:var(--color-primary); color:white; border:none; font-family:var(--font); font-size:13px; font-weight:500; cursor:pointer; margin-left:auto; }
+    .content { padding:24px; background:#f0f2f5; flex:1; }
+
+    /* Pipeline */
+    .pipeline { display:grid; grid-template-columns:repeat(5,1fr); gap:16px; margin-bottom:24px; }
+    .pipeline-stage { background:white; border-radius:var(--radius-md); padding:16px; box-shadow:var(--shadow-card); border:1px solid var(--color-border); border-top:3px solid; }
+    .stage-submitted  { border-top-color:#2563eb; }
+    .stage-review     { border-top-color:#ca8a04; }
+    .stage-approved   { border-top-color:#16a34a; }
+    .stage-active     { border-top-color:#7c3aed; }
+    .stage-closed     { border-top-color:#888; }
+    .pipeline-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--color-muted); }
+    .pipeline-count { font-size:28px; font-weight:700; color:var(--color-text); margin:8px 0 4px; }
+    .pipeline-value { font-size:12px; color:var(--color-muted); }
+
+    /* Grid: table + detail */
+    .loan-grid { display:grid; grid-template-columns:1fr 380px; gap:16px; }
+    .card { background:white; border-radius:var(--radius-md); box-shadow:var(--shadow-card); border:1px solid var(--color-border); overflow:hidden; }
+    .card-header { padding:16px 20px; border-bottom:1px solid var(--color-border); display:flex; align-items:center; justify-content:space-between; }
+    .card-title { font-size:14px; font-weight:600; }
+    table { width:100%; border-collapse:collapse; }
+    thead th { text-align:left; font-size:11px; font-weight:600; color:var(--color-muted); text-transform:uppercase; letter-spacing:0.5px; padding:10px 16px; background:var(--bg-subtle); border-bottom:1px solid var(--color-border); white-space:nowrap; }
+    tbody td { padding:13px 16px; font-size:13px; border-bottom:1px solid rgba(0,0,0,0.04); vertical-align:middle; }
+    tbody tr:last-child td { border-bottom:none; }
+    tbody tr.selected td { background:#f0f4ff; }
+    .badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; padding:3px 8px; border-radius:999px; }
+    .badge::before { content:'●'; font-size:7px; }
+    .badge.success { background:#dcfce7; color:#16a34a; }
+    .badge.warning { background:#fef9c3; color:#ca8a04; }
+    .badge.error   { background:#fee2e2; color:#dc2626; }
+    .badge.info    { background:#dbeafe; color:#2563eb; }
+    .badge.purple  { background:#ede9fe; color:#7c3aed; }
+    .badge.neutral { background:var(--bg-subtle); color:var(--color-muted); }
+
+    /* Loan Detail Panel */
+    .detail-panel { display:flex; flex-direction:column; gap:0; }
+    .detail-panel .card-header { background:var(--color-primary); }
+    .detail-panel .card-title { color:white; }
+    .detail-section { padding:16px; border-bottom:1px solid var(--color-border); }
+    .detail-row { display:flex; justify-content:space-between; align-items:center; padding:6px 0; }
+    .detail-key { font-size:12px; color:var(--color-muted); }
+    .detail-val { font-size:13px; font-weight:500; text-align:right; }
+
+    /* Progress bar */
+    .progress-wrap { margin:8px 0; }
+    .progress-label { display:flex; justify-content:space-between; font-size:12px; color:var(--color-muted); margin-bottom:6px; }
+    .progress-bar { height:6px; background:var(--bg-subtle); border-radius:999px; overflow:hidden; border:1px solid var(--color-border); }
+    .progress-fill { height:100%; border-radius:999px; background:linear-gradient(to right,#1e2833,#4a6c93); }
+
+    /* Repayment schedule mini-table */
+    .sched-table { width:100%; border-collapse:collapse; }
+    .sched-table th { font-size:10px; font-weight:600; color:var(--color-muted); text-transform:uppercase; padding:6px 8px; background:var(--bg-subtle); border-bottom:1px solid var(--color-border); }
+    .sched-table td { font-size:12px; padding:8px; border-bottom:1px solid rgba(0,0,0,0.04); }
+    .sched-table tr.paid td { color:#888; }
+    .sched-table tr.due td { font-weight:600; color:#ca8a04; }
+
+    /* Action buttons */
+    .action-row { padding:16px; display:flex; gap:8px; }
+    .btn-sm { padding:8px 14px; border-radius:8px; font-family:var(--font); font-size:12px; font-weight:500; cursor:pointer; border:1px solid var(--color-border); background:white; }
+    .btn-sm.primary { background:var(--color-primary); color:white; border-color:var(--color-primary); border-radius:999px; }
+    .btn-sm.danger  { color:#dc2626; border-color:#fee2e2; background:#fff5f5; }
+  </style>
+</head>
+<body>
+<nav class="sidebar">
+  <div class="logo">⬛ CoreBanking</div>
+  <div class="nav-item">⊞ Dashboard</div>
+  <div class="nav-item">👥 Customers</div>
+  <div class="nav-item">💳 Accounts</div>
+  <div class="nav-item active">🏦 Loans</div>
+  <div class="nav-item">↔️ Payments</div>
+  <div class="nav-item">📦 Products</div>
+  <div class="nav-item" style="margin-top:auto;">⚙️ Settings</div>
+</nav>
+
+<div class="main">
+  <div class="topbar">
+    <div><h1>Loan Management</h1><p>Track applications, approvals, disbursements, and repayments</p></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input placeholder="Search by customer, loan ID, amount...">
+    </div>
+    <button class="filter-btn">⚡ Status</button>
+    <button class="filter-btn">📦 Product</button>
+    <button class="filter-btn">📅 Disbursement Date</button>
+    <button class="btn-primary">+ New Loan Application</button>
+  </div>
+
+  <div class="content">
+
+    <!-- Pipeline -->
+    <div class="pipeline">
+      <div class="pipeline-stage stage-submitted">
+        <div class="pipeline-label">Submitted</div>
+        <div class="pipeline-count">47</div>
+        <div class="pipeline-value">$284,500 requested</div>
+      </div>
+      <div class="pipeline-stage stage-review">
+        <div class="pipeline-label">Under Review</div>
+        <div class="pipeline-count">23</div>
+        <div class="pipeline-value">$1.2M in review</div>
+      </div>
+      <div class="pipeline-stage stage-approved">
+        <div class="pipeline-label">Approved</div>
+        <div class="pipeline-count">12</div>
+        <div class="pipeline-value">$890,000 approved</div>
+      </div>
+      <div class="pipeline-stage stage-active">
+        <div class="pipeline-label">Active</div>
+        <div class="pipeline-count">3,294</div>
+        <div class="pipeline-value">$24.7M outstanding</div>
+      </div>
+      <div class="pipeline-stage stage-closed">
+        <div class="pipeline-label">Closed / Written-Off</div>
+        <div class="pipeline-count">8,102</div>
+        <div class="pipeline-value">All-time</div>
+      </div>
+    </div>
+
+    <!-- Grid -->
+    <div class="loan-grid">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Active Loans</div>
+          <span style="font-size:12px;color:#888;">3,294 loans</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Loan ID</th>
+              <th>Customer</th>
+              <th>Product</th>
+              <th>Principal</th>
+              <th>Outstanding</th>
+              <th>Status</th>
+              <th>Next Due</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="selected">
+              <td style="font-family:monospace;font-size:11px;">LN-0012345</td>
+              <td style="font-weight:500;">Kwame Mensah</td>
+              <td style="font-size:12px;color:#888;">Business Loan 12M</td>
+              <td>$25,000</td>
+              <td style="font-weight:600;">$18,750</td>
+              <td><span class="badge purple">Active</span></td>
+              <td style="font-size:12px;">Apr 1</td>
+            </tr>
+            <tr>
+              <td style="font-family:monospace;font-size:11px;">LN-0012344</td>
+              <td style="font-weight:500;">Amara Diallo</td>
+              <td style="font-size:12px;color:#888;">Personal Loan 6M</td>
+              <td>$5,000</td>
+              <td style="font-weight:600;">$2,100</td>
+              <td><span class="badge purple">Active</span></td>
+              <td style="font-size:12px;">Apr 5</td>
+            </tr>
+            <tr>
+              <td style="font-family:monospace;font-size:11px;">LN-0012343</td>
+              <td style="font-weight:500;">Fatima Al-Hassan</td>
+              <td style="font-size:12px;color:#888;">SME Loan 24M</td>
+              <td>$50,000</td>
+              <td style="font-weight:600;">$42,800</td>
+              <td><span class="badge warning">In Arrears</span></td>
+              <td style="font-size:12px;color:#dc2626;">Mar 15 ⚠️</td>
+            </tr>
+            <tr>
+              <td style="font-family:monospace;font-size:11px;">LN-0012342</td>
+              <td style="font-weight:500;">Emmanuel Osei</td>
+              <td style="font-size:12px;color:#888;">Personal Loan 12M</td>
+              <td>$8,000</td>
+              <td style="font-weight:600;">$6,400</td>
+              <td><span class="badge purple">Active</span></td>
+              <td style="font-size:12px;">Apr 2</td>
+            </tr>
+            <tr>
+              <td style="font-family:monospace;font-size:11px;">LN-0012341</td>
+              <td style="font-weight:500;">Ngozi Okonkwo</td>
+              <td style="font-size:12px;color:#888;">Mortgage 240M</td>
+              <td>$120,000</td>
+              <td style="font-weight:600;">$112,400</td>
+              <td><span class="badge purple">Active</span></td>
+              <td style="font-size:12px;">Apr 1</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Detail Panel -->
+      <div class="detail-panel card">
+        <div class="card-header">
+          <div class="card-title">LN-0012345 — Kwame Mensah</div>
+        </div>
+
+        <div class="detail-section">
+          <div class="detail-row"><span class="detail-key">Product</span><span class="detail-val">Business Loan 12M</span></div>
+          <div class="detail-row"><span class="detail-key">Principal</span><span class="detail-val" style="font-size:18px;font-weight:700;">$25,000.00</span></div>
+          <div class="detail-row"><span class="detail-key">Outstanding Balance</span><span class="detail-val" style="color:#7c3aed;">$18,750.00</span></div>
+          <div class="detail-row"><span class="detail-key">Interest Rate</span><span class="detail-val">18.5% p.a.</span></div>
+          <div class="detail-row"><span class="detail-key">Term</span><span class="detail-val">12 months</span></div>
+          <div class="detail-row"><span class="detail-key">Disbursed On</span><span class="detail-val">Apr 1, 2025</span></div>
+          <div class="detail-row"><span class="detail-key">Maturity Date</span><span class="detail-val">Mar 31, 2026</span></div>
+          <div style="margin-top:12px;">
+            <div class="progress-label"><span>Repayment Progress</span><span>25% paid</span></div>
+            <div class="progress-bar"><div class="progress-fill" style="width:25%"></div></div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <div style="font-size:12px;font-weight:600;color:var(--color-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Upcoming Schedule</div>
+          <table class="sched-table">
+            <thead><tr><th>#</th><th>Due Date</th><th>EMI</th><th>Principal</th><th>Interest</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr class="paid"><td>1</td><td>May 1</td><td>$2,291</td><td>$1,908</td><td>$383</td><td><span style="color:#16a34a;font-size:10px;font-weight:600;">✓ Paid</span></td></tr>
+              <tr class="paid"><td>2</td><td>Jun 1</td><td>$2,291</td><td>$1,937</td><td>$354</td><td><span style="color:#16a34a;font-size:10px;font-weight:600;">✓ Paid</span></td></tr>
+              <tr class="paid"><td>3</td><td>Jul 1</td><td>$2,291</td><td>$1,967</td><td>$324</td><td><span style="color:#16a34a;font-size:10px;font-weight:600;">✓ Paid</span></td></tr>
+              <tr class="due"><td>4</td><td>Apr 1 ⚠️</td><td>$2,291</td><td>$1,997</td><td>$294</td><td><span style="color:#ca8a04;font-size:10px;font-weight:600;">Due</span></td></tr>
+              <tr><td>5</td><td>May 1</td><td>$2,291</td><td>$2,028</td><td>$263</td><td><span style="color:#888;font-size:10px;">—</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="action-row">
+          <button class="btn-sm primary">Record Repayment</button>
+          <button class="btn-sm">Reschedule</button>
+          <button class="btn-sm danger">Write Off</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

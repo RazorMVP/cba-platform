@@ -1,0 +1,16 @@
+{
+  "_comment": "Stitch MCP credentials — copy the mcpServers block into your project's .mcp.json file at the repo root",
+  "mcpServers": {
+    "stitch": {
+      "type": "http",
+      "url": "https://mcp.stitch.withgoogle.com/mcp",
+      "oauth2": {
+        "clientId": "804393456987-tk8t522icfns6omdh3mlthn7bvlh532s.apps.googleusercontent.com",
+        "clientSecret": "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",
+        "authorizationEndpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+        "tokenEndpoint": "https://oauth2.googleapis.com/token",
+        "scopes": ["openid", "email", "profile"]
+      }
+    }
+  }
+}

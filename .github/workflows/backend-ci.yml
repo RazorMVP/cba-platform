@@ -1,0 +1,293 @@
+name: Backend CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+
+env:
+  JAVA_VERSION: '21'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/cba-backend
+
+jobs:
+  # ─── Unit + Integration Tests ────────────────────────────────────────────────
+  test:
+    name: Test (Java 21 + Testcontainers)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      - name: Run unit tests
+        working-directory: backend
+        run: mvn test --no-transfer-progress
+
+      - name: Run integration tests (Testcontainers + PostgreSQL)
+        working-directory: backend
+        run: mvn verify -Pfull-integration --no-transfer-progress
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: 'true'
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-reports
+          path: backend/target/surefire-reports/
+
+      - name: Publish test results
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Backend Tests
+          path: backend/target/surefire-reports/*.xml
+          reporter: java-junit
+
+  # ─── Code Quality — SonarCloud ───────────────────────────────────────────────
+  sonar:
+    name: SonarCloud Analysis
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      - name: Cache SonarCloud packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+
+      - name: SonarCloud analysis
+        working-directory: backend
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_ORG: ${{ vars.SONAR_ORG }}
+        run: |
+          mvn verify sonar:sonar \
+            -Dsonar.projectKey=cba-platform_backend \
+            -Dsonar.organization="${SONAR_ORG}" \
+            -Dsonar.host.url=https://sonarcloud.io \
+            --no-transfer-progress
+
+  # ─── Security — OWASP Dependency Check ───────────────────────────────────────
+  owasp-check:
+    name: OWASP Dependency Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      - name: Run OWASP Dependency Check
+        working-directory: backend
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: |
+          mvn org.owasp:dependency-check-maven:check \
+            -DfailBuildOnCVSS=7 \
+            -DsuppressionsLocation=../docs/owasp-suppressions.xml \
+            -DnvdApiKey="${NVD_API_KEY}" \
+            --no-transfer-progress
+
+      - name: Upload OWASP report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: owasp-report
+          path: backend/target/dependency-check-report.html
+
+  # ─── Security — SpotBugs Static Analysis ─────────────────────────────────────
+  spotbugs:
+    name: SpotBugs Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      - name: Run SpotBugs
+        working-directory: backend
+        run: mvn compile spotbugs:check --no-transfer-progress
+
+      - name: Upload SpotBugs report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spotbugs-report
+          path: backend/target/spotbugsXml.xml
+
+  # ─── Docker Build + Push ─────────────────────────────────────────────────────
+  docker:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    needs: [test, owasp-check, spotbugs]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      - name: Build JAR (skip tests — already ran)
+        working-directory: backend
+        run: mvn package -DskipTests --no-transfer-progress
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/cba-backend
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=sha-
+            type=semver,pattern={{version}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: backend
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ghcr.io/${{ github.repository }}/cba-backend:sha-${{ github.sha }}
+          format: sarif
+          output: trivy-docker.sarif
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+
+      - name: Upload Trivy results to Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-docker.sarif
+
+  # ─── Deploy to Staging ────────────────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: docker
+    if: github.ref == 'refs/heads/develop'
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Write kubeconfig
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_STAGING }}
+        run: echo "${KUBE_CONFIG}" | base64 -d > /tmp/kubeconfig.yml
+
+      - name: Update image in manifests
+        env:
+          IMAGE_TAG: sha-${{ github.sha }}
+          REGISTRY: ghcr.io/${{ github.repository }}/cba-backend
+        run: |
+          sed -i "s|cba/backend:latest|${REGISTRY}:${IMAGE_TAG}|g" \
+            infrastructure/k8s/backend/deployment.yaml
+
+      - name: Apply Kubernetes manifests
+        run: kubectl apply -f infrastructure/k8s/ --kubeconfig=/tmp/kubeconfig.yml
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/cba-backend \
+            -n cba-platform \
+            --kubeconfig=/tmp/kubeconfig.yml \
+            --timeout=300s
+
+  # ─── Deploy to Production ─────────────────────────────────────────────────────
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: docker
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Write kubeconfig
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_PROD }}
+        run: echo "${KUBE_CONFIG}" | base64 -d > /tmp/kubeconfig.yml
+
+      - name: Update image in manifests
+        env:
+          IMAGE_TAG: sha-${{ github.sha }}
+          REGISTRY: ghcr.io/${{ github.repository }}/cba-backend
+        run: |
+          sed -i "s|cba/backend:latest|${REGISTRY}:${IMAGE_TAG}|g" \
+            infrastructure/k8s/backend/deployment.yaml
+
+      - name: Apply Kubernetes manifests
+        run: kubectl apply -f infrastructure/k8s/ --kubeconfig=/tmp/kubeconfig.yml
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/cba-backend \
+            -n cba-platform \
+            --kubeconfig=/tmp/kubeconfig.yml \
+            --timeout=300s

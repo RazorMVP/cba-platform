@@ -1,0 +1,214 @@
+name: Security Scanning
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Run full security scan every Monday at 03:00 UTC
+    - cron: '0 3 * * 1'
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  # ─── GitHub CodeQL — Java + TypeScript ───────────────────────────────────────
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [java, javascript-typescript]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java (for Java CodeQL)
+        if: matrix.language == 'java'
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended,security-and-quality
+          # Custom queries for banking / financial applications
+          config: |
+            paths-ignore:
+              - '**/test/**'
+              - '**/*.test.ts'
+              - '**/*.spec.ts'
+
+      - name: Build Java (for CodeQL autobuild)
+        if: matrix.language == 'java'
+        working-directory: backend
+        run: mvn compile -DskipTests --no-transfer-progress
+
+      - name: Autobuild (TypeScript)
+        if: matrix.language == 'javascript-typescript'
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}
+
+  # ─── Trivy — Filesystem + IaC Scanning ───────────────────────────────────────
+  trivy-fs:
+    name: Trivy Filesystem Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan source + dependencies + IaC configs
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-fs.sarif
+          severity: CRITICAL,HIGH,MEDIUM
+          # Scan source code, dependencies, IaC (k8s YAML, Dockerfiles)
+          scanners: vuln,secret,config
+
+      - name: Upload Trivy FS results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-filesystem
+
+  # ─── Secret Detection — Gitleaks ─────────────────────────────────────────────
+  gitleaks:
+    name: Secret Detection (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan for hardcoded secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  # ─── Dependency Review (PRs only) ────────────────────────────────────────────
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          # Deny known problematic licenses
+          deny-licenses: GPL-2.0, GPL-3.0, AGPL-3.0
+          # Allow commonly used permissive licenses
+          allow-licenses: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC
+
+  # ─── Snyk — Java + npm ───────────────────────────────────────────────────────
+  snyk:
+    name: Snyk Vulnerability Scan
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - dir: backend
+            type: maven
+          - dir: web
+            type: npm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java (backend only)
+        if: matrix.type == 'maven'
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      - name: Set up Node.js (web only)
+        if: matrix.type == 'npm'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        if: matrix.type == 'npm'
+        working-directory: web
+        run: npm ci
+
+      - name: Run Snyk scan
+        uses: snyk/actions/${{ matrix.type }}@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --file=${{ matrix.dir }}/pom.xml
+        continue-on-error: false
+
+  # ─── Infrastructure Security — k8s + Docker Compose ──────────────────────────
+  infra-scan:
+    name: Infrastructure Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan Kubernetes manifests (Trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: config
+          scan-ref: infrastructure/k8s
+          format: sarif
+          output: trivy-k8s.sarif
+          severity: CRITICAL,HIGH
+
+      - name: Upload k8s scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-k8s.sarif
+          category: trivy-k8s
+
+      - name: Scan Docker Compose (Trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: config
+          scan-ref: infrastructure/docker-compose.yml
+          format: table
+          severity: CRITICAL,HIGH
+
+  # ─── OWASP ZAP — API Security Testing (scheduled only) ───────────────────────
+  zap-api-scan:
+    name: OWASP ZAP API Scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run OWASP ZAP against staging API
+        uses: zaproxy/action-api-scan@v0.7.0
+        with:
+          target: ${{ vars.API_STAGING_URL }}/api-docs/openapi.yaml
+          format: openapi
+          fail_action: false
+          cmd_options: '-a'
+          artifact_name: zap-api-scan-report
+
+      - name: Upload ZAP report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-api-report
+          path: report_html.html

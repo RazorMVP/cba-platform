@@ -1,0 +1,11 @@
+{
+  "name": "CoreBanking-Nubeero",
+  "id": "1564743525127239173",
+  "api": "1.0.0",
+  "main": "code.js",
+  "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "networkAccess": {
+    "allowedDomains": ["none"]
+  }
+}

@@ -1,0 +1,74 @@
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+
+# ── Environment / Secrets ─────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.env
+
+# ── Backend (Java / Maven) ────────────────────────────────────────────────────
+backend/target/
+backend/.mvn/wrapper/maven-wrapper.jar
+backend/*.class
+backend/hs_err_pid*
+
+# ── Web (Angular / Node) ──────────────────────────────────────────────────────
+web/node_modules/
+web/dist/
+web/.angular/
+web/coverage/
+web/.env
+web/.env.local
+
+# ── Vercel ────────────────────────────────────────────────────────────────────
+# .vercel/ is committed when using vercel link --repo (contains project IDs)
+# Uncomment the line below ONLY if you store project IDs in GitHub Secrets instead
+# .vercel/
+
+# ── Mobile (Flutter / Dart) ───────────────────────────────────────────────────
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.packages
+mobile/build/
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/ios/.symlinks/
+mobile/ios/Pods/
+mobile/ios/Flutter/Generated.xcconfig
+mobile/ios/Flutter/ephemeral/
+mobile/pubspec.lock
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/settings.json
+*.suo
+*.user
+
+# ── Claude Code ───────────────────────────────────────────────────────────────
+# Skills and design assets are intentionally committed (they are project knowledge)
+# But exclude local session files if any appear
+.claude/todos/
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Test Artifacts ────────────────────────────────────────────────────────────
+web/playwright-report/
+web/test-results/
+
+# ── Security Scan Outputs (keep reports out of repo) ──────────────────────────
+**/dependency-check-report*
+**/spotbugsXml.xml
+**/trivy*.sarif

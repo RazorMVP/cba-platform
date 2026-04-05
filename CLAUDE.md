@@ -704,3 +704,30 @@ vercel pull --yes --environment=production
 # → Settings → Environments → Create "staging" and "production"
 # → Add required reviewers for "production" environment
 ```
+
+---
+
+## GitHub Token Management
+
+**Repo**: https://github.com/RazorMVP/cba-platform
+**Username**: RazorMVP
+
+### Token Storage
+The GitHub PAT is stored locally in `.claude/skills/cba/credentials.json`.
+This file is gitignored — it is NEVER committed or pushed to GitHub.
+
+### When the Token Expires
+1. Generate a new token at: https://github.com/settings/tokens
+   - Required scopes: `repo` (full), `workflow`, `write:packages`, `delete:packages`
+2. Update the token in `.claude/skills/cba/credentials.json`
+3. Re-apply to git remote:
+   ```bash
+   git remote set-url origin https://RazorMVP:{new-token}@github.com/RazorMVP/cba-platform.git
+   ```
+
+### Security Rule
+The token lives only in:
+- `.git/config` (local git config, never tracked)
+- `.claude/skills/cba/credentials.json` (gitignored)
+
+Never paste the token into any file that is tracked by git.

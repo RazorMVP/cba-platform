@@ -55,6 +55,7 @@ mobile/pubspec.lock
 # ── Claude Code ───────────────────────────────────────────────────────────────
 # Skills and design assets are intentionally committed (they are project knowledge)
 # But exclude local session files if any appear
+.claude/skills/cba/credentials.json
 .claude/todos/
 
 # ── Logs ──────────────────────────────────────────────────────────────────────

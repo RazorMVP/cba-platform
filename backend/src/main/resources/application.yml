@@ -1,0 +1,217 @@
+spring:
+  application:
+    name: cba-backend
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+---
+# ═══════════════════════════════════════════════════
+# DEV profile
+# ═══════════════════════════════════════════════════
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:cba_db}
+    username: ${DB_USERNAME:cba_user}
+    password: ${DB_PASSWORD:cba_pass}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+    validate-on-migrate: true
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://${KEYCLOAK_HOST:localhost}:${KEYCLOAK_PORT:8180}/realms/cba
+
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    properties:
+      mail.smtp.auth: false
+      mail.smtp.starttls.enable: false
+
+  cache:
+    type: simple
+
+server:
+  port: 8080
+  servlet:
+    context-path: /
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    oauth:
+      client-id: cba-web
+      realm: cba
+    try-it-out-enabled: true
+    operations-sorter: alpha
+    tags-sorter: alpha
+
+cba:
+  encryption:
+    secret-key: ${ENCRYPTION_KEY:changeme-32-char-secret-key!!!!}
+  pagination:
+    default-page-size: 20
+    max-page-size: 100
+  banking:
+    base-currency: USD
+    default-branch-code: "001"
+
+logging:
+  level:
+    com.cba: DEBUG
+    org.springframework.security: INFO
+    org.hibernate.SQL: WARN
+
+---
+# ═══════════════════════════════════════════════════
+# TEST profile (used by Testcontainers integration tests)
+# ═══════════════════════════════════════════════════
+spring:
+  config:
+    activate:
+      on-profile: test
+
+  datasource:
+    url: jdbc:tc:postgresql:16-alpine:///cba_test?TC_REUSABLE=true
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8180/realms/cba
+
+  mail:
+    host: localhost
+    port: 1025
+
+cba:
+  encryption:
+    secret-key: test-encryption-key-32-chars!!!!
+
+---
+# ═══════════════════════════════════════════════════
+# PROD profile
+# ═══════════════════════════════════════════════════
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI}
+
+  mail:
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+
+  cache:
+    type: redis
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+server:
+  port: 8080
+  ssl:
+    enabled: false   # TLS terminated at ingress
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: never
+
+cba:
+  encryption:
+    secret-key: ${ENCRYPTION_KEY}
+
+logging:
+  level:
+    com.cba: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN

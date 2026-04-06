@@ -1,0 +1,59 @@
+package com.cba.customer;
+
+import com.cba.common.audit.AuditableEntity;
+import com.cba.common.crypto.EncryptedStringConverter;
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDate;
+import java.util.UUID;
+
+@Entity
+@Table(name = "customers")
+@Getter
+@Setter
+@NoArgsConstructor
+public class Customer extends AuditableEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @Column(name = "tenant_id")
+    private UUID tenantId;
+
+    @Column(name = "external_id", unique = true, nullable = false, length = 50)
+    private String externalId;
+
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "first_name_encrypted", nullable = false)
+    private String firstName;
+
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "last_name_encrypted", nullable = false)
+    private String lastName;
+
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "email_encrypted", nullable = false)
+    private String email;
+
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "phone_encrypted")
+    private String phone;
+
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "national_id_encrypted")
+    private String nationalId;
+
+    @Column(name = "date_of_birth")
+    private LocalDate dateOfBirth;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "kyc_status", nullable = false, length = 20)
+    private KycStatus kycStatus = KycStatus.PENDING_KYC;
+
+    @Column(name = "notes", columnDefinition = "TEXT")
+    private String notes;
+}

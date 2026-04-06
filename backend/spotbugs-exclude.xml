@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+
+    <!-- DTOs and records have intentional field access patterns -->
+    <Match>
+        <Class name="~com\.cba\..*\.dto\..*"/>
+        <Bug category="STYLE"/>
+    </Match>
+
+    <!-- Lombok-generated code -->
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+        <Class name="~com\.cba\..*"/>
+    </Match>
+
+    <!-- Spring @Autowired on AttributeConverter is by design -->
+    <Match>
+        <Class name="com.cba.common.crypto.EncryptedStringConverter"/>
+        <Bug pattern="UWF_UNWRITTEN_FIELD"/>
+    </Match>
+
+</FindBugsFilter>

@@ -171,6 +171,9 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 - Deposit products: account type, minimum balance, interest rate, compounding frequency
 - Repayment types: `ANNUITY`, `FLAT`, `DECLINING_BALANCE`
 - Interest compounding: `DAILY`, `MONTHLY`, `ANNUALLY`
+- Full REST CRUD: `GET/POST/PUT/DELETE /api/v1/loan-products` and `/api/v1/deposit-products`
+- `ProductService` validates ranges: `minPrincipal ≤ maxPrincipal`, `defaultInterestRate` within `[min, max]`, `minTermMonths ≤ maxTermMonths`
+- ADMIN role required for writes; all authenticated roles can read
 
 ### 6. Open Banking Module (FAPI 2.0)
 - UK Open Banking v3.1 compliant endpoints
@@ -180,6 +183,9 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 - CBPII: funds-confirmation
 - Each TPP access requires a `Consent` record with scopes and expiry
 - Consent flow: `AWAITING_AUTHORISATION → AUTHORISED → REVOKED`
+- **Implementation (Option A — API-only):** `ConsentController` exposes `POST /consents`, `GET /consents/{id}`, `PUT /consents/{id}/authorise`, `DELETE /consents/{id}`; no OAuth2 redirect in backend — frontend/Keycloak owns the redirect
+- `ConsentService.validatePispConsent()` checks status=AUTHORISED, scope includes `payments`, and expiry not passed before any PISP call
+- `CbpiiController` checks balance ≥ requested amount without moving funds; returns `fundsAvailable: true/false`
 
 ### 7. Notification Module
 - Event-driven via Spring `@EventListener` + `@Async`
@@ -194,10 +200,14 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 - `AuditLogService` always uses `@Transactional(propagation = REQUIRES_NEW)`
 
 ### 9. Teller / Cash Management Module (from Mifos)
-- Teller creation and management
-- Cashier management and cash allocation
-- Cash settlement and transaction tracking
-- Endpoints: `POST /api/v1/tellers`, `POST /api/v1/tellers/{id}/cashiers`
+- Teller creation and management (`INACTIVE → ACTIVE → CLOSED`)
+- Cashier management: assign staff to a teller desk with optional shift hours
+- Full session lifecycle: open session with opening float → cash-in/cash-out transactions → close with settlement reconciliation
+- Settlement: `closing_balance = opening_balance + Σ(CASH_IN) - Σ(CASH_OUT)`; `difference = actual_cash - closing_balance`
+- DB constraint: `UNIQUE (cashier_id, session_date)` — one session per cashier per day
+- Cash transactions optionally linked to a customer `Account`; account balance and immutable `Transaction` record updated atomically
+- Endpoints: `POST /api/v1/tellers`, `POST /api/v1/tellers/{id}/activate`, `POST /api/v1/tellers/{id}/cashiers`, `POST /api/v1/tellers/{id}/cashiers/{cId}/sessions`, `POST /api/v1/tellers/{id}/sessions/{sId}/transactions`, `POST /api/v1/tellers/{id}/sessions/{sId}/settle`
+- Flyway migration: `V5__teller_module.sql`
 
 ### 10. Group & Center Module (from Mifos — for microfinance use cases)
 - Group creation, activation, staff assignment

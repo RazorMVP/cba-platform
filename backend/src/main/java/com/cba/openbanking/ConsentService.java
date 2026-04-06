@@ -1,0 +1,138 @@
+package com.cba.openbanking;
+
+import com.cba.account.Account;
+import com.cba.account.AccountRepository;
+import com.cba.audit.AuditLogService;
+import com.cba.common.exception.CbaException;
+import com.cba.customer.Customer;
+import com.cba.customer.CustomerRepository;
+import com.cba.openbanking.dto.*;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+public class ConsentService {
+
+    private final ConsentRepository consentRepository;
+    private final CustomerRepository customerRepository;
+    private final AccountRepository accountRepository;
+    private final AuditLogService auditLogService;
+
+    // ── Consent lifecycle ────────────────────────────────────────────
+
+    @Transactional
+    public ConsentResponse createConsent(ConsentRequest request) {
+        Customer customer = customerRepository.findById(request.customerId())
+                .orElseThrow(() -> CbaException.notFound("Customer", request.customerId()));
+
+        OpenBankingConsent consent = new OpenBankingConsent();
+        consent.setConsentId("ob-" + UUID.randomUUID().toString().replace("-", "").substring(0, 18));
+        consent.setCustomer(customer);
+        consent.setTppClientId(request.tppClientId());
+        consent.setScopes(request.scopes());
+        consent.setStatus(ConsentStatus.AWAITING_AUTHORISATION);
+        consent.setExpiryDate(request.expiryDate());
+
+        OpenBankingConsent saved = consentRepository.save(consent);
+        auditLogService.log("OpenBankingConsent", saved.getConsentId(), "CREATE", null, saved);
+        return ConsentResponse.from(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public ConsentResponse getConsent(String consentId) {
+        return ConsentResponse.from(findByConsentId(consentId));
+    }
+
+    /**
+     * Authorise a consent — simulates the customer approving the TPP's access request.
+     * In a full FAPI 2.0 flow the redirect back from Keycloak triggers this; here it is
+     * called directly (Option A — API-only, no OAuth redirect in backend).
+     */
+    @Transactional
+    public ConsentResponse authoriseConsent(String consentId) {
+        OpenBankingConsent consent = findByConsentId(consentId);
+
+        if (consent.getStatus() != ConsentStatus.AWAITING_AUTHORISATION) {
+            throw CbaException.conflict("CONSENT_NOT_AWAITING",
+                    "Consent " + consentId + " cannot be authorised in status " + consent.getStatus());
+        }
+
+        consent.setStatus(ConsentStatus.AUTHORISED);
+        OpenBankingConsent saved = consentRepository.save(consent);
+        auditLogService.log("OpenBankingConsent", consentId, "AUTHORISE", null, saved);
+        return ConsentResponse.from(saved);
+    }
+
+    @Transactional
+    public ConsentResponse revokeConsent(String consentId) {
+        OpenBankingConsent consent = findByConsentId(consentId);
+
+        if (consent.getStatus() == ConsentStatus.REVOKED) {
+            throw CbaException.conflict("CONSENT_ALREADY_REVOKED", "Consent " + consentId + " is already revoked");
+        }
+
+        consent.setStatus(ConsentStatus.REVOKED);
+        OpenBankingConsent saved = consentRepository.save(consent);
+        auditLogService.log("OpenBankingConsent", consentId, "REVOKE", null, saved);
+        return ConsentResponse.from(saved);
+    }
+
+    // ── PISP: Domestic Payment Initiation ────────────────────────────
+
+    @Transactional(readOnly = true)
+    public void validatePispConsent(String consentId) {
+        OpenBankingConsent consent = findByConsentId(consentId);
+        if (consent.getStatus() != ConsentStatus.AUTHORISED) {
+            throw CbaException.forbidden("Consent " + consentId + " is not authorised for payment initiation");
+        }
+        if (!consent.getScopes().contains("payments")) {
+            throw CbaException.forbidden("Consent does not include 'payments' scope");
+        }
+        if (consent.getExpiryDate() != null && consent.getExpiryDate().isBefore(Instant.now())) {
+            throw CbaException.badRequest("CONSENT_EXPIRED", "Consent " + consentId + " has expired");
+        }
+    }
+
+    // ── CBPII: Funds Confirmation ────────────────────────────────────
+
+    public FundsConfirmationResponse confirmFunds(FundsConfirmationRequest request) {
+        OpenBankingConsent consent = findByConsentId(request.consentId());
+
+        if (consent.getStatus() != ConsentStatus.AUTHORISED) {
+            throw CbaException.forbidden("Consent " + request.consentId() + " is not authorised");
+        }
+        if (!consent.getScopes().contains("fundsconfirmation")) {
+            throw CbaException.forbidden("Consent does not include 'fundsconfirmation' scope");
+        }
+        if (consent.getExpiryDate() != null && consent.getExpiryDate().isBefore(Instant.now())) {
+            throw CbaException.badRequest("CONSENT_EXPIRED", "Consent has expired");
+        }
+
+        Account account = accountRepository.findById(request.accountId())
+                .orElseThrow(() -> CbaException.notFound("Account", request.accountId()));
+
+        boolean fundsAvailable = account.getBalance().compareTo(request.amount()) >= 0;
+
+        return new FundsConfirmationResponse(
+                "fc-" + UUID.randomUUID().toString().replace("-", "").substring(0, 18),
+                request.consentId(),
+                fundsAvailable,
+                request.accountId(),
+                request.amount(),
+                request.currency(),
+                Instant.now()
+        );
+    }
+
+    // ── Private helpers ──────────────────────────────────────────────
+
+    private OpenBankingConsent findByConsentId(String consentId) {
+        return consentRepository.findByConsentId(consentId)
+                .orElseThrow(() -> CbaException.notFound("Consent", consentId));
+    }
+}

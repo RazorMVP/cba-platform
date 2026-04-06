@@ -15,7 +15,9 @@
 | **Account Module** | `account/Account.java`, `AccountService`, `AccountController`, `AccountRepository`, `Transaction`, `TransactionRepository`, `AccountNumberGenerator`, `AccountType`, `AccountStatus`, DTOs | Double-entry transactions; `SELECT FOR UPDATE`; number format `{branch}-{type}-{seq}` |
 | **Loan Module** | `loan/Loan.java`, `LoanService`, `LoanController`, `LoanRepository`, `LoanRepaymentSchedule`, `RepaymentScheduleEngine`, `LoanStatus`, DTOs | Annuity EMI `P×r×(1+r)^n/((1+r)^n-1)`; full status lifecycle |
 | **Payment Module** | `payment/Payment.java`, `PaymentService`, `PaymentController`, `PaymentRepository`, `PaymentType`, `PaymentStatus`, DTOs | Double-entry; deadlock-safe UUID lock ordering; cross-currency support |
-| **Product Module** | `product/LoanProduct.java`, `DepositProduct.java`, `LoanProductRepository`, `DepositProductRepository`, `RepaymentType`, `InterestCompounding`, `DepositAccountType` | Entities and repos present; **Controller not yet built** |
+| **Product Module** | `product/LoanProduct.java`, `DepositProduct.java`, `LoanProductRepository`, `DepositProductRepository`, `RepaymentType`, `InterestCompounding`, `DepositAccountType`, `ProductService`, `ProductController`, DTOs | Full CRUD: `GET/POST/PUT/DELETE /api/v1/loan-products` and `/api/v1/deposit-products`; range validation; audit logging |
+| **Teller / Cash Management** | `teller/Teller`, `Cashier`, `TellerSession`, `CashTransaction`, repositories, `TellerService`, `TellerController`, DTOs; `V5__teller_module.sql` | Full session lifecycle: create teller → activate → assign cashier → open session → cash-in/cash-out → settle; mirrors Mifos pattern |
+| **Open Banking (FAPI 2.0)** | `openbanking/OpenBankingConsent`, `ConsentStatus`, `ConsentRepository`, `ConsentService`, `ConsentController`, `AccountInfoController`, `PispController`, `CbpiiController`, DTOs | Full stack: consent lifecycle + AISP (accounts/balances/transactions) + PISP (domestic-payments) + CBPII (funds-confirmation) |
 | **Notification Module** | `notification/AccountEvent`, `LoanEvent`, `NotificationEventListener` | Spring `@EventListener` + `@Async`; hooks for account/loan events |
 | **Audit Module** | `audit/AuditLog`, `AuditLogRepository`, `AuditLogService` | Append-only; `@Transactional(REQUIRES_NEW)`; 7-year retention policy |
 | **Multi-Currency / Tenant** | `currency/ExchangeRate`, `ExchangeRateService`, `ExchangeRateController`, `ExchangeRateRepository`, DTOs; `tenant/Tenant`, `TenantService`, `TenantInterceptor`, `TenantRepository`; `common/tenant/TenantContext` | Tenant base currency; auto-inverse rates; cross-currency transfers; `X-Tenant-ID` header routing |
@@ -28,10 +30,7 @@
 
 ### ⚠️ Partially Built
 
-| Module | What Exists | What's Missing |
-|--------|-------------|----------------|
-| **Open Banking (FAPI 2.0)** | `openbanking/OpenBankingConsent`, `ConsentStatus`, `AccountInfoController` (AISP accounts endpoint) | `ConsentService`, AISP balances/transactions, PISP (domestic-payments), CBPII (funds-confirmation), consent flow endpoints (`POST /consents`, `PUT /consents/{id}/authorise`) |
-| **Product Module** | All entities and repositories | `ProductController` for CRUD on loan products and deposit products via REST |
+_None — all Phase 1 backend modules are now complete._
 
 ---
 
@@ -39,7 +38,6 @@
 
 | Component | Required by CLAUDE.md | Priority |
 |-----------|----------------------|----------|
-| **Teller / Cash Management Module** | `POST /api/v1/tellers`, cashier allocation, cash settlement | Phase 1 backend gap |
 | **Group & Center Module** | Group creation/activation, collection sheets, GLIM | Phase 1 backend gap (microfinance) |
 | **Infrastructure — Docker Compose** | `infrastructure/docker-compose.yml` with postgres, keycloak, backend, web, mailhog | Phase 4 |
 | **Infrastructure — Kubernetes** | `infrastructure/k8s/` namespace, deployments, services, ingress, HPA, sealed secrets | Phase 4 |
@@ -50,6 +48,43 @@
 ---
 
 ## Change History
+
+### Session 4 — 2026-04-06
+
+**Backend gap closure: Product Controller, Open Banking completion, Teller/Cash Management + Postman collection**
+
+#### Added
+- `backend/src/main/java/com/cba/product/ProductService.java` — CRUD service for loan and deposit products with range validation (`minPrincipal ≤ maxPrincipal`, default rate within range, term bounds)
+- `backend/src/main/java/com/cba/product/ProductController.java` — `GET/POST/PUT/DELETE /api/v1/loan-products` and `/api/v1/deposit-products`; ADMIN writes, all roles read
+- `backend/src/main/java/com/cba/product/dto/` — `LoanProductRequest`, `LoanProductResponse`, `DepositProductRequest`, `DepositProductResponse` records
+- `backend/src/main/java/com/cba/openbanking/ConsentRepository.java` — `findByConsentId(String)` lookup
+- `backend/src/main/java/com/cba/openbanking/ConsentService.java` — `createConsent`, `getConsent`, `authoriseConsent`, `revokeConsent`, `validatePispConsent`, `confirmFunds`; `consentId` generated as `ob-{18-char-hex}`
+- `backend/src/main/java/com/cba/openbanking/ConsentController.java` — `POST /open-banking/v3.1/consents`, `GET /{id}`, `PUT /{id}/authorise`, `DELETE /{id}` (revoke)
+- `backend/src/main/java/com/cba/openbanking/PispController.java` — `POST /open-banking/v3.1/pisp/domestic-payments`, `GET /domestic-payments/{id}`; delegates to `PaymentService.transfer()` after consent validation
+- `backend/src/main/java/com/cba/openbanking/CbpiiController.java` — `POST /open-banking/v3.1/cbpii/funds-confirmations`; confirms sufficient balance without moving funds
+- `backend/src/main/java/com/cba/openbanking/dto/` — `ConsentRequest`, `ConsentResponse`, `DomesticPaymentRequest`, `DomesticPaymentResponse`, `FundsConfirmationRequest`, `FundsConfirmationResponse`
+- `backend/src/main/resources/db/migration/V5__teller_module.sql` — Creates `tellers`, `cashiers`, `teller_sessions` (UNIQUE on cashier+date), `cash_transactions` tables with full indexes
+- `backend/src/main/java/com/cba/teller/` — Full teller module: `Teller`, `Cashier`, `TellerSession`, `CashTransaction` entities; `TellerStatus`, `SessionStatus`, `CashTransactionType` enums; 4 repositories; `TellerService`; `TellerController`; 9 DTO records
+- `docs/cba-postman-collection.json` — 127KB Postman collection: 14 folders, 50+ requests; collection variables (`base_url`, `access_token`, `tenant_id`); Bearer token auth; 8 language code samples per key request (cURL, JavaScript/fetch, Python/requests, Java/OkHttp, C#/HttpClient, PHP/cURL, Go/net/http, Ruby/Net::HTTP)
+
+#### Key design decisions
+- **Open Banking Option A** — API-only consent flow; no OAuth2 redirect handling in backend (frontend/Keycloak owns the redirect); `PUT /consents/{id}/authorise` simulates customer approval step
+- **Teller session uniqueness** — `UNIQUE (cashier_id, session_date)` enforced at DB level; one cashier can only open one session per day
+- **Settlement formula** — `closing_balance = opening_balance + Σ(CASH_IN) - Σ(CASH_OUT)`; `difference = actual_cash - closing_balance` records variance for reconciliation
+- **Cash transaction mirrors account ledger** — When `accountId` is provided, `TellerService` also updates `Account.balance` and writes an immutable `Transaction` record via `Transaction.of()` factory
+- **PISP passes consent audit trail** — `createdBy` is set to `open-banking:{consentId}` so payment audit log identifies PISP-initiated transfers
+
+#### Architecture compliance additions
+| Requirement | Status |
+|-------------|--------|
+| Product REST CRUD | ✅ `ProductController` |
+| Open Banking consent lifecycle | ✅ `ConsentService` + `ConsentController` |
+| PISP domestic-payments | ✅ `PispController` |
+| CBPII funds-confirmation | ✅ `CbpiiController` |
+| Teller module | ✅ Full session lifecycle |
+| Postman collection (8 languages) | ✅ `docs/cba-postman-collection.json` |
+
+---
 
 ### Session 3 — 2026-04-06
 
@@ -178,7 +213,12 @@
 | Testcontainers (no mock DB) | ✅ | `AbstractIntegrationTest` |
 | No PII in logs | ✅ | Encrypted PII never logged directly |
 | ENCRYPTION_KEY from environment | ✅ | `FieldEncryptor` reads env var |
-| Teller module | ❌ | Not built |
+| Teller module | ✅ | `TellerController` + session lifecycle (`V5__teller_module.sql`) |
+| Product REST endpoints | ✅ | `ProductController` — `GET/POST/PUT/DELETE /api/v1/loan-products` + deposit-products |
+| Open Banking consent lifecycle | ✅ | `ConsentService` + `ConsentController` (AWAITING_AUTHORISATION → AUTHORISED → REVOKED) |
+| PISP domestic-payments | ✅ | `PispController` — validates consent then delegates to `PaymentService` |
+| CBPII funds-confirmation | ✅ | `CbpiiController` — balance check without fund movement |
+| Postman collection (8 languages) | ✅ | `docs/cba-postman-collection.json` — 14 folders, 50+ requests |
 | Group & Center module | ❌ | Not built |
 | CoB batch processing | ❌ | Not built |
 | Docker Compose | ❌ | Not built |

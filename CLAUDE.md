@@ -207,6 +207,57 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 
 ---
 
+## Multi-Currency Architecture
+
+The platform supports multi-currency deployment. Each tenant has a **base currency** (ISO 4217). Accounts default to the tenant's base currency but tellers can override per account for foreign-currency accounts.
+
+### Tenant Base Currency
+
+- Currency is configured per tenant (branch/country deployment)
+- Stored in `tenants.currency_code` (ISO 4217, e.g. `KES`, `GHS`, `USD`)
+- Demo tenants: `CBA United States` (USD), `CBA Kenya` (KES), `CBA Ghana` (GHS)
+- Passed per request via `X-Tenant-ID` header → `TenantInterceptor` → `TenantContext` (ThreadLocal)
+- `TenantService.getBaseCurrency(tenantCode)` returns the ISO code; falls back to USD on error
+
+### Exchange Rate Management
+
+- Rates are admin-managed (simple table, manual update via `POST /api/v1/exchange-rates`)
+- Convention: 1 `fromCurrency` = rate `toCurrency` (e.g. USD/KES = 135.50)
+- Inverse rate is **auto-generated** on every `setRate()` call — admins only set one direction
+- Stored with 8 decimal places (`NUMERIC(19,8)`) for precision on exotic pairs
+- Rates can be deactivated (`DELETE /api/v1/exchange-rates/{from}/{to}`) — cross-currency transfers will fail until re-set
+- See `ExchangeRateService.getRate()`: throws `EXCHANGE_RATE_NOT_CONFIGURED` when no active rate exists
+
+### Cross-Currency Transfers
+
+Flow for a transfer from a KES account to a USD account:
+1. `PaymentService.transfer()` detects `srcCcy != dstCcy`
+2. Calls `ExchangeRateService.convert(amount, "KES", "USD")`
+3. Source account debited by `amount` in KES
+4. Destination account credited by `convertedAmount` in USD
+5. `Payment` record stores: `sourceCurrency`, `sourceAmount`, `destinationCurrency`, `destinationAmount`, `exchangeRateUsed`, `isCrossCurrency = true`
+6. Two `Transaction` records created — each in the account's own currency
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `V3__multi_currency.sql` | Adds `currency_code` to tenants, `exchange_rates` table, cross-currency columns to payments |
+| `V4__multi_currency_demo_data.sql` | 3 tenant demo deployments + exchange rates (USD↔KES, USD↔GHS, KES↔GHS, USD↔EUR, USD↔GBP) |
+| `com.cba.tenant.TenantInterceptor` | Reads `X-Tenant-ID` header, sets `TenantContext`, clears on completion |
+| `com.cba.tenant.TenantService` | `getBaseCurrency(code)` cached with `@Cacheable("tenants")` |
+| `com.cba.currency.ExchangeRateService` | `setRate`, `getRate`, `convert`, `getAllRates`, `deactivateRate` |
+| `com.cba.currency.ExchangeRateController` | `POST/GET/DELETE /api/v1/exchange-rates` — ADMIN/TELLER roles |
+
+### Build Notes (Java 25 Compatibility)
+
+- **Lombok 1.18.38** — minimum version for Java 25 `TypeTag` fix (upgraded from 1.18.36)
+- **`.mvn/jvm.config`** — `--add-opens jdk.compiler/...` flags for Lombok's javac access
+- **Spring Security 6.1+** — `XssProtectionConfig` removed; X-XSS-Protection header dropped; CSP handles it
+- Always run `./mvnw clean compile` before committing to catch annotation processor regressions
+
+---
+
 ## Mifos API Conventions (from demo.mifos.io)
 
 These conventions are used in the Mifos/Fineract reference system. Mirror them in the CBA backend:

@@ -2,6 +2,7 @@ package com.cba.account;
 
 import com.cba.audit.AuditLogService;
 import com.cba.common.exception.CbaException;
+import com.cba.common.tenant.TenantContext;
 import com.cba.account.dto.AccountResponse;
 import com.cba.account.dto.OpenAccountRequest;
 import com.cba.account.dto.TransactionResponse;
@@ -11,6 +12,7 @@ import com.cba.customer.KycStatus;
 import com.cba.notification.AccountEvent;
 import com.cba.product.DepositProduct;
 import com.cba.product.DepositProductRepository;
+import com.cba.tenant.TenantService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -35,6 +37,7 @@ public class AccountService {
     private final AccountNumberGenerator accountNumberGenerator;
     private final AuditLogService auditLogService;
     private final ApplicationEventPublisher eventPublisher;
+    private final TenantService tenantService;
 
     @Transactional
     public AccountResponse openAccount(OpenAccountRequest request) {
@@ -54,7 +57,10 @@ public class AccountService {
         account.setCustomer(customer);
         account.setProduct(product);
         account.setAccountType(request.accountType());
-        account.setCurrencyCode(request.currencyCode() != null ? request.currencyCode() : "USD");
+        String resolvedCurrency = request.currencyCode() != null
+            ? request.currencyCode().toUpperCase()
+            : tenantService.getBaseCurrency(TenantContext.getTenant());
+        account.setCurrencyCode(resolvedCurrency);
 
         Account saved = accountRepository.save(account);
 

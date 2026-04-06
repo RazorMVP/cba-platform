@@ -8,7 +8,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer.FrameOptionsConfig;
-import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer.XssProtectionConfig;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
@@ -69,7 +68,7 @@ public class SecurityConfig {
             )
             .headers(headers -> headers
                 .frameOptions(FrameOptionsConfig::deny)
-                .xssProtection(XssProtectionConfig::disable) // Handled by CSP
+                // X-XSS-Protection header removed in Spring Security 6.1 — handled by CSP below
                 .contentSecurityPolicy(csp ->
                     csp.policyDirectives("default-src 'self'; frame-ancestors 'none'")
                 )

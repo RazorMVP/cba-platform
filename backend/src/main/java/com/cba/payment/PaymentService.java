@@ -8,6 +8,8 @@ import com.cba.account.TransactionRepository;
 import com.cba.account.TransactionType;
 import com.cba.audit.AuditLogService;
 import com.cba.common.exception.CbaException;
+import com.cba.currency.ExchangeRateService;
+import com.cba.currency.dto.ConversionResult;
 import com.cba.payment.dto.PaymentResponse;
 import com.cba.payment.dto.TransferRequest;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +19,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -29,11 +32,17 @@ public class PaymentService {
     private final AccountRepository accountRepository;
     private final TransactionRepository transactionRepository;
     private final AuditLogService auditLogService;
+    private final ExchangeRateService exchangeRateService;
 
     /**
-     * Double-entry internal transfer.
-     * Both accounts are locked with SELECT FOR UPDATE before any balance changes
-     * to prevent race conditions under concurrent requests.
+     * Double-entry internal transfer with cross-currency support.
+     *
+     * Same-currency: source debited and destination credited by the same amount.
+     * Cross-currency: source debited in source currency; destination credited in
+     *                 destination currency at the admin-configured exchange rate.
+     *
+     * Both accounts are locked with SELECT FOR UPDATE (deterministic UUID order)
+     * to prevent deadlocks under concurrent requests.
      */
     @Transactional
     public PaymentResponse transfer(TransferRequest request, String createdBy) {
@@ -42,7 +51,7 @@ public class PaymentService {
                 "Source and destination accounts must differ");
         }
 
-        // Lock both accounts — order by UUID string to prevent deadlocks
+        // Lock both accounts — order by UUID to prevent deadlocks
         UUID firstId  = min(request.sourceAccountId(), request.destinationAccountId());
         UUID secondId = max(request.sourceAccountId(), request.destinationAccountId());
 
@@ -57,6 +66,23 @@ public class PaymentService {
         validateAccountForDebit(source);
         validateAccountActive(destination);
 
+        String srcCcy = source.getCurrencyCode();
+        String dstCcy = destination.getCurrencyCode();
+        boolean isCrossCurrency = !srcCcy.equalsIgnoreCase(dstCcy);
+
+        // Resolve the amount to credit to the destination account
+        BigDecimal creditAmount;
+        ConversionResult conversion = null;
+
+        if (isCrossCurrency) {
+            conversion = exchangeRateService.convert(request.amount(), srcCcy, dstCcy);
+            creditAmount = conversion.convertedAmount();
+            log.info("Cross-currency transfer: {} {} → {} {} (rate={})",
+                request.amount(), srcCcy, creditAmount, dstCcy, conversion.rateUsed());
+        } else {
+            creditAmount = request.amount();
+        }
+
         // Create payment record
         Payment payment = new Payment();
         payment.setReferenceNumber("PAY-" + System.currentTimeMillis());
@@ -64,25 +90,35 @@ public class PaymentService {
         payment.setSourceAccount(source);
         payment.setDestinationAccount(destination);
         payment.setAmount(request.amount());
-        payment.setCurrencyCode(source.getCurrencyCode());
+        payment.setCurrencyCode(srcCcy);
         payment.setDescription(request.description());
         payment.setStatus(PaymentStatus.PROCESSING);
         payment.setCreatedBy(createdBy);
+        payment.setCrossCurrency(isCrossCurrency);
+
+        if (isCrossCurrency && conversion != null) {
+            payment.setSourceCurrency(srcCcy);
+            payment.setSourceAmount(request.amount());
+            payment.setDestinationCurrency(dstCcy);
+            payment.setDestinationAmount(creditAmount);
+            payment.setExchangeRateUsed(conversion.rateUsed());
+        }
+
         payment = paymentRepository.save(payment);
 
-        // Apply double-entry debits/credits
+        // Apply double-entry: debit source in source currency, credit destination in its currency
         source.debit(request.amount());
-        destination.credit(request.amount());
+        destination.credit(creditAmount);
         accountRepository.save(source);
         accountRepository.save(destination);
 
-        // Create immutable transaction records
+        // Immutable transaction records (each account's ledger in its own currency)
         String ref = payment.getReferenceNumber();
         transactionRepository.save(Transaction.of(source, TransactionType.TRANSFER_DEBIT,
             request.amount(), source.getBalance(),
             "Transfer to " + destination.getAccountNumber(), ref, createdBy));
         transactionRepository.save(Transaction.of(destination, TransactionType.TRANSFER_CREDIT,
-            request.amount(), destination.getBalance(),
+            creditAmount, destination.getBalance(),
             "Transfer from " + source.getAccountNumber(), ref, createdBy));
 
         payment.setStatus(PaymentStatus.COMPLETED);
@@ -90,8 +126,8 @@ public class PaymentService {
         Payment completed = paymentRepository.save(payment);
 
         auditLogService.log("PAYMENT", completed.getId().toString(), "TRANSFER_EXECUTED", null, request);
-        log.info("Transfer completed: {} — {} {} from {} to {}",
-            ref, request.amount(), source.getCurrencyCode(),
+        log.info("Transfer completed: {} — {} {} → {} {} from {} to {}",
+            ref, request.amount(), srcCcy, creditAmount, dstCcy,
             source.getAccountNumber(), destination.getAccountNumber());
 
         return toResponse(completed);
@@ -135,7 +171,9 @@ public class PaymentService {
             p.getDestinationAccount() != null ? p.getDestinationAccount().getId() : null,
             p.getDestinationAccount() != null ? p.getDestinationAccount().getAccountNumber() : null,
             p.getAmount(), p.getCurrencyCode(), p.getDescription(),
-            p.getStatus(), p.getExecutedDate(), p.getCreatedAt()
+            p.getStatus(), p.getExecutedDate(), p.getCreatedAt(),
+            p.isCrossCurrency(), p.getSourceCurrency(), p.getSourceAmount(),
+            p.getDestinationCurrency(), p.getDestinationAmount(), p.getExchangeRateUsed()
         );
     }
 }

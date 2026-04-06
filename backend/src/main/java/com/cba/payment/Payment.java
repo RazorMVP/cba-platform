@@ -44,11 +44,32 @@ public class Payment {
     @JoinColumn(name = "destination_account_id")
     private Account destinationAccount;
 
+    /** Amount in the source account's currency */
     @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal amount;
 
     @Column(name = "currency_code", nullable = false, length = 3)
-    private String currencyCode = "USD";
+    private String currencyCode;
+
+    // --- Cross-currency fields (null for same-currency transfers) ---
+
+    @Column(name = "source_currency", length = 3)
+    private String sourceCurrency;
+
+    @Column(name = "source_amount", precision = 19, scale = 4)
+    private BigDecimal sourceAmount;
+
+    @Column(name = "destination_currency", length = 3)
+    private String destinationCurrency;
+
+    @Column(name = "destination_amount", precision = 19, scale = 4)
+    private BigDecimal destinationAmount;
+
+    @Column(name = "exchange_rate_used", precision = 19, scale = 8)
+    private BigDecimal exchangeRateUsed;
+
+    @Column(name = "is_cross_currency", nullable = false)
+    private boolean crossCurrency = false;
 
     @Column(columnDefinition = "TEXT")
     private String description;

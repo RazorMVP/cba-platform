@@ -20,5 +20,13 @@ public record PaymentResponse(
         String description,
         PaymentStatus status,
         Instant executedDate,
-        Instant createdAt
+        Instant createdAt,
+
+        // Cross-currency audit fields (null for same-currency transfers)
+        boolean crossCurrency,
+        String sourceCurrency,
+        BigDecimal sourceAmount,
+        String destinationCurrency,
+        BigDecimal destinationAmount,
+        BigDecimal exchangeRateUsed
 ) {}

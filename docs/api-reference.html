@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CBA Platform — API Reference</title>
+<style>
+:root {
+  --bg-app:#040609; --bg-sidebar:#0a1628; --bg-card:#ffffff;
+  --color-primary:#1e2833; --color-text:#000314; --color-muted:#888888;
+  --color-accent:#2563eb; --color-success:#16a34a; --color-warning:#d97706;
+  --color-danger:#dc2626; --font:"Instrument Sans",system-ui,sans-serif;
+  --sidebar-w:270px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg-app);color:var(--color-text);display:flex;min-height:100vh}
+a{color:var(--color-accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre{font-family:"JetBrains Mono","Fira Code",monospace;font-size:.875rem}
+pre{background:#0d1117;color:#e6edf3;border-radius:8px;padding:1rem;overflow-x:auto;margin:.75rem 0}
+pre code{background:none;padding:0;color:inherit}
+code{background:#f0f0f0;padding:.1em .3em;border-radius:3px;color:#c7254e}
+
+/* Sidebar */
+#sidebar{position:fixed;top:0;left:0;width:var(--sidebar-w);height:100vh;background:var(--bg-sidebar);overflow-y:auto;padding:1.5rem 0;z-index:100}
+#sidebar .logo{padding:.5rem 1.5rem 1.5rem;border-bottom:1px solid #1e3a5f}
+#sidebar .logo h1{color:#fff;font-size:1.1rem;font-weight:700;line-height:1.3}
+#sidebar .logo span{color:#5b8db8;font-size:.75rem}
+#sidebar nav{padding:.5rem 0}
+#sidebar nav a{display:block;padding:.45rem 1.5rem;color:#94afc7;font-size:.83rem;border-left:3px solid transparent;transition:all .15s}
+#sidebar nav a:hover{color:#fff;background:rgba(255,255,255,.06);text-decoration:none}
+#sidebar nav a.active{color:#60a5fa;border-left-color:#60a5fa;background:rgba(96,165,250,.08)}
+#sidebar nav .section-head{padding:.6rem 1.5rem .2rem;color:#3d6080;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+
+/* Main content */
+#main{margin-left:var(--sidebar-w);flex:1;background:#f8fafc;min-height:100vh}
+.page-header{background:var(--color-primary);color:#fff;padding:3rem 3rem 2rem;border-bottom:4px solid #2563eb}
+.page-header h1{font-size:2rem;font-weight:800;margin-bottom:.5rem}
+.page-header p{color:#94a3b8;font-size:1rem}
+.badge{display:inline-block;padding:.2em .6em;border-radius:999px;font-size:.72rem;font-weight:600;text-transform:uppercase}
+.badge-get{background:#dbeafe;color:#1d4ed8}
+.badge-post{background:#dcfce7;color:#15803d}
+.badge-put{background:#fef9c3;color:#92400e}
+.badge-delete{background:#fee2e2;color:#b91c1c}
+
+section{padding:3rem;border-bottom:1px solid #e2e8f0;scroll-margin-top:1rem}
+section:last-child{border-bottom:none}
+h2{font-size:1.5rem;font-weight:700;color:var(--color-primary);margin-bottom:1rem;padding-bottom:.5rem;border-bottom:2px solid #e2e8f0}
+h3{font-size:1.1rem;font-weight:600;color:#1e40af;margin:1.5rem 0 .5rem}
+h4{font-size:.95rem;font-weight:600;color:#374151;margin:1rem 0 .35rem}
+p{color:#374151;line-height:1.7;margin-bottom:.75rem}
+ul,ol{margin:.5rem 0 .75rem 1.5rem;color:#374151;line-height:1.8}
+
+table{border-collapse:collapse;width:100%;margin:.75rem 0 1rem;font-size:.875rem}
+th{background:#f1f5f9;text-align:left;padding:.6rem .85rem;border:1px solid #e2e8f0;font-weight:600;color:#1e3a5f}
+td{padding:.55rem .85rem;border:1px solid #e2e8f0;color:#374151;vertical-align:top}
+tr:nth-child(even) td{background:#f8fafc}
+
+/* Endpoint blocks */
+.endpoint{background:#fff;border:1px solid #e2e8f0;border-radius:10px;margin:.85rem 0;overflow:hidden}
+.endpoint-header{display:flex;align-items:center;gap:.75rem;padding:.8rem 1rem;cursor:pointer;user-select:none}
+.endpoint-header:hover{background:#f8fafc}
+.method{font-weight:700;font-size:.78rem;padding:.25em .7em;border-radius:5px;text-transform:uppercase;min-width:58px;text-align:center}
+.method.GET{background:#dbeafe;color:#1d4ed8}
+.method.POST{background:#dcfce7;color:#15803d}
+.method.PUT{background:#fef9c3;color:#92400e}
+.method.DELETE{background:#fee2e2;color:#b91c1c}
+.endpoint-path{font-family:monospace;font-size:.9rem;font-weight:600;color:#111827;flex:1}
+.endpoint-summary{color:#6b7280;font-size:.82rem}
+.endpoint-body{padding:1rem 1.1rem;border-top:1px solid #e2e8f0;display:none}
+details.endpoint[open] .endpoint-body{display:block}
+
+.callout{border-left:4px solid;border-radius:0 6px 6px 0;padding:.75rem 1rem;margin:.75rem 0;font-size:.875rem}
+.callout.info{border-color:#3b82f6;background:#eff6ff;color:#1e40af}
+.callout.warning{border-color:#f59e0b;background:#fffbeb;color:#92400e}
+.callout.success{border-color:#10b981;background:#ecfdf5;color:#065f46}
+.callout.danger{border-color:#ef4444;background:#fef2f2;color:#991b1b}
+
+.status-flow{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:.5rem 0 1rem;padding:.75rem 1rem;background:#f1f5f9;border-radius:8px}
+.status-pill{padding:.25em .8em;border-radius:999px;font-size:.78rem;font-weight:600;background:#e2e8f0;color:#374151}
+.status-pill.active{background:#dcfce7;color:#15803d}
+.status-pill.terminal{background:#fee2e2;color:#b91c1c}
+.status-pill.pending{background:#fef9c3;color:#92400e}
+.arrow{color:#94a3b8;font-size:.8rem}
+
+.lang-tabs{display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.5rem}
+.lang-tab{padding:.25em .7em;border-radius:6px 6px 0 0;background:#e5e7eb;font-size:.75rem;font-weight:600;cursor:pointer;color:#374151;border:none}
+.lang-tab:hover{background:#d1d5db}
+
+#toc-top{padding:1.5rem 3rem;background:#fff;border-bottom:1px solid #e2e8f0}
+#toc-top h3{font-size:1rem;color:#374151;margin-bottom:.75rem}
+#toc-top ul{columns:3;column-gap:2rem;list-style:none;margin:0;padding:0}
+#toc-top li{margin-bottom:.35rem}
+#toc-top a{font-size:.85rem;color:var(--color-accent)}
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav id="sidebar">
+  <div class="logo">
+    <h1>CBA Platform</h1>
+    <span>API Reference v2.0</span>
+  </div>
+  <nav>
+    <div class="section-head">Overview</div>
+    <a href="#introduction">Introduction</a>
+    <a href="#authentication">Authentication</a>
+    <a href="#general-options">General Options</a>
+    <a href="#request-conventions">Request Conventions</a>
+    <a href="#field-descriptions">Field Descriptions</a>
+    <a href="#errors">Error Handling</a>
+    <a href="#batch-api">Batch API</a>
+    <a href="#payment-logic">Payment Logic</a>
+    <div class="section-head">Modules</div>
+    <a href="#customers">Customers</a>
+    <a href="#accounts">Accounts</a>
+    <a href="#loans">Loans</a>
+    <a href="#payments">Payments &amp; Transfers</a>
+    <a href="#products">Products</a>
+    <a href="#teller">Teller / Cash Mgmt</a>
+    <a href="#open-banking">Open Banking (FAPI 2.0)</a>
+    <a href="#exchange-rates">Exchange Rates</a>
+    <a href="#audit">Audit Log</a>
+    <div class="section-head">Roadmap</div>
+    <a href="#self-service">Self Service (Planned)</a>
+    <a href="#groups">Groups &amp; Centers (Planned)</a>
+    <a href="#accounting">GL Accounting (Planned)</a>
+    <a href="#fullapi">Full API Matrix</a>
+  </nav>
+</nav>
+
+<!-- Main -->
+<main id="main">
+
+<div class="page-header">
+  <h1>Core Banking Application (CBA) — API Reference</h1>
+  <p>Production-grade core banking API · Apache Fineract / Mifos X conventions · FAPI 2.0 compliant · v2.0.0</p>
+</div>
+
+<div id="toc-top">
+  <h3>Quick Navigation</h3>
+  <ul>
+    <li><a href="#introduction">Introduction</a></li>
+    <li><a href="#authentication">Authentication</a></li>
+    <li><a href="#general-options">General Options</a></li>
+    <li><a href="#request-conventions">Request Conventions</a></li>
+    <li><a href="#field-descriptions">Field Descriptions</a></li>
+    <li><a href="#errors">Error Handling</a></li>
+    <li><a href="#batch-api">Batch API</a></li>
+    <li><a href="#payment-logic">Payment Logic</a></li>
+    <li><a href="#customers">Customers</a></li>
+    <li><a href="#accounts">Accounts</a></li>
+    <li><a href="#loans">Loans</a></li>
+    <li><a href="#payments">Payments</a></li>
+    <li><a href="#products">Products</a></li>
+    <li><a href="#teller">Teller / Cash</a></li>
+    <li><a href="#open-banking">Open Banking</a></li>
+    <li><a href="#exchange-rates">Exchange Rates</a></li>
+    <li><a href="#audit">Audit Log</a></li>
+    <li><a href="#fullapi">Full API Matrix</a></li>
+  </ul>
+</div>
+
+<!-- INTRODUCTION ────────────────────────────────────────────────────────── -->
+<section id="introduction">
+<h2>Introduction</h2>
+<p>The <strong>CBA Platform</strong> is a production-grade, multi-tenanted Core Banking Application modelled on <a href="https://github.com/apache/fineract" target="_blank">Apache Fineract</a> and <a href="https://demo.mifos.io/api-docs/apiLive.htm" target="_blank">Mifos X</a> conventions. It provides a secure RESTful API for building banking applications including backoffice portals, customer mobile apps, and third-party integrations via Open Banking (FAPI 2.0).</p>
+
+<h3>Base URLs</h3>
+<table>
+<tr><th>Environment</th><th>URL</th></tr>
+<tr><td>Development</td><td><code>http://localhost:8080</code></td></tr>
+<tr><td>Swagger UI (dev)</td><td><code>http://localhost:8080/swagger-ui.html</code></td></tr>
+<tr><td>OpenAPI Spec</td><td><code>http://localhost:8080/v3/api-docs</code></td></tr>
+</table>
+
+<h3>Interaction Pattern</h3>
+<p>The CBA API follows standard RESTful conventions:</p>
+<ul>
+<li><strong>GET</strong> — Retrieve resources (safe, idempotent)</li>
+<li><strong>POST</strong> — Create resources or execute commands (e.g., <code>approve</code>, <code>disburse</code>)</li>
+<li><strong>PUT</strong> — Update resources</li>
+<li><strong>DELETE</strong> — Remove or deactivate resources</li>
+</ul>
+<p>You can interact with GET endpoints directly from your browser. For POST, PUT, and DELETE operations, use a REST client such as Postman, Insomnia, or the Swagger UI at <code>/swagger-ui.html</code>.</p>
+
+<h3>Standard Response Envelope</h3>
+<p>All responses use the CBA envelope format:</p>
+<pre>{
+  "data": { ... },
+  "meta": { "page": 0, "size": 20, "total": 150 },
+  "errors": []
+}</pre>
+
+<h3>Multi-Tenancy</h3>
+<p>Every request must include the tenant identifier header:</p>
+<pre>X-Tenant-ID: default</pre>
+<table>
+<tr><th>Tenant ID</th><th>Description</th><th>Base Currency</th></tr>
+<tr><td><code>default</code></td><td>CBA United States</td><td>USD</td></tr>
+<tr><td><code>cba-kenya</code></td><td>CBA Kenya</td><td>KES</td></tr>
+<tr><td><code>cba-ghana</code></td><td>CBA Ghana</td><td>GHS</td></tr>
+</table>
+</section>
+
+<!-- AUTHENTICATION ─────────────────────────────────────────────────────── -->
+<section id="authentication">
+<h2>Authentication</h2>
+<p>The CBA platform uses <strong>OAuth 2.0 / OpenID Connect</strong> via <strong>Keycloak 23+</strong>. All API requests must include a valid Bearer token.</p>
+
+<div class="callout info">The platform also supports <strong>FAPI 2.0</strong> (PAR + DPoP + PKCE) for Open Banking endpoints. Standard backoffice endpoints use regular Bearer tokens.</div>
+
+<h3>Authentication Overview</h3>
+<p>Every API request must be authenticated. Unauthenticated requests return HTTP <code>401</code>. Requests authenticated but lacking the required role return HTTP <code>403</code>.</p>
+
+<h3>RBAC Roles</h3>
+<table>
+<tr><th>Role</th><th>Description</th><th>Typical User</th></tr>
+<tr><td><code>ADMIN</code></td><td>Full platform access — all modules, all operations</td><td>System administrators</td></tr>
+<tr><td><code>TELLER</code></td><td>Customer/account/loan/cash operations</td><td>Branch tellers, loan officers</td></tr>
+<tr><td><code>CUSTOMER</code></td><td>Own account data only (self-service)</td><td>End customers via mobile app</td></tr>
+<tr><td><code>API_CLIENT</code></td><td>Third-party TPP access via Open Banking</td><td>Fintech integrators</td></tr>
+</table>
+
+<h3>HTTP Basic Authentication (Reference Only)</h3>
+<p>For internal tooling and testing, Basic Auth is supported at the authentication endpoint:</p>
+<pre>POST /api/v1/authentication?username=admin@cba.com&amp;password=Admin@123
+Content-Type: application/x-www-form-urlencoded
+
+Returns: { "base64EncodedAuthenticationKey": "..." }</pre>
+<p>Use the returned key as: <code>Authorization: Basic {key}</code></p>
+
+<h3>OAuth2 — Resource Owner Password Grant (Recommended)</h3>
+<pre>POST http://localhost:8180/realms/cba/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+client_id=cba-web&amp;grant_type=password&amp;username=admin@cba.com&amp;password=Admin@123</pre>
+<p>Include the <code>access_token</code> from the response in all subsequent requests:</p>
+<pre>Authorization: Bearer &lt;access_token&gt;</pre>
+
+<h3>Demo Credentials</h3>
+<table>
+<tr><th>Role</th><th>Username</th><th>Password</th></tr>
+<tr><td>Admin</td><td>admin@cba.com</td><td>Admin@123</td></tr>
+<tr><td>Teller</td><td>teller@cba.com</td><td>Teller@123</td></tr>
+<tr><td>Customer</td><td>customer@cba.com</td><td>Customer@123</td></tr>
+</table>
+
+<h3>Token Lifecycle</h3>
+<ul>
+<li><strong>Access token lifespan</strong>: 300 seconds</li>
+<li><strong>Refresh token</strong>: Use <code>grant_type=refresh_token</code> to renew without re-authenticating</li>
+<li><strong>Brute force protection</strong>: Account locked after 5 failed login attempts</li>
+</ul>
+</section>
+
+<!-- GENERAL OPTIONS ─────────────────────────────────────────────────────── -->
+<section id="general-options">
+<h2>General Options</h2>
+<p>The API provides several convenience features modelled on Mifos API conventions.</p>
+
+<h3>Pagination</h3>
+<p>All list endpoints support pagination via query parameters:</p>
+<pre>GET /api/v1/customers?page=0&amp;size=20&amp;sort=createdAt,desc</pre>
+<table>
+<tr><th>Parameter</th><th>Default</th><th>Description</th></tr>
+<tr><td><code>page</code></td><td>0</td><td>Zero-based page index</td></tr>
+<tr><td><code>size</code></td><td>20</td><td>Records per page (max 100)</td></tr>
+<tr><td><code>sort</code></td><td>createdAt,desc</td><td>Field name + direction</td></tr>
+</table>
+
+<h3>Field Restriction</h3>
+<p>Use <code>?fields={fieldlist}</code> on GET requests to limit the fields returned:</p>
+<pre>GET /api/v1/customers?fields=id,firstName,lastName,email</pre>
+
+<h3>Pretty Formatting</h3>
+<p>Add <code>?pretty=true</code> to any GET request for formatted JSON output (development only):</p>
+<pre>GET /api/v1/customers/{{id}}?pretty=true</pre>
+
+<h3>Template Resources</h3>
+<p>Resources ending with <code>/template</code> return allowed values and field defaults — useful for building UI forms:</p>
+<pre>GET /api/v1/loan-products/template</pre>
+
+<h3>Filtering</h3>
+<p>Many endpoints support resource-specific filter parameters:</p>
+<pre>GET /api/v1/loans?customerId=&lt;uuid&gt;&amp;status=ACTIVE
+GET /api/v1/accounts?accountType=SAVINGS&amp;currencyCode=USD</pre>
+</section>
+
+<!-- REQUEST CONVENTIONS ─────────────────────────────────────────────────── -->
+<section id="request-conventions">
+<h2>Request Conventions</h2>
+
+<h3>Creating Resources</h3>
+<p>Supply at minimum all mandatory fields. The API returns <code>400</code> with field-level validation errors if mandatory fields are missing or invalid.</p>
+<pre>POST /api/v1/customers
+Content-Type: application/json
+Authorization: Bearer &lt;token&gt;
+X-Tenant-ID: default
+
+{
+  "firstName": "Jane",
+  "lastName": "Doe",
+  "email": "jane@example.com"
+}</pre>
+
+<h3>Updating Resources</h3>
+<p>Send only the fields you want to change. Fields not included in the request body are left unchanged:</p>
+<pre>PUT /api/v1/customers/{{id}}
+{
+  "email": "new.email@example.com"
+}</pre>
+
+<h3>Date Format</h3>
+<p>Dates in GET responses are returned as ISO 8601 strings (<code>"2026-04-07T00:00:00Z"</code>). Dates in POST/PUT requests must also be ISO 8601:</p>
+<pre>{
+  "dateOfBirth": "1985-03-15",
+  "loanStartDate": "2026-04-07T09:00:00Z"
+}</pre>
+<div class="callout info">Unlike the original Mifos API which uses <code>locale</code> + <code>dateFormat</code> parameters, the CBA API uses ISO 8601 dates directly — no locale parameter needed.</div>
+
+<h3>Monetary Amounts</h3>
+<p>All monetary amounts are sent and received as decimal strings with up to 4 decimal places:</p>
+<pre>{
+  "amount": "1500.00",
+  "interestRate": "12.5000"
+}</pre>
+<div class="callout warning">Never use floating-point numbers for monetary values. Always use strings or BigDecimal. Using JavaScript <code>Number</code> for large amounts risks precision loss.</div>
+
+<h3>Currency Codes</h3>
+<p>All currency codes use ISO 4217 (3-letter uppercase): <code>USD</code>, <code>KES</code>, <code>GHS</code>, <code>EUR</code>, <code>GBP</code>. If omitted, the tenant's base currency is used.</p>
+
+<h3>UUIDs</h3>
+<p>All resource identifiers are UUIDs (v4). Example: <code>550e8400-e29b-41d4-a716-446655440000</code></p>
+</section>
+
+<!-- FIELD DESCRIPTIONS ──────────────────────────────────────────────────── -->
+<section id="field-descriptions">
+<h2>Field Descriptions</h2>
+<p>Common fields used across CBA modules:</p>
+
+<h3>Customer Fields</h3>
+<table>
+<tr><th>Field</th><th>Type</th><th>Description</th></tr>
+<tr><td><code>id</code></td><td>UUID</td><td>Auto-generated unique identifier</td></tr>
+<tr><td><code>externalId</code></td><td>String</td><td>External system reference (must be unique if provided)</td></tr>
+<tr><td><code>firstName / lastName</code></td><td>String (encrypted)</td><td>Customer name — stored encrypted at field level</td></tr>
+<tr><td><code>email</code></td><td>String (encrypted)</td><td>Must be unique; stored encrypted</td></tr>
+<tr><td><code>nationalId</code></td><td>String (encrypted)</td><td>Government-issued ID; stored encrypted</td></tr>
+<tr><td><code>kycStatus</code></td><td>Enum</td><td>PENDING_KYC, ACTIVE, SUSPENDED, CLOSED</td></tr>
+<tr><td><code>createdAt / updatedAt</code></td><td>Instant</td><td>Auto-managed by JPA auditing</td></tr>
+<tr><td><code>version</code></td><td>Long</td><td>Optimistic locking version counter</td></tr>
+</table>
+
+<h3>Account Fields</h3>
+<table>
+<tr><th>Field</th><th>Type</th><th>Description</th></tr>
+<tr><td><code>accountNumber</code></td><td>String</td><td>Auto-generated: <code>{branch}-{type}-{seq}</code></td></tr>
+<tr><td><code>accountType</code></td><td>Enum</td><td>SAVINGS, CHECKING, FIXED_DEPOSIT</td></tr>
+<tr><td><code>balance</code></td><td>Decimal(19,4)</td><td>Current available balance</td></tr>
+<tr><td><code>currencyCode</code></td><td>ISO 4217</td><td>Defaults to tenant base currency</td></tr>
+<tr><td><code>status</code></td><td>Enum</td><td>ACTIVE, DORMANT, CLOSED</td></tr>
+<tr><td><code>minimumBalance</code></td><td>Decimal(19,4)</td><td>From product config; balance cannot fall below this</td></tr>
+</table>
+
+<h3>Loan Fields</h3>
+<table>
+<tr><th>Field</th><th>Type</th><th>Description</th></tr>
+<tr><td><code>principalAmount</code></td><td>Decimal(19,4)</td><td>Original loan amount</td></tr>
+<tr><td><code>outstandingBalance</code></td><td>Decimal(19,4)</td><td>Remaining amount to be repaid</td></tr>
+<tr><td><code>interestRate</code></td><td>Decimal(19,4)</td><td>Annual interest rate as percentage (e.g., 12.50 = 12.5%)</td></tr>
+<tr><td><code>termMonths</code></td><td>Integer</td><td>Loan duration in months</td></tr>
+<tr><td><code>repaymentType</code></td><td>Enum</td><td>ANNUITY, FLAT, DECLINING_BALANCE</td></tr>
+<tr><td><code>loanAccountNumber</code></td><td>String</td><td>Auto-generated unique loan reference</td></tr>
+</table>
+</section>
+
+<!-- ERRORS ──────────────────────────────────────────────────────────────── -->
+<section id="errors">
+<h2>Error Handling</h2>
+<p>The CBA API returns all errors as JSON with appropriate HTTP status codes, consistent with Mifos API conventions.</p>
+
+<h3>Error Response Format</h3>
+<pre>{
+  "data": null,
+  "meta": {},
+  "errors": [
+    {
+      "code": "ACCOUNT_NOT_FOUND",
+      "message": "Account 550e8400-e29b-41d4-a716-446655440000 not found",
+      "field": null
+    }
+  ]
+}</pre>
+
+<h3>HTTP Status Codes</h3>
+<table>
+<tr><th>Code</th><th>Status</th><th>When It Occurs</th></tr>
+<tr><td><code>200</code></td><td>OK</td><td>Successful GET, PUT</td></tr>
+<tr><td><code>201</code></td><td>Created</td><td>Successful POST (resource created)</td></tr>
+<tr><td><code>400</code></td><td>Bad Request</td><td>Validation error, invalid parameter, business rule violation</td></tr>
+<tr><td><code>401</code></td><td>Unauthorized</td><td>Missing or invalid authentication token</td></tr>
+<tr><td><code>403</code></td><td>Forbidden</td><td>Valid token but insufficient role/permission</td></tr>
+<tr><td><code>404</code></td><td>Not Found</td><td>Resource does not exist</td></tr>
+<tr><td><code>409</code></td><td>Conflict</td><td>Duplicate resource, state conflict (e.g., session already open)</td></tr>
+<tr><td><code>500</code></td><td>Server Error</td><td>Unexpected server error — check logs</td></tr>
+</table>
+
+<h3>Common Error Codes</h3>
+<table>
+<tr><th>Code</th><th>Module</th><th>Description</th></tr>
+<tr><td><code>ACCOUNT_NOT_FOUND</code></td><td>Accounts</td><td>The specified account UUID does not exist</td></tr>
+<tr><td><code>ACCOUNT_NOT_ACTIVE</code></td><td>Accounts</td><td>Account is closed or suspended</td></tr>
+<tr><td><code>INSUFFICIENT_FUNDS</code></td><td>Accounts / Payments</td><td>Balance too low for the requested operation</td></tr>
+<tr><td><code>LOAN_NOT_FOUND</code></td><td>Loans</td><td>The specified loan UUID does not exist</td></tr>
+<tr><td><code>LOAN_NOT_APPROVED</code></td><td>Loans</td><td>Cannot disburse a loan that is not approved</td></tr>
+<tr><td><code>SESSION_ALREADY_OPEN</code></td><td>Teller</td><td>Cashier already has an open session for today</td></tr>
+<tr><td><code>SESSION_NOT_OPEN</code></td><td>Teller</td><td>Session is closed — cannot record transactions</td></tr>
+<tr><td><code>TELLER_NOT_ACTIVE</code></td><td>Teller</td><td>Teller desk must be ACTIVE for this operation</td></tr>
+<tr><td><code>CONSENT_EXPIRED</code></td><td>Open Banking</td><td>The Open Banking consent has passed its expiry date</td></tr>
+<tr><td><code>CONSENT_NOT_AUTHORISED</code></td><td>Open Banking</td><td>Consent status is not AUTHORISED</td></tr>
+<tr><td><code>EXCHANGE_RATE_NOT_CONFIGURED</code></td><td>FX</td><td>No active rate exists for this currency pair</td></tr>
+<tr><td><code>INVALID_RANGE</code></td><td>Products</td><td>min/max/default values violate configured ranges</td></tr>
+</table>
+
+<h3>Validation Error (400) Format</h3>
+<pre>{
+  "data": null,
+  "meta": {},
+  "errors": [
+    { "code": "NOT_NULL", "message": "must not be null", "field": "firstName" },
+    { "code": "MIN", "message": "must be greater than 0.01", "field": "amount" }
+  ]
+}</pre>
+</section>
+
+<!-- BATCH API ──────────────────────────────────────────────────────────── -->
+<section id="batch-api">
+<h2>Batch API</h2>
+<p>Execute multiple API operations in a single HTTP request. Based on the <a href="https://demo.mifos.io/api-docs/apiLive.htm#batch_api" target="_blank">Mifos Batch API</a> pattern.</p>
+
+<div class="callout success">The Batch API is ideal for onboarding workflows: create customer → activate KYC → open account → apply for loan — all in one network round-trip.</div>
+
+<h3>Endpoint</h3>
+<pre>POST /api/v1/batches
+POST /api/v1/batches?enclosingTransaction=true  ← atomic (all-or-nothing)</pre>
+
+<h3>Request Structure</h3>
+<p>The request body is a JSON array of logical HTTP requests:</p>
+<table>
+<tr><th>Field</th><th>Required</th><th>Description</th></tr>
+<tr><td><code>requestId</code></td><td>Yes</td><td>Sequence identifier — determines execution order</td></tr>
+<tr><td><code>method</code></td><td>Yes</td><td>HTTP verb: GET, POST, PUT, DELETE</td></tr>
+<tr><td><code>relativeUrl</code></td><td>Yes</td><td>API path relative to base URL</td></tr>
+<tr><td><code>body</code></td><td>No</td><td>JSON request body (as string) for POST/PUT</td></tr>
+<tr><td><code>reference</code></td><td>No</td><td>requestId this request depends on</td></tr>
+<tr><td><code>headers</code></td><td>No</td><td>Additional headers array</td></tr>
+</table>
+
+<h3>Dependent Requests</h3>
+<p>Use <strong>JSON Path syntax</strong> to reference output from a prior request. For example, if request 1 creates a customer and returns <code>{"id": "abc-123"}</code>, request 2 can reference it as <code>$.id</code>:</p>
+<pre>[
+  {
+    "requestId": 1,
+    "method": "POST",
+    "relativeUrl": "/api/v1/customers",
+    "body": "{\"firstName\":\"Alice\",\"lastName\":\"Johnson\"}"
+  },
+  {
+    "requestId": 2,
+    "method": "POST",
+    "relativeUrl": "/api/v1/accounts",
+    "reference": 1,
+    "body": "{\"customerId\":\"$.id\",\"accountType\":\"SAVINGS\"}"
+  }
+]</pre>
+
+<h3>Atomic Execution</h3>
+<p>Adding <code>?enclosingTransaction=true</code> wraps all operations in a single database transaction. If any request fails, all successful operations are rolled back:</p>
+<pre>POST /api/v1/batches?enclosingTransaction=true</pre>
+
+<h3>Response Structure</h3>
+<p>Returns a JSON array of logical HTTP responses, one per request:</p>
+<pre>[
+  { "requestId": 1, "statusCode": 201, "body": "{\"id\":\"abc-123\",...}" },
+  { "requestId": 2, "statusCode": 201, "body": "{\"id\":\"def-456\",...}" }
+]</pre>
+
+<h3>Error Handling</h3>
+<ul>
+<li><strong>Without enclosingTransaction</strong>: Failed requests receive error codes; successful requests return 200/201</li>
+<li><strong>With enclosingTransaction</strong>: Any failure returns a single 400 with the first error; all changes are rolled back</li>
+</ul>
+</section>
+
+<!-- PAYMENT LOGIC ───────────────────────────────────────────────────────── -->
+<section id="payment-logic">
+<h2>Payment Application Logic</h2>
+<p>Based on the <a href="https://demo.mifos.io/api-docs/apiLive.htm#paymentapplicationlogic" target="_blank">Mifos payment application logic</a>. Governs how loan repayments are allocated across outstanding amounts.</p>
+
+<h3>Default Allocation Strategy</h3>
+<p>Repayments are applied in this order (Fineract <em>Mifos-style</em> strategy):</p>
+<ol>
+<li><strong>Outstanding fees and penalties</strong> — charges applied to the loan</li>
+<li><strong>Interest due</strong> — accrued interest for the current period</li>
+<li><strong>Principal due</strong> — outstanding principal installment</li>
+</ol>
+<div class="callout info">A partial payment first clears fees, then as much interest as possible, then principal. Overpayments are applied to future installments in the same order.</div>
+
+<h3>EMI Calculation</h3>
+<p>For ANNUITY repayment type, each installment is equal (Equated Monthly Installment):</p>
+<pre>EMI = P × r × (1+r)^n / ((1+r)^n - 1)
+
+Where:
+  P = Principal amount
+  r = Monthly interest rate (annual rate / 12 / 100)
+  n = Number of monthly installments</pre>
+
+<h3>Repayment Types</h3>
+<table>
+<tr><th>Type</th><th>Description</th><th>Use Case</th></tr>
+<tr><td><code>ANNUITY</code></td><td>Equal total installments; interest component decreases over time</td><td>Mortgages, personal loans</td></tr>
+<tr><td><code>FLAT</code></td><td>Fixed principal per period; total payment decreases over time</td><td>Simple commercial loans</td></tr>
+<tr><td><code>DECLINING_BALANCE</code></td><td>Interest calculated on outstanding balance each period</td><td>Islamic finance, revolving credit</td></tr>
+</table>
+
+<h3>Cross-Currency Payment Flow</h3>
+<p>When the source and destination accounts hold different currencies:</p>
+<ol>
+<li>System detects <code>srcCurrency ≠ dstCurrency</code></li>
+<li>Calls <code>ExchangeRateService.convert(amount, srcCcy, dstCcy)</code></li>
+<li>Source debited in source currency</li>
+<li>Destination credited in destination currency</li>
+<li>Payment record stores: <code>sourceCurrency</code>, <code>destinationCurrency</code>, <code>exchangeRateUsed</code>, <code>isCrossCurrency=true</code></li>
+<li>Two immutable Transaction records created — each in its account's currency</li>
+</ol>
+</section>
+
+<!-- CUSTOMERS ──────────────────────────────────────────────────────────── -->
+<section id="customers">
+<h2>Customers</h2>
+<p>Manages customer KYC onboarding, profile management, and identity verification.</p>
+
+<h3>Status Flow</h3>
+<div class="status-flow">
+  <span class="status-pill pending">PENDING_KYC</span>
+  <span class="arrow">→</span>
+  <span class="status-pill active">ACTIVE</span>
+  <span class="arrow">→</span>
+  <span class="status-pill pending">SUSPENDED</span>
+  <span class="arrow">→</span>
+  <span class="status-pill terminal">CLOSED</span>
+</div>
+
+<h3>Key Rules</h3>
+<ul>
+<li>All PII (name, email, phone, national ID) is encrypted at field level using AES-256</li>
+<li>Sensitive fields are masked in logs and audit records</li>
+<li>Closed customers cannot be reopened</li>
+<li>KYC status transitions are immutably logged in the audit trail</li>
+</ul>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/customers</span>
+    <span class="endpoint-summary">List all customers</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Returns a paginated list of customers. Supports <code>?page</code>, <code>?size</code>, <code>?sort</code> parameters.</p>
+    <h4>Query Parameters</h4>
+    <table><tr><th>Parameter</th><th>Default</th><th>Description</th></tr>
+    <tr><td>page</td><td>0</td><td>Page index</td></tr>
+    <tr><td>size</td><td>20</td><td>Results per page</td></tr>
+    <tr><td>sort</td><td>createdAt,desc</td><td>Sort field and direction</td></tr>
+    </table>
+    <h4>Example Response</h4>
+    <pre>{ "data": [{ "id": "...", "firstName": "Jane", "lastName": "Doe", "kycStatus": "ACTIVE" }], "meta": { "page": 0, "size": 20, "total": 142 }, "errors": [] }</pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/customers</span>
+    <span class="endpoint-summary">Create a customer</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Create a new customer. Status starts at <code>PENDING_KYC</code>.</p>
+    <h4>Request Body</h4>
+    <pre>{ "firstName": "Jane", "lastName": "Doe", "email": "jane@example.com", "phone": "+1-555-0123", "nationalId": "A12345678", "dateOfBirth": "1985-03-15" }</pre>
+    <h4>Required Role</h4><p>ADMIN</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method PUT">PUT</span>
+    <span class="endpoint-path">/api/v1/customers/{id}/kyc-status</span>
+    <span class="endpoint-summary">Update KYC status</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "kycStatus": "ACTIVE", "note": "Documents verified" }</pre>
+    <p>Valid transitions: PENDING_KYC→ACTIVE, ACTIVE→SUSPENDED, ACTIVE→CLOSED</p>
+  </div>
+</details>
+</section>
+
+<!-- ACCOUNTS ────────────────────────────────────────────────────────────── -->
+<section id="accounts">
+<h2>Accounts</h2>
+<p>Manages savings, checking, and fixed deposit accounts. Every debit/credit produces an immutable Transaction ledger record.</p>
+
+<h3>Account Number Format</h3>
+<pre>{branch_code}-{type_code}-{sequence}   e.g., 001-SAV-0001234</pre>
+
+<h3>Status Flow</h3>
+<div class="status-flow">
+  <span class="status-pill active">ACTIVE</span>
+  <span class="arrow">→</span>
+  <span class="status-pill pending">DORMANT</span>
+  <span class="arrow">→</span>
+  <span class="status-pill terminal">CLOSED</span>
+</div>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/accounts</span>
+    <span class="endpoint-summary">List accounts</span>
+  </summary>
+  <div class="endpoint-body"><p>Filter by <code>?customerId=&lt;uuid&gt;</code>, <code>?accountType=SAVINGS</code>, <code>?status=ACTIVE</code></p></div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/accounts</span>
+    <span class="endpoint-summary">Open an account</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "customerId": "...", "productId": "...", "accountType": "SAVINGS", "currencyCode": "USD", "openingBalance": "1000.00" }</pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/accounts/{id}/transactions</span>
+    <span class="endpoint-summary">Get transaction ledger</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Returns the immutable transaction history. Records cannot be deleted or modified.</p>
+    <pre>{ "data": [{ "id": "...", "transactionType": "DEPOSIT", "amount": "500.00", "runningBalance": "1500.00", "referenceNumber": "TXN-..." }] }</pre>
+  </div>
+</details>
+</section>
+
+<!-- LOANS ───────────────────────────────────────────────────────────────── -->
+<section id="loans">
+<h2>Loans</h2>
+<p>Full loan lifecycle: origination → disbursement → repayment → collections → closure.</p>
+
+<h3>Status Flow</h3>
+<div class="status-flow">
+  <span class="status-pill pending">SUBMITTED</span>
+  <span class="arrow">→</span>
+  <span class="status-pill pending">UNDER_REVIEW</span>
+  <span class="arrow">→</span>
+  <span class="status-pill pending">APPROVED</span>
+  <span class="arrow">→</span>
+  <span class="status-pill pending">DISBURSED</span>
+  <span class="arrow">→</span>
+  <span class="status-pill active">ACTIVE</span>
+  <span class="arrow">→</span>
+  <span class="status-pill terminal">CLOSED_OBLIGATIONS_MET</span>
+</div>
+<p style="margin-top:.5rem">Sub-state: <code>IN_ARREARS</code> &nbsp;·&nbsp; Terminal states: <code>WRITTEN_OFF</code>, <code>CLOSED_OBLIGATIONS_MET</code></p>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/loans</span>
+    <span class="endpoint-summary">Apply for a loan</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "customerId": "...", "productId": "...", "principalAmount": "10000.00", "termMonths": 12, "interestRate": "12.50", "repaymentType": "ANNUITY" }</pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/loans/{id}/approve</span>
+    <span class="endpoint-summary">Approve a loan</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "approvedAmount": "10000.00", "approvalNote": "Documents verified", "expectedDisbursementDate": "2026-04-10" }</pre>
+    <p>Generating repayment schedule. Requires ADMIN role.</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/loans/{id}/disburse</span>
+    <span class="endpoint-summary">Disburse a loan</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "disbursementDate": "2026-04-10", "disbursementAccountId": "..." }</pre>
+    <p>Funds are credited to the customer's account atomically.</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/loans/{id}/repayment-schedule</span>
+    <span class="endpoint-summary">Get repayment schedule</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Returns all installments with due dates, principal, interest, fees, and current status (PENDING / PAID / OVERDUE).</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/loans/{id}/repayments</span>
+    <span class="endpoint-summary">Make a repayment</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "amount": "950.00", "paymentDate": "2026-05-01", "paymentMethod": "BANK_TRANSFER" }</pre>
+    <p>Payment allocated: fees first → interest → principal.</p>
+  </div>
+</details>
+</section>
+
+<!-- PAYMENTS ────────────────────────────────────────────────────────────── -->
+<section id="payments">
+<h2>Payments &amp; Transfers</h2>
+<p>Internal account-to-account transfers, standing orders, and bill payments. Double-entry ledger — every transfer atomically debits source and credits destination.</p>
+
+<h3>Payment States</h3>
+<div class="status-flow">
+  <span class="status-pill pending">PENDING</span>
+  <span class="arrow">→</span>
+  <span class="status-pill pending">PROCESSING</span>
+  <span class="arrow">→</span>
+  <span class="status-pill active">COMPLETED</span>
+</div>
+<div class="status-flow">
+  <span class="status-pill pending">PROCESSING</span>
+  <span class="arrow">→</span>
+  <span class="status-pill terminal">FAILED</span>
+  <span class="arrow">→</span>
+  <span class="status-pill pending">REVERSED</span>
+</div>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/payments/transfer</span>
+    <span class="endpoint-summary">Internal transfer</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "sourceAccountId": "...", "destinationAccountId": "...", "amount": "500.00", "currencyCode": "USD", "description": "Rent payment" }</pre>
+    <p>Supports same-currency and cross-currency transfers. Both accounts use <code>SELECT FOR UPDATE</code> locking to prevent race conditions.</p>
+  </div>
+</details>
+</section>
+
+<!-- PRODUCTS ────────────────────────────────────────────────────────────── -->
+<section id="products">
+<h2>Products</h2>
+<p>Loan and deposit product templates that individual loans/accounts are created from.</p>
+
+<h3>Validation Rules</h3>
+<ul>
+<li><code>minPrincipal ≤ maxPrincipal</code></li>
+<li><code>minInterestRate ≤ defaultInterestRate ≤ maxInterestRate</code></li>
+<li><code>minTermMonths ≤ maxTermMonths</code></li>
+</ul>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/loan-products</span>
+    <span class="endpoint-summary">Create loan product</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "name": "SME Working Capital Loan", "minPrincipal": "1000.00", "maxPrincipal": "100000.00", "minInterestRate": "8.00", "maxInterestRate": "24.00", "defaultInterestRate": "15.00", "minTermMonths": 3, "maxTermMonths": 60, "repaymentType": "ANNUITY" }</pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/deposit-products</span>
+    <span class="endpoint-summary">Create deposit product</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "name": "Premium Savings", "accountType": "SAVINGS", "minimumBalance": "100.00", "interestRate": "5.50", "compoundingFrequency": "MONTHLY" }</pre>
+  </div>
+</details>
+</section>
+
+<!-- TELLER ──────────────────────────────────────────────────────────────── -->
+<section id="teller">
+<h2>Teller / Cash Management</h2>
+<p>Full Mifos-style teller desk, cashier allocation, and session-based cash operations.</p>
+
+<h3>Teller Desk Status Flow</h3>
+<div class="status-flow">
+  <span class="status-pill pending">INACTIVE</span>
+  <span class="arrow">→</span>
+  <span class="status-pill active">ACTIVE</span>
+  <span class="arrow">→</span>
+  <span class="status-pill terminal">CLOSED</span>
+</div>
+
+<h3>Session Lifecycle</h3>
+<ol>
+<li>Admin creates teller desk (<code>POST /tellers</code>)</li>
+<li>Admin activates it (<code>POST /tellers/{id}/activate</code>)</li>
+<li>Admin assigns cashier (<code>POST /tellers/{id}/cashiers</code>)</li>
+<li>Cashier opens session with opening float (<code>POST /tellers/{id}/cashiers/{cId}/sessions</code>)</li>
+<li>Cashier records CASH_IN / CASH_OUT throughout the day</li>
+<li>End of day: cashier closes session with physical count</li>
+</ol>
+
+<h3>Settlement Formula</h3>
+<pre>closing_balance = opening_balance + Σ(CASH_IN) - Σ(CASH_OUT)
+difference = actual_cash - closing_balance</pre>
+<p>Positive difference = cash surplus. Negative = shortage. Both are recorded for audit.</p>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/tellers/{tellerId}/cashiers/{cashierId}/sessions</span>
+    <span class="endpoint-summary">Open a cash session (start of day)</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "openingBalance": "5000.00", "currencyCode": "USD" }</pre>
+    <p>One session per cashier per calendar day — enforced by DB UNIQUE constraint.</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/tellers/{tellerId}/sessions/{sessionId}/transactions</span>
+    <span class="endpoint-summary">Record cash transaction</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "transactionType": "CASH_IN", "amount": "250.00", "accountId": "...", "description": "Customer deposit" }</pre>
+    <p>When <code>accountId</code> is provided, the customer account balance is updated atomically.</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/tellers/{tellerId}/sessions/{sessionId}/settle</span>
+    <span class="endpoint-summary">Close session (end of day settlement)</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "actualCash": "4750.00", "settlementNote": "Counted by supervisor. Minor variance under investigation." }</pre>
+  </div>
+</details>
+</section>
+
+<!-- OPEN BANKING ────────────────────────────────────────────────────────── -->
+<section id="open-banking">
+<h2>Open Banking — FAPI 2.0</h2>
+<p>UK Open Banking v3.1 compliant endpoints for Third-Party Providers (TPPs). Base path: <code>/open-banking/v3.1/</code></p>
+
+<h3>Consent Flow</h3>
+<div class="status-flow">
+  <span class="status-pill pending">AWAITING_AUTHORISATION</span>
+  <span class="arrow">→</span>
+  <span class="status-pill active">AUTHORISED</span>
+  <span class="arrow">→</span>
+  <span class="status-pill terminal">REVOKED</span>
+</div>
+
+<h3>Roles</h3>
+<table>
+<tr><th>Role</th><th>Scope</th><th>Operations</th></tr>
+<tr><td>AISP</td><td><code>accounts</code></td><td>Read accounts, balances, transactions</td></tr>
+<tr><td>PISP</td><td><code>payments</code></td><td>Initiate domestic payments</td></tr>
+<tr><td>CBPII</td><td><code>fundsconfirmation</code></td><td>Check available funds</td></tr>
+</table>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/open-banking/v3.1/consents</span>
+    <span class="endpoint-summary">Create consent</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "tppClientId": "tpp-001", "customerId": "...", "scopes": ["accounts", "payments"], "expiryDate": "2026-07-07T00:00:00Z" }</pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method PUT">PUT</span>
+    <span class="endpoint-path">/open-banking/v3.1/consents/{consentId}/authorise</span>
+    <span class="endpoint-summary">Authorise consent</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Transitions consent from AWAITING_AUTHORISATION → AUTHORISED. No request body required.</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/open-banking/v3.1/domestic-payments</span>
+    <span class="endpoint-summary">Initiate domestic payment (PISP)</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "consentId": "ob-a3f8c12e9b4d...", "sourceAccountId": "...", "destinationAccountId": "...", "amount": "150.00" }</pre>
+    <p>Requires AUTHORISED consent with <code>payments</code> scope. Audit trail shows <code>createdBy: open-banking:{consentId}</code>.</p>
+  </div>
+</details>
+</section>
+
+<!-- EXCHANGE RATES ──────────────────────────────────────────────────────── -->
+<section id="exchange-rates">
+<h2>Exchange Rates &amp; Multi-Currency</h2>
+<p>Admin-managed exchange rates for cross-currency transfers. Rates are stored to 8 decimal places.</p>
+
+<div class="callout info">When you set the USD→KES rate, the inverse KES→USD rate is automatically calculated and stored. You never need to set both directions.</div>
+
+<h3>Demo Rates (Pre-Configured)</h3>
+<table>
+<tr><th>Pair</th><th>Sample Rate</th></tr>
+<tr><td>USD/KES</td><td>135.5000</td></tr>
+<tr><td>USD/GHS</td><td>15.2000</td></tr>
+<tr><td>USD/EUR</td><td>0.9200</td></tr>
+<tr><td>USD/GBP</td><td>0.7850</td></tr>
+<tr><td>KES/GHS</td><td>0.1122</td></tr>
+</table>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/exchange-rates</span>
+    <span class="endpoint-summary">Set exchange rate</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "fromCurrency": "USD", "toCurrency": "KES", "rate": "135.5000" }</pre>
+  </div>
+</details>
+</section>
+
+<!-- AUDIT ───────────────────────────────────────────────────────────────── -->
+<section id="audit">
+<h2>Audit Log</h2>
+<p>Immutable, append-only log of every state-changing operation. Records are never updated or deleted. Minimum retention: 7 years.</p>
+
+<div class="callout warning">PII is masked in audit log entries. Account numbers appear as <code>****1234</code>. National IDs and card numbers are never logged in plaintext.</div>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/audit</span>
+    <span class="endpoint-summary">List audit entries</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Filter: <code>?entityType=Customer&amp;entityId=&lt;uuid&gt;&amp;action=UPDATE&amp;changedBy=admin</code></p>
+    <pre>{ "data": [{ "entityType": "Loan", "entityId": "...", "action": "APPROVE", "changedBy": "admin@cba.com", "changedAt": "2026-04-07T09:00:00Z", "oldValues": {...}, "newValues": {...} }] }</pre>
+  </div>
+</details>
+</section>
+
+<!-- SELF SERVICE ────────────────────────────────────────────────────────── -->
+<section id="self-service">
+<h2>Self Service API <span style="font-size:.75rem;font-weight:400;color:#d97706;background:#fef9c3;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Planned</span></h2>
+<p>Customer-facing restricted-scope endpoints. Based on <a href="https://demo.mifos.io/api-docs/apiLive.htm#selfservice_overview" target="_blank">Mifos Self Service API</a>. A self-service user can only access their own data.</p>
+
+<div class="callout warning">These endpoints are <strong>not yet implemented</strong>. They appear in the Coming Soon Postman collection.</div>
+
+<h3>Planned Endpoints</h3>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th></tr>
+<tr><td>POST</td><td>/api/v1/self/authenticate</td><td>Customer login (scoped token)</td></tr>
+<tr><td>GET</td><td>/api/v1/self/clients/{id}</td><td>Get my profile</td></tr>
+<tr><td>GET</td><td>/api/v1/self/clients/{id}/accounts</td><td>Get my accounts</td></tr>
+<tr><td>GET</td><td>/api/v1/self/loans/{id}</td><td>Get my loan details</td></tr>
+<tr><td>GET</td><td>/api/v1/self/loans/{id}/repaymentschedule</td><td>Get my repayment schedule</td></tr>
+<tr><td>POST</td><td>/api/v1/self/loanapplications</td><td>Apply for a loan</td></tr>
+<tr><td>POST</td><td>/api/v1/self/accounttransfers</td><td>Transfer between my accounts</td></tr>
+<tr><td>GET</td><td>/api/v1/self/beneficiaries/tpt</td><td>My saved beneficiaries</td></tr>
+</table>
+</section>
+
+<!-- GROUPS ─────────────────────────────────────────────────────────────── -->
+<section id="groups">
+<h2>Group &amp; Center Management <span style="font-size:.75rem;font-weight:400;color:#d97706;background:#fef9c3;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Planned</span></h2>
+<p>For microfinance deployments — group loans, collection sheets, and center management. Based on Mifos Group module.</p>
+<div class="callout warning">Not yet implemented. Planned for Phase 2.</div>
+</section>
+
+<!-- ACCOUNTING ──────────────────────────────────────────────────────────── -->
+<section id="accounting">
+<h2>General Ledger / Accounting <span style="font-size:.75rem;font-weight:400;color:#d97706;background:#fef9c3;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Planned</span></h2>
+<p>Double-entry GL, chart of accounts, journal entries, and financial period closures. Based on Mifos Accounting module.</p>
+<div class="callout warning">Not yet implemented. Planned for Phase 3.</div>
+</section>
+
+<!-- FULL API MATRIX ─────────────────────────────────────────────────────── -->
+<section id="fullapi">
+<h2>Full API Matrix</h2>
+<p>Complete inventory of all implemented and planned endpoints.</p>
+
+<h3>Implemented</h3>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/customers</td><td>List customers</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/customers/{id}</td><td>Get customer</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/customers</td><td>Create customer</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/customers/{id}</td><td>Update customer</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/customers/{id}/kyc-status</td><td>Update KYC status</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/accounts</td><td>List accounts</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/accounts/{id}</td><td>Get account</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/accounts</td><td>Open account</td><td>ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/api/v1/accounts/{id}</td><td>Update account</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/accounts/{id}/activate</td><td>Activate account</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/accounts/{id}/close</td><td>Close account</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/accounts/{id}/transactions</td><td>Transaction ledger</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/loans</td><td>List loans</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/loans/{id}</td><td>Get loan</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/loans</td><td>Apply for loan</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}/approve</td><td>Approve loan</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}/disburse</td><td>Disburse loan</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/loans/{id}/repayment-schedule</td><td>Repayment schedule</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}/repayments</td><td>Make repayment</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}/write-off</td><td>Write off loan</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/payments/transfer</td><td>Internal transfer</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/payments</td><td>List payments</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/payments/standing-orders</td><td>Create standing order</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/payments/{id}/reverse</td><td>Reverse payment</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/loan-products</td><td>List loan products</td><td>All roles</td></tr>
+<tr><td>POST</td><td>/api/v1/loan-products</td><td>Create loan product</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/loan-products/{id}</td><td>Update loan product</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/loan-products/{id}</td><td>Delete loan product</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/deposit-products</td><td>List deposit products</td><td>All roles</td></tr>
+<tr><td>POST</td><td>/api/v1/deposit-products</td><td>Create deposit product</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/deposit-products/{id}</td><td>Update deposit product</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/deposit-products/{id}</td><td>Delete deposit product</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/tellers</td><td>List tellers</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/tellers</td><td>Create teller</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/tellers/{id}/activate</td><td>Activate teller</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/tellers/{id}/close</td><td>Close teller</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/tellers/{id}/cashiers</td><td>Assign cashier</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/tellers/{id}/cashiers/{cId}/sessions</td><td>Open session</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/tellers/{id}/sessions/{sId}/transactions</td><td>Record cash tx</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/tellers/{id}/sessions/{sId}/settle</td><td>Close session</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/open-banking/v3.1/consents</td><td>Create consent</td><td>API_CLIENT</td></tr>
+<tr><td>GET</td><td>/open-banking/v3.1/consents/{id}</td><td>Get consent</td><td>API_CLIENT</td></tr>
+<tr><td>PUT</td><td>/open-banking/v3.1/consents/{id}/authorise</td><td>Authorise consent</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/open-banking/v3.1/consents/{id}</td><td>Revoke consent</td><td>API_CLIENT</td></tr>
+<tr><td>POST</td><td>/open-banking/v3.1/domestic-payments</td><td>PISP payment</td><td>API_CLIENT</td></tr>
+<tr><td>POST</td><td>/open-banking/v3.1/funds-confirmation</td><td>CBPII check</td><td>API_CLIENT</td></tr>
+<tr><td>GET</td><td>/api/v1/exchange-rates</td><td>List rates</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/exchange-rates</td><td>Set rate</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/exchange-rates/{from}/{to}</td><td>Get specific rate</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/exchange-rates/{from}/{to}</td><td>Deactivate rate</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/audit</td><td>List audit log</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/batches</td><td>Batch API</td><td>ADMIN, TELLER</td></tr>
+</table>
+
+<h3>Planned (Not Yet Implemented)</h3>
+<table>
+<tr><th>Module</th><th>Endpoints</th><th>Status</th></tr>
+<tr><td>Self Service</td><td>/api/v1/self/*</td><td>Planned Phase 2</td></tr>
+<tr><td>Group &amp; Center</td><td>/api/v1/groups, /api/v1/centers</td><td>Planned Phase 2</td></tr>
+<tr><td>GL / Accounting</td><td>/api/v1/glaccounts, /api/v1/journalentries</td><td>Planned Phase 3</td></tr>
+<tr><td>User Management</td><td>/api/v1/users, /api/v1/roles</td><td>Planned Phase 2</td></tr>
+<tr><td>Office Management</td><td>/api/v1/offices, /api/v1/staff</td><td>Planned Phase 2</td></tr>
+<tr><td>Reports</td><td>/api/v1/runreports/*</td><td>Planned Phase 3</td></tr>
+<tr><td>CoB Scheduler</td><td>/api/v1/jobs</td><td>Planned Phase 3</td></tr>
+<tr><td>Notifications</td><td>/api/v1/notifications/*</td><td>Planned Phase 3</td></tr>
+<tr><td>Savings Extended</td><td>/api/v1/accounts/{id}/command/*</td><td>Planned Phase 2</td></tr>
+</table>
+</section>
+
+</main>
+
+<script>
+// Smooth scrolling for sidebar links
+document.querySelectorAll('#sidebar a[href^="#"]').forEach(link => {
+  link.addEventListener('click', function(e) {
+    e.preventDefault();
+    const target = document.querySelector(this.getAttribute('href'));
+    if (target) {
+      target.scrollIntoView({behavior: 'smooth', block: 'start'});
+      document.querySelectorAll('#sidebar a').forEach(a => a.classList.remove('active'));
+      this.classList.add('active');
+    }
+  });
+});
+
+// Highlight active section on scroll
+const sections = document.querySelectorAll('section[id]');
+const sideLinks = document.querySelectorAll('#sidebar a[href^="#"]');
+window.addEventListener('scroll', () => {
+  let current = '';
+  sections.forEach(s => { if (window.scrollY >= s.offsetTop - 100) current = s.id; });
+  sideLinks.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+  });
+}, {passive: true});
+</script>
+</body>
+</html>

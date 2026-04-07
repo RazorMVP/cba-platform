@@ -28,6 +28,26 @@ cba-platform/
 |--------|-----|---------|
 | Apache Fineract | https://github.com/apache/fineract | Domain model, module structure, service patterns |
 | Mifos API Live Docs | https://demo.mifos.io/api-docs/apiLive.htm | Complete REST API reference for all banking modules |
+
+### Mifos API Live Documentation — Section Index
+
+These are the canonical reference sections from the Mifos API live docs. Consult them when designing or extending any module:
+
+| Section | URL | When to Use |
+|---------|-----|-------------|
+| Top / Introduction | https://demo.mifos.io/api-docs/apiLive.htm#top | Project overview, API conventions |
+| Interact with API | https://demo.mifos.io/api-docs/apiLive.htm#interact | Testing via browser, REST plugins |
+| General Options | https://demo.mifos.io/api-docs/apiLive.htm#genopts | Fields, pretty, template params |
+| Creates & Updates | https://demo.mifos.io/api-docs/apiLive.htm#creates_and_updates | Date/number format conventions |
+| Field Descriptions | https://demo.mifos.io/api-docs/apiLive.htm#field_descriptions | Field-level documentation |
+| Authentication Overview | https://demo.mifos.io/api-docs/apiLive.htm#authentication_overview | Auth patterns |
+| Basic Auth | https://demo.mifos.io/api-docs/apiLive.htm#authentication_basicauth | HTTP Basic implementation |
+| OAuth2 Auth | https://demo.mifos.io/api-docs/apiLive.htm#authentication_oauth | OAuth2 ROPC implementation |
+| Error Handling | https://demo.mifos.io/api-docs/apiLive.htm#errors | Error response format, HTTP codes |
+| Batch API | https://demo.mifos.io/api-docs/apiLive.htm#batch_api | Bulk operations, dependent requests |
+| Full API Matrix | https://demo.mifos.io/api-docs/apiLive.htm#fullapi_matrix | Complete endpoint inventory |
+| Payment Logic | https://demo.mifos.io/api-docs/apiLive.htm#paymentapplicationlogic | Repayment allocation strategies |
+| Self Service Overview | https://demo.mifos.io/api-docs/apiLive.htm#selfservice_overview | Customer-facing API scope |
 | OpenMF GitHub Org | https://github.com/openMF | Angular web-app reference, mobile app, KMP templates |
 | Mifos Web App (Angular) | https://github.com/openMF/web-app | Feature module routing, resolver, lazy-load patterns |
 | Mifos Mobile (Flutter) | https://github.com/openMF/mifos-mobile | Flutter feature-first structure, AppAuth integration |
@@ -573,6 +593,16 @@ Work through phases in order. Always run Phase D (Design) before any frontend co
 | `.claude/skills/cba/references/design.md` | Nubeero design tokens, layout system, Stitch workflow |
 | `.claude/skills/cba/designs/tokens.scss` | Complete SCSS token set (source of truth for all UI) |
 | `.claude/skills/cba/designs/screens/backoffice/` | dashboard.html, customers.html, loans.html prototypes |
+
+### API Documentation & Postman Collections (Session 5)
+
+| File | Contents |
+|------|----------|
+| `docs/api-reference.html` | Full API reference (Mifos apiLive.htm-style) — standalone HTML, also served via GitHub Pages |
+| `docs/cba-postman-collection-v2.json` | Enriched Postman collection — all implemented endpoints, Mifos-style divisions, 8-language code samples |
+| `docs/cba-postman-collection-coming-soon.json` | Coming Soon Postman collection — planned/unimplemented endpoints based on Mifos patterns |
+
+**GitHub Pages URL**: `https://razormvp.github.io/cba-platform/` (deployed automatically on push to `main` when `docs/**` changes)
 
 ---
 

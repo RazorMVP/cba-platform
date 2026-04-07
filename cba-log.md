@@ -49,6 +49,36 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 5 — 2026-04-07
+
+**API documentation overhaul: Mifos-style HTML reference, dual Postman collections, GitHub Pages deployment**
+
+#### Added
+- `docs/api-reference.html` — 1,120-line self-contained HTML API reference modelled on Mifos `apiLive.htm`. Covers: Introduction, Authentication (overview + Basic + OAuth2/Keycloak), General Options, Request Conventions (dates/numbers/UUIDs), Field Descriptions, Error Handling (all error codes), Batch API (with dependent request patterns), Payment Application Logic (EMI formula, repayment allocation, cross-currency flow), all 10 backend modules (Customers → Audit), Self Service / Groups / GL sections (marked Planned), and a Full API Matrix (55+ implemented endpoints). Dark sidebar navigation with scroll-spy; collapsible endpoint details blocks; responsive layout using Nubeero design tokens.
+- `docs/cba-postman-collection-v2.json` — Enriched 391KB Postman collection (v2). 11 folders restructured in Mifos API divisions: 00·Authentication → 01·Customers → 02·Accounts → 03·Loans → 04·Payments → 05·Products → 06·Teller → 07·Open Banking → 08·Exchange Rates → 09·Batch API → 10·Audit → 11·System. Every folder has a full description explaining module purpose, status flows, key rules, and Mifos reference context. Pre-request test script on token endpoint auto-sets `access_token` collection variable. 8 language code samples per request (cURL, JavaScript/fetch, Python/requests, Java/OkHttp, C#/HttpClient, PHP/cURL, Go/net/http, Ruby/Net::HTTP).
+- `docs/cba-postman-collection-coming-soon.json` — 63KB separate Postman collection for planned/unimplemented endpoints. 8 modules: Self Service, Group & Center Management, GL/Accounting, User Management, Office Management, Notifications, Close of Business Scheduler, Reports, Savings Extended. All requests prefixed `[COMING SOON]` and marked NOT YET IMPLEMENTED. Modelled directly on Mifos API patterns.
+- `.github/workflows/pages.yml` — GitHub Pages deployment workflow. Triggers on push to `main` when `docs/**` changes. Builds `_site/` with `api-reference.html` as `index.html`, both Postman collections, and a `collections.html` download index. Deploys to GitHub Pages using `actions/deploy-pages@v4`.
+
+#### Updated
+- `CLAUDE.md` — Added **Mifos API Live Documentation — Section Index** table with all 13 section URLs and their purpose. Added **API Documentation & Postman Collections (Session 5)** table in Reference Files section with GitHub Pages URL.
+
+#### Key decisions
+- **Two separate collections** — implemented endpoints (v2) and planned stubs (coming-soon) kept separate so integrators import only what is live
+- **GitHub Pages from `/docs` folder** — `api-reference.html` is the `index.html` so `https://razormvp.github.io/cba-platform/` serves the full reference directly
+- **Pages workflow path filter** — only triggers when `docs/**` changes, not on every backend push, to avoid unnecessary deploys
+- **No external dependencies in HTML** — fully self-contained; works offline without any CDN
+
+#### Architecture compliance additions
+| Requirement | Status |
+|-------------|--------|
+| Mifos-style HTML API reference | ✅ `docs/api-reference.html` |
+| Enriched Postman collection (Mifos divisions) | ✅ `docs/cba-postman-collection-v2.json` |
+| Coming Soon Postman collection | ✅ `docs/cba-postman-collection-coming-soon.json` |
+| GitHub Pages deployment | ✅ `.github/workflows/pages.yml` |
+| Mifos reference URLs in CLAUDE.md | ✅ 13 section URLs added |
+
+---
+
 ### Session 4 — 2026-04-06
 
 **Backend gap closure: Product Controller, Open Banking completion, Teller/Cash Management + Postman collection**

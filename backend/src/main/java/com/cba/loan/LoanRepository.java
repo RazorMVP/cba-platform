@@ -17,6 +17,8 @@ public interface LoanRepository extends JpaRepository<Loan, UUID> {
 
     Page<Loan> findByStatus(LoanStatus status, Pageable pageable);
 
+    Page<Loan> findByStatusIn(List<LoanStatus> statuses, Pageable pageable);
+
     @Query("SELECT l FROM Loan l WHERE l.status = 'ACTIVE' " +
            "AND EXISTS (SELECT s FROM LoanRepaymentSchedule s " +
            "WHERE s.loan = l AND s.dueDate < :today AND s.status = 'PENDING')")

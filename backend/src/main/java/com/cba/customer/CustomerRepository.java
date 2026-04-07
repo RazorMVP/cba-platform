@@ -12,6 +12,7 @@ import java.util.UUID;
 public interface CustomerRepository extends JpaRepository<Customer, UUID> {
 
     boolean existsByExternalId(String externalId);
+    java.util.Optional<Customer> findByKeycloakId(String keycloakId);
 
     Page<Customer> findByKycStatus(KycStatus kycStatus, Pageable pageable);
 

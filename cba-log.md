@@ -38,7 +38,6 @@ _None — all Phase 1 backend modules are now complete._
 
 | Component | Required by CLAUDE.md | Priority |
 |-----------|----------------------|----------|
-| **Group & Center Module** | Group creation/activation, collection sheets, GLIM | Phase 1 backend gap (microfinance) |
 | **Infrastructure — Docker Compose** | `infrastructure/docker-compose.yml` with postgres, keycloak, backend, web, mailhog | Phase 4 |
 | **Infrastructure — Kubernetes** | `infrastructure/k8s/` namespace, deployments, services, ingress, HPA, sealed secrets | Phase 4 |
 | **Infrastructure — Keycloak Realm** | `infrastructure/keycloak/cba-realm.json` with cba realm, 3 clients, FAPI 2.0, demo users | Phase 4 |
@@ -48,6 +47,66 @@ _None — all Phase 1 backend modules are now complete._
 ---
 
 ## Change History
+
+### Session 6 — 2026-04-07
+
+**Full Mifos API parity: 8 new modules + Layer A gap closure (loan repayments, standing orders, payment reversal, batch API, exchange rate GET)**
+
+#### Added — New Modules (Layer B)
+
+| Module | Key Files | Endpoints |
+|--------|-----------|-----------|
+| **Office & Staff** | `com.cba.office`: `Office`, `Staff`, `OfficeRepository`, `StaffRepository`, `OfficeService`, `OfficeController`, DTOs | `POST/GET/PUT /api/v1/offices`, `POST/GET/PUT/DELETE /api/v1/staff` |
+| **User Management** | `com.cba.user`: `PlatformUser`, `PlatformUserRepository`, `UserService`, `UserController`, DTOs; `config/KeycloakAdminConfig` | `POST/GET /api/v1/users`, `POST /api/v1/users/{id}/enable\|disable`, `DELETE /api/v1/users/{id}` |
+| **Self Service** | `com.cba.selfservice`: `SelfServiceController`, `SelfServiceFacade`; `V11__self_service_keycloak_link.sql` (`keycloak_id` column on `customers`) | `GET /api/v1/self/userdetails\|accounts\|loans` + account transactions + loan detail |
+| **Groups & Centers** | `com.cba.group`: `Center`, `Group`, `GroupMember`, `GlimAccount`, `CollectionSheet`, `CollectionSheetItem`, repositories, `GroupService`, `GroupController`, DTOs | Groups CRUD + activate + members; `POST /api/v1/collectionsheets`; GLIM listing |
+| **GL / Accounting** | `com.cba.accounting`: `GlAccount`, `JournalEntry`, `FinancialActivityAccount`, `GlClosure`, repositories, `GlAccountingService`, `GlAccountingController`, `ManualJournalRequest` | `/api/v1/glaccounts`, `/api/v1/journalentries` (post/list/reverse), `/api/v1/glclosures` |
+| **Reports** | `com.cba.report`: `Report`, `ReportParameter`, `ReportRepository`, `ReportService`, `ReportController` | `GET /api/v1/reports`, `GET/DELETE /api/v1/reports/{id}`, `GET /api/v1/runreports/{name}?params` |
+| **CoB Scheduler** | `com.cba.cob`: `InterestAccrualJob`, `ArrearsClassificationJob`, `StandingOrderExecutionJob`, `QuartzJobBridge`, `CobSchedulerConfig`, `CobJobHistory`, `CobJobHistoryRepository`, `CobController` | `GET /api/v1/jobs`, `POST /api/v1/jobs/{name}/run`, `GET /api/v1/jobs/{name}/history` |
+| **Batch API** | `com.cba.batch`: `BatchController`, `BatchApiService`, DTOs `BatchRequest`/`BatchResponse` | `POST /api/v1/batches?enclosingTransaction=false` |
+
+#### Added — Layer A Gap Closure
+
+| Gap | Files Changed |
+|-----|---------------|
+| Loan repayments (`POST /{id}/repayments`) | `LoanService.makeRepayment()`, `LoanController`, `LoanRepaymentRequest/Response` |
+| Loan write-off (`POST /{id}/write-off`) | `LoanService.writeOffLoan()`, `Loan.writtenOffOn/writeOffReason`, `WriteOffRequest` |
+| Standing orders | `StandingOrder`, `StandingOrderRepository`, `PaymentService` (3 methods), `PaymentController`, `StandingOrderRequest/Response` |
+| Payment reversal (`POST /{id}/reverse`) | `Payment.reversalOf/Reason/At` fields, `PaymentService.reversePayment()`, `PaymentController`, `ReversePaymentRequest` |
+| Exchange rate GET by pair | `ExchangeRateService.getRateResponse()`, `ExchangeRateController GET /{from}/{to}` |
+
+#### Added — Flyway Migrations
+
+| Migration | Contents |
+|-----------|----------|
+| `V6__offices_staff_users.sql` | `offices`, `staff`, `platform_users`, `user_roles`, `self_service_user_clients` |
+| `V7__groups_centers.sql` | `centers`, `groups`, `group_members`, `glim_accounts`, `collection_sheets`, `collection_sheet_items` |
+| `V8__gl_accounting.sql` | `gl_accounts`, `financial_activity_accounts`, `journal_entries`, `gl_closures`; 15 GL accounts + 7 activity mappings |
+| `V9__reports.sql` | `reports`, `report_parameters`; 7 seed reports |
+| `V10__batch_layer_a_fixes.sql` | `standing_orders`, ALTER `payments`/`loans`; Spring Batch + Quartz schemas; `cob_job_history` |
+| `V11__self_service_keycloak_link.sql` | `keycloak_id VARCHAR(100)` column + unique index on `customers` |
+
+#### Updated
+
+- `LoanRepository` — added `findByStatusIn(List<LoanStatus>)`
+- `AccountRepository` — added `findByStatus(AccountStatus, Pageable)`
+- `CustomerRepository` — added `findByKeycloakId(String)`
+- `Customer.java` — added `keycloakId` field
+- `application.yml` — added Spring Batch (`initialize-schema: never`), Quartz (`job-store-type: jdbc`), Keycloak admin config
+- `CLAUDE.md` — documented all 8 new modules (sections 10–17)
+
+#### Key architectural decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| `RestTemplate` self-calls for Batch API | `MockHttpServletRequest` is test-scoped; self-calls are the correct production pattern |
+| Flyway-managed Batch + Quartz schemas | `spring.batch.jdbc.initialize-schema: never` — Flyway owns the schema invariant |
+| JWT 404 not 403 on ownership mismatch | Prevents resource enumeration; returning 403 confirms existence |
+| `QuartzJobBridge` bean lookup by name | Allows Quartz triggers to launch any Spring Batch job without compile-time coupling |
+| Keycloak Admin Client dual-write | User created in Keycloak first (source of truth for auth), then mirrored locally for office/staff links |
+| Report SQL `SELECT`-only guard | Blocks DML keywords + injection chars in param values; prevents destructive report execution |
+
+---
 
 ### Session 5 — 2026-04-07
 

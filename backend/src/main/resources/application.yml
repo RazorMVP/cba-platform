@@ -57,6 +57,32 @@ spring:
   cache:
     type: simple
 
+  batch:
+    jdbc:
+      initialize-schema: never   # Flyway owns the schema (V10 migration)
+    job:
+      enabled: false             # Don't auto-run jobs on startup
+
+  quartz:
+    job-store-type: jdbc
+    jdbc:
+      initialize-schema: never   # Flyway owns the schema (V10 migration)
+    properties:
+      org.quartz.scheduler.instanceName: CbaScheduler
+      org.quartz.scheduler.instanceId: AUTO
+      org.quartz.jobStore.class: org.quartz.impl.jdbcjobstore.JobStoreTX
+      org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
+      org.quartz.jobStore.isClustered: false
+      org.quartz.threadPool.threadCount: 3
+
+keycloak:
+  auth-server-url: http://${KEYCLOAK_HOST:localhost}:${KEYCLOAK_PORT:8180}
+  realm: cba
+  admin:
+    client-id: admin-cli
+    username: ${KEYCLOAK_ADMIN_USERNAME:admin}
+    password: ${KEYCLOAK_ADMIN_PASSWORD:admin}
+
 server:
   port: 8080
   servlet:

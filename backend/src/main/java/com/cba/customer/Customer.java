@@ -56,4 +56,8 @@ public class Customer extends AuditableEntity {
 
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
+
+    /** Keycloak user UUID (JWT `sub` claim) — set when customer registers for self-service. */
+    @Column(name = "keycloak_id", unique = true, length = 100)
+    private String keycloakId;
 }

@@ -233,7 +233,61 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 - Group creation, activation, staff assignment
 - Collection sheet generation and processing
 - Client association with groups
-- GLIM (Group Loan) support
+- GLIM (Group Loan Individual Monitoring) support
+- Entities: `Center`, `Group`, `GroupMember`, `GlimAccount`, `CollectionSheet`, `CollectionSheetItem`
+- Endpoints: `POST/GET /api/v1/groups`, `POST /api/v1/groups/{id}/activate`, `POST/DELETE /api/v1/groups/{groupId}/members/{customerId}`, `POST /api/v1/collectionsheets`, `GET /api/v1/groups/{groupId}/glimaccounts`
+
+### 11. Office & Staff Module
+- Branch office hierarchy using materialised path (`hierarchy` column: `".parentId.id."`)
+- Staff management with office assignment and loan officer flag
+- Entities: `Office`, `Staff`; package: `com.cba.office`
+- Endpoints: `POST/GET/PUT /api/v1/offices`, `POST/GET/PUT/DELETE /api/v1/staff`
+
+### 12. User Management Module
+- Platform users synced with Keycloak Admin REST API (`keycloak-admin-client:23.0.7`)
+- Creates user in Keycloak first (gets UUID back), then persists `PlatformUser` locally
+- Roles assigned in Keycloak realm; mirrored in `user_roles` table
+- Entity: `PlatformUser`; Config: `KeycloakAdminConfig` (Keycloak Admin Client Spring bean)
+- Endpoints: `POST/GET /api/v1/users`, `GET/DELETE /api/v1/users/{id}`, `POST /api/v1/users/{id}/enable|disable`
+
+### 13. Self Service Module
+- Customer-facing endpoints — JWT `sub` mapped to `Customer.keycloakId` (V11 migration)
+- Returns 404 (not 403) when resource belongs to another customer (prevents enumeration attacks)
+- Package: `com.cba.selfservice`; Facade: `SelfServiceFacade`
+- Endpoints (all CUSTOMER role): `GET /api/v1/self/userdetails`, `/self/accounts`, `/self/accounts/{id}/transactions`, `/self/loans`, `/self/loans/{id}`
+
+### 14. GL / Accounting Module
+- Double-entry journal with auto-posting + manual journal entries (Option C)
+- `FinancialActivityAccount` maps abstract activities (ASSET_LOAN_PORTFOLIO, INCOME_INTEREST, etc.) to concrete GL codes
+- `GlAccountingService.postDoubleEntry()` — invoked by domain services at transaction time
+- `GlAccountingService.postManualEntries()` — requires balanced debits/credits; blocks DML SQL
+- Package: `com.cba.accounting`
+- Entities: `GlAccount`, `JournalEntry`, `FinancialActivityAccount`, `GlClosure`
+- Endpoints: `GET /api/v1/glaccounts`, `POST/GET /api/v1/journalentries`, `POST /api/v1/journalentries/{id}/reverse`, `POST/GET /api/v1/glclosures`
+
+### 15. Reports Module
+- Dynamic SQL engine: report SQL with `${paramName}` placeholders stored in DB (V9 migration)
+- `ReportService.runReport()` resolves params, validates SELECT-only, executes via `JdbcTemplate.queryForList()`
+- Blocks DML keywords and injection characters (`'`, `;`, `--`) in parameter values
+- 7 seed reports: ActiveLoans, LoansInArrears, SavingsBalance, TellerCashPosition, CustomerAcquisition, TrialBalance, LoanProductSummary
+- Package: `com.cba.report`; Entities: `Report`, `ReportParameter`
+- Endpoints: `GET /api/v1/reports`, `GET/DELETE /api/v1/reports/{id}`, `GET /api/v1/runreports/{reportName}?param=value`
+
+### 16. CoB Scheduler Module (Close of Business)
+- Spring Batch jobs + Quartz triggers; both schemas managed by Flyway V10 (`initialize-schema: never`)
+- Nightly schedule: standing-orders (23:55) → interest-accrual (23:57) → arrears (23:59)
+- `QuartzJobBridge extends QuartzJobBean` bridges Quartz → Spring Batch; looks up bean by `jobBeanName` job data key
+- Entity: `CobJobHistory`; Package: `com.cba.cob`
+- Endpoints: `GET /api/v1/jobs`, `POST /api/v1/jobs/{jobName}/run`, `GET /api/v1/jobs/{jobName}/history`
+- Valid job names: `standingOrderExecutionJob`, `interestAccrualJob`, `arrearsClassificationJob`
+
+### 17. Batch API Module
+- Executes multiple sub-requests in a single HTTP call (Mifos-compatible)
+- JSON Path reference resolution: `"$.fieldName"` in body/URL references prior step response body
+- `enclosingTransaction=true` — all steps share one DB transaction; any 4xx/5xx rolls back all
+- Internal dispatch via `RestTemplate` self-calls (`http://localhost:{port}`); forwards `Authorization` + `X-Tenant-ID`
+- Package: `com.cba.batch`
+- Endpoint: `POST /api/v1/batches?enclosingTransaction=false`
 
 ---
 

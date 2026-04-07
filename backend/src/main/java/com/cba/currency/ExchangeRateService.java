@@ -97,6 +97,11 @@ public class ExchangeRateService {
             ));
     }
 
+    @Transactional(readOnly = true)
+    public ExchangeRateResponse getRateResponse(String fromCurrency, String toCurrency) {
+        return toResponse(getRate(fromCurrency, toCurrency));
+    }
+
     /**
      * Convert an amount from one currency to another using the stored rate.
      * Returns the full ConversionResult including rate used (for audit).

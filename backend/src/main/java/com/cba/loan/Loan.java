@@ -81,6 +81,12 @@ public class Loan extends AuditableEntity {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
+    @Column(name = "written_off_on")
+    private LocalDate writtenOffOn;
+
+    @Column(name = "write_off_reason", columnDefinition = "TEXT")
+    private String writeOffReason;
+
     @OneToMany(mappedBy = "loan", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("installmentNo ASC")
     private List<LoanRepaymentSchedule> repaymentSchedule = new ArrayList<>();

@@ -11,6 +11,9 @@ import com.cba.common.exception.CbaException;
 import com.cba.currency.ExchangeRateService;
 import com.cba.currency.dto.ConversionResult;
 import com.cba.payment.dto.PaymentResponse;
+import com.cba.payment.dto.ReversePaymentRequest;
+import com.cba.payment.dto.StandingOrderRequest;
+import com.cba.payment.dto.StandingOrderResponse;
 import com.cba.payment.dto.TransferRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +36,7 @@ public class PaymentService {
     private final TransactionRepository transactionRepository;
     private final AuditLogService auditLogService;
     private final ExchangeRateService exchangeRateService;
+    private final StandingOrderRepository standingOrderRepository;
 
     /**
      * Double-entry internal transfer with cross-currency support.
@@ -144,6 +148,113 @@ public class PaymentService {
         return paymentRepository
             .findBySourceAccountIdOrDestinationAccountId(accountId, accountId, pageable)
             .map(this::toResponse);
+    }
+
+    // ── Standing Orders ──────────────────────────────────────────────────────
+
+    @Transactional
+    public StandingOrderResponse createStandingOrder(StandingOrderRequest request) {
+        Account source = accountRepository.findById(request.sourceAccountId())
+                .orElseThrow(() -> CbaException.notFound("Account", request.sourceAccountId()));
+        Account dest = accountRepository.findById(request.destinationAccountId())
+                .orElseThrow(() -> CbaException.notFound("Account", request.destinationAccountId()));
+
+        if (source.getStatus() != AccountStatus.ACTIVE)
+            throw CbaException.badRequest("ACCOUNT_NOT_ACTIVE", "Source account is not active");
+        if (dest.getStatus() != AccountStatus.ACTIVE)
+            throw CbaException.badRequest("ACCOUNT_NOT_ACTIVE", "Destination account is not active");
+
+        StandingOrder so = new StandingOrder();
+        so.setSourceAccount(source);
+        so.setDestinationAccount(dest);
+        so.setAmount(request.amount());
+        so.setCurrencyCode(request.currencyCode() != null ? request.currencyCode().toUpperCase() : source.getCurrencyCode());
+        so.setFrequency(request.frequency());
+        so.setStartDate(request.startDate());
+        so.setEndDate(request.endDate());
+        so.setNextExecutionDate(request.startDate());
+        so.setDescription(request.description());
+
+        StandingOrder saved = standingOrderRepository.save(so);
+        auditLogService.log("StandingOrder", saved.getId().toString(), "CREATE", null, saved);
+        return StandingOrderResponse.from(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.List<StandingOrderResponse> listStandingOrders(UUID accountId) {
+        return standingOrderRepository.findBySourceAccountId(accountId)
+                .stream().map(StandingOrderResponse::from).toList();
+    }
+
+    @Transactional
+    public StandingOrderResponse cancelStandingOrder(UUID id) {
+        StandingOrder so = standingOrderRepository.findById(id)
+                .orElseThrow(() -> CbaException.notFound("StandingOrder", id));
+        so.setStatus(StandingOrder.Status.CANCELLED);
+        StandingOrder saved = standingOrderRepository.save(so);
+        auditLogService.log("StandingOrder", id.toString(), "CANCEL", null, saved);
+        return StandingOrderResponse.from(saved);
+    }
+
+    // ── Payment Reversal ─────────────────────────────────────────────────────
+
+    @Transactional
+    public PaymentResponse reversePayment(UUID paymentId, ReversePaymentRequest request, String reversedBy) {
+        Payment original = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> CbaException.notFound("Payment", paymentId));
+
+        if (original.getStatus() != PaymentStatus.COMPLETED)
+            throw CbaException.badRequest("PAYMENT_NOT_REVERSIBLE",
+                    "Only COMPLETED payments can be reversed");
+        if (original.getReversalOf() != null)
+            throw CbaException.badRequest("ALREADY_A_REVERSAL",
+                    "Cannot reverse a reversal payment");
+
+        // Lock accounts in consistent order
+        UUID srcId = original.getSourceAccount().getId();
+        UUID dstId = original.getDestinationAccount().getId();
+        Account src = accountRepository.findByIdWithLock(min(srcId, dstId)).orElseThrow();
+        Account dst = accountRepository.findByIdWithLock(max(srcId, dstId)).orElseThrow();
+        // Re-assign to correct roles
+        if (!src.getId().equals(srcId)) { Account tmp = src; src = dst; dst = tmp; }
+
+        // Swap: credit back source, debit destination
+        src.credit(original.getAmount());
+        dst.debit(original.getAmount());
+        accountRepository.save(src);
+        accountRepository.save(dst);
+
+        String ref = "REV-" + original.getReferenceNumber();
+        Transaction srcTx = Transaction.of(src, TransactionType.TRANSFER_CREDIT, original.getAmount(),
+                src.getBalance(), "Reversal of " + original.getReferenceNumber(), ref, reversedBy);
+        Transaction dstTx = Transaction.of(dst, TransactionType.TRANSFER_DEBIT, original.getAmount(),
+                dst.getBalance(), "Reversal of " + original.getReferenceNumber(), ref, reversedBy);
+        transactionRepository.save(srcTx);
+        transactionRepository.save(dstTx);
+
+        // Mark original as reversed
+        original.setStatus(PaymentStatus.REVERSED);
+        original.setReversalReason(request.reason());
+        original.setReversedAt(Instant.now());
+        paymentRepository.save(original);
+
+        // Create reversal payment record
+        Payment reversal = new Payment();
+        reversal.setReferenceNumber(ref);
+        reversal.setSourceAccount(original.getDestinationAccount());
+        reversal.setDestinationAccount(original.getSourceAccount());
+        reversal.setAmount(original.getAmount());
+        reversal.setCurrencyCode(original.getCurrencyCode());
+        reversal.setPaymentType(PaymentType.INTERNAL_TRANSFER);
+        reversal.setStatus(PaymentStatus.COMPLETED);
+        reversal.setDescription("Reversal: " + request.reason());
+        reversal.setExecutedDate(Instant.now());
+        reversal.setReversalOf(original);
+        Payment saved = paymentRepository.save(reversal);
+
+        auditLogService.log("Payment", paymentId.toString(), "REVERSE", PaymentStatus.COMPLETED.name(), PaymentStatus.REVERSED.name());
+        log.info("Payment reversed: {} by {}", original.getReferenceNumber(), reversedBy);
+        return toResponse(saved);
     }
 
     private void validateAccountForDebit(Account account) {

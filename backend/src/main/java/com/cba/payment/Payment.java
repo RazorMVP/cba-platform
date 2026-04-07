@@ -87,6 +87,17 @@ public class Payment {
     @Column(name = "failure_reason", columnDefinition = "TEXT")
     private String failureReason;
 
+    // Reversal tracking (V10 migration)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reversal_of")
+    private Payment reversalOf;
+
+    @Column(name = "reversal_reason", length = 500)
+    private String reversalReason;
+
+    @Column(name = "reversed_at")
+    private Instant reversedAt;
+
     @CreatedDate
     @Column(name = "created_at", updatable = false, nullable = false)
     private Instant createdAt;

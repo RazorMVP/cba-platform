@@ -2,8 +2,11 @@ package com.cba.loan;
 
 import com.cba.common.response.ApiResponse;
 import com.cba.loan.dto.LoanApplicationRequest;
+import com.cba.loan.dto.LoanRepaymentRequest;
+import com.cba.loan.dto.LoanRepaymentResponse;
 import com.cba.loan.dto.LoanResponse;
 import com.cba.loan.dto.RepaymentScheduleResponse;
+import com.cba.loan.dto.WriteOffRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -80,5 +83,24 @@ public class LoanController {
     public ResponseEntity<ApiResponse<List<RepaymentScheduleResponse>>> getRepaymentSchedule(
             @PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(loanService.getRepaymentSchedule(id)));
+    }
+
+    @PostMapping("/{id}/repayments")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
+    @Operation(summary = "Record a loan repayment (fees → interest → principal allocation)")
+    public ResponseEntity<ApiResponse<LoanRepaymentResponse>> makeRepayment(
+            @PathVariable UUID id,
+            @Valid @RequestBody LoanRepaymentRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.ok(loanService.makeRepayment(id, request)));
+    }
+
+    @PostMapping("/{id}/write-off")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Write off an unrecoverable loan (terminal state)")
+    public ResponseEntity<ApiResponse<LoanResponse>> writeOffLoan(
+            @PathVariable UUID id,
+            @Valid @RequestBody WriteOffRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(loanService.writeOffLoan(id, request)));
     }
 }

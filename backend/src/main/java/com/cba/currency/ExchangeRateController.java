@@ -38,6 +38,16 @@ public class ExchangeRateController {
         return ResponseEntity.ok(ApiResponse.ok(exchangeRateService.getAllRates()));
     }
 
+    @GetMapping("/{fromCurrency}/{toCurrency}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
+    @Operation(summary = "Get rate for a specific currency pair")
+    public ResponseEntity<ApiResponse<ExchangeRateResponse>> getRate(
+            @PathVariable String fromCurrency,
+            @PathVariable String toCurrency) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                exchangeRateService.getRateResponse(fromCurrency.toUpperCase(), toCurrency.toUpperCase())));
+    }
+
     @DeleteMapping("/{fromCurrency}/{toCurrency}")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Deactivate an exchange rate",

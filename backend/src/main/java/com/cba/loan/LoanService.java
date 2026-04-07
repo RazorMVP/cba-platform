@@ -12,8 +12,11 @@ import com.cba.customer.Customer;
 import com.cba.customer.CustomerRepository;
 import com.cba.customer.KycStatus;
 import com.cba.loan.dto.LoanApplicationRequest;
+import com.cba.loan.dto.LoanRepaymentRequest;
+import com.cba.loan.dto.LoanRepaymentResponse;
 import com.cba.loan.dto.LoanResponse;
 import com.cba.loan.dto.RepaymentScheduleResponse;
+import com.cba.loan.dto.WriteOffRequest;
 import com.cba.notification.LoanEvent;
 import com.cba.product.LoanProduct;
 import com.cba.product.LoanProductRepository;
@@ -170,6 +173,94 @@ public class LoanService {
     public List<RepaymentScheduleResponse> getRepaymentSchedule(UUID loanId) {
         Loan loan = findById(loanId);
         return loan.getRepaymentSchedule().stream().map(this::toScheduleResponse).toList();
+    }
+
+    @Transactional
+    public LoanRepaymentResponse makeRepayment(UUID loanId, LoanRepaymentRequest request) {
+        Loan loan = findById(loanId);
+
+        if (loan.getStatus() != LoanStatus.ACTIVE && loan.getStatus() != LoanStatus.IN_ARREARS) {
+            throw CbaException.badRequest("INVALID_LOAN_STATE",
+                    "Loan must be ACTIVE or IN_ARREARS to accept repayments");
+        }
+
+        BigDecimal payment = request.amount();
+        BigDecimal remaining = payment;
+
+        // Allocation order: fees → interest → principal (Fineract convention)
+        BigDecimal feePortion = BigDecimal.ZERO;
+        BigDecimal interestPortion = BigDecimal.ZERO;
+        BigDecimal principalPortion = BigDecimal.ZERO;
+
+        for (LoanRepaymentSchedule installment : loan.getRepaymentSchedule()) {
+            if (installment.getStatus() == LoanRepaymentSchedule.InstallmentStatus.PAID || remaining.compareTo(BigDecimal.ZERO) == 0) continue;
+
+            BigDecimal feesDue = installment.getFeesDue().subtract(installment.getFeesPaid() != null ? installment.getFeesPaid() : BigDecimal.ZERO);
+            BigDecimal interestDue = installment.getInterestDue().subtract(installment.getInterestPaid() != null ? installment.getInterestPaid() : BigDecimal.ZERO);
+            BigDecimal principalDue = installment.getPrincipalDue().subtract(installment.getPrincipalPaid() != null ? installment.getPrincipalPaid() : BigDecimal.ZERO);
+
+            BigDecimal feeApplied = feesDue.min(remaining);
+            remaining = remaining.subtract(feeApplied);
+            feePortion = feePortion.add(feeApplied);
+
+            BigDecimal interestApplied = interestDue.min(remaining);
+            remaining = remaining.subtract(interestApplied);
+            interestPortion = interestPortion.add(interestApplied);
+
+            BigDecimal principalApplied = principalDue.min(remaining);
+            remaining = remaining.subtract(principalApplied);
+            principalPortion = principalPortion.add(principalApplied);
+
+            installment.setFeesPaid((installment.getFeesPaid() != null ? installment.getFeesPaid() : BigDecimal.ZERO).add(feeApplied));
+            installment.setInterestPaid((installment.getInterestPaid() != null ? installment.getInterestPaid() : BigDecimal.ZERO).add(interestApplied));
+            installment.setPrincipalPaid((installment.getPrincipalPaid() != null ? installment.getPrincipalPaid() : BigDecimal.ZERO).add(principalApplied));
+
+            BigDecimal totalPaid = installment.getPrincipalPaid().add(installment.getInterestPaid());
+            if (totalPaid.compareTo(installment.getPrincipalDue().add(installment.getInterestDue())) >= 0) {
+                installment.setStatus(LoanRepaymentSchedule.InstallmentStatus.PAID);
+                installment.setPaidDate(request.paymentDate() != null ? request.paymentDate() : LocalDate.now());
+            }
+        }
+
+        BigDecimal actualPrincipal = payment.subtract(remaining).subtract(interestPortion).subtract(feePortion);
+        if (actualPrincipal.compareTo(BigDecimal.ZERO) < 0) actualPrincipal = BigDecimal.ZERO;
+
+        loan.setOutstandingBalance(loan.getOutstandingBalance().subtract(principalPortion));
+        if (loan.getOutstandingBalance().compareTo(BigDecimal.ZERO) <= 0) {
+            loan.setOutstandingBalance(BigDecimal.ZERO);
+            loan.setStatus(LoanStatus.CLOSED_OBLIGATIONS_MET);
+        }
+
+        Loan saved = loanRepository.save(loan);
+        auditLogService.log("LOAN", loanId.toString(), "REPAYMENT", null,
+                java.util.Map.of("amount", payment, "principalPortion", principalPortion, "interestPortion", interestPortion));
+
+        return new LoanRepaymentResponse(
+                saved.getId(), saved.getLoanAccountNumber(),
+                payment, principalPortion, interestPortion, feePortion,
+                saved.getOutstandingBalance(),
+                request.paymentDate() != null ? request.paymentDate() : LocalDate.now(),
+                request.paymentMethod(), request.referenceNumber());
+    }
+
+    @Transactional
+    public LoanResponse writeOffLoan(UUID loanId, WriteOffRequest request) {
+        Loan loan = findById(loanId);
+
+        if (loan.getStatus() != LoanStatus.ACTIVE && loan.getStatus() != LoanStatus.IN_ARREARS) {
+            throw CbaException.badRequest("INVALID_LOAN_STATE",
+                    "Only ACTIVE or IN_ARREARS loans can be written off");
+        }
+
+        loan.setStatus(LoanStatus.WRITTEN_OFF);
+        loan.setWrittenOffOn(request.writeOffDate() != null ? request.writeOffDate() : LocalDate.now());
+        loan.setWriteOffReason(request.reason());
+        loan.setOutstandingBalance(BigDecimal.ZERO);
+
+        Loan saved = loanRepository.save(loan);
+        auditLogService.log("LOAN", loanId.toString(), "WRITE_OFF", LoanStatus.ACTIVE.name(), LoanStatus.WRITTEN_OFF.name());
+        log.info("Loan written off: {} — reason: {}", saved.getLoanAccountNumber(), request.reason());
+        return toResponse(saved);
     }
 
     private void validateLoanParameters(LoanApplicationRequest req, LoanProduct product) {

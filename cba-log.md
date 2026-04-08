@@ -19,7 +19,18 @@
 | **Teller / Cash Management** | `teller/Teller`, `Cashier`, `TellerSession`, `CashTransaction`, repositories, `TellerService`, `TellerController`, DTOs; `V5__teller_module.sql` | Full session lifecycle: create teller → activate → assign cashier → open session → cash-in/cash-out → settle; mirrors Mifos pattern |
 | **Open Banking (FAPI 2.0)** | `openbanking/OpenBankingConsent`, `ConsentStatus`, `ConsentRepository`, `ConsentService`, `ConsentController`, `AccountInfoController`, `PispController`, `CbpiiController`, DTOs | Full stack: consent lifecycle + AISP (accounts/balances/transactions) + PISP (domestic-payments) + CBPII (funds-confirmation) |
 | **Notification Module** | `notification/AccountEvent`, `LoanEvent`, `NotificationEventListener` | Spring `@EventListener` + `@Async`; hooks for account/loan events |
-| **Audit Module** | `audit/AuditLog`, `AuditLogRepository`, `AuditLogService` | Append-only; `@Transactional(REQUIRES_NEW)`; 7-year retention policy |
+| **Audit Module** | `audit/AuditLog`, `AuditLogRepository`, `AuditLogService`, `AuditController` | Append-only; `@Transactional(REQUIRES_NEW)`; 7-year retention; REST search at `/api/v1/audits` |
+| **SMS Campaigns** | `social/SmsCampaign`, `SmsMessage`, repos, `SmsCampaignService`, `SmsCampaignController` | CRUD + activate command; message delivery tracking per recipient |
+| **Report Mailing Jobs** | `social/ReportMailingJob`, `ReportMailingJobRepository`, `ReportMailingJobService`, `ReportMailingJobController` | CRUD + manual run; iCal RRULE recurrence; run history tracked |
+| **Standing Instructions** | `social/StandingInstruction`, `StandingInstructionRepository`, `StandingInstructionService`, `StandingInstructionController` | Mifos-compatible model; FIXED/OUTSTANDING_BALANCE; disable/enable lifecycle |
+| **Global Search** | `search/SearchResult`, `SearchService` (JdbcTemplate), `SearchController` | Cross-entity ILIKE search; resource-filtered; avoids domain coupling |
+| **Two-Factor Auth** | `user/TwoFactorToken`, `TwoFactorTokenRepository`, `TwoFactorService`, `TwoFactorController` | 6-digit OTP; 10-min expiry; EMAIL/SMS delivery; single-use tokens |
+| **Beneficiaries** | `customer/Beneficiary`, `BeneficiaryRepository`, `BeneficiaryService`, `BeneficiaryController` | Customer sub-resource; soft-delete; transfer limit cap; ownership validation |
+| **Client Images** | `customer/ClientImage`, `ClientImageRepository`, `ClientImageService`, `ClientImageController` | One image per customer; PUT upsert; FILE_SYSTEM/S3/DATABASE storage types |
+| **Credit Bureau** | `system/CreditBureauIntegration`, `CreditBureauProductMapping`, repos, `CreditBureauService`, `CreditBureauController` | Multi-bureau support; product mappings; activate/deactivate lifecycle |
+| **Surveys** | `system/Survey`, `SurveyQuestion`, `SurveyResponse`, `SurveyScorecard`, `SurveyScorecardScore`, repos, `SurveyService`, `SurveyController` | PPI/welfare engine; 5-entity cascade; lookup by key; scorecard submission |
+| **Accounting Rules** | `accounting/AccountingRule`, `AccountingRuleRepository`, `AccountingRuleService`, `AccountingRuleController` | GL debit/credit rule templates; multiple debit/credit flags |
+| **Provisioning Criteria** | `accounting/ProvisioningCriteria`, `ProvisioningCriteriaDefinition`, repos, `ProvisioningCriteriaService`, `ProvisioningCriteriaController` | IFRS 9/Basel II age-band categories; provision %; replace-all update pattern |
 | **Multi-Currency / Tenant** | `currency/ExchangeRate`, `ExchangeRateService`, `ExchangeRateController`, `ExchangeRateRepository`, DTOs; `tenant/Tenant`, `TenantService`, `TenantInterceptor`, `TenantRepository`; `common/tenant/TenantContext` | Tenant base currency; auto-inverse rates; cross-currency transfers; `X-Tenant-ID` header routing |
 | **Common / Config** | `common/response/ApiResponse`, `CbaException`, `GlobalExceptionHandler`, `AuditableEntity`, `FieldEncryptor` (AES-256 `PBEWITHHMACSHA512ANDAES_256`), `EncryptedStringConverter`, `TenantContext`; `config/SecurityConfig`, `OpenApiConfig`, `AuditConfig`, `WebMvcConfig` | Keycloak JWT RBAC; CORS; CSP headers; OpenAPI 3.1 at `/swagger-ui.html` |
 | **Flyway Migrations** | `V1__init_schema.sql`, `V2__demo_data.sql`, `V3__multi_currency.sql`, `V4__multi_currency_demo_data.sql` | UUID PKs; NUMERIC(19,4) money; optimistic locking; 3 tenant demo deployments (USD/KES/GHS) |
@@ -47,6 +58,49 @@ _None — all Phase 1 backend modules are now complete._
 ---
 
 ## Change History
+
+### Session 8 — 2026-04-08
+
+**Gap closure: 11 missing modules — SMS Campaigns, Report Mailing Jobs, Standing Instructions, Search, Two-Factor Auth, Beneficiaries, Client Images, Credit Bureau, Surveys, Accounting Rules, Provisioning Criteria + V19 migration**
+
+#### Added — New Modules (Wave 2–4 Gap Closure)
+
+| Module | Key Files | Endpoints |
+|--------|-----------|-----------|
+| **SMS Campaigns** | `com.cba.social`: `SmsCampaign`, `SmsMessage`, repos, `SmsCampaignService`, `SmsCampaignController`; `V17__hooks_holidays_campaigns.sql` (table pre-existing) | `GET/POST/PUT/DELETE /api/v1/smscampaigns`; `POST ...?command=activate`; `GET .../messages` |
+| **Report Mailing Jobs** | `com.cba.social`: `ReportMailingJob`, `ReportMailingJobRepository`, `ReportMailingJobService`, `ReportMailingJobController` | `GET/POST/PUT/DELETE /api/v1/reportmailingjobs`; `POST ...?command=run` |
+| **Standing Instructions** | `com.cba.social`: `StandingInstruction`, `StandingInstructionRepository`, `StandingInstructionService`, `StandingInstructionController` | `GET/POST/PUT/DELETE /api/v1/standinginstructions`; `POST ...?command=disable|enable` |
+| **Global Search** | `com.cba.search`: `SearchResult` (record), `SearchService` (JdbcTemplate), `SearchController` | `GET /api/v1/search?query={q}[&resource=CLIENTS|LOANS|SAVINGS|GROUPS]` |
+| **Two-Factor Auth** | `com.cba.user`: `TwoFactorToken`, `TwoFactorTokenRepository`, `TwoFactorService`, `TwoFactorController`; `V18__maker_checker_datatables.sql` (table pre-existing) | `POST /api/v1/twofactor/generate`; `POST /api/v1/twofactor/verify`; `GET /api/v1/users/{id}/twofactor` |
+| **Beneficiaries** | `com.cba.customer`: `Beneficiary`, `BeneficiaryRepository`, `BeneficiaryService`, `BeneficiaryController` | `GET/POST/PUT/DELETE /api/v1/clients/{customerId}/beneficiaries` |
+| **Client Images** | `com.cba.customer`: `ClientImage`, `ClientImageRepository`, `ClientImageService`, `ClientImageController` | `GET/PUT/DELETE /api/v1/clients/{customerId}/images` (PUT = upsert) |
+| **Credit Bureau** | `com.cba.system`: `CreditBureauIntegration`, `CreditBureauProductMapping`, repos, `CreditBureauService`, `CreditBureauController` | `GET/POST/PUT/DELETE /api/v1/creditbureaus`; `POST ...?command=activate|deactivate`; `GET/POST/DELETE .../mappings` |
+| **Surveys** | `com.cba.system`: `Survey`, `SurveyQuestion`, `SurveyResponse`, `SurveyScorecard`, `SurveyScorecardScore`, repos, `SurveyService`, `SurveyController` | `GET/POST/PUT/DELETE /api/v1/surveys`; `GET /api/v1/surveys/key/{key}`; `GET/POST .../scorecards` |
+| **Accounting Rules** | `com.cba.accounting`: `AccountingRule`, `AccountingRuleRepository`, `AccountingRuleService`, `AccountingRuleController`; `V19__accounting_rules_provisioning.sql` | `GET/POST/PUT/DELETE /api/v1/accountingrules` |
+| **Provisioning Criteria** | `com.cba.accounting`: `ProvisioningCriteria`, `ProvisioningCriteriaDefinition`, `ProvisioningCriteriaRepository`, `ProvisioningCriteriaService`, `ProvisioningCriteriaController` | `GET/POST/PUT/DELETE /api/v1/provisioningcriteria` |
+
+#### Added — Flyway Migration
+
+| File | Tables |
+|------|--------|
+| `V19__accounting_rules_provisioning.sql` | `accounting_rules`, `provisioning_criteria`, `provisioning_criteria_definitions` |
+
+#### Build Verification
+
+- `./mvnw clean compile` → **EXIT:0** (zero errors, only JVM compatibility warnings)
+- Total Java files: **370** (309 from Session 7 + 61 from Session 8 — 54 new + 7 existing files counted again after edits)
+- Total controllers: **61**
+
+#### Documentation Updates (Session 8 docs commit)
+
+| File | Change |
+|------|--------|
+| `docs/cba-postman-collection-v2.json` | +63 requests, +11 folders → **308 requests, 41 folders** |
+| `docs/api-reference.html` | +11 new module sections + Full API Matrix rows for all new endpoints |
+| `CLAUDE.md` | Modules 33–43 added with full documentation level |
+| `cba-log.md` | This entry |
+
+---
 
 ### Session 7 — 2026-04-08
 

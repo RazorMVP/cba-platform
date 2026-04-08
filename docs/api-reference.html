@@ -1322,6 +1322,168 @@ difference = actual_cash - closing_balance</pre>
 </table>
 </section>
 
+<!-- SMS CAMPAIGNS ───────────────────────────────────────────────────────── -->
+<section id="sms-campaigns">
+<h2>SMS Campaigns</h2>
+<p>Bulk SMS campaign management (Mifos-compatible). Supports INDIVIDUAL, ALL, and QUERY campaign types. Campaigns can be DIRECT, SCHEDULED, or TRIGGERED. Message status is tracked per recipient via the <code>sms_messages</code> table.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/smscampaigns</td><td>List campaigns (paginated)</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/smscampaigns/{id}</td><td>Get campaign</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/smscampaigns</td><td>Create campaign</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/smscampaigns/{id}</td><td>Update campaign</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/smscampaigns/{id}?command=activate</td><td>Activate campaign (PENDING → ACTIVE)</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/smscampaigns/{id}</td><td>Soft-delete campaign (sets status=DELETED)</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/smscampaigns/{id}/messages</td><td>List outbound SMS messages for campaign</td><td>ADMIN</td></tr>
+</table>
+</section>
+
+<!-- REPORT MAILING JOBS ──────────────────────────────────────────────────── -->
+<section id="report-mailing-jobs">
+<h2>Report Mailing Jobs</h2>
+<p>Scheduled report delivery via email. Each job references a stored report by name, provides parameters, and uses iCal RRULE recurrence. Output format is CSV, PDF, or XLS. Run history (start/end time, status, run count) is tracked on the job record.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/reportmailingjobs</td><td>List mailing jobs</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/reportmailingjobs/{id}</td><td>Get mailing job</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/reportmailingjobs</td><td>Create mailing job</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/reportmailingjobs/{id}</td><td>Update mailing job</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/reportmailingjobs/{id}?command=run</td><td>Trigger manual run immediately</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/reportmailingjobs/{id}</td><td>Delete mailing job</td><td>ADMIN</td></tr>
+</table>
+</section>
+
+<!-- STANDING INSTRUCTIONS ───────────────────────────────────────────────── -->
+<section id="standing-instructions">
+<h2>Standing Instructions</h2>
+<p>Periodic account-to-account transfer instructions (Mifos-compatible model). Supports FIXED amount or OUTSTANDING_BALANCE types. Priority levels: HIGH, MEDIUM, LOW, URGENT. Recurrence defined per frequency/interval. Status: ACTIVE → DISABLED → DELETED.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/standinginstructions</td><td>List standing instructions</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/standinginstructions/{id}</td><td>Get standing instruction</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/standinginstructions</td><td>Create standing instruction</td><td>ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/api/v1/standinginstructions/{id}</td><td>Update standing instruction</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/standinginstructions/{id}?command=disable</td><td>Disable instruction (ACTIVE → DISABLED)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/standinginstructions/{id}?command=enable</td><td>Re-enable instruction (DISABLED → ACTIVE)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/standinginstructions/{id}</td><td>Delete standing instruction</td><td>ADMIN</td></tr>
+</table>
+</section>
+
+<!-- GLOBAL SEARCH ───────────────────────────────────────────────────────── -->
+<section id="search">
+<h2>Global Search</h2>
+<p>Cross-entity search across clients, loans, savings accounts, and groups. Uses JDBC queries for loose coupling to domain packages. Filter by resource type with <code>?resource=</code>. Returns entityId, entityType, entityAccountNo, entityStatus.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/search?query={q}</td><td>Search all entities</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/search?query={q}&amp;resource=CLIENTS</td><td>Search clients only</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/search?query={q}&amp;resource=LOANS</td><td>Search loans only</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/search?query={q}&amp;resource=SAVINGS</td><td>Search savings accounts only</td><td>ADMIN, TELLER</td></tr>
+</table>
+</section>
+
+<!-- TWO-FACTOR AUTH ─────────────────────────────────────────────────────── -->
+<section id="twofactor">
+<h2>Two-Factor Authentication</h2>
+<p>OTP token generation and verification for platform users. Tokens are 6-digit codes with 10-minute expiry. Delivery method: EMAIL or SMS. Tokens are stored in <code>two_factor_auth_tokens</code> and marked verified on successful check.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>POST</td><td>/api/v1/twofactor/generate</td><td>Generate 2FA token for user</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/twofactor/verify</td><td>Verify OTP token (marks as verified)</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>GET</td><td>/api/v1/users/{userId}/twofactor</td><td>List all 2FA tokens for a user</td><td>ADMIN, TELLER</td></tr>
+</table>
+</section>
+
+<!-- BENEFICIARIES ───────────────────────────────────────────────────────── -->
+<section id="beneficiaries">
+<h2>Beneficiaries</h2>
+<p>Third-party transfer beneficiaries. Sub-resource of customers at <code>/api/v1/clients/{customerId}/beneficiaries</code>. Supports optional transfer limit per beneficiary. Soft-delete (sets <code>active=false</code>) rather than hard delete. List endpoint returns only active beneficiaries.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/clients/{customerId}/beneficiaries</td><td>List active beneficiaries</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>GET</td><td>/api/v1/clients/{customerId}/beneficiaries/{id}</td><td>Get beneficiary</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>POST</td><td>/api/v1/clients/{customerId}/beneficiaries</td><td>Add beneficiary</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>PUT</td><td>/api/v1/clients/{customerId}/beneficiaries/{id}</td><td>Update beneficiary</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/clients/{customerId}/beneficiaries/{id}</td><td>Remove beneficiary (soft-delete)</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+</table>
+</section>
+
+<!-- CLIENT IMAGES ───────────────────────────────────────────────────────── -->
+<section id="client-images">
+<h2>Client Images</h2>
+<p>Customer profile image management. One image record per customer (UNIQUE on customer_id). PUT performs an upsert — creates if missing, replaces if exists. Stores metadata only (location, storage_type, content_type, size); actual binary is handled by external storage (FILE_SYSTEM or S3).</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/clients/{customerId}/images</td><td>Get client image metadata</td><td>ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/api/v1/clients/{customerId}/images</td><td>Upload / replace image (upsert)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/clients/{customerId}/images</td><td>Delete image record</td><td>ADMIN</td></tr>
+</table>
+</section>
+
+<!-- CREDIT BUREAU ───────────────────────────────────────────────────────── -->
+<section id="credit-bureau">
+<h2>Credit Bureau</h2>
+<p>Credit bureau integration configuration and loan-product mappings. Multiple bureaus can be configured (TransUnion, Metropol, CRB Africa etc.). Product mappings control which bureau is checked for each loan product and whether the check is mandatory. State: activate/deactivate without deleting the integration.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/creditbureaus</td><td>List integrations</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/creditbureaus/{id}</td><td>Get integration</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/creditbureaus</td><td>Create integration</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/creditbureaus/{id}</td><td>Update integration</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/creditbureaus/{id}?command=activate</td><td>Activate integration</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/creditbureaus/{id}?command=deactivate</td><td>Deactivate integration</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/creditbureaus/{id}</td><td>Delete integration</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/creditbureaus/{id}/mappings</td><td>List product mappings</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/creditbureaus/{id}/mappings</td><td>Add product mapping</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/creditbureaus/{id}/mappings/{mappingId}</td><td>Remove product mapping</td><td>ADMIN</td></tr>
+</table>
+</section>
+
+<!-- SURVEYS ─────────────────────────────────────────────────────────────── -->
+<section id="surveys">
+<h2>Surveys</h2>
+<p>Progress out of Poverty Index (PPI) / welfare survey engine (Mifos-compatible). Surveys contain questions, each with a set of scored responses. Customers submit scorecards that record a response per question. Scorecards are immutable once submitted.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/surveys</td><td>List surveys</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/surveys/{id}</td><td>Get survey by ID</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/surveys/key/{key}</td><td>Get survey by key (e.g. <code>ppi_ke_2023</code>)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/surveys</td><td>Create survey</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/surveys/{id}</td><td>Update survey</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/surveys/{id}</td><td>Delete survey</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/surveys/{id}/scorecards</td><td>List scorecards for survey</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/surveys/{id}/scorecards</td><td>Submit customer scorecard</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+</table>
+</section>
+
+<!-- ACCOUNTING RULES ────────────────────────────────────────────────────── -->
+<section id="accounting-rules">
+<h2>Accounting Rules</h2>
+<p>Configurable debit/credit GL account mappings for common journal entry types. Each rule links a name to a debit GL account and a credit GL account. Optional flags allow multiple debits or credits from a single rule. Used by the double-entry posting engine at transaction time.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/accountingrules</td><td>List accounting rules</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/accountingrules/{id}</td><td>Get accounting rule</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/accountingrules</td><td>Create accounting rule</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/accountingrules/{id}</td><td>Update accounting rule</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/accountingrules/{id}</td><td>Delete accounting rule</td><td>ADMIN</td></tr>
+</table>
+</section>
+
+<!-- PROVISIONING CRITERIA ───────────────────────────────────────────────── -->
+<section id="provisioning-criteria">
+<h2>Provisioning Criteria</h2>
+<p>Loan loss provisioning criteria definitions (IFRS 9 / Basel II). Each criteria has named categories (STANDARD, WATCH, SUB_STANDARD, DOUBTFUL, LOSS) with age-band thresholds (days overdue) and a provision percentage. Definitions are cascaded — updating a criteria replaces all definitions atomically. Liability and expense GL accounts are linked per category.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/provisioningcriteria</td><td>List provisioning criteria</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/provisioningcriteria/{id}</td><td>Get provisioning criteria</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/provisioningcriteria</td><td>Create criteria with definitions</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/provisioningcriteria/{id}</td><td>Update criteria (replaces all definitions)</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/provisioningcriteria/{id}</td><td>Delete provisioning criteria</td><td>ADMIN</td></tr>
+</table>
+</section>
+
 <!-- FULL API MATRIX ─────────────────────────────────────────────────────── -->
 <section id="fullapi">
 <h2>Full API Matrix</h2>
@@ -1578,6 +1740,73 @@ difference = actual_cash - closing_balance</pre>
 <tr><td>GET</td><td>/api/v1/audits/search</td><td>Search audit log</td><td>ADMIN</td></tr>
 <!-- Batch API -->
 <tr><td>POST</td><td>/api/v1/batches</td><td>Batch API</td><td>ADMIN, TELLER</td></tr>
+<!-- SMS Campaigns -->
+<tr><td>GET</td><td>/api/v1/smscampaigns</td><td>List SMS campaigns</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/smscampaigns/{id}</td><td>Get campaign</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/smscampaigns</td><td>Create campaign</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/smscampaigns/{id}</td><td>Update campaign</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/smscampaigns/{id}?command=activate</td><td>Activate campaign</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/smscampaigns/{id}</td><td>Delete campaign</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/smscampaigns/{id}/messages</td><td>List campaign messages</td><td>ADMIN</td></tr>
+<!-- Report Mailing Jobs -->
+<tr><td>GET</td><td>/api/v1/reportmailingjobs</td><td>List mailing jobs</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/reportmailingjobs/{id}</td><td>Get mailing job</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/reportmailingjobs</td><td>Create mailing job</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/reportmailingjobs/{id}</td><td>Update mailing job</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/reportmailingjobs/{id}?command=run</td><td>Run job now</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/reportmailingjobs/{id}</td><td>Delete mailing job</td><td>ADMIN</td></tr>
+<!-- Standing Instructions -->
+<tr><td>GET</td><td>/api/v1/standinginstructions</td><td>List standing instructions</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/standinginstructions/{id}</td><td>Get instruction</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/standinginstructions</td><td>Create instruction</td><td>ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/api/v1/standinginstructions/{id}</td><td>Update instruction</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/standinginstructions/{id}?command=disable</td><td>Disable instruction</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/standinginstructions/{id}?command=enable</td><td>Enable instruction</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/standinginstructions/{id}</td><td>Delete instruction</td><td>ADMIN</td></tr>
+<!-- Search -->
+<tr><td>GET</td><td>/api/v1/search?query={q}</td><td>Global entity search</td><td>ADMIN, TELLER</td></tr>
+<!-- Two-Factor Auth -->
+<tr><td>POST</td><td>/api/v1/twofactor/generate</td><td>Generate 2FA token</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/twofactor/verify</td><td>Verify 2FA token</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>GET</td><td>/api/v1/users/{userId}/twofactor</td><td>List 2FA tokens for user</td><td>ADMIN, TELLER</td></tr>
+<!-- Beneficiaries -->
+<tr><td>GET</td><td>/api/v1/clients/{id}/beneficiaries</td><td>List beneficiaries</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>POST</td><td>/api/v1/clients/{id}/beneficiaries</td><td>Add beneficiary</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>PUT</td><td>/api/v1/clients/{id}/beneficiaries/{bId}</td><td>Update beneficiary</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/clients/{id}/beneficiaries/{bId}</td><td>Remove beneficiary</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<!-- Client Images -->
+<tr><td>GET</td><td>/api/v1/clients/{id}/images</td><td>Get client image</td><td>ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/api/v1/clients/{id}/images</td><td>Upload / replace image</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/clients/{id}/images</td><td>Delete image</td><td>ADMIN</td></tr>
+<!-- Credit Bureau -->
+<tr><td>GET</td><td>/api/v1/creditbureaus</td><td>List integrations</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/creditbureaus</td><td>Create integration</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/creditbureaus/{id}</td><td>Update integration</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/creditbureaus/{id}?command=activate</td><td>Activate integration</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/creditbureaus/{id}?command=deactivate</td><td>Deactivate integration</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/creditbureaus/{id}</td><td>Delete integration</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/creditbureaus/{id}/mappings</td><td>List product mappings</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/creditbureaus/{id}/mappings</td><td>Add product mapping</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/creditbureaus/{id}/mappings/{mId}</td><td>Remove product mapping</td><td>ADMIN</td></tr>
+<!-- Surveys -->
+<tr><td>GET</td><td>/api/v1/surveys</td><td>List surveys</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/surveys/{id}</td><td>Get survey</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/surveys/key/{key}</td><td>Get survey by key</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/surveys</td><td>Create survey</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/surveys/{id}</td><td>Update survey</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/surveys/{id}</td><td>Delete survey</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/surveys/{id}/scorecards</td><td>List scorecards</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/surveys/{id}/scorecards</td><td>Submit scorecard</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<!-- Accounting Rules -->
+<tr><td>GET</td><td>/api/v1/accountingrules</td><td>List accounting rules</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/accountingrules</td><td>Create accounting rule</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/accountingrules/{id}</td><td>Update accounting rule</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/accountingrules/{id}</td><td>Delete accounting rule</td><td>ADMIN</td></tr>
+<!-- Provisioning Criteria -->
+<tr><td>GET</td><td>/api/v1/provisioningcriteria</td><td>List provisioning criteria</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/provisioningcriteria</td><td>Create criteria + definitions</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/provisioningcriteria/{id}</td><td>Update criteria (replaces definitions)</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/provisioningcriteria/{id}</td><td>Delete provisioning criteria</td><td>ADMIN</td></tr>
 </table>
 
 <h3>Planned (Not Yet Implemented)</h3>

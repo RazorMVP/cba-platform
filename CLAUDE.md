@@ -401,6 +401,97 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 - Package: `com.cba.role`
 - Endpoints: `GET/POST/PUT /api/v1/roles`, `GET/PUT /api/v1/roles/{id}/permissions`, `GET /api/v1/roles/permissions`
 
+### 33. SMS Campaigns Module
+- Bulk SMS campaign management (Mifos-compatible). `CampaignType` enum: `INDIVIDUAL`, `ALL`, `QUERY`; `TriggerType`: `DIRECT`, `SCHEDULED`, `TRIGGERED`
+- `SmsCampaign.Status` flow: `PENDING → WAITING_FOR_ACTIVATION → ACTIVE → CLOSED → DELETED` (soft-delete)
+- `SmsMessage` tracks per-recipient delivery: `DeliveryStatus` enum `PENDING | SENT | FAILED | INVALID`; linked to campaign and customer
+- `recurrence` stored as iCal RRULE string (e.g. `FREQ=WEEKLY;BYDAY=MO`)
+- Package: `com.cba.social`; Flyway: `V17__hooks_holidays_campaigns.sql`
+- Endpoints: `GET/POST/PUT/DELETE /api/v1/smscampaigns`, `POST /api/v1/smscampaigns/{id}?command=activate`, `GET /api/v1/smscampaigns/{id}/messages`
+
+### 34. Report Mailing Jobs Module
+- Scheduled report delivery via email. References stored reports by `reportName`; params as JSONB `Map<String,String>`
+- `OutputType` enum: `CSV`, `PDF`, `XLS`. `recurrence` as iCal RRULE. `emailRecipients` comma-separated
+- Run history tracked on entity: `runCount`, `previousRunStartTime`, `previousRunEndTime`, `previousRunStatus`
+- `runNow(id)` increments `runCount` and sets `previousRunStartTime`; actual email sending wired separately
+- Package: `com.cba.social`; Flyway: `V17__hooks_holidays_campaigns.sql`
+- Endpoints: `GET/POST/PUT/DELETE /api/v1/reportmailingjobs`, `POST /api/v1/reportmailingjobs/{id}?command=run`
+
+### 35. Standing Instructions Module
+- Periodic account-to-account transfer instructions (Mifos `standinginstructions` model, distinct from payment standing orders)
+- `InstructionType`: `FIXED` (fixed amount) | `OUTSTANDING_BALANCE` (transfer full balance)
+- `Priority`: `HIGH | MEDIUM | LOW | URGENT`; `Status`: `ACTIVE → DISABLED → DELETED`
+- `RecurrenceType`: `PERIODIC_RECURRENCE | AS_PER_DUES`; frequency/interval control execution schedule
+- Amount stored as `NUMERIC(19,4)` → `BigDecimal`; validity date range enforced at execution time
+- Package: `com.cba.social`; Flyway: `V17__hooks_holidays_campaigns.sql`
+- Endpoints: `GET/POST/PUT/DELETE /api/v1/standinginstructions`, `POST /api/v1/standinginstructions/{id}?command=disable|enable`
+
+### 36. Global Search Module
+- Cross-entity search across clients, loans, savings accounts, and groups
+- Uses `JdbcTemplate` ILIKE queries — deliberately avoids importing domain repositories to prevent circular coupling
+- `resource` query param filters to one entity type: `CLIENTS | LOANS | SAVINGS | GROUPS`; omit for all
+- Invalid resource values throw `CbaException.badRequest("INVALID_RESOURCE", ...)`
+- Returns `SearchResult` record: `entityId`, `entityType`, `entityName`, `entityAccountNo`, `entityStatus`, `entityExternalId`
+- Package: `com.cba.search`
+- Endpoints: `GET /api/v1/search?query={q}[&resource=CLIENTS|LOANS|SAVINGS|GROUPS]`
+
+### 37. Two-Factor Authentication Module
+- OTP token generation and verification for platform users. 6-digit code with 10-minute expiry
+- `DeliveryMethod`: `EMAIL | SMS`. Token stored in `two_factor_auth_tokens` table; single-use (marked `verified=true` on success)
+- `generateToken()` uses `SecureRandom` for cryptographically secure codes
+- `verifyToken()` rejects expired or already-verified tokens with distinct error codes
+- Package: `com.cba.user`; Flyway: `V18__maker_checker_datatables.sql`
+- Endpoints: `POST /api/v1/twofactor/generate`, `POST /api/v1/twofactor/verify`, `GET /api/v1/users/{userId}/twofactor`
+
+### 38. Beneficiaries Module
+- Third-party transfer beneficiaries; sub-resource of customers at `/api/v1/clients/{customerId}/beneficiaries`
+- No `version` column in DB; soft-delete via `active=false` (list endpoint returns only `active=true`)
+- `getBeneficiary()` validates ownership — returns 404 (not 403) when customerId doesn't match, preventing enumeration
+- `transferLimit NUMERIC(19,4)` → `BigDecimal` — optional cap on single transfer to this beneficiary
+- Package: `com.cba.customer`; Flyway: `V18__maker_checker_datatables.sql`
+- Endpoints: `GET/POST/PUT/DELETE /api/v1/clients/{customerId}/beneficiaries`, `GET /api/v1/clients/{customerId}/beneficiaries/{id}`
+
+### 39. Client Images Module
+- Profile image management; one image per customer (`UNIQUE` constraint on `customer_id`)
+- `StorageType` enum: `FILE_SYSTEM | S3 | DATABASE`. Stores metadata only — binary handled by external storage
+- `saveImage()` performs an upsert: finds existing record or creates new; single `PUT` endpoint handles both cases
+- No `version` column in DB table
+- Package: `com.cba.customer`; Flyway: `V18__maker_checker_datatables.sql`
+- Endpoints: `GET /api/v1/clients/{customerId}/images`, `PUT /api/v1/clients/{customerId}/images`, `DELETE /api/v1/clients/{customerId}/images`
+
+### 40. Credit Bureau Module
+- Credit bureau integration config and loan-product mappings. Supports multiple bureau adapters (TransUnion, Metropol, etc.)
+- `CreditBureauIntegration`: `implClass` field stores the fully-qualified adapter class name; `country` ISO code
+- `CreditBureauProductMapping`: UNIQUE constraint on `(loan_product_id, credit_bureau_id)`; `creditCheckMandatory boolean`
+- Activate/deactivate without deleting; `findByCreditBureauId()` for listing mappings per bureau
+- No `version` on either entity; cross-package loan product reference stored as UUID (no JPA join)
+- Package: `com.cba.system`; Flyway: `V18__maker_checker_datatables.sql`
+- Endpoints: `GET/POST/PUT/DELETE /api/v1/creditbureaus`, `POST /api/v1/creditbureaus/{id}?command=activate|deactivate`, `GET/POST/DELETE /api/v1/creditbureaus/{id}/mappings`
+
+### 41. Surveys Module
+- PPI / welfare survey engine (Mifos-compatible). 5-entity cascade chain: `Survey → SurveyQuestion → SurveyResponse`, `Survey → SurveyScorecard → SurveyScorecardScore`
+- `Survey.key` is UNIQUE — used for programmatic lookup (`/api/v1/surveys/key/{key}`)
+- Questions ordered by `sequenceNo ASC`; responses ordered similarly. All `CascadeType.ALL + orphanRemoval=true`
+- Scorecards are immutable once submitted; `SurveyScorecardScore` stores `questionId` + `responseId` as UUIDs
+- No `version` on any survey entity; no `updatedAt` on `SurveyQuestion` or `SurveyResponse`
+- Package: `com.cba.system`; Flyway: `V18__maker_checker_datatables.sql`
+- Endpoints: `GET/POST/PUT/DELETE /api/v1/surveys`, `GET /api/v1/surveys/key/{key}`, `GET/POST /api/v1/surveys/{id}/scorecards`
+
+### 42. Accounting Rules Module
+- Configurable debit/credit GL account mappings for journal entry types. Links a rule name to debit and credit `gl_accounts` UUIDs
+- `allowMultipleDebits` / `allowMultipleCredits` flags control whether the posting engine can fan out to multiple accounts
+- Package: `com.cba.accounting`; Flyway: `V19__accounting_rules_provisioning.sql`
+- Endpoints: `GET/POST/PUT/DELETE /api/v1/accountingrules`
+
+### 43. Provisioning Criteria Module
+- Loan loss provisioning definitions (IFRS 9 / Basel II). Each criteria has named age-band categories with provision percentages
+- Standard categories: `STANDARD` (0–30d, 1%), `WATCH` (31–90d, 5%), `SUB_STANDARD` (91–180d, 25%), `DOUBTFUL` (181–360d, 50%), `LOSS` (361+d, 100%)
+- `ProvisioningCriteriaDefinition`: `provisionPercentage NUMERIC(5,2)` → `BigDecimal`; `liabilityAccountId` + `expenseAccountId` as UUID FK refs to `gl_accounts`
+- `updateCriteria()` clears and re-adds all definitions atomically (replace-all pattern, same as `updatePermissions()`)
+- No `version` on `ProvisioningCriteriaDefinition`; parent `ProvisioningCriteria` has `@Version`
+- Package: `com.cba.accounting`; Flyway: `V19__accounting_rules_provisioning.sql`
+- Endpoints: `GET/POST/PUT/DELETE /api/v1/provisioningcriteria`
+
 ---
 
 ## Multi-Currency Architecture

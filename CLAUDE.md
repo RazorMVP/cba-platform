@@ -289,6 +289,118 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 - Package: `com.cba.batch`
 - Endpoint: `POST /api/v1/batches?enclosingTransaction=false`
 
+### 18. Charges Module
+- Charge definitions (master templates) + loan charges (applied instances), Mifos-compatible
+- `ChargeTimeType` enum: `DISBURSEMENT`, `SPECIFIED_DUE_DATE`, `INSTALLMENT_FEE`, `OVERDUE_INSTALLMENT`
+- `ChargeCalculationType` enum: `FLAT`, `PERCENT_OF_AMOUNT`, `PERCENT_OF_AMOUNT_AND_INTEREST`
+- `LoanCharge` links a definition to a loan; tracks `amountPaid`, `waived`, `outstanding`
+- Pay charge command updates `amountPaid` and creates an immutable `Transaction` record
+- Cross-package lookup via `EntityManager.find(Loan.class, loanId)` (avoids importing LoanRepository)
+- Flyway migration: `V12__charges_module.sql`
+- Endpoints: `GET/POST/PUT/DELETE /api/v1/charges`, `GET/POST /api/v1/loans/{id}/charges`, `POST /api/v1/loans/{id}/charges/{cId}?command=pay`, `DELETE /api/v1/loans/{id}/charges/{cId}`
+
+### 19. Fixed Deposit Module
+- Full product + account lifecycle for term deposits
+- `FixedDepositProduct`: `nominalAnnualInterestRate`, `minDepositAmount`/`maxDepositAmount`, `minDepositTerm`, `penaltyInterestRate`
+- `FixedDepositAccount.Status` enum: `SUBMITTED`, `APPROVED`, `ACTIVE`, `PREMATURE_CLOSED`, `MATURED`, `CLOSED`, `REJECTED`
+- Command pattern via `?command=approve|activate|reject|prematureClose|mature`
+- Premature close applies penalty interest; mature calculates full interest
+- Package: `com.cba.deposit`; Flyway: `V13__fixed_deposit_module.sql`
+- Endpoints: `GET/POST/PUT/DELETE /api/v1/fixeddepositproducts`, `GET/POST /api/v1/fixeddepositaccounts`, `POST /api/v1/fixeddepositaccounts/{id}?command=...`
+
+### 20. Recurring Deposit Module
+- Monthly/periodic savings plan with mandatory installment amounts
+- `RecurringDepositProduct`: `recurringDepositFrequency`, `recurringDepositFrequencyTypeId`, `minDepositAmount`
+- `RecurringDepositAccount.Status` enum: matches Fixed Deposit status flow
+- Validates installment amounts on activation; applies accrual on maturity
+- Package: `com.cba.deposit`; Flyway: `V13__fixed_deposit_module.sql` (same migration)
+- Endpoints: `GET/POST/PUT /api/v1/recurringdepositproducts`, `GET/POST /api/v1/recurringdepositaccounts`, `POST /api/v1/recurringdepositaccounts/{id}?command=...`
+
+### 21. Share Products & Accounts Module
+- Equity share issuance and redemption for cooperative/MFI institutions
+- `ShareProduct`: `unitPrice`, `sharesIssued`, `minimumShares`, `maximumShares`, `shortName UNIQUE`
+- `ShareAccount.Status` enum: `SUBMITTED`, `APPROVED`, `ACTIVE`, `CLOSED`, `REJECTED`
+- `ShareAccountTransaction.TransactionType` enum: `PURCHASE`, `REDEEM`, `DIVIDEND`
+- `@PrePersist` computes `totalAmount = unitPrice × numberOfShares` automatically
+- Purchase updates `account.totalSharesHeld` and `product.sharesIssued`; redeem validates sufficient balance
+- Package: `com.cba.share`; Flyway: `V14__share_module.sql`
+- Endpoints: `GET/POST/PUT /api/v1/shareproducts`, `GET/POST /api/v1/shareaccounts`, `POST /api/v1/shareaccounts/{id}?command=...`, `GET/POST /api/v1/shareaccounts/{id}/transactions?type=purchase|redeem`
+
+### 22. Loan Guarantors & Collateral Module
+- `Guarantor`: `GuarantorType` enum `EXISTING_CUSTOMER`/`EXTERNAL`; external stores personal details inline
+- `Collateral`: `value NUMERIC(19,4)`, `collateralTypeCodeValueId UUID` references code_values; `description`
+- Package: `com.cba.loan`; Flyway: `V15__loan_extensions.sql`
+- Endpoints: `GET/POST/DELETE /api/v1/loans/{id}/guarantors`, `GET/POST/PUT/DELETE /api/v1/loans/{id}/collaterals`
+
+### 23. Loan Reschedule / Re-aging / Re-amortization Module
+- `LoanRescheduleRequest.Status` PENDING/APPROVED/REJECTED; fields for `newInterestRate`, `graceOnPrincipal`, `graceOnInterest`, `extraTerms`, `recalculateInterest`
+- `LoanReagingRequest` (Fineract 1.14.0 feature): `FrequencyType` DAYS/WEEKS/MONTHS; moves overdue installments to future dates; `preview` flag for dry-run
+- `LoanReamortizationRequest` (Fineract 1.14.0 feature): triggers full schedule recalculation after partial forgiveness/modification
+- All handled by `LoanExtensionService`; package: `com.cba.loan`; Flyway: `V15__loan_extensions.sql`
+- Endpoints: `GET/POST /api/v1/loanreschedule`, `POST /api/v1/loanreschedule/{id}?command=approve|reject`, `GET/POST /api/v1/loans/{id}/reaging`, `GET/POST /api/v1/loans/{id}/reamortization`
+
+### 24. Floating Rates Module
+- Rate curves with dated periods; `baseLendingRate boolean` marks the reference rate
+- `FloatingRate`: `isActive`, `isBaseLendingRate`, list of `FloatingRatePeriod` (`fromDate`, `interestRate`, `isDifferentialToBaseLendingRate`)
+- Update replaces all periods atomically (clears `ratePeriods` list + re-adds from request)
+- Package: `com.cba.system`; Flyway: `V16__system_modules.sql`
+- Endpoints: `GET/POST/PUT/DELETE /api/v1/floatingrates`
+
+### 25. Taxes Module
+- `TaxComponent`: `percentage NUMERIC(19,6)`, `creditAccountId`/`debitAccountId` reference GL accounts, `startDate`
+- `TaxGroup`: `@OneToMany` via `@JoinTable(name="tax_group_mappings")` to tax components with effective dates
+- Package: `com.cba.system`; combined `TaxController` at `/api/v1/taxes/`
+- Endpoints: `GET/POST/PUT /api/v1/taxes/components`, `GET/POST/PUT /api/v1/taxes/groups`
+
+### 26. System Configuration Module
+- **Codes & Code Values**: extensible enum tables; `systemDefined boolean` prevents deletion of built-in codes; `CodeValue` has `position` for UI ordering
+- **Global Configuration**: `GlobalConfiguration` key-value store with `stringValue`, `numericValue`, `booleanValue`, `enabled`; seeded via Flyway
+- **Funds**: `name UNIQUE`, `externalId`; referenced by loan products for fund tracking
+- **Payment Types**: `cashPayment boolean`, `systemDefined boolean`; position for UI ordering; system-defined types cannot be deleted
+- **Account Number Formats**: `AccountType` enum LOAN/SAVINGS/CLIENT/SHARE; `PrefixType` enum; controls auto-generated account number format
+- Package: `com.cba.system`; Flyway: `V16__system_modules.sql`
+- Endpoints: `GET/POST/DELETE /api/v1/codes`, `GET/POST/PUT/DELETE /api/v1/codes/{id}/codevalues`, `GET/PUT /api/v1/configurations`, `GET/POST/PUT /api/v1/funds`, `GET/POST/PUT/DELETE /api/v1/paymenttypes`, `GET/POST/PUT/DELETE /api/v1/accountnumberformats`
+
+### 27. Notes & Documents Module
+- Polymorphic: `entityType VARCHAR(50)` + `entityId UUID` — one table serves all entity types (clients, loans, accounts, etc.)
+- `Document` stores file metadata only (`fileName`, `fileSize`, `contentType`, `storagePath`) — actual binary handled by external storage
+- Package: `com.cba.social`; Flyway: `V17__social_modules.sql`
+- Endpoints: `GET/POST/PUT/DELETE /api/v1/{entityType}/{entityId}/notes`, `GET/POST/DELETE /api/v1/{entityType}/{entityId}/documents`
+
+### 28. Hooks & Holidays Module
+- `Hook`: `HookType` WEB/SMS; `events List<String>` stored as `@JdbcTypeCode(SqlTypes.JSON)` JSONB column
+- `Holiday`: `RepaymentSchedulingType` enum SAME_DAY/NEXT_WORKING_DAY/PREVIOUS_WORKING_DAY/NEXT_REPAYMENT_MEETING_DATE; `Status` PENDING/ACTIVE
+- Package: `com.cba.social`; handled by `HookService` (manages both hooks and holidays)
+- Endpoints: `GET/POST/PUT/DELETE /api/v1/hooks`, `GET/POST/DELETE /api/v1/holidays`, `POST /api/v1/holidays/{id}?command=activate`
+
+### 29. Maker-Checker Module
+- Stores full `commandAsJson TEXT` for re-execution on approval
+- `Status` PENDING/APPROVED/REJECTED; `madeByUserId`/`checkedByUserId` track the two-person workflow
+- `checkerUserId` passed as optional request param on approve/reject command
+- Package: `com.cba.social`
+- Endpoints: `GET/POST/DELETE /api/v1/makercheckers`, `POST /api/v1/makercheckers/{id}?command=approve|reject`
+
+### 30. DataTables Module
+- Dynamic schema extension using `registeredTableName`/`applicationTableName`; Mifos-compatible naming
+- `DataTableColumn`: `columnName`, `columnType`, `columnLength`, `nullable`, `unique`, `codeId UUID`
+- `allowMultipleRows boolean` controls one-to-one vs one-to-many extension table pattern
+- Package: `com.cba.social`
+- Endpoints: `GET/POST /api/v1/datatables`, `DELETE /api/v1/datatables/{registeredTableName}`
+
+### 31. Client Identifiers & Addresses Module
+- `ClientIdentifier`: `documentTypeCodeValueId UUID` (references codes), `documentKey`, `expiryDate`, `active`
+- `ClientAddress`: `AddressType` HOME/WORK/MAILING; full address fields with `countryCode`
+- Cross-package customer lookup via `EntityManager.find(Customer.class, customerId)`
+- Package: `com.cba.customer`; Flyway: `V18__client_extensions.sql`
+- Endpoints: `GET/POST/DELETE /api/v1/clients/{id}/identifiers`, `GET/POST/PUT/DELETE /api/v1/clients/{id}/addresses`
+
+### 32. Roles & Permissions Module
+- `Role`: `@ManyToMany permissions` via `@JoinTable(name="role_permissions")`; `disabled boolean`
+- `Permission`: `grouping`, `code UNIQUE`, `entityName`, `actionName`, `canMakerChecker`
+- `updatePermissions()` clears and re-adds the full permission set (replace-all pattern)
+- Package: `com.cba.role`
+- Endpoints: `GET/POST/PUT /api/v1/roles`, `GET/PUT /api/v1/roles/{id}/permissions`, `GET /api/v1/roles/permissions`
+
 ---
 
 ## Multi-Currency Architecture

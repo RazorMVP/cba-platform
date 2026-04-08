@@ -123,9 +123,34 @@ details.endpoint[open] .endpoint-body{display:block}
     <a href="#exchange-rates">Exchange Rates</a>
     <a href="#audit">Audit Log</a>
     <div class="section-head">Roadmap</div>
-    <a href="#self-service">Self Service (Planned)</a>
-    <a href="#groups">Groups &amp; Centers (Planned)</a>
-    <a href="#accounting">GL Accounting (Planned)</a>
+    <a href="#self-service">Self Service</a>
+    <a href="#groups">Groups &amp; Centers</a>
+    <a href="#accounting">GL Accounting</a>
+    <div class="section-head">New — Mifos Parity</div>
+    <a href="#charges">Charges</a>
+    <a href="#fixed-deposits">Fixed Deposits</a>
+    <a href="#recurring-deposits">Recurring Deposits</a>
+    <a href="#shares">Share Products/Accounts</a>
+    <a href="#loan-extensions">Loan Extensions</a>
+    <a href="#floating-rates">Floating Rates</a>
+    <a href="#taxes">Tax Components/Groups</a>
+    <div class="section-head">System Config</div>
+    <a href="#codes">Codes &amp; Values</a>
+    <a href="#global-config">Global Config</a>
+    <a href="#funds">Funds</a>
+    <a href="#payment-types">Payment Types</a>
+    <a href="#acct-number-formats">Account # Formats</a>
+    <div class="section-head">Social / Workflow</div>
+    <a href="#notes">Notes</a>
+    <a href="#documents">Documents</a>
+    <a href="#hooks">Hooks</a>
+    <a href="#holidays">Holidays</a>
+    <a href="#maker-checker">Maker-Checker</a>
+    <a href="#datatables">DataTables</a>
+    <div class="section-head">Admin</div>
+    <a href="#roles">Roles &amp; Permissions</a>
+    <a href="#client-ext">Client Identifiers/Addresses</a>
+    <a href="#audit-rest">Audit Search</a>
     <a href="#fullapi">Full API Matrix</a>
   </nav>
 </nav>
@@ -979,10 +1004,9 @@ difference = actual_cash - closing_balance</pre>
 
 <!-- SELF SERVICE ────────────────────────────────────────────────────────── -->
 <section id="self-service">
-<h2>Self Service API <span style="font-size:.75rem;font-weight:400;color:#d97706;background:#fef9c3;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Planned</span></h2>
-<p>Customer-facing restricted-scope endpoints. Based on <a href="https://demo.mifos.io/api-docs/apiLive.htm#selfservice_overview" target="_blank">Mifos Self Service API</a>. A self-service user can only access their own data.</p>
-
-<div class="callout warning">These endpoints are <strong>not yet implemented</strong>. They appear in the Coming Soon Postman collection.</div>
+<h2>Self Service API <span style="font-size:.75rem;font-weight:400;color:#065f46;background:#d1fae5;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Live</span></h2>
+<p>Customer-facing restricted-scope endpoints. Based on <a href="https://demo.mifos.io/api-docs/apiLive.htm#selfservice_overview" target="_blank">Mifos Self Service API</a>. JWT <code>sub</code> is mapped to the customer's Keycloak ID — a customer can only see their own data (returns 404, not 403, to prevent enumeration).</p>
+<div class="callout success">Implemented in <code>com.cba.selfservice</code>. All endpoints require <code>CUSTOMER</code> role.</div>
 
 <h3>Planned Endpoints</h3>
 <table>
@@ -1000,16 +1024,302 @@ difference = actual_cash - closing_balance</pre>
 
 <!-- GROUPS ─────────────────────────────────────────────────────────────── -->
 <section id="groups">
-<h2>Group &amp; Center Management <span style="font-size:.75rem;font-weight:400;color:#d97706;background:#fef9c3;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Planned</span></h2>
-<p>For microfinance deployments — group loans, collection sheets, and center management. Based on Mifos Group module.</p>
-<div class="callout warning">Not yet implemented. Planned for Phase 2.</div>
+<h2>Group &amp; Center Management <span style="font-size:.75rem;font-weight:400;color:#065f46;background:#d1fae5;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Live</span></h2>
+<p>For microfinance deployments — group loans, collection sheets, and center management. GLIM (Group Loan Individual Monitoring) supported.</p>
+<div class="callout success">Implemented in <code>com.cba.group</code>. Endpoints: <code>POST/GET /api/v1/groups</code>, <code>/api/v1/centers</code>, <code>/api/v1/collectionsheets</code>.</div>
 </section>
 
 <!-- ACCOUNTING ──────────────────────────────────────────────────────────── -->
 <section id="accounting">
-<h2>General Ledger / Accounting <span style="font-size:.75rem;font-weight:400;color:#d97706;background:#fef9c3;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Planned</span></h2>
-<p>Double-entry GL, chart of accounts, journal entries, and financial period closures. Based on Mifos Accounting module.</p>
-<div class="callout warning">Not yet implemented. Planned for Phase 3.</div>
+<h2>General Ledger / Accounting <span style="font-size:.75rem;font-weight:400;color:#065f46;background:#d1fae5;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Live</span></h2>
+<p>Double-entry GL with auto-posting via <code>GlAccountingService.postDoubleEntry()</code>, manual journal entries, and financial period closures. <code>FinancialActivityAccount</code> maps abstract activities to concrete GL codes.</p>
+<div class="callout success">Implemented in <code>com.cba.accounting</code>. Endpoints: <code>GET /api/v1/glaccounts</code>, <code>POST/GET /api/v1/journalentries</code>, <code>POST /api/v1/glclosures</code>.</div>
+</section>
+
+<!-- CHARGES ─────────────────────────────────────────────────────────────── -->
+<section id="charges">
+<h2>Charges</h2>
+<p>Charge definitions are the global catalogue; instances are applied to loans (<code>loan_charges</code>) or clients (<code>client_charges</code>). Supports flat amounts and percentage calculations.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/charges</td><td>List charge definitions</td><td>Authenticated</td></tr>
+<tr><td>POST</td><td>/api/v1/charges</td><td>Create charge definition</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/charges/{id}</td><td>Get charge definition</td><td>Authenticated</td></tr>
+<tr><td>PUT</td><td>/api/v1/charges/{id}</td><td>Update charge definition</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/charges/{id}</td><td>Delete charge definition</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/loans/{loanId}/charges</td><td>List loan charges</td><td>Authenticated</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{loanId}/charges</td><td>Add charge to loan</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{loanId}/charges/{id}/waive</td><td>Waive loan charge</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/loans/{loanId}/charges/{id}</td><td>Delete loan charge</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/clients/{customerId}/charges</td><td>List client charges</td><td>Authenticated</td></tr>
+<tr><td>POST</td><td>/api/v1/clients/{customerId}/charges</td><td>Add charge to client</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/clients/{customerId}/charges/{id}/waive</td><td>Waive client charge</td><td>ADMIN, TELLER</td></tr>
+</table>
+<p><strong>Charge types:</strong> <code>LOAN</code>, <code>SAVINGS</code>, <code>CLIENT</code>, <code>SHARE</code> — <strong>Time types:</strong> <code>DISBURSEMENT</code>, <code>SPECIFIED_DUE_DATE</code>, <code>INSTALLMENT_FEE</code>, <code>OVERDUE_INSTALLMENT</code>, <code>ANNUAL_FEE</code>, <code>MONTHLY_FEE</code> — <strong>Calculations:</strong> <code>FLAT</code>, <code>PERCENT_OF_AMOUNT</code>, <code>PERCENT_OF_INTEREST</code></p>
+</section>
+
+<!-- FIXED DEPOSITS ──────────────────────────────────────────────────────── -->
+<section id="fixed-deposits">
+<h2>Fixed Deposit Products &amp; Accounts</h2>
+<p>Term deposits with configurable minimum/maximum deposit amounts, nominal annual interest rates, and optional pre-closure penalty interest.</p>
+<div class="status-flow"><span class="status-pill">SUBMITTED</span>→<span class="status-pill">APPROVED</span>→<span class="status-pill">ACTIVE</span>→<span class="status-pill">MATURED</span>→<span class="status-pill">CLOSED</span></div>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/fixeddepositproducts</td><td>List FD products</td><td>Authenticated</td></tr>
+<tr><td>POST</td><td>/api/v1/fixeddepositproducts</td><td>Create FD product</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/fixeddepositproducts/{id}</td><td>Update FD product</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/fixeddepositproducts/{id}</td><td>Delete FD product</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/fixeddepositaccounts</td><td>List FD accounts</td><td>Authenticated</td></tr>
+<tr><td>POST</td><td>/api/v1/fixeddepositaccounts</td><td>Submit FD application</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/fixeddepositaccounts/{id}?command=approve</td><td>Approve FD account</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/fixeddepositaccounts/{id}?command=activate</td><td>Activate FD account</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/fixeddepositaccounts/{id}?command=prematureClose</td><td>Premature close (penalty applied)</td><td>ADMIN, TELLER</td></tr>
+</table>
+</section>
+
+<!-- RECURRING DEPOSITS ───────────────────────────────────────────────────── -->
+<section id="recurring-deposits">
+<h2>Recurring Deposit Products &amp; Accounts</h2>
+<p>Regular installment savings accounts with a mandatory recommended deposit amount and optional pre-closure penalty.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/recurringdepositproducts</td><td>List RD products</td><td>Authenticated</td></tr>
+<tr><td>POST</td><td>/api/v1/recurringdepositproducts</td><td>Create RD product</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/recurringdepositaccounts</td><td>List RD accounts</td><td>Authenticated</td></tr>
+<tr><td>POST</td><td>/api/v1/recurringdepositaccounts</td><td>Submit RD application</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/recurringdepositaccounts/{id}?command=approve</td><td>Approve / activate</td><td>ADMIN, TELLER</td></tr>
+</table>
+</section>
+
+<!-- SHARES ──────────────────────────────────────────────────────────────── -->
+<section id="shares">
+<h2>Share Products &amp; Accounts</h2>
+<p>Member shares — purchase, redemption, and dividend tracking. Products have a unique short name and configurable lock-in periods.</p>
+<div class="status-flow"><span class="status-pill">SUBMITTED</span>→<span class="status-pill">APPROVED</span>→<span class="status-pill">ACTIVE</span>→<span class="status-pill">CLOSED</span></div>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/shareproducts</td><td>List share products</td><td>Authenticated</td></tr>
+<tr><td>POST</td><td>/api/v1/shareproducts</td><td>Create share product</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/shareaccounts</td><td>List share accounts</td><td>Authenticated</td></tr>
+<tr><td>POST</td><td>/api/v1/shareaccounts</td><td>Apply for shares</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/shareaccounts/{id}?command=approve</td><td>Approve / activate / close</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/shareaccounts/{id}/transactions</td><td>Share transactions</td><td>Authenticated</td></tr>
+<tr><td>POST</td><td>/api/v1/shareaccounts/{id}/transactions?type=purchase</td><td>Purchase / redeem shares</td><td>ADMIN, TELLER</td></tr>
+</table>
+</section>
+
+<!-- LOAN EXTENSIONS ─────────────────────────────────────────────────────── -->
+<section id="loan-extensions">
+<h2>Loan Extensions — Guarantors, Collaterals, Reschedule, Re-aging, Re-amortization</h2>
+<p>Fineract 1.14.0 features. Re-aging moves overdue installments to future dates. Re-amortization recalculates the remaining schedule from the current outstanding balance.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET/POST</td><td>/api/v1/loans/{id}/guarantors</td><td>Guarantors</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/loans/{id}/guarantors/{gId}</td><td>Remove guarantor</td><td>ADMIN</td></tr>
+<tr><td>GET/POST</td><td>/api/v1/loans/{id}/collaterals</td><td>Collaterals</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/loans/{id}/collaterals/{cId}</td><td>Remove collateral</td><td>ADMIN</td></tr>
+<tr><td>GET/POST</td><td>/api/v1/loanreschedule?loanId={id}</td><td>Reschedule requests</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/loanreschedule/{id}?command=approve</td><td>Approve/reject reschedule</td><td>ADMIN</td></tr>
+<tr><td>GET/POST</td><td>/api/v1/loans/{id}/reaging</td><td>Re-aging requests (Fineract 1.14)</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}/reaging/{rId}/approve</td><td>Approve re-aging</td><td>ADMIN</td></tr>
+<tr><td>GET/POST</td><td>/api/v1/loans/{id}/reamortization</td><td>Re-amortization requests (Fineract 1.14)</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}/reamortization/{rId}/approve</td><td>Approve re-amortization</td><td>ADMIN</td></tr>
+</table>
+</section>
+
+<!-- FLOATING RATES ─────────────────────────────────────────────────────── -->
+<section id="floating-rates">
+<h2>Floating Rates</h2>
+<p>Date-banded variable interest rates. Each <code>FloatingRate</code> has a list of <code>FloatingRatePeriod</code> rows specifying the rate effective from a given date. When calculating interest, the system finds the period whose <code>fromDate</code> is the latest date not after the calculation date.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/floatingrates</td><td>List floating rates</td><td>Authenticated</td></tr>
+<tr><td>POST</td><td>/api/v1/floatingrates</td><td>Create floating rate with periods</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/floatingrates/{id}</td><td>Get floating rate</td><td>Authenticated</td></tr>
+<tr><td>PUT</td><td>/api/v1/floatingrates/{id}</td><td>Update floating rate</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/floatingrates/{id}</td><td>Delete floating rate</td><td>ADMIN</td></tr>
+</table>
+</section>
+
+<!-- TAXES ───────────────────────────────────────────────────────────────── -->
+<section id="taxes">
+<h2>Tax Components &amp; Groups</h2>
+<p>Tax components define a percentage levy with debit/credit GL account mappings. Tax groups bundle multiple components. Both can be linked to loan or deposit products.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET/POST</td><td>/api/v1/taxes/components</td><td>Tax components</td><td>ADMIN</td></tr>
+<tr><td>GET/PUT/DELETE</td><td>/api/v1/taxes/components/{id}</td><td>Get/Update/Delete component</td><td>ADMIN</td></tr>
+<tr><td>GET/POST</td><td>/api/v1/taxes/groups</td><td>Tax groups</td><td>ADMIN</td></tr>
+<tr><td>GET/PUT/DELETE</td><td>/api/v1/taxes/groups/{id}</td><td>Get/Update/Delete group</td><td>ADMIN</td></tr>
+</table>
+</section>
+
+<!-- CODES ───────────────────────────────────────────────────────────────── -->
+<section id="codes">
+<h2>Codes &amp; Code Values</h2>
+<p>Admin-defined lookup tables (e.g. Gender, ClientClassification, LoanCollateralType). System-defined codes cannot be deleted. Code values are the individual items within a code.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET/POST</td><td>/api/v1/codes</td><td>List/Create codes</td><td>ADMIN</td></tr>
+<tr><td>GET/DELETE</td><td>/api/v1/codes/{id}</td><td>Get/Delete code</td><td>ADMIN</td></tr>
+<tr><td>GET/POST</td><td>/api/v1/codes/{id}/codevalues</td><td>List/Create code values</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/codes/{id}/codevalues/{valueId}</td><td>Delete code value</td><td>ADMIN</td></tr>
+</table>
+</section>
+
+<!-- GLOBAL CONFIG ───────────────────────────────────────────────────────── -->
+<section id="global-config">
+<h2>Global Configuration</h2>
+<p>Platform-wide feature flags and settings. 17 entries seeded including <code>maker-checker</code>, <code>penalties-due-at-time-of-disbursement</code>, <code>force-password-reset-days</code>, etc.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/configurations</td><td>List all configurations</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/configurations/{id}</td><td>Get configuration</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/configurations/{id}</td><td>Update configuration</td><td>ADMIN</td></tr>
+</table>
+</section>
+
+<!-- FUNDS ───────────────────────────────────────────────────────────────── -->
+<section id="funds">
+<h2>Funds</h2>
+<p>Named funding sources that can be linked to loan products for portfolio tracking.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET/POST</td><td>/api/v1/funds</td><td>List/Create funds</td><td>ADMIN</td></tr>
+<tr><td>GET/PUT/DELETE</td><td>/api/v1/funds/{id}</td><td>Get/Update/Delete fund</td><td>ADMIN</td></tr>
+</table>
+</section>
+
+<!-- PAYMENT TYPES ───────────────────────────────────────────────────────── -->
+<section id="payment-types">
+<h2>Payment Types</h2>
+<p>System and custom payment type definitions (Cash, Mobile Money, Bank Transfer, Cheque, Card, Direct Debit). System-defined types cannot be deleted.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET/POST</td><td>/api/v1/paymenttypes</td><td>List/Create payment types</td><td>ADMIN</td></tr>
+<tr><td>GET/PUT/DELETE</td><td>/api/v1/paymenttypes/{id}</td><td>Get/Update/Delete payment type</td><td>ADMIN</td></tr>
+</table>
+</section>
+
+<!-- ACCOUNT NUMBER FORMATS ───────────────────────────────────────────────── -->
+<section id="acct-number-formats">
+<h2>Account Number Formats</h2>
+<p>Configure how account numbers are generated for each account type. Prefix types: <code>NONE</code>, <code>OFFICE_NAME</code>, <code>LOAN_PRODUCT_SHORT_NAME</code>, <code>SAVINGS_PRODUCT_SHORT_NAME</code>.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/accountnumberformats</td><td>List formats (LOAN, SAVINGS, CLIENT, SHARE)</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/accountnumberformats/{id}</td><td>Update format</td><td>ADMIN</td></tr>
+</table>
+</section>
+
+<!-- NOTES ───────────────────────────────────────────────────────────────── -->
+<section id="notes">
+<h2>Notes</h2>
+<p>Polymorphic text annotations on any entity (customer, loan, account, etc.) using an <code>entityType</code> + <code>entityId</code> pattern.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET/POST</td><td>/api/v1/{entityType}/{entityId}/notes</td><td>List/Create notes</td><td>Authenticated</td></tr>
+<tr><td>GET/PUT/DELETE</td><td>/api/v1/{entityType}/{entityId}/notes/{id}</td><td>Get/Update/Delete note</td><td>Authenticated</td></tr>
+</table>
+</section>
+
+<!-- DOCUMENTS ───────────────────────────────────────────────────────────── -->
+<section id="documents">
+<h2>Documents</h2>
+<p>File metadata attached to any entity. Storage path is recorded; actual binary storage is handled externally (S3/Blob). Same polymorphic pattern as Notes.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET/POST</td><td>/api/v1/{entityType}/{entityId}/documents</td><td>List/Upload documents</td><td>Authenticated</td></tr>
+<tr><td>GET/DELETE</td><td>/api/v1/{entityType}/{entityId}/documents/{id}</td><td>Get/Delete document</td><td>Authenticated</td></tr>
+</table>
+</section>
+
+<!-- HOOKS ───────────────────────────────────────────────────────────────── -->
+<section id="hooks">
+<h2>Hooks (Webhooks)</h2>
+<p>Outbound event notifications. When a registered event fires, the platform POSTs JSON to the configured <code>payloadUrl</code>. Supports an optional <code>secretKey</code> for HMAC signature verification.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET/POST</td><td>/api/v1/hooks</td><td>List/Create hooks</td><td>ADMIN</td></tr>
+<tr><td>GET/PUT/DELETE</td><td>/api/v1/hooks/{id}</td><td>Get/Update/Delete hook</td><td>ADMIN</td></tr>
+</table>
+</section>
+
+<!-- HOLIDAYS ────────────────────────────────────────────────────────────── -->
+<section id="holidays">
+<h2>Holidays</h2>
+<p>Bank holidays that affect repayment scheduling. When a repayment falls on a holiday, the system can shift it to the next working day, previous working day, or next repayment meeting date.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET/POST</td><td>/api/v1/holidays</td><td>List/Create holidays</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/holidays/{id}/activate</td><td>Activate holiday</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/holidays/{id}</td><td>Delete holiday</td><td>ADMIN</td></tr>
+</table>
+</section>
+
+<!-- MAKER-CHECKER ───────────────────────────────────────────────────────── -->
+<section id="maker-checker">
+<h2>Maker-Checker</h2>
+<p>4-eyes approval workflow. When enabled, write operations create a PENDING entry storing the full <code>commandAsJson</code>. A checker then approves or rejects. Approval re-executes the operation.</p>
+<div class="callout info">Controlled by the <code>maker-checker</code> global configuration flag.</div>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/makercheckers</td><td>List pending entries</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/makercheckers</td><td>Create pending entry</td><td>Authenticated</td></tr>
+<tr><td>POST</td><td>/api/v1/makercheckers/{id}?command=approve</td><td>Approve/Reject</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/makercheckers/{id}</td><td>Delete pending entry</td><td>Authenticated</td></tr>
+</table>
+</section>
+
+<!-- DATATABLES ──────────────────────────────────────────────────────────── -->
+<section id="datatables">
+<h2>DataTables</h2>
+<p>Dynamic schema extension — register extra columns against core entities (<code>m_client</code>, <code>m_loan</code>, etc.) at runtime without migrations. Mifos-compatible table naming convention.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/datatables</td><td>List datatables (filter by applicationTableName)</td><td>Authenticated</td></tr>
+<tr><td>POST</td><td>/api/v1/datatables</td><td>Register datatable</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/datatables/{id}</td><td>Get datatable definition</td><td>Authenticated</td></tr>
+<tr><td>DELETE</td><td>/api/v1/datatables/{id}</td><td>Deregister datatable</td><td>ADMIN</td></tr>
+</table>
+</section>
+
+<!-- ROLES & PERMISSIONS ─────────────────────────────────────────────────── -->
+<section id="roles">
+<h2>Roles &amp; Permissions</h2>
+<p>Manage platform roles and their permission sets. Roles are mirrored in Keycloak. Permissions are grouped by entity/action (e.g. <code>READ_LOAN</code>, <code>APPROVE_LOAN</code>).</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET/POST</td><td>/api/v1/roles</td><td>List/Create roles</td><td>ADMIN</td></tr>
+<tr><td>GET/PUT/DELETE</td><td>/api/v1/roles/{id}</td><td>Get/Update/Delete role</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/roles/{id}/permissions</td><td>Replace role permissions</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/roles/permissions</td><td>List all permissions (filter by grouping)</td><td>ADMIN</td></tr>
+</table>
+</section>
+
+<!-- CLIENT IDENTIFIERS & ADDRESSES ─────────────────────────────────────── -->
+<section id="client-ext">
+<h2>Client Identifiers &amp; Addresses</h2>
+<p>KYC document storage (passport, national ID, etc.) and structured address management per customer. Both are sub-resources of <code>/api/v1/clients/{customerId}</code>.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET/POST</td><td>/api/v1/clients/{customerId}/identifiers</td><td>List/Add identifiers</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/clients/{customerId}/identifiers/{id}</td><td>Remove identifier</td><td>ADMIN</td></tr>
+<tr><td>GET/POST</td><td>/api/v1/clients/{customerId}/addresses</td><td>List/Add addresses</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/clients/{customerId}/addresses/{id}</td><td>Remove address</td><td>ADMIN</td></tr>
+</table>
+</section>
+
+<!-- AUDIT SEARCH ────────────────────────────────────────────────────────── -->
+<section id="audit-rest">
+<h2>Audit Log — Search &amp; Retrieval</h2>
+<p>Search the immutable audit log by entity, user, or date range. Records are never modified or deleted. Minimum 7-year retention.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/audits</td><td>List audit entries (paginated)</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/audits/{id}</td><td>Get audit entry by ID</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/audits/search?entityType=&amp;entityId=&amp;changedBy=&amp;from=&amp;to=</td><td>Search audit log</td><td>ADMIN</td></tr>
+</table>
 </section>
 
 <!-- FULL API MATRIX ─────────────────────────────────────────────────────── -->
@@ -1020,11 +1330,20 @@ difference = actual_cash - closing_balance</pre>
 <h3>Implemented</h3>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<!-- Customers -->
 <tr><td>GET</td><td>/api/v1/customers</td><td>List customers</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/customers/{id}</td><td>Get customer</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/customers</td><td>Create customer</td><td>ADMIN</td></tr>
 <tr><td>PUT</td><td>/api/v1/customers/{id}</td><td>Update customer</td><td>ADMIN</td></tr>
 <tr><td>PUT</td><td>/api/v1/customers/{id}/kyc-status</td><td>Update KYC status</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/clients/{id}/identifiers</td><td>List client identifiers</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/clients/{id}/identifiers</td><td>Add identifier</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/clients/{id}/identifiers/{iId}</td><td>Remove identifier</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/clients/{id}/addresses</td><td>List addresses</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/clients/{id}/addresses</td><td>Add address</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/clients/{id}/addresses/{aId}</td><td>Update address</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/clients/{id}/addresses/{aId}</td><td>Remove address</td><td>ADMIN</td></tr>
+<!-- Savings Accounts -->
 <tr><td>GET</td><td>/api/v1/accounts</td><td>List accounts</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/accounts/{id}</td><td>Get account</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/accounts</td><td>Open account</td><td>ADMIN, TELLER</td></tr>
@@ -1032,18 +1351,49 @@ difference = actual_cash - closing_balance</pre>
 <tr><td>POST</td><td>/api/v1/accounts/{id}/activate</td><td>Activate account</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/accounts/{id}/close</td><td>Close account</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/api/v1/accounts/{id}/transactions</td><td>Transaction ledger</td><td>ADMIN, TELLER</td></tr>
+<!-- Loans -->
 <tr><td>GET</td><td>/api/v1/loans</td><td>List loans</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/loans/{id}</td><td>Get loan</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/loans</td><td>Apply for loan</td><td>ADMIN, TELLER</td></tr>
-<tr><td>POST</td><td>/api/v1/loans/{id}/approve</td><td>Approve loan</td><td>ADMIN</td></tr>
-<tr><td>POST</td><td>/api/v1/loans/{id}/disburse</td><td>Disburse loan</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}?command=approve</td><td>Approve loan</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}?command=disburse</td><td>Disburse loan</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}?command=reject</td><td>Reject loan</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}?command=withdrawnByApplicant</td><td>Withdraw loan</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}?command=writeOff</td><td>Write off loan</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/api/v1/loans/{id}/repayment-schedule</td><td>Repayment schedule</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/loans/{id}/repayments</td><td>Make repayment</td><td>ADMIN, TELLER</td></tr>
-<tr><td>POST</td><td>/api/v1/loans/{id}/write-off</td><td>Write off loan</td><td>ADMIN</td></tr>
+<!-- Loan Charges -->
+<tr><td>GET</td><td>/api/v1/charges</td><td>List charge definitions</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/charges</td><td>Create charge definition</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/charges/{id}</td><td>Update charge</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/charges/{id}</td><td>Delete charge</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/loans/{id}/charges</td><td>List loan charges</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}/charges</td><td>Add loan charge</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}/charges/{cId}?command=pay</td><td>Pay charge</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/loans/{id}/charges/{cId}</td><td>Remove charge</td><td>ADMIN</td></tr>
+<!-- Loan Guarantors & Collateral -->
+<tr><td>GET</td><td>/api/v1/loans/{id}/guarantors</td><td>List guarantors</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}/guarantors</td><td>Add guarantor</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/loans/{id}/guarantors/{gId}</td><td>Remove guarantor</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/loans/{id}/collaterals</td><td>List collaterals</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}/collaterals</td><td>Add collateral</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/loans/{id}/collaterals/{cId}</td><td>Update collateral</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/loans/{id}/collaterals/{cId}</td><td>Remove collateral</td><td>ADMIN</td></tr>
+<!-- Loan Reschedule / Re-aging / Re-amortization -->
+<tr><td>GET</td><td>/api/v1/loanreschedule</td><td>List reschedule requests</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/loanreschedule</td><td>Create reschedule request</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/loanreschedule/{id}?command=approve</td><td>Approve reschedule</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/loanreschedule/{id}?command=reject</td><td>Reject reschedule</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/loans/{id}/reaging</td><td>List re-aging requests</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}/reaging</td><td>Submit re-aging</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/loans/{id}/reamortization</td><td>List re-amortization requests</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}/reamortization</td><td>Submit re-amortization</td><td>ADMIN</td></tr>
+<!-- Payments -->
 <tr><td>POST</td><td>/api/v1/payments/transfer</td><td>Internal transfer</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/payments</td><td>List payments</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/payments/standing-orders</td><td>Create standing order</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/payments/{id}/reverse</td><td>Reverse payment</td><td>ADMIN</td></tr>
+<!-- Products -->
 <tr><td>GET</td><td>/api/v1/loan-products</td><td>List loan products</td><td>All roles</td></tr>
 <tr><td>POST</td><td>/api/v1/loan-products</td><td>Create loan product</td><td>ADMIN</td></tr>
 <tr><td>PUT</td><td>/api/v1/loan-products/{id}</td><td>Update loan product</td><td>ADMIN</td></tr>
@@ -1052,6 +1402,40 @@ difference = actual_cash - closing_balance</pre>
 <tr><td>POST</td><td>/api/v1/deposit-products</td><td>Create deposit product</td><td>ADMIN</td></tr>
 <tr><td>PUT</td><td>/api/v1/deposit-products/{id}</td><td>Update deposit product</td><td>ADMIN</td></tr>
 <tr><td>DELETE</td><td>/api/v1/deposit-products/{id}</td><td>Delete deposit product</td><td>ADMIN</td></tr>
+<!-- Fixed Deposit -->
+<tr><td>GET</td><td>/api/v1/fixeddepositproducts</td><td>List FD products</td><td>All roles</td></tr>
+<tr><td>POST</td><td>/api/v1/fixeddepositproducts</td><td>Create FD product</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/fixeddepositproducts/{id}</td><td>Update FD product</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/fixeddepositproducts/{id}</td><td>Delete FD product</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/fixeddepositaccounts</td><td>List FD accounts</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/fixeddepositaccounts</td><td>Open FD account</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/fixeddepositaccounts/{id}?command=approve</td><td>Approve FD</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/fixeddepositaccounts/{id}?command=activate</td><td>Activate FD</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/fixeddepositaccounts/{id}?command=prematureClose</td><td>Premature close FD</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/fixeddepositaccounts/{id}?command=mature</td><td>Mature FD</td><td>ADMIN</td></tr>
+<!-- Recurring Deposit -->
+<tr><td>GET</td><td>/api/v1/recurringdepositproducts</td><td>List RD products</td><td>All roles</td></tr>
+<tr><td>POST</td><td>/api/v1/recurringdepositproducts</td><td>Create RD product</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/recurringdepositproducts/{id}</td><td>Update RD product</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/recurringdepositaccounts</td><td>List RD accounts</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/recurringdepositaccounts</td><td>Open RD account</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/recurringdepositaccounts/{id}?command=approve</td><td>Approve RD</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/recurringdepositaccounts/{id}?command=activate</td><td>Activate RD</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/recurringdepositaccounts/{id}?command=prematureClose</td><td>Premature close RD</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/recurringdepositaccounts/{id}?command=mature</td><td>Mature RD</td><td>ADMIN</td></tr>
+<!-- Shares -->
+<tr><td>GET</td><td>/api/v1/shareproducts</td><td>List share products</td><td>All roles</td></tr>
+<tr><td>POST</td><td>/api/v1/shareproducts</td><td>Create share product</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/shareproducts/{id}</td><td>Update share product</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/shareaccounts</td><td>List share accounts</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/shareaccounts</td><td>Open share account</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/shareaccounts/{id}?command=approve</td><td>Approve share account</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/shareaccounts/{id}?command=activate</td><td>Activate share account</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/shareaccounts/{id}?command=close</td><td>Close share account</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/shareaccounts/{id}/transactions</td><td>Share transactions</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/shareaccounts/{id}/transactions?type=purchase</td><td>Purchase shares</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/shareaccounts/{id}/transactions?type=redeem</td><td>Redeem shares</td><td>ADMIN</td></tr>
+<!-- Teller / Cash -->
 <tr><td>GET</td><td>/api/v1/tellers</td><td>List tellers</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/tellers</td><td>Create teller</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/tellers/{id}/activate</td><td>Activate teller</td><td>ADMIN</td></tr>
@@ -1060,32 +1444,149 @@ difference = actual_cash - closing_balance</pre>
 <tr><td>POST</td><td>/api/v1/tellers/{id}/cashiers/{cId}/sessions</td><td>Open session</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/tellers/{id}/sessions/{sId}/transactions</td><td>Record cash tx</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/tellers/{id}/sessions/{sId}/settle</td><td>Close session</td><td>ADMIN, TELLER</td></tr>
+<!-- Groups & Centers -->
+<tr><td>GET</td><td>/api/v1/groups</td><td>List groups</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/groups</td><td>Create group</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/groups/{id}</td><td>Get group</td><td>ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/api/v1/groups/{id}</td><td>Update group</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/groups/{id}/activate</td><td>Activate group</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/groups/{groupId}/members/{customerId}</td><td>Add member</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/groups/{groupId}/members/{customerId}</td><td>Remove member</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/collectionsheets</td><td>Generate collection sheet</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/groups/{groupId}/glimaccounts</td><td>GLIM accounts</td><td>ADMIN</td></tr>
+<!-- Offices & Staff -->
+<tr><td>GET</td><td>/api/v1/offices</td><td>List offices</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/offices</td><td>Create office</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/offices/{id}</td><td>Update office</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/staff</td><td>List staff</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/staff</td><td>Create staff</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/staff/{id}</td><td>Update staff</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/staff/{id}</td><td>Delete staff</td><td>ADMIN</td></tr>
+<!-- Users & Roles -->
+<tr><td>GET</td><td>/api/v1/users</td><td>List users</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/users</td><td>Create user</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/users/{id}</td><td>Get user</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/users/{id}</td><td>Delete user</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/users/{id}/enable</td><td>Enable user</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/users/{id}/disable</td><td>Disable user</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/roles</td><td>List roles</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/roles</td><td>Create role</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/roles/{id}</td><td>Update role</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/roles/{id}/permissions</td><td>Get role permissions</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/roles/{id}/permissions</td><td>Update role permissions</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/roles/permissions</td><td>All available permissions</td><td>ADMIN</td></tr>
+<!-- GL / Accounting -->
+<tr><td>GET</td><td>/api/v1/glaccounts</td><td>List GL accounts</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/glaccounts</td><td>Create GL account</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/glaccounts/{id}</td><td>Update GL account</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/glaccounts/{id}</td><td>Delete GL account</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/journalentries</td><td>List journal entries</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/journalentries</td><td>Create manual journal entry</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/journalentries/{id}/reverse</td><td>Reverse journal entry</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/glclosures</td><td>List GL closures</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/glclosures</td><td>Close accounting period</td><td>ADMIN</td></tr>
+<!-- Reports -->
+<tr><td>GET</td><td>/api/v1/reports</td><td>List reports</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/reports/{id}</td><td>Get report definition</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/reports/{id}</td><td>Delete report</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/runreports/{reportName}</td><td>Run report</td><td>ADMIN</td></tr>
+<!-- CoB Scheduler -->
+<tr><td>GET</td><td>/api/v1/jobs</td><td>List CoB jobs</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/jobs/{jobName}/run</td><td>Trigger CoB job</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/jobs/{jobName}/history</td><td>Job run history</td><td>ADMIN</td></tr>
+<!-- Self Service -->
+<tr><td>GET</td><td>/api/v1/self/userdetails</td><td>My profile</td><td>CUSTOMER</td></tr>
+<tr><td>GET</td><td>/api/v1/self/accounts</td><td>My accounts</td><td>CUSTOMER</td></tr>
+<tr><td>GET</td><td>/api/v1/self/accounts/{id}/transactions</td><td>My account transactions</td><td>CUSTOMER</td></tr>
+<tr><td>GET</td><td>/api/v1/self/loans</td><td>My loans</td><td>CUSTOMER</td></tr>
+<tr><td>GET</td><td>/api/v1/self/loans/{id}</td><td>My loan details</td><td>CUSTOMER</td></tr>
+<!-- Open Banking -->
 <tr><td>POST</td><td>/open-banking/v3.1/consents</td><td>Create consent</td><td>API_CLIENT</td></tr>
 <tr><td>GET</td><td>/open-banking/v3.1/consents/{id}</td><td>Get consent</td><td>API_CLIENT</td></tr>
 <tr><td>PUT</td><td>/open-banking/v3.1/consents/{id}/authorise</td><td>Authorise consent</td><td>ADMIN</td></tr>
 <tr><td>DELETE</td><td>/open-banking/v3.1/consents/{id}</td><td>Revoke consent</td><td>API_CLIENT</td></tr>
 <tr><td>POST</td><td>/open-banking/v3.1/domestic-payments</td><td>PISP payment</td><td>API_CLIENT</td></tr>
 <tr><td>POST</td><td>/open-banking/v3.1/funds-confirmation</td><td>CBPII check</td><td>API_CLIENT</td></tr>
+<!-- Exchange Rates -->
 <tr><td>GET</td><td>/api/v1/exchange-rates</td><td>List rates</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/exchange-rates</td><td>Set rate</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/api/v1/exchange-rates/{from}/{to}</td><td>Get specific rate</td><td>ADMIN, TELLER</td></tr>
 <tr><td>DELETE</td><td>/api/v1/exchange-rates/{from}/{to}</td><td>Deactivate rate</td><td>ADMIN</td></tr>
-<tr><td>GET</td><td>/api/v1/audit</td><td>List audit log</td><td>ADMIN</td></tr>
+<!-- Floating Rates -->
+<tr><td>GET</td><td>/api/v1/floatingrates</td><td>List floating rates</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/floatingrates</td><td>Create floating rate</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/floatingrates/{id}</td><td>Update floating rate</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/floatingrates/{id}</td><td>Delete floating rate</td><td>ADMIN</td></tr>
+<!-- Taxes -->
+<tr><td>GET</td><td>/api/v1/taxes/components</td><td>List tax components</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/taxes/components</td><td>Create tax component</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/taxes/components/{id}</td><td>Update tax component</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/taxes/groups</td><td>List tax groups</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/taxes/groups</td><td>Create tax group</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/taxes/groups/{id}</td><td>Update tax group</td><td>ADMIN</td></tr>
+<!-- System Config -->
+<tr><td>GET</td><td>/api/v1/codes</td><td>List code sets</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/codes</td><td>Create code</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/codes/{id}/codevalues</td><td>List code values</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/codes/{id}/codevalues</td><td>Add code value</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/codes/{id}/codevalues/{vId}</td><td>Update code value</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/codes/{id}/codevalues/{vId}</td><td>Delete code value</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/codes/{id}</td><td>Delete code</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/configurations</td><td>List global config</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/configurations/{id}</td><td>Update global config</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/funds</td><td>List funds</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/funds</td><td>Create fund</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/funds/{id}</td><td>Update fund</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/paymenttypes</td><td>List payment types</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/paymenttypes</td><td>Create payment type</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/paymenttypes/{id}</td><td>Update payment type</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/paymenttypes/{id}</td><td>Delete payment type</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/accountnumberformats</td><td>List account number formats</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/accountnumberformats</td><td>Create account number format</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/accountnumberformats/{id}</td><td>Update account number format</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/accountnumberformats/{id}</td><td>Delete account number format</td><td>ADMIN</td></tr>
+<!-- Notes & Documents -->
+<tr><td>GET</td><td>/api/v1/{entityType}/{entityId}/notes</td><td>List entity notes</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/{entityType}/{entityId}/notes</td><td>Add note</td><td>ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/api/v1/{entityType}/{entityId}/notes/{nId}</td><td>Update note</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/{entityType}/{entityId}/notes/{nId}</td><td>Delete note</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/{entityType}/{entityId}/documents</td><td>List entity documents</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/{entityType}/{entityId}/documents</td><td>Upload document</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/{entityType}/{entityId}/documents/{dId}</td><td>Remove document</td><td>ADMIN</td></tr>
+<!-- Hooks & Holidays -->
+<tr><td>GET</td><td>/api/v1/hooks</td><td>List hooks</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/hooks</td><td>Create hook</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/hooks/{id}</td><td>Update hook</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/hooks/{id}</td><td>Delete hook</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/holidays</td><td>List holidays</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/holidays</td><td>Create holiday</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/holidays/{id}?command=activate</td><td>Activate holiday</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/holidays/{id}</td><td>Delete holiday</td><td>ADMIN</td></tr>
+<!-- Maker-Checker & DataTables -->
+<tr><td>GET</td><td>/api/v1/makercheckers</td><td>List pending maker-checker tasks</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/makercheckers/{id}</td><td>Get maker-checker task</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/makercheckers</td><td>Submit maker-checker task</td><td>authenticated</td></tr>
+<tr><td>POST</td><td>/api/v1/makercheckers/{id}?command=approve</td><td>Approve task</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/makercheckers/{id}?command=reject</td><td>Reject task</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/makercheckers/{id}</td><td>Delete task</td><td>authenticated</td></tr>
+<tr><td>GET</td><td>/api/v1/datatables</td><td>List data tables</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/datatables</td><td>Register data table</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/datatables/{registeredTableName}</td><td>Deregister data table</td><td>ADMIN</td></tr>
+<!-- Audit -->
+<tr><td>GET</td><td>/api/v1/audits</td><td>List audit log</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/audits/{id}</td><td>Get audit entry</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/audits/search</td><td>Search audit log</td><td>ADMIN</td></tr>
+<!-- Batch API -->
 <tr><td>POST</td><td>/api/v1/batches</td><td>Batch API</td><td>ADMIN, TELLER</td></tr>
 </table>
 
 <h3>Planned (Not Yet Implemented)</h3>
 <table>
 <tr><th>Module</th><th>Endpoints</th><th>Status</th></tr>
-<tr><td>Self Service</td><td>/api/v1/self/*</td><td>Planned Phase 2</td></tr>
-<tr><td>Group &amp; Center</td><td>/api/v1/groups, /api/v1/centers</td><td>Planned Phase 2</td></tr>
-<tr><td>GL / Accounting</td><td>/api/v1/glaccounts, /api/v1/journalentries</td><td>Planned Phase 3</td></tr>
-<tr><td>User Management</td><td>/api/v1/users, /api/v1/roles</td><td>Planned Phase 2</td></tr>
-<tr><td>Office Management</td><td>/api/v1/offices, /api/v1/staff</td><td>Planned Phase 2</td></tr>
-<tr><td>Reports</td><td>/api/v1/runreports/*</td><td>Planned Phase 3</td></tr>
-<tr><td>CoB Scheduler</td><td>/api/v1/jobs</td><td>Planned Phase 3</td></tr>
-<tr><td>Notifications</td><td>/api/v1/notifications/*</td><td>Planned Phase 3</td></tr>
-<tr><td>Savings Extended</td><td>/api/v1/accounts/{id}/command/*</td><td>Planned Phase 2</td></tr>
+<tr><td>Notifications</td><td>/api/v1/notifications/*</td><td>Planned Phase 4</td></tr>
+<tr><td>Savings Account Commands</td><td>/api/v1/accounts/{id}?command=deposit|withdraw</td><td>Planned Phase 4</td></tr>
+<tr><td>Bulk Loan Import</td><td>/api/v1/loans/batch</td><td>Planned Phase 4</td></tr>
+<tr><td>Standing Orders Extended</td><td>/api/v1/standingorders/{id}/pause|resume</td><td>Planned Phase 4</td></tr>
 </table>
 </section>
 

@@ -48,6 +48,69 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 7 — 2026-04-08
+
+**Full Mifos API parity Wave 2-4: 15 new modules — Charges, Fixed/Recurring Deposits, Shares, Loan Extensions, Floating Rates, Taxes, System Config, Notes, Documents, Hooks, Holidays, Maker-Checker, DataTables, Roles, Client Extensions, Audit Search**
+
+#### Added — New Modules (Wave 2-4)
+
+| Module | Key Files | Endpoints |
+|--------|-----------|-----------|
+| **Charges** | `com.cba.charge`: `Charge`, `LoanCharge`, repositories, `ChargeService`, `ChargeController`; `V12__charges_module.sql` | `GET/POST/PUT/DELETE /api/v1/charges`; `GET/POST/DELETE /api/v1/loans/{id}/charges`; `POST ...?command=pay` |
+| **Fixed Deposits** | `com.cba.deposit`: `FixedDepositProduct`, `FixedDepositAccount`, repos, `FixedDepositService`, `FixedDepositProductController`, `FixedDepositAccountController`; `V13__fixed_deposit_module.sql` | `GET/POST/PUT/DELETE /api/v1/fixeddepositproducts`; `GET/POST /api/v1/fixeddepositaccounts`; command pattern: approve/activate/reject/prematureClose/mature |
+| **Recurring Deposits** | `com.cba.deposit`: `RecurringDepositProduct`, `RecurringDepositAccount`, repos, `RecurringDepositService`, controllers | `GET/POST/PUT /api/v1/recurringdepositproducts`; `GET/POST /api/v1/recurringdepositaccounts`; command pattern |
+| **Share Products & Accounts** | `com.cba.share`: `ShareProduct`, `ShareAccount`, `ShareAccountTransaction`, repos, `ShareService`, `ShareProductController`, `ShareAccountController`; `V14__share_module.sql` | `GET/POST/PUT /api/v1/shareproducts`; `GET/POST /api/v1/shareaccounts`; `GET/POST .../transactions?type=purchase|redeem` |
+| **Loan Guarantors** | `com.cba.loan`: `Guarantor`, `GuarantorRepository`, `LoanExtensionService`, `GuarantorController`; `V15__loan_extensions.sql` | `GET/POST/DELETE /api/v1/loans/{id}/guarantors` |
+| **Loan Collateral** | `com.cba.loan`: `Collateral`, `CollateralRepository`, `CollateralController` | `GET/POST/PUT/DELETE /api/v1/loans/{id}/collaterals` |
+| **Loan Reschedule** | `com.cba.loan`: `LoanRescheduleRequest`, `LoanRescheduleRepository`, `LoanRescheduleController` | `GET/POST /api/v1/loanreschedule`; `POST /{id}?command=approve|reject` |
+| **Loan Re-aging** (Fineract 1.14) | `com.cba.loan`: `LoanReagingRequest`, `LoanReagingRepository`, `LoanReagingController` | `GET/POST /api/v1/loans/{id}/reaging` |
+| **Loan Re-amortization** (Fineract 1.14) | `com.cba.loan`: `LoanReamortizationRequest`, `LoanReamortizationRepository`, `LoanReamortizationController` | `GET/POST /api/v1/loans/{id}/reamortization` |
+| **Floating Rates** | `com.cba.system`: `FloatingRate`, `FloatingRatePeriod`, repos, `FloatingRateService`, `FloatingRateController`; `V16__system_modules.sql` | `GET/POST/PUT/DELETE /api/v1/floatingrates` |
+| **Taxes** | `com.cba.system`: `TaxComponent`, `TaxGroup`, repos, `TaxService`, `TaxController` | `GET/POST/PUT /api/v1/taxes/components`; `GET/POST/PUT /api/v1/taxes/groups` |
+| **System Config** | `com.cba.system`: `Code`, `CodeValue`, `GlobalConfiguration`, `Fund`, `SystemPaymentType`, `AccountNumberFormat`, repos, `SystemConfigService`; controllers: `CodesController`, `GlobalConfigController`, `FundsController`, `PaymentTypesController`, `AccountNumberFormatController` | Full CRUD on `/api/v1/codes`, `/api/v1/configurations`, `/api/v1/funds`, `/api/v1/paymenttypes`, `/api/v1/accountnumberformats` |
+| **Notes & Documents** | `com.cba.social`: `Note`, `Document` (polymorphic entityType+entityId), `NoteService`, `DocumentService`, `NoteController`, `DocumentController`; `V17__social_modules.sql` | `GET/POST/PUT/DELETE /api/v1/{entityType}/{entityId}/notes`; `GET/POST/DELETE .../documents` |
+| **Hooks & Holidays** | `com.cba.social`: `Hook` (events as JSONB), `Holiday`, `HookService`, `HookController`, `HolidayController` | `GET/POST/PUT/DELETE /api/v1/hooks`; `GET/POST/DELETE /api/v1/holidays`; `POST ...?command=activate` |
+| **Maker-Checker** | `com.cba.social`: `MakerChecker` (commandAsJson TEXT), `MakerCheckerService`, `MakerCheckerController` | `GET/POST/DELETE /api/v1/makercheckers`; `POST /{id}?command=approve|reject` |
+| **DataTables** | `com.cba.social`: `DataTable`, `DataTableColumn`, `DataTableRepository`, `DataTableService`, `DataTableController` | `GET/POST /api/v1/datatables`; `DELETE /api/v1/datatables/{name}` |
+| **Roles & Permissions** | `com.cba.role`: `Role`, `Permission`, repos, `RoleService`, `RoleController` | `GET/POST/PUT /api/v1/roles`; `GET/PUT /api/v1/roles/{id}/permissions`; `GET /api/v1/roles/permissions` |
+| **Client Identifiers** | `com.cba.customer`: `ClientIdentifier`, `ClientIdentifierRepository`, `ClientExtensionService`, `ClientIdentifierController`; `V18__client_extensions.sql` | `GET/POST/DELETE /api/v1/clients/{id}/identifiers` |
+| **Client Addresses** | `com.cba.customer`: `ClientAddress`, `ClientAddressRepository`, `ClientAddressController` | `GET/POST/PUT/DELETE /api/v1/clients/{id}/addresses` |
+| **Audit Search** | `com.cba.audit`: `AuditController` — added `GET /api/v1/audits/{id}` and `GET /api/v1/audits/search?entityType=&changedBy=&from=&to=` | Extended from list-only to full search |
+
+#### Added — Flyway Migrations
+
+| Migration | Contents |
+|-----------|----------|
+| `V12__charges_module.sql` | `charges`, `loan_charges` tables |
+| `V13__fixed_deposit_module.sql` | `fixed_deposit_products`, `fixed_deposit_accounts`, `recurring_deposit_products`, `recurring_deposit_accounts` |
+| `V14__share_module.sql` | `share_products`, `share_accounts`, `share_account_transactions` |
+| `V15__loan_extensions.sql` | `guarantors`, `collaterals`, `loan_reschedule_requests`, `loan_reaging_requests`, `loan_reamortization_requests` |
+| `V16__system_modules.sql` | `floating_rates`, `floating_rate_periods`, `tax_components`, `tax_groups`, `tax_group_mappings`, `codes`, `code_values`, `global_configurations`, `funds`, `payment_types`, `account_number_formats` |
+| `V17__social_modules.sql` | `notes`, `documents`, `hooks`, `holidays`, `maker_checkers`, `datatables`, `datatable_columns`, `roles`, `permissions`, `role_permissions` |
+| `V18__client_extensions.sql` | `client_identifiers`, `client_addresses` |
+
+#### Updated — Documentation
+
+| File | Change |
+|------|--------|
+| `docs/api-reference.html` | Sidebar + 18 new module sections; Full API Matrix expanded from ~50 to ~160+ endpoints; "Planned" → "Live" for Self Service, Groups, Accounting |
+| `docs/cba-postman-collection-v2.json` | 18 new folders (12–29), total: 30 folders / 245 requests |
+| `CLAUDE.md` | Banking Module Catalogue sections 18–32 documenting all Wave 2-4 modules |
+
+#### Key architectural decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| No `@Builder` on JPA entities | Lombok `@Builder` ignores field initializer expressions; `@Getter @Setter @NoArgsConstructor` with `@PrePersist` handles defaults safely |
+| `EntityManager.find()` for cross-package lookups | Avoids importing repositories from other bounded contexts; charge service needs Loan, client extensions need Customer |
+| Polymorphic Notes/Documents (entityType+entityId) | Single table serves all entity types (clients, loans, accounts, groups); mirrors Mifos pattern |
+| JSONB for Hook events (`@JdbcTypeCode(SqlTypes.JSON)`) | Variable-length list of event strings; avoids a join table for a simple list |
+| Re-aging/Re-amortization as separate entities | Fineract 1.14.0 feature; request records provide full audit trail and preview capability before committing |
+| `commandAsJson TEXT` on MakerChecker | Stores the complete original request JSON; enables exact replay on checker approval without re-serializing |
+| `allowMultipleRows` on DataTable | Controls one-to-one (e.g., extended profile) vs one-to-many (e.g., multiple guarantors) extension table semantics |
+
+---
+
 ### Session 6 — 2026-04-07
 
 **Full Mifos API parity: 8 new modules + Layer A gap closure (loan repayments, standing orders, payment reversal, batch API, exchange rate GET)**

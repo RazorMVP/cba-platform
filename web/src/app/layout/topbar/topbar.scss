@@ -1,0 +1,87 @@
+@use 'assets/styles/tokens' as *;
+
+.topbar {
+  height: $topbar-height;
+  background: $color-bg-card;
+  border-bottom: 1px solid $color-border-default;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 $space-6;
+  gap: $space-4;
+  position: sticky;
+  top: 0;
+  z-index: $z-sticky;
+  box-shadow: $shadow-card;
+
+  &__search {
+    display: flex;
+    align-items: center;
+    gap: $space-2;
+    background: $color-bg-subtle;
+    border-radius: $radius-full;
+    padding: $space-2 $space-4;
+    flex: 1;
+    max-width: 480px;
+  }
+
+  &__search-icon { font-size: 18px; color: $color-text-muted; }
+
+  &__search-input {
+    border: none;
+    background: none;
+    font-size: $text-sm;
+    color: $color-text-primary;
+    font-family: $font-primary;
+    width: 100%;
+    outline: none;
+
+    &::placeholder { color: $color-text-muted; }
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: $space-2;
+  }
+
+  &__action-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: $space-2;
+    border-radius: $radius-sm;
+    color: $color-text-muted;
+    display: flex;
+
+    &:hover { background: $color-bg-subtle; color: $color-text-primary; }
+  }
+
+  &__user {
+    display: flex;
+    align-items: center;
+    gap: $space-2;
+    margin-left: $space-2;
+    padding-left: $space-4;
+    border-left: 1px solid $color-border-default;
+  }
+
+  &__user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: $radius-full;
+    background: $color-primary-800;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: $text-sm;
+    font-weight: $font-weight-semibold;
+  }
+
+  &__user-name {
+    font-size: $text-sm;
+    font-weight: $font-weight-medium;
+    color: $color-text-primary;
+  }
+}

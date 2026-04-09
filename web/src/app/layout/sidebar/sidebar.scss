@@ -1,0 +1,119 @@
+@use 'assets/styles/tokens' as *;
+
+.sidebar {
+  width: $sidebar-width;
+  height: 100vh;
+  background: $color-primary-900;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  transition: width $transition-normal;
+  overflow: hidden;
+  position: sticky;
+  top: 0;
+
+  &--collapsed {
+    width: 64px;
+
+    .nav-group__items { padding-left: 0; }
+  }
+
+  &__logo {
+    display: flex;
+    align-items: center;
+    gap: $space-3;
+    padding: $space-5 $space-4;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    min-height: $topbar-height;
+  }
+
+  &__logo-icon {
+    font-size: 24px;
+    color: #ffffff;
+    flex-shrink: 0;
+  }
+
+  &__logo-text {
+    font-size: $text-lg;
+    font-weight: $font-weight-semibold;
+    color: #ffffff;
+    white-space: nowrap;
+    flex: 1;
+  }
+
+  &__toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: $space-1;
+    color: rgba(255,255,255,0.5);
+    border-radius: $radius-sm;
+    display: flex;
+    margin-left: auto;
+
+    &:hover { color: #ffffff; background: rgba(255,255,255,0.08); }
+  }
+
+  &__nav {
+    flex: 1;
+    overflow-y: auto;
+    padding: $space-4 0;
+  }
+}
+
+.nav-group {
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: $space-2 $space-4;
+    background: none;
+    border: none;
+    cursor: pointer;
+    width: 100%;
+    color: rgba(255,255,255,0.4);
+    font-size: $text-xs;
+    font-weight: $font-weight-semibold;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+
+    &:hover { color: rgba(255,255,255,0.7); }
+  }
+
+  &__chevron { font-size: 16px; }
+
+  &__items { padding-bottom: $space-2; }
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+  padding: $space-2 $space-4;
+  color: rgba(255,255,255,0.65);
+  text-decoration: none;
+  font-size: $text-sm;
+  font-weight: $font-weight-medium;
+  border-radius: 0;
+  transition: background $transition-fast, color $transition-fast;
+  white-space: nowrap;
+
+  &:hover {
+    background: rgba(255,255,255,0.06);
+    color: #ffffff;
+  }
+
+  &--active {
+    background: rgba(255,255,255,0.1);
+    color: #ffffff;
+    border-left: 3px solid #ffffff;
+    padding-left: calc(#{$space-4} - 3px);
+  }
+
+  &__icon {
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  &__label { flex: 1; }
+}

@@ -1,0 +1,15 @@
+<div class="kpi-card" [class]="'kpi-card--' + color">
+  <div class="kpi-card__header">
+    <span class="kpi-card__title">{{ title }}</span>
+    <span class="kpi-card__icon material-icons">{{ icon }}</span>
+  </div>
+  <div class="kpi-card__value">{{ value }}</div>
+  <div class="kpi-card__footer" *ngIf="subtitle || trendValue">
+    <span class="kpi-card__trend" [class.kpi-card__trend--up]="trend === 'up'" [class.kpi-card__trend--down]="trend === 'down'">
+      <span *ngIf="trend === 'up'" class="material-icons">trending_up</span>
+      <span *ngIf="trend === 'down'" class="material-icons">trending_down</span>
+      {{ trendValue }}
+    </span>
+    <span class="kpi-card__subtitle">{{ subtitle }}</span>
+  </div>
+</div>

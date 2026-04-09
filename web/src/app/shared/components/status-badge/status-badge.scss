@@ -1,0 +1,19 @@
+@use 'assets/styles/tokens' as *;
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px $space-3;
+  border-radius: $radius-full;
+  font-size: $text-xs;
+  font-weight: $font-weight-semibold;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+
+  &--success { background: $color-success-100; color: $color-success-600; }
+  &--warning { background: $color-warning-100; color: $color-warning-600; }
+  &--error   { background: $color-error-100;   color: $color-error-600;   }
+  &--info    { background: $color-info-100;     color: $color-info-600;   }
+  &--primary { background: $color-primary-100;  color: $color-primary-800; }
+  &--neutral { background: $color-grey-100;     color: $color-grey-700;   }
+}

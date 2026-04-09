@@ -1,0 +1,107 @@
+import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { RouterLink, RouterLinkActive } from '@angular/router';
+
+export interface NavItem {
+  label: string;
+  icon: string;
+  route?: string;
+  children?: NavItem[];
+}
+
+export interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+@Component({
+  selector: 'app-sidebar',
+  standalone: true,
+  imports: [CommonModule, RouterLink, RouterLinkActive],
+  templateUrl: './sidebar.html',
+  styleUrl: './sidebar.scss',
+})
+export class SidebarComponent {
+  @Input() collapsed = false;
+  @Output() toggle = new EventEmitter<void>();
+
+  expandedGroups: Set<string> = new Set(['Operations']);
+
+  readonly navGroups: NavGroup[] = [
+    {
+      label: 'Operations',
+      items: [
+        { label: 'Dashboard',  icon: 'dashboard',         route: '/operations/dashboard' },
+        { label: 'Customers',  icon: 'people',            route: '/operations/customers' },
+        { label: 'Accounts',   icon: 'account_balance',   route: '/operations/accounts' },
+        { label: 'Loans',      icon: 'payments',          route: '/operations/loans' },
+        { label: 'Payments',   icon: 'swap_horiz',        route: '/operations/payments' },
+        { label: 'Teller',     icon: 'point_of_sale',     route: '/operations/teller' },
+      ],
+    },
+    {
+      label: 'Products',
+      items: [
+        { label: 'Loan Products',      icon: 'credit_score',      route: '/products/loan-products' },
+        { label: 'Deposit Products',   icon: 'savings',           route: '/products/deposit-products' },
+        { label: 'Fixed Deposits',     icon: 'lock_clock',        route: '/products/fixed-deposits' },
+        { label: 'Recurring Deposits', icon: 'autorenew',         route: '/products/recurring-deposits' },
+        { label: 'Share Products',     icon: 'pie_chart',         route: '/products/shares' },
+      ],
+    },
+    {
+      label: 'Groups',
+      items: [
+        { label: 'Groups & Centers',   icon: 'groups',            route: '/groups' },
+      ],
+    },
+    {
+      label: 'Accounting',
+      items: [
+        { label: 'GL Accounts',        icon: 'menu_book',         route: '/accounting/gl-accounts' },
+        { label: 'Journal Entries',    icon: 'receipt_long',      route: '/accounting/journal-entries' },
+        { label: 'Provisioning',       icon: 'shield',            route: '/accounting/provisioning' },
+      ],
+    },
+    {
+      label: 'Reports',
+      items: [
+        { label: 'Reports',            icon: 'bar_chart',         route: '/reports/list' },
+        { label: 'CoB Scheduler',      icon: 'schedule',          route: '/reports/cob' },
+        { label: 'Mailing Jobs',       icon: 'email',             route: '/reports/mailing' },
+      ],
+    },
+    {
+      label: 'System',
+      items: [
+        { label: 'Codes & Values',     icon: 'list_alt',          route: '/system/codes' },
+        { label: 'Global Config',      icon: 'tune',              route: '/system/config' },
+        { label: 'Floating Rates',     icon: 'trending_up',       route: '/system/floating-rates' },
+        { label: 'Taxes',              icon: 'account_balance_wallet', route: '/system/taxes' },
+      ],
+    },
+    {
+      label: 'Admin',
+      items: [
+        { label: 'Users',              icon: 'manage_accounts',   route: '/admin/users' },
+        { label: 'Roles',              icon: 'admin_panel_settings', route: '/admin/roles' },
+        { label: 'Offices & Staff',    icon: 'corporate_fare',    route: '/admin/offices' },
+        { label: 'Open Banking',       icon: 'open_in_new',       route: '/admin/open-banking' },
+        { label: 'Hooks',              icon: 'webhook',           route: '/admin/hooks' },
+        { label: 'Maker-Checker',      icon: 'verified',          route: '/admin/maker-checker' },
+      ],
+    },
+  ];
+
+  toggleGroup(label: string): void {
+    if (this.expandedGroups.has(label)) {
+      this.expandedGroups.delete(label);
+    } else {
+      this.expandedGroups.add(label);
+    }
+  }
+
+  isGroupExpanded(label: string): boolean {
+    return this.expandedGroups.has(label);
+  }
+}

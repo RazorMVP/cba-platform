@@ -1,0 +1,44 @@
+@use 'assets/styles/tokens' as *;
+
+// Google Fonts — Instrument Sans
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap');
+
+// Global reset & base
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  font-family: $font-primary;
+  font-size: $text-base;
+  line-height: $line-height-normal;
+  color: $color-text-primary;
+  background-color: $color-bg-app;
+  -webkit-font-smoothing: antialiased;
+}
+
+// Scrollbar styling
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: $radius-full; }
+
+// Angular Material theme overrides
+.mat-mdc-button, .mat-mdc-raised-button {
+  font-family: $font-primary !important;
+  font-weight: $font-weight-semibold !important;
+  border-radius: $radius-full !important;
+}
+
+// PrimeNG resets
+.p-component { font-family: $font-primary; }
+
+// Utility classes
+.text-muted    { color: $color-text-muted; }
+.text-success  { color: $color-success-600; }
+.text-error    { color: $color-error-600; }
+.text-warning  { color: $color-warning-600; }
+.card {
+  background: $color-bg-card;
+  border-radius: $radius-md;
+  box-shadow: $shadow-card;
+  padding: $space-6;
+}

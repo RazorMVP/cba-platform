@@ -1,0 +1,21 @@
+<header class="topbar">
+  <div class="topbar__search">
+    <span class="material-icons topbar__search-icon">search</span>
+    <input class="topbar__search-input" type="text" placeholder="Search customers, accounts, loans…" />
+  </div>
+  <div class="topbar__actions">
+    <button class="topbar__action-btn" title="Notifications">
+      <span class="material-icons">notifications_none</span>
+    </button>
+    <button class="topbar__action-btn" title="Help">
+      <span class="material-icons">help_outline</span>
+    </button>
+    <div class="topbar__user">
+      <span class="topbar__user-avatar">{{ username.charAt(0).toUpperCase() }}</span>
+      <span class="topbar__user-name">{{ username }}</span>
+      <button class="topbar__action-btn" (click)="logout()" title="Sign out">
+        <span class="material-icons">logout</span>
+      </button>
+    </div>
+  </div>
+</header>

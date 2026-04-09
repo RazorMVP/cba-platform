@@ -52,12 +52,71 @@ _None — all Phase 1 backend modules are now complete._
 | **Infrastructure — Docker Compose** | `infrastructure/docker-compose.yml` with postgres, keycloak, backend, web, mailhog | Phase 4 |
 | **Infrastructure — Kubernetes** | `infrastructure/k8s/` namespace, deployments, services, ingress, HPA, sealed secrets | Phase 4 |
 | **Infrastructure — Keycloak Realm** | `infrastructure/keycloak/cba-realm.json` with cba realm, 3 clients, FAPI 2.0, demo users | Phase 4 |
-| **Web Frontend — Angular** | Full backoffice portal (dashboard, customers, accounts, loans, payments, reports) | Phase 2 |
+| **Web Frontend — Angular (flesh out)** | Feature components fully implemented (data bound to backend API, not just stubs) | Phase 2 |
 | **Mobile Frontend — Flutter** | Customer mobile app (auth, dashboard, accounts, loans, payments, profile) | Phase 3 |
 
 ---
 
 ## Change History
+
+### Session 10 — 2026-04-09
+
+**Angular Web Portal scaffold: full feature module structure, routing, shared components, Nubeero design system, HTML prototypes co-located with Angular stubs, keycloak-angular v19 wiring, clean build.**
+
+#### New Angular Files
+
+| Category | Files | Notes |
+|----------|-------|-------|
+| **App config & routing** | `app.config.ts`, `app.routes.ts`, `app.ts` | `provideKeycloak` with `withAutoRefreshToken`; lazy-loaded feature routes for 7 nav groups |
+| **Core — Auth** | `core/auth/auth.guard.ts`, `auth.interceptor.ts` | `createAuthGuard` (keycloak-angular v19); `authInterceptor` attaches Bearer token + `X-Tenant-ID` header |
+| **Layout** | `layout/shell/shell.ts`, `layout/sidebar/sidebar.ts`, `layout/topbar/topbar.ts` | Nubeero dark shell; 7 nav groups with 50+ items matching Mifos/Fineract groupings |
+| **Shared components** | `shared/components/kpi-card/`, `data-table/`, `status-badge/`, `page-header/` | Reusable banking UI components; all styled with Nubeero tokens |
+| **Design tokens** | `assets/styles/_tokens.scss` | Full Nubeero SCSS token set (source of truth); `includePaths: ["src"]` in `angular.json` |
+| **Feature stubs — Operations** | `features/operations/`: dashboard, customers, accounts, loans, payments, transactions | Lazy-loaded; route stubs with `screens/` prototype co-location |
+| **Feature stubs — Products** | `features/products/`: loan-products, deposit-products, charges, floating-rates | |
+| **Feature stubs — Groups** | `features/groups/`: groups, centers, collection-sheets | |
+| **Feature stubs — Accounting** | `features/accounting/`: gl-accounts, journal-entries, gl-closures, accounting-rules, provisioning | |
+| **Feature stubs — Reports** | `features/reports/`: reports, run-report, mailing-jobs | |
+| **Feature stubs — System** | `features/system/`: codes, global-config, payment-types, funds, taxes, holidays, hooks, surveys | |
+| **Feature stubs — Admin** | `features/admin/`: users, roles, tellers, offices, staff, audits | |
+| **Feature stubs — Open Banking** | `features/open-banking/`: consents, accounts-info | |
+
+#### HTML Prototypes (co-located in screens/)
+
+| Prototype | Location | Based On |
+|-----------|----------|----------|
+| `dashboard.html` | `features/operations/screens/` | `.claude/skills/cba/designs/screens/backoffice/dashboard.html` |
+| `customers.html` | `features/operations/screens/` | `.claude/skills/cba/designs/screens/backoffice/customers.html` |
+| `loans.html` | `features/operations/screens/` | `.claude/skills/cba/designs/screens/backoffice/loans.html` |
+| `*-prototype.html` ×14 | Each feature module `screens/` | Generated Nubeero-themed stubs |
+
+#### Key Decisions & Fixes
+
+| Issue | Fix |
+|-------|-----|
+| Angular 21 (not 17) installed — new file naming | Adopted: `.component` suffix dropped; files named `sidebar.ts`, `topbar.ts` etc. |
+| Vitest replaces Karma in Angular 21 | `@angular/build:application` (Vite-based); test config updated |
+| SCSS `@use` path resolution failure across deep hierarchies | Added `stylePreprocessorOptions: { includePaths: ["src"] }` to `angular.json`; all SCSS uses `@use 'assets/styles/tokens' as *;` |
+| Wrong TypeScript import depths in generated stubs | Python script formula corrected: `'../' * depth` (depth = segments from `src/app/`) |
+| keycloak-angular v19 breaking: `Keycloak` not exported | `import Keycloak from 'keycloak-js'` (default import); fixed in `auth.interceptor.ts` and `topbar.ts` |
+| keycloak-angular v19 breaking: `createAuthGuard` signature | Takes `isAccessAllowed: async (_route, _state) => true` function, not `AuthGuardData` |
+
+#### Compliance Checklist Update
+
+| Item | Status |
+|------|--------|
+| Web Frontend — Angular scaffold (all feature stubs) | ✅ |
+| Design tokens (Nubeero) applied | ✅ |
+| HTML prototypes co-located with Angular stubs | ✅ |
+| Clean `ng build` (no errors, warnings only in stubs) | ✅ |
+
+#### Build Verification
+
+- `node node_modules/@angular/cli/bin/ng.js build` → **no errors** (NG8113 unused import warnings in stubs only — expected)
+- Total Angular feature components: **~80 stub components** across 8 nav groups
+- HTML prototypes: **17 files** (3 full Nubeero + 14 generated stubs)
+
+---
 
 ### Session 9 — 2026-04-09
 

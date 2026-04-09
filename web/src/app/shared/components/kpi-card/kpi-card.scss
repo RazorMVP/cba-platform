@@ -1,0 +1,62 @@
+@use 'assets/styles/tokens' as *;
+
+.kpi-card {
+  background: $color-bg-card;
+  border-radius: $radius-md;
+  box-shadow: $shadow-card;
+  padding: $space-6;
+  display: flex;
+  flex-direction: column;
+  gap: $space-2;
+  border-left: 4px solid $color-primary-800;
+
+  &--success { border-left-color: $color-success-600; }
+  &--warning { border-left-color: $color-warning-600; }
+  &--error   { border-left-color: $color-error-600;   }
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  &__title {
+    font-size: $text-sm;
+    font-weight: $font-weight-medium;
+    color: $color-text-muted;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  &__icon {
+    font-size: 20px;
+    color: $color-text-muted;
+  }
+
+  &__value {
+    font-size: $text-3xl;
+    font-weight: $font-weight-semibold;
+    color: $color-text-primary;
+    line-height: $line-height-tight;
+  }
+
+  &__footer {
+    display: flex;
+    align-items: center;
+    gap: $space-2;
+    font-size: $text-sm;
+    color: $color-text-muted;
+  }
+
+  &__trend {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-weight: $font-weight-medium;
+
+    &--up   { color: $color-success-600; }
+    &--down { color: $color-error-600; }
+
+    .material-icons { font-size: 16px; }
+  }
+}

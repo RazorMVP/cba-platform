@@ -1,0 +1,162 @@
+// ============================================================
+// CBA Design Tokens — Nubeero Design System
+// Extracted from Figma: 20241221_NUBEERO-NEW-WEBSITE
+// Node: 2418:9329 (Admin)
+// ============================================================
+
+// --- Typography ---
+$font-primary: 'Instrument Sans', system-ui, -apple-system, sans-serif;
+
+$font-weight-regular:   400;
+$font-weight-medium:    500;
+$font-weight-semibold:  600;
+
+$text-xs:   12px;
+$text-sm:   14px;
+$text-base: 16px;
+$text-lg:   18px;
+$text-xl:   20px;
+$text-2xl:  24px;
+$text-3xl:  30px;
+
+$line-height-tight:  1.2;
+$line-height-normal: 1.5;
+$line-height-loose:  1.875;
+
+$letter-spacing-caption: 0.09px;
+
+// --- Color Palette ---
+
+// Primary — Deep Navy (from #1e2833 button, #000314 text)
+$color-primary-950:  #000314;   // deepest navy — text, headings
+$color-primary-900:  #0a1628;
+$color-primary-800:  #1e2833;   // primary CTA button background
+$color-primary-700:  #2a3a4d;
+$color-primary-600:  #3a5270;
+$color-primary-500:  #4a6c93;
+$color-primary-400:  #6589b0;
+$color-primary-300:  #89aac7;
+$color-primary-200:  #b5ccde;
+$color-primary-100:  #d9e6f0;
+$color-primary-50:   #eef4f8;
+
+// Grey — Neutrals
+$color-grey-900:  #1a1a1a;
+$color-grey-700:  #3d3d3d;
+$color-grey-500:  #646567;
+$color-grey-400:  #888888;   // muted text, "Forgot Password?"
+$color-grey-300:  #7E8187;   // placeholder text
+$color-grey-200:  #cccccc;
+$color-grey-100:  #eeeeee;   // show/hide button bg
+$color-grey-50:   #f7f7f7;
+
+// Surface / Background
+$color-bg-app:    #040609;   // main app shell background
+$color-bg-card:   #ffffff;   // card/panel background
+$color-bg-input:  #ffffff;   // input background
+$color-bg-subtle: #f4f5f7;   // subtle section bg, table rows
+
+// Semantic Colors
+$color-success-600:  #16a34a;
+$color-success-100:  #dcfce7;
+$color-success-50:   #f0fdf4;
+
+$color-warning-600:  #ca8a04;
+$color-warning-100:  #fef9c3;
+$color-warning-50:   #fefce8;
+
+$color-error-600:    #dc2626;
+$color-error-100:    #fee2e2;
+$color-error-50:     #fef2f2;
+
+$color-info-600:     #2563eb;
+$color-info-100:     #dbeafe;
+$color-info-50:      #eff6ff;
+
+// Alpha
+$color-alpha-black-10:  rgba(47, 43, 67, 0.1);   // input border
+$color-alpha-black-5:   rgba(47, 43, 67, 0.05);
+$color-alpha-white-80:  rgba(255, 255, 255, 0.8);
+
+// Text
+$color-text-primary:     $color-primary-950;   // #000314
+$color-text-secondary:   $color-grey-500;
+$color-text-muted:       $color-grey-400;      // #888888
+$color-text-placeholder: $color-grey-300;      // #7E8187
+$color-text-inverse:     #ffffff;
+$color-text-link:        $color-primary-600;
+
+// Border
+$color-border-default:   $color-alpha-black-10;
+$color-border-focus:     $color-primary-800;
+$color-border-error:     $color-error-600;
+
+// --- Spacing (8px base unit) ---
+$space-0:   0px;
+$space-1:   4px;
+$space-2:   8px;
+$space-3:   12px;
+$space-4:   16px;
+$space-5:   20px;
+$space-6:   24px;
+$space-7:   28px;
+$space-8:   32px;
+$space-10:  40px;
+$space-12:  48px;
+$space-16:  64px;
+$space-20:  80px;
+$space-24:  96px;
+
+// --- Border Radius ---
+$radius-sm:   8px;    // show/hide badge, tags
+$radius-md:   12px;   // cards, inputs, modals
+$radius-lg:   16px;   // large panels
+$radius-xl:   24px;   // hero cards
+$radius-full: 9999px; // pill buttons
+
+// --- Shadows ---
+$shadow-input:
+  inset 0px -1px 0px rgba(47, 43, 67, 0.1),
+  0px 1px 3px rgba(47, 43, 67, 0.1);
+
+$shadow-card:
+  0px 1px 3px rgba(0, 0, 0, 0.08),
+  0px 4px 12px rgba(0, 0, 0, 0.04);
+
+$shadow-modal:
+  0px 8px 32px rgba(0, 0, 0, 0.16),
+  0px 2px 8px rgba(0, 0, 0, 0.08);
+
+$shadow-dropdown:
+  0px 4px 16px rgba(0, 0, 0, 0.12),
+  0px 1px 4px rgba(0, 0, 0, 0.06);
+
+// --- Component Sizes ---
+$input-height:      48px;
+$input-height-sm:   36px;
+$button-height:     48px;
+$button-height-sm:  36px;
+$sidebar-width:     260px;
+$topbar-height:     64px;
+$table-row-height:  56px;
+
+// --- Breakpoints ---
+$bp-sm:   640px;
+$bp-md:   768px;
+$bp-lg:   1024px;
+$bp-xl:   1280px;
+$bp-2xl:  1440px;
+
+// --- Transitions ---
+$transition-fast:   100ms ease-out;
+$transition-normal: 200ms ease-out;
+$transition-slow:   300ms ease-in-out;
+
+// --- Z-index ---
+$z-base:    0;
+$z-above:   1;
+$z-dropdown: 100;
+$z-sticky:  200;
+$z-modal:   300;
+$z-toast:   400;
+$z-tooltip: 500;

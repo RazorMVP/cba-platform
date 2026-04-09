@@ -45,9 +45,10 @@ export interface LoanCreateRequest {
 export class LoanService {
   private readonly api = inject(ApiService);
 
-  list(page = 0, size = 20, status?: string): Observable<PageResponse<Loan>> {
+  list(page = 0, size = 20, status?: string, customerId?: string): Observable<PageResponse<Loan>> {
     const params: Record<string, string> = {};
-    if (status) params['status'] = status;
+    if (status)     params['status']     = status;
+    if (customerId) params['customerId'] = customerId;
     return this.api.getPage<Loan>('/loans', page, size, params);
   }
 

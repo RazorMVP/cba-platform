@@ -26,6 +26,34 @@ export interface CustomerCreateRequest {
   dateOfBirth?: string;
 }
 
+export interface ClientIdentifier {
+  id: string;
+  documentType: string;
+  documentKey: string;
+  expiryDate?: string;
+  active: boolean;
+}
+
+export interface ClientAddress {
+  id: string;
+  addressType: 'HOME' | 'WORK' | 'MAILING';
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  stateProvince?: string;
+  postalCode?: string;
+  countryCode: string;
+}
+
+export interface Beneficiary {
+  id: string;
+  name: string;
+  accountNumber: string;
+  bankName?: string;
+  transferLimit?: number;
+  active: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class CustomerService {
   private readonly api = inject(ApiService);
@@ -47,5 +75,17 @@ export class CustomerService {
 
   updateKycStatus(id: string, status: KycStatus): Observable<Customer> {
     return this.api.command<Customer>(`/customers/${id}/kyc-status`, 'update', { status });
+  }
+
+  getIdentifiers(id: string): Observable<ClientIdentifier[]> {
+    return this.api.get<ClientIdentifier[]>(`/clients/${id}/identifiers`);
+  }
+
+  getAddresses(id: string): Observable<ClientAddress[]> {
+    return this.api.get<ClientAddress[]>(`/clients/${id}/addresses`);
+  }
+
+  getBeneficiaries(id: string): Observable<Beneficiary[]> {
+    return this.api.get<Beneficiary[]>(`/clients/${id}/beneficiaries`);
   }
 }

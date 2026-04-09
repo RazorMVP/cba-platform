@@ -1,7 +1,364 @@
-<app-page-header title="Customer Detail" icon="person" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">person</span>
-    <strong>Customer Detail</strong><br>Implementation pending.
-  </p>
+<div class="page">
+
+  <!-- Back nav -->
+  <a routerLink=".." class="back-link">
+    <span class="material-icons">arrow_back</span> Customers
+  </a>
+
+  <!-- Loading / error states -->
+  @if (loading) {
+    <div class="loading-state">
+      <div class="skeleton skeleton--avatar"></div>
+      <div class="skeleton-lines">
+        <div class="skeleton skeleton--title"></div>
+        <div class="skeleton skeleton--sub"></div>
+      </div>
+    </div>
+  } @else if (error) {
+    <div class="error-state">
+      <span class="material-icons">error_outline</span>
+      <p>{{ error }}</p>
+      <a routerLink=".." class="btn-secondary">Go back</a>
+    </div>
+  } @else if (customer) {
+
+    <!-- Profile header card -->
+    <div class="profile-card">
+      <div class="profile-card__left">
+        <div class="profile-avatar" [style.background]="avatarColor">{{ initials }}</div>
+        <div class="profile-info">
+          <h1 class="profile-name">{{ customer.firstName }} {{ customer.lastName }}</h1>
+          <p class="profile-id">ID: {{ customer.externalId ?? customer.id }}</p>
+          <div class="profile-meta">
+            <span class="meta-item">
+              <span class="material-icons">email</span> {{ customer.email }}
+            </span>
+            @if (customer.phone) {
+              <span class="meta-item">
+                <span class="material-icons">phone</span> {{ customer.phone }}
+              </span>
+            }
+            <span class="meta-item">
+              <span class="material-icons">calendar_today</span>
+              Joined {{ customer.createdAt | date:'mediumDate' }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="profile-card__right">
+        <div class="kyc-section">
+          <app-status-badge [variant]="kycVariant(customer.kycStatus)" [label]="kycLabel(customer.kycStatus)" />
+
+          @if (availableKycTransitions.length > 0) {
+            <button class="btn-ghost" (click)="showKycDropdown = !showKycDropdown">
+              Change status <span class="material-icons">expand_more</span>
+            </button>
+          }
+
+          @if (showKycDropdown) {
+            <div class="kyc-dropdown">
+              <p class="kyc-dropdown__label">Change KYC status to:</p>
+              @for (s of availableKycTransitions; track s) {
+                <label class="kyc-option">
+                  <input type="radio" name="kycStatus" [value]="s" [(ngModel)]="pendingKycStatus" />
+                  <app-status-badge [variant]="kycVariant(s)" [label]="kycLabel(s)" />
+                </label>
+              }
+              <div class="kyc-dropdown__actions">
+                <button class="btn-primary btn-sm" [disabled]="!pendingKycStatus || kycChanging" (click)="confirmKycChange()">
+                  {{ kycChanging ? 'Saving…' : 'Confirm' }}
+                </button>
+                <button class="btn-ghost btn-sm" (click)="showKycDropdown = false; pendingKycStatus = null">Cancel</button>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab bar -->
+    <div class="tab-bar">
+      @for (tab of tabs; track tab.id) {
+        <button class="tab-item" [class.tab-item--active]="activeTab === tab.id" (click)="selectTab(tab.id)">
+          <span class="material-icons">{{ tab.icon }}</span>
+          {{ tab.label }}
+        </button>
+      }
+    </div>
+
+    <!-- Tab content -->
+    <div class="tab-content">
+
+      <!-- OVERVIEW TAB -->
+      @if (activeTab === 'overview') {
+        <div class="overview-grid">
+
+          <div class="card">
+            <div class="card__header"><div class="card__title">Profile Details</div></div>
+            <div class="card__body">
+              <div class="detail-row">
+                <span class="detail-key">Full Name</span>
+                <span class="detail-val">{{ customer.firstName }} {{ customer.lastName }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-key">Email</span>
+                <span class="detail-val">{{ customer.email }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-key">Phone</span>
+                <span class="detail-val">{{ customer.phone ?? '—' }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-key">Customer ID</span>
+                <span class="detail-val mono">{{ customer.id }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-key">External ID</span>
+                <span class="detail-val mono">{{ customer.externalId ?? '—' }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-key">KYC Status</span>
+                <span class="detail-val">
+                  <app-status-badge [variant]="kycVariant(customer.kycStatus)" [label]="kycLabel(customer.kycStatus)" />
+                </span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-key">Joined</span>
+                <span class="detail-val">{{ customer.createdAt | date:'medium' }}</span>
+              </div>
+              @if (customer.updatedAt) {
+                <div class="detail-row">
+                  <span class="detail-key">Last Updated</span>
+                  <span class="detail-val">{{ customer.updatedAt | date:'medium' }}</span>
+                </div>
+              }
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card__header"><div class="card__title">Quick Actions</div></div>
+            <div class="card__body card__body--actions">
+              <button class="action-tile" (click)="selectTab('accounts')">
+                <span class="material-icons">account_balance</span>
+                <span>View Accounts</span>
+              </button>
+              <button class="action-tile" (click)="selectTab('loans')">
+                <span class="material-icons">payments</span>
+                <span>View Loans</span>
+              </button>
+              <button class="action-tile" (click)="selectTab('identifiers')">
+                <span class="material-icons">badge</span>
+                <span>ID Documents</span>
+              </button>
+              <button class="action-tile" (click)="selectTab('beneficiaries')">
+                <span class="material-icons">group</span>
+                <span>Beneficiaries</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+      }
+
+      <!-- ACCOUNTS TAB -->
+      @if (activeTab === 'accounts') {
+        <div class="card">
+          <div class="card__header">
+            <div class="card__title">Accounts</div>
+            <button class="btn-primary btn-sm">
+              <span class="material-icons">add</span> Open Account
+            </button>
+          </div>
+          @if (accountsLoading) {
+            <div class="tab-loading">Loading accounts…</div>
+          } @else if (accounts.length === 0) {
+            <div class="tab-empty">
+              <span class="material-icons">account_balance</span>
+              <p>No accounts found for this customer.</p>
+            </div>
+          } @else {
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Account Number</th>
+                  <th>Type</th>
+                  <th>Balance</th>
+                  <th>Currency</th>
+                  <th>Status</th>
+                  <th>Opened</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (a of accounts; track a.id) {
+                  <tr>
+                    <td class="mono">{{ a.accountNumber }}</td>
+                    <td>{{ a.accountType | titlecase }}</td>
+                    <td class="amount" [class.amount--neg]="a.balance < 0">
+                      {{ a.balance | currency:a.currencyCode:'symbol':'1.2-2' }}
+                    </td>
+                    <td class="muted">{{ a.currencyCode }}</td>
+                    <td><app-status-badge [variant]="accountStatusVariant(a.status)" [label]="a.status | titlecase" /></td>
+                    <td class="muted">{{ a.openedDate | date:'mediumDate' }}</td>
+                    <td><a [routerLink]="['/operations/accounts', a.id]" class="link-btn">View →</a></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </div>
+      }
+
+      <!-- LOANS TAB -->
+      @if (activeTab === 'loans') {
+        <div class="card">
+          <div class="card__header">
+            <div class="card__title">Loans</div>
+            <button class="btn-primary btn-sm">
+              <span class="material-icons">add</span> Apply for Loan
+            </button>
+          </div>
+          @if (loansLoading) {
+            <div class="tab-loading">Loading loans…</div>
+          } @else if (loans.length === 0) {
+            <div class="tab-empty">
+              <span class="material-icons">payments</span>
+              <p>No loans found for this customer.</p>
+            </div>
+          } @else {
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Loan #</th>
+                  <th>Product</th>
+                  <th>Principal</th>
+                  <th>Outstanding</th>
+                  <th>Rate</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (l of loans; track l.id) {
+                  <tr>
+                    <td class="mono">{{ l.loanAccountNumber }}</td>
+                    <td class="muted">{{ l.productName ?? '—' }}</td>
+                    <td>{{ l.principalAmount | currency:'USD':'symbol':'1.0-0' }}</td>
+                    <td>{{ l.outstandingBalance | currency:'USD':'symbol':'1.0-0' }}</td>
+                    <td class="muted">{{ l.interestRate / 100 | percent:'1.1-2' }}</td>
+                    <td><app-status-badge [variant]="loanStatusVariant(l.status)" [label]="loanStatusLabel(l.status)" /></td>
+                    <td class="muted">{{ l.createdAt | date:'mediumDate' }}</td>
+                    <td><a [routerLink]="['/operations/loans', l.id]" class="link-btn">View →</a></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </div>
+      }
+
+      <!-- IDENTIFIERS TAB -->
+      @if (activeTab === 'identifiers') {
+        <div class="two-col">
+
+          <div class="card">
+            <div class="card__header">
+              <div class="card__title">Identity Documents</div>
+              <button class="btn-ghost btn-sm"><span class="material-icons">add</span> Add</button>
+            </div>
+            @if (identifiersLoading) {
+              <div class="tab-loading">Loading…</div>
+            } @else if (identifiers.length === 0) {
+              <div class="tab-empty"><span class="material-icons">badge</span><p>No documents on file.</p></div>
+            } @else {
+              <div class="card__body">
+                @for (id of identifiers; track id.id) {
+                  <div class="id-card" [class.id-card--inactive]="!id.active">
+                    <div class="id-header">
+                      <span class="id-type">{{ id.documentType }}</span>
+                      @if (!id.active) { <span class="badge-inactive">Inactive</span> }
+                    </div>
+                    <div class="id-key mono">{{ id.documentKey }}</div>
+                    @if (id.expiryDate) {
+                      <div class="id-expiry muted">Expires {{ id.expiryDate | date:'mediumDate' }}</div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+
+          <div class="card">
+            <div class="card__header">
+              <div class="card__title">Addresses</div>
+              <button class="btn-ghost btn-sm"><span class="material-icons">add</span> Add</button>
+            </div>
+            @if (identifiersLoading) {
+              <div class="tab-loading">Loading…</div>
+            } @else if (addresses.length === 0) {
+              <div class="tab-empty"><span class="material-icons">location_on</span><p>No addresses on file.</p></div>
+            } @else {
+              <div class="card__body">
+                @for (addr of addresses; track addr.id) {
+                  <div class="addr-card">
+                    <div class="addr-type">{{ addr.addressType | titlecase }}</div>
+                    <div class="addr-line">{{ addr.addressLine1 }}</div>
+                    @if (addr.addressLine2) { <div class="addr-line muted">{{ addr.addressLine2 }}</div> }
+                    <div class="addr-line muted">{{ addr.city }}@if (addr.stateProvince) {, {{ addr.stateProvince }}}  {{ addr.postalCode ?? '' }}</div>
+                    <div class="addr-line muted">{{ addr.countryCode }}</div>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+
+        </div>
+      }
+
+      <!-- BENEFICIARIES TAB -->
+      @if (activeTab === 'beneficiaries') {
+        <div class="card">
+          <div class="card__header">
+            <div class="card__title">Beneficiaries</div>
+            <button class="btn-primary btn-sm"><span class="material-icons">add</span> Add Beneficiary</button>
+          </div>
+          @if (beneficiariesLoading) {
+            <div class="tab-loading">Loading beneficiaries…</div>
+          } @else if (beneficiaries.length === 0) {
+            <div class="tab-empty">
+              <span class="material-icons">group</span>
+              <p>No beneficiaries registered.</p>
+            </div>
+          } @else {
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Account Number</th>
+                  <th>Bank</th>
+                  <th>Transfer Limit</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (b of beneficiaries; track b.id) {
+                  <tr>
+                    <td>{{ b.name }}</td>
+                    <td class="mono">{{ b.accountNumber }}</td>
+                    <td class="muted">{{ b.bankName ?? '—' }}</td>
+                    <td>{{ b.transferLimit ? (b.transferLimit | currency:'USD':'symbol':'1.0-0') : 'No limit' }}</td>
+                    <td><app-status-badge [variant]="b.active ? 'success' : 'neutral'" [label]="b.active ? 'Active' : 'Inactive'" /></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </div>
+      }
+
+    </div>
+  }
+
 </div>

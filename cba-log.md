@@ -59,6 +59,34 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 9 — 2026-04-09
+
+**Center CRUD + documentation gap closure: `CenterController` added; Groups & Centers + CoB Scheduler sections in api-reference.html expanded from stubs to full endpoint tables; compliance checklist corrected.**
+
+#### New Java Files
+
+| File | Purpose |
+|------|---------|
+| `com.cba.group.CenterController` | `POST/GET/PUT/DELETE /api/v1/centers` + `?command=activate` |
+| `com.cba.group.CenterService` | Business logic: create, list, get, update, activate, delete |
+| `com.cba.group.dto.CenterRequest` | Request record: name, officeId, staffId, activationDate, meetingDayOfWeek |
+| `com.cba.group.dto.CenterResponse` | Response record with `CenterResponse.from(Center)` factory |
+
+#### Documentation Updates
+
+| File | Change |
+|------|--------|
+| `docs/api-reference.html` | Groups section: stub → full endpoint tables for Centers (6) + Groups (6) + CollectionSheets/GLIM (3); CoB section added with endpoint table + implementation notes; Full API Matrix updated with Center rows; nav links moved out of Roadmap |
+| `docs/cba-postman-collection-v2.json` | Folder 18 · Groups & Centers: +6 Center CRUD requests → **15 requests total** |
+| `cba-log.md` | Architecture compliance checklist updated: Group & Center ✅, CoB ✅ |
+
+#### Build Verification
+
+- `./mvnw clean compile` → **EXIT:0**
+- Total controllers: **62** (+1 CenterController)
+
+---
+
 ### Session 8 — 2026-04-08
 
 **Gap closure: 11 missing modules — SMS Campaigns, Report Mailing Jobs, Standing Instructions, Search, Two-Factor Auth, Beneficiaries, Client Images, Credit Bureau, Surveys, Accounting Rules, Provisioning Criteria + V19 migration**
@@ -425,8 +453,8 @@ _None — all Phase 1 backend modules are now complete._
 | PISP domestic-payments | ✅ | `PispController` — validates consent then delegates to `PaymentService` |
 | CBPII funds-confirmation | ✅ | `CbpiiController` — balance check without fund movement |
 | Postman collection (8 languages) | ✅ | `docs/cba-postman-collection.json` — 14 folders, 50+ requests |
-| Group & Center module | ❌ | Not built |
-| CoB batch processing | ❌ | Not built |
+| Group & Center module | ✅ | `com.cba.group` — Center + Group CRUD, collection sheets, GLIM; `CenterController` + `GroupController` |
+| CoB batch processing | ✅ | `com.cba.cob` — Spring Batch + Quartz; 3 nightly jobs; `CobController` at `/api/v1/jobs` |
 | Docker Compose | ❌ | Not built |
 | Kubernetes manifests | ❌ | Not built |
 | Keycloak realm JSON | ❌ | Not built |

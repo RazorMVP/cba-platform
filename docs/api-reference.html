@@ -122,9 +122,10 @@ details.endpoint[open] .endpoint-body{display:block}
     <a href="#open-banking">Open Banking (FAPI 2.0)</a>
     <a href="#exchange-rates">Exchange Rates</a>
     <a href="#audit">Audit Log</a>
+    <a href="#groups">Groups &amp; Centers</a>
+    <a href="#cob">CoB Scheduler</a>
     <div class="section-head">Roadmap</div>
     <a href="#self-service">Self Service</a>
-    <a href="#groups">Groups &amp; Centers</a>
     <a href="#accounting">GL Accounting</a>
     <div class="section-head">New — Mifos Parity</div>
     <a href="#charges">Charges</a>
@@ -1025,8 +1026,53 @@ difference = actual_cash - closing_balance</pre>
 <!-- GROUPS ─────────────────────────────────────────────────────────────── -->
 <section id="groups">
 <h2>Group &amp; Center Management <span style="font-size:.75rem;font-weight:400;color:#065f46;background:#d1fae5;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Live</span></h2>
-<p>For microfinance deployments — group loans, collection sheets, and center management. GLIM (Group Loan Individual Monitoring) supported.</p>
-<div class="callout success">Implemented in <code>com.cba.group</code>. Endpoints: <code>POST/GET /api/v1/groups</code>, <code>/api/v1/centers</code>, <code>/api/v1/collectionsheets</code>.</div>
+<p>For microfinance deployments — group loans, collection sheets, and center management. GLIM (Group Loan Individual Monitoring) supported. Centers are the parent tier; groups belong to a center. Collection sheets pre-populate due installments for all active members at a meeting date.</p>
+<div class="status-flow"><span class="status-pill">PENDING</span>→<span class="status-pill">ACTIVE</span></div>
+
+<h3>Centers</h3>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>POST</td><td>/api/v1/centers</td><td>Create a center</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/centers</td><td>List centers (filter by <code>officeId</code>)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/centers/{id}</td><td>Get center details</td><td>ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/api/v1/centers/{id}</td><td>Update center</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/centers/{id}?command=activate</td><td>Activate a center</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/centers/{id}</td><td>Delete a center</td><td>ADMIN</td></tr>
+</table>
+
+<h3>Groups</h3>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>POST</td><td>/api/v1/groups</td><td>Create a group (optionally linked to a center)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/groups</td><td>List groups (filter by <code>officeId</code>)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/groups/{id}</td><td>Get group details</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/groups/{id}/activate</td><td>Activate a pending group</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/groups/{groupId}/members/{customerId}</td><td>Add customer to group</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/groups/{groupId}/members/{customerId}</td><td>Remove customer from group</td><td>ADMIN, TELLER</td></tr>
+</table>
+
+<h3>Collection Sheets &amp; GLIM</h3>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>POST</td><td>/api/v1/collectionsheets</td><td>Generate collection sheet for a group meeting date</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/groups/{groupId}/collectionsheets</td><td>List collection sheets for a group</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/groups/{groupId}/glimaccounts</td><td>List GLIM accounts (individual loan tracking per member)</td><td>ADMIN, TELLER</td></tr>
+</table>
+<p><strong>Center fields:</strong> <code>name</code>, <code>officeId</code>, <code>staffId</code>, <code>activationDate</code>, <code>meetingDayOfWeek</code> (e.g. <code>MONDAY</code>) — <strong>Group fields:</strong> <code>name</code>, <code>officeId</code>, <code>staffId</code>, <code>centerId</code> (optional), <code>activationDate</code></p>
+</section>
+
+<!-- COB SCHEDULER ───────────────────────────────────────────────────────── -->
+<section id="cob">
+<h2>Close of Business (CoB) Scheduler <span style="font-size:.75rem;font-weight:400;color:#065f46;background:#d1fae5;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Live</span></h2>
+<p>Spring Batch jobs triggered nightly via Quartz. Three jobs run in sequence: standing-order execution (23:55) → interest accrual (23:57) → arrears classification (23:59). Each job is also manually triggerable via API.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/jobs</td><td>List recent CoB job executions (last 10)</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/jobs/{jobName}/run</td><td>Manually trigger a CoB job immediately</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/jobs/{jobName}/history</td><td>Get full execution history for a job</td><td>ADMIN</td></tr>
+</table>
+<p><strong>Valid job names:</strong> <code>standingOrderExecutionJob</code>, <code>interestAccrualJob</code>, <code>arrearsClassificationJob</code></p>
+<p><strong>Implementation:</strong> <code>QuartzJobBridge extends QuartzJobBean</code> bridges Quartz → Spring Batch; looks up the Spring Batch <code>Job</code> bean by <code>jobBeanName</code> job data key. History tracked in <code>cob_job_history</code> table. Quartz schema managed by Flyway V10 (<code>initialize-schema: never</code>).</p>
 </section>
 
 <!-- ACCOUNTING ──────────────────────────────────────────────────────────── -->
@@ -1606,16 +1652,23 @@ difference = actual_cash - closing_balance</pre>
 <tr><td>POST</td><td>/api/v1/tellers/{id}/cashiers/{cId}/sessions</td><td>Open session</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/tellers/{id}/sessions/{sId}/transactions</td><td>Record cash tx</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/tellers/{id}/sessions/{sId}/settle</td><td>Close session</td><td>ADMIN, TELLER</td></tr>
-<!-- Groups & Centers -->
+<!-- Centers -->
+<tr><td>POST</td><td>/api/v1/centers</td><td>Create center</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/centers</td><td>List centers</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/centers/{id}</td><td>Get center</td><td>ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/api/v1/centers/{id}</td><td>Update center</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/centers/{id}?command=activate</td><td>Activate center</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/centers/{id}</td><td>Delete center</td><td>ADMIN</td></tr>
+<!-- Groups -->
+<tr><td>POST</td><td>/api/v1/groups</td><td>Create group</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/groups</td><td>List groups</td><td>ADMIN, TELLER</td></tr>
-<tr><td>POST</td><td>/api/v1/groups</td><td>Create group</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/api/v1/groups/{id}</td><td>Get group</td><td>ADMIN, TELLER</td></tr>
-<tr><td>PUT</td><td>/api/v1/groups/{id}</td><td>Update group</td><td>ADMIN</td></tr>
-<tr><td>POST</td><td>/api/v1/groups/{id}/activate</td><td>Activate group</td><td>ADMIN</td></tr>
-<tr><td>POST</td><td>/api/v1/groups/{groupId}/members/{customerId}</td><td>Add member</td><td>ADMIN</td></tr>
-<tr><td>DELETE</td><td>/api/v1/groups/{groupId}/members/{customerId}</td><td>Remove member</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/groups/{id}/activate</td><td>Activate group</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/groups/{groupId}/members/{customerId}</td><td>Add member</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/groups/{groupId}/members/{customerId}</td><td>Remove member</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/collectionsheets</td><td>Generate collection sheet</td><td>ADMIN, TELLER</td></tr>
-<tr><td>GET</td><td>/api/v1/groups/{groupId}/glimaccounts</td><td>GLIM accounts</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/groups/{groupId}/collectionsheets</td><td>List collection sheets</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/groups/{groupId}/glimaccounts</td><td>GLIM accounts</td><td>ADMIN, TELLER</td></tr>
 <!-- Offices & Staff -->
 <tr><td>GET</td><td>/api/v1/offices</td><td>List offices</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/offices</td><td>Create office</td><td>ADMIN</td></tr>

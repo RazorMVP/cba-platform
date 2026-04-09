@@ -7444,6 +7444,142 @@
       "description": "",
       "item": [
         {
+          "name": "Create center",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/centers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "centers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nairobi East Center\",\n  \"officeId\": \"{{officeId}}\",\n  \"staffId\": \"{{staffId}}\",\n  \"activationDate\": \"2024-01-01\",\n  \"meetingDayOfWeek\": \"MONDAY\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List centers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/centers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "centers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get center",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/centers/{{centerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "centers",
+                "{{centerId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update center",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/centers/{{centerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "centers",
+                "{{centerId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nairobi East Center (Updated)\",\n  \"officeId\": \"{{officeId}}\",\n  \"meetingDayOfWeek\": \"WEDNESDAY\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Activate center",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/centers/{{centerId}}?command=activate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "centers",
+                "{{centerId}}"
+              ],
+              "query": [
+                {
+                  "key": "command",
+                  "value": "activate"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete center",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/centers/{{centerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "centers",
+                "{{centerId}}"
+              ]
+            }
+          }
+        },
+        {
           "name": "List groups",
           "request": {
             "method": "GET",

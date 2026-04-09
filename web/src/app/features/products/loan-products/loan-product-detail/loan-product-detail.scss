@@ -1,3 +1,165 @@
 @use 'assets/styles/tokens' as *;
 
 :host { display: block; }
+
+.page { padding: $space-6; }
+
+.back-link {
+  display: inline-flex; align-items: center; gap: $space-1;
+  font-size: $text-sm; color: $color-text-muted; text-decoration: none; margin-bottom: $space-5;
+  .material-icons { font-size: 18px; }
+  &:hover { color: $color-text-primary; }
+}
+
+// ── Skeleton & error ──────────────────────────────────────────────────────────
+.loading-skeleton { display: flex; flex-direction: column; gap: $space-4; }
+.skeleton { background: linear-gradient(90deg, $color-grey-100 25%, $color-grey-50 50%, $color-grey-100 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: $radius-sm; }
+.skeleton--header { height: 100px; border-radius: $radius-md; }
+.skeleton--body   { height: 400px; border-radius: $radius-md; }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.error-state { text-align: center; padding: $space-12; color: $color-text-muted; .material-icons { font-size: 48px; display: block; margin-bottom: $space-4; color: $color-error-600; } }
+
+// ── Product header ────────────────────────────────────────────────────────────
+.product-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: $space-5; margin-bottom: $space-5; padding: $space-5 $space-6;
+  @media (max-width: 768px) { flex-direction: column; }
+}
+.product-header__actions { display: flex; gap: $space-3; flex-shrink: 0; }
+.product-title-row { display: flex; align-items: center; gap: $space-3; flex-wrap: wrap; margin-bottom: $space-2; }
+.product-name { font-size: $text-2xl; font-weight: $font-weight-semibold; color: $color-text-primary; margin: 0; }
+.short-code   { font-family: monospace; font-size: $text-sm; background: $color-grey-100; padding: 2px 8px; border-radius: $radius-sm; color: $color-text-muted; }
+.product-desc { font-size: $text-sm; color: $color-text-muted; margin: 0 0 $space-3; }
+.product-meta { display: flex; flex-wrap: wrap; gap: $space-2; }
+.meta-chip {
+  display: inline-flex; align-items: center; gap: 4px; font-size: $text-xs;
+  background: $color-grey-100; border-radius: $radius-full; padding: 3px $space-3;
+  color: $color-text-muted;
+  .material-icons { font-size: 14px; }
+}
+
+// ── Sections grid ─────────────────────────────────────────────────────────────
+.sections-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: $space-4;
+  @media (max-width: 900px) { grid-template-columns: 1fr; }
+}
+
+// ── Card ──────────────────────────────────────────────────────────────────────
+.card {
+  background: $color-bg-card; border-radius: $radius-md; box-shadow: $shadow-card;
+  border: 1px solid $color-border-default; overflow: hidden;
+  &.span-2 { grid-column: span 2; @media (max-width: 900px) { grid-column: span 1; } }
+}
+.card__header { padding: $space-4 $space-5; border-bottom: 1px solid $color-border-default; }
+.card__title  { font-size: $text-sm; font-weight: $font-weight-semibold; color: $color-text-primary; }
+.card__body   { padding: $space-4 $space-5; }
+
+// ── Detail rows ───────────────────────────────────────────────────────────────
+.detail-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid rgba(0,0,0,0.04); &:last-child { border-bottom: none; } }
+.detail-key { font-size: $text-xs; color: $color-text-muted; }
+.detail-val { font-size: $text-sm; font-weight: $font-weight-medium; text-align: right; }
+.gl-val     { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.mono       { font-family: monospace; font-size: $text-xs; }
+.muted      { color: $color-text-muted; font-weight: $font-weight-medium !important; }
+
+// ── Overrides grid ────────────────────────────────────────────────────────────
+.overrides-grid { display: grid; grid-template-columns: 1fr 1fr; gap: $space-2; }
+.override-item {
+  display: flex; align-items: center; gap: $space-2; font-size: $text-sm; color: $color-text-muted;
+  .material-icons { font-size: 16px; color: $color-grey-400; }
+  &.override-on { color: $color-text-primary; .material-icons { color: $color-success-600; } }
+}
+
+// ── Charges list ──────────────────────────────────────────────────────────────
+.charges-list { display: flex; flex-wrap: wrap; gap: $space-2; }
+.charge-chip {
+  display: inline-flex; align-items: center; gap: $space-1; font-size: $text-xs;
+  background: $color-grey-100; border-radius: $radius-full; padding: 4px $space-3;
+  color: $color-text-primary;
+  .material-icons { font-size: 14px; color: $color-text-muted; }
+}
+.charge-type { font-size: 10px; color: $color-text-muted; margin-left: 4px; }
+
+// ── Buttons ───────────────────────────────────────────────────────────────────
+.btn-primary {
+  display: inline-flex; align-items: center; gap: $space-1; height: 36px; padding: 0 $space-4;
+  border-radius: $radius-full; background: $color-primary-800; color: white; border: none;
+  font-size: $text-sm; font-weight: $font-weight-medium; cursor: pointer;
+  .material-icons { font-size: 18px; }
+  &:hover { opacity: .9; } &:disabled { opacity: .5; cursor: not-allowed; }
+}
+.btn-secondary {
+  display: inline-flex; align-items: center; gap: $space-1; height: 36px; padding: 0 $space-4;
+  border-radius: $radius-full; background: white; color: $color-text-primary;
+  border: 1px solid $color-border-default; font-size: $text-sm; font-weight: $font-weight-medium; cursor: pointer;
+  .material-icons { font-size: 18px; }
+  &:hover { background: $color-grey-50; } &:disabled { opacity: .5; cursor: not-allowed; }
+}
+.btn-danger {
+  display: inline-flex; align-items: center; gap: $space-1; height: 36px; padding: 0 $space-4;
+  border-radius: $radius-full; background: $color-error-600; color: white; border: none;
+  font-size: $text-sm; font-weight: $font-weight-medium; cursor: pointer;
+  .material-icons { font-size: 18px; }
+  &:hover { opacity: .9; } &:disabled { opacity: .5; cursor: not-allowed; }
+}
+
+// ── Edit header ───────────────────────────────────────────────────────────────
+.edit-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: $space-5; gap: $space-4; flex-wrap: wrap;
+}
+.edit-header__actions { display: flex; gap: $space-3; }
+.page-title { font-size: $text-2xl; font-weight: $font-weight-semibold; color: $color-text-primary; margin: 0; }
+
+// ── Section tabs ──────────────────────────────────────────────────────────────
+.section-tabs {
+  display: flex; gap: 2px; border-bottom: 2px solid $color-border-default;
+  margin-bottom: $space-5; overflow-x: auto;
+}
+.section-tab {
+  display: inline-flex; align-items: center; gap: $space-2;
+  padding: $space-3 $space-4; border: none; background: none; font-family: inherit;
+  font-size: $text-sm; font-weight: $font-weight-medium; color: $color-text-muted;
+  cursor: pointer; white-space: nowrap; border-bottom: 2px solid transparent; margin-bottom: -2px;
+  .material-icons { font-size: 18px; }
+  &:hover { color: $color-text-primary; }
+  &--active { color: $color-primary-800; border-bottom-color: $color-primary-800; }
+}
+
+// ── Edit card / form ──────────────────────────────────────────────────────────
+.edit-card { margin-bottom: $space-6; }
+.form-section { padding: $space-5 $space-6; }
+.section-title { font-size: $text-sm; font-weight: $font-weight-semibold; color: $color-text-primary; margin: 0 0 $space-4; }
+.form-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: $space-4; margin-bottom: $space-4; }
+.form-group { display: flex; flex-direction: column; gap: $space-2; &--sm { max-width: 180px; } }
+.form-label { font-size: $text-sm; font-weight: $font-weight-medium; color: $color-text-primary; }
+.req        { color: $color-error-600; }
+.form-input, .form-textarea {
+  border: 1px solid $color-border-default; border-radius: $radius-sm; padding: $space-3;
+  font-family: inherit; font-size: $text-sm; outline: none; width: 100%; box-sizing: border-box;
+  &:focus { border-color: $color-primary-400; }
+  &.mono { font-family: monospace; }
+}
+.form-textarea { resize: vertical; }
+.form-hint  { font-size: $text-xs; color: $color-text-muted; }
+.form-error { font-size: $text-sm; color: $color-error-600; background: #fff5f5; border: 1px solid $color-error-100; border-radius: $radius-sm; padding: $space-3; margin-bottom: $space-4; }
+
+// ── Overrides form ────────────────────────────────────────────────────────────
+.overrides-form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: $space-3; }
+.override-toggle {
+  display: flex; align-items: center; gap: $space-2; font-size: $text-sm;
+  color: $color-text-primary; cursor: pointer;
+  input[type=checkbox] { accent-color: $color-primary-800; width: 15px; height: 15px; }
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.modal {
+  background: white; border-radius: $radius-md; box-shadow: $shadow-modal;
+  width: 100%; max-width: 420px; margin: $space-4;
+  &__header { display: flex; align-items: center; justify-content: space-between; padding: $space-5 $space-6; border-bottom: 1px solid $color-border-default; }
+  &__title  { font-size: $text-lg; font-weight: $font-weight-semibold; }
+  &__close  { background: none; border: none; font-size: 20px; cursor: pointer; color: $color-text-muted; line-height: 1; }
+  &__body   { padding: $space-5 $space-6; font-size: $text-sm; color: $color-text-primary; line-height: 1.6; }
+  &__footer { display: flex; justify-content: flex-end; gap: $space-3; padding: $space-4 $space-6; border-top: 1px solid $color-border-default; background: $color-grey-50; border-radius: 0 0 $radius-md $radius-md; }
+}

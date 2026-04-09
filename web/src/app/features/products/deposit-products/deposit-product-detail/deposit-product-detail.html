@@ -1,7 +1,539 @@
-<app-page-header title="Deposit Product Detail" icon="info" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">info</span>
-    <strong>Deposit Product Detail</strong><br>Implementation pending.
-  </p>
+<div class="page">
+  <!-- Back link -->
+  <a routerLink=".." class="back-link">
+    <span class="material-icons">arrow_back</span> Deposit Products
+  </a>
+
+  <!-- ── Loading skeleton ─────────────────────────────────────────────────── -->
+  @if (loading) {
+    <div class="loading-skeleton">
+      <div class="skeleton skeleton--header"></div>
+      <div class="skeleton skeleton--body"></div>
+    </div>
+  }
+
+  <!-- ── Error state ──────────────────────────────────────────────────────── -->
+  @if (!loading && error) {
+    <div class="error-state">
+      <span class="material-icons">error_outline</span>
+      {{ error }}
+    </div>
+  }
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- VIEW MODE                                                              -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  @if (!loading && !error && product && !editMode) {
+
+    <!-- Product header card -->
+    <div class="card product-header">
+      <div class="product-header__info">
+        <div class="product-title-row">
+          <h1 class="product-name">{{ product.name }}</h1>
+          <span class="short-code">{{ product.shortName }}</span>
+          <app-status-badge
+            [label]="product.active ? 'Active' : 'Inactive'"
+            [variant]="product.active ? 'success' : 'neutral'" />
+        </div>
+        @if (product.description) {
+          <p class="product-desc">{{ product.description }}</p>
+        }
+        <div class="product-meta">
+          <span class="meta-chip">
+            <span class="material-icons">account_balance_wallet</span>
+            {{ label(accountTypeLabels, product.accountType) }}
+          </span>
+          <span class="meta-chip">
+            <span class="material-icons">attach_money</span>
+            {{ product.currencyCode }}
+          </span>
+          <span class="meta-chip">
+            <span class="material-icons">percent</span>
+            {{ product.interestRate }}% / yr
+          </span>
+          <span class="meta-chip">
+            <span class="material-icons">loop</span>
+            {{ label(compoundingLabels, product.interestCompounding) }}
+          </span>
+        </div>
+      </div>
+      <div class="product-header__actions">
+        <button class="btn-secondary" (click)="enterEditMode()">
+          <span class="material-icons">edit</span> Edit
+        </button>
+        @if (product.active) {
+          <button class="btn-danger" (click)="confirmDeactivate()">
+            <span class="material-icons">block</span> Deactivate
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- Detail grid -->
+    <div class="sections-grid">
+
+      <!-- Core Identifiers -->
+      <div class="card">
+        <div class="card__header"><span class="card__title">Core Identifiers</span></div>
+        <div class="card__body">
+          <div class="detail-row">
+            <span class="detail-key">Currency</span>
+            <span class="detail-val mono">{{ product.currencyCode }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-key">Account Type</span>
+            <span class="detail-val">{{ label(accountTypeLabels, product.accountType) }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-key">Accounting Type</span>
+            <span class="detail-val">{{ product.accountingType }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Balance -->
+      <div class="card">
+        <div class="card__header"><span class="card__title">Balance</span></div>
+        <div class="card__body">
+          <div class="detail-row">
+            <span class="detail-key">Minimum Balance</span>
+            <span class="detail-val mono">{{ product.minimumBalance | number:'1.2-2' }}</span>
+          </div>
+          @if (product.minRequiredOpeningBalance !== undefined) {
+            <div class="detail-row">
+              <span class="detail-key">Min Opening Balance</span>
+              <span class="detail-val mono">{{ product.minRequiredOpeningBalance | number:'1.2-2' }}</span>
+            </div>
+          }
+          <div class="detail-row">
+            <span class="detail-key">Withdrawal Fee on Transfers</span>
+            <span class="detail-val">{{ product.withdrawalFeeForTransfers ? 'Yes' : 'No' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interest Configuration -->
+      <div class="card">
+        <div class="card__header"><span class="card__title">Interest Configuration</span></div>
+        <div class="card__body">
+          <div class="detail-row">
+            <span class="detail-key">Nominal Annual Rate</span>
+            <span class="detail-val mono">{{ product.interestRate }}%</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-key">Compounding</span>
+            <span class="detail-val">{{ label(compoundingLabels, product.interestCompounding) }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-key">Posting Period</span>
+            <span class="detail-val">{{ label(postingPeriodLabels, product.interestPostingPeriodType) }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-key">Days in Year</span>
+            <span class="detail-val">{{ product.daysInYearType }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-key">Days in Month</span>
+            <span class="detail-val">{{ product.daysInMonthType }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lock-in Period -->
+      <div class="card">
+        <div class="card__header"><span class="card__title">Lock-in Period</span></div>
+        <div class="card__body">
+          @if (product.lockinPeriodFrequency) {
+            <div class="detail-row">
+              <span class="detail-key">Lock-in Duration</span>
+              <span class="detail-val mono">
+                {{ product.lockinPeriodFrequency }}
+                {{ label(lockinFreqLabels, product.lockinPeriodFrequencyType ?? '') }}
+              </span>
+            </div>
+          } @else {
+            <p class="muted" style="font-size: 13px; padding: 4px 0;">No lock-in period configured.</p>
+          }
+        </div>
+      </div>
+
+      <!-- Overdraft -->
+      <div class="card">
+        <div class="card__header"><span class="card__title">Overdraft</span></div>
+        <div class="card__body">
+          <div class="detail-row">
+            <span class="detail-key">Allow Overdraft</span>
+            <span class="detail-val">{{ product.allowOverdraft ? 'Yes' : 'No' }}</span>
+          </div>
+          @if (product.allowOverdraft) {
+            @if (product.overdraftLimit !== undefined) {
+              <div class="detail-row">
+                <span class="detail-key">Overdraft Limit</span>
+                <span class="detail-val mono">{{ product.overdraftLimit | number:'1.2-2' }}</span>
+              </div>
+            }
+            @if (product.nominalAnnualInterestRateOverdraft !== undefined) {
+              <div class="detail-row">
+                <span class="detail-key">Overdraft Interest Rate</span>
+                <span class="detail-val mono">{{ product.nominalAnnualInterestRateOverdraft }}%</span>
+              </div>
+            }
+            @if (product.minOverdraftForInterestCalculation !== undefined) {
+              <div class="detail-row">
+                <span class="detail-key">Min Balance for OD Interest</span>
+                <span class="detail-val mono">{{ product.minOverdraftForInterestCalculation | number:'1.2-2' }}</span>
+              </div>
+            }
+          }
+        </div>
+      </div>
+
+      <!-- Charges -->
+      <div class="card">
+        <div class="card__header"><span class="card__title">Charges</span></div>
+        <div class="card__body">
+          @if (product.charges.length === 0) {
+            <p class="muted" style="font-size: 13px; padding: 4px 0;">No charges assigned.</p>
+          } @else {
+            <div class="charges-list">
+              @for (c of product.charges; track c.id) {
+                <span class="charge-chip">
+                  <span class="material-icons">sell</span>
+                  {{ c.name }}
+                  <span class="charge-type">{{ c.chargeTimeType }}</span>
+                </span>
+              }
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- GL Account Linkages (full width) -->
+      @if (product.accountingType !== 'NONE') {
+        <div class="card span-2">
+          <div class="card__header"><span class="card__title">GL Account Linkages</span></div>
+          <div class="card__body">
+            @for (field of glAccountFields; track field.key) {
+              @let acct = $any(product)[field.key];
+              @if (acct) {
+                <div class="detail-row">
+                  <span class="detail-key">{{ field.label }}</span>
+                  <span class="detail-val gl-val">
+                    <span>{{ acct.name }}</span>
+                    <span class="mono muted">{{ acct.glCode }}</span>
+                  </span>
+                </div>
+              }
+            }
+          </div>
+        </div>
+      }
+
+    </div><!-- /sections-grid -->
+  }
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- EDIT / NEW MODE                                                        -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  @if ((!loading && !error && !product) || editMode) {
+    <div class="edit-header">
+      <h1 class="page-title">{{ isNew ? 'New Deposit Product' : 'Edit — ' + (product?.name ?? '') }}</h1>
+      <div class="edit-header__actions">
+        <button class="btn-secondary" (click)="cancelEdit()" [disabled]="saving">Cancel</button>
+        <button class="btn-primary"   (click)="save()"        [disabled]="saving">
+          <span class="material-icons">{{ saving ? 'hourglass_empty' : 'save' }}</span>
+          {{ saving ? 'Saving…' : 'Save Product' }}
+        </button>
+      </div>
+    </div>
+
+    @if (saveError) {
+      <div class="form-error">{{ saveError }}</div>
+    }
+
+    <!-- Section tabs -->
+    <div class="section-tabs">
+      <button class="section-tab" [class.section-tab--active]="activeSection === 'core'"
+              (click)="setSection('core')">
+        <span class="material-icons">info</span> Core
+      </button>
+      <button class="section-tab" [class.section-tab--active]="activeSection === 'interest'"
+              (click)="setSection('interest')">
+        <span class="material-icons">percent</span> Interest
+      </button>
+      <button class="section-tab" [class.section-tab--active]="activeSection === 'lockin'"
+              (click)="setSection('lockin')">
+        <span class="material-icons">lock_clock</span> Lock-in
+      </button>
+      <button class="section-tab" [class.section-tab--active]="activeSection === 'overdraft'"
+              (click)="setSection('overdraft')">
+        <span class="material-icons">trending_down</span> Overdraft
+      </button>
+      <button class="section-tab" [class.section-tab--active]="activeSection === 'accounting'"
+              (click)="setSection('accounting')">
+        <span class="material-icons">account_tree</span> Accounting
+      </button>
+    </div>
+
+    <!-- ── Core section ────────────────────────────────────────────────── -->
+    @if (activeSection === 'core') {
+      <div class="card edit-card">
+        <div class="form-section">
+          <p class="section-title">Product Identifiers</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Product Name <span class="req">*</span></label>
+              <input class="form-input" type="text" [(ngModel)]="form.name" placeholder="e.g. Standard Savings Account" />
+            </div>
+            <div class="form-group form-group--sm">
+              <label class="form-label">Short Name <span class="req">*</span></label>
+              <input class="form-input mono" type="text" [(ngModel)]="form.shortName" maxlength="4"
+                     placeholder="e.g. SSA" style="text-transform:uppercase" />
+              <span class="form-hint">Max 4 characters</span>
+            </div>
+            <div class="form-group form-group--sm">
+              <label class="form-label">Currency <span class="req">*</span></label>
+              <input class="form-input mono" type="text" [(ngModel)]="form.currencyCode" maxlength="3"
+                     placeholder="USD" style="text-transform:uppercase" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Description</label>
+              <textarea class="form-textarea" rows="3" [(ngModel)]="form.description"
+                        placeholder="Optional product description"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="form-section" style="border-top: 1px solid var(--color-border-default, #e5e7eb);">
+          <p class="section-title">Account Type & Balance</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Account Type <span class="req">*</span></label>
+              <select class="form-input" [(ngModel)]="form.accountType">
+                @for (t of accountTypes; track t) {
+                  <option [value]="t">{{ label(accountTypeLabels, t) }}</option>
+                }
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Minimum Balance</label>
+              <input class="form-input" type="number" min="0" [(ngModel)]="form.minimumBalance" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Min Required Opening Balance</label>
+              <input class="form-input" type="number" min="0" [(ngModel)]="form.minRequiredOpeningBalance" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Accounting Type</label>
+              <select class="form-input" [(ngModel)]="form.accountingType">
+                @for (t of accountingTypes; track t) {
+                  <option [value]="t">{{ t }}</option>
+                }
+              </select>
+            </div>
+          </div>
+          <label class="override-toggle" style="margin-top: 4px;">
+            <input type="checkbox" [(ngModel)]="form.withdrawalFeeForTransfers" />
+            Apply withdrawal fee for transfers
+          </label>
+        </div>
+      </div>
+    }
+
+    <!-- ── Interest section ────────────────────────────────────────────── -->
+    @if (activeSection === 'interest') {
+      <div class="card edit-card">
+        <div class="form-section">
+          <p class="section-title">Interest Configuration</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Nominal Annual Interest Rate (%) <span class="req">*</span></label>
+              <input class="form-input" type="number" min="0" step="0.01" [(ngModel)]="form.interestRate" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Compounding Period</label>
+              <select class="form-input" [(ngModel)]="form.interestCompounding">
+                @for (t of interestCompoundings; track t) {
+                  <option [value]="t">{{ label(compoundingLabels, t) }}</option>
+                }
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Posting Period</label>
+              <select class="form-input" [(ngModel)]="form.interestPostingPeriodType">
+                @for (t of interestPostingTypes; track t) {
+                  <option [value]="t">{{ label(postingPeriodLabels, t) }}</option>
+                }
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Days in Year</label>
+              <select class="form-input" [(ngModel)]="form.daysInYearType">
+                @for (t of daysInYearTypes; track t) {
+                  <option [value]="t">{{ t }}</option>
+                }
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Days in Month</label>
+              <select class="form-input" [(ngModel)]="form.daysInMonthType">
+                @for (t of daysInMonthTypes; track t) {
+                  <option [value]="t">{{ t }}</option>
+                }
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ── Lock-in section ────────────────────────────────────────────── -->
+    @if (activeSection === 'lockin') {
+      <div class="card edit-card">
+        <div class="form-section">
+          <p class="section-title">Lock-in Period</p>
+          <p style="font-size: 13px; color: var(--color-text-muted, #888); margin: 0 0 16px;">
+            When set, funds cannot be withdrawn before the lock-in period expires.
+            Leave blank to allow unrestricted withdrawals.
+          </p>
+          <div class="form-row">
+            <div class="form-group form-group--sm">
+              <label class="form-label">Duration</label>
+              <input class="form-input" type="number" min="0" [(ngModel)]="form.lockinPeriodFrequency"
+                     placeholder="e.g. 6" />
+            </div>
+            <div class="form-group form-group--sm">
+              <label class="form-label">Unit</label>
+              <select class="form-input" [(ngModel)]="form.lockinPeriodFrequencyType">
+                @for (t of lockinFreqTypes; track t) {
+                  <option [value]="t">{{ label(lockinFreqLabels, t) }}</option>
+                }
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ── Overdraft section ──────────────────────────────────────────── -->
+    @if (activeSection === 'overdraft') {
+      <div class="card edit-card">
+        <div class="form-section">
+          <p class="section-title">Overdraft Configuration</p>
+          <label class="override-toggle" style="margin-bottom: 20px;">
+            <input type="checkbox" [(ngModel)]="form.allowOverdraft" />
+            Allow overdraft on this product
+          </label>
+          @if (form.allowOverdraft) {
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Overdraft Limit</label>
+                <input class="form-input" type="number" min="0" [(ngModel)]="form.overdraftLimit" />
+                <span class="form-hint">Maximum overdraft balance allowed</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Overdraft Interest Rate (%)</label>
+                <input class="form-input" type="number" min="0" step="0.01"
+                       [(ngModel)]="form.nominalAnnualInterestRateOverdraft" />
+                <span class="form-hint">Nominal annual rate charged on overdraft balance</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Min Balance for OD Interest</label>
+                <input class="form-input" type="number" min="0"
+                       [(ngModel)]="form.minOverdraftForInterestCalculation" />
+                <span class="form-hint">Minimum overdraft balance before interest is applied</span>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- ── Accounting section ─────────────────────────────────────────── -->
+    @if (activeSection === 'accounting') {
+      <div class="card edit-card">
+        <div class="form-section">
+          <p class="section-title">GL Account Linkages</p>
+          <p style="font-size: 13px; color: var(--color-text-muted, #888); margin: 0 0 16px;">
+            Enter GL account UUIDs. Required when Accounting Type is <strong>Cash</strong>.
+          </p>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Savings Reference Account</label>
+              <input class="form-input mono" type="text" [(ngModel)]="form.savingsReferenceAccountId"
+                     placeholder="GL Account UUID" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Savings Control Account</label>
+              <input class="form-input mono" type="text" [(ngModel)]="form.savingsControlAccountId"
+                     placeholder="GL Account UUID" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Transfers in Suspense</label>
+              <input class="form-input mono" type="text" [(ngModel)]="form.transfersInSuspenseAccountId"
+                     placeholder="GL Account UUID" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Interest on Savings</label>
+              <input class="form-input mono" type="text" [(ngModel)]="form.interestOnSavingsAccountId"
+                     placeholder="GL Account UUID" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Income from Fees</label>
+              <input class="form-input mono" type="text" [(ngModel)]="form.incomeFromFeesAccountId"
+                     placeholder="GL Account UUID" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Income from Penalties</label>
+              <input class="form-input mono" type="text" [(ngModel)]="form.incomeFromPenaltiesAccountId"
+                     placeholder="GL Account UUID" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Write-Off Account</label>
+              <input class="form-input mono" type="text" [(ngModel)]="form.writeOffAccountId"
+                     placeholder="GL Account UUID" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Overdraft Portfolio Control</label>
+              <input class="form-input mono" type="text" [(ngModel)]="form.overdraftPortfolioControlAccountId"
+                     placeholder="GL Account UUID" />
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+  }
+
+  <!-- ── Deactivate confirm modal ──────────────────────────────────────────── -->
+  @if (showDeactivateConfirm) {
+    <div class="modal-overlay" (click)="showDeactivateConfirm = false">
+      <div class="modal" (click)="$event.stopPropagation()">
+        <div class="modal__header">
+          <span class="modal__title">Deactivate Product</span>
+          <button class="modal__close" (click)="showDeactivateConfirm = false">&times;</button>
+        </div>
+        <div class="modal__body">
+          Are you sure you want to deactivate <strong>{{ product?.name }}</strong>?
+          Existing accounts using this product will not be affected, but no new accounts can be opened.
+        </div>
+        <div class="modal__footer">
+          <button class="btn-secondary" (click)="showDeactivateConfirm = false">Cancel</button>
+          <button class="btn-danger" (click)="deactivate()" [disabled]="deactivating">
+            {{ deactivating ? 'Deactivating…' : 'Deactivate' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
 </div>

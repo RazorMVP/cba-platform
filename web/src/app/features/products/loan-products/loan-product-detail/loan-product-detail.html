@@ -1,7 +1,529 @@
-<app-page-header title="Loan Product Detail" icon="info" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">info</span>
-    <strong>Loan Product Detail</strong><br>Implementation pending.
-  </p>
+<div class="page">
+  <!-- Back link -->
+  <a routerLink=".." class="back-link">
+    <span class="material-icons">arrow_back</span> Loan Products
+  </a>
+
+  <!-- Loading skeleton -->
+  @if (loading) {
+    <div class="loading-skeleton">
+      <div class="skeleton skeleton--header"></div>
+      <div class="skeleton skeleton--body"></div>
+    </div>
+  }
+
+  <!-- Error -->
+  @if (!loading && error) {
+    <div class="error-state">
+      <span class="material-icons">error_outline</span>
+      {{ error }}
+    </div>
+  }
+
+  <!-- View mode -->
+  @if (!loading && !error && product && !editMode) {
+    <div class="product-header card">
+      <div class="product-header__left">
+        <div class="product-title-row">
+          <h1 class="product-name">{{ product.name }}</h1>
+          <span class="short-code mono">{{ product.shortName }}</span>
+          <app-status-badge [label]="product.active ? 'Active' : 'Inactive'"
+                            [variant]="product.active ? 'success' : 'neutral'" />
+        </div>
+        @if (product.description) {
+          <p class="product-desc">{{ product.description }}</p>
+        }
+        <div class="product-meta">
+          <span class="meta-chip"><span class="material-icons">currency_exchange</span>{{ product.currencyCode }}</span>
+          <span class="meta-chip"><span class="material-icons">event_repeat</span>{{ label(repaymentTypeLabels, product.repaymentType) }}</span>
+          <span class="meta-chip"><span class="material-icons">trending_down</span>{{ label(interestTypeLabels, product.interestType) }}</span>
+          @if (product.fund) {
+            <span class="meta-chip"><span class="material-icons">account_balance</span>{{ product.fund.name }}</span>
+          }
+        </div>
+      </div>
+      <div class="product-header__actions">
+        <button class="btn-secondary" (click)="enterEditMode()">
+          <span class="material-icons">edit</span> Edit
+        </button>
+        @if (product.active) {
+          <button class="btn-danger" (click)="confirmDeactivate()">
+            <span class="material-icons">block</span> Deactivate
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- View sections grid -->
+    <div class="sections-grid">
+
+      <!-- Principal & Term -->
+      <div class="card">
+        <div class="card__header"><span class="card__title">Principal &amp; Term</span></div>
+        <div class="card__body">
+          <div class="detail-row"><span class="detail-key">Principal Range</span><span class="detail-val mono">{{ product.minPrincipal | number:'1.2-2' }} – {{ product.maxPrincipal | number:'1.2-2' }} {{ product.currencyCode }}</span></div>
+          @if (product.defaultPrincipal) {
+            <div class="detail-row"><span class="detail-key">Default Principal</span><span class="detail-val mono">{{ product.defaultPrincipal | number:'1.2-2' }}</span></div>
+          }
+          <div class="detail-row"><span class="detail-key">Term Range</span><span class="detail-val mono">{{ product.minTermMonths }} – {{ product.maxTermMonths }} months</span></div>
+          <div class="detail-row"><span class="detail-key">Amortization</span><span class="detail-val">{{ label(amortizationLabels, product.amortizationType) }}</span></div>
+          @if (product.installmentAmountInMultiplesOf) {
+            <div class="detail-row"><span class="detail-key">Round EMI to multiples of</span><span class="detail-val mono">{{ product.installmentAmountInMultiplesOf }}</span></div>
+          }
+        </div>
+      </div>
+
+      <!-- Interest -->
+      <div class="card">
+        <div class="card__header"><span class="card__title">Interest Configuration</span></div>
+        <div class="card__body">
+          <div class="detail-row"><span class="detail-key">Rate Range</span><span class="detail-val mono">{{ product.minInterestRate }}% – {{ product.maxInterestRate }}% (default {{ product.defaultInterestRate }}%)</span></div>
+          <div class="detail-row"><span class="detail-key">Rate Frequency</span><span class="detail-val">{{ label(freqLabels, product.interestRateFrequencyType) }}</span></div>
+          <div class="detail-row"><span class="detail-key">Interest Type</span><span class="detail-val">{{ label(interestTypeLabels, product.interestType) }}</span></div>
+          <div class="detail-row"><span class="detail-key">Calculation Period</span><span class="detail-val">{{ label(calcPeriodLabels, product.interestCalculationPeriodType) }}</span></div>
+          <div class="detail-row"><span class="detail-key">Days in Year</span><span class="detail-val">{{ product.daysInYearType }}</span></div>
+          <div class="detail-row"><span class="detail-key">Days in Month</span><span class="detail-val">{{ product.daysInMonthType }}</span></div>
+        </div>
+      </div>
+
+      <!-- Repayment Schedule -->
+      <div class="card">
+        <div class="card__header"><span class="card__title">Repayment Schedule</span></div>
+        <div class="card__body">
+          <div class="detail-row"><span class="detail-key">Repayment Type</span><span class="detail-val">{{ label(repaymentTypeLabels, product.repaymentType) }}</span></div>
+          <div class="detail-row"><span class="detail-key">Default Installments</span><span class="detail-val mono">{{ product.numberOfRepayments }}</span></div>
+          <div class="detail-row"><span class="detail-key">Repayment Every</span><span class="detail-val mono">{{ product.repaymentEvery }} {{ label(repaymentFreqLabels, product.repaymentFrequencyType) }}</span></div>
+          <div class="detail-row"><span class="detail-key">Origination Fee</span><span class="detail-val mono">{{ product.originationFee | number:'1.2-2' }}</span></div>
+          <div class="detail-row"><span class="detail-key">Late Payment Fee</span><span class="detail-val mono">{{ product.latePaymentFee | number:'1.2-2' }}</span></div>
+        </div>
+      </div>
+
+      <!-- Grace Periods -->
+      <div class="card">
+        <div class="card__header"><span class="card__title">Grace Periods &amp; Arrears</span></div>
+        <div class="card__body">
+          <div class="detail-row"><span class="detail-key">Grace on Principal</span><span class="detail-val mono">{{ product.graceOnPrincipalPayment ?? '—' }} months</span></div>
+          <div class="detail-row"><span class="detail-key">Grace on Interest Payment</span><span class="detail-val mono">{{ product.graceOnInterestPayment ?? '—' }} months</span></div>
+          <div class="detail-row"><span class="detail-key">Grace on Interest Charged</span><span class="detail-val mono">{{ product.graceOnInterestCharged ?? '—' }} months</span></div>
+          <div class="detail-row"><span class="detail-key">Grace on Arrears Ageing</span><span class="detail-val mono">{{ product.graceOnArrearsAgeing ?? '—' }} days</span></div>
+          <div class="detail-row"><span class="detail-key">In Arrears Tolerance</span><span class="detail-val mono">{{ product.inArrearsTolerance ?? '—' }}</span></div>
+        </div>
+      </div>
+
+      <!-- Attribute Overrides -->
+      <div class="card">
+        <div class="card__header"><span class="card__title">Loan Officer Overrides</span></div>
+        <div class="card__body">
+          @if (product.allowAttributeOverrides) {
+            <div class="overrides-grid">
+              <div class="override-item" [class.override-on]="product.allowAttributeOverrides.amortizationType">
+                <span class="material-icons">{{ product.allowAttributeOverrides.amortizationType ? 'check_circle' : 'cancel' }}</span>
+                Amortization Type
+              </div>
+              <div class="override-item" [class.override-on]="product.allowAttributeOverrides.interestType">
+                <span class="material-icons">{{ product.allowAttributeOverrides.interestType ? 'check_circle' : 'cancel' }}</span>
+                Interest Type
+              </div>
+              <div class="override-item" [class.override-on]="product.allowAttributeOverrides.repaymentEvery">
+                <span class="material-icons">{{ product.allowAttributeOverrides.repaymentEvery ? 'check_circle' : 'cancel' }}</span>
+                Repayment Frequency
+              </div>
+              <div class="override-item" [class.override-on]="product.allowAttributeOverrides.interestRatePerPeriod">
+                <span class="material-icons">{{ product.allowAttributeOverrides.interestRatePerPeriod ? 'check_circle' : 'cancel' }}</span>
+                Interest Rate
+              </div>
+              <div class="override-item" [class.override-on]="product.allowAttributeOverrides.graceOnPrincipalAndInterestPayment">
+                <span class="material-icons">{{ product.allowAttributeOverrides.graceOnPrincipalAndInterestPayment ? 'check_circle' : 'cancel' }}</span>
+                Grace Periods
+              </div>
+              <div class="override-item" [class.override-on]="product.allowAttributeOverrides.repaymentStrategy">
+                <span class="material-icons">{{ product.allowAttributeOverrides.repaymentStrategy ? 'check_circle' : 'cancel' }}</span>
+                Repayment Strategy
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- GL Accounts -->
+      <div class="card">
+        <div class="card__header"><span class="card__title">GL Account Linkages</span></div>
+        <div class="card__body">
+          @for (link of [
+            {label:'Fund Source',         val: product.fundSourceAccount},
+            {label:'Loan Portfolio',       val: product.loanPortfolioAccount},
+            {label:'Transfers Suspense',   val: product.transfersInSuspenseAccount},
+            {label:'Interest on Loan',     val: product.interestOnLoanAccount},
+            {label:'Income from Fees',     val: product.incomeFromFeesAccount},
+            {label:'Income from Penalties',val: product.incomeFromPenaltiesAccount},
+            {label:'Write-Off',            val: product.writeOffAccount},
+            {label:'Overpayment Liability',val: product.overpaymentLiabilityAccount}
+          ]; track link.label) {
+            <div class="detail-row">
+              <span class="detail-key">{{ link.label }}</span>
+              @if (link.val) {
+                <span class="detail-val gl-val"><span class="mono">{{ link.val.glCode }}</span> {{ link.val.name }}</span>
+              } @else {
+                <span class="detail-val muted">Not configured</span>
+              }
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Charges -->
+      @if (product.charges.length > 0) {
+        <div class="card span-2">
+          <div class="card__header"><span class="card__title">Default Charges ({{ product.charges.length }})</span></div>
+          <div class="card__body charges-list">
+            @for (c of product.charges; track c.id) {
+              <div class="charge-chip">
+                <span class="material-icons">receipt</span>
+                {{ c.name }}
+                <span class="charge-type">{{ c.chargeTimeType }}</span>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+    </div>
+  }
+
+  <!-- Edit / Create mode -->
+  @if (editMode) {
+    <div class="edit-header">
+      <h1 class="page-title">{{ isNew ? 'New Loan Product' : 'Edit: ' + (form.name || product?.name) }}</h1>
+      <div class="edit-header__actions">
+        <button class="btn-secondary" (click)="cancelEdit()" [disabled]="saving">Cancel</button>
+        <button class="btn-primary" (click)="save()" [disabled]="saving">
+          <span class="material-icons">{{ saving ? 'hourglass_empty' : 'save' }}</span>
+          {{ saving ? 'Saving…' : 'Save Product' }}
+        </button>
+      </div>
+    </div>
+
+    @if (saveError) {
+      <div class="form-error">{{ saveError }}</div>
+    }
+
+    <!-- Section tabs -->
+    <div class="section-tabs">
+      @for (sec of [
+        {id:'principal', label:'Principal & Term',       icon:'payments'},
+        {id:'interest',  label:'Interest',               icon:'percent'},
+        {id:'schedule',  label:'Repayment & Fees',       icon:'event_repeat'},
+        {id:'grace',     label:'Grace & Arrears',        icon:'hourglass_empty'},
+        {id:'accounting',label:'GL Accounts & Charges',  icon:'account_balance'}
+      ]; track sec.id) {
+        <button class="section-tab" [class.section-tab--active]="activeSection === sec.id"
+                (click)="setSection($any(sec.id))">
+          <span class="material-icons">{{ sec.icon }}</span>
+          {{ sec.label }}
+        </button>
+      }
+    </div>
+
+    <div class="edit-card card">
+
+      <!-- Principal & Term -->
+      @if (activeSection === 'principal') {
+        <div class="form-section">
+          <h3 class="section-title">Core Identifiers</h3>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Product Name <span class="req">*</span></label>
+              <input class="form-input" [(ngModel)]="form.name" placeholder="e.g. SME Working Capital Loan" />
+            </div>
+            <div class="form-group form-group--sm">
+              <label class="form-label">Short Code <span class="req">*</span></label>
+              <input class="form-input mono" [(ngModel)]="form.shortName" maxlength="4" placeholder="SMEW" style="text-transform:uppercase" />
+              <span class="form-hint">Max 4 chars, unique</span>
+            </div>
+            <div class="form-group form-group--sm">
+              <label class="form-label">Currency</label>
+              <input class="form-input mono" [(ngModel)]="form.currencyCode" maxlength="3" placeholder="USD" style="text-transform:uppercase" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Description</label>
+            <textarea class="form-textarea" [(ngModel)]="form.description" rows="2" placeholder="Optional description"></textarea>
+          </div>
+
+          <h3 class="section-title" style="margin-top:$space-5">Principal Range</h3>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Min Principal <span class="req">*</span></label>
+              <input class="form-input" type="number" [(ngModel)]="form.minPrincipal" min="0" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Max Principal <span class="req">*</span></label>
+              <input class="form-input" type="number" [(ngModel)]="form.maxPrincipal" min="0" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Default Principal</label>
+              <input class="form-input" type="number" [(ngModel)]="form.defaultPrincipal" min="0" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Min Term (months) <span class="req">*</span></label>
+              <input class="form-input" type="number" [(ngModel)]="form.minTermMonths" min="1" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Max Term (months) <span class="req">*</span></label>
+              <input class="form-input" type="number" [(ngModel)]="form.maxTermMonths" min="1" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Amortization Type</label>
+              <select class="form-input" [(ngModel)]="form.amortizationType">
+                @for (t of amortizationTypes; track t) { <option [value]="t">{{ label(amortizationLabels, t) }}</option> }
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group form-group--sm">
+              <label class="form-label">Round EMI to multiples of</label>
+              <input class="form-input" type="number" [(ngModel)]="form.installmentAmountInMultiplesOf" min="1" placeholder="e.g. 10" />
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- Interest -->
+      @if (activeSection === 'interest') {
+        <div class="form-section">
+          <h3 class="section-title">Interest Rates</h3>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Min Rate (%) <span class="req">*</span></label>
+              <input class="form-input" type="number" [(ngModel)]="form.minInterestRate" min="0" max="100" step="0.01" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Max Rate (%) <span class="req">*</span></label>
+              <input class="form-input" type="number" [(ngModel)]="form.maxInterestRate" min="0" max="100" step="0.01" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Default Rate (%) <span class="req">*</span></label>
+              <input class="form-input" type="number" [(ngModel)]="form.defaultInterestRate" min="0" max="100" step="0.01" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Rate Frequency</label>
+              <select class="form-input" [(ngModel)]="form.interestRateFrequencyType">
+                @for (t of interestRateFrequencyTypes; track t) { <option [value]="t">{{ label(freqLabels, t) }}</option> }
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Interest Type</label>
+              <select class="form-input" [(ngModel)]="form.interestType">
+                @for (t of interestTypes; track t) { <option [value]="t">{{ label(interestTypeLabels, t) }}</option> }
+              </select>
+            </div>
+          </div>
+          <h3 class="section-title" style="margin-top:1.5rem">Calculation Method</h3>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Calculation Period</label>
+              <select class="form-input" [(ngModel)]="form.interestCalculationPeriodType">
+                @for (t of calcPeriodTypes; track t) { <option [value]="t">{{ label(calcPeriodLabels, t) }}</option> }
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Days in Year</label>
+              <select class="form-input" [(ngModel)]="form.daysInYearType">
+                @for (t of daysInYearTypes; track t) { <option [value]="t">{{ t }}</option> }
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Days in Month</label>
+              <select class="form-input" [(ngModel)]="form.daysInMonthType">
+                @for (t of daysInMonthTypes; track t) { <option [value]="t">{{ t }}</option> }
+              </select>
+            </div>
+          </div>
+
+          <h3 class="section-title" style="margin-top:1.5rem">Loan Officer Overrides</h3>
+          <p class="form-hint" style="margin-bottom:1rem">Allow loan officers to override these settings per individual loan.</p>
+          <div class="overrides-form-grid">
+            @if (form.allowAttributeOverrides) {
+              <label class="override-toggle">
+                <input type="checkbox" [(ngModel)]="form.allowAttributeOverrides.amortizationType" />
+                Amortization Type
+              </label>
+              <label class="override-toggle">
+                <input type="checkbox" [(ngModel)]="form.allowAttributeOverrides.interestType" />
+                Interest Type
+              </label>
+              <label class="override-toggle">
+                <input type="checkbox" [(ngModel)]="form.allowAttributeOverrides.repaymentEvery" />
+                Repayment Frequency
+              </label>
+              <label class="override-toggle">
+                <input type="checkbox" [(ngModel)]="form.allowAttributeOverrides.interestRatePerPeriod" />
+                Interest Rate
+              </label>
+              <label class="override-toggle">
+                <input type="checkbox" [(ngModel)]="form.allowAttributeOverrides.graceOnPrincipalAndInterestPayment" />
+                Grace Periods
+              </label>
+              <label class="override-toggle">
+                <input type="checkbox" [(ngModel)]="form.allowAttributeOverrides.repaymentStrategy" />
+                Repayment Strategy
+              </label>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- Repayment & Fees -->
+      @if (activeSection === 'schedule') {
+        <div class="form-section">
+          <h3 class="section-title">Repayment Schedule</h3>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Repayment Type</label>
+              <select class="form-input" [(ngModel)]="form.repaymentType">
+                @for (t of repaymentTypes; track t) { <option [value]="t">{{ label(repaymentTypeLabels, t) }}</option> }
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Default Installments</label>
+              <input class="form-input" type="number" [(ngModel)]="form.numberOfRepayments" min="1" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group form-group--sm">
+              <label class="form-label">Repay Every</label>
+              <input class="form-input" type="number" [(ngModel)]="form.repaymentEvery" min="1" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Frequency</label>
+              <select class="form-input" [(ngModel)]="form.repaymentFrequencyType">
+                @for (t of repaymentFreqTypes; track t) { <option [value]="t">{{ label(repaymentFreqLabels, t) }}</option> }
+              </select>
+            </div>
+          </div>
+
+          <h3 class="section-title" style="margin-top:1.5rem">Fees</h3>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Origination Fee</label>
+              <input class="form-input" type="number" [(ngModel)]="form.originationFee" min="0" step="0.01" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Late Payment Fee</label>
+              <input class="form-input" type="number" [(ngModel)]="form.latePaymentFee" min="0" step="0.01" />
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- Grace & Arrears -->
+      @if (activeSection === 'grace') {
+        <div class="form-section">
+          <h3 class="section-title">Grace Periods</h3>
+          <p class="form-hint" style="margin-bottom:1rem">Leave blank to apply no grace period.</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Grace on Principal (months)</label>
+              <input class="form-input" type="number" [(ngModel)]="form.graceOnPrincipalPayment" min="0" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Grace on Interest Payment (months)</label>
+              <input class="form-input" type="number" [(ngModel)]="form.graceOnInterestPayment" min="0" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Grace on Interest Charged (months)</label>
+              <input class="form-input" type="number" [(ngModel)]="form.graceOnInterestCharged" min="0" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Grace on Arrears Ageing (days)</label>
+              <input class="form-input" type="number" [(ngModel)]="form.graceOnArrearsAgeing" min="0" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group form-group--sm">
+              <label class="form-label">In Arrears Tolerance Amount</label>
+              <input class="form-input" type="number" [(ngModel)]="form.inArrearsTolerance" min="0" step="0.01" />
+              <span class="form-hint">Amount below which arrears flag is not raised</span>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- GL Accounts & Charges -->
+      @if (activeSection === 'accounting') {
+        <div class="form-section">
+          <h3 class="section-title">GL Account Linkages</h3>
+          <p class="form-hint" style="margin-bottom:1rem">Enter GL account UUIDs. Leave blank to skip accounting posting for that account type.</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Fund Source Account</label>
+              <input class="form-input mono" [(ngModel)]="form.fundSourceAccountId" placeholder="UUID" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Loan Portfolio Account</label>
+              <input class="form-input mono" [(ngModel)]="form.loanPortfolioAccountId" placeholder="UUID" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Transfers in Suspense</label>
+              <input class="form-input mono" [(ngModel)]="form.transfersInSuspenseAccountId" placeholder="UUID" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Interest on Loan</label>
+              <input class="form-input mono" [(ngModel)]="form.interestOnLoanAccountId" placeholder="UUID" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Income from Fees</label>
+              <input class="form-input mono" [(ngModel)]="form.incomeFromFeesAccountId" placeholder="UUID" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Income from Penalties</label>
+              <input class="form-input mono" [(ngModel)]="form.incomeFromPenaltiesAccountId" placeholder="UUID" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Write-Off Account</label>
+              <input class="form-input mono" [(ngModel)]="form.writeOffAccountId" placeholder="UUID" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Overpayment Liability</label>
+              <input class="form-input mono" [(ngModel)]="form.overpaymentLiabilityAccountId" placeholder="UUID" />
+            </div>
+          </div>
+        </div>
+      }
+
+    </div>
+  }
+
+  <!-- Deactivate confirm modal -->
+  @if (showDeactivateConfirm) {
+    <div class="modal-overlay" (click)="showDeactivateConfirm = false">
+      <div class="modal" (click)="$event.stopPropagation()">
+        <div class="modal__header">
+          <span class="modal__title">Deactivate Product?</span>
+          <button class="modal__close" (click)="showDeactivateConfirm = false">close</button>
+        </div>
+        <div class="modal__body">
+          <p>Deactivating <strong>{{ product?.name }}</strong> will prevent new loans from being created using this product. Existing loans are unaffected.</p>
+        </div>
+        <div class="modal__footer">
+          <button class="btn-secondary" (click)="showDeactivateConfirm = false">Cancel</button>
+          <button class="btn-danger" (click)="deactivate()" [disabled]="deactivating">
+            {{ deactivating ? 'Deactivating…' : 'Deactivate' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
 </div>

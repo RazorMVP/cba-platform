@@ -800,14 +800,43 @@ Where:
 <!-- PRODUCTS ────────────────────────────────────────────────────────────── -->
 <section id="products">
 <h2>Products</h2>
-<p>Loan and deposit product templates that individual loans/accounts are created from.</p>
+<p>Loan and deposit product templates that individual loans/accounts are created from. Full Mifos parity — includes interest config, repayment schedule, grace periods, GL account linkages, charge associations, and per-loan attribute override flags.</p>
 
 <h3>Validation Rules</h3>
 <ul>
 <li><code>minPrincipal ≤ maxPrincipal</code></li>
 <li><code>minInterestRate ≤ defaultInterestRate ≤ maxInterestRate</code></li>
 <li><code>minTermMonths ≤ maxTermMonths</code></li>
+<li>GL account IDs must reference existing, non-disabled <code>gl_accounts</code> records</li>
+<li><code>shortName</code> must be unique (max 4 chars, auto-uppercased)</li>
 </ul>
+
+<!-- ── LOAN PRODUCTS ──────────────────────────────────────── -->
+<h3>Loan Products</h3>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/loan-products</span>
+    <span class="endpoint-summary">List loan products</span>
+  </summary>
+  <div class="endpoint-body">
+    <p><strong>Query params:</strong> <code>activeOnly=true</code> (default false)</p>
+    <p><strong>Roles:</strong> All authenticated</p>
+    <p>Returns an array of loan product objects including GL account refs and associated charge summaries.</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/loan-products/{id}</span>
+    <span class="endpoint-summary">Get loan product</span>
+  </summary>
+  <div class="endpoint-body">
+    <p><strong>Roles:</strong> All authenticated</p>
+  </div>
+</details>
 
 <details class="endpoint">
   <summary class="endpoint-header">
@@ -816,7 +845,150 @@ Where:
     <span class="endpoint-summary">Create loan product</span>
   </summary>
   <div class="endpoint-body">
-    <pre>{ "name": "SME Working Capital Loan", "minPrincipal": "1000.00", "maxPrincipal": "100000.00", "minInterestRate": "8.00", "maxInterestRate": "24.00", "defaultInterestRate": "15.00", "minTermMonths": 3, "maxTermMonths": 60, "repaymentType": "ANNUITY" }</pre>
+    <p><strong>Roles:</strong> ADMIN</p>
+    <h4>Request Body — Field Reference</h4>
+    <table class="field-table">
+      <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>name</code></td><td>string(100)</td><td>✓</td><td>Full product name</td></tr>
+        <tr><td><code>shortName</code></td><td>string(4)</td><td>✓</td><td>Unique short code, auto-uppercased (e.g. <code>SMEW</code>)</td></tr>
+        <tr><td><code>description</code></td><td>string</td><td></td><td>Free-text description</td></tr>
+        <tr><td><code>currencyCode</code></td><td>string(3)</td><td></td><td>ISO 4217 (default USD)</td></tr>
+        <tr><td><code>fundId</code></td><td>UUID</td><td></td><td>Links to a Fund record for fund tracking</td></tr>
+        <tr><td colspan="4" style="background:#f8f9fa;font-weight:600">Principal</td></tr>
+        <tr><td><code>minPrincipal</code></td><td>decimal</td><td>✓</td><td>Minimum allowed loan amount</td></tr>
+        <tr><td><code>maxPrincipal</code></td><td>decimal</td><td>✓</td><td>Maximum allowed loan amount</td></tr>
+        <tr><td><code>defaultPrincipal</code></td><td>decimal</td><td></td><td>Default pre-fill amount</td></tr>
+        <tr><td><code>installmentAmountInMultiplesOf</code></td><td>integer</td><td></td><td>Round EMI to nearest multiple (e.g. 10 → EMI rounded to $10)</td></tr>
+        <tr><td colspan="4" style="background:#f8f9fa;font-weight:600">Interest Rates</td></tr>
+        <tr><td><code>minInterestRate</code></td><td>decimal(0–100)</td><td>✓</td><td>Floor rate</td></tr>
+        <tr><td><code>maxInterestRate</code></td><td>decimal(0–100)</td><td>✓</td><td>Ceiling rate</td></tr>
+        <tr><td><code>defaultInterestRate</code></td><td>decimal(0–100)</td><td>✓</td><td>Must be within [min, max]</td></tr>
+        <tr><td><code>interestRateFrequencyType</code></td><td>enum</td><td></td><td><code>PER_MONTH</code> | <code>PER_YEAR</code> | <code>PER_WEEK</code> | <code>WHOLE_TERM</code> (default PER_YEAR)</td></tr>
+        <tr><td><code>interestType</code></td><td>enum</td><td></td><td><code>FLAT</code> | <code>DECLINING_BALANCE</code> (default DECLINING_BALANCE)</td></tr>
+        <tr><td><code>amortizationType</code></td><td>enum</td><td></td><td><code>EQUAL_INSTALLMENTS</code> (EMI) | <code>EQUAL_PRINCIPAL</code> (default EQUAL_INSTALLMENTS)</td></tr>
+        <tr><td><code>interestCalculationPeriodType</code></td><td>enum</td><td></td><td><code>SAME_AS_REPAYMENT_PERIOD</code> | <code>DAILY</code></td></tr>
+        <tr><td><code>daysInYearType</code></td><td>enum</td><td></td><td><code>ACTUAL</code> | <code>DAYS_360</code> | <code>DAYS_364</code> | <code>DAYS_365</code></td></tr>
+        <tr><td><code>daysInMonthType</code></td><td>enum</td><td></td><td><code>ACTUAL</code> | <code>DAYS_30</code></td></tr>
+        <tr><td colspan="4" style="background:#f8f9fa;font-weight:600">Repayment Schedule</td></tr>
+        <tr><td><code>minTermMonths</code></td><td>integer ≥ 1</td><td>✓</td><td>Minimum loan term</td></tr>
+        <tr><td><code>maxTermMonths</code></td><td>integer ≥ 1</td><td>✓</td><td>Maximum loan term</td></tr>
+        <tr><td><code>numberOfRepayments</code></td><td>integer ≥ 1</td><td></td><td>Default installment count (default 12)</td></tr>
+        <tr><td><code>repaymentEvery</code></td><td>integer ≥ 1</td><td></td><td>Frequency multiplier (e.g. every 2 weeks — default 1)</td></tr>
+        <tr><td><code>repaymentFrequencyType</code></td><td>enum</td><td></td><td><code>DAYS</code> | <code>WEEKS</code> | <code>MONTHS</code> | <code>YEARS</code> (default MONTHS)</td></tr>
+        <tr><td><code>repaymentType</code></td><td>enum</td><td></td><td><code>ANNUITY</code> | <code>FLAT</code> | <code>DECLINING_BALANCE</code></td></tr>
+        <tr><td colspan="4" style="background:#f8f9fa;font-weight:600">Grace Periods</td></tr>
+        <tr><td><code>graceOnPrincipalPayment</code></td><td>integer</td><td></td><td>Months of grace on principal repayment</td></tr>
+        <tr><td><code>graceOnInterestPayment</code></td><td>integer</td><td></td><td>Months of grace on interest repayment</td></tr>
+        <tr><td><code>graceOnInterestCharged</code></td><td>integer</td><td></td><td>Months of no interest charged</td></tr>
+        <tr><td><code>graceOnArrearsAgeing</code></td><td>integer</td><td></td><td>Days before arrears classification triggers</td></tr>
+        <tr><td><code>inArrearsTolerance</code></td><td>decimal</td><td></td><td>Amount tolerance before arrears flag</td></tr>
+        <tr><td colspan="4" style="background:#f8f9fa;font-weight:600">Fees</td></tr>
+        <tr><td><code>originationFee</code></td><td>decimal</td><td></td><td>One-time upfront fee (default 0)</td></tr>
+        <tr><td><code>latePaymentFee</code></td><td>decimal</td><td></td><td>Per-occurrence late payment fee (default 0)</td></tr>
+        <tr><td colspan="4" style="background:#f8f9fa;font-weight:600">Attribute Overrides</td></tr>
+        <tr><td><code>allowAttributeOverrides.amortizationType</code></td><td>boolean</td><td></td><td>Loan officer may override amortization type (default true)</td></tr>
+        <tr><td><code>allowAttributeOverrides.interestType</code></td><td>boolean</td><td></td><td>Loan officer may override interest type (default true)</td></tr>
+        <tr><td><code>allowAttributeOverrides.repaymentEvery</code></td><td>boolean</td><td></td><td>Loan officer may override repayment frequency (default true)</td></tr>
+        <tr><td><code>allowAttributeOverrides.graceOnPrincipalAndInterestPayment</code></td><td>boolean</td><td></td><td>Loan officer may override grace periods (default true)</td></tr>
+        <tr><td><code>allowAttributeOverrides.interestRatePerPeriod</code></td><td>boolean</td><td></td><td>Loan officer may override interest rate (default true)</td></tr>
+        <tr><td colspan="4" style="background:#f8f9fa;font-weight:600">GL Account Linkages (all optional UUID references to gl_accounts)</td></tr>
+        <tr><td><code>fundSourceAccountId</code></td><td>UUID</td><td></td><td>Liability account — source of disbursement funds</td></tr>
+        <tr><td><code>loanPortfolioAccountId</code></td><td>UUID</td><td></td><td>Asset account — outstanding loan balance</td></tr>
+        <tr><td><code>transfersInSuspenseAccountId</code></td><td>UUID</td><td></td><td>Suspense account for in-transit transfers</td></tr>
+        <tr><td><code>interestOnLoanAccountId</code></td><td>UUID</td><td></td><td>Income account — interest earned</td></tr>
+        <tr><td><code>incomeFromFeesAccountId</code></td><td>UUID</td><td></td><td>Income account — fee income</td></tr>
+        <tr><td><code>incomeFromPenaltiesAccountId</code></td><td>UUID</td><td></td><td>Income account — penalty income</td></tr>
+        <tr><td><code>writeOffAccountId</code></td><td>UUID</td><td></td><td>Expense account — written-off loans</td></tr>
+        <tr><td><code>overpaymentLiabilityAccountId</code></td><td>UUID</td><td></td><td>Liability account — overpayment balance</td></tr>
+        <tr><td colspan="4" style="background:#f8f9fa;font-weight:600">Charges</td></tr>
+        <tr><td><code>chargeIds</code></td><td>UUID[]</td><td></td><td>Default charge definitions applied to all new loans from this product</td></tr>
+      </tbody>
+    </table>
+    <pre>{
+  "name": "SME Working Capital Loan",
+  "shortName": "SMEW",
+  "currencyCode": "USD",
+  "minPrincipal": "1000.00",
+  "maxPrincipal": "100000.00",
+  "defaultPrincipal": "10000.00",
+  "minInterestRate": "8.00",
+  "maxInterestRate": "24.00",
+  "defaultInterestRate": "15.00",
+  "interestRateFrequencyType": "PER_YEAR",
+  "interestType": "DECLINING_BALANCE",
+  "amortizationType": "EQUAL_INSTALLMENTS",
+  "interestCalculationPeriodType": "SAME_AS_REPAYMENT_PERIOD",
+  "daysInYearType": "ACTUAL",
+  "daysInMonthType": "ACTUAL",
+  "minTermMonths": 3,
+  "maxTermMonths": 60,
+  "numberOfRepayments": 12,
+  "repaymentEvery": 1,
+  "repaymentFrequencyType": "MONTHS",
+  "repaymentType": "ANNUITY",
+  "graceOnArrearsAgeing": 14,
+  "inArrearsTolerance": "0.00",
+  "originationFee": "0.00",
+  "latePaymentFee": "50.00",
+  "allowAttributeOverrides": {
+    "amortizationType": true,
+    "interestType": true,
+    "repaymentEvery": true,
+    "interestRatePerPeriod": true
+  },
+  "fundSourceAccountId": null,
+  "loanPortfolioAccountId": null,
+  "chargeIds": []
+}</pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method PUT">PUT</span>
+    <span class="endpoint-path">/api/v1/loan-products/{id}</span>
+    <span class="endpoint-summary">Update loan product</span>
+  </summary>
+  <div class="endpoint-body">
+    <p><strong>Roles:</strong> ADMIN. Same body as Create. All charge linkages are replaced atomically.</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method DELETE">DELETE</span>
+    <span class="endpoint-path">/api/v1/loan-products/{id}</span>
+    <span class="endpoint-summary">Deactivate loan product</span>
+  </summary>
+  <div class="endpoint-body">
+    <p><strong>Roles:</strong> ADMIN. Sets <code>active=false</code>. Does not delete — existing loans retain their product reference.</p>
+  </div>
+</details>
+
+<!-- ── DEPOSIT PRODUCTS ───────────────────────────────────── -->
+<h3>Deposit Products</h3>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/deposit-products</span>
+    <span class="endpoint-summary">List deposit products</span>
+  </summary>
+  <div class="endpoint-body">
+    <p><strong>Query params:</strong> <code>activeOnly=true</code> (default false)</p>
+    <p><strong>Roles:</strong> All authenticated</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/deposit-products/{id}</span>
+    <span class="endpoint-summary">Get deposit product</span>
+  </summary>
+  <div class="endpoint-body">
+    <p><strong>Roles:</strong> All authenticated</p>
   </div>
 </details>
 
@@ -827,7 +999,93 @@ Where:
     <span class="endpoint-summary">Create deposit product</span>
   </summary>
   <div class="endpoint-body">
-    <pre>{ "name": "Premium Savings", "accountType": "SAVINGS", "minimumBalance": "100.00", "interestRate": "5.50", "compoundingFrequency": "MONTHLY" }</pre>
+    <p><strong>Roles:</strong> ADMIN</p>
+    <h4>Request Body — Field Reference</h4>
+    <table class="field-table">
+      <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>name</code></td><td>string(100)</td><td>✓</td><td>Full product name</td></tr>
+        <tr><td><code>shortName</code></td><td>string(4)</td><td>✓</td><td>Unique short code, auto-uppercased</td></tr>
+        <tr><td><code>description</code></td><td>string</td><td></td><td>Free-text description</td></tr>
+        <tr><td><code>accountType</code></td><td>enum</td><td>✓</td><td><code>SAVINGS</code> | <code>CHECKING</code> | <code>FIXED_DEPOSIT</code></td></tr>
+        <tr><td><code>currencyCode</code></td><td>string(3)</td><td></td><td>ISO 4217 (default USD)</td></tr>
+        <tr><td colspan="4" style="background:#f8f9fa;font-weight:600">Balance</td></tr>
+        <tr><td><code>minimumBalance</code></td><td>decimal ≥ 0</td><td></td><td>Minimum balance to keep account open (default 0)</td></tr>
+        <tr><td><code>minRequiredOpeningBalance</code></td><td>decimal ≥ 0</td><td></td><td>Minimum balance required when opening account</td></tr>
+        <tr><td colspan="4" style="background:#f8f9fa;font-weight:600">Interest Configuration</td></tr>
+        <tr><td><code>interestRate</code></td><td>decimal(0–100)</td><td></td><td>Annual nominal interest rate (default 0)</td></tr>
+        <tr><td><code>interestCompounding</code></td><td>enum</td><td></td><td><code>DAILY</code> | <code>MONTHLY</code> | <code>ANNUALLY</code> (default MONTHLY)</td></tr>
+        <tr><td><code>interestPostingPeriodType</code></td><td>enum</td><td></td><td><code>MONTHLY</code> | <code>QUARTERLY</code> | <code>BIANNUAL</code> | <code>ANNUAL</code> (default MONTHLY)</td></tr>
+        <tr><td><code>daysInYearType</code></td><td>enum</td><td></td><td><code>ACTUAL</code> | <code>DAYS_360</code> | <code>DAYS_364</code> | <code>DAYS_365</code></td></tr>
+        <tr><td><code>daysInMonthType</code></td><td>enum</td><td></td><td><code>ACTUAL</code> | <code>DAYS_30</code></td></tr>
+        <tr><td colspan="4" style="background:#f8f9fa;font-weight:600">Lock-In Period</td></tr>
+        <tr><td><code>lockinPeriodFrequency</code></td><td>integer ≥ 0</td><td></td><td>Number of periods before withdrawals allowed</td></tr>
+        <tr><td><code>lockinPeriodFrequencyType</code></td><td>enum</td><td></td><td><code>DAYS</code> | <code>WEEKS</code> | <code>MONTHS</code> | <code>YEARS</code></td></tr>
+        <tr><td colspan="4" style="background:#f8f9fa;font-weight:600">Withdrawal</td></tr>
+        <tr><td><code>withdrawalFeeForTransfers</code></td><td>boolean</td><td></td><td>Apply withdrawal fee when account is debited for a transfer (default false)</td></tr>
+        <tr><td colspan="4" style="background:#f8f9fa;font-weight:600">Overdraft</td></tr>
+        <tr><td><code>allowOverdraft</code></td><td>boolean</td><td></td><td>Whether overdraft is permitted (default false)</td></tr>
+        <tr><td><code>overdraftLimit</code></td><td>decimal</td><td></td><td>Maximum overdraft allowed</td></tr>
+        <tr><td><code>nominalAnnualInterestRateOverdraft</code></td><td>decimal(0–100)</td><td></td><td>Interest rate applied on overdraft balance</td></tr>
+        <tr><td><code>minOverdraftForInterestCalculation</code></td><td>decimal</td><td></td><td>Minimum overdraft balance before interest accrues</td></tr>
+        <tr><td colspan="4" style="background:#f8f9fa;font-weight:600">Accounting</td></tr>
+        <tr><td><code>accountingType</code></td><td>enum</td><td></td><td><code>NONE</code> | <code>CASH</code> (default NONE)</td></tr>
+        <tr><td colspan="4" style="background:#f8f9fa;font-weight:600">GL Account Linkages (all optional UUID references to gl_accounts)</td></tr>
+        <tr><td><code>savingsReferenceAccountId</code></td><td>UUID</td><td></td><td>Liability account — savings deposits held</td></tr>
+        <tr><td><code>savingsControlAccountId</code></td><td>UUID</td><td></td><td>Control account for savings balance reconciliation</td></tr>
+        <tr><td><code>transfersInSuspenseAccountId</code></td><td>UUID</td><td></td><td>Suspense account for in-transit transfers</td></tr>
+        <tr><td><code>interestOnSavingsAccountId</code></td><td>UUID</td><td></td><td>Expense account — interest paid to depositors</td></tr>
+        <tr><td><code>incomeFromFeesAccountId</code></td><td>UUID</td><td></td><td>Income account — fee income</td></tr>
+        <tr><td><code>incomeFromPenaltiesAccountId</code></td><td>UUID</td><td></td><td>Income account — penalty income</td></tr>
+        <tr><td><code>writeOffAccountId</code></td><td>UUID</td><td></td><td>Expense account — written-off balances</td></tr>
+        <tr><td><code>overdraftPortfolioControlAccountId</code></td><td>UUID</td><td></td><td>Asset account — overdraft balances outstanding</td></tr>
+        <tr><td colspan="4" style="background:#f8f9fa;font-weight:600">Charges</td></tr>
+        <tr><td><code>chargeIds</code></td><td>UUID[]</td><td></td><td>Default charges applied when account is opened</td></tr>
+      </tbody>
+    </table>
+    <pre>{
+  "name": "Standard Savings Product",
+  "shortName": "SAVS",
+  "accountType": "SAVINGS",
+  "currencyCode": "USD",
+  "minimumBalance": "100.00",
+  "minRequiredOpeningBalance": "50.00",
+  "interestRate": "3.50",
+  "interestCompounding": "MONTHLY",
+  "interestPostingPeriodType": "MONTHLY",
+  "daysInYearType": "ACTUAL",
+  "daysInMonthType": "ACTUAL",
+  "lockinPeriodFrequency": null,
+  "lockinPeriodFrequencyType": null,
+  "withdrawalFeeForTransfers": false,
+  "allowOverdraft": false,
+  "accountingType": "CASH",
+  "savingsReferenceAccountId": null,
+  "savingsControlAccountId": null,
+  "chargeIds": []
+}</pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method PUT">PUT</span>
+    <span class="endpoint-path">/api/v1/deposit-products/{id}</span>
+    <span class="endpoint-summary">Update deposit product</span>
+  </summary>
+  <div class="endpoint-body">
+    <p><strong>Roles:</strong> ADMIN. Same body as Create. Charge linkages replaced atomically.</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method DELETE">DELETE</span>
+    <span class="endpoint-path">/api/v1/deposit-products/{id}</span>
+    <span class="endpoint-summary">Deactivate deposit product</span>
+  </summary>
+  <div class="endpoint-body">
+    <p><strong>Roles:</strong> ADMIN. Sets <code>active=false</code>.</p>
   </div>
 </details>
 </section>
@@ -1603,13 +1861,15 @@ difference = actual_cash - closing_balance</pre>
 <tr><td>POST</td><td>/api/v1/payments/{id}/reverse</td><td>Reverse payment</td><td>ADMIN</td></tr>
 <!-- Products -->
 <tr><td>GET</td><td>/api/v1/loan-products</td><td>List loan products</td><td>All roles</td></tr>
-<tr><td>POST</td><td>/api/v1/loan-products</td><td>Create loan product</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/loan-products/{id}</td><td>Get loan product</td><td>All roles</td></tr>
+<tr><td>POST</td><td>/api/v1/loan-products</td><td>Create loan product (full Mifos field set)</td><td>ADMIN</td></tr>
 <tr><td>PUT</td><td>/api/v1/loan-products/{id}</td><td>Update loan product</td><td>ADMIN</td></tr>
-<tr><td>DELETE</td><td>/api/v1/loan-products/{id}</td><td>Delete loan product</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/loan-products/{id}</td><td>Deactivate loan product</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/api/v1/deposit-products</td><td>List deposit products</td><td>All roles</td></tr>
-<tr><td>POST</td><td>/api/v1/deposit-products</td><td>Create deposit product</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/deposit-products/{id}</td><td>Get deposit product</td><td>All roles</td></tr>
+<tr><td>POST</td><td>/api/v1/deposit-products</td><td>Create deposit product (full Mifos field set)</td><td>ADMIN</td></tr>
 <tr><td>PUT</td><td>/api/v1/deposit-products/{id}</td><td>Update deposit product</td><td>ADMIN</td></tr>
-<tr><td>DELETE</td><td>/api/v1/deposit-products/{id}</td><td>Delete deposit product</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/deposit-products/{id}</td><td>Deactivate deposit product</td><td>ADMIN</td></tr>
 <!-- Fixed Deposit -->
 <tr><td>GET</td><td>/api/v1/fixeddepositproducts</td><td>List FD products</td><td>All roles</td></tr>
 <tr><td>POST</td><td>/api/v1/fixeddepositproducts</td><td>Create FD product</td><td>ADMIN</td></tr>

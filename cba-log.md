@@ -59,6 +59,69 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 11 — 2026-04-09
+
+**Operations group fully wired: Dashboard, Customers List, Accounts List, Loans List, Customer Detail (5-tab), and Loan Detail (5-tab) all connected to backend API with real data, Nubeero styling, skeleton loaders, and action workflows.**
+
+#### New/Updated Angular Files
+
+| File | Change |
+|------|--------|
+| `features/operations/dashboard/dashboard.service.ts` | New — `getKpis()` via `forkJoin`, `getRecentTransactions()`, `getKycPendingCustomers()` |
+| `features/operations/dashboard/dashboard.ts` | Fleshed — KPI data binding, loanPortfolio bars, `avatarColor()`, `txnAmountClass()` |
+| `features/operations/dashboard/dashboard.html` | Fleshed — KPI grid (4-col), main grid (2-col), transaction table, portfolio bars, KYC queue |
+| `features/operations/dashboard/dashboard.scss` | Full Nubeero styles: kpi-grid, main-grid, data-table, progress bars, activity list |
+| `features/operations/customers/customer.service.ts` | New — `list()`, `get()`, `updateKycStatus()`, `getIdentifiers()`, `getAddresses()`, `getBeneficiaries()` + interfaces |
+| `features/operations/customers/customers-list.ts` | Fleshed — debounced search (`Subject` + `debounceTime(300)` + `switchMap`), KYC filter tabs, pagination |
+| `features/operations/customers/customers-list.html` | Full table with search/filter toolbar, avatar cells, KYC badges, skeleton rows, pagination |
+| `features/operations/customers/customers-list.scss` | Page layout, stats row, filter tabs, data table, avatar, shimmer skeleton, pagination |
+| `features/operations/accounts/account.service.ts` | New — `list()`, `get()`, `create()`, `freeze()`, `close()` + `Account` interface |
+| `features/operations/accounts/accounts-list.ts` | Fleshed — type filter tabs, pagination, `statusVariant()`, `typeIcon()` |
+| `features/operations/accounts/accounts-list.html` | Type filter tabs, table with account number, type, balance, currency, status, pagination |
+| `features/operations/loans/loan.service.ts` | Extended — `LoanCharge`, `Guarantor`, `Collateral`, `AuditEntry` interfaces + 8 new methods |
+| `features/operations/loans/loans-list.ts` | Fleshed — pipeline stage cards, `selectLoan()` lazy-loads schedule, detail panel |
+| `features/operations/loans/loans-list.html` | Pipeline grid, loan table with row-click, sliding detail panel + schedule preview |
+| `features/operations/loans/loans-list.scss` | Pipeline grid, `loan-layout` CSS grid `--split` modifier, detail panel header |
+| `features/operations/customers/customer-detail/customer-detail.ts` | New — 5-tab lazy loading, KYC state machine (`kycTransitions`), `confirmKycChange()` |
+| `features/operations/customers/customer-detail/customer-detail.html` | Profile card, KYC dropdown, 5-tab bar, Overview/Accounts/Loans/ID & Address/Beneficiaries |
+| `features/operations/customers/customer-detail/customer-detail.scss` | Profile card, KYC dropdown, tab bar, action tiles, skeleton animation, id/address cards |
+| `features/operations/loans/loan-detail/loan-detail.ts` | New — 5-tab lazy loading, 3 modals, status-gated action getters, `sum()` totals method |
+| `features/operations/loans/loan-detail/loan-detail.html` | Status band, repayment progress bar, 5 tabs, 3 modals (Approve/Reject/Repayment) |
+| `features/operations/loans/loan-detail/loan-detail.scss` | Status band color variants, timeline, audit trail, modal overlay, form styles |
+| `angular.json` | Font inlining disabled (network-free build), `anyComponentStyle` budget → 16 kB |
+
+#### Key Patterns Introduced
+
+| Pattern | Where | Description |
+|---------|-------|-------------|
+| Debounced search | `customers-list.ts` | `Subject<string>` + `debounceTime(300)` + `distinctUntilChanged()` + `switchMap` — cancels in-flight requests |
+| Lazy tab loading | `customer-detail.ts`, `loan-detail.ts` | Per-tab `Loaded` boolean flag; data fetched only on first visit, cached in component state |
+| KYC state machine | `customer-detail.ts` | `kycTransitions` record maps each status to its legal next states; UI renders only valid transitions |
+| Status-gated actions | `loan-detail.ts` | `canApprove`, `canDisburse`, `canReject`, `canRepay` computed getters drive button visibility |
+| Schedule cache invalidation | `loan-detail.ts` | After repayment: `scheduleLoaded = false; schedule = []` forces re-fetch on next tab visit |
+| sum() method | `loan-detail.ts` | Replaces non-existent `sumBy` pipe; `sum(field: keyof RepaymentInstallment): number` |
+| Sliding detail panel | `loans-list.ts` | CSS grid shifts `1fr` → `1fr 380px` on row click via `--split` BEM modifier |
+
+#### Build Verification
+
+- All 6 new/updated components compile cleanly — no errors
+- Warnings: NG8113 unused imports in system/admin stubs only (pre-existing, expected)
+- `loan-detail.scss` 9.24 kB → budget raised to 16 kB (justified: modals + timeline + audit trail)
+- Font inlining disabled to allow offline/CI builds (fonts loaded from Google CDN at runtime)
+
+#### Compliance Checklist Update
+
+| Item | Status |
+|------|--------|
+| Operations Dashboard — connected to backend API | ✅ |
+| Customers List — search, filter, pagination | ✅ |
+| Accounts List — type filter, pagination | ✅ |
+| Loans List — pipeline view, sliding detail panel | ✅ |
+| Customer Detail — 5 tabs, KYC workflow | ✅ |
+| Loan Detail — 5 tabs, approve/disburse/repayment/reject | ✅ |
+
+---
+
 ### Session 10 — 2026-04-09
 
 **Angular Web Portal scaffold: full feature module structure, routing, shared components, Nubeero design system, HTML prototypes co-located with Angular stubs, keycloak-angular v19 wiring, clean build.**

@@ -1,22 +1,58 @@
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, inject, OnInit } from '@angular/core';
+import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { KpiCardComponent } from '../../../shared/components/kpi-card/kpi-card';
-import { PageHeaderComponent } from '../../../shared/components/page-header/page-header';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge';
+import { DashboardService, DashboardKpi, RecentTransaction, KycPendingCustomer } from './dashboard.service';
+
+const AVATAR_COLORS = ['#3b82f6','#16a34a','#7c3aed','#ea580c','#db2777','#0891b2'];
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterLink, KpiCardComponent, PageHeaderComponent, StatusBadgeComponent],
+  imports: [CommonModule, RouterLink, KpiCardComponent, StatusBadgeComponent, CurrencyPipe, DatePipe],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.scss',
 })
-export class DashboardComponent {
-  readonly kpis = [
-    { title: 'Active Customers',   value: '—', icon: 'people',           color: 'primary' as const, trend: 'neutral' as const },
-    { title: 'Active Loans',       value: '—', icon: 'payments',         color: 'success' as const, trend: 'neutral' as const },
-    { title: 'Total Deposits',     value: '—', icon: 'account_balance',  color: 'primary' as const, trend: 'neutral' as const },
-    { title: 'Loans in Arrears',   value: '—', icon: 'warning',          color: 'warning' as const, trend: 'neutral' as const },
+export class DashboardComponent implements OnInit {
+  private readonly svc = inject(DashboardService);
+
+  kpis: Partial<DashboardKpi> = {};
+  recentTransactions: RecentTransaction[] = [];
+  kycPending: KycPendingCustomer[] = [];
+  loading = true;
+
+  readonly today = new Date();
+
+  readonly loanPortfolio = [
+    { label: 'Current (0–30 days)',    pct: 82, color: '#16a34a' },
+    { label: '30–60 days past due',    pct: 10, color: '#ca8a04' },
+    { label: '60–90 days past due',    pct:  5, color: '#ea580c' },
+    { label: '90+ days / Write-off',   pct:  3, color: '#dc2626' },
   ];
+
+  ngOnInit(): void {
+    this.svc.getKpis().subscribe({
+      next: kpis => { this.kpis = kpis; this.loading = false; },
+      error: () => { this.loading = false; },
+    });
+    this.svc.getRecentTransactions().subscribe(txns => this.recentTransactions = txns);
+    this.svc.getKycPendingCustomers().subscribe(list => this.kycPending = list);
+  }
+
+  avatarColor(index: number): string {
+    return AVATAR_COLORS[index % AVATAR_COLORS.length];
+  }
+
+  txnAmountClass(amount: number): string {
+    return amount >= 0 ? 'amount--credit' : 'amount--debit';
+  }
+
+  txnBadgeVariant(type: string): 'success' | 'warning' | 'error' | 'info' {
+    const upper = type?.toUpperCase() ?? '';
+    if (upper.includes('COMPLETED')) return 'success';
+    if (upper.includes('PENDING'))   return 'warning';
+    if (upper.includes('FAILED'))    return 'error';
+    return 'info';
+  }
 }

@@ -1,7 +1,105 @@
-<app-page-header title="Customers" icon="people" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">people</span>
-    <strong>Customers</strong><br>Implementation pending.
-  </p>
+<div class="page">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Customers</h1>
+      <p class="page-subtitle">{{ totalElements | number }} total customers</p>
+    </div>
+    <a routerLink="new" class="btn-primary">
+      <span class="material-icons">person_add</span> Add Customer
+    </a>
+  </div>
+
+  <!-- Stats row -->
+  <div class="stats-row">
+    @for (f of kycFilters.slice(1); track f.value) {
+      <div class="stat-card" (click)="onFilter(f.value)" [class.stat-card--active]="activeFilter === f.value">
+        <div class="stat-label">{{ f.label }}</div>
+        <div class="stat-value">—</div>
+      </div>
+    }
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="search-wrap">
+      <span class="material-icons search-icon">search</span>
+      <input type="text" placeholder="Search by name, email or ID…"
+             [(ngModel)]="searchQuery"
+             (ngModelChange)="onSearch($event)" />
+    </div>
+
+    <div class="filter-tabs">
+      @for (f of kycFilters; track f.value) {
+        <button class="tab" [class.tab--active]="activeFilter === f.value" (click)="onFilter(f.value)">
+          {{ f.label }}
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="card">
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Customer</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>KYC Status</th>
+            <th>Joined</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (loading) {
+            @for (i of [1,2,3,4,5]; track i) {
+              <tr class="skeleton-row"><td colspan="6"><div class="skeleton"></div></td></tr>
+            }
+          } @else if (customers.length === 0) {
+            <tr><td colspan="6" class="empty-row">No customers found</td></tr>
+          } @else {
+            @for (c of customers; let i = $index; track c.id) {
+              <tr>
+                <td>
+                  <div class="customer-cell">
+                    <div class="avatar" [style.background]="avatarColor(i)">{{ initials(c) }}</div>
+                    <div>
+                      <div class="customer-name">{{ c.firstName }} {{ c.lastName }}</div>
+                      <div class="customer-id">{{ c.externalId ?? c.id | slice:0:8 }}</div>
+                    </div>
+                  </div>
+                </td>
+                <td class="muted">{{ c.email }}</td>
+                <td class="muted">{{ c.phone ?? '—' }}</td>
+                <td>
+                  <app-status-badge [variant]="kycVariant(c.kycStatus)" [label]="kycLabel(c.kycStatus)" />
+                </td>
+                <td class="muted">{{ c.createdAt | date:'mediumDate' }}</td>
+                <td>
+                  <a [routerLink]="c.id" class="action-btn">View →</a>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination">
+      <span class="page-info">
+        @if (totalElements > 0) { Showing {{ startRow }}–{{ endRow }} of {{ totalElements | number }} }
+        @else { No results }
+      </span>
+      <div class="page-controls">
+        <button class="page-btn" [disabled]="page === 0" (click)="prevPage()">‹</button>
+        <span class="page-current">{{ page + 1 }} / {{ totalPages }}</span>
+        <button class="page-btn" [disabled]="(page + 1) >= totalPages" (click)="nextPage()">›</button>
+      </div>
+    </div>
+  </div>
+
 </div>

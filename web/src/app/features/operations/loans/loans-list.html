@@ -1,7 +1,196 @@
-<app-page-header title="Loans" icon="payments" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">payments</span>
-    <strong>Loans</strong><br>Implementation pending.
-  </p>
+<div class="page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Loans</h1>
+      <p class="page-subtitle">{{ totalElements | number }} loans in portfolio</p>
+    </div>
+    <a routerLink="new" class="btn-primary">
+      <span class="material-icons">add</span> New Loan
+    </a>
+  </div>
+
+  <!-- Pipeline stages -->
+  <div class="pipeline">
+    @for (stage of pipeline; track stage.status) {
+      <div class="pipeline-stage" [style.border-top-color]="stage.color"
+           (click)="statusFilter = stage.status; page = 0; loadPage()"
+           [class.pipeline-stage--active]="statusFilter === stage.status">
+        <div class="pipeline-label">{{ stage.label }}</div>
+        <div class="pipeline-count">—</div>
+      </div>
+    }
+  </div>
+
+  <!-- Table + detail panel -->
+  <div class="loan-layout" [class.loan-layout--split]="selectedLoan">
+
+    <!-- Table card -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Loan Portfolio</div>
+        <div class="filter-tabs">
+          <button class="tab" [class.tab--active]="!statusFilter" (click)="statusFilter=''; loadPage()">All</button>
+          @for (s of statusFilters.slice(1); track s) {
+            <button class="tab" [class.tab--active]="statusFilter===s" (click)="statusFilter=s; page=0; loadPage()">
+              {{ s | titlecase }}
+            </button>
+          }
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Loan #</th>
+              <th>Customer</th>
+              <th>Product</th>
+              <th>Principal</th>
+              <th>Outstanding</th>
+              <th>Rate</th>
+              <th>Status</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (loading) {
+              @for (i of [1,2,3,4,5]; track i) {
+                <tr><td colspan="8"><div class="skeleton"></div></td></tr>
+              }
+            } @else if (loans.length === 0) {
+              <tr><td colspan="8" class="empty-row">No loans found</td></tr>
+            } @else {
+              @for (loan of loans; track loan.id) {
+                <tr [class.row--selected]="selectedLoan?.id === loan.id" (click)="selectLoan(loan)">
+                  <td class="mono">{{ loan.loanAccountNumber }}</td>
+                  <td>{{ loan.customerName ?? '—' }}</td>
+                  <td class="muted">{{ loan.productName ?? '—' }}</td>
+                  <td>{{ loan.principalAmount | currency:'USD':'symbol':'1.0-0' }}</td>
+                  <td>{{ loan.outstandingBalance | currency:'USD':'symbol':'1.0-0' }}</td>
+                  <td class="muted">{{ loan.interestRate / 100 | percent:'1.1-2' }}</td>
+                  <td><app-status-badge [variant]="statusVariant(loan.status)" [label]="statusLabel(loan.status)" /></td>
+                  <td class="muted">{{ loan.createdAt | date:'mediumDate' }}</td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination">
+        <span class="page-info">
+          @if (totalElements > 0) { Showing {{ startRow }}–{{ endRow }} of {{ totalElements | number }} }
+          @else { No results }
+        </span>
+        <div class="page-controls">
+          <button class="page-btn" [disabled]="page===0" (click)="prevPage()">‹</button>
+          <span class="page-current">{{ page+1 }} / {{ totalPages }}</span>
+          <button class="page-btn" [disabled]="(page+1)>=totalPages" (click)="nextPage()">›</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detail panel -->
+    @if (selectedLoan) {
+      <div class="detail-panel card">
+        <div class="detail-header">
+          <div>
+            <div class="detail-title">{{ selectedLoan.loanAccountNumber }}</div>
+            <div class="detail-customer">{{ selectedLoan.customerName }}</div>
+          </div>
+          <button class="close-btn" (click)="selectedLoan = null">✕</button>
+        </div>
+
+        <!-- Repayment progress -->
+        <div class="detail-section">
+          <div class="progress-labels">
+            <span class="muted">Repaid</span>
+            <span class="bold">{{ repaidPct(selectedLoan) }}%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" [style.width.%]="repaidPct(selectedLoan)"></div>
+          </div>
+        </div>
+
+        <!-- Key fields -->
+        <div class="detail-section">
+          <div class="detail-row">
+            <span class="detail-key">Principal</span>
+            <span class="detail-val">{{ selectedLoan.principalAmount | currency:'USD':'symbol':'1.2-2' }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-key">Outstanding</span>
+            <span class="detail-val bold">{{ selectedLoan.outstandingBalance | currency:'USD':'symbol':'1.2-2' }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-key">Interest Rate</span>
+            <span class="detail-val">{{ selectedLoan.interestRate / 100 | percent:'1.2-2' }} p.a.</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-key">Term</span>
+            <span class="detail-val">{{ selectedLoan.termMonths }} months</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-key">Status</span>
+            <span class="detail-val"><app-status-badge [variant]="statusVariant(selectedLoan.status)" [label]="statusLabel(selectedLoan.status)" /></span>
+          </div>
+          @if (selectedLoan.disbursedDate) {
+            <div class="detail-row">
+              <span class="detail-key">Disbursed</span>
+              <span class="detail-val">{{ selectedLoan.disbursedDate | date:'mediumDate' }}</span>
+            </div>
+          }
+        </div>
+
+        <!-- Repayment schedule -->
+        <div class="detail-section detail-section--schedule">
+          <div class="schedule-title">Repayment Schedule</div>
+          @if (scheduleLoading) {
+            <div class="muted schedule-loading">Loading schedule…</div>
+          } @else if (schedule.length === 0) {
+            <div class="muted schedule-loading">No schedule available</div>
+          } @else {
+            <div class="schedule-table-wrap">
+              <table class="schedule-table">
+                <thead>
+                  <tr>
+                    <th>Due Date</th>
+                    <th>Principal</th>
+                    <th>Interest</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (inst of schedule; track inst.id) {
+                    <tr [class.inst--overdue]="inst.status === 'OVERDUE'">
+                      <td>{{ inst.dueDate | date:'MMM d' }}</td>
+                      <td>{{ inst.principalDue | currency:'USD':'symbol':'1.0-0' }}</td>
+                      <td>{{ inst.interestDue | currency:'USD':'symbol':'1.0-0' }}</td>
+                      <td><app-status-badge
+                            [variant]="inst.status === 'PAID' ? 'success' : inst.status === 'OVERDUE' ? 'error' : inst.status === 'PARTIAL' ? 'warning' : 'neutral'"
+                            [label]="inst.status | titlecase" /></td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+
+        <!-- Actions -->
+        <div class="detail-actions">
+          @if (selectedLoan.status === 'SUBMITTED' || selectedLoan.status === 'UNDER_REVIEW') {
+            <button class="action-primary">Approve</button>
+            <button class="action-danger">Reject</button>
+          }
+          @if (selectedLoan.status === 'APPROVED') {
+            <button class="action-primary">Disburse</button>
+          }
+          <a [routerLink]="selectedLoan.id" class="action-secondary">Full Details →</a>
+        </div>
+      </div>
+    }
+  </div>
+
 </div>

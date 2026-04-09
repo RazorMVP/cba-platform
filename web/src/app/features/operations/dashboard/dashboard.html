@@ -1,52 +1,147 @@
-<app-page-header title="Dashboard" icon="dashboard" subtitle="Core Banking Application — Overview"></app-page-header>
+<div class="dashboard">
 
-<!-- KPI Row -->
-<div class="kpi-grid">
-  <app-kpi-card
-    *ngFor="let kpi of kpis"
-    [title]="kpi.title"
-    [value]="kpi.value"
-    [icon]="kpi.icon"
-    [color]="kpi.color"
-    [trend]="kpi.trend"
-  ></app-kpi-card>
-</div>
-
-<!-- Quick links -->
-<div class="quick-links card">
-  <h3 class="quick-links__title">Quick Actions</h3>
-  <div class="quick-links__grid">
-    <a routerLink="/operations/customers" class="quick-link">
-      <span class="material-icons">person_add</span>
-      <span>New Customer</span>
-    </a>
-    <a routerLink="/operations/accounts" class="quick-link">
-      <span class="material-icons">account_balance</span>
-      <span>Open Account</span>
-    </a>
-    <a routerLink="/operations/loans" class="quick-link">
-      <span class="material-icons">payments</span>
-      <span>New Loan</span>
-    </a>
-    <a routerLink="/operations/payments" class="quick-link">
-      <span class="material-icons">swap_horiz</span>
-      <span>Transfer</span>
-    </a>
-    <a routerLink="/reports/cob" class="quick-link">
-      <span class="material-icons">schedule</span>
-      <span>Run CoB</span>
-    </a>
-    <a routerLink="/reports/list" class="quick-link">
-      <span class="material-icons">bar_chart</span>
-      <span>Reports</span>
-    </a>
+  <!-- Page title row -->
+  <div class="dash-header">
+    <div>
+      <h1 class="dash-title">Dashboard</h1>
+      <p class="dash-subtitle">{{ today | date:'EEEE, MMMM d, yyyy' }}</p>
+    </div>
+    <span class="quarter-chip">Q{{ today | date:'Q' }} {{ today | date:'yyyy' }}</span>
   </div>
-</div>
 
-<!-- Stub notice -->
-<div class="card" style="margin-top:1.5rem">
-  <p class="text-muted" style="text-align:center;padding:1.5rem">
-    Connect <code>DashboardComponent</code> to <code>/api/v1/reports/runreport</code> endpoints to populate live KPIs and transaction tables.
-    See prototype in <code>screens/dashboard.prototype.html</code>.
-  </p>
+  <!-- KPI row -->
+  <div class="kpi-grid">
+    <app-kpi-card
+      title="Total Customers"
+      [value]="loading ? '…' : (kpis.totalCustomers ?? 0)"
+      icon="people"
+      color="primary"
+      trend="up"
+      trendValue="vs last month"
+    />
+    <app-kpi-card
+      title="Deposits (Accounts)"
+      [value]="loading ? '…' : (kpis.totalDeposits ?? 0)"
+      icon="account_balance"
+      color="success"
+      trend="up"
+      trendValue="open accounts"
+    />
+    <app-kpi-card
+      title="Active Loans"
+      [value]="loading ? '…' : (kpis.activeLoans ?? 0)"
+      icon="payments"
+      color="warning"
+      trend="neutral"
+      trendValue="this period"
+    />
+    <app-kpi-card
+      title="KYC Pending"
+      [value]="loading ? '…' : (kpis.kycPending ?? 0)"
+      icon="verified_user"
+      color="error"
+      trend="neutral"
+      trendValue="awaiting review"
+    />
+  </div>
+
+  <!-- Main grid: transactions + sidebar -->
+  <div class="main-grid">
+
+    <!-- Recent Transactions -->
+    <div class="card">
+      <div class="card__header">
+        <div>
+          <div class="card__title">Recent Transactions</div>
+          <div class="card__subtitle">Last 24 hours across all accounts</div>
+        </div>
+        <a routerLink="/operations/accounts" class="card__action">View all →</a>
+      </div>
+
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Customer</th>
+              <th>Account</th>
+              <th>Type</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (recentTransactions.length === 0) {
+              <tr>
+                <td colspan="6" class="empty-row">No recent transactions</td>
+              </tr>
+            }
+            @for (txn of recentTransactions; track txn.id) {
+              <tr>
+                <td><strong>{{ txn.customerName ?? '—' }}</strong></td>
+                <td class="mono muted">{{ txn.accountNumber }}</td>
+                <td>{{ txn.transactionType | titlecase }}</td>
+                <td [class]="'amount ' + txnAmountClass(txn.amount)">
+                  {{ txn.amount | currency:'USD':'symbol':'1.2-2' }}
+                </td>
+                <td>
+                  <app-status-badge variant="success" label="Completed" />
+                </td>
+                <td class="muted">{{ txn.createdAt | date:'h:mm a' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Right column -->
+    <div class="side-col">
+
+      <!-- Loan Portfolio -->
+      <div class="card">
+        <div class="card__header">
+          <div class="card__title">Loan Portfolio Health</div>
+        </div>
+        <div class="card__body">
+          @for (segment of loanPortfolio; track segment.label) {
+            <div class="portfolio-row">
+              <div class="portfolio-meta">
+                <span class="portfolio-label">{{ segment.label }}</span>
+                <span class="portfolio-pct" [style.color]="segment.color">{{ segment.pct }}%</span>
+              </div>
+              <div class="progress-track">
+                <div class="progress-fill" [style.width.%]="segment.pct" [style.background]="segment.color"></div>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- KYC Queue -->
+      <div class="card">
+        <div class="card__header">
+          <div class="card__title">KYC Pending Review</div>
+          <a routerLink="/operations/customers" [queryParams]="{kycStatus:'PENDING_KYC'}" class="card__action">Review</a>
+        </div>
+        <div class="card__body card__body--list">
+          @if (kycPending.length === 0) {
+            <p class="empty-list">No pending KYC reviews</p>
+          }
+          @for (c of kycPending; let i = $index; track c.id) {
+            <div class="activity-item">
+              <div class="avatar" [style.background]="avatarColor(i)">{{ c.initials }}</div>
+              <div class="activity-info">
+                <div class="activity-name">{{ c.fullName }}</div>
+                <div class="activity-desc">Submitted {{ c.createdAt | date:'short' }}</div>
+              </div>
+              <app-status-badge variant="warning" label="Pending" />
+            </div>
+          }
+        </div>
+      </div>
+
+    </div>
+  </div>
+
 </div>

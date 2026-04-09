@@ -1,7 +1,414 @@
-<app-page-header title="Loan Detail" icon="receipt_long" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">receipt_long</span>
-    <strong>Loan Detail</strong><br>Implementation pending.
-  </p>
+<div class="page">
+
+  <a routerLink=".." class="back-link">
+    <span class="material-icons">arrow_back</span> Loans
+  </a>
+
+  @if (loading) {
+    <div class="loading-skeleton">
+      <div class="skeleton skeleton--header"></div>
+      <div class="skeleton skeleton--body"></div>
+    </div>
+  } @else if (error) {
+    <div class="error-state">
+      <span class="material-icons">error_outline</span><p>{{ error }}</p>
+      <a routerLink=".." class="btn-secondary">Go back</a>
+    </div>
+  } @else if (loan) {
+
+    <!-- Status header band -->
+    <div class="status-band" [class]="'status-band--' + loan.status.toLowerCase().replace('_','-')">
+      <div class="status-band__left">
+        <div class="loan-number">{{ loan.loanAccountNumber }}</div>
+        <div class="loan-customer">
+          <span class="material-icons">person</span>
+          <a [routerLink]="['/operations/customers', loan.customerId]" class="customer-link">
+            {{ loan.customerName ?? loan.customerId }}
+          </a>
+        </div>
+      </div>
+      <div class="status-band__center">
+        <app-status-badge [variant]="statusVariant(loan.status)" [label]="statusLabel(loan.status)" />
+      </div>
+      <div class="status-band__actions">
+        @if (canApprove) {
+          <button class="btn-success" (click)="showApproveModal = true; approveAmount = loan.principalAmount">
+            <span class="material-icons">check_circle</span> Approve
+          </button>
+        }
+        @if (canDisburse) {
+          <button class="btn-success" (click)="submitDisburse()">
+            <span class="material-icons">send</span> Disburse
+          </button>
+        }
+        @if (canRepay) {
+          <button class="btn-primary" (click)="showRepaymentModal = true; repaymentAmount = null">
+            <span class="material-icons">payments</span> Record Repayment
+          </button>
+        }
+        @if (canReject) {
+          <button class="btn-danger" (click)="showRejectModal = true">
+            <span class="material-icons">cancel</span> Reject
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- Progress bar below band -->
+    <div class="repayment-track">
+      <div class="repayment-track__fill" [style.width.%]="repaidPct"
+           [class.repayment-track__fill--arrears]="loan.status === 'IN_ARREARS'"></div>
+    </div>
+    <div class="repayment-caption">
+      <span>{{ repaidPct }}% repaid</span>
+      <span>{{ loan.outstandingBalance | currency:'USD':'symbol':'1.2-2' }} outstanding of {{ loan.principalAmount | currency:'USD':'symbol':'1.2-2' }}</span>
+    </div>
+
+    <!-- Tab bar -->
+    <div class="tab-bar">
+      @for (tab of tabs; track tab.id) {
+        <button class="tab-item" [class.tab-item--active]="activeTab === tab.id" (click)="selectTab(tab.id)">
+          <span class="material-icons">{{ tab.icon }}</span>{{ tab.label }}
+        </button>
+      }
+    </div>
+
+    <!-- ── SUMMARY TAB ── -->
+    @if (activeTab === 'summary') {
+      <div class="summary-grid">
+
+        <div class="card">
+          <div class="card__header"><div class="card__title">Loan Details</div></div>
+          <div class="card__body">
+            <div class="detail-row"><span class="detail-key">Loan Number</span><span class="detail-val mono">{{ loan.loanAccountNumber }}</span></div>
+            <div class="detail-row"><span class="detail-key">Product</span><span class="detail-val">{{ loan.productName ?? '—' }}</span></div>
+            <div class="detail-row"><span class="detail-key">Principal Amount</span><span class="detail-val">{{ loan.principalAmount | currency:'USD':'symbol':'1.2-2' }}</span></div>
+            <div class="detail-row"><span class="detail-key">Outstanding Balance</span><span class="detail-val bold">{{ loan.outstandingBalance | currency:'USD':'symbol':'1.2-2' }}</span></div>
+            <div class="detail-row"><span class="detail-key">Interest Rate</span><span class="detail-val">{{ loan.interestRate / 100 | percent:'1.2-2' }} p.a.</span></div>
+            <div class="detail-row"><span class="detail-key">Term</span><span class="detail-val">{{ loan.termMonths }} months</span></div>
+            <div class="detail-row"><span class="detail-key">Status</span><span class="detail-val"><app-status-badge [variant]="statusVariant(loan.status)" [label]="statusLabel(loan.status)" /></span></div>
+            <div class="detail-row"><span class="detail-key">Created</span><span class="detail-val">{{ loan.createdAt | date:'medium' }}</span></div>
+            @if (loan.disbursedDate) {
+              <div class="detail-row"><span class="detail-key">Disbursed</span><span class="detail-val">{{ loan.disbursedDate | date:'mediumDate' }}</span></div>
+            }
+            @if (loan.closedDate) {
+              <div class="detail-row"><span class="detail-key">Closed</span><span class="detail-val">{{ loan.closedDate | date:'mediumDate' }}</span></div>
+            }
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__header"><div class="card__title">Loan Lifecycle</div></div>
+          <div class="card__body">
+            <div class="timeline">
+              <div class="tl-step" [class.tl-step--done]="['SUBMITTED','UNDER_REVIEW','APPROVED','DISBURSED','ACTIVE','CLOSED_OBLIGATIONS_MET'].includes(loan.status)">
+                <div class="tl-dot"></div>
+                <div class="tl-label">Submitted</div>
+              </div>
+              <div class="tl-step" [class.tl-step--done]="['UNDER_REVIEW','APPROVED','DISBURSED','ACTIVE','CLOSED_OBLIGATIONS_MET'].includes(loan.status)"
+                                   [class.tl-step--active]="loan.status === 'UNDER_REVIEW'">
+                <div class="tl-dot"></div>
+                <div class="tl-label">Under Review</div>
+              </div>
+              <div class="tl-step" [class.tl-step--done]="['APPROVED','DISBURSED','ACTIVE','CLOSED_OBLIGATIONS_MET'].includes(loan.status)"
+                                   [class.tl-step--active]="loan.status === 'APPROVED'">
+                <div class="tl-dot"></div>
+                <div class="tl-label">Approved</div>
+              </div>
+              <div class="tl-step" [class.tl-step--done]="['ACTIVE','CLOSED_OBLIGATIONS_MET'].includes(loan.status)"
+                                   [class.tl-step--active]="loan.status === 'DISBURSED'">
+                <div class="tl-dot"></div>
+                <div class="tl-label">Disbursed & Active</div>
+              </div>
+              <div class="tl-step" [class.tl-step--done]="loan.status === 'CLOSED_OBLIGATIONS_MET'"
+                                   [class.tl-step--error]="['IN_ARREARS','WRITTEN_OFF'].includes(loan.status)">
+                <div class="tl-dot"></div>
+                <div class="tl-label">{{ ['IN_ARREARS','WRITTEN_OFF'].includes(loan.status) ? statusLabel(loan.status) : 'Closed' }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    }
+
+    <!-- ── REPAYMENT SCHEDULE TAB ── -->
+    @if (activeTab === 'schedule') {
+      <div class="card">
+        <div class="card__header">
+          <div class="card__title">Repayment Schedule</div>
+          @if (canRepay) {
+            <button class="btn-primary btn-sm" (click)="showRepaymentModal = true; repaymentAmount = null">
+              <span class="material-icons">add</span> Record Payment
+            </button>
+          }
+        </div>
+        @if (scheduleLoading) {
+          <div class="tab-loading">Loading schedule…</div>
+        } @else if (schedule.length === 0) {
+          <div class="tab-empty"><span class="material-icons">event_note</span><p>No repayment schedule generated yet.</p></div>
+        } @else {
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Due Date</th>
+                <th>Principal Due</th>
+                <th>Interest Due</th>
+                <th>Total Due</th>
+                <th>Principal Paid</th>
+                <th>Interest Paid</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (inst of schedule; let i = $index; track inst.id) {
+                <tr [class.row--overdue]="inst.status === 'OVERDUE'" [class.row--paid]="inst.status === 'PAID'">
+                  <td class="muted">{{ i + 1 }}</td>
+                  <td>{{ inst.dueDate | date:'mediumDate' }}</td>
+                  <td>{{ inst.principalDue | currency:'USD':'symbol':'1.2-2' }}</td>
+                  <td>{{ inst.interestDue | currency:'USD':'symbol':'1.2-2' }}</td>
+                  <td class="bold">{{ inst.totalDue | currency:'USD':'symbol':'1.2-2' }}</td>
+                  <td class="amount--paid">{{ inst.principalPaid | currency:'USD':'symbol':'1.2-2' }}</td>
+                  <td class="amount--paid">{{ inst.interestPaid | currency:'USD':'symbol':'1.2-2' }}</td>
+                  <td><app-status-badge [variant]="installmentVariant(inst.status)" [label]="inst.status | titlecase" /></td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr class="schedule-totals">
+                <td colspan="2" class="bold">Totals</td>
+                <td class="bold">{{ sum('principalDue') | currency:'USD':'symbol':'1.2-2' }}</td>
+                <td class="bold">{{ sum('interestDue') | currency:'USD':'symbol':'1.2-2' }}</td>
+                <td class="bold">{{ sum('totalDue') | currency:'USD':'symbol':'1.2-2' }}</td>
+                <td class="amount--paid bold">{{ sum('principalPaid') | currency:'USD':'symbol':'1.2-2' }}</td>
+                <td class="amount--paid bold">{{ sum('interestPaid') | currency:'USD':'symbol':'1.2-2' }}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        }
+      </div>
+    }
+
+    <!-- ── CHARGES TAB ── -->
+    @if (activeTab === 'charges') {
+      <div class="card">
+        <div class="card__header">
+          <div class="card__title">Loan Charges</div>
+        </div>
+        @if (chargesLoading) {
+          <div class="tab-loading">Loading charges…</div>
+        } @else if (charges.length === 0) {
+          <div class="tab-empty"><span class="material-icons">receipt</span><p>No charges applied to this loan.</p></div>
+        } @else {
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Charge</th>
+                <th>Type</th>
+                <th>Amount</th>
+                <th>Paid</th>
+                <th>Waived</th>
+                <th>Outstanding</th>
+                <th>Due Date</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (c of charges; track c.id) {
+                <tr>
+                  <td class="bold">{{ c.chargeName }}</td>
+                  <td class="muted">{{ c.chargeTimeType | titlecase }}</td>
+                  <td>{{ c.amount | currency:'USD':'symbol':'1.2-2' }}</td>
+                  <td class="amount--paid">{{ c.amountPaid | currency:'USD':'symbol':'1.2-2' }}</td>
+                  <td class="muted">{{ c.amountWaived | currency:'USD':'symbol':'1.2-2' }}</td>
+                  <td class="bold">{{ c.amountOutstanding | currency:'USD':'symbol':'1.2-2' }}</td>
+                  <td class="muted">{{ c.dueDate ? (c.dueDate | date:'mediumDate') : '—' }}</td>
+                  <td><app-status-badge [variant]="chargeVariant(c)" [label]="chargeLabel(c)" /></td>
+                  <td>
+                    @if (c.amountOutstanding > 0) {
+                      <button class="btn-ghost btn-sm" (click)="payCharge(c)">Pay</button>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+    }
+
+    <!-- ── COLLATERAL TAB ── -->
+    @if (activeTab === 'collateral') {
+      <div class="two-col">
+
+        <div class="card">
+          <div class="card__header"><div class="card__title">Guarantors</div></div>
+          @if (collateralLoading) {
+            <div class="tab-loading">Loading…</div>
+          } @else if (guarantors.length === 0) {
+            <div class="tab-empty"><span class="material-icons">person_outline</span><p>No guarantors on record.</p></div>
+          } @else {
+            <div class="card__body">
+              @for (g of guarantors; track g.id) {
+                <div class="guarantor-card">
+                  <div class="guarantor-type">{{ g.guarantorType | titlecase }}</div>
+                  @if (g.guarantorType === 'EXISTING_CUSTOMER') {
+                    <a [routerLink]="['/operations/customers', g.customerId]" class="guarantor-name link">{{ g.customerName ?? g.customerId }}</a>
+                  } @else {
+                    <div class="guarantor-name">{{ g.firstname }} {{ g.lastname }}</div>
+                    <div class="muted small">{{ g.email }}{{ g.phone ? ' · ' + g.phone : '' }}</div>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+
+        <div class="card">
+          <div class="card__header"><div class="card__title">Collateral</div></div>
+          @if (collateralLoading) {
+            <div class="tab-loading">Loading…</div>
+          } @else if (collateral.length === 0) {
+            <div class="tab-empty"><span class="material-icons">lock_open</span><p>No collateral recorded.</p></div>
+          } @else {
+            <div class="card__body">
+              @for (col of collateral; track col.id) {
+                <div class="collateral-card">
+                  <div class="collateral-header">
+                    <span class="collateral-type">{{ col.collateralType }}</span>
+                    <span class="collateral-value bold">{{ col.value | currency:col.currencyCode:'symbol':'1.2-2' }}</span>
+                  </div>
+                  @if (col.description) {
+                    <div class="muted small">{{ col.description }}</div>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+
+      </div>
+    }
+
+    <!-- ── AUDIT TRAIL TAB ── -->
+    @if (activeTab === 'audit') {
+      <div class="card">
+        <div class="card__header"><div class="card__title">Audit Trail</div></div>
+        @if (auditLoading) {
+          <div class="tab-loading">Loading audit log…</div>
+        } @else if (auditLog.length === 0) {
+          <div class="tab-empty"><span class="material-icons">history</span><p>No audit entries found.</p></div>
+        } @else {
+          <div class="audit-list">
+            @for (entry of auditLog; track entry.id) {
+              <div class="audit-entry">
+                <div class="audit-dot"></div>
+                <div class="audit-body">
+                  <div class="audit-action">{{ entry.action | titlecase }}</div>
+                  <div class="audit-meta">
+                    <span class="muted">{{ entry.changedBy }}</span>
+                    <span class="muted separator">·</span>
+                    <span class="muted">{{ entry.changedAt | date:'medium' }}</span>
+                  </div>
+                  @if (entry.newValues && (entry.newValues | keyvalue).length) {
+                    <div class="audit-changes">
+                      @for (kv of entry.newValues | keyvalue; track kv.key) {
+                        <span class="change-pill">{{ kv.key }}: {{ kv.value }}</span>
+                      }
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
+
+  }<!-- end if loan -->
+
 </div>
+
+<!-- ══ REPAYMENT MODAL ══ -->
+@if (showRepaymentModal) {
+  <div class="modal-overlay" (click)="showRepaymentModal = false">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h2 class="modal__title">Record Repayment</h2>
+        <button class="modal__close" (click)="showRepaymentModal = false">✕</button>
+      </div>
+      <div class="modal__body">
+        <div class="form-group">
+          <label class="form-label">Payment Amount (USD)</label>
+          <input type="number" class="form-input" placeholder="0.00" step="0.01" min="0.01"
+                 [(ngModel)]="repaymentAmount" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Payment Date</label>
+          <input type="date" class="form-input" [(ngModel)]="repaymentDate" />
+        </div>
+        @if (repaymentError) {
+          <div class="form-error">{{ repaymentError }}</div>
+        }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-ghost" (click)="showRepaymentModal = false">Cancel</button>
+        <button class="btn-primary" [disabled]="!repaymentAmount || repaymentSaving" (click)="submitRepayment()">
+          {{ repaymentSaving ? 'Saving…' : 'Record Payment' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ══ APPROVE MODAL ══ -->
+@if (showApproveModal) {
+  <div class="modal-overlay" (click)="showApproveModal = false">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h2 class="modal__title">Approve Loan</h2>
+        <button class="modal__close" (click)="showApproveModal = false">✕</button>
+      </div>
+      <div class="modal__body">
+        <div class="form-group">
+          <label class="form-label">Approved Amount (USD)</label>
+          <input type="number" class="form-input" step="0.01" [(ngModel)]="approveAmount" />
+          <p class="form-hint">Leave unchanged to approve the full requested amount.</p>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-ghost" (click)="showApproveModal = false">Cancel</button>
+        <button class="btn-success" [disabled]="approveSaving" (click)="submitApprove()">
+          {{ approveSaving ? 'Approving…' : 'Confirm Approval' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ══ REJECT MODAL ══ -->
+@if (showRejectModal) {
+  <div class="modal-overlay" (click)="showRejectModal = false">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h2 class="modal__title">Reject Loan</h2>
+        <button class="modal__close" (click)="showRejectModal = false">✕</button>
+      </div>
+      <div class="modal__body">
+        <div class="form-group">
+          <label class="form-label">Reason for rejection</label>
+          <textarea class="form-textarea" rows="3" placeholder="Enter reason…" [(ngModel)]="rejectReason"></textarea>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-ghost" (click)="showRejectModal = false">Cancel</button>
+        <button class="btn-danger" [disabled]="!rejectReason.trim() || rejectSaving" (click)="submitReject()">
+          {{ rejectSaving ? 'Rejecting…' : 'Confirm Rejection' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

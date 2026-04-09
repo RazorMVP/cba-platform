@@ -41,6 +41,49 @@ export interface LoanCreateRequest {
   disbursementDate?: string;
 }
 
+export interface LoanCharge {
+  id: string;
+  loanId: string;
+  chargeName: string;
+  chargeTimeType: 'DISBURSEMENT' | 'SPECIFIED_DUE_DATE' | 'INSTALLMENT_FEE' | 'OVERDUE_INSTALLMENT';
+  chargeCalculationType: 'FLAT' | 'PERCENT_OF_AMOUNT' | 'PERCENT_OF_AMOUNT_AND_INTEREST';
+  amount: number;
+  amountPaid: number;
+  amountWaived: number;
+  amountOutstanding: number;
+  dueDate?: string;
+}
+
+export interface Guarantor {
+  id: string;
+  guarantorType: 'EXISTING_CUSTOMER' | 'EXTERNAL';
+  customerId?: string;
+  customerName?: string;
+  firstname?: string;
+  lastname?: string;
+  email?: string;
+  phone?: string;
+}
+
+export interface Collateral {
+  id: string;
+  collateralType: string;
+  value: number;
+  description?: string;
+  currencyCode: string;
+}
+
+export interface AuditEntry {
+  id: string;
+  entityType: string;
+  entityId: string;
+  action: string;
+  changedBy: string;
+  changedAt: string;
+  oldValues?: Record<string, unknown>;
+  newValues?: Record<string, unknown>;
+}
+
 @Injectable({ providedIn: 'root' })
 export class LoanService {
   private readonly api = inject(ApiService);
@@ -74,5 +117,39 @@ export class LoanService {
 
   reject(id: string, reason: string): Observable<Loan> {
     return this.api.command<Loan>(`/loans/${id}`, 'reject', { reason });
+  }
+
+  writeOff(id: string): Observable<Loan> {
+    return this.api.command<Loan>(`/loans/${id}`, 'writeOff');
+  }
+
+  recordRepayment(id: string, amount: number, paymentDate: string): Observable<Loan> {
+    return this.api.command<Loan>(`/loans/${id}`, 'repayment', { transactionAmount: amount, transactionDate: paymentDate });
+  }
+
+  // Charges
+  getCharges(id: string): Observable<LoanCharge[]> {
+    return this.api.get<LoanCharge[]>(`/loans/${id}/charges`);
+  }
+  payCharge(loanId: string, chargeId: string): Observable<LoanCharge> {
+    return this.api.command<LoanCharge>(`/loans/${loanId}/charges/${chargeId}`, 'pay');
+  }
+  deleteCharge(loanId: string, chargeId: string): Observable<void> {
+    return this.api.delete<void>(`/loans/${loanId}/charges/${chargeId}`);
+  }
+
+  // Guarantors
+  getGuarantors(id: string): Observable<Guarantor[]> {
+    return this.api.get<Guarantor[]>(`/loans/${id}/guarantors`);
+  }
+
+  // Collateral
+  getCollateral(id: string): Observable<Collateral[]> {
+    return this.api.get<Collateral[]>(`/loans/${id}/collaterals`);
+  }
+
+  // Audit log for this loan
+  getAuditLog(id: string): Observable<AuditEntry[]> {
+    return this.api.get<AuditEntry[]>(`/audits`, { entityType: 'LOAN', entityId: id } as any);
   }
 }

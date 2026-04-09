@@ -15,7 +15,7 @@
 | **Account Module** | `account/Account.java`, `AccountService`, `AccountController`, `AccountRepository`, `Transaction`, `TransactionRepository`, `AccountNumberGenerator`, `AccountType`, `AccountStatus`, DTOs | Double-entry transactions; `SELECT FOR UPDATE`; number format `{branch}-{type}-{seq}` |
 | **Loan Module** | `loan/Loan.java`, `LoanService`, `LoanController`, `LoanRepository`, `LoanRepaymentSchedule`, `RepaymentScheduleEngine`, `LoanStatus`, DTOs | Annuity EMI `P×r×(1+r)^n/((1+r)^n-1)`; full status lifecycle |
 | **Payment Module** | `payment/Payment.java`, `PaymentService`, `PaymentController`, `PaymentRepository`, `PaymentType`, `PaymentStatus`, DTOs | Double-entry; deadlock-safe UUID lock ordering; cross-currency support |
-| **Product Module** | `product/LoanProduct.java`, `DepositProduct.java`, `LoanProductRepository`, `DepositProductRepository`, `RepaymentType`, `InterestCompounding`, `DepositAccountType`, `ProductService`, `ProductController`, DTOs | Full CRUD: `GET/POST/PUT/DELETE /api/v1/loan-products` and `/api/v1/deposit-products`; range validation; audit logging |
+| **Product Module** | `product/LoanProduct.java`, `DepositProduct.java`, `AllowAttributeOverrides.java`, `ChargeDefinitionRepository.java`, `ProductService`, `ProductController`, DTOs (rewritten); `V20__product_mifos_parity.sql`; `loan_product_charges`, `deposit_product_charges` join tables | Full Mifos parity: 30+ new columns on loan_products, 20+ on deposit_products; @Embedded AllowAttributeOverrides (8 booleans); @ManyToOne GL account linkages (8 per product); @ManyToMany charges join tables; nested GlAccountRef response; range validation; ADMIN writes |
 | **Teller / Cash Management** | `teller/Teller`, `Cashier`, `TellerSession`, `CashTransaction`, repositories, `TellerService`, `TellerController`, DTOs; `V5__teller_module.sql` | Full session lifecycle: create teller → activate → assign cashier → open session → cash-in/cash-out → settle; mirrors Mifos pattern |
 | **Open Banking (FAPI 2.0)** | `openbanking/OpenBankingConsent`, `ConsentStatus`, `ConsentRepository`, `ConsentService`, `ConsentController`, `AccountInfoController`, `PispController`, `CbpiiController`, DTOs | Full stack: consent lifecycle + AISP (accounts/balances/transactions) + PISP (domestic-payments) + CBPII (funds-confirmation) |
 | **Notification Module** | `notification/AccountEvent`, `LoanEvent`, `NotificationEventListener` | Spring `@EventListener` + `@Async`; hooks for account/loan events |
@@ -52,12 +52,108 @@ _None — all Phase 1 backend modules are now complete._
 | **Infrastructure — Docker Compose** | `infrastructure/docker-compose.yml` with postgres, keycloak, backend, web, mailhog | Phase 4 |
 | **Infrastructure — Kubernetes** | `infrastructure/k8s/` namespace, deployments, services, ingress, HPA, sealed secrets | Phase 4 |
 | **Infrastructure — Keycloak Realm** | `infrastructure/keycloak/cba-realm.json` with cba realm, 3 clients, FAPI 2.0, demo users | Phase 4 |
-| **Web Frontend — Angular (flesh out)** | Feature components fully implemented (data bound to backend API, not just stubs) | Phase 2 |
+| **Web Frontend — Angular (Operations + Products)** | Dashboard, Customers, Accounts, Loans, Loan Detail, Customer Detail, Loan Products, Deposit Products — all wired to backend API with view/edit CRUD | Phase 2 (partial) |
 | **Mobile Frontend — Flutter** | Customer mobile app (auth, dashboard, accounts, loans, payments, profile) | Phase 3 |
 
 ---
 
 ## Change History
+
+### Session 12 — 2026-04-10
+
+**Angular Products UI — full Loan Products + Deposit Products CRUD pages built and pushed (commit `9025133`).**
+
+#### New/Updated Angular Files
+
+| File | Change |
+|------|--------|
+| `features/products/product.service.ts` | **New** — `ProductService` with 10 methods; typed interfaces: `LoanProduct`, `LoanProductCreateRequest`, `DepositProduct`, `DepositProductCreateRequest`, `GlAccountRef`, `FundRef`, `ChargeRef`, `AllowAttributeOverrides` |
+| `features/products/loan-products/loan-products-list.ts` | **Rewritten** — client-side debounced search, active-only toggle, 15-per-page pagination, `repaymentLabel()`, `interestTypeLabel()`, `productVariant()` |
+| `features/products/loan-products/loan-products-list.html` | **Rewritten** — page header + New Product CTA, search + active-only toolbar, skeleton rows, empty state, table (name, code, principal range, rate range, term, repayment, interest, status badge), pagination |
+| `features/products/loan-products/loan-products-list.scss` | **Rewritten** — full Nubeero: page-header, toolbar, search-box, active-toggle, data-table, shimmer skeleton, empty-state, pagination |
+| `features/products/loan-products/loan-product-detail/loan-product-detail.ts` | **Rewritten** — `isNew` detection, view/edit toggle, `enterEditMode(blank)` deep-copy, 5 section tabs (`principal/interest/schedule/grace/accounting`), `save()`/`cancelEdit()`/`deactivate()`, label maps for all enums |
+| `features/products/loan-products/loan-product-detail/loan-product-detail.html` | **Rewritten** — back link, skeleton, error state; view mode: product-header card + 6 section cards (principal, interest, repayment, grace, overrides, GL accounts, charges); edit mode: 5-tab form with full Mifos field set; deactivate confirm modal |
+| `features/products/loan-products/loan-product-detail/loan-product-detail.scss` | **Rewritten** — product-header layout, sections-grid (2-col), section-tabs, edit-card, form groups, modal, shimmer |
+| `features/products/deposit-products/deposit-products-list.ts` | **Rewritten** — client-side search, account-type filter (SAVINGS/CHECKING/FIXED_DEPOSIT), active-only toggle, pagination, `accountTypeLabel()`, `compoundingLabel()` |
+| `features/products/deposit-products/deposit-products-list.html` | **Rewritten** — type-filter `<select>` in toolbar, table (name, code, type chip, min balance, interest rate, compounding, status), pagination |
+| `features/products/deposit-products/deposit-products-list.scss` | **Rewritten** — mirrors loan-products-list SCSS + `type-select` + `type-chip` styles |
+| `features/products/deposit-products/deposit-product-detail/deposit-product-detail.ts` | **Rewritten** — 5 section tabs (`core/interest/lockin/overdraft/accounting`), `glAccountFields[]` array for view-mode GL table, conditional overdraft fields, full create/edit/deactivate flow |
+| `features/products/deposit-products/deposit-product-detail/deposit-product-detail.html` | **Rewritten** — back link, skeleton, error state; view mode: product-header + 6 cards (core identifiers, balance, interest config, lock-in, overdraft, charges, GL accounts span-2); edit mode: 5-tab form with conditional overdraft section; deactivate modal |
+| `features/products/deposit-products/deposit-product-detail/deposit-product-detail.scss` | **Rewritten** — identical pattern to loan product detail SCSS |
+
+#### Key Patterns Introduced / Reinforced
+
+| Pattern | Where | Description |
+|---------|-------|-------------|
+| View/edit inline toggle | `LoanProductDetail`, `DepositProductDetail` | `editMode` flag; `form` is separate from `product`; cancel is free (no rollback needed) |
+| `isNew` from route param | Both detail components | `'new'` param → blank form → create → navigate to `../p.id` |
+| Section tabs (edit mode) | Both detail components | `activeSection: DetailSection` union type; `@if (activeSection === 'xxx')` per section |
+| `$any()` cast for union params | `loan-product-detail.html:220` | Template `@for` array infers `sec.id` as `string`; `setSection($any(sec.id))` avoids TS2345 |
+| `glAccountFields[]` array | `deposit-product-detail.ts` | Drives `@for` loop in view mode to avoid 8 copy-paste `@if` blocks |
+| Conditional overdraft fields | `deposit-product-detail.html` | `@if (form.allowOverdraft)` shows limit/rate/min-balance inputs only when overdraft is on |
+
+#### Build Verification
+
+- `node node_modules/@angular/cli/bin/ng.js build` → **no errors** (NG8113 unused import warnings in unimplemented stubs only — pre-existing)
+- Two build fixes: `$any(sec.id)` cast for `DetailSection` union, stale `product.fund` reference removed from deposit detail view
+
+#### Compliance Checklist Update
+
+| Item | Status |
+|------|--------|
+| Loan Products list — search, active filter, pagination | ✅ |
+| Loan Product detail — view mode (all Mifos fields) | ✅ |
+| Loan Product detail — edit mode (5 tabs, GL accounts, charges) | ✅ |
+| Loan Product create (isNew flow) | ✅ |
+| Loan Product deactivate | ✅ |
+| Deposit Products list — search, type filter, pagination | ✅ |
+| Deposit Product detail — view mode (overdraft, lock-in, GL accounts) | ✅ |
+| Deposit Product detail — edit mode (5 tabs, conditional overdraft) | ✅ |
+| Deposit Product create (isNew flow) | ✅ |
+| Deposit Product deactivate | ✅ |
+
+---
+
+### Session 11b — 2026-04-09
+
+**Backend + docs: extended Loan Products and Deposit Products to full Mifos parity — new enums, @Embeddable AllowAttributeOverrides, GL account @ManyToOne linkages, charges @ManyToMany join tables, V20 Flyway migration, Postman collection + api-reference.html updated.**
+
+#### New/Updated Backend Files
+
+| File | Change |
+|------|--------|
+| `backend/src/main/java/com/cba/product/AllowAttributeOverrides.java` | **New** — `@Embeddable` with 8 boolean override fields; stored as individual columns prefixed `allow_override_` |
+| `backend/src/main/java/com/cba/product/LoanProduct.java` | **Rewritten** — shortName UNIQUE, fund @ManyToOne, defaultPrincipal, installmentAmountInMultiplesOf, full interest/amortization/days config, repayment schedule config, grace periods, @Embedded AllowAttributeOverrides, 8 GL account @ManyToOne fields, @ManyToMany charges |
+| `backend/src/main/java/com/cba/product/DepositProduct.java` | **Rewritten** — shortName UNIQUE, minRequiredOpeningBalance, interestPostingPeriodType, daysInYearType, daysInMonthType, lockinPeriod, withdrawalFeeForTransfers, allowOverdraft + overdraft fields, accountingType, 8 GL account @ManyToOne fields, @ManyToMany charges |
+| `backend/src/main/java/com/cba/product/dto/LoanProductRequest.java` | **Rewritten** — full field set with nested `AllowAttributeOverridesRequest` record, all GL UUID fields, chargeIds |
+| `backend/src/main/java/com/cba/product/dto/LoanProductResponse.java` | **Rewritten** — nested `GlAccountRef`, `FundRef`, `ChargeRef`, `AllowAttributeOverridesResponse` records; `from(LoanProduct)` factory |
+| `backend/src/main/java/com/cba/product/dto/DepositProductRequest.java` | **Rewritten** — full Mifos deposit field set |
+| `backend/src/main/java/com/cba/product/dto/DepositProductResponse.java` | **Rewritten** — nested `GlAccountRef` + `ChargeRef`; `from()` factory |
+| `backend/src/main/java/com/cba/charge/ChargeDefinitionRepository.java` | **New** — `findByActiveTrue()`, `findByChargeAppliesTo()` |
+| `backend/src/main/java/com/cba/product/ProductService.java` | **Rewritten** — injects `GlAccountRepository`, `ChargeDefinitionRepository`, `FundRepository`; `resolveGl()`, `requireFund()`; full field mapping; charges replace-all pattern |
+| `backend/src/main/resources/db/migration/V20__product_mifos_parity.sql` | **New** — 30+ `ADD COLUMN IF NOT EXISTS` on loan_products; 20+ on deposit_products; backfill short_name; SET NOT NULL; `loan_product_charges` + `deposit_product_charges` join tables; FK indexes |
+
+#### Documentation Updates
+
+| File | Change |
+|------|--------|
+| `docs/api-reference.html` | Products section fully replaced — loan products: 5 category field tables; deposit products: 5 category field tables; Full API Matrix updated |
+| `docs/cba-postman-collection-v2.json` | Create/Update Loan Product + Create/Update Deposit Product request bodies fully updated with all Mifos fields |
+
+#### Compliance Checklist Update
+
+| Item | Status |
+|------|--------|
+| Loan Products — full Mifos field parity (backend) | ✅ |
+| Deposit Products — full Mifos field parity (backend) | ✅ |
+| AllowAttributeOverrides — @Embeddable, 8 boolean columns | ✅ |
+| GL account linkages — @ManyToOne, nested GlAccountRef response | ✅ |
+| Charges join tables — @ManyToMany, replace-all on update | ✅ |
+| V20 migration — backfill + NOT NULL constraint | ✅ |
+| Postman collection — all 4 product CRUD requests updated | ✅ |
+| api-reference.html — Products section fully documented | ✅ |
+
+---
 
 ### Session 11 — 2026-04-09
 

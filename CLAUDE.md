@@ -187,13 +187,17 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 - `AuditLogService` called with `PROPAGATION.REQUIRES_NEW` so audit survives rollback
 
 ### 5. Product Module
-- Loan products: principal range, interest rate range, term range, repayment type, fees
-- Deposit products: account type, minimum balance, interest rate, compounding frequency
+- **Loan products** — full Mifos parity: shortName (UNIQUE, 4 chars), fund @ManyToOne, principal range + default, installmentAmountInMultiplesOf, full interest config (interestRateFrequencyType, interestType, amortizationType, interestCalculationPeriodType, daysInYearType, daysInMonthType), repayment schedule (numberOfRepayments, repaymentEvery, repaymentFrequencyType), grace periods, @Embedded `AllowAttributeOverrides` (8 boolean overrides), 8 GL account @ManyToOne linkages, @ManyToMany charges via `loan_product_charges` join table
+- **Deposit products** — full Mifos parity: shortName (UNIQUE, 4 chars), accountType, minimumBalance, minRequiredOpeningBalance, interestCompounding, interestPostingPeriodType, daysInYearType, daysInMonthType, lockinPeriodFrequency, withdrawalFeeForTransfers, allowOverdraft + overdraftLimit + overdraftInterestRate + minOverdraftForInterestCalculation, accountingType (NONE/CASH), 8 GL account @ManyToOne linkages, @ManyToMany charges via `deposit_product_charges` join table
 - Repayment types: `ANNUITY`, `FLAT`, `DECLINING_BALANCE`
-- Interest compounding: `DAILY`, `MONTHLY`, `ANNUALLY`
+- Interest compounding: `DAILY`, `MONTHLY`, `QUARTERLY`, `ANNUALLY`
 - Full REST CRUD: `GET/POST/PUT/DELETE /api/v1/loan-products` and `/api/v1/deposit-products`
 - `ProductService` validates ranges: `minPrincipal ≤ maxPrincipal`, `defaultInterestRate` within `[min, max]`, `minTermMonths ≤ maxTermMonths`
 - ADMIN role required for writes; all authenticated roles can read
+- Flyway `V20__product_mifos_parity.sql` — 30+ columns added to loan_products, 20+ to deposit_products; backfills `short_name` from name via `REGEXP_REPLACE`, then sets NOT NULL
+- `AllowAttributeOverrides` — `@Embeddable` class stored as 8 individual boolean columns (prefix `allow_override_`), not JSON
+- GL account linkages — response uses nested `GlAccountRef(id, glCode, name)` record to avoid N+1; null-safe via `GlAccountRef.of(GlAccount)`
+- Charges — replace-all on update: `p.getCharges().clear(); p.getCharges().addAll(resolved)` (same pattern as permissions / provisioning criteria)
 
 ### 6. Open Banking Module (FAPI 2.0)
 - UK Open Banking v3.1 compliant endpoints
@@ -760,14 +764,44 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 - Deep link structure: `loans/:loanId/charges/:id/action/:action`
 
 ### Angular Component Map (Nubeero Design)
-| Design Component | Angular Component | Module |
-|-----------------|-------------------|--------|
-| Sidebar nav | `SidebarComponent` | `LayoutModule` |
-| Topbar | `TopbarComponent` | `LayoutModule` |
-| KPI card | `KpiCardComponent` | `SharedModule` |
-| Data table | `DataTableComponent` | `SharedModule` |
-| Status badge | `StatusBadgeComponent` | `SharedModule` |
-| Loan detail panel | `LoanDetailPanelComponent` | `LoansModule` |
+| Design Component | Angular Component | Module | Status |
+|-----------------|-------------------|--------|--------|
+| Sidebar nav | `SidebarComponent` | `LayoutModule` | ✅ Built |
+| Topbar | `TopbarComponent` | `LayoutModule` | ✅ Built |
+| KPI card | `KpiCardComponent` | `SharedModule` | ✅ Built |
+| Data table | `DataTableComponent` | `SharedModule` | ✅ Built |
+| Status badge | `StatusBadgeComponent` | `SharedModule` | ✅ Built |
+| Dashboard | `DashboardComponent` | `OperationsModule` | ✅ Built — KPIs, transaction table, portfolio bars, KYC queue |
+| Customers list | `CustomersListComponent` | `OperationsModule` | ✅ Built — debounced search, KYC filter tabs, pagination |
+| Customer detail | `CustomerDetailComponent` | `OperationsModule` | ✅ Built — 5 tabs, KYC state machine |
+| Accounts list | `AccountsListComponent` | `OperationsModule` | ✅ Built — type filter, pagination |
+| Loans list | `LoansListComponent` | `OperationsModule` | ✅ Built — pipeline view, sliding detail panel |
+| Loan detail | `LoanDetailComponent` | `OperationsModule` | ✅ Built — 5 tabs, approve/disburse/repayment/reject |
+| Loan products list | `LoanProductsListComponent` | `ProductsModule` | ✅ Built — search, active filter, pagination |
+| Loan product detail | `LoanProductDetailComponent` | `ProductsModule` | ✅ Built — view/edit toggle, 5 section tabs, GL linkages, charges |
+| Deposit products list | `DepositProductsListComponent` | `ProductsModule` | ✅ Built — search, type filter, pagination |
+| Deposit product detail | `DepositProductDetailComponent` | `ProductsModule` | ✅ Built — view/edit toggle, 5 section tabs, overdraft config, GL linkages |
+| All other feature pages | ~65 stub components | All modules | 🔲 Stub — template+styles only, no API wiring |
+
+### Angular View/Edit Toggle Pattern
+All detail pages (loan product, deposit product, customer, loan) share this pattern:
+- `editMode: boolean` flag switches between view and edit template
+- `form: CreateRequest` — a **separate object** from `product`; never two-way bound to displayed data
+- `enterEditMode(blank=false)` deep-copies product → form OR populates blank defaults for `isNew`
+- `cancelEdit()` discards the form object; displayed `product` is untouched
+- `save()` calls create or update; only writes to `product` on success
+- `isNew` detected from route param `'new'`; on save navigates to `../p.id`
+- Deactivate uses a confirm modal (same pattern across all detail pages)
+
+### Angular Search Pattern
+All list pages use client-side debounced search:
+```typescript
+private readonly search$ = new Subject<string>();
+// In ngOnInit:
+this.search$.pipe(debounceTime(250), distinctUntilChanged(), takeUntil(this.destroy$))
+  .subscribe(q => this.applyFilter(q));
+```
+Products lists are not server-paginated (small datasets); Customers list uses `switchMap` for server-side search.
 
 ---
 

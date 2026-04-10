@@ -1,7 +1,471 @@
-<app-page-header title="Payments & Transfers" icon="swap_horiz" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">swap_horiz</span>
-    <strong>Payments & Transfers</strong><br>Implementation pending.
-  </p>
+<div class="page">
+
+  <!-- ── Page Header ── -->
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">swap_horiz</span>
+      Payments & Transfers
+    </div>
+    <div class="page-header__actions">
+      <button class="btn-outline" (click)="openSOModal()">
+        <span class="material-icons">repeat</span> Standing Order
+      </button>
+      <button class="btn-primary" (click)="openTransferModal()">
+        <span class="material-icons">add</span> New Transfer
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Account Context Picker ── -->
+  <div class="context-picker card">
+    <div class="context-picker__label">
+      <span class="material-icons">account_balance_wallet</span>
+      Account context
+    </div>
+    <div class="context-picker__input-wrap">
+      @if (!selectedAccount) {
+        <input class="form-input" type="text" placeholder="Search by account number or customer name…"
+               [(ngModel)]="accountQuery" (ngModelChange)="onAccountQueryChange()" />
+        @if (accountSearching) {
+          <span class="context-picker__spinner"></span>
+        }
+        @if (accountResults.length > 0) {
+          <ul class="autocomplete-list">
+            @for (a of accountResults; track a.id) {
+              <li class="autocomplete-item" (click)="selectContextAccount(a)">
+                <span class="autocomplete-item__number">{{ a.accountNumber }}</span>
+                <span class="autocomplete-item__name">{{ a.customerName ?? '' }}</span>
+                <span class="autocomplete-item__type">{{ a.accountType }}</span>
+              </li>
+            }
+          </ul>
+        }
+      } @else {
+        <div class="selected-account">
+          <span class="material-icons">check_circle</span>
+          <span class="selected-account__number">{{ selectedAccount.accountNumber }}</span>
+          @if (selectedAccount.customerName) {
+            <span class="selected-account__name">— {{ selectedAccount.customerName }}</span>
+          }
+          <span class="badge" [class]="'badge--' + selectedAccount.accountType.toLowerCase()">
+            {{ selectedAccount.accountType }}
+          </span>
+          <button class="context-clear" (click)="clearContext()" title="Clear">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+
+  <!-- ── Filter bar ── -->
+  @if (selectedAccount) {
+    <div class="filter-bar">
+      <div class="filter-bar__left">
+        <label class="filter-label">Status</label>
+        <select class="form-select" [(ngModel)]="statusFilter" (ngModelChange)="applyStatusFilter()">
+          @for (s of statuses; track s) {
+            <option [value]="s">{{ s || 'All Statuses' }}</option>
+          }
+        </select>
+      </div>
+      <div class="filter-bar__right">
+        @if (total > 0) {
+          <span class="results-count">{{ total }} payment{{ total === 1 ? '' : 's' }}</span>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ── Payments Table ── -->
+  @if (selectedAccount) {
+    @if (loading) {
+      <div class="card">
+        <div class="skeleton-rows">
+          <div class="skeleton skeleton--row" *ngFor="let i of [1,2,3,4,5]"></div>
+        </div>
+      </div>
+    } @else if (payments.length === 0) {
+      <div class="card empty-state">
+        <span class="material-icons">swap_horiz</span>
+        <p>No payments found for this account.</p>
+        <button class="btn-primary" (click)="openTransferModal()">
+          <span class="material-icons">add</span> Make a Transfer
+        </button>
+      </div>
+    } @else {
+      <div class="card">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Reference</th>
+              <th>Type</th>
+              <th>From</th>
+              <th>To</th>
+              <th class="col-amount">Amount</th>
+              <th>Status</th>
+              <th>Date</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (p of payments; track p.id) {
+              <tr class="table-row" [routerLink]="[p.id]">
+                <td class="ref-cell">
+                  <span class="type-icon">
+                    <span class="material-icons">{{ typeIcons[p.paymentType] ?? 'swap_horiz' }}</span>
+                  </span>
+                  <span class="ref-number">{{ p.referenceNumber }}</span>
+                </td>
+                <td class="muted">{{ typeLabels[p.paymentType] ?? p.paymentType }}</td>
+                <td class="acct-cell">{{ p.sourceAccountNumber }}</td>
+                <td class="acct-cell">{{ p.destinationAccountNumber }}</td>
+                <td class="col-amount">
+                  <span [class]="isCredit(p) ? 'amount--credit' : 'amount--debit'">
+                    {{ isCredit(p) ? '+' : '−' }}{{ p.amount | number:'1.2-2' }}
+                    <span class="amount-ccy">{{ p.currencyCode }}</span>
+                  </span>
+                  @if (p.crossCurrency) {
+                    <span class="fx-badge">FX</span>
+                  }
+                </td>
+                <td>
+                  <app-status-badge [variant]="statusVariant(p.status)" [label]="p.status" />
+                </td>
+                <td class="muted">{{ (p.executedDate ?? p.createdAt) | date:'mediumDate' }}</td>
+                <td class="action-cell">
+                  <span class="material-icons chevron">chevron_right</span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+
+        <div class="pagination">
+          <span class="pagination__info">{{ startRow }}–{{ endRow }} of {{ total }}</span>
+          <div class="pagination__controls">
+            <button class="pagination__btn" [disabled]="page === 0" (click)="prevPage()">
+              <span class="material-icons">chevron_left</span>
+            </button>
+            <span class="pagination__page">{{ page + 1 }} / {{ totalPages }}</span>
+            <button class="pagination__btn" [disabled]="(page + 1) * pageSize >= total" (click)="nextPage()">
+              <span class="material-icons">chevron_right</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+  } @else {
+    <!-- No account selected yet -->
+    <div class="card empty-state empty-state--initial">
+      <span class="material-icons">manage_search</span>
+      <p>Search for an account above to view its payment history.</p>
+    </div>
+  }
+
 </div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     NEW TRANSFER MODAL (3-step wizard)
+══════════════════════════════════════════════════════════════════════════ -->
+
+@if (activeModal === 'transfer') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--wide" (click)="$event.stopPropagation()">
+
+      <!-- Header -->
+      <div class="modal__header">
+        <span class="material-icons modal__icon modal__icon--primary">swap_horiz</span>
+        New Transfer
+        <div class="wizard-steps">
+          <span class="wizard-step" [class.wizard-step--active]="transferStep >= 1" [class.wizard-step--done]="transferStep > 1">1</span>
+          <span class="wizard-connector"></span>
+          <span class="wizard-step" [class.wizard-step--active]="transferStep >= 2" [class.wizard-step--done]="transferStep > 2">2</span>
+          <span class="wizard-connector"></span>
+          <span class="wizard-step" [class.wizard-step--active]="transferStep >= 3">3</span>
+        </div>
+      </div>
+
+      <div class="modal__body">
+
+        <!-- Step 1 — Select accounts -->
+        @if (transferStep === 1) {
+          <div class="step-label">Step 1 of 3 — Select accounts</div>
+
+          <div class="acct-pair">
+            <div class="form-field">
+              <label class="form-label">From Account <span class="required">*</span></label>
+              <input class="form-input" type="text" placeholder="Account number or customer name"
+                     [(ngModel)]="srcQuery" (ngModelChange)="onSrcQueryChange()" />
+              @if (srcSearching) { <div class="field-hint">Searching…</div> }
+              @if (srcResults.length > 0) {
+                <ul class="autocomplete-list">
+                  @for (a of srcResults; track a.id) {
+                    <li class="autocomplete-item" (click)="selectSrc(a)">
+                      <span class="autocomplete-item__number">{{ a.accountNumber }}</span>
+                      <span class="autocomplete-item__name">{{ a.customerName ?? '' }}</span>
+                    </li>
+                  }
+                </ul>
+              }
+              @if (srcAccount) {
+                <div class="selected-chip">
+                  <span class="material-icons">check_circle</span>
+                  {{ srcAccount.accountNumber }}
+                  @if (srcAccount.customerName) { — {{ srcAccount.customerName }} }
+                  <span class="chip-balance">{{ srcAccount.balance | number:'1.2-2' }} {{ srcAccount.currencyCode }}</span>
+                </div>
+              }
+            </div>
+
+            <div class="acct-pair__arrow">
+              <span class="material-icons">arrow_forward</span>
+            </div>
+
+            <div class="form-field">
+              <label class="form-label">To Account <span class="required">*</span></label>
+              <input class="form-input" type="text" placeholder="Account number or customer name"
+                     [(ngModel)]="dstQuery" (ngModelChange)="onDstQueryChange()" />
+              @if (dstSearching) { <div class="field-hint">Searching…</div> }
+              @if (dstResults.length > 0) {
+                <ul class="autocomplete-list">
+                  @for (a of dstResults; track a.id) {
+                    <li class="autocomplete-item" (click)="selectDst(a)">
+                      <span class="autocomplete-item__number">{{ a.accountNumber }}</span>
+                      <span class="autocomplete-item__name">{{ a.customerName ?? '' }}</span>
+                    </li>
+                  }
+                </ul>
+              }
+              @if (dstAccount) {
+                <div class="selected-chip">
+                  <span class="material-icons">check_circle</span>
+                  {{ dstAccount.accountNumber }}
+                  @if (dstAccount.customerName) { — {{ dstAccount.customerName }} }
+                </div>
+              }
+            </div>
+          </div>
+
+          @if (srcAccount && dstAccount && srcAccount.id === dstAccount.id) {
+            <div class="modal__error">Source and destination accounts must be different.</div>
+          }
+        }
+
+        <!-- Step 2 — Amount & description -->
+        @if (transferStep === 2) {
+          <div class="step-label">Step 2 of 3 — Transfer details</div>
+
+          <div class="transfer-summary-mini">
+            <span class="material-icons">account_balance_wallet</span>
+            <strong>{{ srcAccount?.accountNumber }}</strong>
+            <span class="material-icons" style="color:var(--color-muted)">arrow_forward</span>
+            <strong>{{ dstAccount?.accountNumber }}</strong>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label">Amount <span class="required">*</span></label>
+            <div class="input-prefix-group">
+              <span class="input-prefix">{{ srcAccount?.currencyCode }}</span>
+              <input type="number" class="form-input form-input--prefixed" min="0.01" step="0.01"
+                     [(ngModel)]="transferAmount" placeholder="0.00" />
+            </div>
+            @if (srcAccount && transferAmount > srcAccount.balance) {
+              <div class="field-warn">Amount exceeds available balance ({{ srcAccount.balance | number:'1.2-2' }} {{ srcAccount.currencyCode }}).</div>
+            }
+            @if (srcAccount && dstAccount && srcAccount.currencyCode !== dstAccount.currencyCode) {
+              <div class="field-hint fx-hint">
+                <span class="material-icons">currency_exchange</span>
+                Cross-currency transfer: {{ srcAccount.currencyCode }} → {{ dstAccount.currencyCode }}. Exchange rate applied at settlement.
+              </div>
+            }
+          </div>
+
+          <div class="form-field">
+            <label class="form-label">Description <span class="form-hint">(optional)</span></label>
+            <input type="text" class="form-input" [(ngModel)]="transferDescription"
+                   placeholder="e.g. Rent payment — July" maxlength="255" />
+          </div>
+        }
+
+        <!-- Step 3 — Confirm -->
+        @if (transferStep === 3) {
+          <div class="step-label">Step 3 of 3 — Confirm transfer</div>
+
+          <div class="confirm-block">
+            <div class="confirm-row">
+              <span class="confirm-label">From</span>
+              <span class="confirm-value">{{ srcAccount?.accountNumber }}
+                @if (srcAccount?.customerName) { — {{ srcAccount?.customerName }} }
+              </span>
+            </div>
+            <div class="confirm-row">
+              <span class="confirm-label">To</span>
+              <span class="confirm-value">{{ dstAccount?.accountNumber }}
+                @if (dstAccount?.customerName) { — {{ dstAccount?.customerName }} }
+              </span>
+            </div>
+            <div class="confirm-row confirm-row--amount">
+              <span class="confirm-label">Amount</span>
+              <span class="confirm-value confirm-value--amount">
+                {{ transferAmount | number:'1.2-2' }} {{ srcAccount?.currencyCode }}
+              </span>
+            </div>
+            @if (transferDescription) {
+              <div class="confirm-row">
+                <span class="confirm-label">Description</span>
+                <span class="confirm-value">{{ transferDescription }}</span>
+              </div>
+            }
+            @if (srcAccount && dstAccount && srcAccount.currencyCode !== dstAccount.currencyCode) {
+              <div class="confirm-row confirm-row--fx">
+                <span class="confirm-label">FX Notice</span>
+                <span class="confirm-value">Exchange rate will be applied at time of settlement. Final amount in {{ dstAccount.currencyCode }} may vary.</span>
+              </div>
+            }
+          </div>
+        }
+
+        @if (modalError) {
+          <div class="modal__error">{{ modalError }}</div>
+        }
+      </div>
+
+      <!-- Footer -->
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        @if (transferStep > 1) {
+          <button class="btn-outline" (click)="prevStep()" [disabled]="modalWorking">
+            <span class="material-icons">arrow_back</span> Back
+          </button>
+        }
+        @if (transferStep < 3) {
+          <button class="btn-primary" (click)="nextStep()"
+                  [disabled]="(transferStep === 1 && !transferStep1Valid) || (transferStep === 2 && !transferStep2Valid)">
+            Next <span class="material-icons">arrow_forward</span>
+          </button>
+        }
+        @if (transferStep === 3) {
+          <button class="btn-success" (click)="submitTransfer()" [disabled]="modalWorking">
+            @if (modalWorking) { <span class="spinner"></span> }
+            Confirm Transfer
+          </button>
+        }
+      </div>
+
+    </div>
+  </div>
+}
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     STANDING ORDER MODAL
+══════════════════════════════════════════════════════════════════════════ -->
+
+@if (activeModal === 'standing-order') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--wide" (click)="$event.stopPropagation()">
+
+      <div class="modal__header">
+        <span class="material-icons modal__icon modal__icon--primary">repeat</span>
+        New Standing Order
+      </div>
+
+      <div class="modal__body">
+
+        <div class="acct-pair">
+          <div class="form-field">
+            <label class="form-label">From Account <span class="required">*</span></label>
+            <input class="form-input" type="text" placeholder="Account number or customer"
+                   [(ngModel)]="soSrcQuery" (ngModelChange)="onSOSrcQueryChange()" />
+            @if (soSrcResults.length > 0) {
+              <ul class="autocomplete-list">
+                @for (a of soSrcResults; track a.id) {
+                  <li class="autocomplete-item" (click)="selectSOSrc(a)">
+                    <span class="autocomplete-item__number">{{ a.accountNumber }}</span>
+                    <span class="autocomplete-item__name">{{ a.customerName ?? '' }}</span>
+                  </li>
+                }
+              </ul>
+            }
+            @if (soSrcAccount) {
+              <div class="selected-chip">
+                <span class="material-icons">check_circle</span>
+                {{ soSrcAccount.accountNumber }}
+              </div>
+            }
+          </div>
+
+          <div class="acct-pair__arrow"><span class="material-icons">arrow_forward</span></div>
+
+          <div class="form-field">
+            <label class="form-label">To Account <span class="required">*</span></label>
+            <input class="form-input" type="text" placeholder="Account number or customer"
+                   [(ngModel)]="soDstQuery" (ngModelChange)="onSODstQueryChange()" />
+            @if (soDstResults.length > 0) {
+              <ul class="autocomplete-list">
+                @for (a of soDstResults; track a.id) {
+                  <li class="autocomplete-item" (click)="selectSODst(a)">
+                    <span class="autocomplete-item__number">{{ a.accountNumber }}</span>
+                    <span class="autocomplete-item__name">{{ a.customerName ?? '' }}</span>
+                  </li>
+                }
+              </ul>
+            }
+            @if (soDstAccount) {
+              <div class="selected-chip">
+                <span class="material-icons">check_circle</span>
+                {{ soDstAccount.accountNumber }}
+              </div>
+            }
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-field form-field--half">
+            <label class="form-label">Amount <span class="required">*</span></label>
+            <input type="number" class="form-input" min="0.01" step="0.01"
+                   [(ngModel)]="soAmount" placeholder="0.00" />
+          </div>
+          <div class="form-field form-field--half">
+            <label class="form-label">Frequency <span class="required">*</span></label>
+            <select class="form-select" [(ngModel)]="soFrequency">
+              @for (f of frequencies; track f) {
+                <option [value]="f">{{ f }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-field form-field--half">
+            <label class="form-label">Start Date <span class="required">*</span></label>
+            <input type="date" class="form-input" [(ngModel)]="soStartDate" />
+          </div>
+          <div class="form-field form-field--half">
+            <label class="form-label">End Date <span class="form-hint">(optional)</span></label>
+            <input type="date" class="form-input" [(ngModel)]="soEndDate" />
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Description <span class="form-hint">(optional)</span></label>
+          <input type="text" class="form-input" [(ngModel)]="soDescription"
+                 placeholder="e.g. Monthly savings transfer" maxlength="255" />
+        </div>
+
+        @if (modalError) {
+          <div class="modal__error">{{ modalError }}</div>
+        }
+      </div>
+
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitStandingOrder()" [disabled]="!soFormValid || modalWorking">
+          @if (modalWorking) { <span class="spinner"></span> }
+          Create Standing Order
+        </button>
+      </div>
+
+    </div>
+  </div>
+}

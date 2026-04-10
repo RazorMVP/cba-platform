@@ -59,6 +59,39 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 15 — 2026-04-10
+
+**Angular Payments UI — full PaymentsListComponent + PaymentDetailComponent with PaymentService, 3-step transfer wizard, standing order modal, FX cross-currency display, and payment reversal.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/src/app/features/operations/payments/payment.service.ts` | New — `Payment`, `TransferRequest`, `StandingOrder`, `StandingOrderRequest` interfaces; `get`, `getAccountPayments`, `transfer`, `reverse`, `listStandingOrders`, `createStandingOrder`, `cancelStandingOrder` methods |
+| `web/src/app/features/operations/payments/payments-list.ts` | Full implementation — account context picker with debounced search; paginated payment table; 3-step transfer wizard (`TransferStep = 1|2|3`); standing order form; `isCredit()` helper for credit/debit display |
+| `web/src/app/features/operations/payments/payments-list.html` | Full template — context picker with autocomplete, filter bar, paginated table with FX badge, 3-step transfer wizard modal (account selection → amount → confirm), standing order modal |
+| `web/src/app/features/operations/payments/payments-list.scss` | Full Nubeero styles — context picker, autocomplete dropdown, type-icon cells, FX badge, wizard step indicators, confirm block, account-pair flex layout |
+| `web/src/app/features/operations/payments/payment-detail/payment-detail.ts` | Full implementation — status-coloured header band, `canReverse` getter, reverse modal with reason field |
+| `web/src/app/features/operations/payments/payment-detail/payment-detail.html` | Full template — status-band (left-border colour per status), FX info row, transfer route card with account deep-links, payment details card, FX details card (conditional), reverse modal |
+| `web/src/app/features/operations/payments/payment-detail/payment-detail.scss` | Full Nubeero styles — status-band left-border colours, amount display, FX info chip, transfer route layout, detail grid |
+| `CLAUDE.md` | Added `PaymentsListComponent` + `PaymentDetailComponent` to Angular Component Map; stub count `~58 → ~56` |
+| `cba-log.md` | This entry |
+
+#### Key Patterns / Decisions
+- **No global `GET /payments` endpoint** — backend scopes payments to an account. List page uses an account context picker (debounced search) to load `GET /payments/accounts/{id}`; "no account selected" state shows a prompt rather than an empty table
+- **3-step transfer wizard**: Step 1 = source/destination account autocomplete pickers; Step 2 = amount + description with cross-currency warning and balance-exceeded warning; Step 3 = read-only confirm block. `transferStep1Valid` and `transferStep2Valid` guards prevent advancing with incomplete data
+- **FX display**: `payment.crossCurrency` boolean gates the FX info row in the header and the FX details card. Exchange rate shown as `1 SRC = N DST` using 4-6 decimal precision
+- **Reversal**: Only `COMPLETED` payments expose the Reverse button (`canReverse` getter). Reason field required; error message clarifies the constraint
+- **Status left-border**: `payment-header--completed/pending/failed/reversed` CSS classes give instant visual status without needing to read the badge
+
+#### Build Verification
+- `npx ng build --configuration=production` → **0 errors**
+
+#### Compliance Checklist Update
+- Account numbers in payment route are deep-linked to Account Detail — no dead-end navigation
+- FX rate displayed to 4-6 decimal places for audit precision
+
+---
+
 ### Session 14 — 2026-04-10
 
 **Angular Account Detail — full AccountDetailComponent built with overview/transactions tabs, 5 teller/status action modals, paginated transaction history, and ApiService extended with `postParams`/`putParams` helper methods.**

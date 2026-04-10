@@ -1,7 +1,188 @@
-<app-page-header title="Payment Detail" icon="receipt" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">receipt</span>
-    <strong>Payment Detail</strong><br>Implementation pending.
-  </p>
+<div class="page">
+
+  <a routerLink=".." class="back-link">
+    <span class="material-icons">arrow_back</span> Payments
+  </a>
+
+  @if (loading) {
+    <div class="loading-skeleton">
+      <div class="skeleton skeleton--header"></div>
+      <div class="skeleton skeleton--body"></div>
+    </div>
+  } @else if (error) {
+    <div class="error-state">
+      <span class="material-icons">error_outline</span>
+      <p>{{ error }}</p>
+      <a routerLink=".." class="btn-secondary">Go back</a>
+    </div>
+  } @else if (payment) {
+
+    <!-- ── Payment Header Band ── -->
+    <div class="payment-header" [class]="'payment-header--' + payment.status.toLowerCase()">
+
+      <div class="payment-header__icon">
+        <span class="material-icons">{{ typeIcons[payment.paymentType] ?? 'swap_horiz' }}</span>
+      </div>
+
+      <div class="payment-header__meta">
+        <div class="payment-header__ref">{{ payment.referenceNumber }}</div>
+        <div class="payment-header__type">{{ typeLabels[payment.paymentType] ?? payment.paymentType }}</div>
+      </div>
+
+      <div class="payment-header__amount">
+        <div class="amount-display">
+          {{ payment.amount | number:'1.2-2' }}
+          <span class="amount-ccy">{{ payment.currencyCode }}</span>
+        </div>
+        @if (payment.crossCurrency) {
+          <div class="fx-info">
+            {{ payment.sourceAmount | number:'1.2-4' }} {{ payment.sourceCurrency }}
+            <span class="material-icons" style="font-size:.9rem">arrow_forward</span>
+            {{ payment.destinationAmount | number:'1.2-4' }} {{ payment.destinationCurrency }}
+            <span class="fx-rate">@ {{ payment.exchangeRateUsed | number:'1.4-6' }}</span>
+          </div>
+        }
+      </div>
+
+      <div class="payment-header__status">
+        <app-status-badge [variant]="statusVariant(payment.status)" [label]="payment.status" />
+      </div>
+
+      @if (canReverse) {
+        <div class="payment-header__actions">
+          <button class="btn-danger" (click)="openReverseModal()">
+            <span class="material-icons">undo</span> Reverse
+          </button>
+        </div>
+      }
+    </div>
+
+    <!-- ── Content Grid ── -->
+    <div class="detail-grid">
+
+      <!-- Transfer Route -->
+      <div class="card">
+        <div class="card__header">Transfer Route</div>
+        <div class="transfer-route">
+          <div class="route-account">
+            <div class="route-account__label">From</div>
+            <div class="route-account__number">
+              <a [routerLink]="['/operations/accounts', payment.sourceAccountId]" class="link">
+                {{ payment.sourceAccountNumber }}
+              </a>
+            </div>
+          </div>
+          <div class="route-arrow">
+            <span class="material-icons">east</span>
+          </div>
+          <div class="route-account">
+            <div class="route-account__label">To</div>
+            <div class="route-account__number">
+              <a [routerLink]="['/operations/accounts', payment.destinationAccountId]" class="link">
+                {{ payment.destinationAccountNumber }}
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Payment Details -->
+      <div class="card">
+        <div class="card__header">Payment Details</div>
+        <dl class="detail-list">
+          <dt>Reference</dt>
+          <dd class="mono">{{ payment.referenceNumber }}</dd>
+
+          <dt>Type</dt>
+          <dd>{{ typeLabels[payment.paymentType] ?? payment.paymentType }}</dd>
+
+          <dt>Amount</dt>
+          <dd class="amount-dd">
+            {{ payment.amount | number:'1.2-2' }} {{ payment.currencyCode }}
+          </dd>
+
+          @if (payment.description) {
+            <dt>Description</dt>
+            <dd>{{ payment.description }}</dd>
+          }
+
+          <dt>Status</dt>
+          <dd><app-status-badge [variant]="statusVariant(payment.status)" [label]="payment.status" /></dd>
+
+          @if (payment.executedDate) {
+            <dt>Executed</dt>
+            <dd>{{ payment.executedDate | date:'medium' }}</dd>
+          }
+
+          <dt>Created</dt>
+          <dd>{{ payment.createdAt | date:'medium' }}</dd>
+        </dl>
+      </div>
+
+      <!-- FX Details (only shown for cross-currency) -->
+      @if (payment.crossCurrency) {
+        <div class="card card--fx">
+          <div class="card__header">
+            <span class="material-icons" style="font-size:1.1rem;color:#6d28d9">currency_exchange</span>
+            Cross-Currency Details
+          </div>
+          <dl class="detail-list">
+            <dt>Source Amount</dt>
+            <dd>{{ payment.sourceAmount | number:'1.2-4' }} {{ payment.sourceCurrency }}</dd>
+
+            <dt>Destination Amount</dt>
+            <dd>{{ payment.destinationAmount | number:'1.2-4' }} {{ payment.destinationCurrency }}</dd>
+
+            <dt>Exchange Rate</dt>
+            <dd class="mono">1 {{ payment.sourceCurrency }} = {{ payment.exchangeRateUsed | number:'1.4-6' }} {{ payment.destinationCurrency }}</dd>
+
+            <dt>Pair</dt>
+            <dd>{{ payment.sourceCurrency }}/{{ payment.destinationCurrency }}</dd>
+          </dl>
+        </div>
+      }
+
+    </div>
+
+  }
 </div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     REVERSE MODAL
+══════════════════════════════════════════════════════════════════════════ -->
+
+@if (showReverseModal) {
+  <div class="modal-backdrop" (click)="closeReverseModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+
+      <div class="modal__header">
+        <span class="material-icons modal__icon modal__icon--danger">undo</span>
+        Reverse Payment
+      </div>
+
+      <div class="modal__body">
+        <p>You are about to reverse payment <strong>{{ payment?.referenceNumber }}</strong>.</p>
+        <p class="modal__hint">This will create a compensating transaction that returns funds to the source account. This action cannot be undone.</p>
+
+        <div class="form-field">
+          <label class="form-label">Reason <span class="required">*</span></label>
+          <input type="text" class="form-input" [(ngModel)]="reverseReason"
+                 placeholder="e.g. Duplicate payment / Customer dispute" maxlength="255" />
+        </div>
+
+        @if (reverseError) {
+          <div class="modal__error">{{ reverseError }}</div>
+        }
+      </div>
+
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeReverseModal()" [disabled]="reverseWorking">Cancel</button>
+        <button class="btn-danger" (click)="submitReverse()" [disabled]="reverseWorking || !reverseReason.trim()">
+          @if (reverseWorking) { <span class="spinner"></span> }
+          Reverse Payment
+        </button>
+      </div>
+
+    </div>
+  </div>
+}

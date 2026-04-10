@@ -798,7 +798,7 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Reports list | `ReportsListComponent` | `ReportsModule` | ✅ Built — search/category filter, dynamic param form, schema-on-read results table, CSV export, create/delete |
 | CoB Scheduler | `CobSchedulerComponent` | `ReportsModule` | ✅ Built — job cards with stats, Run Now trigger, inline history panel, duration helper |
 | Report Mailing Jobs | `ReportMailingComponent` | `ReportsModule` | ✅ Built — mailing job CRUD, RRULE schedule presets, output type chips, send-now trigger |
-| All other feature pages | ~48 stub components | All modules | 🔲 Stub — template+styles only, no API wiring |
+| All other feature pages | 16 stub components | admin, groups, open-banking, system modules | 🔲 Stub — template+styles only, no API wiring |
 
 ### Angular View/Edit Toggle Pattern
 All detail pages (loan product, deposit product, customer, loan) share this pattern:

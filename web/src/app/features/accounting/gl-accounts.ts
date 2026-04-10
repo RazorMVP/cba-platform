@@ -87,7 +87,6 @@ export class GlAccountsComponent implements OnInit {
         this.accounts = this.accounts.map(x => x.id === updated.id ? updated : x);
         this.applyFilter();
       },
-      error: () => {},
     });
   }
 

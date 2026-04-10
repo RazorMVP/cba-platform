@@ -53,7 +53,6 @@ export class ProvisioningComponent implements OnInit {
     this.loadCriteria();
     this.svc.listGlAccounts().subscribe({
       next: list => { this.glAccounts = list; },
-      error: () => {},
     });
   }
 

@@ -150,6 +150,6 @@ export class LoanService {
 
   // Audit log for this loan
   getAuditLog(id: string): Observable<AuditEntry[]> {
-    return this.api.get<AuditEntry[]>(`/audits`, { entityType: 'LOAN', entityId: id } as any);
+    return this.api.get<AuditEntry[]>(`/audits`, { entityType: 'LOAN', entityId: id });
   }
 }

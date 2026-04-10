@@ -88,7 +88,6 @@ export class TellerDetailComponent implements OnInit {
     if (!this.teller) return;
     this.svc.getCashiers(this.teller.id).subscribe({
       next: c => { this.cashiers = c; this.cashiersLoaded = true; },
-      error: () => {},
     });
   }
 
@@ -129,7 +128,6 @@ export class TellerDetailComponent implements OnInit {
         this.sessions       = s.sort((a, b) => b.sessionDate.localeCompare(a.sessionDate));
         this.sessionsLoaded = true;
       },
-      error: () => {},
     });
   }
 

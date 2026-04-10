@@ -1,8 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable, forkJoin, map } from 'rxjs';
 import { ApiService } from '../../../core/api/api.service';
-import { PageResponse } from '../../../core/models/api-response.model';
-
 export interface DashboardKpi {
   totalCustomers: number;
   activeLoans: number;
@@ -64,9 +62,10 @@ export class DashboardService {
   }
 
   getKycPendingCustomers(): Observable<KycPendingCustomer[]> {
-    return this.api.getPage<any>('/customers', 0, 5, { kycStatus: 'PENDING_KYC' })
-      .pipe(
-        map(p => p.content.map((c: any) => ({
+    return this.api.getPage<{ id: string; firstName?: string; lastName?: string; kycStatus: string; createdAt: string }>(
+      '/customers', 0, 5, { kycStatus: 'PENDING_KYC' }
+    ).pipe(
+        map(p => p.content.map(c => ({
           id: c.id,
           fullName: `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim(),
           initials: this.initials(`${c.firstName ?? ''} ${c.lastName ?? ''}`),

@@ -57,7 +57,6 @@ export class ReportMailingComponent implements OnInit {
     this.loadMailingJobs();
     this.svc.listReports().subscribe({
       next: list => { this.reports = list; },
-      error: () => {},
     });
   }
 

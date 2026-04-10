@@ -83,7 +83,6 @@ export class JournalEntriesComponent implements OnInit {
     this.loadEntries();
     this.svc.listGlAccounts().subscribe({
       next: list => { this.glAccounts = list; },
-      error: () => {},
     });
   }
 

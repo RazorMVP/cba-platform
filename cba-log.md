@@ -59,6 +59,67 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 13 — 2026-04-10
+
+**Angular Products UI — complete Products group: Fixed Deposits, Recurring Deposits, Share Products list + detail pages built and pushed (commit `ac09073`).**
+
+#### New/Updated Angular Files
+
+| File | Change |
+|------|--------|
+| `features/products/product.service.ts` | **Extended** — 3 new entity interfaces (`FixedDepositProduct`, `RecurringDepositProduct`, `ShareProduct`), 3 new request interfaces, 15 new service methods (5 per product type) |
+| `features/products/fixed-deposits/fixed-deposits-list.ts` | **Rewritten** — client-side debounced search, active-only toggle, pagination, `compoundingLabels`, `termTypeLabels` |
+| `features/products/fixed-deposits/fixed-deposits-list.html` | **Rewritten** — table with name, code, currency, rate, term range, calc type, status badge, pagination |
+| `features/products/fixed-deposits/fixed-deposits-list.scss` | **Rewritten** — full Nubeero: page-header, toolbar, search-box, data-table, shimmer skeleton, empty-state, pagination |
+| `features/products/fixed-deposits/fixed-deposit-detail/fixed-deposit-detail.ts` | **Rewritten** — 4 section tabs (`core/rates/term/penalty`), view/edit toggle, `enterEditMode(blank)`, create/edit/deactivate flow |
+| `features/products/fixed-deposits/fixed-deposit-detail/fixed-deposit-detail.html` | **Rewritten** — back link, skeleton, error state; view: product-header + 3 cards (Interest, Term & Deposit, Pre-closure Penalty); edit: 4-tab form; deactivate modal |
+| `features/products/fixed-deposits/fixed-deposit-detail/fixed-deposit-detail.scss` | **Rewritten** — full pattern: back-link, skeleton, product-header, sections-grid, cards, section-tabs, edit-card, form, modal |
+| `features/products/recurring-deposits/recurring-deposits-list.ts` | **Rewritten** — same as FD list + `frequencyLabels`, `RecurringDepositProduct` interface |
+| `features/products/recurring-deposits/recurring-deposits-list.html` | **Rewritten** — adds Frequency column to table |
+| `features/products/recurring-deposits/recurring-deposits-list.scss` | **Rewritten** — identical pattern to FD list SCSS |
+| `features/products/recurring-deposits/recurring-deposit-detail/recurring-deposit-detail.ts` | **Rewritten** — 5 section tabs (`core/rates/frequency/term/penalty`); `depositFrequencies` array; `mandatoryRecommendedDepositAmount` in form |
+| `features/products/recurring-deposits/recurring-deposit-detail/recurring-deposit-detail.html` | **Rewritten** — adds Frequency meta-chip to header; Deposit Schedule view card; Frequency edit tab with frequency select + mandatory amount input |
+| `features/products/recurring-deposits/recurring-deposit-detail/recurring-deposit-detail.scss` | **Rewritten** — full Nubeero pattern |
+| `features/products/shares/shares-list.ts` | **Rewritten** — `ShareProduct` interface; unit price, total shares, shares issued columns |
+| `features/products/shares/shares-list.html` | **Rewritten** — table: name, code, currency, unit price, total shares, shares issued, status; `—` fallback for optional numeric fields |
+| `features/products/shares/shares-list.scss` | **Rewritten** — full Nubeero pattern |
+| `features/products/shares/share-detail/share-detail.ts` | **Rewritten** — 3 section tabs (`core/shares/lockin`); `periodTypes`, `periodTypeLabels`; create/edit/deactivate |
+| `features/products/shares/share-detail/share-detail.html` | **Rewritten** — view: product-header + Share Configuration card + Lock-in & Dividends card; edit: Core / Shares (authorized + limits) / Lock-in (min active period + lock-in period + dividend policy) tabs |
+| `features/products/shares/share-detail/share-detail.scss` | **Rewritten** — full Nubeero pattern |
+
+#### Key Patterns
+
+| Pattern | Details |
+|---------|---------|
+| FD vs RD distinction | Recurring adds a dedicated Frequency tab; `depositFrequency` + `mandatoryRecommendedDepositAmount` are RD-only fields |
+| Share Product tabs | 3 tabs only (core/shares/lockin) — no interest rates; equity model is fundamentally simpler |
+| Optional numeric display | `@if (p.unitPrice !== undefined)` + `—` muted fallback avoids rendering `0` as a misleading value for truly unset fields |
+| `periodTypes` reuse | Lock-in + min-active-period both use the same DAYS/WEEKS/MONTHS/YEARS selector via `periodTypeLabels` map |
+
+#### Build Verification
+
+- `npx ng build --configuration=production` → **no errors**
+- Pre-existing NG8113 warnings in system/admin stubs only — not introduced by this session
+
+#### Compliance Checklist Update
+
+| Item | Status |
+|------|--------|
+| Fixed Deposit Products list — search, active filter, pagination | ✅ |
+| Fixed Deposit Product detail — view mode (interest, term, penalty) | ✅ |
+| Fixed Deposit Product detail — edit mode (4 tabs) | ✅ |
+| Fixed Deposit Product create + deactivate | ✅ |
+| Recurring Deposit Products list — with Frequency column | ✅ |
+| Recurring Deposit Product detail — view mode (frequency, term, penalty) | ✅ |
+| Recurring Deposit Product detail — edit mode (5 tabs incl. Frequency) | ✅ |
+| Recurring Deposit Product create + deactivate | ✅ |
+| Share Products list — unit price, shares issued columns | ✅ |
+| Share Product detail — view mode (share config, lock-in, dividends) | ✅ |
+| Share Product detail — edit mode (3 tabs: core/shares/lockin) | ✅ |
+| Share Product create + deactivate | ✅ |
+
+---
+
 ### Session 12 — 2026-04-10
 
 **Angular Products UI — full Loan Products + Deposit Products CRUD pages built and pushed (commit `9025133`).**

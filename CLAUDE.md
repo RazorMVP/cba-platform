@@ -781,7 +781,13 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Loan product detail | `LoanProductDetailComponent` | `ProductsModule` | ✅ Built — view/edit toggle, 5 section tabs, GL linkages, charges |
 | Deposit products list | `DepositProductsListComponent` | `ProductsModule` | ✅ Built — search, type filter, pagination |
 | Deposit product detail | `DepositProductDetailComponent` | `ProductsModule` | ✅ Built — view/edit toggle, 5 section tabs, overdraft config, GL linkages |
-| All other feature pages | ~65 stub components | All modules | 🔲 Stub — template+styles only, no API wiring |
+| Fixed deposit products list | `FixedDepositsListComponent` | `ProductsModule` | ✅ Built — search, active filter, pagination; term range column |
+| Fixed deposit product detail | `FixedDepositDetailComponent` | `ProductsModule` | ✅ Built — view/edit toggle, 4 section tabs (core/rates/term/penalty) |
+| Recurring deposit products list | `RecurringDepositsListComponent` | `ProductsModule` | ✅ Built — search, active filter, pagination; deposit frequency column |
+| Recurring deposit product detail | `RecurringDepositDetailComponent` | `ProductsModule` | ✅ Built — view/edit toggle, 5 section tabs (core/rates/frequency/term/penalty) |
+| Share products list | `SharesListComponent` | `ProductsModule` | ✅ Built — search, active filter, pagination; unit price + shares issued columns |
+| Share product detail | `ShareDetailComponent` | `ProductsModule` | ✅ Built — view/edit toggle, 3 section tabs (core/shares/lockin); dividend policy toggle |
+| All other feature pages | ~59 stub components | All modules | 🔲 Stub — template+styles only, no API wiring |
 
 ### Angular View/Edit Toggle Pattern
 All detail pages (loan product, deposit product, customer, loan) share this pattern:

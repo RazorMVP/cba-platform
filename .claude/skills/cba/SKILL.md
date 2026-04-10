@@ -160,6 +160,42 @@ Read `references/deployment.md` before starting.
 
 ---
 
+## Mandatory Documentation Updates
+
+**After every change, addition, or fix — no exceptions — you MUST update both of these files before finishing:**
+
+### `cba-log.md` (Change Log)
+- Add a new session entry at the top of the Change History section.
+- Entry format:
+  ```
+  ### Session N — YYYY-MM-DD
+  **One-line summary of what was built (commit SHA if pushed).**
+
+  #### New/Updated Files
+  | File | Change |
+  |------|--------|
+  | ... | ... |
+
+  #### Key Patterns / Decisions (if any)
+
+  #### Build Verification
+  #### Compliance Checklist Update
+  ```
+- Mark the "Not Yet Built" and "Partially Built" tables in the Backend Audit section to reflect completed work.
+
+### `CLAUDE.md` (Body of Knowledge)
+- Update the **Angular Component Map** table with newly built components — change `🔲 Stub` → `✅ Built` and add a brief description.
+- Update any module catalogue entries, coding standards, or patterns that changed.
+- Update the stub count in "All other feature pages" row.
+
+### When to update
+- After completing any feature (backend or frontend)
+- After any refactor that changes patterns described in CLAUDE.md
+- After any build fix or architectural decision
+- **Before** committing and pushing — the commit should include the doc updates
+
+---
+
 ## Interactive Walkthrough Rules
 
 After scaffolding each phase:

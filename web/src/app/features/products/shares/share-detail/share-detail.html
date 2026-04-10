@@ -1,7 +1,338 @@
-<app-page-header title="Share Account Detail" icon="info" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">info</span>
-    <strong>Share Account Detail</strong><br>Implementation pending.
-  </p>
+<div class="page">
+  <!-- Back link -->
+  <a routerLink=".." class="back-link">
+    <span class="material-icons">arrow_back</span> Share Products
+  </a>
+
+  <!-- ── Loading skeleton ─────────────────────────────────────────────────── -->
+  @if (loading) {
+    <div class="loading-skeleton">
+      <div class="skeleton skeleton--header"></div>
+      <div class="skeleton skeleton--body"></div>
+    </div>
+  }
+
+  <!-- ── Error state ──────────────────────────────────────────────────────── -->
+  @if (!loading && error) {
+    <div class="error-state">
+      <span class="material-icons">error_outline</span>
+      {{ error }}
+    </div>
+  }
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- VIEW MODE                                                              -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  @if (!loading && !error && product && !editMode) {
+
+    <!-- Product header card -->
+    <div class="card product-header">
+      <div class="product-header__info">
+        <div class="product-title-row">
+          <h1 class="product-name">{{ product.name }}</h1>
+          <span class="short-code">{{ product.shortName }}</span>
+          <app-status-badge
+            [label]="product.active ? 'Active' : 'Inactive'"
+            [variant]="product.active ? 'success' : 'neutral'" />
+        </div>
+        @if (product.description) {
+          <p class="product-desc">{{ product.description }}</p>
+        }
+        <div class="product-meta">
+          <span class="meta-chip">
+            <span class="material-icons">attach_money</span>
+            {{ product.currencyCode }}
+          </span>
+          @if (product.unitPrice !== undefined) {
+            <span class="meta-chip">
+              <span class="material-icons">sell</span>
+              {{ product.unitPrice | number:'1.2-2' }} / share
+            </span>
+          }
+          @if (product.totalShares !== undefined) {
+            <span class="meta-chip">
+              <span class="material-icons">pie_chart</span>
+              {{ product.sharesIssued | number }} / {{ product.totalShares | number }} issued
+            </span>
+          }
+        </div>
+      </div>
+      <div class="product-header__actions">
+        <button class="btn-secondary" (click)="enterEditMode()">
+          <span class="material-icons">edit</span> Edit
+        </button>
+        @if (product.active) {
+          <button class="btn-danger" (click)="confirmDeactivate()">
+            <span class="material-icons">block</span> Deactivate
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- Detail grid -->
+    <div class="sections-grid">
+
+      <!-- Share Configuration -->
+      <div class="card">
+        <div class="card__header"><span class="card__title">Share Configuration</span></div>
+        <div class="card__body">
+          @if (product.unitPrice !== undefined) {
+            <div class="detail-row">
+              <span class="detail-key">Unit Price</span>
+              <span class="detail-val mono">{{ product.unitPrice | number:'1.2-2' }} {{ product.currencyCode }}</span>
+            </div>
+          }
+          @if (product.totalShares !== undefined) {
+            <div class="detail-row">
+              <span class="detail-key">Total Authorized Shares</span>
+              <span class="detail-val mono">{{ product.totalShares | number }}</span>
+            </div>
+          }
+          <div class="detail-row">
+            <span class="detail-key">Shares Issued</span>
+            <span class="detail-val mono">{{ product.sharesIssued | number }}</span>
+          </div>
+          @if (product.nominalShares !== undefined) {
+            <div class="detail-row">
+              <span class="detail-key">Nominal Shares</span>
+              <span class="detail-val mono">{{ product.nominalShares | number }}</span>
+            </div>
+          }
+          @if (product.minimumShares !== undefined) {
+            <div class="detail-row">
+              <span class="detail-key">Minimum Shares</span>
+              <span class="detail-val mono">{{ product.minimumShares | number }}</span>
+            </div>
+          }
+          @if (product.maximumShares !== undefined) {
+            <div class="detail-row">
+              <span class="detail-key">Maximum Shares</span>
+              <span class="detail-val mono">{{ product.maximumShares | number }}</span>
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Lock-in & Dividends -->
+      <div class="card">
+        <div class="card__header"><span class="card__title">Lock-in &amp; Dividends</span></div>
+        <div class="card__body">
+          @if (product.minimumActivePeriodFrequency !== undefined) {
+            <div class="detail-row">
+              <span class="detail-key">Min Active Period</span>
+              <span class="detail-val mono">
+                {{ product.minimumActivePeriodFrequency }}
+                {{ label(periodTypeLabels, product.minimumActivePeriodFrequencyType ?? '') }}
+              </span>
+            </div>
+          }
+          @if (product.lockInPeriodFrequency !== undefined) {
+            <div class="detail-row">
+              <span class="detail-key">Lock-in Period</span>
+              <span class="detail-val mono">
+                {{ product.lockInPeriodFrequency }}
+                {{ label(periodTypeLabels, product.lockInPeriodFrequencyType ?? '') }}
+              </span>
+            </div>
+          }
+          <div class="detail-row">
+            <span class="detail-key">Dividends for Inactive</span>
+            <span class="detail-val">{{ product.allowDividendsForInactive ? 'Allowed' : 'Not Allowed' }}</span>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /sections-grid -->
+  }
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- EDIT / NEW MODE                                                        -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  @if ((!loading && !error && !product) || editMode) {
+    <div class="edit-header">
+      <h1 class="page-title">{{ isNew ? 'New Share Product' : 'Edit — ' + (product?.name ?? '') }}</h1>
+      <div class="edit-header__actions">
+        <button class="btn-secondary" (click)="cancelEdit()" [disabled]="saving">Cancel</button>
+        <button class="btn-primary"   (click)="save()"        [disabled]="saving">
+          <span class="material-icons">{{ saving ? 'hourglass_empty' : 'save' }}</span>
+          {{ saving ? 'Saving…' : 'Save Product' }}
+        </button>
+      </div>
+    </div>
+
+    @if (saveError) {
+      <div class="form-error">{{ saveError }}</div>
+    }
+
+    <!-- Section tabs -->
+    <div class="section-tabs">
+      <button class="section-tab" [class.section-tab--active]="activeSection === 'core'"
+              (click)="setSection('core')">
+        <span class="material-icons">info</span> Core
+      </button>
+      <button class="section-tab" [class.section-tab--active]="activeSection === 'shares'"
+              (click)="setSection('shares')">
+        <span class="material-icons">pie_chart</span> Shares
+      </button>
+      <button class="section-tab" [class.section-tab--active]="activeSection === 'lockin'"
+              (click)="setSection('lockin')">
+        <span class="material-icons">lock_clock</span> Lock-in
+      </button>
+    </div>
+
+    <!-- ── Core section ────────────────────────────────────────────────── -->
+    @if (activeSection === 'core') {
+      <div class="card edit-card">
+        <div class="form-section">
+          <p class="section-title">Product Identifiers</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Product Name <span class="req">*</span></label>
+              <input class="form-input" type="text" [(ngModel)]="form.name"
+                     placeholder="e.g. Ordinary Shares" />
+            </div>
+            <div class="form-group form-group--sm">
+              <label class="form-label">Short Name <span class="req">*</span></label>
+              <input class="form-input mono" type="text" [(ngModel)]="form.shortName" maxlength="4"
+                     placeholder="e.g. ORD1" style="text-transform:uppercase" />
+              <span class="form-hint">Max 4 characters</span>
+            </div>
+            <div class="form-group form-group--sm">
+              <label class="form-label">Currency <span class="req">*</span></label>
+              <input class="form-input mono" type="text" [(ngModel)]="form.currencyCode" maxlength="3"
+                     placeholder="USD" style="text-transform:uppercase" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Description</label>
+              <textarea class="form-textarea" rows="3" [(ngModel)]="form.description"
+                        placeholder="Optional product description"></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ── Shares section ─────────────────────────────────────────────── -->
+    @if (activeSection === 'shares') {
+      <div class="card edit-card">
+        <div class="form-section">
+          <p class="section-title">Share Authorisation</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Total Authorized Shares</label>
+              <input class="form-input" type="number" min="0" [(ngModel)]="form.totalShares"
+                     placeholder="Optional — leave blank for unlimited" />
+              <span class="form-hint">Maximum shares that can ever be issued</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Unit Price</label>
+              <input class="form-input" type="number" min="0" step="0.01" [(ngModel)]="form.unitPrice"
+                     placeholder="Price per share" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Nominal Shares</label>
+              <input class="form-input" type="number" min="0" [(ngModel)]="form.nominalShares"
+                     placeholder="Optional" />
+            </div>
+          </div>
+        </div>
+        <div class="form-section" style="border-top: 1px solid var(--color-border-default, #e5e7eb);">
+          <p class="section-title">Shareholder Limits</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Minimum Shares per Account</label>
+              <input class="form-input" type="number" min="0" [(ngModel)]="form.minimumShares"
+                     placeholder="Optional" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Maximum Shares per Account</label>
+              <input class="form-input" type="number" min="0" [(ngModel)]="form.maximumShares"
+                     placeholder="Optional" />
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ── Lock-in section ────────────────────────────────────────────── -->
+    @if (activeSection === 'lockin') {
+      <div class="card edit-card">
+        <div class="form-section">
+          <p class="section-title">Minimum Active Period</p>
+          <p style="font-size: 13px; color: var(--color-text-muted, #888); margin: 0 0 16px;">
+            Minimum holding period before shares become eligible for dividends.
+          </p>
+          <div class="form-row">
+            <div class="form-group form-group--sm">
+              <label class="form-label">Duration</label>
+              <input class="form-input" type="number" min="0"
+                     [(ngModel)]="form.minimumActivePeriodFrequency"
+                     placeholder="Optional" />
+            </div>
+            <div class="form-group form-group--sm">
+              <label class="form-label">Unit</label>
+              <select class="form-input" [(ngModel)]="form.minimumActivePeriodFrequencyType">
+                @for (t of periodTypes; track t) {
+                  <option [value]="t">{{ label(periodTypeLabels, t) }}</option>
+                }
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="form-section" style="border-top: 1px solid var(--color-border-default, #e5e7eb);">
+          <p class="section-title">Lock-in Period</p>
+          <p style="font-size: 13px; color: var(--color-text-muted, #888); margin: 0 0 16px;">
+            Period during which shares cannot be redeemed after purchase.
+          </p>
+          <div class="form-row">
+            <div class="form-group form-group--sm">
+              <label class="form-label">Duration</label>
+              <input class="form-input" type="number" min="0"
+                     [(ngModel)]="form.lockInPeriodFrequency"
+                     placeholder="Optional" />
+            </div>
+            <div class="form-group form-group--sm">
+              <label class="form-label">Unit</label>
+              <select class="form-input" [(ngModel)]="form.lockInPeriodFrequencyType">
+                @for (t of periodTypes; track t) {
+                  <option [value]="t">{{ label(periodTypeLabels, t) }}</option>
+                }
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="form-section" style="border-top: 1px solid var(--color-border-default, #e5e7eb);">
+          <p class="section-title">Dividend Policy</p>
+          <label class="override-toggle">
+            <input type="checkbox" [(ngModel)]="form.allowDividendsForInactive" />
+            Allow dividends for inactive accounts
+          </label>
+        </div>
+      </div>
+    }
+  }
+
+  <!-- ── Deactivate confirm modal ──────────────────────────────────────────── -->
+  @if (showDeactivateConfirm) {
+    <div class="modal-overlay" (click)="showDeactivateConfirm = false">
+      <div class="modal" (click)="$event.stopPropagation()">
+        <div class="modal__header">
+          <span class="modal__title">Deactivate Product</span>
+          <button class="modal__close" (click)="showDeactivateConfirm = false">&times;</button>
+        </div>
+        <div class="modal__body">
+          Are you sure you want to deactivate <strong>{{ product?.name }}</strong>?
+          Existing share accounts using this product will not be affected, but no new accounts can be opened.
+        </div>
+        <div class="modal__footer">
+          <button class="btn-secondary" (click)="showDeactivateConfirm = false">Cancel</button>
+          <button class="btn-danger" (click)="deactivate()" [disabled]="deactivating">
+            {{ deactivating ? 'Deactivating…' : 'Deactivate' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
 </div>

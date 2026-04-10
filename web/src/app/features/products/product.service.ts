@@ -1,7 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ApiService } from '../../core/api/api.service';
-import { PageResponse } from '../../core/models/api-response.model';
 
 // ── Shared refs ──────────────────────────────────────────────────────────────
 
@@ -204,6 +203,133 @@ export interface DepositProductCreateRequest {
   chargeIds?: string[];
 }
 
+// ── Fixed Deposit Product ─────────────────────────────────────────────────────
+
+export interface FixedDepositProduct {
+  id: string;
+  name: string;
+  shortName: string;
+  description?: string;
+  currencyCode: string;
+  nominalAnnualInterestRate: number;
+  compoundingPeriod: string;
+  postingPeriod: string;
+  calculationType: string;
+  minDepositTerm: number;
+  minDepositTermType: string;
+  maxDepositTerm?: number;
+  maxDepositTermType?: string;
+  minDepositAmount?: number;
+  maxDepositAmount?: number;
+  prePenaltyApplicable: boolean;
+  prePenaltyInterest?: number;
+  active: boolean;
+}
+
+export interface FixedDepositProductRequest {
+  name: string;
+  shortName?: string;
+  description?: string;
+  currencyCode?: string;
+  nominalAnnualInterestRate: number;
+  compoundingPeriod?: string;
+  postingPeriod?: string;
+  calculationType?: string;
+  minDepositTerm: number;
+  minDepositTermType?: string;
+  maxDepositTerm?: number;
+  maxDepositTermType?: string;
+  minDepositAmount?: number;
+  maxDepositAmount?: number;
+  prePenaltyApplicable?: boolean;
+  prePenaltyInterest?: number;
+}
+
+// ── Recurring Deposit Product ─────────────────────────────────────────────────
+
+export interface RecurringDepositProduct {
+  id: string;
+  name: string;
+  shortName: string;
+  description?: string;
+  currencyCode: string;
+  nominalAnnualInterestRate: number;
+  compoundingPeriod: string;
+  postingPeriod: string;
+  calculationType: string;
+  depositFrequency: string;
+  mandatoryRecommendedDepositAmount?: number;
+  minDepositAmount?: number;
+  maxDepositAmount?: number;
+  minDepositTerm: number;
+  minDepositTermType: string;
+  maxDepositTerm?: number;
+  maxDepositTermType?: string;
+  prePenaltyApplicable: boolean;
+  prePenaltyInterest?: number;
+  active: boolean;
+}
+
+export interface RecurringDepositProductRequest {
+  name: string;
+  shortName?: string;
+  description?: string;
+  currencyCode?: string;
+  nominalAnnualInterestRate: number;
+  compoundingPeriod?: string;
+  postingPeriod?: string;
+  calculationType?: string;
+  depositFrequency?: string;
+  mandatoryRecommendedDepositAmount?: number;
+  minDepositAmount?: number;
+  maxDepositAmount?: number;
+  minDepositTerm: number;
+  minDepositTermType?: string;
+  maxDepositTerm?: number;
+  maxDepositTermType?: string;
+  prePenaltyApplicable?: boolean;
+  prePenaltyInterest?: number;
+}
+
+// ── Share Product ─────────────────────────────────────────────────────────────
+
+export interface ShareProduct {
+  id: string;
+  name: string;
+  shortName: string;
+  description?: string;
+  currencyCode: string;
+  totalShares?: number;
+  sharesIssued: number;
+  unitPrice?: number;
+  nominalShares?: number;
+  minimumShares?: number;
+  maximumShares?: number;
+  minimumActivePeriodFrequency?: number;
+  minimumActivePeriodFrequencyType?: string;
+  lockInPeriodFrequency?: number;
+  lockInPeriodFrequencyType?: string;
+  allowDividendsForInactive: boolean;
+  active: boolean;
+}
+
+export interface ShareProductRequest {
+  name: string;
+  shortName: string;
+  description?: string;
+  currencyCode?: string;
+  totalShares?: number;
+  unitPrice?: number;
+  nominalShares?: number;
+  minimumShares?: number;
+  maximumShares?: number;
+  minimumActivePeriodFrequency?: number;
+  minimumActivePeriodFrequencyType?: string;
+  lockInPeriodFrequency?: number;
+  lockInPeriodFrequencyType?: string;
+  allowDividendsForInactive?: boolean;
+}
+
 // ── Service ───────────────────────────────────────────────────────────────────
 
 @Injectable({ providedIn: 'root' })
@@ -250,5 +376,56 @@ export class ProductService {
 
   deactivateDepositProduct(id: string): Observable<void> {
     return this.api.delete<void>(`/deposit-products/${id}`);
+  }
+
+  // Fixed Deposit Products
+  listFixedDepositProducts(activeOnly = false): Observable<FixedDepositProduct[]> {
+    return this.api.get<FixedDepositProduct[]>('/fixeddepositproducts', { activeOnly: String(activeOnly) });
+  }
+  getFixedDepositProduct(id: string): Observable<FixedDepositProduct> {
+    return this.api.get<FixedDepositProduct>(`/fixeddepositproducts/${id}`);
+  }
+  createFixedDepositProduct(body: FixedDepositProductRequest): Observable<FixedDepositProduct> {
+    return this.api.post<FixedDepositProduct>('/fixeddepositproducts', body);
+  }
+  updateFixedDepositProduct(id: string, body: FixedDepositProductRequest): Observable<FixedDepositProduct> {
+    return this.api.put<FixedDepositProduct>(`/fixeddepositproducts/${id}`, body);
+  }
+  deactivateFixedDepositProduct(id: string): Observable<void> {
+    return this.api.delete<void>(`/fixeddepositproducts/${id}`);
+  }
+
+  // Recurring Deposit Products
+  listRecurringDepositProducts(activeOnly = false): Observable<RecurringDepositProduct[]> {
+    return this.api.get<RecurringDepositProduct[]>('/recurringdepositproducts', { activeOnly: String(activeOnly) });
+  }
+  getRecurringDepositProduct(id: string): Observable<RecurringDepositProduct> {
+    return this.api.get<RecurringDepositProduct>(`/recurringdepositproducts/${id}`);
+  }
+  createRecurringDepositProduct(body: RecurringDepositProductRequest): Observable<RecurringDepositProduct> {
+    return this.api.post<RecurringDepositProduct>('/recurringdepositproducts', body);
+  }
+  updateRecurringDepositProduct(id: string, body: RecurringDepositProductRequest): Observable<RecurringDepositProduct> {
+    return this.api.put<RecurringDepositProduct>(`/recurringdepositproducts/${id}`, body);
+  }
+  deactivateRecurringDepositProduct(id: string): Observable<void> {
+    return this.api.delete<void>(`/recurringdepositproducts/${id}`);
+  }
+
+  // Share Products
+  listShareProducts(activeOnly = false): Observable<ShareProduct[]> {
+    return this.api.get<ShareProduct[]>('/shareproducts', { activeOnly: String(activeOnly) });
+  }
+  getShareProduct(id: string): Observable<ShareProduct> {
+    return this.api.get<ShareProduct>(`/shareproducts/${id}`);
+  }
+  createShareProduct(body: ShareProductRequest): Observable<ShareProduct> {
+    return this.api.post<ShareProduct>('/shareproducts', body);
+  }
+  updateShareProduct(id: string, body: ShareProductRequest): Observable<ShareProduct> {
+    return this.api.put<ShareProduct>(`/shareproducts/${id}`, body);
+  }
+  deactivateShareProduct(id: string): Observable<void> {
+    return this.api.delete<void>(`/shareproducts/${id}`);
   }
 }

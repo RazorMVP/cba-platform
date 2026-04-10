@@ -1,7 +1,421 @@
-<app-page-header title="Recurring Deposit Detail" icon="info" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">info</span>
-    <strong>Recurring Deposit Detail</strong><br>Implementation pending.
-  </p>
+<div class="page">
+  <!-- Back link -->
+  <a routerLink=".." class="back-link">
+    <span class="material-icons">arrow_back</span> Recurring Deposit Products
+  </a>
+
+  <!-- ── Loading skeleton ─────────────────────────────────────────────────── -->
+  @if (loading) {
+    <div class="loading-skeleton">
+      <div class="skeleton skeleton--header"></div>
+      <div class="skeleton skeleton--body"></div>
+    </div>
+  }
+
+  <!-- ── Error state ──────────────────────────────────────────────────────── -->
+  @if (!loading && error) {
+    <div class="error-state">
+      <span class="material-icons">error_outline</span>
+      {{ error }}
+    </div>
+  }
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- VIEW MODE                                                              -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  @if (!loading && !error && product && !editMode) {
+
+    <!-- Product header card -->
+    <div class="card product-header">
+      <div class="product-header__info">
+        <div class="product-title-row">
+          <h1 class="product-name">{{ product.name }}</h1>
+          <span class="short-code">{{ product.shortName }}</span>
+          <app-status-badge
+            [label]="product.active ? 'Active' : 'Inactive'"
+            [variant]="product.active ? 'success' : 'neutral'" />
+        </div>
+        @if (product.description) {
+          <p class="product-desc">{{ product.description }}</p>
+        }
+        <div class="product-meta">
+          <span class="meta-chip">
+            <span class="material-icons">attach_money</span>
+            {{ product.currencyCode }}
+          </span>
+          <span class="meta-chip">
+            <span class="material-icons">percent</span>
+            {{ product.nominalAnnualInterestRate }}% p.a.
+          </span>
+          <span class="meta-chip">
+            <span class="material-icons">autorenew</span>
+            {{ label(frequencyLabels, product.depositFrequency) }}
+          </span>
+          <span class="meta-chip">
+            <span class="material-icons">schedule</span>
+            {{ product.minDepositTerm }} {{ termTypeLabels[product.minDepositTermType] ?? product.minDepositTermType }}
+            @if (product.maxDepositTerm) {
+              – {{ product.maxDepositTerm }} {{ termTypeLabels[product.maxDepositTermType ?? ''] ?? product.maxDepositTermType }}
+            }
+          </span>
+        </div>
+      </div>
+      <div class="product-header__actions">
+        <button class="btn-secondary" (click)="enterEditMode()">
+          <span class="material-icons">edit</span> Edit
+        </button>
+        @if (product.active) {
+          <button class="btn-danger" (click)="confirmDeactivate()">
+            <span class="material-icons">block</span> Deactivate
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- Detail grid -->
+    <div class="sections-grid">
+
+      <!-- Interest Configuration -->
+      <div class="card">
+        <div class="card__header"><span class="card__title">Interest Configuration</span></div>
+        <div class="card__body">
+          <div class="detail-row">
+            <span class="detail-key">Nominal Annual Rate</span>
+            <span class="detail-val mono">{{ product.nominalAnnualInterestRate }}%</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-key">Compounding Period</span>
+            <span class="detail-val">{{ label(compoundingLabels, product.compoundingPeriod) }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-key">Posting Period</span>
+            <span class="detail-val">{{ label(postingLabels, product.postingPeriod) }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-key">Calculation Type</span>
+            <span class="detail-val">{{ label(calcTypeLabels, product.calculationType) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Deposit Schedule -->
+      <div class="card">
+        <div class="card__header"><span class="card__title">Deposit Schedule</span></div>
+        <div class="card__body">
+          <div class="detail-row">
+            <span class="detail-key">Deposit Frequency</span>
+            <span class="detail-val">{{ label(frequencyLabels, product.depositFrequency) }}</span>
+          </div>
+          @if (product.mandatoryRecommendedDepositAmount !== undefined) {
+            <div class="detail-row">
+              <span class="detail-key">Mandatory Deposit Amount</span>
+              <span class="detail-val mono">
+                {{ product.mandatoryRecommendedDepositAmount | number:'1.2-2' }} {{ product.currencyCode }}
+              </span>
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Term & Deposit -->
+      <div class="card">
+        <div class="card__header"><span class="card__title">Term &amp; Deposit</span></div>
+        <div class="card__body">
+          <div class="detail-row">
+            <span class="detail-key">Min Deposit Term</span>
+            <span class="detail-val mono">
+              {{ product.minDepositTerm }} {{ label(termTypeLabels, product.minDepositTermType) }}
+            </span>
+          </div>
+          @if (product.maxDepositTerm) {
+            <div class="detail-row">
+              <span class="detail-key">Max Deposit Term</span>
+              <span class="detail-val mono">
+                {{ product.maxDepositTerm }} {{ label(termTypeLabels, product.maxDepositTermType ?? '') }}
+              </span>
+            </div>
+          }
+          @if (product.minDepositAmount !== undefined) {
+            <div class="detail-row">
+              <span class="detail-key">Min Deposit Amount</span>
+              <span class="detail-val mono">{{ product.minDepositAmount | number:'1.2-2' }} {{ product.currencyCode }}</span>
+            </div>
+          }
+          @if (product.maxDepositAmount !== undefined) {
+            <div class="detail-row">
+              <span class="detail-key">Max Deposit Amount</span>
+              <span class="detail-val mono">{{ product.maxDepositAmount | number:'1.2-2' }} {{ product.currencyCode }}</span>
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Pre-closure Penalty -->
+      <div class="card">
+        <div class="card__header"><span class="card__title">Pre-closure Penalty</span></div>
+        <div class="card__body">
+          <div class="detail-row">
+            <span class="detail-key">Penalty Applicable</span>
+            <span class="detail-val">{{ product.prePenaltyApplicable ? 'Yes' : 'No' }}</span>
+          </div>
+          @if (product.prePenaltyApplicable && product.prePenaltyInterest !== undefined) {
+            <div class="detail-row">
+              <span class="detail-key">Penalty Interest Rate</span>
+              <span class="detail-val mono">{{ product.prePenaltyInterest }}%</span>
+            </div>
+          }
+        </div>
+      </div>
+
+    </div><!-- /sections-grid -->
+  }
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- EDIT / NEW MODE                                                        -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  @if ((!loading && !error && !product) || editMode) {
+    <div class="edit-header">
+      <h1 class="page-title">{{ isNew ? 'New Recurring Deposit Product' : 'Edit — ' + (product?.name ?? '') }}</h1>
+      <div class="edit-header__actions">
+        <button class="btn-secondary" (click)="cancelEdit()" [disabled]="saving">Cancel</button>
+        <button class="btn-primary"   (click)="save()"        [disabled]="saving">
+          <span class="material-icons">{{ saving ? 'hourglass_empty' : 'save' }}</span>
+          {{ saving ? 'Saving…' : 'Save Product' }}
+        </button>
+      </div>
+    </div>
+
+    @if (saveError) {
+      <div class="form-error">{{ saveError }}</div>
+    }
+
+    <!-- Section tabs -->
+    <div class="section-tabs">
+      <button class="section-tab" [class.section-tab--active]="activeSection === 'core'"
+              (click)="setSection('core')">
+        <span class="material-icons">info</span> Core
+      </button>
+      <button class="section-tab" [class.section-tab--active]="activeSection === 'rates'"
+              (click)="setSection('rates')">
+        <span class="material-icons">percent</span> Rates
+      </button>
+      <button class="section-tab" [class.section-tab--active]="activeSection === 'frequency'"
+              (click)="setSection('frequency')">
+        <span class="material-icons">autorenew</span> Frequency
+      </button>
+      <button class="section-tab" [class.section-tab--active]="activeSection === 'term'"
+              (click)="setSection('term')">
+        <span class="material-icons">schedule</span> Term
+      </button>
+      <button class="section-tab" [class.section-tab--active]="activeSection === 'penalty'"
+              (click)="setSection('penalty')">
+        <span class="material-icons">warning_amber</span> Penalty
+      </button>
+    </div>
+
+    <!-- ── Core section ────────────────────────────────────────────────── -->
+    @if (activeSection === 'core') {
+      <div class="card edit-card">
+        <div class="form-section">
+          <p class="section-title">Product Identifiers</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Product Name <span class="req">*</span></label>
+              <input class="form-input" type="text" [(ngModel)]="form.name"
+                     placeholder="e.g. Monthly Recurring Deposit" />
+            </div>
+            <div class="form-group form-group--sm">
+              <label class="form-label">Short Name <span class="req">*</span></label>
+              <input class="form-input mono" type="text" [(ngModel)]="form.shortName" maxlength="4"
+                     placeholder="e.g. RD01" style="text-transform:uppercase" />
+              <span class="form-hint">Max 4 characters</span>
+            </div>
+            <div class="form-group form-group--sm">
+              <label class="form-label">Currency <span class="req">*</span></label>
+              <input class="form-input mono" type="text" [(ngModel)]="form.currencyCode" maxlength="3"
+                     placeholder="USD" style="text-transform:uppercase" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Description</label>
+              <textarea class="form-textarea" rows="3" [(ngModel)]="form.description"
+                        placeholder="Optional product description"></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ── Rates section ─────────────────────────────────────────────── -->
+    @if (activeSection === 'rates') {
+      <div class="card edit-card">
+        <div class="form-section">
+          <p class="section-title">Interest Configuration</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Nominal Annual Interest Rate (%) <span class="req">*</span></label>
+              <input class="form-input" type="number" min="0" step="0.01"
+                     [(ngModel)]="form.nominalAnnualInterestRate" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Compounding Period</label>
+              <select class="form-input" [(ngModel)]="form.compoundingPeriod">
+                @for (t of compoundingPeriods; track t) {
+                  <option [value]="t">{{ label(compoundingLabels, t) }}</option>
+                }
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Posting Period</label>
+              <select class="form-input" [(ngModel)]="form.postingPeriod">
+                @for (t of postingPeriods; track t) {
+                  <option [value]="t">{{ label(postingLabels, t) }}</option>
+                }
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Calculation Type</label>
+              <select class="form-input" [(ngModel)]="form.calculationType">
+                @for (t of calcTypes; track t) {
+                  <option [value]="t">{{ label(calcTypeLabels, t) }}</option>
+                }
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ── Frequency section ─────────────────────────────────────────── -->
+    @if (activeSection === 'frequency') {
+      <div class="card edit-card">
+        <div class="form-section">
+          <p class="section-title">Deposit Schedule</p>
+          <p style="font-size: 13px; color: var(--color-text-muted, #888); margin: 0 0 16px;">
+            Define how often customers are required to make deposits into this account.
+          </p>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Deposit Frequency <span class="req">*</span></label>
+              <select class="form-input" [(ngModel)]="form.depositFrequency">
+                @for (f of depositFrequencies; track f) {
+                  <option [value]="f">{{ label(frequencyLabels, f) }}</option>
+                }
+              </select>
+              <span class="form-hint">How often customers must deposit funds</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Mandatory Deposit Amount</label>
+              <input class="form-input" type="number" min="0" step="0.01"
+                     [(ngModel)]="form.mandatoryRecommendedDepositAmount"
+                     placeholder="Optional — recommended amount per installment" />
+              <span class="form-hint">Leave blank for flexible deposit amounts</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ── Term section ──────────────────────────────────────────────── -->
+    @if (activeSection === 'term') {
+      <div class="card edit-card">
+        <div class="form-section">
+          <p class="section-title">Deposit Term</p>
+          <div class="form-row">
+            <div class="form-group form-group--sm">
+              <label class="form-label">Min Deposit Term <span class="req">*</span></label>
+              <input class="form-input" type="number" min="1" [(ngModel)]="form.minDepositTerm" />
+            </div>
+            <div class="form-group form-group--sm">
+              <label class="form-label">Min Term Unit</label>
+              <select class="form-input" [(ngModel)]="form.minDepositTermType">
+                @for (t of termTypes; track t) {
+                  <option [value]="t">{{ label(termTypeLabels, t) }}</option>
+                }
+              </select>
+            </div>
+            <div class="form-group form-group--sm">
+              <label class="form-label">Max Deposit Term</label>
+              <input class="form-input" type="number" min="1" [(ngModel)]="form.maxDepositTerm"
+                     placeholder="Optional" />
+            </div>
+            <div class="form-group form-group--sm">
+              <label class="form-label">Max Term Unit</label>
+              <select class="form-input" [(ngModel)]="form.maxDepositTermType">
+                @for (t of termTypes; track t) {
+                  <option [value]="t">{{ label(termTypeLabels, t) }}</option>
+                }
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="form-section" style="border-top: 1px solid var(--color-border-default, #e5e7eb);">
+          <p class="section-title">Deposit Amount</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Min Deposit Amount</label>
+              <input class="form-input" type="number" min="0" [(ngModel)]="form.minDepositAmount"
+                     placeholder="Optional" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Max Deposit Amount</label>
+              <input class="form-input" type="number" min="0" [(ngModel)]="form.maxDepositAmount"
+                     placeholder="Optional" />
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ── Penalty section ───────────────────────────────────────────── -->
+    @if (activeSection === 'penalty') {
+      <div class="card edit-card">
+        <div class="form-section">
+          <p class="section-title">Pre-closure Penalty</p>
+          <p style="font-size: 13px; color: var(--color-text-muted, #888); margin: 0 0 16px;">
+            Configure penalty interest charged when a customer closes the deposit before maturity.
+          </p>
+          <label class="override-toggle" style="margin-bottom: 20px;">
+            <input type="checkbox" [(ngModel)]="form.prePenaltyApplicable" />
+            Apply pre-closure penalty
+          </label>
+          @if (form.prePenaltyApplicable) {
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Penalty Interest Rate (%)</label>
+                <input class="form-input" type="number" min="0" step="0.01"
+                       [(ngModel)]="form.prePenaltyInterest" />
+                <span class="form-hint">Interest rate applied on premature closure</span>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+  }
+
+  <!-- ── Deactivate confirm modal ──────────────────────────────────────────── -->
+  @if (showDeactivateConfirm) {
+    <div class="modal-overlay" (click)="showDeactivateConfirm = false">
+      <div class="modal" (click)="$event.stopPropagation()">
+        <div class="modal__header">
+          <span class="modal__title">Deactivate Product</span>
+          <button class="modal__close" (click)="showDeactivateConfirm = false">&times;</button>
+        </div>
+        <div class="modal__body">
+          Are you sure you want to deactivate <strong>{{ product?.name }}</strong>?
+          Existing accounts using this product will not be affected, but no new accounts can be opened.
+        </div>
+        <div class="modal__footer">
+          <button class="btn-secondary" (click)="showDeactivateConfirm = false">Cancel</button>
+          <button class="btn-danger" (click)="deactivate()" [disabled]="deactivating">
+            {{ deactivating ? 'Deactivating…' : 'Deactivate' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
 </div>

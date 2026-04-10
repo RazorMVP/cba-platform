@@ -1,7 +1,124 @@
-<app-page-header title="Share Products & Accounts" icon="pie_chart" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">pie_chart</span>
-    <strong>Share Products & Accounts</strong><br>Implementation pending.
-  </p>
+<div class="page">
+  <div class="page-header">
+    <div class="page-header__left">
+      <h1 class="page-title">Share Products</h1>
+      <p class="page-subtitle">{{ products.length }} product{{ products.length !== 1 ? 's' : '' }} configured</p>
+    </div>
+    <div class="page-header__right">
+      <a routerLink="new" class="btn-primary">
+        <span class="material-icons">add</span> New Product
+      </a>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="search-box">
+      <span class="material-icons">search</span>
+      <input type="text" placeholder="Search by name or short code…"
+             [(ngModel)]="searchQuery" (ngModelChange)="onSearch($event)" />
+    </div>
+    <label class="active-toggle">
+      <input type="checkbox" [(ngModel)]="activeOnly" (ngModelChange)="onActiveFilterChange()" />
+      Active only
+    </label>
+  </div>
+
+  <!-- Table -->
+  <div class="card">
+    @if (loading) {
+      <div class="skeleton-rows">
+        @for (i of [1,2,3,4,5,6]; track i) {
+          <div class="skeleton-row">
+            <div class="skeleton sk-name"></div>
+            <div class="skeleton sk-code"></div>
+            <div class="skeleton sk-num"></div>
+            <div class="skeleton sk-num"></div>
+            <div class="skeleton sk-num"></div>
+            <div class="skeleton sk-badge"></div>
+          </div>
+        }
+      </div>
+    } @else if (filtered.length === 0) {
+      <div class="empty-state">
+        <span class="material-icons">pie_chart</span>
+        <p>{{ searchQuery ? 'No products match your filters.' : 'No share products configured yet.' }}</p>
+        @if (!searchQuery) {
+          <a routerLink="new" class="btn-primary btn-sm">
+            <span class="material-icons">add</span> Create First Product
+          </a>
+        }
+      </div>
+    } @else {
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Product Name</th>
+            <th>Code</th>
+            <th>Currency</th>
+            <th>Unit Price</th>
+            <th>Total Shares</th>
+            <th>Shares Issued</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (p of pageItems; track p.id) {
+            <tr class="clickable-row" [routerLink]="p.id">
+              <td>
+                <div class="product-name">{{ p.name }}</div>
+                @if (p.description) {
+                  <div class="product-desc">{{ p.description }}</div>
+                }
+              </td>
+              <td><span class="mono">{{ p.shortName }}</span></td>
+              <td class="mono">{{ p.currencyCode }}</td>
+              <td class="mono">
+                @if (p.unitPrice !== undefined) {
+                  {{ p.unitPrice | number:'1.2-2' }}
+                } @else {
+                  <span class="muted">—</span>
+                }
+              </td>
+              <td class="mono">
+                @if (p.totalShares !== undefined) {
+                  {{ p.totalShares | number }}
+                } @else {
+                  <span class="muted">—</span>
+                }
+              </td>
+              <td class="mono">{{ p.sharesIssued | number }}</td>
+              <td>
+                <app-status-badge
+                  [label]="p.active ? 'Active' : 'Inactive'"
+                  [variant]="productVariant(p)" />
+              </td>
+              <td class="action-cell">
+                <a [routerLink]="p.id" class="btn-ghost btn-sm">
+                  <span class="material-icons">arrow_forward</span>
+                </a>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      <!-- Pagination -->
+      @if (filtered.length > pageSize) {
+        <div class="pagination">
+          <span class="pagination__info">{{ startRow }}–{{ endRow }} of {{ filtered.length }}</span>
+          <div class="pagination__controls">
+            <button class="page-btn" (click)="prevPage()" [disabled]="page === 0">
+              <span class="material-icons">chevron_left</span>
+            </button>
+            <span class="page-indicator">{{ page + 1 }} / {{ totalPages }}</span>
+            <button class="page-btn" (click)="nextPage()" [disabled]="page === totalPages - 1">
+              <span class="material-icons">chevron_right</span>
+            </button>
+          </div>
+        </div>
+      }
+    }
+  </div>
 </div>

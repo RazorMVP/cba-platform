@@ -1,7 +1,219 @@
-<app-page-header title="Report Mailing Jobs" icon="email" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">email</span>
-    <strong>Report Mailing Jobs</strong><br>Implementation pending.
-  </p>
+<div class="page">
+
+  <!-- ── Header ── -->
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">email</span>
+      Report Mailing Jobs
+    </div>
+    <button class="btn-primary" (click)="openCreateModal()">
+      <span class="material-icons">add</span> New Mailing Job
+    </button>
+  </div>
+
+  <!-- ── Loading / empty / list ── -->
+  @if (loading) {
+    <div class="card skeleton-card">
+      @for (i of [1,2,3]; track i) { <div class="skeleton skeleton--row"></div> }
+    </div>
+  } @else if (error) {
+    <div class="card empty-state">
+      <span class="material-icons">error_outline</span>
+      <p>{{ error }}</p>
+      <button class="btn-primary" (click)="loadMailingJobs()">Retry</button>
+    </div>
+  } @else if (mailingJobs.length === 0) {
+    <div class="card empty-state">
+      <span class="material-icons">email</span>
+      <p>No report mailing jobs configured yet.</p>
+      <button class="btn-primary" (click)="openCreateModal()">
+        <span class="material-icons">add</span> Create First Job
+      </button>
+    </div>
+  } @else {
+    <div class="card">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Job Name</th>
+            <th>Report</th>
+            <th>Recipients</th>
+            <th>Schedule</th>
+            <th>Output</th>
+            <th>Last Run</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (j of mailingJobs; track j.id) {
+            <tr class="table-row">
+              <td>
+                <div class="job-name-cell">
+                  <span class="job-icon-sm">
+                    <span class="material-icons">email</span>
+                  </span>
+                  <div>
+                    <div class="job-name">{{ j.name }}</div>
+                    @if (j.runCount > 0) {
+                      <div class="run-count muted">{{ j.runCount }} run{{ j.runCount === 1 ? '' : 's' }}</div>
+                    }
+                  </div>
+                </div>
+              </td>
+              <td>
+                <span class="report-chip">{{ j.reportName }}</span>
+              </td>
+              <td class="recipients-cell muted" [title]="j.emailRecipients">
+                {{ j.emailRecipients | slice:0:30 }}{{ j.emailRecipients.length > 30 ? '…' : '' }}
+              </td>
+              <td>
+                <span class="rrule-chip">{{ rruleLabel(j.recurrence) }}</span>
+              </td>
+              <td>
+                <span class="output-chip output-chip--{{ j.outputType.toLowerCase() }}">{{ j.outputType }}</span>
+              </td>
+              <td class="muted">
+                {{ j.previousRunStartTime ? (j.previousRunStartTime | date:'MMM d, HH:mm') : 'Never' }}
+              </td>
+              <td>
+                <span class="status-dot" [class]="j.isActive ? 'status-dot--active' : 'status-dot--inactive'"></span>
+                {{ j.isActive ? 'Active' : 'Inactive' }}
+              </td>
+              <td class="action-cell">
+                <button class="btn-run-sm" [disabled]="isRunning(j)"
+                        title="Send now" (click)="runNow(j); $event.stopPropagation()">
+                  @if (isRunning(j)) { <span class="spinner"></span> }
+                  @else { <span class="material-icons">send</span> }
+                </button>
+                <button class="btn-icon" title="Edit" (click)="openEditModal(j); $event.stopPropagation()">
+                  <span class="material-icons">edit</span>
+                </button>
+                <button class="btn-icon btn-icon--danger" title="Delete"
+                        (click)="openDeleteModal(j); $event.stopPropagation()">
+                  <span class="material-icons">delete</span>
+                </button>
+              </td>
+            </tr>
+            @if (runError(j)) {
+              <tr class="error-row">
+                <td colspan="8">
+                  <div class="inline-error">{{ runError(j) }}</div>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+      <div class="table-footer">{{ mailingJobs.length }} job{{ mailingJobs.length === 1 ? '' : 's' }}</div>
+    </div>
+  }
+
 </div>
+
+<!-- ── Create / Edit Modal ── -->
+@if (activeModal === 'create' || activeModal === 'edit') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--lg" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">email</span>
+        {{ activeModal === 'create' ? 'New Mailing Job' : 'Edit Mailing Job' }}
+      </div>
+      <div class="modal__body">
+        <div class="form-row">
+          <div class="form-field form-field--half">
+            <label class="form-label">Job Name <span class="required">*</span></label>
+            <input class="form-input" type="text" [(ngModel)]="formName"
+                   placeholder="e.g. Weekly Loan Summary" />
+          </div>
+          <div class="form-field form-field--half">
+            <label class="form-label">Report <span class="required">*</span></label>
+            <select class="form-input" [(ngModel)]="formReportName">
+              <option value="">— select report —</option>
+              @for (r of reports; track r.id) {
+                <option [value]="r.reportName">{{ r.reportName }}</option>
+              }
+            </select>
+          </div>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Email Recipients <span class="required">*</span></label>
+          <input class="form-input" type="text" [(ngModel)]="formRecipients"
+                 placeholder="admin@cba.com, cfo@cba.com" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Email Subject <span class="required">*</span></label>
+          <input class="form-input" type="text" [(ngModel)]="formSubject"
+                 placeholder="e.g. Weekly Loan Portfolio Report" />
+        </div>
+        <div class="form-row">
+          <div class="form-field form-field--half">
+            <label class="form-label">Schedule</label>
+            <select class="form-input" [(ngModel)]="rrulePreset" (ngModelChange)="onRrulePresetChange()">
+              @for (p of rrulePresets; track p.value) {
+                <option [value]="p.value">{{ p.label }}</option>
+              }
+            </select>
+            @if (!rrulePreset) {
+              <input class="form-input" style="margin-top:0.4rem" type="text"
+                     [(ngModel)]="formRecurrence" placeholder="FREQ=WEEKLY;BYDAY=MO,WE,FR" />
+            }
+          </div>
+          <div class="form-field form-field--half">
+            <label class="form-label">Output Format</label>
+            <select class="form-input" [(ngModel)]="formOutputType">
+              @for (t of outputTypes; track t) {
+                <option [value]="t">{{ t }}</option>
+              }
+            </select>
+          </div>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Message <span class="form-hint">(optional)</span></label>
+          <input class="form-input" type="text" [(ngModel)]="formMessage"
+                 placeholder="Brief email body message" />
+        </div>
+        <div class="form-field">
+          <label class="checkbox-label">
+            <input type="checkbox" [(ngModel)]="formActive" />
+            Active — job will run on schedule
+          </label>
+        </div>
+        @if (modalError) {
+          <div class="modal__error">{{ modalError }}</div>
+        }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitModal()"
+                [disabled]="modalWorking || !formName || !formReportName || !formRecipients || !formSubject">
+          @if (modalWorking) { <span class="spinner"></span> }
+          {{ activeModal === 'create' ? 'Create Job' : 'Save Changes' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── Delete Modal ── -->
+@if (activeModal === 'delete') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon" style="color:#dc2626">delete</span>
+        Delete Mailing Job
+      </div>
+      <div class="modal__body">
+        <p class="confirm-text">Delete mailing job <strong>{{ deletingName }}</strong>? This cannot be undone.</p>
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-danger" (click)="submitDelete()" [disabled]="modalWorking">
+          @if (modalWorking) { <span class="spinner"></span> }
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+}

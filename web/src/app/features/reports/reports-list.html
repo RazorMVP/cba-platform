@@ -1,7 +1,285 @@
-<app-page-header title="Reports" icon="bar_chart" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">bar_chart</span>
-    <strong>Reports</strong><br>Implementation pending.
-  </p>
+<div class="page">
+
+  <!-- ── Header ── -->
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">bar_chart</span>
+      Reports
+    </div>
+    <button class="btn-primary" (click)="openCreateModal()">
+      <span class="material-icons">add</span> New Report
+    </button>
+  </div>
+
+  <!-- ── Filter bar ── -->
+  <div class="filter-bar">
+    <div class="search-wrap">
+      <span class="material-icons search-icon">search</span>
+      <input class="search-input" type="text" placeholder="Search reports…"
+             [(ngModel)]="searchQuery" (ngModelChange)="applyFilter()" />
+    </div>
+    <select class="form-select" [(ngModel)]="categoryFilter" (ngModelChange)="applyFilter()">
+      <option value="">All Categories</option>
+      @for (c of categories; track c) {
+        <option [value]="c">{{ c }}</option>
+      }
+    </select>
+  </div>
+
+  <!-- ── Loading / empty / table ── -->
+  @if (loading) {
+    <div class="card skeleton-card">
+      @for (i of [1,2,3,4,5,6,7]; track i) { <div class="skeleton skeleton--row"></div> }
+    </div>
+  } @else if (error) {
+    <div class="card empty-state">
+      <span class="material-icons">error_outline</span>
+      <p>{{ error }}</p>
+      <button class="btn-primary" (click)="loadReports()">Retry</button>
+    </div>
+  } @else if (filtered.length === 0) {
+    <div class="card empty-state">
+      <span class="material-icons">bar_chart</span>
+      <p>{{ searchQuery || categoryFilter ? 'No reports match your filter.' : 'No reports configured yet.' }}</p>
+    </div>
+  } @else {
+    <div class="card">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Report Name</th>
+            <th>Category</th>
+            <th>Type</th>
+            <th>Parameters</th>
+            <th>Core</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of filtered; track r.id) {
+            <tr class="table-row">
+              <td>
+                <div class="report-name">
+                  <span class="report-icon">
+                    <span class="material-icons">bar_chart</span>
+                  </span>
+                  <div>
+                    <div class="report-name__label">{{ r.reportName }}</div>
+                    @if (r.description) {
+                      <div class="report-name__desc muted">{{ r.description }}</div>
+                    }
+                  </div>
+                </div>
+              </td>
+              <td>
+                @if (r.reportCategory) {
+                  <span class="category-chip">{{ r.reportCategory }}</span>
+                } @else {
+                  <span class="muted">—</span>
+                }
+              </td>
+              <td class="muted">{{ r.reportType }}</td>
+              <td>
+                @if ((r.reportParameters?.length ?? 0) > 0) {
+                  <span class="param-count">{{ r.reportParameters.length }} param{{ r.reportParameters.length === 1 ? '' : 's' }}</span>
+                } @else {
+                  <span class="muted">None</span>
+                }
+              </td>
+              <td>
+                <span class="material-icons" [class]="r.coreReport ? 'icon--yes' : 'icon--no'">
+                  {{ r.coreReport ? 'verified' : 'radio_button_unchecked' }}
+                </span>
+              </td>
+              <td class="action-cell">
+                <button class="btn-run" (click)="openRunModal(r); $event.stopPropagation()">
+                  <span class="material-icons">play_arrow</span> Run
+                </button>
+                @if (!r.coreReport) {
+                  <button class="btn-icon btn-icon--danger" title="Delete"
+                          (click)="openDeleteModal(r); $event.stopPropagation()">
+                    <span class="material-icons">delete</span>
+                  </button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <div class="table-footer">{{ filtered.length }} report{{ filtered.length === 1 ? '' : 's' }}</div>
+    </div>
+  }
+
 </div>
+
+<!-- ── Run Report Modal ── -->
+@if (activeModal === 'run' && selectedReport) {
+  <div class="modal-backdrop" (click)="closeRunModal()">
+    <div class="modal modal--xl" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">play_arrow</span>
+        {{ selectedReport.reportName }}
+      </div>
+      <div class="modal__body">
+
+        <!-- Parameters -->
+        @if (paramEntries.length > 0) {
+          <div class="params-section">
+            <div class="params-title">Parameters</div>
+            <div class="params-grid">
+              @for (entry of paramEntries; track entry.param.id) {
+                <div class="form-field">
+                  <label class="form-label">
+                    {{ entry.param.parameterLabel ?? entry.param.parameterName }}
+                    @if (!entry.param.optional) { <span class="required">*</span> }
+                    @if (entry.param.optional) { <span class="form-hint">(optional)</span> }
+                  </label>
+                  <input class="form-input" [type]="paramInputType(entry.param)"
+                         [(ngModel)]="entry.value"
+                         [placeholder]="entry.param.defaultValue ?? ''" />
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+        @if (runError) {
+          <div class="run-error">{{ runError }}</div>
+        }
+
+        <!-- Results -->
+        @if (hasRun) {
+          <div class="results-section">
+            <div class="results-header">
+              <span class="results-title">
+                {{ results.length }} row{{ results.length === 1 ? '' : 's' }} returned
+              </span>
+              @if (results.length > 0) {
+                <button class="btn-export" (click)="exportCsv()">
+                  <span class="material-icons">download</span> Export CSV
+                </button>
+              }
+            </div>
+            @if (results.length === 0) {
+              <div class="results-empty">No data returned for these parameters.</div>
+            } @else {
+              <div class="results-scroll">
+                <table class="results-table">
+                  <thead>
+                    <tr>
+                      @for (col of resultCols; track col) {
+                        <th>{{ col }}</th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (row of results; track $index) {
+                      <tr>
+                        @for (col of resultCols; track col) {
+                          <td>{{ cellValue(row, col) }}</td>
+                        }
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </div>
+        }
+
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeRunModal()" [disabled]="running">Close</button>
+        <button class="btn-primary" (click)="runReport()" [disabled]="running">
+          @if (running) { <span class="spinner"></span> }
+          @else { <span class="material-icons">play_arrow</span> }
+          {{ hasRun ? 'Re-run' : 'Run Report' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── Create Report Modal ── -->
+@if (activeModal === 'create') {
+  <div class="modal-backdrop" (click)="closeCreateModal()">
+    <div class="modal modal--lg" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">add_chart</span>
+        New Report
+      </div>
+      <div class="modal__body">
+        <div class="form-row">
+          <div class="form-field form-field--half">
+            <label class="form-label">Report Name <span class="required">*</span></label>
+            <input class="form-input" type="text" [(ngModel)]="formName"
+                   placeholder="e.g. ActiveLoans" />
+          </div>
+          <div class="form-field form-field--half">
+            <label class="form-label">Category <span class="form-hint">(optional)</span></label>
+            <input class="form-input" type="text" [(ngModel)]="formCategory"
+                   placeholder="e.g. Loan" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field form-field--half">
+            <label class="form-label">Type</label>
+            <select class="form-input" [(ngModel)]="formType">
+              <option>Table</option>
+              <option>Chart</option>
+              <option>SMS</option>
+              <option>Email</option>
+            </select>
+          </div>
+          <div class="form-field form-field--half">
+            <label class="form-label">Description <span class="form-hint">(optional)</span></label>
+            <input class="form-input" type="text" [(ngModel)]="formDesc" placeholder="Brief description" />
+          </div>
+        </div>
+        <div class="form-field">
+          <label class="form-label">SQL Query <span class="required">*</span></label>
+          <textarea class="form-textarea" rows="6" [(ngModel)]="formSql"
+                    placeholder="SELECT ... FROM ... WHERE ...&#10;Use ${paramName} for parameters"></textarea>
+        </div>
+        @if (createError) {
+          <div class="modal__error">{{ createError }}</div>
+        }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeCreateModal()" [disabled]="createWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitCreate()"
+                [disabled]="createWorking || !formName || !formSql">
+          @if (createWorking) { <span class="spinner"></span> }
+          Create Report
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── Delete Modal ── -->
+@if (activeModal === 'delete') {
+  <div class="modal-backdrop" (click)="closeDeleteModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon" style="color:#dc2626">delete</span>
+        Delete Report
+      </div>
+      <div class="modal__body">
+        <p class="confirm-text">
+          Delete report <strong>{{ deletingName }}</strong>? This cannot be undone.
+        </p>
+        @if (deleteError) {
+          <div class="modal__error">{{ deleteError }}</div>
+        }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeDeleteModal()" [disabled]="deleteWorking">Cancel</button>
+        <button class="btn-danger" (click)="submitDelete()" [disabled]="deleteWorking">
+          @if (deleteWorking) { <span class="spinner"></span> }
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+}

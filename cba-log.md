@@ -59,6 +59,33 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 18 — 2026-04-10
+
+**Angular Reports UI — full ReportsListComponent + CobSchedulerComponent + ReportMailingComponent with ReportService.**
+
+**Files changed (10):**
+- `web/src/app/features/reports/report.service.ts` — NEW: `Report`, `ReportParameter`, `CobJob`, `CobJobHistory`, `ReportMailingJob` interfaces; all backend methods (listReports, runReport, listJobs, runJob, getJobHistory, listMailingJobs, createMailingJob, updateMailingJob, deleteMailingJob, runMailingJob)
+- `web/src/app/features/reports/reports-list.ts` — REWRITTEN: dynamic param form from `ReportParameter` array; `runReport()` builds `Record<string,string>` params; schema-on-read results table (columns from first row keys); CSV export; create report modal with SQL textarea; delete confirmation
+- `web/src/app/features/reports/reports-list.html` — REWRITTEN: report table with category chips + param count + core badge; Run button; run modal with dynamic param grid + results table + Export CSV; create + delete modals
+- `web/src/app/features/reports/reports-list.scss` — REWRITTEN: purple report icon, category/param chips, results table with sticky headers, scrollable results area
+- `web/src/app/features/reports/cob-scheduler.ts` — REWRITTEN: per-job `runningJobs` Set; `setTimeout` re-fetch after trigger; inline history panel on select; `duration()` helper (ms/s/m)
+- `web/src/app/features/reports/cob-scheduler.html` — REWRITTEN: job card grid (3 stats: last run / status / next run); inline history table on card click; Run Now button with spinner; status dots
+- `web/src/app/features/reports/cob-scheduler.scss` — REWRITTEN: job-card grid, running spinner animation on icon, status dots per status, inline history panel with blue accent
+- `web/src/app/features/reports/report-mailing.ts` — REWRITTEN: RRULE preset dropdown (Daily/Weekly/Monthly/Custom); per-job run state Set; create/edit/delete modals; `rruleLabel()` helper
+- `web/src/app/features/reports/report-mailing.html` — REWRITTEN: mailing jobs table with report/schedule/output type chips; send button; create/edit modal with schedule presets
+- `web/src/app/features/reports/report-mailing.scss` — REWRITTEN: per-output-type chips (CSV=green/PDF=red/XLS=dark-green), email icon, rrule chip
+
+**Key patterns:**
+- Schema-on-read results table: `resultCols = Object.keys(rows[0])` — column headers unknown at design time
+- Dynamic param form: `paramEntries` built from `report.reportParameters` array — each entry renders correct input type (date/number/text)
+- CSV export via Blob + URL.createObjectURL — no server round-trip
+- CoB history inline inside job card (expand on click) vs separate route — fits 3-job CoB pattern
+
+**Build:** Clean (`Output location: dist/cba-web`, zero TS errors)
+**CLAUDE.md:** Updated Angular Component Map — added ReportsListComponent, CobSchedulerComponent, ReportMailingComponent; stub count ~51 → ~48
+
+---
+
 ### Session 17 — 2026-04-10
 
 **Angular Accounting / GL UI — full GlAccountsComponent + JournalEntriesComponent + ProvisioningComponent with AccountingService.**

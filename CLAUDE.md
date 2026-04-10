@@ -795,7 +795,10 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | GL accounts | `GlAccountsComponent` | `AccountingModule` | ✅ Built — type filter tabs, search, enable/disable, create/edit modal |
 | Journal entries | `JournalEntriesComponent` | `AccountingModule` | ✅ Built — T-ledger grouped view, date filter, manual entry modal with balance validation, reversal |
 | Provisioning criteria | `ProvisioningComponent` | `AccountingModule` | ✅ Built — IFRS 9 age bands, create/edit/delete, GL account dropdowns by type |
-| All other feature pages | ~51 stub components | All modules | 🔲 Stub — template+styles only, no API wiring |
+| Reports list | `ReportsListComponent` | `ReportsModule` | ✅ Built — search/category filter, dynamic param form, schema-on-read results table, CSV export, create/delete |
+| CoB Scheduler | `CobSchedulerComponent` | `ReportsModule` | ✅ Built — job cards with stats, Run Now trigger, inline history panel, duration helper |
+| Report Mailing Jobs | `ReportMailingComponent` | `ReportsModule` | ✅ Built — mailing job CRUD, RRULE schedule presets, output type chips, send-now trigger |
+| All other feature pages | ~48 stub components | All modules | 🔲 Stub — template+styles only, no API wiring |
 
 ### Angular View/Edit Toggle Pattern
 All detail pages (loan product, deposit product, customer, loan) share this pattern:

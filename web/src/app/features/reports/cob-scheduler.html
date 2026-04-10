@@ -1,7 +1,130 @@
-<app-page-header title="CoB Scheduler" icon="schedule" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">schedule</span>
-    <strong>CoB Scheduler</strong><br>Implementation pending.
+<div class="page">
+
+  <!-- ── Header ── -->
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">schedule</span>
+      Close of Business Scheduler
+    </div>
+    <button class="btn-secondary" (click)="loadJobs()">
+      <span class="material-icons">refresh</span> Refresh
+    </button>
+  </div>
+  <p class="page-subtitle">
+    Nightly batch jobs that run automatically. Use <strong>Run Now</strong> to trigger manually during testing or recovery.
+    Sequence: standing orders (23:55) → interest accrual (23:57) → arrears classification (23:59).
   </p>
+
+  <!-- ── Loading ── -->
+  @if (loading) {
+    <div class="jobs-grid">
+      @for (i of [1,2,3]; track i) { <div class="skeleton skeleton--job"></div> }
+    </div>
+  } @else if (error) {
+    <div class="card empty-state">
+      <span class="material-icons">error_outline</span>
+      <p>{{ error }}</p>
+      <button class="btn-primary" (click)="loadJobs()">Retry</button>
+    </div>
+  } @else {
+    <div class="jobs-grid">
+      @for (job of jobs; track job.jobName) {
+        <div class="job-card" [class.job-card--selected]="selectedJob?.jobName === job.jobName"
+             (click)="selectJob(job)">
+          <div class="job-card__header">
+            <div class="job-card__title">
+              <span class="job-icon" [class.job-icon--running]="isRunning(job)">
+                <span class="material-icons">{{ isRunning(job) ? 'sync' : 'schedule' }}</span>
+              </span>
+              <div>
+                <div class="job-name">{{ job.displayName ?? job.jobName }}</div>
+                @if (job.cronExpression) {
+                  <div class="job-cron muted">{{ job.cronExpression }}</div>
+                }
+              </div>
+            </div>
+            <button class="btn-run-job" [disabled]="isRunning(job)"
+                    (click)="runJob(job); $event.stopPropagation()">
+              @if (isRunning(job)) {
+                <span class="spinner spinner--dark"></span> Running…
+              } @else {
+                <span class="material-icons">play_arrow</span> Run Now
+              }
+            </button>
+          </div>
+
+          <div class="job-card__stats">
+            <div class="stat">
+              <span class="stat__label">Last Run</span>
+              <span class="stat__value">
+                {{ job.previousRunStartTime ? (job.previousRunStartTime | date:'MMM d, HH:mm') : 'Never' }}
+              </span>
+            </div>
+            <div class="stat">
+              <span class="stat__label">Status</span>
+              <span class="stat__value">
+                @if (job.previousRunStatus) {
+                  <span class="status-dot"
+                        [class]="'status-dot--' + job.previousRunStatus.toLowerCase()">
+                  </span>
+                  {{ job.previousRunStatus }}
+                } @else {
+                  <span class="muted">—</span>
+                }
+              </span>
+            </div>
+            <div class="stat">
+              <span class="stat__label">Next Run</span>
+              <span class="stat__value">
+                {{ job.nextRunTime ? (job.nextRunTime | date:'MMM d, HH:mm') : '—' }}
+              </span>
+            </div>
+          </div>
+
+          @if (runError(job)) {
+            <div class="job-error">{{ runError(job) }}</div>
+          }
+
+          <!-- History panel — shown inline when selected -->
+          @if (selectedJob?.jobName === job.jobName) {
+            <div class="history-panel" (click)="$event.stopPropagation()">
+              <div class="history-panel__title">Run History</div>
+              @if (historyLoading) {
+                <div class="history-loading">
+                  <span class="material-icons spin-icon">sync</span> Loading…
+                </div>
+              } @else if (history.length === 0) {
+                <div class="history-empty">No run history found.</div>
+              } @else {
+                <table class="history-table">
+                  <thead>
+                    <tr>
+                      <th>Start Time</th>
+                      <th>Duration</th>
+                      <th>Status</th>
+                      <th>Error</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (h of history; track h.id) {
+                      <tr>
+                        <td>{{ h.startTime | date:'MMM d, HH:mm:ss' }}</td>
+                        <td class="mono">{{ duration(h) }}</td>
+                        <td>
+                          <span class="status-dot" [class]="'status-dot--' + h.status.toLowerCase()"></span>
+                          {{ h.status }}
+                        </td>
+                        <td class="history-error muted">{{ h.errorMessage ?? '—' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  }
+
 </div>

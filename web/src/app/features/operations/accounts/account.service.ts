@@ -18,6 +18,17 @@ export interface Account {
   updatedAt?: string;
 }
 
+export interface Transaction {
+  id: string;
+  accountId: string;
+  transactionType: 'CREDIT' | 'DEBIT';
+  amount: number;
+  runningBalance: number;
+  referenceNumber?: string;
+  description?: string;
+  transactionDate: string;
+}
+
 export interface AccountCreateRequest {
   customerId: string;
   productId: string;
@@ -44,10 +55,30 @@ export class AccountService {
   }
 
   freeze(id: string): Observable<Account> {
-    return this.api.command<Account>(`/accounts/${id}`, 'freeze');
+    return this.api.putParams<Account>(`/accounts/${id}/status`, { status: 'FROZEN' });
+  }
+
+  unfreeze(id: string): Observable<Account> {
+    return this.api.putParams<Account>(`/accounts/${id}/status`, { status: 'ACTIVE' });
   }
 
   close(id: string): Observable<Account> {
-    return this.api.command<Account>(`/accounts/${id}`, 'close');
+    return this.api.putParams<Account>(`/accounts/${id}/status`, { status: 'CLOSED' });
+  }
+
+  getTransactions(id: string, page = 0, size = 20): Observable<PageResponse<Transaction>> {
+    return this.api.getPage<Transaction>(`/accounts/${id}/transactions`, page, size);
+  }
+
+  deposit(id: string, amount: number, description?: string): Observable<Transaction> {
+    const params: Record<string, string> = { amount: String(amount) };
+    if (description) params['description'] = description;
+    return this.api.postParams<Transaction>(`/accounts/${id}/deposit`, params);
+  }
+
+  withdraw(id: string, amount: number, description?: string): Observable<Transaction> {
+    const params: Record<string, string> = { amount: String(amount) };
+    if (description) params['description'] = description;
+    return this.api.postParams<Transaction>(`/accounts/${id}/withdraw`, params);
   }
 }

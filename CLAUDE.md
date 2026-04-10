@@ -775,6 +775,7 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Customers list | `CustomersListComponent` | `OperationsModule` | ✅ Built — debounced search, KYC filter tabs, pagination |
 | Customer detail | `CustomerDetailComponent` | `OperationsModule` | ✅ Built — 5 tabs, KYC state machine |
 | Accounts list | `AccountsListComponent` | `OperationsModule` | ✅ Built — type filter, pagination |
+| Account detail | `AccountDetailComponent` | `OperationsModule` | ✅ Built — header card, overview/transactions tabs, freeze/unfreeze/close/deposit/withdraw modals |
 | Loans list | `LoansListComponent` | `OperationsModule` | ✅ Built — pipeline view, sliding detail panel |
 | Loan detail | `LoanDetailComponent` | `OperationsModule` | ✅ Built — 5 tabs, approve/disburse/repayment/reject |
 | Loan products list | `LoanProductsListComponent` | `ProductsModule` | ✅ Built — search, active filter, pagination |
@@ -787,7 +788,7 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Recurring deposit product detail | `RecurringDepositDetailComponent` | `ProductsModule` | ✅ Built — view/edit toggle, 5 section tabs (core/rates/frequency/term/penalty) |
 | Share products list | `SharesListComponent` | `ProductsModule` | ✅ Built — search, active filter, pagination; unit price + shares issued columns |
 | Share product detail | `ShareDetailComponent` | `ProductsModule` | ✅ Built — view/edit toggle, 3 section tabs (core/shares/lockin); dividend policy toggle |
-| All other feature pages | ~59 stub components | All modules | 🔲 Stub — template+styles only, no API wiring |
+| All other feature pages | ~58 stub components | All modules | 🔲 Stub — template+styles only, no API wiring |
 
 ### Angular View/Edit Toggle Pattern
 All detail pages (loan product, deposit product, customer, loan) share this pattern:

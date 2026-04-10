@@ -59,6 +59,34 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 14 — 2026-04-10
+
+**Angular Account Detail — full AccountDetailComponent built with overview/transactions tabs, 5 teller/status action modals, paginated transaction history, and ApiService extended with `postParams`/`putParams` helper methods.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/src/app/core/api/api.service.ts` | Added `postParams<T>()` and `putParams<T>()` — POST/PUT with `@RequestParam` backends (no body) |
+| `web/src/app/features/operations/accounts/account.service.ts` | Added `Transaction` interface; fixed `freeze`/`close` to use `putParams`; added `unfreeze`, `getTransactions`, `deposit`, `withdraw` |
+| `web/src/app/features/operations/accounts/account-detail/account-detail.ts` | Full implementation: `ActiveTab` union, `ModalType` union, lazy transaction pagination, 5 action methods, display helpers |
+| `web/src/app/features/operations/accounts/account-detail/account-detail.html` | Full template: header card (balance + type icon + status + action buttons), tab bar, overview grid (account details + customer cards), paginated transactions table, 5 modals (freeze/unfreeze/close/deposit/withdraw) |
+| `web/src/app/features/operations/accounts/account-detail/account-detail.scss` | Full Nubeero styles: acct-header three-zone flex, tab bar, overview grid, data-table with credit/debit colour classes, pagination, modal backdrop + slide-up animation, form fields with currency prefix group, spinner |
+| `CLAUDE.md` | Added `AccountDetailComponent` to Angular Component Map; stub count `~59 → ~58` |
+| `cba-log.md` | This entry |
+
+#### Key Patterns / Decisions
+- `ModalType = 'freeze' | 'unfreeze' | 'close' | 'deposit' | 'withdraw' | null` — single `activeModal` property drives all 5 modals; `doTellerAction()` branches on `activeModal === 'deposit'` vs `'withdraw'`, keeping template DRY
+- Transactions tab is lazy-loaded: `txnLoaded` flag prevents re-fetch on tab switch; invalidated after every teller action so balance + history stay in sync
+- `putParams` added to ApiService for `PUT ?status=xxx` pattern used by freeze/unfreeze/close; `postParams` for `POST ?amount=xxx` deposit/withdraw pattern — both keep empty body `{}` to satisfy Spring's `@RequestParam` binding
+
+#### Build Verification
+- `npx ng build --configuration=production` → **0 errors**; warnings are pre-existing unused-import stubs and SCSS budget (mirrors existing loan-detail warning)
+
+#### Compliance Checklist Update
+- No new PII surfaces; account numbers displayed in full (no masking needed at this layer — teller access)
+
+---
+
 ### Session 13 — 2026-04-10
 
 **Angular Products UI — complete Products group: Fixed Deposits, Recurring Deposits, Share Products list + detail pages built and pushed (commit `ac09073`).**

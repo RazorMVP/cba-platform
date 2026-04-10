@@ -43,6 +43,20 @@ export class ApiService {
       .pipe(map(r => r.data));
   }
 
+  postParams<T>(path: string, params: Record<string, string>): Observable<T> {
+    let httpParams = new HttpParams();
+    Object.entries(params).forEach(([k, v]) => httpParams = httpParams.set(k, v));
+    return this.http.post<ApiResponse<T>>(`${this.base}${path}`, {}, { params: httpParams })
+      .pipe(map(r => r.data));
+  }
+
+  putParams<T>(path: string, params: Record<string, string>): Observable<T> {
+    let httpParams = new HttpParams();
+    Object.entries(params).forEach(([k, v]) => httpParams = httpParams.set(k, v));
+    return this.http.put<ApiResponse<T>>(`${this.base}${path}`, {}, { params: httpParams })
+      .pipe(map(r => r.data));
+  }
+
   command<T>(path: string, command: string, body?: unknown): Observable<T> {
     return this.http.post<ApiResponse<T>>(`${this.base}${path}?command=${command}`, body ?? {})
       .pipe(map(r => r.data));

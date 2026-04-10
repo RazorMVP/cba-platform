@@ -1,7 +1,344 @@
-<app-page-header title="Account Detail" icon="account_balance_wallet" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">account_balance_wallet</span>
-    <strong>Account Detail</strong><br>Implementation pending.
-  </p>
+<div class="page">
+
+  <a routerLink=".." class="back-link">
+    <span class="material-icons">arrow_back</span> Accounts
+  </a>
+
+  @if (loading) {
+    <div class="loading-skeleton">
+      <div class="skeleton skeleton--header"></div>
+      <div class="skeleton skeleton--body"></div>
+    </div>
+  } @else if (error) {
+    <div class="error-state">
+      <span class="material-icons">error_outline</span>
+      <p>{{ error }}</p>
+      <a routerLink=".." class="btn-secondary">Go back</a>
+    </div>
+  } @else if (account) {
+
+    <!-- ── Account Header ── -->
+    <div class="acct-header">
+      <div class="acct-header__identity">
+        <div class="acct-icon">
+          <span class="material-icons">{{ typeIcons[account.accountType] ?? 'account_balance_wallet' }}</span>
+        </div>
+        <div class="acct-meta">
+          <div class="acct-number">{{ account.accountNumber }}</div>
+          <div class="acct-type">{{ typeLabels[account.accountType] ?? account.accountType }}</div>
+        </div>
+      </div>
+
+      <div class="acct-header__balance">
+        <div class="balance-amount">{{ account.balance | number:'1.2-2' }}</div>
+        <div class="balance-currency">{{ account.currencyCode }}</div>
+      </div>
+
+      <div class="acct-header__status">
+        <app-status-badge [variant]="statusVariant(account.status)" [label]="account.status" />
+      </div>
+
+      <div class="acct-header__actions">
+        @if (account.status === 'ACTIVE') {
+          <button class="btn-outline" (click)="openModal('deposit')">
+            <span class="material-icons">add</span> Deposit
+          </button>
+          <button class="btn-outline" (click)="openModal('withdraw')">
+            <span class="material-icons">remove</span> Withdraw
+          </button>
+          <button class="btn-warning" (click)="openModal('freeze')">
+            <span class="material-icons">lock</span> Freeze
+          </button>
+          <button class="btn-danger" (click)="openModal('close')">
+            <span class="material-icons">close</span> Close
+          </button>
+        }
+        @if (account.status === 'FROZEN') {
+          <button class="btn-success" (click)="openModal('unfreeze')">
+            <span class="material-icons">lock_open</span> Unfreeze
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- ── Tab Bar ── -->
+    <div class="tab-bar">
+      <button class="tab-item" [class.tab-item--active]="activeTab === 'overview'" (click)="setTab('overview')">
+        <span class="material-icons">info</span> Overview
+      </button>
+      <button class="tab-item" [class.tab-item--active]="activeTab === 'transactions'" (click)="setTab('transactions')">
+        <span class="material-icons">receipt_long</span> Transactions
+      </button>
+    </div>
+
+    <!-- ── OVERVIEW TAB ── -->
+    @if (activeTab === 'overview') {
+      <div class="overview-grid">
+
+        <div class="card">
+          <div class="card__header">Account Details</div>
+          <dl class="detail-list">
+            <dt>Account Number</dt><dd>{{ account.accountNumber }}</dd>
+            <dt>Account Type</dt><dd>{{ typeLabels[account.accountType] ?? account.accountType }}</dd>
+            <dt>Product</dt><dd>{{ account.productName ?? account.productId }}</dd>
+            <dt>Currency</dt><dd>{{ account.currencyCode }}</dd>
+            <dt>Status</dt>
+            <dd><app-status-badge [variant]="statusVariant(account.status)" [label]="account.status" /></dd>
+            <dt>Opened</dt><dd>{{ account.openedDate | date:'mediumDate' }}</dd>
+            @if (account.updatedAt) {
+              <dt>Last Updated</dt><dd>{{ account.updatedAt | date:'medium' }}</dd>
+            }
+          </dl>
+        </div>
+
+        <div class="card">
+          <div class="card__header">Customer</div>
+          <dl class="detail-list">
+            <dt>Customer ID</dt>
+            <dd>
+              <a [routerLink]="['/operations/customers', account.customerId]" class="link">
+                {{ account.customerName ?? account.customerId }}
+              </a>
+            </dd>
+            <dt>Account Holder</dt><dd>{{ account.customerName ?? '—' }}</dd>
+          </dl>
+        </div>
+
+      </div>
+    }
+
+    <!-- ── TRANSACTIONS TAB ── -->
+    @if (activeTab === 'transactions') {
+
+      @if (txnLoading) {
+        <div class="txn-loading">
+          <div class="skeleton skeleton--table-row"></div>
+          <div class="skeleton skeleton--table-row"></div>
+          <div class="skeleton skeleton--table-row"></div>
+        </div>
+      } @else {
+
+        <div class="card">
+          <div class="card__header">
+            Transaction History
+            <span class="card__count">{{ txnTotal }} total</span>
+          </div>
+
+          @if (txns.length === 0) {
+            <div class="empty-state">
+              <span class="material-icons">receipt_long</span>
+              <p>No transactions found.</p>
+            </div>
+          } @else {
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Type</th>
+                  <th class="col-amount">Amount</th>
+                  <th class="col-amount">Running Balance</th>
+                  <th>Reference</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (t of txns; track t.id) {
+                  <tr>
+                    <td>{{ t.transactionDate | date:'mediumDate' }}</td>
+                    <td>
+                      <span class="txn-type" [class.txn-type--credit]="t.transactionType === 'CREDIT'"
+                                             [class.txn-type--debit]="t.transactionType === 'DEBIT'">
+                        {{ t.transactionType }}
+                      </span>
+                    </td>
+                    <td class="col-amount">
+                      <span [class]="txnClass(t)">
+                        {{ txnSign(t) }}{{ t.amount | number:'1.2-2' }}
+                      </span>
+                    </td>
+                    <td class="col-amount muted">{{ t.runningBalance | number:'1.2-2' }}</td>
+                    <td class="muted">{{ t.referenceNumber ?? '—' }}</td>
+                    <td class="muted">{{ t.description ?? '—' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+
+            <div class="pagination">
+              <span class="pagination__info">
+                {{ txnStartRow }}–{{ txnEndRow }} of {{ txnTotal }}
+              </span>
+              <div class="pagination__controls">
+                <button class="pagination__btn" [disabled]="txnPage === 0" (click)="prevTxnPage()">
+                  <span class="material-icons">chevron_left</span>
+                </button>
+                <span class="pagination__page">{{ txnPage + 1 }} / {{ txnTotalPages }}</span>
+                <button class="pagination__btn" [disabled]="(txnPage + 1) * txnPageSize >= txnTotal" (click)="nextTxnPage()">
+                  <span class="material-icons">chevron_right</span>
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+
+      }
+    }
+
+  }
 </div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     MODALS
+═══════════════════════════════════════════════════════════════ -->
+
+<!-- Freeze confirm -->
+@if (activeModal === 'freeze') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon modal__icon--warning">lock</span>
+        Freeze Account
+      </div>
+      <div class="modal__body">
+        <p>Are you sure you want to freeze account <strong>{{ account?.accountNumber }}</strong>?</p>
+        <p class="modal__hint">The account will be locked. No transactions will be permitted until it is unfrozen.</p>
+        @if (modalError) {
+          <div class="modal__error">{{ modalError }}</div>
+        }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-warning" (click)="doFreeze()" [disabled]="modalWorking">
+          @if (modalWorking) { <span class="spinner"></span> }
+          Freeze
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Unfreeze confirm -->
+@if (activeModal === 'unfreeze') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon modal__icon--success">lock_open</span>
+        Unfreeze Account
+      </div>
+      <div class="modal__body">
+        <p>Restore access to account <strong>{{ account?.accountNumber }}</strong>?</p>
+        <p class="modal__hint">The account will become active and transactions will resume.</p>
+        @if (modalError) {
+          <div class="modal__error">{{ modalError }}</div>
+        }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-success" (click)="doUnfreeze()" [disabled]="modalWorking">
+          @if (modalWorking) { <span class="spinner"></span> }
+          Unfreeze
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Close account confirm -->
+@if (activeModal === 'close') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon modal__icon--danger">close</span>
+        Close Account
+      </div>
+      <div class="modal__body">
+        <p>Permanently close account <strong>{{ account?.accountNumber }}</strong>?</p>
+        <p class="modal__hint">The account balance must be zero before closing. This action cannot be undone.</p>
+        @if (modalError) {
+          <div class="modal__error">{{ modalError }}</div>
+        }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-danger" (click)="doClose()" [disabled]="modalWorking">
+          @if (modalWorking) { <span class="spinner"></span> }
+          Close Account
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Deposit modal -->
+@if (activeModal === 'deposit') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon modal__icon--success">add_circle</span>
+        Deposit Funds
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Amount <span class="required">*</span></label>
+          <div class="input-prefix-group">
+            <span class="input-prefix">{{ account?.currencyCode }}</span>
+            <input type="number" class="form-input form-input--prefixed" min="0.01" step="0.01"
+                   [(ngModel)]="tellerAmount" placeholder="0.00" />
+          </div>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Description <span class="form-hint">(optional)</span></label>
+          <input type="text" class="form-input" [(ngModel)]="tellerDescription"
+                 placeholder="e.g. Cash deposit — counter" maxlength="255" />
+        </div>
+        @if (modalError) {
+          <div class="modal__error">{{ modalError }}</div>
+        }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-success" (click)="doTellerAction()" [disabled]="modalWorking || tellerAmount <= 0">
+          @if (modalWorking) { <span class="spinner"></span> }
+          Deposit
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Withdraw modal -->
+@if (activeModal === 'withdraw') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon modal__icon--warning">remove_circle</span>
+        Withdraw Funds
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Amount <span class="required">*</span></label>
+          <div class="input-prefix-group">
+            <span class="input-prefix">{{ account?.currencyCode }}</span>
+            <input type="number" class="form-input form-input--prefixed" min="0.01" step="0.01"
+                   [(ngModel)]="tellerAmount" placeholder="0.00" />
+          </div>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Description <span class="form-hint">(optional)</span></label>
+          <input type="text" class="form-input" [(ngModel)]="tellerDescription"
+                 placeholder="e.g. Counter withdrawal" maxlength="255" />
+        </div>
+        @if (modalError) {
+          <div class="modal__error">{{ modalError }}</div>
+        }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-warning" (click)="doTellerAction()" [disabled]="modalWorking || tellerAmount <= 0">
+          @if (modalWorking) { <span class="spinner"></span> }
+          Withdraw
+        </button>
+      </div>
+    </div>
+  </div>
+}

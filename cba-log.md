@@ -59,6 +59,33 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 19 — 2026-04-10
+
+**Vercel deployment pipeline unblocked + demo auth bypass mode.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `.github/workflows/web-ci.yml` | Promoted Vercel env vars to job level; `.vercel/` added to web/.gitignore |
+| `web/angular.json` | Added missing `fileReplacements` to production config — was baking in `localhost:8180` instead of prod Keycloak URL |
+| `web/src/environments/environment.ts` | Added `authBypass: false` |
+| `web/src/environments/environment.prod.ts` | Added `authBypass` (reads `NG_APP_AUTH_BYPASS` env var); Keycloak/API URLs read from `NG_APP_*` env vars |
+| `web/src/app/core/auth/demo-keycloak.ts` | NEW — mock Keycloak for bypass mode (authenticated=true, Demo Admin user) |
+| `web/src/app/app.config.ts` | Conditionally provides real Keycloak or mock based on `authBypass` flag |
+| `web/src/app/core/auth/auth.guard.ts` | Returns `true` immediately in bypass mode |
+| `web/src/app/core/auth/auth.interceptor.ts` | Skips Bearer header in bypass mode |
+| Multiple `.ts`/`.html` files | Fixed all ESLint warnings: removed empty `error:()=>{}` callbacks, typed `any`, migrated `*ngIf`/`*ngFor` → `@if`/`@for` |
+
+#### Key Patterns / Decisions
+- `NG_APP_AUTH_BYPASS=true` is set as a Vercel env var; esbuild bakes it into the bundle at build time (not runtime)
+- `fileReplacements` was the root cause of localhost:8180 showing in prod — it was never set in `angular.json`
+- Bypass mode provides `DEMO_KEYCLOAK` mock directly to the DI container so all three inject sites (interceptor, guard, topbar) work without a real Keycloak
+
+#### Build Verification
+- `ng build --configuration=production` → 0 errors
+- `ng lint` → All files pass linting
+- CI pipeline: Lint ✅ Security ✅ Production Build ✅ (Vercel deploy green)
+
 ### Session 18 — 2026-04-10
 
 **Angular Reports UI — full ReportsListComponent + CobSchedulerComponent + ReportMailingComponent with ReportService.**

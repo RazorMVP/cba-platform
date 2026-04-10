@@ -23,7 +23,7 @@ export interface NavGroup {
 })
 export class SidebarComponent {
   @Input() collapsed = false;
-  @Output() toggle = new EventEmitter<void>();
+  @Output() sidebarToggle = new EventEmitter<void>();
 
   expandedGroups: Set<string> = new Set(['Operations']);
 

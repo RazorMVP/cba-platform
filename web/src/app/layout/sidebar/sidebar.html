@@ -3,7 +3,7 @@
   <div class="sidebar__logo">
     <span class="sidebar__logo-icon material-icons">account_balance</span>
     <span class="sidebar__logo-text" *ngIf="!collapsed">CBA Portal</span>
-    <button class="sidebar__toggle" (click)="toggle.emit()">
+    <button class="sidebar__toggle" (click)="sidebarToggle.emit()">
       <span class="material-icons">{{ collapsed ? 'menu' : 'menu_open' }}</span>
     </button>
   </div>

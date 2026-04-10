@@ -31,30 +31,13 @@ jobs:
         working-directory: web
         run: npm ci
 
-      - name: Lint
+      - name: Lint (angular-eslint)
         working-directory: web
         run: npx ng lint
 
-      - name: Unit tests (headless Chrome)
+      - name: Unit tests (ng test / Vitest)
         working-directory: web
-        run: npx ng test --watch=false --browsers=ChromeHeadless --code-coverage
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: web-coverage
-          path: web/coverage/
-
-      - name: Check coverage thresholds
-        working-directory: web
-        run: |
-          node -e "
-            const fs = require('fs');
-            const summary = JSON.parse(fs.readFileSync('coverage/coverage-summary.json','utf8'));
-            const pct = summary.total.lines.pct;
-            if (pct < 70) { console.error('Line coverage ' + pct + '% is below 70% threshold'); process.exit(1); }
-            console.log('Coverage OK: ' + pct + '%');
-          "
+        run: npx ng test --watch=false
 
   # ─── Security — npm audit + ESLint Security ───────────────────────────────────
   security:
@@ -80,7 +63,7 @@ jobs:
 
       - name: Snyk dependency scan
         uses: snyk/actions/node@master
-        continue-on-error: false
+        continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:

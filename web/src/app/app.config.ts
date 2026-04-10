@@ -5,10 +5,35 @@ import { provideAnimationsAsync } from '@angular/platform-browser/animations/asy
 import { provideStore } from '@ngrx/store';
 import { provideEffects } from '@ngrx/effects';
 import { provideKeycloak, withAutoRefreshToken, AutoRefreshTokenService, UserActivityService } from 'keycloak-angular';
+import Keycloak from 'keycloak-js';
 
 import { routes } from './app.routes';
 import { environment } from '../environments/environment';
 import { authInterceptor } from './core/auth/auth.interceptor';
+import { DEMO_KEYCLOAK } from './core/auth/demo-keycloak';
+
+const keycloakProviders = environment.authBypass
+  ? [{ provide: Keycloak, useValue: DEMO_KEYCLOAK }]
+  : [
+      provideKeycloak({
+        config: {
+          url: environment.keycloak.url,
+          realm: environment.keycloak.realm,
+          clientId: environment.keycloak.clientId,
+        },
+        initOptions: {
+          onLoad: 'login-required',
+          checkLoginIframe: false,
+        },
+        features: [
+          withAutoRefreshToken({
+            onInactivityTimeout: 'logout',
+            sessionTimeout: 60000,
+          }),
+        ],
+        providers: [AutoRefreshTokenService, UserActivityService],
+      }),
+    ];
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -18,23 +43,6 @@ export const appConfig: ApplicationConfig = {
     provideAnimationsAsync(),
     provideStore({}),
     provideEffects([]),
-    provideKeycloak({
-      config: {
-        url: environment.keycloak.url,
-        realm: environment.keycloak.realm,
-        clientId: environment.keycloak.clientId,
-      },
-      initOptions: {
-        onLoad: 'login-required',
-        checkLoginIframe: false,
-      },
-      features: [
-        withAutoRefreshToken({
-          onInactivityTimeout: 'logout',
-          sessionTimeout: 60000,
-        }),
-      ],
-      providers: [AutoRefreshTokenService, UserActivityService],
-    }),
+    ...keycloakProviders,
   ],
 };

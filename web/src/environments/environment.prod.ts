@@ -5,6 +5,7 @@ declare const process: { env: Record<string, string | undefined> };
 
 export const environment = {
   production: true,
+  authBypass: (typeof process !== 'undefined' && process.env['NG_APP_AUTH_BYPASS'] === 'true'),
   apiBaseUrl: (typeof process !== 'undefined' && process.env['NG_APP_API_URL'])
     ? process.env['NG_APP_API_URL']
     : '/api/v1',

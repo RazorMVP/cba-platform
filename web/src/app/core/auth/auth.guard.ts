@@ -1,8 +1,13 @@
-import { CanActivateFn } from '@angular/router';
+import { CanActivateFn, ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
 import { createAuthGuard } from 'keycloak-angular';
-import { ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
+import { environment } from '../../../environments/environment';
 
-// Default guard — redirects to Keycloak login if unauthenticated
-export const isAuthenticated: CanActivateFn = createAuthGuard(
-  async (_route: ActivatedRouteSnapshot, _state: RouterStateSnapshot) => true
-);
+// In bypass mode (Vercel demo), skip Keycloak check entirely.
+// In normal mode, redirect to Keycloak login if unauthenticated.
+export const isAuthenticated: CanActivateFn = (
+  route: ActivatedRouteSnapshot,
+  state: RouterStateSnapshot,
+) => {
+  if (environment.authBypass) return true;
+  return createAuthGuard(async () => true)(route, state);
+};

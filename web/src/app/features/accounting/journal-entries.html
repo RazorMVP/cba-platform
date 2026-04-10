@@ -1,7 +1,265 @@
-<app-page-header title="Journal Entries" icon="receipt_long" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">receipt_long</span>
-    <strong>Journal Entries</strong><br>Implementation pending.
-  </p>
+<div class="page">
+
+  <!-- ── Header ── -->
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">receipt_long</span>
+      Journal Entries
+    </div>
+    <button class="btn-primary" (click)="openCreateModal()">
+      <span class="material-icons">add</span> New Manual Entry
+    </button>
+  </div>
+
+  <!-- ── Filter bar ── -->
+  <div class="filter-bar">
+    <div class="date-range">
+      <input class="form-input-sm" type="date" [(ngModel)]="dateFrom" />
+      <span class="date-sep">→</span>
+      <input class="form-input-sm" type="date" [(ngModel)]="dateTo" />
+    </div>
+    <select class="form-select" [(ngModel)]="typeFilter">
+      <option value="">All Types</option>
+      <option value="USER">Manual</option>
+      <option value="SYSTEM">Automated</option>
+    </select>
+    <div class="search-wrap">
+      <span class="material-icons search-icon">search</span>
+      <input class="search-input" type="text" placeholder="Filter by GL code…"
+             [(ngModel)]="glCodeQuery" />
+    </div>
+    <button class="btn-secondary" (click)="loadEntries()">
+      <span class="material-icons">filter_list</span> Apply
+    </button>
+  </div>
+
+  <!-- ── Loading ── -->
+  @if (loading) {
+    <div class="card skeleton-card">
+      @for (i of [1,2,3]; track i) { <div class="skeleton skeleton--group"></div> }
+    </div>
+  } @else if (error) {
+    <div class="card empty-state">
+      <span class="material-icons">error_outline</span>
+      <p>{{ error }}</p>
+      <button class="btn-primary" (click)="loadEntries()">Retry</button>
+    </div>
+  } @else if (groups.length === 0) {
+    <div class="card empty-state">
+      <span class="material-icons">receipt_long</span>
+      <p>No journal entries found for this period.</p>
+    </div>
+  } @else {
+    <div class="entries-list">
+      @for (g of groups; track g.transactionId) {
+        <div class="entry-group" [class.entry-group--reversed]="g.reversed">
+          <!-- Group header -->
+          <div class="entry-group__header">
+            <div class="entry-group__meta">
+              <span class="entry-date">{{ g.entryDate | date:'mediumDate' }}</span>
+              <span class="entry-txn-id mono muted">{{ g.transactionId | slice:0:8 }}…</span>
+              @if (g.reference) {
+                <span class="entry-ref muted">Ref: {{ g.reference }}</span>
+              }
+              @if (g.comments) {
+                <span class="entry-note muted">{{ g.comments }}</span>
+              }
+            </div>
+            <div class="entry-group__badges">
+              <app-status-badge [variant]="createdByVariant(g.createdByType)"
+                                [label]="g.createdByType === 'USER' ? 'Manual' : 'Auto'" />
+              @if (g.reversed) {
+                <app-status-badge variant="neutral" label="Reversed" />
+              }
+              @if (!g.reversed && g.createdByType === 'USER') {
+                <button class="btn-reverse" (click)="openReverseModal(g)">
+                  <span class="material-icons">undo</span> Reverse
+                </button>
+              }
+            </div>
+          </div>
+
+          <!-- Debit / Credit lines table -->
+          <table class="ledger-table">
+            <thead>
+              <tr>
+                <th>GL Account</th>
+                <th class="amount-col">Debit</th>
+                <th class="amount-col">Credit</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (d of g.debits; track d.id) {
+                <tr class="ledger-row ledger-row--debit">
+                  <td>
+                    <span class="mono gl-code">{{ d.glAccountCode }}</span>
+                    <span class="gl-name">{{ d.glAccountName }}</span>
+                  </td>
+                  <td class="amount-col amount--debit">{{ d.amount | number:'1.2-2' }}</td>
+                  <td class="amount-col muted">—</td>
+                </tr>
+              }
+              @for (c of g.credits; track c.id) {
+                <tr class="ledger-row ledger-row--credit">
+                  <td class="credit-indent">
+                    <span class="mono gl-code">{{ c.glAccountCode }}</span>
+                    <span class="gl-name">{{ c.glAccountName }}</span>
+                  </td>
+                  <td class="amount-col muted">—</td>
+                  <td class="amount-col amount--credit">{{ c.amount | number:'1.2-2' }}</td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr class="totals-row">
+                <td class="totals-label">Totals</td>
+                <td class="amount-col amount--debit">{{ g.totalDebit | number:'1.2-2' }}</td>
+                <td class="amount-col amount--credit">{{ g.totalCredit | number:'1.2-2' }}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      }
+    </div>
+    <div class="list-footer">{{ groups.length }} transaction{{ groups.length === 1 ? '' : 's' }}</div>
+  }
+
 </div>
+
+<!-- ── Reverse Modal ── -->
+@if (showReverseModal) {
+  <div class="modal-backdrop" (click)="closeReverseModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">undo</span>
+        Reverse Journal Entry
+      </div>
+      <div class="modal__body">
+        <p class="confirm-text">
+          This will post an equal and opposite journal entry for transaction
+          <strong class="mono">{{ reverseGroup?.transactionId | slice:0:8 }}…</strong>
+          dated <strong>{{ reverseGroup?.entryDate | date:'mediumDate' }}</strong>.
+          This action cannot be undone.
+        </p>
+        @if (reverseError) {
+          <div class="modal__error">{{ reverseError }}</div>
+        }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeReverseModal()" [disabled]="reverseWorking">Cancel</button>
+        <button class="btn-danger" (click)="submitReverse()" [disabled]="reverseWorking">
+          @if (reverseWorking) { <span class="spinner"></span> }
+          Reverse Entry
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── Create Manual Entry Modal ── -->
+@if (showCreateModal) {
+  <div class="modal-backdrop" (click)="closeCreateModal()">
+    <div class="modal modal--lg" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">receipt_long</span>
+        New Manual Journal Entry
+      </div>
+      <div class="modal__body">
+
+        <!-- Header fields -->
+        <div class="form-row">
+          <div class="form-field form-field--third">
+            <label class="form-label">Transaction Date <span class="required">*</span></label>
+            <input class="form-input" type="date" [(ngModel)]="entryDate" />
+          </div>
+          <div class="form-field form-field--third">
+            <label class="form-label">Reference <span class="form-hint">(optional)</span></label>
+            <input class="form-input" type="text" [(ngModel)]="entryRef" placeholder="e.g. INV-2026-001" />
+          </div>
+          <div class="form-field form-field--third">
+            <label class="form-label">Notes <span class="form-hint">(optional)</span></label>
+            <input class="form-input" type="text" [(ngModel)]="entryNote" placeholder="Brief description" />
+          </div>
+        </div>
+
+        <!-- Balance indicator -->
+        <div class="balance-bar" [class.balance-bar--ok]="isBalanced" [class.balance-bar--err]="!isBalanced && debitTotal > 0">
+          <span class="material-icons">{{ isBalanced ? 'check_circle' : 'warning' }}</span>
+          Debits: <strong>{{ debitTotal | number:'1.2-2' }}</strong>
+          &nbsp;|&nbsp;
+          Credits: <strong>{{ creditTotal | number:'1.2-2' }}</strong>
+          @if (!isBalanced && debitTotal > 0) {
+            &nbsp;— <span class="balance-diff">Difference: {{ (debitTotal - creditTotal) | number:'1.2-2' }}</span>
+          }
+          @if (isBalanced) { &nbsp;— Balanced }
+        </div>
+
+        <!-- Debits section -->
+        <div class="entry-section">
+          <div class="entry-section__header">
+            <span class="entry-section__title">Debits</span>
+            <button class="btn-add-line" (click)="addLine('debit')">
+              <span class="material-icons">add</span> Add line
+            </button>
+          </div>
+          @for (line of debitLines; track $index; let i = $index) {
+            <div class="entry-line">
+              <select class="form-input entry-line__account" [(ngModel)]="line.glAccountId">
+                <option value="">Select GL account…</option>
+                @for (a of manualEligible; track a.id) {
+                  <option [value]="a.id">{{ a.glCode }} — {{ a.name }}</option>
+                }
+              </select>
+              <input class="form-input entry-line__amount" type="number" min="0" step="0.01"
+                     placeholder="0.00" [(ngModel)]="line.amount" />
+              @if (debitLines.length > 1) {
+                <button class="btn-remove-line" (click)="removeLine('debit', i)">
+                  <span class="material-icons">remove_circle_outline</span>
+                </button>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- Credits section -->
+        <div class="entry-section">
+          <div class="entry-section__header">
+            <span class="entry-section__title">Credits</span>
+            <button class="btn-add-line" (click)="addLine('credit')">
+              <span class="material-icons">add</span> Add line
+            </button>
+          </div>
+          @for (line of creditLines; track $index; let i = $index) {
+            <div class="entry-line">
+              <select class="form-input entry-line__account" [(ngModel)]="line.glAccountId">
+                <option value="">Select GL account…</option>
+                @for (a of manualEligible; track a.id) {
+                  <option [value]="a.id">{{ a.glCode }} — {{ a.name }}</option>
+                }
+              </select>
+              <input class="form-input entry-line__amount" type="number" min="0" step="0.01"
+                     placeholder="0.00" [(ngModel)]="line.amount" />
+              @if (creditLines.length > 1) {
+                <button class="btn-remove-line" (click)="removeLine('credit', i)">
+                  <span class="material-icons">remove_circle_outline</span>
+                </button>
+              }
+            </div>
+          }
+        </div>
+
+        @if (createError) {
+          <div class="modal__error">{{ createError }}</div>
+        }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeCreateModal()" [disabled]="createWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitCreate()"
+                [disabled]="createWorking || !isBalanced || !entryDate">
+          @if (createWorking) { <span class="spinner"></span> }
+          Post Entry
+        </button>
+      </div>
+    </div>
+  </div>
+}

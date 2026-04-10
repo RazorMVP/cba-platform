@@ -59,6 +59,33 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 17 — 2026-04-10
+
+**Angular Accounting / GL UI — full GlAccountsComponent + JournalEntriesComponent + ProvisioningComponent with AccountingService.**
+
+**Files changed (10):**
+- `web/src/app/features/accounting/accounting.service.ts` — NEW: `GlAccount`, `JournalEntry`, `ManualJournalRequest`, `GlClosure`, `ProvisioningCriteria`, `ProvisioningDefinition` interfaces; all CRUD + command methods for GL accounts, journal entries, GL closures, provisioning criteria
+- `web/src/app/features/accounting/gl-accounts.ts` — REWRITTEN: client-side type-filter tabs (ALL/ASSET/LIABILITY/EQUITY/INCOME/EXPENSE); search by GL code/name; show-disabled toggle; create/edit modal; enable/disable lifecycle toggle per row
+- `web/src/app/features/accounting/gl-accounts.html` — REWRITTEN: type-tab filter bar; data table with account-type icon cells; manual-entries lock icon; action buttons; create/edit modal
+- `web/src/app/features/accounting/gl-accounts.scss` — REWRITTEN: type-tabs component, per-type icon colours (asset=green/liability=amber/equity=blue/expense=grey), row-disabled opacity
+- `web/src/app/features/accounting/journal-entries.ts` — REWRITTEN: `JournalEntryGroup` client-side grouping by `transactionId`; date range + type + GL code filters; reverse modal; create manual entry modal with dynamic debit/credit lines; `isBalanced` guard (debits === credits > 0)
+- `web/src/app/features/accounting/journal-entries.html` — REWRITTEN: date-range filter bar; grouped ledger display (T-ledger format per transaction); reverse button for USER/non-reversed entries; manual entry modal with live balance bar, add/remove debit & credit lines
+- `web/src/app/features/accounting/journal-entries.scss` — REWRITTEN: `entry-group` cards with ledger table; `amount--debit` (red) / `amount--credit` (green); `balance-bar` with ok/err states; scrollable modal with dynamic line sections
+- `web/src/app/features/accounting/provisioning.ts` — REWRITTEN: 5 default IFRS 9 age bands pre-seeded; create/edit/delete modals; GL account dropdowns filtered by type (LIABILITY for liability, EXPENSE for expense); `glAccountLabel()` helper
+- `web/src/app/features/accounting/provisioning.html` — REWRITTEN: criteria cards with bands table; category badges coloured by severity; create/edit modal with scrollable age-band editor; delete confirmation modal
+- `web/src/app/features/accounting/provisioning.scss` — REWRITTEN: `criteria-card`, per-category badge colours (standard=green/watch=amber/sub_standard=orange/doubtful=red/loss=deep-red), `defs-table` inline editor
+
+**Key patterns:**
+- `JournalEntryGroup` computed client-side from flat entry list — groups by `transactionId`, sums debit/credit totals
+- `isBalanced` getter gates the Post Entry button: `debitTotal > 0 && debitTotal === creditTotal`
+- GL account dropdowns in provisioning filtered by accountType — liability accounts for liability column, expense for expense
+- Default IFRS 9 bands pre-seeded for new criteria (standard 1% → loss 100%)
+
+**Build:** Clean (`Output location: dist/cba-web`, zero TS errors)
+**CLAUDE.md:** Updated Angular Component Map — added `GlAccountsComponent`, `JournalEntriesComponent`, `ProvisioningComponent`; stub count ~54 → ~51
+
+---
+
 ### Session 16 — 2026-04-10
 
 **Angular Teller Sessions UI — full TellerListComponent + TellerDetailComponent with TellerService: teller lifecycle, cashier assignment, session open/close, cash-in/cash-out, and settlement reconciliation.**

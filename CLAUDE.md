@@ -792,7 +792,10 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Recurring deposit product detail | `RecurringDepositDetailComponent` | `ProductsModule` | ✅ Built — view/edit toggle, 5 section tabs (core/rates/frequency/term/penalty) |
 | Share products list | `SharesListComponent` | `ProductsModule` | ✅ Built — search, active filter, pagination; unit price + shares issued columns |
 | Share product detail | `ShareDetailComponent` | `ProductsModule` | ✅ Built — view/edit toggle, 3 section tabs (core/shares/lockin); dividend policy toggle |
-| All other feature pages | ~54 stub components | All modules | 🔲 Stub — template+styles only, no API wiring |
+| GL accounts | `GlAccountsComponent` | `AccountingModule` | ✅ Built — type filter tabs, search, enable/disable, create/edit modal |
+| Journal entries | `JournalEntriesComponent` | `AccountingModule` | ✅ Built — T-ledger grouped view, date filter, manual entry modal with balance validation, reversal |
+| Provisioning criteria | `ProvisioningComponent` | `AccountingModule` | ✅ Built — IFRS 9 age bands, create/edit/delete, GL account dropdowns by type |
+| All other feature pages | ~51 stub components | All modules | 🔲 Stub — template+styles only, no API wiring |
 
 ### Angular View/Edit Toggle Pattern
 All detail pages (loan product, deposit product, customer, loan) share this pattern:

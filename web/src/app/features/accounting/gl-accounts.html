@@ -1,7 +1,197 @@
-<app-page-header title="GL Accounts" icon="menu_book" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">menu_book</span>
-    <strong>GL Accounts</strong><br>Implementation pending.
-  </p>
+<div class="page">
+
+  <!-- ── Header ── -->
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">menu_book</span>
+      Chart of Accounts
+    </div>
+    <button class="btn-primary" (click)="openCreateModal()">
+      <span class="material-icons">add</span> New GL Account
+    </button>
+  </div>
+
+  <!-- ── Filter bar ── -->
+  <div class="filter-bar">
+    <div class="search-wrap">
+      <span class="material-icons search-icon">search</span>
+      <input class="search-input" type="text" placeholder="Search by GL code or name…"
+             [(ngModel)]="searchQuery" (ngModelChange)="applyFilter()" />
+    </div>
+    <div class="type-tabs">
+      <button class="type-tab" [class.type-tab--active]="typeFilter === ''"
+              (click)="typeFilter = ''; applyFilter()">All</button>
+      @for (t of accountTypes; track t) {
+        <button class="type-tab" [class.type-tab--active]="typeFilter === t"
+                (click)="typeFilter = t; applyFilter()">
+          {{ t }}
+        </button>
+      }
+    </div>
+    <label class="toggle-label">
+      <input type="checkbox" [(ngModel)]="showDisabled" (ngModelChange)="applyFilter()" />
+      Show disabled
+    </label>
+  </div>
+
+  <!-- ── Loading ── -->
+  @if (loading) {
+    <div class="card skeleton-card">
+      @for (i of [1,2,3,4,5]; track i) { <div class="skeleton skeleton--row"></div> }
+    </div>
+  } @else if (error) {
+    <div class="card empty-state">
+      <span class="material-icons">error_outline</span>
+      <p>{{ error }}</p>
+      <button class="btn-primary" (click)="loadAccounts()">Retry</button>
+    </div>
+  } @else if (filtered.length === 0) {
+    <div class="card empty-state">
+      <span class="material-icons">menu_book</span>
+      <p>{{ searchQuery || typeFilter ? 'No accounts match your filter.' : 'No GL accounts configured yet.' }}</p>
+      @if (!searchQuery && !typeFilter) {
+        <button class="btn-primary" (click)="openCreateModal()">
+          <span class="material-icons">add</span> Create First Account
+        </button>
+      }
+    </div>
+  } @else {
+    <div class="card">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>GL Code</th>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Usage</th>
+            <th>Manual Entries</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (a of filtered; track a.id) {
+            <tr class="table-row" [class.row--disabled]="a.disabled">
+              <td class="mono gl-code">{{ a.glCode }}</td>
+              <td>
+                <div class="acct-name">
+                  <span class="material-icons acct-icon" [class]="'acct-icon--' + a.accountType.toLowerCase()">
+                    {{ a.accountType === 'ASSET' ? 'account_balance' :
+                       a.accountType === 'LIABILITY' ? 'trending_down' :
+                       a.accountType === 'EQUITY' ? 'pie_chart' :
+                       a.accountType === 'INCOME' ? 'trending_up' : 'receipt_long' }}
+                  </span>
+                  <div>
+                    <div class="acct-name__label">{{ a.name }}</div>
+                    @if (a.parentName) {
+                      <div class="acct-name__parent muted">↳ {{ a.parentName }}</div>
+                    }
+                  </div>
+                </div>
+              </td>
+              <td>
+                <app-status-badge [variant]="typeVariant(a.accountType)" [label]="a.accountType" />
+              </td>
+              <td class="muted">{{ a.usage }}</td>
+              <td>
+                <span class="material-icons" [class]="a.manualEntriesAllowed ? 'icon--yes' : 'icon--no'">
+                  {{ a.manualEntriesAllowed ? 'lock_open' : 'lock' }}
+                </span>
+              </td>
+              <td>
+                <app-status-badge [variant]="a.disabled ? 'neutral' : 'success'"
+                                  [label]="a.disabled ? 'Disabled' : 'Active'" />
+              </td>
+              <td class="action-cell">
+                <button class="btn-icon" title="Edit" (click)="openEditModal(a); $event.stopPropagation()">
+                  <span class="material-icons">edit</span>
+                </button>
+                <button class="btn-icon" [title]="a.disabled ? 'Enable' : 'Disable'"
+                        (click)="toggleDisable(a); $event.stopPropagation()">
+                  <span class="material-icons">{{ a.disabled ? 'toggle_on' : 'toggle_off' }}</span>
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <div class="table-footer">{{ filtered.length }} account{{ filtered.length === 1 ? '' : 's' }}</div>
+    </div>
+  }
+
 </div>
+
+<!-- ── Create / Edit Modal ── -->
+@if (activeModal) {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">menu_book</span>
+        {{ activeModal === 'create' ? 'New GL Account' : 'Edit GL Account' }}
+      </div>
+      <div class="modal__body">
+        <div class="form-row">
+          <div class="form-field form-field--half">
+            <label class="form-label">GL Code <span class="required">*</span></label>
+            <input class="form-input" type="text" [(ngModel)]="form.glCode"
+                   placeholder="e.g. 1001" maxlength="20" />
+          </div>
+          <div class="form-field form-field--half">
+            <label class="form-label">Account Type <span class="required">*</span></label>
+            <select class="form-input" [(ngModel)]="form.accountType">
+              @for (t of accountTypes; track t) {
+                <option [value]="t">{{ t }}</option>
+              }
+            </select>
+          </div>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Name <span class="required">*</span></label>
+          <input class="form-input" type="text" [(ngModel)]="form.name"
+                 placeholder="e.g. Cash and Cash Equivalents" />
+        </div>
+        <div class="form-row">
+          <div class="form-field form-field--half">
+            <label class="form-label">Usage <span class="required">*</span></label>
+            <select class="form-input" [(ngModel)]="form.usage">
+              @for (u of usages; track u) {
+                <option [value]="u">{{ u }}</option>
+              }
+            </select>
+          </div>
+          <div class="form-field form-field--half">
+            <label class="form-label">Parent Account <span class="form-hint">(optional)</span></label>
+            <select class="form-input" [(ngModel)]="form.parentId">
+              <option value="">— None —</option>
+              @for (h of headerAccounts; track h.id) {
+                <option [value]="h.id">{{ h.glCode }} {{ h.name }}</option>
+              }
+            </select>
+          </div>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Description <span class="form-hint">(optional)</span></label>
+          <input class="form-input" type="text" [(ngModel)]="form.description"
+                 placeholder="Brief description" />
+        </div>
+        <div class="form-field">
+          <label class="checkbox-label">
+            <input type="checkbox" [(ngModel)]="form.manualEntriesAllowed" />
+            Allow manual journal entries to this account
+          </label>
+        </div>
+        @if (modalError) {
+          <div class="modal__error">{{ modalError }}</div>
+        }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitModal()"
+                [disabled]="modalWorking || !form.glCode || !form.name">
+          @if (modalWorking) { <span class="spinner"></span> }
+          {{ activeModal === 'create' ? 'Create Account' : 'Save Changes' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

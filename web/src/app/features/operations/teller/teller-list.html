@@ -1,7 +1,127 @@
-<app-page-header title="Teller Desks" icon="point_of_sale" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">point_of_sale</span>
-    <strong>Teller Desks</strong><br>Implementation pending.
-  </p>
+<div class="page">
+
+  <!-- ── Header ── -->
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">point_of_sale</span>
+      Teller Desks
+    </div>
+    <button class="btn-primary" (click)="openCreateModal()">
+      <span class="material-icons">add</span> New Teller
+    </button>
+  </div>
+
+  <!-- ── Filters ── -->
+  <div class="filter-bar">
+    <div class="search-wrap">
+      <span class="material-icons search-icon">search</span>
+      <input class="search-input" type="text" placeholder="Search by name or branch…"
+             [(ngModel)]="searchQuery" (ngModelChange)="applyFilter()" />
+    </div>
+    <select class="form-select" [(ngModel)]="statusFilter" (ngModelChange)="applyFilter()">
+      @for (s of statuses; track s) {
+        <option [value]="s">{{ s || 'All Statuses' }}</option>
+      }
+    </select>
+  </div>
+
+  <!-- ── Table ── -->
+  @if (loading) {
+    <div class="card skeleton-card">
+      @for (i of [1,2,3]; track i) { <div class="skeleton skeleton--row"></div> }
+    </div>
+  } @else if (filtered.length === 0) {
+    <div class="card empty-state">
+      <span class="material-icons">point_of_sale</span>
+      <p>{{ searchQuery || statusFilter ? 'No tellers match your filter.' : 'No teller desks configured yet.' }}</p>
+      @if (!searchQuery && !statusFilter) {
+        <button class="btn-primary" (click)="openCreateModal()">
+          <span class="material-icons">add</span> Create First Teller
+        </button>
+      }
+    </div>
+  } @else {
+    <div class="card">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Branch Code</th>
+            <th>Start Date</th>
+            <th>End Date</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (t of filtered; track t.id) {
+            <tr class="table-row" [routerLink]="[t.id]">
+              <td>
+                <div class="teller-name">
+                  <span class="teller-icon">
+                    <span class="material-icons">point_of_sale</span>
+                  </span>
+                  {{ t.name }}
+                </div>
+              </td>
+              <td class="mono muted">{{ t.branchCode }}</td>
+              <td class="muted">{{ t.startDate | date:'mediumDate' }}</td>
+              <td class="muted">{{ t.endDate ? (t.endDate | date:'mediumDate') : '—' }}</td>
+              <td>
+                <app-status-badge [variant]="statusVariant(t.status)" [label]="t.status" />
+              </td>
+              <td class="chevron-cell">
+                <span class="material-icons">chevron_right</span>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <div class="table-footer">{{ filtered.length }} teller{{ filtered.length === 1 ? '' : 's' }}</div>
+    </div>
+  }
+
 </div>
+
+<!-- ── Create Teller Modal ── -->
+@if (showCreateModal) {
+  <div class="modal-backdrop" (click)="closeCreateModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">point_of_sale</span>
+        New Teller Desk
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Name <span class="required">*</span></label>
+          <input class="form-input" type="text" [(ngModel)]="form.name" placeholder="e.g. Counter 1 — Main Branch" />
+        </div>
+        <div class="form-row">
+          <div class="form-field form-field--half">
+            <label class="form-label">Branch Code <span class="required">*</span></label>
+            <input class="form-input" type="text" [(ngModel)]="form.branchCode" placeholder="e.g. 001" maxlength="10" />
+          </div>
+          <div class="form-field form-field--half">
+            <label class="form-label">Start Date <span class="required">*</span></label>
+            <input class="form-input" type="date" [(ngModel)]="form.startDate" />
+          </div>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Description <span class="form-hint">(optional)</span></label>
+          <input class="form-input" type="text" [(ngModel)]="form.description" placeholder="Brief description" />
+        </div>
+        @if (createError) {
+          <div class="modal__error">{{ createError }}</div>
+        }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeCreateModal()" [disabled]="createWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitCreate()"
+                [disabled]="createWorking || !form.name || !form.branchCode || !form.startDate">
+          @if (createWorking) { <span class="spinner"></span> }
+          Create Teller
+        </button>
+      </div>
+    </div>
+  </div>
+}

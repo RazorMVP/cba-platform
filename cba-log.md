@@ -59,6 +59,30 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 16 — 2026-04-10
+
+**Angular Teller Sessions UI — full TellerListComponent + TellerDetailComponent with TellerService: teller lifecycle, cashier assignment, session open/close, cash-in/cash-out, and settlement reconciliation.**
+
+**Files changed (7):**
+- `web/src/app/features/operations/teller/teller.service.ts` — NEW: `Teller`, `Cashier`, `TellerSession`, `CashTransaction` interfaces; full lifecycle methods (create, activate, close, assignCashier, openSession, closeSession, recordTransaction)
+- `web/src/app/features/operations/teller/teller-list.ts` — REWRITTEN: loads all tellers; client-side filter by name/branchCode/status; create teller modal with startDate defaulting to today
+- `web/src/app/features/operations/teller/teller-list.html` — REWRITTEN: page header, search+status filter bar, data table with chevron rows, create teller modal
+- `web/src/app/features/operations/teller/teller-list.scss` — REWRITTEN: compact Nubeero list styles; teller-icon, modal styles
+- `web/src/app/features/operations/teller/teller-detail/teller-detail.ts` — REWRITTEN: `ActiveTab = 'overview' | 'cashiers' | 'sessions'`; `ModalType` union (6 modals); cashiers loaded eagerly; `selectSession()` expand/collapse with lazy txn load; `get openSession()` finder; `get sessionRunningBalance()` computed from transactions; `openSettleModal()` pre-fills actualCash; `submitOpenSession()` auto-expands session + switches tab
+- `web/src/app/features/operations/teller/teller-detail/teller-detail.html` — REWRITTEN: teller header with lifecycle buttons; green open-session-banner with running balance; tab bar with count badges; sessions as expandable `session-card` divs with left-border; 6 modals (activate, close-teller, assign-cashier, open-session, cash-txn, settle)
+- `web/src/app/features/operations/teller/teller-detail/teller-detail.scss` — REWRITTEN: `session-card--open` (green border); `settlement-row--surplus/deficit`; `txn-badge--in/out`; `amount--in/out` colour classes
+
+**Key patterns:**
+- `selectedSession` expand/collapse with lazy `sessionTxns` load (avoids deep routing for single-day workflow)
+- Settlement live difference preview: `difference = settleActualCash - sessionRunningBalance`; coloured surplus/deficit
+- Cashiers loaded eagerly on init (needed before Open Session modal opens)
+- `UNIQUE (cashier_id, session_date)` constraint; error message explains "session may already be open today"
+
+**Build:** Clean (`Output location: dist/cba-web`, zero TS errors)
+**CLAUDE.md:** Updated Angular Component Map — added `TellerListComponent` + `TellerDetailComponent`; stub count ~56 → ~54
+
+---
+
 ### Session 15 — 2026-04-10
 
 **Angular Payments UI — full PaymentsListComponent + PaymentDetailComponent with PaymentService, 3-step transfer wizard, standing order modal, FX cross-currency display, and payment reversal.**

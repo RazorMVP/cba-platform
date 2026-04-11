@@ -498,6 +498,395 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 
 ---
 
+## Card Management Service and Front End Processing Module
+
+This section is the authoritative reference for the Card Management System (CMS) and Front End Processor (FEP) — a full production-grade card processing stack added to the CBA platform. Read this section fully before generating any code related to cards, ATM, POS, or ISO 8583.
+
+---
+
+### Architecture Overview
+
+```
+[Mobile / POS / ATM Terminal]
+           ↓  ISO 8583-1987 over TCP (port 8583)
+    [fep-service :8082]
+     │  ISO 8583 TCP socket server (Netty + jPOS)
+     │  Message parsing, routing, HSM adapter
+     │  EMV ARQC validation, PIN block decryption
+           ↓  REST (internal)
+    [card-service :8081]
+     │  Card lifecycle, auth rules, fraud engine
+     │  Token vault (TSP), settlement, disputes
+     │  Terminal simulator REST API
+           ↓  REST (internal)
+    [backend (monolith) :8080]
+         Account balance queries
+         Transaction posting on approval
+         Loan credit limit queries (credit cards)
+```
+
+**Deployment model (Hybrid — Option C):**
+- `fep-service` — standalone Spring Boot microservice; must be network-isolated; owns the TCP socket
+- `card-service` — standalone Spring Boot microservice; owns all card domain data
+- `backend` (existing monolith) — called by `card-service` via REST for balance/transaction operations
+
+---
+
+### New Services
+
+| Service | Port (HTTP) | Port (TCP) | Responsibility |
+|---------|-------------|------------|---------------|
+| `card-service` | 8081 | — | Card lifecycle, auth rules, fraud engine, token vault, terminal simulator REST, disputes, settlement |
+| `fep-service` | 8082 | 8583 | ISO 8583-1987 TCP socket server, message parsing, HSM adapter, auth routing, EMV cryptogram validation |
+
+---
+
+### card-service — Module Breakdown
+
+| Package | Responsibility |
+|---------|---------------|
+| `com.cba.card` | Card entity, BIN ranges, card products, physical/virtual lifecycle, PIN management |
+| `com.cba.card.limits` | Per-card limits: daily purchase, daily withdrawal, per-transaction, monthly caps |
+| `com.cba.card.fraud` | Rule engine, risk scoring (0–100), configurable rule weights, STEP_UP threshold |
+| `com.cba.card.token` | Token vault — DPAN → PAN mapping, token lifecycle (simulated EMVCo TSP) |
+| `com.cba.card.settlement` | Dual-message batch (`0320`/`0322`/`0324`) + single-message real-time advice (`0120`) |
+| `com.cba.card.dispute` | Dispute state machine: `RAISED → UNDER_REVIEW → RESOLVED_ISSUER / RESOLVED_ACQUIRER` |
+| `com.cba.card.terminal` | Terminal simulator REST API — constructs ISO 8583 messages, fires to FEP TCP, returns response |
+
+---
+
+### fep-service — Module Breakdown
+
+| Package | Responsibility |
+|---------|---------------|
+| `com.cba.fep.server` | Netty TCP socket server on port 8583, connection lifecycle, session management |
+| `com.cba.fep.iso` | ISO 8583-1987 message packager/unpackager (jPOS `GenericPackager`), bitmap processing, all DE field definitions |
+| `com.cba.fep.router` | Routes MTI `0100/0200/0400/0800` to correct handler; response correlation via STAN (DE11) |
+| `com.cba.fep.auth` | Authorization handler — calls `card-service` auth endpoint, maps response code, builds `0110` reply |
+| `com.cba.fep.hsm` | Thales payShield pluggable adapter interface; software stub implementation for dev; real hardware slot for prod |
+| `com.cba.fep.emv` | DE 55 ICC data parser, ARQC cryptogram validation, ARPC generation |
+
+---
+
+### ISO 8583-1987 Message Types Implemented
+
+| MTI | Direction | Purpose |
+|-----|-----------|---------|
+| `0100` | Terminal → FEP | Authorization Request (purchase, balance enquiry) |
+| `0110` | FEP → Terminal | Authorization Response |
+| `0120` | FEP → card-service | Financial Advice (single-message real-time settlement) |
+| `0130` | card-service → FEP | Financial Advice Response |
+| `0200` | Terminal → FEP | Financial Transaction Request (cash withdrawal) |
+| `0210` | FEP → Terminal | Financial Transaction Response |
+| `0220` | FEP → card-service | Financial Transaction Advice |
+| `0320` | FEP → settlement | Batch Upload Request |
+| `0322` | FEP → settlement | Batch Upload Advice |
+| `0324` | FEP → settlement | Batch Close Request |
+| `0400` | Terminal → FEP | Reversal Request |
+| `0410` | FEP → Terminal | Reversal Response |
+| `0420` | FEP internal | Reversal Advice |
+| `0800` | Terminal ↔ FEP | Network Management (sign-on `0001`, sign-off `0002`, echo `0301`) |
+| `0810` | FEP → Terminal | Network Management Response |
+
+---
+
+### Key ISO 8583 Data Elements (DE) Handled
+
+| DE | Name | Notes |
+|----|------|-------|
+| DE 2 | Primary Account Number (PAN) | Stored encrypted; de-tokenized if DPAN detected |
+| DE 3 | Processing Code | `000000`=purchase, `010000`=cash withdrawal, `310000`=balance enquiry |
+| DE 4 | Transaction Amount | `NUMERIC(12)` in cents |
+| DE 7 | Transmission Date & Time | `MMDDHHmmss` |
+| DE 11 | STAN | Systems Trace Audit Number — unique per transaction, used for correlation |
+| DE 12 | Local Transaction Time | `HHmmss` |
+| DE 13 | Local Transaction Date | `MMDD` |
+| DE 14 | Expiry Date | `YYMM` |
+| DE 18 | Merchant Category Code (MCC) | Used by fraud rule engine |
+| DE 22 | POS Entry Mode | `021`=mag stripe, `051`=EMV chip contact, `071`=contactless NFC |
+| DE 23 | Card Sequence Number | For multi-card accounts |
+| DE 35 | Track 2 Data | Mag stripe: PAN + expiry + service code |
+| DE 37 | Retrieval Reference Number (RRN) | 12-char unique ref from acquirer |
+| DE 38 | Authorization Code | 6-char code on approval; blank on decline |
+| DE 39 | Response Code | `00`=approved, `05`=do not honor, `51`=insufficient funds, `54`=expired card, `57`=txn not permitted, `62`=restricted, `91`=issuer unavailable |
+| DE 41 | Terminal ID | 8-char ATM/POS terminal identifier |
+| DE 42 | Merchant ID | 15-char acquirer merchant ID |
+| DE 43 | Merchant Name/Location | 40-char free text |
+| DE 49 | Transaction Currency Code | ISO 4217 numeric (840=USD, 404=KES, 288=GHS) |
+| DE 52 | PIN Block | Encrypted PIN block (ISO-0 format); sent to HSM adapter for PVV/IBM3624 verification |
+| DE 54 | Additional Amounts | Available balance returned on approval |
+| DE 55 | ICC Data (EMV) | TLV-encoded EMV tags including ARQC (tag `9F26`); FEP validates and generates ARPC |
+| DE 90 | Original Data Elements | For reversals: original MTI + STAN + date + acquirer/forwarding ID |
+
+---
+
+### HSM Adapter — Thales payShield Command Set (Pluggable)
+
+The HSM adapter is a Java interface (`HsmAdapter`) with two implementations:
+- `SoftwareHsmAdapter` — dev/test; performs cryptographic ops in software (AES-256, TDES)
+- `ThalesPayShieldAdapter` — production; sends TCP command frames to a real payShield 9000/10000
+
+| Command | Purpose |
+|---------|---------|
+| `CW` | Generate/verify CVV and CVV2 using card key |
+| `DC` | Verify PIN using Visa PVV method |
+| `CA` | Verify PIN using IBM 3624 offset method |
+| `BK` | Translate PIN from one ZPK to another (for cross-network key zones) |
+| `NC` | Generate MAC using ISO 9797 Algorithm 3 (for message authentication) |
+| `KQ` | Generate Zone PIN Key (ZPK) or Zone Master Key (ZMK) |
+| `A2` | Generate PIN offset (for PIN mailer) |
+| `EC` | Generate key check value (KCV) |
+
+All HSM commands are request-response over a single TCP connection (keep-alive) with 2-byte length header framing.
+
+---
+
+### Card Types and Linked Entities
+
+| Card Type | Links To | Authorization Check | Credit Line |
+|-----------|----------|---------------------|-------------|
+| **Debit** | `Account` (savings/checking) | Real-time balance check via monolith REST | — |
+| **Prepaid** | `PrepaidWallet` (card-service) | Wallet balance check (internal to card-service) | — |
+| **Credit** | `Loan` (revolving credit line in monolith) | Available credit = `creditLimit - outstandingBalance` | Revolving |
+
+---
+
+### Card Lifecycle State Machines
+
+**Virtual Card:**
+```
+ISSUED → ACTIVE → BLOCKED ↔ ACTIVE → EXPIRED
+                  ↓
+               CANCELLED
+```
+
+**Physical Card:**
+```
+ORDERED → PRODUCED → DISPATCHED → ACTIVATION_PENDING → ACTIVE → BLOCKED ↔ ACTIVE → EXPIRED
+                                                                    ↓
+                                                                 CANCELLED
+```
+
+Physical card commands: `?command=activate | block | unblock | cancel | replace`
+
+PIN lifecycle: `PIN_NOT_SET → PIN_SET`; PIN change always goes through HSM (`CA`/`DC` verify old PIN before `A2` sets new one).
+
+---
+
+### Fraud Engine — Rule-Based + Risk Scoring
+
+Each rule has a configurable weight (0–100). Score thresholds are also configurable via Global Configuration.
+
+| Rule ID | Rule Description | Default Weight |
+|---------|-----------------|---------------|
+| `VELOCITY_LIMIT` | More than N transactions in Y minutes on same card | 40 |
+| `SINGLE_AMOUNT_LIMIT` | Single transaction amount exceeds card daily limit | 35 |
+| `BLOCKED_COUNTRY` | Transaction originates from a blocked country code | 60 |
+| `BLOCKED_MCC` | Merchant Category Code is on the blocked list | 45 |
+| `DUPLICATE_TRANSACTION` | Same amount + merchant within 2 minutes | 50 |
+| `CNP_DEBIT` | Card-not-present transaction on a debit card | 25 |
+| `OUTSIDE_HOURS` | Transaction outside permitted hours for card product | 20 |
+| `CARD_EXPIRED` | Card expiry date (DE14) has passed | 100 (hard block) |
+| `CARD_BLOCKED` | Card status is BLOCKED or CANCELLED | 100 (hard block) |
+| `PIN_RETRY_EXCEEDED` | PIN retry counter ≥ 3 | 100 (hard block) |
+
+**Score thresholds (configurable via `GlobalConfiguration`):**
+
+| Score Range | Decision | ISO 8583 DE39 |
+|-------------|----------|--------------|
+| 0–29 | `APPROVE` | `00` |
+| 30–69 | `STEP_UP` — require PIN even if contactless (force online PIN) | `0110` with PIN required flag |
+| 70–100 | `DECLINE` | `05` do not honor / `62` restricted |
+
+---
+
+### Settlement Modes
+
+**Single-Message (Real-Time Advice) — low-value / contactless:**
+- Used when transaction amount ≤ configurable tap limit (default: currency equivalent of $25)
+- Flow: `0200` Financial Request → immediate `0220` Financial Advice → funds debited in real-time
+- No batch window; transaction is final on `0220` acceptance
+
+**Dual-Message (Batch) — high-value / chip / mag stripe:**
+- Authorisation: `0100` → `0110` (hold placed on funds — debit pending)
+- Clearing: end-of-day `0320` Batch Upload → `0322` Batch Advice → `0324` Batch Close
+- Settlement: `SettlementService` matches auth records, posts final GL debit/credit entries
+- Unmatched authorizations expire after 7 days and are reversed automatically
+
+---
+
+### Tokenization (Simulated TSP — Internal Token Vault)
+
+- `POST /api/v1/tokens` — generates a DPAN (Device PAN) mapped to a real PAN; returns `{ dpan, expiryDate, tokenRef }`
+- DPAN format: same length as PAN (16 digits), different BIN range (token BIN: `9999xx`)
+- Token vault: `token_vault` table in card-service DB — stores `dpan → pan` mapping encrypted at rest
+- FEP de-tokenization: when DE2 PAN starts with token BIN prefix, FEP calls card-service `/tokens/detokenize` before auth lookup
+- Token lifecycle: `ACTIVE → SUSPENDED → DELETED`; suspend on card block, delete on card cancel
+
+---
+
+### Terminal Simulator
+
+**REST API** (embedded in card-service at `/api/v1/simulate/`):
+
+| Endpoint | MTI Sent | Description |
+|----------|----------|-------------|
+| `POST /simulate/purchase` | `0100` | Card purchase at POS |
+| `POST /simulate/withdrawal` | `0200` | ATM cash withdrawal |
+| `POST /simulate/balance` | `0100` (DE3=`310000`) | Balance enquiry |
+| `POST /simulate/reversal` | `0400` | Transaction reversal |
+| `POST /simulate/network/signon` | `0800` (DE70=`0001`) | FEP sign-on |
+| `POST /simulate/network/echo` | `0800` (DE70=`0301`) | Echo test |
+
+Request body includes: `cardNumber`, `expiryDate`, `amount`, `currency`, `terminalId`, `merchantId`, `merchantName`, `entryMode` (`SWIPE`/`CHIP`/`CONTACTLESS`), `pinBlock` (optional).
+
+Response returns full decoded ISO 8583 response: `responseCode`, `authCode`, `availableBalance`, `stan`, `rrn`, plus raw hex dump of the ISO 8583 message for debugging.
+
+**Angular UI** (`TerminalSimulatorComponent`):
+- Card picker (search by PAN last 4 or customer name)
+- Transaction type selector (Purchase / Withdrawal / Balance / Reversal)
+- Amount + currency input
+- Entry mode toggle (Swipe / Chip / Contactless)
+- "Send Transaction" button → calls `/simulate/*` → displays real response with colour-coded result (green=approved, red=declined)
+- Raw ISO 8583 hex dump panel (collapsible) for technical inspection
+
+---
+
+### Disputes Module
+
+**State machine:** `RAISED → UNDER_REVIEW → RESOLVED_ISSUER | RESOLVED_ACQUIRER | WITHDRAWN`
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `transactionRef` | String | Original RRN (DE37) of disputed transaction |
+| `disputeReason` | Enum | `UNAUTHORIZED`, `GOODS_NOT_RECEIVED`, `DUPLICATE`, `AMOUNT_MISMATCH`, `OTHER` |
+| `status` | Enum | State machine above |
+| `raisedBy` | UUID | Customer ID |
+| `resolvedBy` | UUID | Operations staff user ID |
+| `resolutionNotes` | Text | Free text |
+| `originalAmount` | NUMERIC(19,4) | Amount of disputed transaction |
+
+Endpoints: `GET/POST /api/v1/cards/disputes`, `GET/PUT /api/v1/cards/disputes/{id}`
+
+---
+
+### Database Entities (card-service DB — separate schema `card_db`)
+
+| Table | Key Columns |
+|-------|-------------|
+| `card_products` | id, name, card_type (DEBIT/PREPAID/CREDIT), bin_range_start, bin_range_end, default_daily_limit, features (JSONB) |
+| `cards` | id, pan_encrypted, expiry_date, cvv_encrypted, card_sequence_no, card_type, status, virtual_flag, customer_id, linked_entity_id (account or loan UUID), product_id, pin_retry_count |
+| `physical_card_orders` | id, card_id, status, production_request_date, dispatch_date, activation_code, card_bureau_ref |
+| `card_limits` | id, card_id, daily_purchase_limit, daily_withdrawal_limit, per_txn_limit, monthly_limit, currency_code |
+| `authorization_log` | id, card_id, stan, rrn, mti, processing_code, amount, currency_code, response_code, entry_mode, merchant_id, merchant_name, mcc, fraud_score, decision, created_at |
+| `fraud_rules` | id, rule_id, weight, enabled, params (JSONB) — e.g. velocity_count, velocity_window_minutes |
+| `fraud_score_log` | id, authorization_log_id, rule_id, score_contribution, triggered |
+| `token_vault` | id, dpan_encrypted, pan_encrypted, token_ref, status, customer_id, card_id, created_at, expires_at |
+| `settlement_batches` | id, batch_ref, status, settlement_date, total_amount, item_count, opened_at, closed_at |
+| `settlement_items` | id, batch_id, authorization_log_id, amount, currency_code, status |
+| `card_disputes` | id, card_id, transaction_ref, dispute_reason, status, raised_by, resolved_by, original_amount, resolution_notes |
+| `prepaid_wallets` | id, card_id, customer_id, balance, currency_code, status |
+
+All tables: UUID PKs, `version BIGINT` for optimistic locking, `created_at`/`updated_at` TIMESTAMPTZ.
+
+---
+
+### Angular Screens (new `CardsModule`)
+
+| Component | Route | Status |
+|-----------|-------|--------|
+| `CardListComponent` | `/cards` | 🔲 Planned |
+| `CardDetailComponent` | `/cards/:id` | 🔲 Planned |
+| `CardProductsComponent` | `/cards/products` | 🔲 Planned |
+| `FraudRulesComponent` | `/cards/fraud` | 🔲 Planned |
+| `SettlementComponent` | `/cards/settlement` | 🔲 Planned |
+| `DisputesComponent` | `/cards/disputes` | 🔲 Planned |
+| `TerminalSimulatorComponent` | `/cards/terminal` | 🔲 Planned |
+
+---
+
+### Monorepo Structure — New Additions
+
+```
+CoreBanking/
+├── backend/                    ← existing monolith (REST client added for card-service)
+├── card-service/               ← NEW standalone Spring Boot microservice
+│   ├── pom.xml
+│   ├── src/main/java/com/cba/card/
+│   │   ├── CardApplication.java
+│   │   ├── card/               ← Card entity, lifecycle, PIN
+│   │   ├── limits/             ← CardLimit entity + service
+│   │   ├── fraud/              ← FraudRule, FraudEngine, FraudScoreService
+│   │   ├── token/              ← Token vault, DPAN, TSP simulation
+│   │   ├── settlement/         ← SettlementBatch, SettlementService
+│   │   ├── dispute/            ← Dispute entity + service
+│   │   └── terminal/           ← TerminalSimulatorController + ISO8583Client
+│   └── src/main/resources/
+│       ├── application.yml
+│       └── db/migration/
+│           ├── V1__card_schema.sql
+│           └── V2__card_demo_data.sql
+├── fep-service/                ← NEW standalone Spring Boot microservice
+│   ├── pom.xml
+│   ├── src/main/java/com/cba/fep/
+│   │   ├── FepApplication.java
+│   │   ├── server/             ← Netty TCP server (port 8583)
+│   │   ├── iso/                ← jPOS packager, field definitions, bitmap
+│   │   ├── router/             ← MTI-based message router
+│   │   ├── auth/               ← Authorization handler
+│   │   ├── hsm/                ← HsmAdapter interface + SoftwareHsmAdapter + ThalesPayShieldAdapter stub
+│   │   └── emv/                ← DE55 parser, ARQC validator, ARPC generator
+│   └── src/main/resources/
+│       ├── application.yml
+│       └── iso8583-1987-fields.xml   ← jPOS GenericPackager field config
+├── web/                        ← existing Angular app (new CardsModule added)
+│   └── src/app/features/cards/ ← NEW Angular feature module
+└── infrastructure/
+    └── docker-compose.yml      ← Updated: card-service + fep-service added
+```
+
+---
+
+### Key Dependencies — card-service
+
+| Dependency | Purpose |
+|------------|---------|
+| `spring-boot-starter-web` | REST API |
+| `spring-boot-starter-data-jpa` | JPA / Hibernate |
+| `spring-boot-starter-security` | JWT auth (shared Keycloak realm) |
+| `spring-boot-starter-validation` | Bean validation |
+| `flyway-core` | DB migrations |
+| `postgresql` | JDBC driver |
+| `lombok` | Boilerplate reduction |
+| `jasypt-spring-boot-starter` | Field-level PAN/CVV encryption |
+| `netty-all` | ISO 8583 TCP client (for terminal simulator calls to FEP) |
+
+---
+
+### Key Dependencies — fep-service
+
+| Dependency | Purpose |
+|------------|---------|
+| `jpos` `2.1.x` | ISO 8583-1987 message packing/unpacking, `GenericPackager`, `ISOMsg` |
+| `netty-all` `4.x` | High-performance TCP socket server (port 8583) |
+| `spring-boot-starter-web` | Internal REST API (health, config reload) |
+| `spring-boot-starter-data-jpa` | Auth log persistence |
+| `lombok` | Boilerplate reduction |
+| `bc-fips` or `bcprov-jdk18on` | Bouncy Castle — TDES PIN block decryption, AES card key ops |
+
+---
+
+### Build Order
+
+1. **fep-service** — ISO 8583 TCP server, jPOS packager, message router, HSM adapter, EMV handler
+2. **card-service** — all domain modules (card, limits, fraud, token, settlement, dispute) + terminal simulator REST
+3. **backend (monolith)** — add `CardServiceClient` REST client; wire to account balance endpoint
+4. **Angular `CardsModule`** — 7 screens including terminal simulator UI
+5. **Docker Compose** — `card-service` + `fep-service` service definitions
+6. **Infrastructure / K8s** — new deployment + service manifests
+
+---
+
 ## Multi-Currency Architecture
 
 The platform supports multi-currency deployment. Each tenant has a **base currency** (ISO 4217). Accounts default to the tenant's base currency but tellers can override per account for foreign-currency accounts.

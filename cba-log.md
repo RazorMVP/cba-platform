@@ -59,6 +59,71 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 24 — 2026-04-11
+
+**Architecture designed and documented for Card Management Service and Front End Processing Module — full ISO 8583-1987 card processing stack. No code written yet; this entry records all design decisions made through structured Q&A.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `CLAUDE.md` | NEW SECTION — "Card Management Service and Front End Processing Module" — full reference spec |
+| `cba-log.md` | This session entry |
+
+#### Architecture Decisions Recorded
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| ISO 8583 path | Real ISO 8583-1987 (not simulated) | Production-grade; maximum ATM/POS compatibility |
+| ISO 8583 version | 1987 | Most widely deployed; used by Visa BASE I, MC IPS, most regional ATM networks |
+| Card types | Debit + Prepaid + Credit (all three) | Full card portfolio; debit→Account, prepaid→wallet, credit→Loan revolving line |
+| Card technology | Full stack: mag stripe + EMV chip + contactless NFC | Real-world card tech stack; DE22 entry mode controls path |
+| HSM approach | Pluggable adapter (Option C) — Thales payShield command set, software stub for dev | Full command protocol; real hardware swappable in prod |
+| FEP scope | Full end-to-end with ATM/POS terminal simulator | Self-contained demo; no external tools needed |
+| Terminal simulator | Angular UI + REST API | Visual demo + CI automation via Postman/scripts |
+| Fraud engine | Rule-based + risk scoring (0–100, configurable weights) | Industry-standard FIS/FICO Falcon approach |
+| Settlement | Both modes: dual-message batch (high-value) + single-message real-time (low-value/contactless) | Matches Visa dual-message vs eftpos/Interac single-message schemes |
+| Card lifecycle | Both virtual and physical, with full physical state machine | `ISSUED→ACTIVE` (virtual) vs `ORDERED→PRODUCED→DISPATCHED→ACTIVATION_PENDING→ACTIVE` (physical) |
+| Disputes | Basic (B) — `RAISED→UNDER_REVIEW→RESOLVED` | Pragmatic; shows concept without full Visa Resolve Online complexity |
+| Tokenization | Simulated TSP — internal token vault, DPAN with token BIN `9999xx` | Demonstrates de-tokenization path in FEP auth; no Apple/Google SDK needed |
+| Service architecture | Hybrid (C) — `fep-service` standalone (must be network-isolated), `card-service` standalone, terminal simulator in card-service | Matches real production topology |
+
+#### New Services Planned
+
+| Service | Port | Build Status |
+|---------|------|-------------|
+| `fep-service` | 8082 (HTTP) + 8583 (TCP) | ❌ Not yet built |
+| `card-service` | 8081 | ❌ Not yet built |
+
+#### New Angular Screens Planned
+
+| Screen | Component | Status |
+|--------|-----------|--------|
+| Card List | `CardListComponent` | 🔲 Planned |
+| Card Detail | `CardDetailComponent` | 🔲 Planned |
+| Card Products | `CardProductsComponent` | 🔲 Planned |
+| Fraud Rules | `FraudRulesComponent` | 🔲 Planned |
+| Settlement | `SettlementComponent` | 🔲 Planned |
+| Disputes | `DisputesComponent` | 🔲 Planned |
+| Terminal Simulator | `TerminalSimulatorComponent` | 🔲 Planned |
+
+#### Key Patterns / Decisions
+- jPOS `2.1.x` chosen as the ISO 8583 library — industry-standard, Apache-licensed, used by real payment processors; `GenericPackager` configured via `iso8583-1987-fields.xml`
+- Netty chosen as the TCP socket server for FEP — non-blocking NIO, handles thousands of concurrent ATM/POS connections
+- Bouncy Castle (`bcprov-jdk18on`) for TDES PIN block decryption and AES card key operations in the software HSM stub
+- Fraud score hard-blocks for `CARD_BLOCKED`, `CARD_EXPIRED`, `PIN_RETRY_EXCEEDED` (weight=100) — these bypass the configurable threshold system
+- Settlement match key: `(card_id, stan, rrn, transaction_date)` — combination must be unique per authorization
+- Token BIN prefix `9999xx` reserved for DPANs in the token vault; FEP detects this prefix to trigger de-tokenization before auth lookup
+
+#### Build Verification
+- No code built yet — this session is architecture-only
+- Next session: begin `fep-service` (ISO 8583 TCP server + jPOS packager + HSM adapter)
+
+#### Compliance Checklist Update
+- Card Management architecture: ✅ Designed and documented
+- Card Management implementation: ❌ Not yet started
+
+---
+
 ### Session 23 — 2026-04-11
 
 **Figma design archive extended — 16 new frames across 4 new pages covering all Admin, Groups, Open Banking, and System components.**

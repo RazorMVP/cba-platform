@@ -98,6 +98,9 @@ _None — all Phase 1 backend modules are now complete._
 - FloatingRates and Tax Groups both use a **dynamic rows pattern** — add/remove rows before submitting parent+children as a single request
 
 #### Build Verification
+- `ng build --configuration=production` — zero errors, all warnings pre-existing
+- Bug fixed: all new templates incorrectly bound `[status]="..."` to `StatusBadgeComponent`, which only accepts `[label]` and `[variant]` — fixed across all 11 affected components before commit
+- `statusVariant()` helpers added to `groups-list`, `centers-list`, `group-detail`, `center-detail` to supply variant values
 - TypeScript: no unused-import errors (FloatingRatePeriod removed after IDE diagnostic)
 - All components follow `inject()` pattern (no constructor injection)
 - All use `@if`/`@for` control flow (not `*ngIf`/`*ngFor`)

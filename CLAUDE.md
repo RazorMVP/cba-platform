@@ -770,7 +770,7 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Topbar | `TopbarComponent` | `LayoutModule` | ✅ Built |
 | KPI card | `KpiCardComponent` | `SharedModule` | ✅ Built |
 | Data table | `DataTableComponent` | `SharedModule` | ✅ Built |
-| Status badge | `StatusBadgeComponent` | `SharedModule` | ✅ Built |
+| Status badge | `StatusBadgeComponent` | `SharedModule` | ✅ Built — inputs: `[label]` (string) + `[variant]` (success/warning/error/info/neutral/primary) — **never use `[status]`** |
 | Dashboard | `DashboardComponent` | `OperationsModule` | ✅ Built — KPIs, transaction table, portfolio bars, KYC queue |
 | Customers list | `CustomersListComponent` | `OperationsModule` | ✅ Built — debounced search, KYC filter tabs, pagination |
 | Customer detail | `CustomerDetailComponent` | `OperationsModule` | ✅ Built — 5 tabs, KYC state machine |

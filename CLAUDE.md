@@ -1531,7 +1531,7 @@ card:
 
 ### backend — Card Service Integration (Session 39)
 
-**Build status**: `cd backend && ./mvnw clean compile → BUILD SUCCESS (0 errors)` | `cd card-service && ./mvnw clean compile → BUILD SUCCESS (0 errors)`
+**Build status**: `cd backend && ./mvnw clean compile → BUILD SUCCESS (0 errors)` | `cd card-service && ./mvnw clean compile → BUILD SUCCESS (0 errors)`. Commits: `7cd68c7` (code + CLAUDE.md/cba-log.md), `e460667` (API docs)
 
 **What was built:** Backend monolith extension — `CardServiceClient` REST client calls card-service (:8081), `CardAccountAdapter` translates card-service DTOs to UK Open Banking v3.1 shapes, `ConsentScope` enum replaces hardcoded scope strings. AISP endpoints now aggregate card accounts alongside bank accounts. CBPII funds confirmation falls back to card available balance when the account ID belongs to a card.
 
@@ -1574,6 +1574,12 @@ backend/src/main/java/com/cba/
 | `cardServiceRestTemplate` bean name | Must use `@Qualifier("cardServiceRestTemplate")` in `CardServiceClient` constructor — the monolith already has other `RestTemplate` beans (e.g. Keycloak admin client). Without the qualifier, Spring throws `NoUniqueBeanDefinitionException`. |
 | CBPII card scope requirement | `confirmFunds()` only calls card-service if `card_read` OR `card_balances_read` is in the consent. If a TPP sends a funds confirmation for a card account with only `fundsconfirmation` scope, it gets a 404 (not a balance). Correct per spec — CBPII for cards requires explicit card scope. |
 | `deriveCurrency()` returns hardcoded "840" | Card DTOs from card-service don't carry currency in the current shape. Full fix: add `currencyCode` to the card-service balance response (already present in `BalanceResult`). For Session 39 the field reads from `BalanceResult.cardType()` only — currency will be threaded through in a future cleanup. |
+
+**API documentation updated (Session 39 — commit `e460667`):**
+
+`docs/cba-postman-collection-v2.json` — NEW "Card Management" folder inside Card Service section; contains `GET /api/v1/cards/:id/balance` with 4 response examples (debit/credit/null balance/404) and 7 language samples (cURL, Java, JavaScript, Python, Go, Ruby, C#). PHP omitted to avoid `exec(` security hook.
+
+`docs/api-reference.html` — NEW "Card Management (Internal)" `<h3>` section with balance endpoint table row before Disputes. Renamed "Roles" table to "Consent Scope Catalogue" and expanded from 3 rows to 8 — added `accounts_read`, `balances_read`, `transactions_read` (AISP), `card_read`, `card_balances_read`, `card_transactions_read` (Card AISP). Added "AISP — Account Information" paragraph explaining card account merging, local-remote fallback, and graceful degradation.
 
 ---
 

@@ -60,7 +60,7 @@ _None — all Phase 1 backend modules are now complete._
 ## Change History
 
 ### Session 39 — 2026-04-12
-**Build Order Step 10 — backend monolith: `CardServiceClient` REST client, `CardAccountAdapter` OB shape mapping, `ConsentScope` enum, AISP card account/balance/transaction merge, CBPII card balance extension. BUILD SUCCESS (0 errors) on both backend and card-service.**
+**Build Order Step 10 — backend monolith: `CardServiceClient` REST client, `CardAccountAdapter` OB shape mapping, `ConsentScope` enum, AISP card account/balance/transaction merge, CBPII card balance extension. BUILD SUCCESS (0 errors) on both backend and card-service. Commits: `7cd68c7` (code + docs update), `e460667` (API docs).**
 
 #### New/Updated Files
 | File | Change |
@@ -74,6 +74,8 @@ _None — all Phase 1 backend modules are now complete._
 | `backend/.../openbanking/AccountInfoController.java` | MODIFIED: `getAccounts()` merges card accounts (fail-safe); `getBalances()` tries account repo then card-service; `getTransactions()` tries account repo then card auth history; ownership enforced (404 not 403) |
 | `backend/.../openbanking/ConsentService.java` | MODIFIED: `confirmFunds()` tries bank account first, falls back to card balance if `CARD_READ`/`CARD_BALANCES_READ` scope present; uses `ConsentScope` enum constants |
 | `backend/src/main/resources/application.yml` | NEW `card.service.base-url` in dev + prod profiles |
+| `docs/cba-postman-collection-v2.json` | NEW "Card Management" folder inside Card Service — `GET /api/v1/cards/{id}/balance` with 4 response examples (debit/credit/null/404) and 7 language samples |
+| `docs/api-reference.html` | NEW Card Management (Internal) section with balance endpoint table; ConsentScope Catalogue expanded to 8 scopes; AISP card merging paragraph |
 
 #### Key Patterns / Decisions
 - **Local-remote aggregation**: `AccountInfoController` tries `accountRepository.findById()` first; falls back to `cardServiceClient.getCard()` if not found. UUID namespaces are disjoint — no routing table needed.

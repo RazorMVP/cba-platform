@@ -59,6 +59,43 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 23 — 2026-04-11
+
+**Figma design archive extended — 16 new frames across 4 new pages covering all Admin, Groups, Open Banking, and System components.**
+
+#### New/Updated Figma Frames
+| Page | Frame | Description |
+|------|-------|-------------|
+| 🛡️ Admin | Platform Users | Search + user table (username, email, office, role, status toggle) |
+| 🛡️ Admin | Roles & Permissions | Role table with permission count; active/disabled status badges |
+| 🛡️ Admin | Offices | Office hierarchy table with materialised path display |
+| 🛡️ Admin | Webhook Hooks | Card-per-hook layout with WEB/SMS type chips + event chips |
+| 🛡️ Admin | Maker-Checker Queue | Status tabs (All/PENDING/APPROVED/REJECTED) + metadata table |
+| 🛡️ Admin | TPP Management | PSD2 TPP registry: clientId, country, scopes, cert expiry, status |
+| 👥 Groups & Centers | Groups List | Status filter tabs + search + groups table |
+| 👥 Groups & Centers | Group Detail | Back-link header + info strip + tabs (Members/Collection Sheet/GLIM) |
+| 👥 Groups & Centers | Centers List | Same pattern as groups list, centers data |
+| 👥 Groups & Centers | Center Detail | Info strip + tabs (Groups in center / All Members) |
+| 🔓 Open Banking | Consents List | Type filter tabs (All/AISP/PISP/CBPII) + status dropdown + table with type/scope badges |
+| 🔓 Open Banking | Consent Detail | Two-column grid (Consent Info / Access Context) + Authorise/Revoke actions |
+| ⚙️ System Config | Codes & Values | Accordion list with inline code value table (expanded state shown) |
+| ⚙️ System Config | Global Configuration | Inline-edit table with toggle switches; type-aware (number/boolean) |
+| ⚙️ System Config | Floating Rates | Card-per-rate accordion rows with BASE badge + period count |
+| ⚙️ System Config | Taxes | Two-tab layout (Tax Components / Tax Groups); component table with GL linkages |
+
+#### Key Decisions
+- All 4 new pages use the updated sidebar nav including Admin, Groups, Open Banking, System entries
+- Consent Detail uses a two-column 556×560 / 560×560 card split — mirrors the Angular `detail-grid` CSS grid
+- Global Config shows functional toggle switches (green=enabled, grey=disabled with pill position reflecting state)
+- Hooks page uses card-per-hook layout (not a table) matching the Angular template structure
+- Maker-Checker shows PENDING tab as active by default, matching the most-used workflow state
+
+#### Compliance Checklist Update
+- Figma archive: ✅ Complete — all 48 Angular components now have Figma prototypes (54 frames, 15 pages)
+- Previous count: 38 frames, 11 pages → New count: 54 frames, 15 pages
+
+---
+
 ### Session 22 — 2026-04-11
 
 **Comprehensive UI audit — resolved global CSS custom property gap that made all feature CTAs and cards invisible in the Vercel deployment.**

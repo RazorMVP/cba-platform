@@ -59,6 +59,32 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 33 — 2026-04-11
+**fep-service QPBOC SM4 adapter — domestic China UnionPay ARQC now validated with SM4 cipher; CID offline detection added. BUILD SUCCESS (0 errors).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `fep-service/…/emv/CryptogramAlgorithm.java` | NEW — `TDES` \| `SM4` enum |
+| `fep-service/…/scheme/SchemeAdapter.java` | Added `default getCryptogramAlgorithm()` → `TDES` |
+| `fep-service/…/scheme/UnionPaySchemeAdapter.java` | Override `getCryptogramAlgorithm()` → `SM4` |
+| `fep-service/…/emv/ArqcValidator.java` | SM4 CBC-MAC path; CID tag `9F27` offline detection; SM4→TDES fallback for international UnionPay |
+| `fep-service/…/router/AuthorizationHandler.java` | Passes `adapter.getCryptogramAlgorithm()` to `arqcValidator.validate()` |
+| `CLAUDE.md` | Gap analysis row: `⚠️ QPBOC variant` → `✅ QPBOC + SM4`; added Session 33 impl notes |
+
+#### Key Patterns / Decisions
+- SM4 session key derivation uses a single 16-byte SM4-ECB block (left‖right halves) vs two 8-byte 3DES-ECB calls — same derivation constants
+- CID byte `9F27` bits 7-6: `0x80`=ARQC (validate online), `0x40`=TC (offline approved, skip), `0x00`=AAC (offline declined, skip)
+- `getCryptogramAlgorithm()` is a `default` method on `SchemeAdapter` → all non-UnionPay adapters get `TDES` automatically with zero code change
+
+#### Build Verification
+`cd fep-service && ./mvnw clean compile → BUILD SUCCESS (0 errors)`
+
+#### Compliance Checklist Update
+- QPBOC ⚠️ gap resolved — domestic China UnionPay cards no longer hard-fail ARQC validation
+
+---
+
 ### Session 32 — 2026-04-11
 
 **Multi-currency audit — 5 critical USD lockouts fixed across card-service. BUILD SUCCESS (0 errors).**

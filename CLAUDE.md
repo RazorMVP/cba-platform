@@ -1033,7 +1033,7 @@ American Express is explicitly **out of scope** — it does not use ISO 8583 and
 | Requirement | Visa | Mastercard | Verve | Afrigo | UnionPay | Our Status |
 |-------------|------|------------|-------|--------|----------|------------|
 | ISO 8583-1987 core | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered |
-| EMV chip + contactless | ✅ | ✅ | ✅ | ✅ | ⚠️ QPBOC variant | ✅ Covered (QPBOC needs adapter) |
+| EMV chip + contactless | ✅ | ✅ | ✅ | ✅ | ✅ QPBOC + SM4 | ✅ Covered |
 | HSM PIN verification | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered |
 | Card lifecycle management | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered |
 | Fraud engine | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered |
@@ -1383,6 +1383,50 @@ card-service/src/main/resources/
 | OTP at DEBUG log level only | `log.debug("3DS OTP: {}", otp)` — never at INFO in production; application.yml sets `com.cba.card: INFO` so DEBUG is off by default |
 | CAVV uses `frictionless ECI "05"` not "06" | EMVCo 3DS 2.x: ECI "05" applies to both frictionless and challenge-verified authentications; "06" = attempted (3DS tried, not verified); "07" = no 3DS |
 | `panHmacKey` used for both PAN hash and OTP hash | Consistent key hierarchy — same key used in `CardService` for PAN hashing; avoids a second key in config |
+
+---
+
+### fep-service — QPBOC SM4 Adapter Notes (Session 32)
+
+**Build status**: `./mvnw clean compile → BUILD SUCCESS (0 errors)`
+
+**What was the ⚠️:** `ArqcValidator` only implemented 3DES CBC-MAC. Domestic China UnionPay (QPBOC) cards use SM4, so all valid domestic CUP ARQCs were returning `false`. The gap analysis row correctly flagged this.
+
+**Files changed:**
+
+| File | Change |
+|------|--------|
+| `fep-service/…/emv/CryptogramAlgorithm.java` | NEW — enum `TDES` \| `SM4` |
+| `fep-service/…/scheme/SchemeAdapter.java` | Added `default getCryptogramAlgorithm()` → `TDES` |
+| `fep-service/…/scheme/UnionPaySchemeAdapter.java` | Override → `SM4` |
+| `fep-service/…/emv/ArqcValidator.java` | Full rewrite: overloaded `validate()`, SM4 path, CID offline detection |
+| `fep-service/…/router/AuthorizationHandler.java` | Line 101: passes `adapter.getCryptogramAlgorithm()` to validator |
+
+**CID offline detection (tag `9F27`) logic:**
+
+| CID bits 7-6 | AC type | Action |
+|---|---|---|
+| `0x80` | ARQC | Proceed with online ARQC validation |
+| `0x40` | TC  | Offline approved — skip validation, return `true` |
+| `0x00` | AAC | Offline declined — skip validation, return `false` |
+
+**SM4 vs TDES key derivation:**
+- Same derivation constants (`0xF0`/`0x0F`) as EMV Book 2
+- TDES: two separate 8-byte single-block encryptions → 16-byte SK
+- SM4: one 16-byte block encryption (16-byte IMK key, 16-byte input = left‖right derivation halves) → 16-byte SK
+
+**SM4 fallback for international UnionPay:**
+- If SM4 ARQC fails, validator silently retries with TDES
+- International UnionPay cards outside mainland China still use 3DES; this prevents false declines in dev/test environments
+
+**Critical gotchas for future sessions:**
+
+| Issue | Fix |
+|-------|-----|
+| SM4Engine block size = 16 bytes | Unlike 3DES (8-byte block), SM4 works on 128-bit blocks. `CBCBlockCipherMac` with SM4Engine handles this automatically — no padding change needed |
+| `BCCBlockCipherMac` MAC size parameter | Constructor takes bits not bytes: `new CBCBlockCipherMac(engine, 64)` = 8-byte MAC regardless of block cipher |
+| SM4 key derivation single-pass | Since SM4 has 16-byte blocks, both left and right derivation halves fit in one encryption call (vs two 3DES calls) |
+| `SchemeAdapter.getCryptogramAlgorithm()` is a `default` method | All other adapter implementations (Visa, MC, Verve, Afrigo, Unknown) automatically return TDES without any code change |
 
 ---
 

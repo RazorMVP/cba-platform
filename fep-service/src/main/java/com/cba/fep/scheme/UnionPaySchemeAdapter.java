@@ -1,5 +1,6 @@
 package com.cba.fep.scheme;
 
+import com.cba.fep.emv.CryptogramAlgorithm;
 import com.cba.fep.iso.IsoField;
 import com.cba.fep.iso.IsoMessageFactory;
 import lombok.extern.slf4j.Slf4j;
@@ -57,6 +58,22 @@ public class UnionPaySchemeAdapter extends AbstractSchemeAdapter {
     @Override
     public SchemeType getSchemeType() {
         return SchemeType.UNIONPAY;
+    }
+
+    /**
+     * Domestic China UnionPay cards use SM4 (GB/T 32918 / PBOC 3.0) for ARQC computation.
+     * International UnionPay cards issued outside mainland China still use 3DES —
+     * the SM4 path activates only when the card's AC algorithm indicator signals SM4.
+     *
+     * <p>Since we cannot determine at the scheme-adapter level whether a given card
+     * is domestic or international (that requires per-card key type from the bureau),
+     * we default to SM4 for all UnionPay cards. The {@link com.cba.fep.emv.ArqcValidator}
+     * falls back to TDES if SM4 validation fails, allowing international cards to
+     * still be processed correctly in the dev software adapter.
+     */
+    @Override
+    public CryptogramAlgorithm getCryptogramAlgorithm() {
+        return CryptogramAlgorithm.SM4;
     }
 
     @Override

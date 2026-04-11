@@ -93,12 +93,15 @@ public class AuthorizationHandler {
         }
 
         // EMV ARQC validation (DE55 present = chip transaction)
+        // Pass the scheme adapter's cryptogram algorithm so UnionPay domestic cards
+        // (QPBOC/SM4) are validated with SM4 CBC-MAC rather than 3DES.
         byte[] arqcBytes = null;
         if (request.hasField(IsoField.ICC_DATA)) {
             byte[] iccData = request.getBytes(IsoField.ICC_DATA);
             var emvTags = emvDataParser.parse(iccData);
             arqcBytes = emvTags.getTag("9F26");
-            boolean arqcValid = arqcValidator.validate(emvTags, effectivePan);
+            boolean arqcValid = arqcValidator.validate(
+                    emvTags, effectivePan, adapter.getCryptogramAlgorithm());
             authReq = authReq.withEmvData(emvTags).withArqcValid(arqcValid);
         }
 

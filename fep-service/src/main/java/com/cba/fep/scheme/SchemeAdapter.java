@@ -1,6 +1,7 @@
 package com.cba.fep.scheme;
 
 import com.cba.fep.auth.AuthorizationResult;
+import com.cba.fep.emv.CryptogramAlgorithm;
 import org.jpos.iso.ISOException;
 import org.jpos.iso.ISOMsg;
 
@@ -54,4 +55,19 @@ public interface SchemeAdapter {
      */
     void finalizeResponse(ISOMsg response, AuthorizationResult result, SchemeType scheme)
             throws ISOException;
+
+    /**
+     * The cryptogram algorithm used by this scheme for ARQC/ARPC computation.
+     *
+     * <p>Defaults to {@link CryptogramAlgorithm#TDES} — the EMV Book 2 standard used by
+     * Visa, Mastercard, Verve, Afrigo, and international UnionPay cards.
+     *
+     * <p>{@link com.cba.fep.scheme.UnionPaySchemeAdapter} overrides this to
+     * {@link CryptogramAlgorithm#SM4} for domestic China QPBOC cards.
+     *
+     * @return the algorithm to use when validating the ARQC from this scheme's cards
+     */
+    default CryptogramAlgorithm getCryptogramAlgorithm() {
+        return CryptogramAlgorithm.TDES;
+    }
 }

@@ -15142,6 +15142,52 @@
           ]
         },
         {
+          "name": "Card Management",
+          "item": [
+            {
+              "name": "Get Card Available Balance",
+              "request": {
+                "method": "GET",
+                "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/api/v1/cards/:id/balance",
+                  "host": ["{{cardServiceHost}}"],
+                  "path": ["api", "v1", "cards", ":id", "balance"],
+                  "variable": [{ "key": "id", "value": "{{cardId}}", "description": "Card UUID" }]
+                },
+                "description": "Returns the available balance for a card, routed by card type: DEBIT cards query the linked savings/checking account in the monolith; PREPAID cards query the internal wallet; CREDIT cards query the revolving credit line. Called by the backend monolith Open Banking AISP layer. ADMIN or TELLER role required.\n\ncURL: curl -X GET 'http://{{cardServiceHost}}/api/v1/cards/{{cardId}}/balance' -H 'Authorization: Bearer {{access_token}}'\n\nJava: HttpRequest.newBuilder().uri(URI.create(base+\"/api/v1/cards/\"+cardId+\"/balance\")).header(\"Authorization\",\"Bearer \"+token).GET().build();\n\nJavaScript: fetch(base+'/api/v1/cards/'+cardId+'/balance',{headers:{'Authorization':'Bearer '+token}}).then(r=>r.json())\n\nPython: requests.get(base+'/api/v1/cards/'+card_id+'/balance',headers={'Authorization':'Bearer '+token})\n\nGo: req,_:=http.NewRequest(\"GET\",base+\"/api/v1/cards/\"+cardId+\"/balance\",nil); req.Header.Set(\"Authorization\",\"Bearer \"+token)\n\nRuby: Net::HTTP.get_response(URI(base+'/api/v1/cards/'+card_id+'/balance'),{'Authorization'=>'Bearer '+token})\n\nC#: client.DefaultRequestHeaders.Authorization=new AuthenticationHeaderValue(\"Bearer\",token); await client.GetAsync(base+\"/api/v1/cards/\"+cardId+\"/balance\");"
+              },
+              "response": [
+                {
+                  "name": "200 OK — Debit card",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"data\": {\n    \"availableBalance\": 45230.50,\n    \"cardType\": \"DEBIT\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+                },
+                {
+                  "name": "200 OK — Credit card",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"data\": {\n    \"availableBalance\": 120000.00,\n    \"cardType\": \"CREDIT\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+                },
+                {
+                  "name": "200 OK — Balance unavailable (linked account unreachable)",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"data\": {\n    \"availableBalance\": null,\n    \"cardType\": \"DEBIT\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+                },
+                {
+                  "name": "404 Not Found",
+                  "status": "Not Found",
+                  "code": 404,
+                  "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{\"code\":\"CARD_NOT_FOUND\",\"message\":\"Card not found: card-uuid\"}]\n}"
+                }
+              ]
+            }
+          ],
+          "description": "Internal card management endpoints (Bearer JWT, ADMIN/TELLER). Called by backend monolith for Open Banking integration."
+        },
+        {
           "name": "Disputes",
           "item": [
             {

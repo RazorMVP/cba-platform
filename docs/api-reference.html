@@ -1169,13 +1169,23 @@ difference = actual_cash - closing_balance</pre>
   <span class="status-pill terminal">REVOKED</span>
 </div>
 
-<h3>Roles</h3>
+<h3>Consent Scope Catalogue</h3>
 <table>
-<tr><th>Role</th><th>Scope</th><th>Operations</th></tr>
-<tr><td>AISP</td><td><code>accounts</code></td><td>Read accounts, balances, transactions</td></tr>
+<tr><th>Role</th><th>Scope String</th><th>Operations</th></tr>
+<tr><td>AISP</td><td><code>accounts_read</code></td><td>Read bank account list (savings, checking, fixed deposit)</td></tr>
+<tr><td>AISP</td><td><code>balances_read</code></td><td>Read account balances</td></tr>
+<tr><td>AISP</td><td><code>transactions_read</code></td><td>Read account transaction history</td></tr>
 <tr><td>PISP</td><td><code>payments</code></td><td>Initiate domestic payments</td></tr>
-<tr><td>CBPII</td><td><code>fundsconfirmation</code></td><td>Check available funds</td></tr>
+<tr><td>CBPII</td><td><code>fundsconfirmation</code></td><td>Check available funds (bank accounts)</td></tr>
+<tr><td>Card AISP</td><td><code>card_read</code></td><td>Include card accounts in AISP /accounts response; required for CBPII card fallback</td></tr>
+<tr><td>Card AISP</td><td><code>card_balances_read</code></td><td>Read card available balance via AISP /accounts/{id}/balances; also enables CBPII card fallback</td></tr>
+<tr><td>Card AISP</td><td><code>card_transactions_read</code></td><td>Read card authorization history via AISP /accounts/{id}/transactions</td></tr>
 </table>
+<p><strong>Note:</strong> Scope strings are stored as plain text in the <code>consent_scopes</code> table. Use the <code>ConsentScope</code> enum constants in code to avoid hardcoded strings.</p>
+
+<h3>AISP — Account Information</h3>
+<p><code>GET /open-banking/v3.1/aisp/accounts</code> — returns bank accounts <em>and</em> card accounts (card-service) merged in a single response. Card accounts have <code>"AccountType": "Card"</code> and <code>"AccountSubType": "DebitCard" | "CreditCard" | "PrepaidCard"</code>. If card-service is unavailable, only bank accounts are returned (graceful degradation).</p>
+<p><code>GET /open-banking/v3.1/aisp/accounts/{id}/balances</code> and <code>/transactions</code> — the <code>{id}</code> may be either a bank account UUID (monolith) or a card UUID (card-service). The controller tries local first; falls back to card-service if not found. For card transactions, the authorization log is returned as OB transaction objects.</p>
 
 <details class="endpoint">
   <summary class="endpoint-header">
@@ -1833,6 +1843,13 @@ difference = actual_cash - closing_balance</pre>
 <tr><td><span class="method post">POST</span></td><td><code>/api/v1/bins</code></td><td>Register a new BIN range (<code>BinRangeRequest</code> validated DTO)</td><td>ADMIN</td></tr>
 <tr><td><span class="method put">PUT</span></td><td><code>/api/v1/bins/{id}</code></td><td>Update BIN range — full replacement</td><td>ADMIN</td></tr>
 <tr><td><span class="method delete">DELETE</span></td><td><code>/api/v1/bins/{id}</code></td><td>Soft-delete: sets <code>active=false</code></td><td>ADMIN</td></tr>
+</table>
+
+<h3>Card Management (Internal)</h3>
+<p>Internal card endpoints called by the backend monolith for Open Banking integration. Auth: Bearer JWT.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/{id}/balance</code></td><td>Available balance routed by card type: DEBIT → linked account in monolith; PREPAID → internal wallet; CREDIT → revolving credit line. Returns <code>{ availableBalance, cardType }</code>. Returns <code>availableBalance: null</code> if linked source is unreachable (graceful degradation).</td><td>ADMIN, TELLER</td></tr>
 </table>
 
 <h3>Disputes</h3>

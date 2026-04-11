@@ -37,7 +37,7 @@
             </span>
             <strong>{{ r.name }}</strong>
             @if (r.isBaseLendingRate) { <span class="base-badge">Base Lending Rate</span> }
-            <span class="period-count muted">{{ r.ratePeriods?.length ?? 0 }} periods</span>
+            <span class="period-count muted">{{ r.ratePeriods.length }} periods</span>
           </div>
           <div class="rate-row__right">
             <span class="created-meta muted">Created by {{ r.createdBy }}</span>
@@ -53,7 +53,7 @@
         <!-- Expanded periods -->
         @if (expandedId === r.id) {
           <div class="periods-panel">
-            @if (!r.ratePeriods?.length) {
+            @if (!r.ratePeriods.length) {
               <div class="periods-empty">No rate periods defined.</div>
             } @else {
               <table class="periods-table">

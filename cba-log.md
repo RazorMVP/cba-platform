@@ -59,6 +59,36 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 22 — 2026-04-11
+
+**Comprehensive UI audit — resolved global CSS custom property gap that made all feature CTAs and cards invisible in the Vercel deployment.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/src/styles.scss` | FIXED — added `:root {}` CSS custom property bridge: `--color-primary`, `--color-text`, `--color-muted`, `--bg-card`, `--color-error` |
+| `web/src/app/features/system/floating-rates.html` | FIXED — removed superfluous `?.` optional chaining on `ratePeriods` (always-defined array); fixes Angular template type warning |
+
+#### Root Cause Analysis
+All 43 feature-level SCSS files reference CSS custom properties (`var(--bg-card)`, `var(--color-primary)`, etc.) but the tokens file only defined SCSS compile-time variables (`$color-bg-card`). No `:root {}` block translated these to runtime CSS custom properties, so:
+- `.btn-primary { background: var(--color-primary) }` → resolved to nothing → invisible buttons (incl. "New Transfer" CTA)
+- `.card { background: var(--bg-card) }` → resolved to nothing → transparent cards
+- All `color: var(--color-text)` text → unresolvable on dark content areas
+
+The layout components (shell, sidebar, topbar) were unaffected because they use SCSS variables directly.
+
+#### Fix Applied
+Single `:root {}` block in `styles.scss` bridging SCSS → CSS custom properties using interpolation (`--color-primary: #{$color-primary-800}`). This resolves all 5 undefined properties globally across all 43 affected components in one edit.
+
+#### Build Verification
+- `ng build --configuration=production` — zero errors, 0 new warnings (pre-existing budget warnings unchanged)
+- Floating-rates template warning resolved (optional chaining removed from required array)
+
+#### Compliance Checklist Update
+- Design token bridge: ✅ Fixed — all CSS custom properties now resolve correctly in production
+
+---
+
 ### Session 21 — 2026-04-11
 
 **All 16 stub Angular components fully implemented — admin, groups, open-banking, and system modules now have complete API-wired UIs.**

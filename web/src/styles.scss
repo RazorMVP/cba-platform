@@ -3,6 +3,16 @@
 // Google Fonts — Instrument Sans
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap');
 
+// CSS custom property bridge — expose SCSS tokens as runtime variables
+// (feature-level components reference these via var(--*))
+:root {
+  --color-primary: #{$color-primary-800};   // #1e2833 — CTA buttons, active states
+  --color-text:    #{$color-text-primary};  // #000314 — primary text
+  --color-muted:   #{$color-text-muted};    // #888888 — labels, secondary text
+  --bg-card:       #{$color-bg-card};       // #ffffff — card/panel backgrounds
+  --color-error:   #{$color-error-600};     // #dc2626 — error states
+}
+
 // Global reset & base
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 

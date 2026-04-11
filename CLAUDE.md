@@ -1043,7 +1043,7 @@ American Express is explicitly **out of scope** — it does not use ISO 8583 and
 | Interchange management | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered — com.cba.card.interchange: rate tables per scheme, InterchangeQualificationEngine, settlement netting (Session 30) |
 | 3D Secure / ACS (CNP) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered — com.cba.card.threeds: ACS, frictionless/challenge flow, CAVV, OTP, per-currency frictionless limits (Session 31) |
 | Card personalization bureau | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered — com.cba.card.bureau: CDP generation, bureau job lifecycle, ORDERED→PRODUCED→DISPATCHED (Session 34 / Step 7) |
-| Full chargeback workflow | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ Basic only — basic dispute state machine (RAISED→RESOLVED) built; scheme-specific reason codes, retrieval requests, representment, time-bound escalation pending (Step 8) |
+| Full chargeback workflow | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered — com.cba.card.dispute: 7-state machine (RAISED→RETRIEVAL_REQUESTED→CHARGEBACK_INITIATED→REPRESENTMENT→PRE_ARBITRATION→RESOLVED), 17 scheme reason codes (Visa/MC/Verve/Afrigo/CUP), RetrievalRequest + Representment sub-resources, nightly timeframe enforcer (Session 36 / Step 8) |
 
 ---
 

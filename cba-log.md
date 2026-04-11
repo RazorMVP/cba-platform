@@ -59,6 +59,89 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 26 — 2026-04-11
+
+**Multi-scheme card support scoped — Visa, Mastercard, Verve, Afrigo, China UnionPay + future-proof adapter framework. American Express explicitly removed from scope. Six new modules added to card architecture. No code written yet.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `CLAUDE.md` | UPDATED — "Multi-Scheme Support" subsection added to Card Management section; 6 new modules (BIN Management, Scheme Adapter Framework, Interchange Management, 3D Secure ACS, Card Personalization Bureau, Scheme-Compliant Chargeback); Angular screens updated to 12; Build Order updated to 13 steps |
+| `cba-log.md` | This session entry |
+
+#### Scope Decision
+- **American Express removed** — does not use ISO 8583; proprietary OptBlue protocol requires a completely different integration model incompatible with this architecture
+- **Target schemes:** Visa, Mastercard, Verve (Interswitch), Afrigo (PAPSS), China UnionPay
+- **Future-proof:** Scheme Adapter Framework designed so any new ISO 8583-based scheme (RuPay, Mada, GhIPSS, JCB, Interac) requires only a new adapter implementation + BIN registration + interchange rates — zero FEP core changes
+
+#### Gap Analysis Result
+
+| Requirement | Previous Status | New Status |
+|-------------|----------------|------------|
+| ISO 8583-1987 core | ✅ Covered | ✅ Covered |
+| EMV + contactless | ✅ Covered | ✅ Covered (QPBOC via UnionPay adapter) |
+| HSM PIN/CVV | ✅ Covered | ✅ Covered |
+| Card lifecycle | ✅ Covered | ✅ Covered |
+| Fraud engine | ✅ Covered | ✅ Covered |
+| BIN management + scheme routing | ❌ Not scoped | ✅ Module A added |
+| Scheme adapter (private DEs) | ❌ Not scoped | ✅ Module B added |
+| Scheme settlement file formats | ❌ Not scoped | ✅ Module B (per-adapter) added |
+| Interchange management | ❌ Not scoped | ✅ Module C added |
+| 3D Secure / ACS | ❌ Not scoped | ✅ Module D added |
+| Card personalization bureau | ❌ Not scoped | ✅ Module E added |
+| Full chargeback workflow | ⚠️ Basic only | ✅ Module F added |
+
+#### Six New Modules Scoped
+
+| Module | Package | Description |
+|--------|---------|-------------|
+| **A — BIN Management** | `com.cba.card.bin` | BIN range table (6+8 digit), scheme routing, `BinService.lookupScheme()` called by FEP on every auth |
+| **B — Scheme Adapter Framework** | `com.cba.fep.scheme` | `SchemeAdapter` interface + 5 implementations (Visa/MC/Verve/Afrigo/UnionPay) + per-scheme jPOS packager XMLs + `SchemeAdapterFactory` |
+| **C — Interchange Management** | `com.cba.card.interchange` | Rate tables per scheme/card_type/MCC/channel, downgrade logic, scheme fee tables, settlement netting |
+| **D — 3D Secure ACS** | `com.cba.card.threeds` | Access Control Server — receives AReq from Directory Server, authenticates cardholder (OTP/biometric), generates CAVV via HSM, returns ARes |
+| **E — Card Personalization Bureau** | `com.cba.card.bureau` | CDP file generation per scheme, bureau job lifecycle (PENDING→SENT→CONFIRMED), chip personalization data assembly |
+| **F — Scheme-Compliant Chargeback** | `com.cba.card.dispute` (upgrade) | Full state machine (RAISED→RETRIEVAL→CHARGEBACK→REPRESENTMENT→PRE_ARBITRATION→RESOLVED), reason code framework per scheme, timeframe enforcement via `@Scheduled` |
+
+#### Scheme Adapter Summary
+
+| Adapter | Scheme | Private DEs | Contactless | Settlement |
+|---------|--------|-------------|-------------|-----------|
+| `VisaSchemeAdapter` | Visa | DE 60–63, DE 126 | payWave (qVSDC) | BASE II |
+| `MastercardSchemeAdapter` | Mastercard | DE 48 PDS, DE 111–127 | PayPass (M/Chip) | IPM/GCMS |
+| `VerveSchemeAdapter` | Verve (Interswitch) | DE 62–63 (Interswitch) | Verve contactless | NIBSS e-settlement |
+| `AfrigoSchemeAdapter` | Afrigo (PAPSS) | Minimal (closest to standard) | Standard EMV | PAPSS |
+| `UnionPaySchemeAdapter` | China UnionPay | DE 60–63 (CUP), QPBOC tags | QPBOC/QuickPass | CUPS/CNAPS |
+
+#### New Database Tables (card-service)
+- `bin_ranges` — BIN→scheme routing (V3__bin_management.sql)
+- `interchange_rates` — rate table per scheme/card_type/MCC/channel (V4__interchange_management.sql)
+- `scheme_fees` — assessment/network/cross-border fees per scheme
+- `interchange_log` — per-transaction interchange calculation record
+- `threeds_sessions` — 3DS authentication session tracking
+- `bureau_jobs` + `bureau_job_items` — card personalization batch tracking
+- `chargeback_reason_codes` — scheme reason code lookup table
+- `retrieval_requests` + `representments` — full chargeback workflow tables
+
+#### New Angular Screens (total: 12)
+- `BinManagementComponent` — `/cards/bins` — register and manage BIN ranges per scheme
+- `SchemeConfigComponent` — `/cards/schemes` — scheme adapter status, connectivity, packager config
+- `InterchangeComponent` — `/cards/interchange` — interchange rate tables, scheme fee management
+
+#### Build Order Updated (13 steps)
+Steps 1–2: fep-service (core + Scheme Adapter Framework)
+Steps 3–8: card-service (core → BIN → Interchange → 3DS → Bureau → Chargeback)
+Step 9: card-service Open Banking layer
+Step 10: backend monolith AISP/CBPII extension
+Step 11: Angular 12-screen CardsModule
+Steps 12–13: Docker Compose + Kubernetes
+
+#### Compliance Checklist Update
+- Multi-scheme architecture (Visa/MC/Verve/Afrigo/UnionPay): ✅ Designed and documented
+- Multi-scheme implementation: ❌ Not yet started
+- American Express: 🚫 Explicitly out of scope
+
+---
+
 ### Session 25 — 2026-04-11
 
 **Open Banking scope designed and documented for the Card Management Service — dual-layer card API covering regulatory AISP/CBPII extension + BaaS-grade dedicated Card API with webhooks, card controls, issuance, and spending analytics. No code written yet; this entry records all design decisions.**

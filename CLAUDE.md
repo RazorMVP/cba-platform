@@ -1020,15 +1020,282 @@ In `backend` (existing monolith):
 
 ---
 
+### Multi-Scheme Support (Visa, Mastercard, Verve, Afrigo, UnionPay + Future Schemes)
+
+This section defines the three additional modules required to make the card platform fully scheme-ready. Without these, the platform operates as a closed-loop proprietary card system only. With these, a bank can integrate with any ISO 8583-based card scheme — present and future.
+
+American Express is explicitly **out of scope** — it does not use ISO 8583 and requires a proprietary protocol adapter not compatible with this architecture.
+
+---
+
+#### Gap Analysis — Current Architecture vs. Scheme Requirements
+
+| Requirement | Visa | Mastercard | Verve | Afrigo | UnionPay | Our Status |
+|-------------|------|------------|-------|--------|----------|------------|
+| ISO 8583-1987 core | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered |
+| EMV chip + contactless | ✅ | ✅ | ✅ | ✅ | ⚠️ QPBOC variant | ✅ Covered (QPBOC needs adapter) |
+| HSM PIN verification | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered |
+| Card lifecycle management | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered |
+| Fraud engine | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered |
+| BIN management + routing | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ Not scoped |
+| Scheme adapter (private DEs) | DE 60–63, 126 | DE 48 PDS, 111–127 | DE 62–63 | Minimal | DE 60–63 CUP | ❌ Not scoped |
+| Scheme settlement file format | BASE II | IPM / GCMS | NIBSS e-settlement | PAPSS | CUPS / CNAPS | ❌ Not scoped |
+| Interchange management | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ Not scoped |
+| 3D Secure / ACS (CNP) | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ Not scoped |
+| Card personalization bureau | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ Not scoped |
+| Full chargeback workflow | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ Basic only |
+
+---
+
+#### Module A — BIN Management Module
+
+**Purpose:** Every card transaction must be routed to the correct scheme based on the card's BIN (Bank Identification Number — first 6 to 8 digits of PAN). Without this module the FEP cannot identify which scheme adapter to invoke.
+
+**Package:** `com.cba.card.bin`
+
+**Key entities:**
+
+| Table | Key Columns |
+|-------|-------------|
+| `bin_ranges` | id, bin_start (VARCHAR 8), bin_end (VARCHAR 8), scheme (`VISA`/`MASTERCARD`/`VERVE`/`AFRIGO`/`UNION_PAY`), product_type, card_type, country_code (ISO 3166), currency_code (ISO 4217), active |
+
+**Rules:**
+- Supports both 6-digit (legacy) and 8-digit BINs (EMV 2019 mandate — all schemes migrating to 8 digits)
+- BIN lookup uses range scan: `WHERE bin_start <= :pan8 AND bin_end >= :pan8 AND active = true`
+- BIN registration per scheme mirrors what banks receive from their scheme membership agreements
+- `BinService.lookupScheme(pan)` — called by FEP immediately after ISO 8583 message is parsed; result determines which `SchemeAdapter` is selected
+
+**Endpoints** (ADMIN only):
+- `GET/POST /api/v1/bins` — list and register BIN ranges
+- `GET/PUT/DELETE /api/v1/bins/{id}` — manage individual ranges
+- `GET /api/v1/bins/lookup?pan={first8}` — test BIN lookup (dev/ops tool)
+
+**Flyway:** `V3__bin_management.sql` in card-service
+
+---
+
+#### Module B — Scheme Adapter Framework
+
+**Purpose:** A pluggable adapter pattern in the FEP that handles all scheme-specific message variations. Each scheme has private data elements, proprietary message structures, and unique settlement file formats. The adapter isolates all scheme-specific logic so the core FEP remains scheme-agnostic. Adding a new scheme requires only a new adapter implementation — no FEP core changes.
+
+**Package:** `com.cba.fep.scheme`
+
+**Interface:**
+
+```java
+public interface SchemeAdapter {
+    SchemeType getScheme();
+    ISOPackager getPackager();                          // scheme-specific jPOS packager
+    void validateRequest(ISOMsg msg) throws SchemeValidationException;
+    void enrichRequest(ISOMsg msg, CardContext ctx);    // add scheme private DEs
+    void enrichResponse(ISOMsg request, ISOMsg response, AuthResult result);
+    SettlementRecord buildSettlementRecord(AuthorizationLog log); // scheme settlement format
+    String getNetworkId();                              // scheme network identifier
+}
+```
+
+**Implementations:**
+
+| Adapter Class | Scheme | Private DEs Handled | Settlement Format |
+|---------------|--------|--------------------|--------------------|
+| `VisaSchemeAdapter` | Visa | DE 60–63 (Visa-specific subelements), DE 126 | BASE II record format |
+| `MastercardSchemeAdapter` | Mastercard | DE 48 PDS (Private Data Subelements), DE 111–127 | IPM (ISO 8583 + private DEs) |
+| `VerveSchemeAdapter` | Verve (Interswitch) | DE 62–63 (Interswitch subelements) | NIBSS e-settlement format |
+| `AfrigoSchemeAdapter` | Afrigo (PAPSS) | Minimal — largely standard ISO 8583 | PAPSS clearing format |
+| `UnionPaySchemeAdapter` | China UnionPay | DE 60–63 (CUP subelements); QPBOC contactless profile | CUPS / CNAPS format |
+
+**jPOS Packager Configs** (one XML per scheme in `fep-service/src/main/resources/`):
+- `iso8583-visa.xml` — Visa field definitions including private DEs 60–63
+- `iso8583-mastercard.xml` — MC field definitions including DE 48 PDS structure
+- `iso8583-verve.xml` — Verve/Interswitch field definitions
+- `iso8583-afrigo.xml` — Afrigo/PAPSS field definitions (closest to base standard)
+- `iso8583-unionpay.xml` — CUP field definitions including QPBOC-specific tags
+
+**SchemeAdapterFactory:**
+- Called after BIN lookup: `factory.getAdapter(schemeType)` → returns correct `SchemeAdapter`
+- Adapters registered as Spring beans; new schemes added by implementing `SchemeAdapter` and registering a BIN range
+
+**Future-proofing:** Any new scheme (RuPay, Mada, GhIPSS, JCB, Interac) requires only:
+1. Implement `SchemeAdapter`
+2. Add jPOS packager XML for that scheme's private DEs
+3. Register BIN ranges in BIN Management Module
+4. Add interchange rates in Interchange Management Module
+→ Zero changes to FEP core
+
+**QPBOC (UnionPay contactless) handling:**
+- UnionPay uses QPBOC (Quick Pass Based on CUP) — a CUP variant of EMV contactless
+- QPBOC uses the same DE 55 structure but with CUP-specific EMV tags (tag `9F7C`, `9F77`, etc.)
+- `UnionPaySchemeAdapter` includes a QPBOC tag parser alongside standard EMV tag processing
+
+---
+
+#### Module C — Interchange Management Module
+
+**Purpose:** Every transaction processed through a card scheme incurs interchange fees and scheme assessment fees. These must be calculated per transaction, applied during settlement, and netted against gross amounts. Without this module, settlement figures will be incorrect.
+
+**Package:** `com.cba.card.interchange`
+
+**Key entities:**
+
+| Table | Key Columns |
+|-------|-------------|
+| `interchange_rates` | id, scheme, card_type, mcc_category, transaction_type (`PURCHASE`/`CASH`/`REFUND`), channel (`CARD_PRESENT`/`CNP`), rate_percent `NUMERIC(6,4)`, fixed_fee `NUMERIC(10,4)`, currency_code, effective_from, effective_to |
+| `scheme_fees` | id, scheme, fee_type (`ASSESSMENT`/`NETWORK`/`CROSS_BORDER`/`INTERNATIONAL_SERVICE`), rate_percent `NUMERIC(6,4)`, fixed_fee `NUMERIC(10,4)`, effective_from |
+| `interchange_log` | id, authorization_log_id, scheme, interchange_amount, scheme_fee_amount, net_settlement_amount, rate_applied, calculated_at |
+
+**InterchangeQualificationEngine:**
+- Determines which interchange rate applies based on: scheme + card_type + MCC + transaction_type + channel + country
+- Downgrade logic: if transaction does not meet preferred-rate criteria (e.g. chip not used), falls back to a higher interchange rate
+- `calculateInterchange(AuthorizationLog)` → `InterchangeResult(interchangeAmount, schemeFees, netAmount)`
+
+**Settlement netting formula:**
+```
+Net Settlement = Gross Transaction Amount
+              − Interchange Fee (to issuer or acquirer depending on transaction direction)
+              − Scheme Assessment Fee
+              − Cross-Border Fee (if international)
+```
+
+**Endpoints** (ADMIN only):
+- `GET/POST /api/v1/interchange/rates` — manage interchange rate tables per scheme
+- `GET/POST /api/v1/interchange/fees` — manage scheme assessment fees
+- `GET /api/v1/interchange/calculate?authId={id}` — calculate interchange for a given auth (dev/ops tool)
+
+**Flyway:** `V4__interchange_management.sql` in card-service
+
+---
+
+#### Module D — 3D Secure 2.x / Access Control Server (ACS)
+
+**Purpose:** All five schemes mandate 3D Secure (3DS2) for card-not-present (CNP/e-commerce) transactions. Without an ACS, the bank cannot authenticate CNP transactions — these would either be declined or processed without authentication liability shift.
+
+**Package:** `com.cba.card.threeds`
+
+**Flow:**
+```
+E-commerce merchant → 3DS Directory Server (Visa/MC/scheme hosted)
+                              ↓  Authentication Request (AReq)
+                    CBA Access Control Server (ACS)
+                              ↓  Cardholder authentication
+                              ↓  Authentication Response (ARes) + CAVV
+                    3DS Directory Server → Merchant
+                              ↓  Authorization with CAVV in DE 55
+                    FEP → card-service (standard auth flow)
+```
+
+**Key entities:**
+
+| Table | Key Columns |
+|-------|-------------|
+| `threeds_sessions` | id, card_id, merchant_id, amount, currency, acs_trans_id, ds_trans_id, status, authentication_value (CAVV), eci_indicator, created_at |
+
+**ACS responsibilities:**
+- Receive `AReq` from Directory Server over HTTPS
+- Verify cardholder identity (OTP via SMS/email, biometric challenge, or frictionless if risk score low)
+- Generate CAVV (Cardholder Authentication Verification Value) using card key via HSM
+- Return `ARes` to Directory Server
+
+**Endpoints:**
+- `POST /3ds/acs/areq` — receive authentication request from Directory Server
+- `GET /3ds/acs/challenge/{acsTransId}` — cardholder challenge page
+- `POST /3ds/acs/challenge/{acsTransId}/verify` — submit OTP/biometric response
+
+**Scheme registration** (per scheme, one-time setup):
+- Visa — register ACS with Visa Directory Server (Visa 3D Secure)
+- Mastercard — register with Mastercard SecureCode Directory Server
+- Verve — register with Verve 3D Secure Directory Server
+- Afrigo — register with PAPSS authentication infrastructure
+- UnionPay — register with UnionPay SecurePlus Directory Server
+
+---
+
+#### Module E — Card Personalization Bureau Integration
+
+**Purpose:** Physical card issuance for any scheme requires chip personalization — loading the EMV application, keys, and cardholder data onto the chip. This is done by a certified card bureau (Thales, HID Global, Idemia). Without this integration, `ORDERED` cards can never reach `PRODUCED` status.
+
+**Package:** `com.cba.card.bureau`
+
+**Key entities:**
+
+| Table | Key Columns |
+|-------|-------------|
+| `bureau_jobs` | id, batch_ref, bureau_name, card_count, status (`PENDING`/`SENT`/`CONFIRMED`/`FAILED`), submitted_at, confirmed_at |
+| `bureau_job_items` | id, job_id, card_id, personalization_data_hash, chip_serial_no, status |
+
+**CDP (Card Data Preparation) file — per card, per scheme:**
+- EMV application data (AID, application label, priority)
+- Issuer Master Key derivative (calculated by HSM — never leaves the HSM in plaintext)
+- Cardholder data (name, PAN, expiry — in scheme-mandated format)
+- PIN offset (if pre-set PIN selected)
+- Track 1/2 data for magnetic stripe encoding
+- Each scheme has its own CDP file specification (Visa VIS CDP, MC M/Chip CDP, Verve CDP)
+
+**Bureau API:** HTTP/SFTP batch file transmission to bureau; confirmation callback updates card status to `PRODUCED`
+
+---
+
+#### Module F — Scheme-Compliant Chargeback Module (Upgrade)
+
+**Purpose:** Upgrade our basic dispute module to meet the chargeback standards of all five schemes. Each scheme has defined reason codes, strict processing timeframes, and mandatory workflow stages.
+
+**Replaces:** Basic dispute module (`RAISED → UNDER_REVIEW → RESOLVED`)
+
+**New state machine:**
+```
+RAISED → RETRIEVAL_REQUESTED → CHARGEBACK_INITIATED
+       → REPRESENTMENT → PRE_ARBITRATION → RESOLVED
+```
+
+**Reason code frameworks (stored as configurable lookup table):**
+
+| Scheme | Reason Code Examples |
+|--------|---------------------|
+| Visa | 10.1 (EMV liability shift), 10.4 (other fraud), 11.2 (declined authorization), 12.6 (duplicate) |
+| Mastercard | 4853 (goods/services not provided), 4837 (no cardholder authorization), 4863 (cardholder does not recognize) |
+| Verve | Verve Dispute Resolution Framework reason codes (mirrors Mastercard structure) |
+| Afrigo | PAPSS dispute reason codes |
+| UnionPay | CUP dispute reason codes |
+
+**Timeframe enforcement:** `@Scheduled` job checks open chargebacks daily; auto-escalates or auto-resolves based on scheme deadlines (10 days, 45 days, etc.)
+
+**Table additions:** `chargeback_reason_codes` (scheme, code, description, max_days_to_respond), `retrieval_requests`, `representments`
+
+---
+
+#### Updated Angular Screens (CardsModule — 12 screens total)
+
+| Component | Route | Auth | Status |
+|-----------|-------|------|--------|
+| `CardListComponent` | `/cards` | ADMIN/TELLER | 🔲 Planned |
+| `CardDetailComponent` | `/cards/:id` | ADMIN/TELLER | 🔲 Planned |
+| `CardProductsComponent` | `/cards/products` | ADMIN | 🔲 Planned |
+| `FraudRulesComponent` | `/cards/fraud` | ADMIN | 🔲 Planned |
+| `SettlementComponent` | `/cards/settlement` | ADMIN | 🔲 Planned |
+| `DisputesComponent` | `/cards/disputes` | ADMIN/TELLER | 🔲 Planned |
+| `TerminalSimulatorComponent` | `/cards/terminal` | ADMIN/TELLER | 🔲 Planned |
+| `ApiKeysComponent` | `/cards/api-keys` | ADMIN | 🔲 Planned |
+| `WebhooksComponent` | `/cards/webhooks` | ADMIN | 🔲 Planned |
+| `BinManagementComponent` | `/cards/bins` | ADMIN | 🔲 Planned |
+| `SchemeConfigComponent` | `/cards/schemes` | ADMIN | 🔲 Planned |
+| `InterchangeComponent` | `/cards/interchange` | ADMIN | 🔲 Planned |
+
+---
+
 ### Build Order
 
-1. **fep-service** — ISO 8583 TCP server, jPOS packager, message router, HSM adapter, EMV handler
-2. **card-service — core modules** — card, limits, fraud, token, settlement, dispute, terminal simulator REST
-3. **card-service — Open Banking layer** — Card API (`/card-api/v1/`), API key auth, webhook delivery, spending analytics
-4. **backend (monolith)** — `CardServiceClient` REST client; AISP/CBPII extension for card accounts; `ConsentScope` additions
-5. **Angular `CardsModule`** — 9 screens including terminal simulator, API keys, webhooks
-6. **Docker Compose** — `card-service` + `fep-service` service definitions
-7. **Infrastructure / K8s** — new deployment + service manifests
+1. **fep-service** — ISO 8583 TCP server, jPOS base packager, message router, HSM adapter, EMV handler
+2. **fep-service — Scheme Adapter Framework** — `SchemeAdapter` interface, all 5 adapters (Visa/MC/Verve/Afrigo/UnionPay), per-scheme jPOS packager XMLs, `SchemeAdapterFactory`
+3. **card-service — core modules** — card, limits, fraud, token, settlement, dispute, terminal simulator REST
+4. **card-service — BIN Management Module** — BIN range table, 6/8-digit lookup, scheme routing
+5. **card-service — Interchange Management Module** — rate tables per scheme, qualification engine, settlement netting
+6. **card-service — 3D Secure ACS** — `threeds` package, ACS endpoint, CAVV generation via HSM
+7. **card-service — Card Personalization Bureau** — CDP file generation, bureau job lifecycle
+8. **card-service — Scheme-Compliant Chargeback** — full state machine, reason code framework, timeframe enforcement
+9. **card-service — Open Banking layer** — Card API (`/card-api/v1/`), API key auth, webhook delivery, spending analytics
+10. **backend (monolith)** — `CardServiceClient` REST client; AISP/CBPII extension for card accounts; `ConsentScope` additions
+11. **Angular `CardsModule`** — 12 screens
+12. **Docker Compose** — `card-service` + `fep-service` service definitions
+13. **Infrastructure / K8s** — new deployment + service manifests
 
 ---
 

@@ -59,6 +59,28 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 35 — 2026-04-11
+**Gap analysis audit — corrected 5 stale ❌ rows to ✅ and 1 ❌ to ⚠️; no code changes. Docs-only commit.**
+
+#### Gap Analysis Corrections
+
+| Row | Was | Corrected To | Reason |
+|-----|-----|-------------|--------|
+| BIN management + routing | ❌ Not scoped | ✅ Covered | `com.cba.card.bin` built Session 29 |
+| Scheme adapter (private DEs) | ❌ Not scoped | ✅ Covered | 5 adapters + 5 jPOS XMLs built Session 27 |
+| Scheme settlement file format | ❌ Not scoped | ⚠️ Partial | Internal batch lifecycle built; clearinghouse file formats (BASE II, IPM, NIBSS, PAPSS, CUPS) not yet built |
+| Interchange management | ❌ Not scoped | ✅ Covered | `com.cba.card.interchange` built Session 30 |
+| 3D Secure / ACS (CNP) | ❌ Not scoped | ✅ Covered | `com.cba.card.threeds` built Session 31 |
+| Card personalization bureau | ❌ Not scoped | ✅ Covered | `com.cba.card.bureau` built Session 34 |
+| Build Order Step 7 session ref | Session 33 | Session 34 | Typo — bureau was built in Session 34 |
+
+#### Verified Build State (pre-Step-8)
+- ✅ Steps 1–7 complete and confirmed against filesystem
+- ⚠️ Remaining gap: scheme clearinghouse settlement file formats (BASE II / IPM / NIBSS / PAPSS / CUPS) — not in current build plan; would be Step 14+ for production connectivity
+- ⬜ Step 8 next: Scheme-Compliant Chargeback (reason codes, retrieval, representment, time-bound escalation)
+
+---
+
 ### Session 34 — 2026-04-11
 **card-service Build Order Step 7 — Card Personalization Bureau module; CDP generation, bureau job lifecycle ORDERED→PRODUCED→DISPATCHED. BUILD SUCCESS (0 errors).**
 

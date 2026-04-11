@@ -1032,18 +1032,18 @@ American Express is explicitly **out of scope** — it does not use ISO 8583 and
 
 | Requirement | Visa | Mastercard | Verve | Afrigo | UnionPay | Our Status |
 |-------------|------|------------|-------|--------|----------|------------|
-| ISO 8583-1987 core | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered |
-| EMV chip + contactless | ✅ | ✅ | ✅ | ✅ | ✅ QPBOC + SM4 | ✅ Covered |
-| HSM PIN verification | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered |
-| Card lifecycle management | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered |
-| Fraud engine | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered |
-| BIN management + routing | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ Not scoped |
-| Scheme adapter (private DEs) | DE 60–63, 126 | DE 48 PDS, 111–127 | DE 62–63 | Minimal | DE 60–63 CUP | ❌ Not scoped |
-| Scheme settlement file format | BASE II | IPM / GCMS | NIBSS e-settlement | PAPSS | CUPS / CNAPS | ❌ Not scoped |
-| Interchange management | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ Not scoped |
-| 3D Secure / ACS (CNP) | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ Not scoped |
-| Card personalization bureau | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ Not scoped |
-| Full chargeback workflow | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ Basic only |
+| ISO 8583-1987 core | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered — fep-service jPOS GenericPackager, all MTIs (Sessions 27–28) |
+| EMV chip + contactless | ✅ | ✅ | ✅ | ✅ | ✅ QPBOC + SM4 | ✅ Covered — ArqcValidator + ArpcGenerator + DE55 parser; SM4 for domestic UnionPay (Session 33) |
+| HSM PIN verification | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered — HsmAdapter interface + SoftwareHsmAdapter (dev) + ThalesPayShieldAdapter stub (Session 27) |
+| Card lifecycle management | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered — CardService state machine; physical card ORDERED→PRODUCED→DISPATCHED→ACTIVE (Session 28 + Step 7) |
+| Fraud engine | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered — FraudEngine 10 rules, per-currency thresholds, configurable weights (Session 28 + 32) |
+| BIN management + routing | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered — com.cba.card.bin: BinRange, BinService range-scan, 6/8-digit BIN, BinController, demo data (Session 29) |
+| Scheme adapter (private DEs) | DE 60–63, 126 | DE 48 PDS, 111–127 | DE 62–63 | Minimal | DE 60–63 CUP | ✅ Covered — com.cba.fep.scheme: 5 adapters + 5 per-scheme jPOS packager XMLs (Session 27) |
+| Scheme settlement file format | BASE II | IPM / GCMS | NIBSS e-settlement | PAPSS | CUPS / CNAPS | ⚠️ Partial — internal settlement batch lifecycle built (SettlementBatch/SettlementService); scheme clearinghouse file formats (BASE II, IPM, NIBSS, PAPSS, CUPS) not built |
+| Interchange management | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered — com.cba.card.interchange: rate tables per scheme, InterchangeQualificationEngine, settlement netting (Session 30) |
+| 3D Secure / ACS (CNP) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered — com.cba.card.threeds: ACS, frictionless/challenge flow, CAVV, OTP, per-currency frictionless limits (Session 31) |
+| Card personalization bureau | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered — com.cba.card.bureau: CDP generation, bureau job lifecycle, ORDERED→PRODUCED→DISPATCHED (Session 34 / Step 7) |
+| Full chargeback workflow | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ Basic only — basic dispute state machine (RAISED→RESOLVED) built; scheme-specific reason codes, retrieval requests, representment, time-bound escalation pending (Step 8) |
 
 ---
 
@@ -1289,7 +1289,7 @@ RAISED → RETRIEVAL_REQUESTED → CHARGEBACK_INITIATED
 4. ✅ **card-service — BIN Management Module** — BIN range table, 6/8-digit lookup, scheme routing; `GET /{bin}/scheme` M2M endpoint; `BinRangeRequest` DTO _(Session 29)_
 5. ✅ **card-service — Interchange Management Module** — rate tables per scheme, qualification engine, settlement netting _(Session 30)_
 6. ✅ **card-service — 3D Secure ACS** — `threeds` package, ACS endpoints, CAVV generation, OTP challenge, SecurityConfig `@Order(0)` chain _(Session 31)_
-7. ✅ **card-service — Card Personalization Bureau** — CDP file generation, bureau job lifecycle; `ORDERED → PRODUCED → DISPATCHED` state progression _(Session 33)_
+7. ✅ **card-service — Card Personalization Bureau** — CDP file generation, bureau job lifecycle; `ORDERED → PRODUCED → DISPATCHED` state progression _(Session 34)_
 8. **card-service — Scheme-Compliant Chargeback** — full state machine, reason code framework, timeframe enforcement
 9. **card-service — Open Banking layer** — Card API (`/card-api/v1/`), API key auth, webhook delivery, spending analytics
 10. **backend (monolith)** — `CardServiceClient` REST client; AISP/CBPII extension for card accounts; `ConsentScope` additions

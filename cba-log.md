@@ -59,6 +59,51 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 30 — 2026-04-11
+
+**card-service Interchange Management Module complete — qualification engine, rate tables, scheme fees, interchange log. BUILD SUCCESS (0 errors).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/.../db/migration/V3__interchange_management.sql` | NEW — 3 tables: `interchange_rates`, `scheme_fees`, `interchange_log`; demo seed: 36 rate rows (Visa/MC/Verve/Afrigo/UnionPay) + 16 scheme fee rows |
+| `card-service/.../interchange/TransactionType.java` | NEW — enum: PURCHASE, CASH, REFUND |
+| `card-service/.../interchange/ChannelType.java` | NEW — enum: CARD_PRESENT, CNP |
+| `card-service/.../interchange/SchemeFeeType.java` | NEW — enum: ASSESSMENT, NETWORK, CROSS_BORDER, INTERNATIONAL_SERVICE |
+| `card-service/.../interchange/InterchangeRate.java` | NEW — JPA entity for `interchange_rates` |
+| `card-service/.../interchange/SchemeFee.java` | NEW — JPA entity for `scheme_fees` |
+| `card-service/.../interchange/InterchangeLog.java` | NEW — immutable JPA entity for `interchange_log` |
+| `card-service/.../interchange/InterchangeRateRepository.java` | NEW — JPQL specificity-ordered BestMatch query (MCC-specific before catch-all) |
+| `card-service/.../interchange/SchemeFeeRepository.java` | NEW — find active fees by scheme + effective date |
+| `card-service/.../interchange/InterchangeLogRepository.java` | NEW — lookup most recent log per auth |
+| `card-service/.../interchange/InterchangeResult.java` | NEW — record: interchangeAmount, schemeFeeAmount, netSettlementAmount, rateApplied |
+| `card-service/.../interchange/InterchangeRateRequest.java` | NEW — validated DTO for rate create/update |
+| `card-service/.../interchange/SchemeFeeRequest.java` | NEW — validated DTO for fee create/update |
+| `card-service/.../interchange/InterchangeQualificationEngine.java` | NEW — core engine: entry mode→channel, processing code→txn type, rate lookup, downgrade, scheme fee sum, persist to log |
+| `card-service/.../interchange/InterchangeService.java` | NEW — CRUD facade for rates/fees; `calculate()` delegates to engine |
+| `card-service/.../interchange/InterchangeController.java` | NEW — full CRUD for rates + fees; `GET /calculate?authId=`, `GET /log/{authId}` |
+
+#### Key Patterns / Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| MCC specificity ordering in JPQL | `CASE WHEN mcc_category IS NULL THEN 1 ELSE 0 END ASC` — engine always gets MCC-specific row before catch-all; no application-level fallback loop needed |
+| `@Component` not `@Service` for engine | No business transaction boundary; the calling service/settlement layer owns the `@Transactional` scope |
+| Scheme fees summed independently | Assessment + network + cross-border are separate fee types per scheme; engine sums all active rows for the scheme — adding a new fee type requires no code change, only a DB row |
+| `InterchangeResult.noRate(gross)` sentinel | Returns gross amount as net when no rate is configured — prevents settlement from blocking on missing rate data |
+| Settlement integration via explicit call | `SettlementService` can call `InterchangeQualificationEngine.calculate(authLog)` after batch close; not using Spring events to keep the dependency explicit and debuggable |
+| V3 (not V4) migration | `V3__bin_management.sql` was never created (bin_ranges already in V1), so V3 is the correct next sequence number |
+
+#### Build Verification
+```
+cd card-service && ./mvnw clean compile → BUILD SUCCESS (0 errors)
+```
+
+#### Compliance Checklist Update
+- Build Order Step 5 (card-service Interchange Management Module) ✅
+
+---
+
 ### Session 29 — 2026-04-11
 
 **card-service BIN Management Module verified and gap-filled — two missing endpoints added, request DTO introduced. BUILD SUCCESS (0 errors).**

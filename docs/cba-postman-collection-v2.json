@@ -15614,6 +15614,411 @@
               "response": []
             }
           ]
+        },
+        {
+          "name": "Interchange Management",
+          "item": [
+            {
+              "name": "List Interchange Rates",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/interchange/rates",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "interchange",
+                    "rates"
+                  ]
+                },
+                "description": "List all active interchange rate tiers. ADMIN only."
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"data\": [\n    {\n      \"id\": \"uuid\",\n      \"scheme\": \"VISA\",\n      \"cardType\": \"DEBIT\",\n      \"mccCategory\": null,\n      \"transactionType\": \"PURCHASE\",\n      \"channel\": \"CARD_PRESENT\",\n      \"ratePercent\": 0.9,\n      \"fixedFee\": 0.05,\n      \"currencyCode\": \"USD\",\n      \"effectiveFrom\": \"2026-01-01\",\n      \"active\": true\n    }\n  ],\n  \"meta\": {},\n  \"errors\": []\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Interchange Rate by ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/interchange/rates/{rate_id}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "interchange",
+                    "rates",
+                    "{{rate_id}}"
+                  ]
+                },
+                "description": "Single interchange rate by UUID. ADMIN only."
+              },
+              "response": []
+            },
+            {
+              "name": "Create Interchange Rate",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"scheme\": \"VISA\",\n  \"cardType\": \"DEBIT\",\n  \"mccCategory\": null,\n  \"transactionType\": \"PURCHASE\",\n  \"channel\": \"CARD_PRESENT\",\n  \"ratePercent\": 0.9,\n  \"fixedFee\": 0.05,\n  \"currencyCode\": \"USD\",\n  \"effectiveFrom\": \"2026-01-01\",\n  \"effectiveTo\": null,\n  \"active\": true\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/interchange/rates",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "interchange",
+                    "rates"
+                  ]
+                },
+                "description": "Create interchange rate. scheme: VISA|MASTERCARD|VERVE|AFRIGO|UNION_PAY. channel: CARD_PRESENT|CNP. transactionType: PURCHASE|CASH|REFUND. mccCategory null = catch-all."
+              },
+              "response": [
+                {
+                  "name": "201 Created",
+                  "status": "Created",
+                  "code": 201,
+                  "body": "{}"
+                }
+              ]
+            },
+            {
+              "name": "Update Interchange Rate",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"scheme\": \"VISA\",\n  \"cardType\": \"DEBIT\",\n  \"mccCategory\": null,\n  \"transactionType\": \"PURCHASE\",\n  \"channel\": \"CARD_PRESENT\",\n  \"ratePercent\": 0.9,\n  \"fixedFee\": 0.05,\n  \"currencyCode\": \"USD\",\n  \"effectiveFrom\": \"2026-01-01\",\n  \"effectiveTo\": null,\n  \"active\": true\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/interchange/rates/{rate_id}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "interchange",
+                    "rates",
+                    "{{rate_id}}"
+                  ]
+                },
+                "description": "Full replacement update of an interchange rate tier."
+              },
+              "response": []
+            },
+            {
+              "name": "Delete (Deactivate) Interchange Rate",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/interchange/rates/{rate_id}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "interchange",
+                    "rates",
+                    "{{rate_id}}"
+                  ]
+                },
+                "description": "Soft-delete: active=false."
+              },
+              "response": [
+                {
+                  "name": "204 No Content",
+                  "status": "No Content",
+                  "code": 204,
+                  "body": ""
+                }
+              ]
+            },
+            {
+              "name": "List Scheme Fees",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/interchange/fees",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "interchange",
+                    "fees"
+                  ]
+                },
+                "description": "List all active scheme assessment / network fees."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Scheme Fee by ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/interchange/fees/{fee_id}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "interchange",
+                    "fees",
+                    "{{fee_id}}"
+                  ]
+                },
+                "description": "Single scheme fee by UUID."
+              },
+              "response": []
+            },
+            {
+              "name": "Create Scheme Fee",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"scheme\": \"VISA\",\n  \"feeType\": \"ASSESSMENT\",\n  \"ratePercent\": 0.11,\n  \"fixedFee\": 0.0,\n  \"effectiveFrom\": \"2026-01-01\",\n  \"effectiveTo\": null,\n  \"active\": true\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/interchange/fees",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "interchange",
+                    "fees"
+                  ]
+                },
+                "description": "Create scheme fee. feeType: ASSESSMENT|NETWORK|CROSS_BORDER|INTERNATIONAL_SERVICE."
+              },
+              "response": [
+                {
+                  "name": "201 Created",
+                  "status": "Created",
+                  "code": 201,
+                  "body": "{}"
+                }
+              ]
+            },
+            {
+              "name": "Update Scheme Fee",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"scheme\": \"VISA\",\n  \"feeType\": \"ASSESSMENT\",\n  \"ratePercent\": 0.11,\n  \"fixedFee\": 0.0,\n  \"effectiveFrom\": \"2026-01-01\",\n  \"effectiveTo\": null,\n  \"active\": true\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/interchange/fees/{fee_id}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "interchange",
+                    "fees",
+                    "{{fee_id}}"
+                  ]
+                },
+                "description": "Full replacement update of a scheme fee."
+              },
+              "response": []
+            },
+            {
+              "name": "Delete (Deactivate) Scheme Fee",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/interchange/fees/{fee_id}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "interchange",
+                    "fees",
+                    "{{fee_id}}"
+                  ]
+                },
+                "description": "Soft-delete scheme fee."
+              },
+              "response": [
+                {
+                  "name": "204 No Content",
+                  "status": "No Content",
+                  "code": 204,
+                  "body": ""
+                }
+              ]
+            },
+            {
+              "name": "Calculate Interchange for Auth",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/interchange/calculate?authId={auth_log_id}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "interchange",
+                    "calculate"
+                  ],
+                  "query": [
+                    {
+                      "key": "authId",
+                      "value": "{{auth_log_id}}",
+                      "description": "UUID of the authorization_log entry"
+                    }
+                  ]
+                },
+                "description": "Calculate interchange for a specific auth log entry. Writes the result to interchange_log and returns the breakdown. Useful for ops verification."
+              },
+              "response": [
+                {
+                  "name": "200 OK \u2014 Visa debit CARD_PRESENT purchase",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"data\": {\n    \"interchangeAmount\": 9.5,\n    \"schemeFeeAmount\": 1.1195,\n    \"netSettlementAmount\": 989.3805,\n    \"rateApplied\": \"VISA/DEBIT/PURCHASE/CARD_PRESENT 0.9000% + 0.0500\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get Interchange Log for Auth",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/interchange/log/{auth_log_id}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "interchange",
+                    "log",
+                    "{{auth_log_id}}"
+                  ]
+                },
+                "description": "Retrieve the most recently persisted interchange log record for an auth. Returns null data if no calculation has been run."
+              },
+              "response": []
+            }
+          ]
         }
       ],
       "description": "Card Management Service (port 8081) \u2014 disputes, settlement batches, and terminal simulator. Variable: {{cardServiceHost}} = localhost:8081",

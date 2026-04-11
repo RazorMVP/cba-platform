@@ -1287,7 +1287,7 @@ RAISED → RETRIEVAL_REQUESTED → CHARGEBACK_INITIATED
 2. ✅ **fep-service — Scheme Adapter Framework** — `SchemeAdapter` interface, all 5 adapters (Visa/MC/Verve/Afrigo/UnionPay), per-scheme jPOS packager XMLs, `SchemeAdapterFactory` _(commit `eb398cc`)_
 3. ✅ **card-service — core modules** — card, limits, fraud, token, settlement, dispute, terminal simulator REST _(Session 28)_
 4. ✅ **card-service — BIN Management Module** — BIN range table, 6/8-digit lookup, scheme routing; `GET /{bin}/scheme` M2M endpoint; `BinRangeRequest` DTO _(Session 29)_
-5. **card-service — Interchange Management Module** — rate tables per scheme, qualification engine, settlement netting
+5. ✅ **card-service — Interchange Management Module** — rate tables per scheme, qualification engine, settlement netting _(Session 30)_
 6. **card-service — 3D Secure ACS** — `threeds` package, ACS endpoint, CAVV generation via HSM
 7. **card-service — Card Personalization Bureau** — CDP file generation, bureau job lifecycle
 8. **card-service — Scheme-Compliant Chargeback** — full state machine, reason code framework, timeframe enforcement
@@ -1369,6 +1369,48 @@ fep-service/src/main/resources/
 | Maven wrapper | fep-service has no `./mvnw` by default; copy from backend: `cp backend/mvnw fep-service/mvnw && chmod +x && cp -r backend/.mvn fep-service/.mvn` |
 | TCP framing | ISO 8583 uses 2-byte big-endian length prefix (excludes the 2-byte header itself). Netty: `LengthFieldBasedFrameDecoder(65535, 0, 2, 0, 2)` + `LengthFieldPrepender(2)` |
 | `@ChannelHandler.Sharable` | Required on `FepMessageHandler` — Netty enforces this at runtime when a single handler instance is added to multiple pipelines |
+
+---
+
+### card-service — Interchange Management Module Notes (Session 30)
+
+**Build status**: `cd card-service && ./mvnw clean compile → BUILD SUCCESS (0 errors)`
+
+**Package**: `com.cba.card.interchange`
+
+**Endpoint inventory:**
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| `GET` | `/api/v1/interchange/rates` | ADMIN | List all active interchange rate tiers |
+| `GET` | `/api/v1/interchange/rates/{id}` | ADMIN | Single rate by UUID |
+| `POST` | `/api/v1/interchange/rates` | ADMIN | Create rate (validated `InterchangeRateRequest` DTO) |
+| `PUT` | `/api/v1/interchange/rates/{id}` | ADMIN | Update rate |
+| `DELETE` | `/api/v1/interchange/rates/{id}` | ADMIN | Soft-delete |
+| `GET` | `/api/v1/interchange/fees` | ADMIN | List all active scheme fees |
+| `GET` | `/api/v1/interchange/fees/{id}` | ADMIN | Single fee by UUID |
+| `POST` | `/api/v1/interchange/fees` | ADMIN | Create scheme fee (validated `SchemeFeeRequest` DTO) |
+| `PUT` | `/api/v1/interchange/fees/{id}` | ADMIN | Update fee |
+| `DELETE` | `/api/v1/interchange/fees/{id}` | ADMIN | Soft-delete |
+| `GET` | `/api/v1/interchange/calculate?authId=` | ADMIN | Calculate interchange for a specific auth (persists to log) |
+| `GET` | `/api/v1/interchange/log/{authId}` | ADMIN | Retrieve most recent interchange log for an auth |
+
+**Qualification engine flow:**
+1. Resolve `CardType` from `cards` table via `cardId`
+2. Map `entryMode` → `ChannelType` (CHIP/CONTACTLESS/SWIPE → CARD_PRESENT; default → CNP)
+3. Map `processingCode` DE3 prefix → `TransactionType` (01x → CASH; 20x → REFUND; default → PURCHASE)
+4. Query `interchange_rates` ordered by MCC specificity (non-null before null); first row wins
+5. Sum all active `scheme_fees` for the scheme (ASSESSMENT + NETWORK + any CROSS_BORDER seeded)
+6. Net = Gross − Interchange − SchemeFees; persist to `interchange_log`
+
+**Critical gotchas for future sessions:**
+
+| Issue | Fix |
+|-------|-----|
+| JPQL enum parameters | Pass typed `CardType`, `TransactionType`, `ChannelType` enums directly to repository — NOT strings. Strings require native SQL or a String-typed entity field |
+| `CASE WHEN` in JPQL ORDER BY | Hibernate 6.x (Spring Boot 3.x) supports this; earlier Hibernate 5.x does not. Verify Hibernate version before adding similar expressions |
+| Engine is `@Component` not `@Service` | Intentional: the calling `@Service` (`InterchangeService` or `SettlementService`) owns the `@Transactional` scope. Engine inherits the transaction. |
+| Migration numbering | `V3__interchange_management.sql` — V3 because `V3__bin_management.sql` was never created (bin_ranges already in V1). CLAUDE.md spec said V4 — spec was aspirational. |
 
 ---
 

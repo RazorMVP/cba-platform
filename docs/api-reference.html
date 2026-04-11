@@ -1793,6 +1793,34 @@ difference = actual_cash - closing_balance</pre>
 <h2>Card Service (port 8081)</h2>
 <p>Standalone microservice for card lifecycle, fraud, settlement, disputes, and terminal simulation. Base URL: <code>http://localhost:8081</code></p>
 
+<h3 id="interchange-management">Interchange Management</h3>
+<p>Per-scheme/card-type/MCC interchange rate tiers and scheme assessment fees. The <code>InterchangeQualificationEngine</code> calculates fee amounts and nets them against gross settlement amounts.</p>
+<h4>Interchange Rates</h4>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/interchange/rates</code></td><td>List all active rate tiers</td><td>ADMIN</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/interchange/rates/{id}</code></td><td>Single rate by UUID</td><td>ADMIN</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/interchange/rates</code></td><td>Create rate (<code>InterchangeRateRequest</code> DTO)</td><td>ADMIN</td></tr>
+<tr><td><span class="method put">PUT</span></td><td><code>/api/v1/interchange/rates/{id}</code></td><td>Update rate — full replacement</td><td>ADMIN</td></tr>
+<tr><td><span class="method delete">DELETE</span></td><td><code>/api/v1/interchange/rates/{id}</code></td><td>Soft-delete (<code>active=false</code>)</td><td>ADMIN</td></tr>
+</table>
+<h4>Scheme Fees</h4>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/interchange/fees</code></td><td>List all active scheme fees (ASSESSMENT, NETWORK, CROSS_BORDER, INTERNATIONAL_SERVICE)</td><td>ADMIN</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/interchange/fees/{id}</code></td><td>Single fee by UUID</td><td>ADMIN</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/interchange/fees</code></td><td>Create scheme fee (<code>SchemeFeeRequest</code> DTO)</td><td>ADMIN</td></tr>
+<tr><td><span class="method put">PUT</span></td><td><code>/api/v1/interchange/fees/{id}</code></td><td>Update fee</td><td>ADMIN</td></tr>
+<tr><td><span class="method delete">DELETE</span></td><td><code>/api/v1/interchange/fees/{id}</code></td><td>Soft-delete</td><td>ADMIN</td></tr>
+</table>
+<h4>Calculation</h4>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/interchange/calculate?authId={uuid}</code></td><td>Calculate interchange for an auth log entry; persists to <code>interchange_log</code>. Returns: interchangeAmount, schemeFeeAmount, netSettlementAmount, rateApplied</td><td>ADMIN</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/interchange/log/{authId}</code></td><td>Retrieve most recent interchange log record for an auth</td><td>ADMIN</td></tr>
+</table>
+<p><strong>Settlement netting formula:</strong> <code>Net = Gross − InterchangeFee − SchemeFees</code></p>
+
 <h3 id="bin-management">BIN Management</h3>
 <p>Bank Identification Number ranges — maps the first 6 or 8 digits of a PAN to a card scheme. Also exposes machine-to-machine endpoints consumed by <code>fep-service</code>.</p>
 <table>

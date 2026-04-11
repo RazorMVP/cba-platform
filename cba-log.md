@@ -59,6 +59,38 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 39 — 2026-04-12
+**Build Order Step 10 — backend monolith: `CardServiceClient` REST client, `CardAccountAdapter` OB shape mapping, `ConsentScope` enum, AISP card account/balance/transaction merge, CBPII card balance extension. BUILD SUCCESS (0 errors) on both backend and card-service.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/.../auth/CardAuthorizationService.java` | NEW `getAvailableBalance(UUID cardId)` public method — routes by card type to wallet/account/credit-line; `BalanceResult` inner record |
+| `card-service/.../card/CardController.java` | NEW `GET /api/v1/cards/{id}/balance` endpoint — calls `CardAuthorizationService.getAvailableBalance()`; ADMIN/TELLER auth |
+| `backend/.../config/CardServiceConfig.java` | NEW: `@Bean("cardServiceRestTemplate")` with 3s connect / 5s read timeout; reads `card.service.base-url` |
+| `backend/.../openbanking/card/CardServiceClient.java` | NEW: fail-safe REST client — `getCardsForCustomer`, `getCard`, `getCardBalance`, `getCardAuthorizations`; manual LinkedHashMap → record deserialization; all calls return empty on `RestClientException` |
+| `backend/.../openbanking/card/CardAccountAdapter.java` | NEW: static OB shape translation — `toObAccount`, `toObBalance`, `toObTransaction`; YYMM→MM/YY expiry format; credit/debit/prepaid subtype routing |
+| `backend/.../openbanking/ConsentScope.java` | NEW: enum — `ACCOUNTS_READ`, `BALANCES_READ`, `TRANSACTIONS_READ`, `PAYMENTS`, `FUNDS_CONFIRMATION`, `CARD_READ`, `CARD_BALANCES_READ`, `CARD_TRANSACTIONS_READ` |
+| `backend/.../openbanking/AccountInfoController.java` | MODIFIED: `getAccounts()` merges card accounts (fail-safe); `getBalances()` tries account repo then card-service; `getTransactions()` tries account repo then card auth history; ownership enforced (404 not 403) |
+| `backend/.../openbanking/ConsentService.java` | MODIFIED: `confirmFunds()` tries bank account first, falls back to card balance if `CARD_READ`/`CARD_BALANCES_READ` scope present; uses `ConsentScope` enum constants |
+| `backend/src/main/resources/application.yml` | NEW `card.service.base-url` in dev + prod profiles |
+
+#### Key Patterns / Decisions
+- **Local-remote aggregation**: `AccountInfoController` tries `accountRepository.findById()` first; falls back to `cardServiceClient.getCard()` if not found. UUID namespaces are disjoint — no routing table needed.
+- **Anti-corruption layer**: `CardServiceClient` owns the JSON deserialization from `Map<String, Object>`; `CardAccountAdapter` owns OB shape translation. `AccountInfoController` sees only clean domain types.
+- **Fail-safe degradation**: all `CardServiceClient` methods catch `RestClientException` and return empty. AISP `/accounts` always returns bank accounts even if card-service is down; card accounts are silently omitted.
+- **CBPII card scope guard**: `confirmFunds()` only calls card-service if consent has `card_read` or `card_balances_read` scope — prevents unintended cross-service calls for AISP-only consents.
+
+#### Build Verification
+- `cd backend && ./mvnw clean compile` → **BUILD SUCCESS (0 errors)**
+- `cd card-service && ./mvnw clean compile` → **BUILD SUCCESS (0 errors)**
+
+#### Compliance Checklist Update
+- ✅ No PAN ever appears in OB responses — `CardAccountAdapter.toObAccount()` uses `panSuffix` only (`****{last4}`)
+- ✅ Ownership enforced on all card resource lookups — 404 returned (not 403) to prevent enumeration
+
+---
+
 ### Session 38 — 2026-04-11
 **card-service Build Order Step 9 — Open Banking layer: full `/card-api/v1/` Card API, dual-mode API Key + FAPI 2.0 JWT auth, async webhook delivery with exponential backoff, MCC spending analytics. BUILD SUCCESS (0 errors). Commits: `dc61221` (code), `dd885ac` (API docs).**
 

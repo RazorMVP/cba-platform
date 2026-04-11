@@ -149,6 +149,24 @@ public class CardAuthorizationService {
         }
     }
 
+    /**
+     * Returns the available balance for a card — used by the backend monolith's Open Banking layer.
+     * Routes to the appropriate balance source by card type.
+     */
+    @Transactional(readOnly = true)
+    public BalanceResult getAvailableBalance(UUID cardId) {
+        Card card = cardService.findById(cardId);
+        BigDecimal balance = switch (card.getCardType()) {
+            case DEBIT   -> getDebitBalance(card);
+            case PREPAID -> getPrepaidBalance(card);
+            case CREDIT  -> getCreditAvailability(card);
+        };
+        return new BalanceResult(balance, card.getCardType().name());
+    }
+
+    /** Lightweight DTO returned by the balance endpoint. */
+    public record BalanceResult(BigDecimal availableBalance, String cardType) {}
+
     @Transactional
     public CardAuthResponse recordAdvice(String pan, BigDecimal amount, String stan) {
         // 0120/0220 advice — transaction already completed at terminal; just record it

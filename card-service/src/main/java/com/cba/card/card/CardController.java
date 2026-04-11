@@ -1,5 +1,6 @@
 package com.cba.card.card;
 
+import com.cba.card.auth.CardAuthorizationService;
 import com.cba.card.common.ApiResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -18,6 +19,7 @@ import java.util.UUID;
 public class CardController {
 
     private final CardService cardService;
+    private final CardAuthorizationService cardAuthorizationService;
 
     /** Issue a new card. */
     @PostMapping
@@ -47,6 +49,17 @@ public class CardController {
     @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ResponseEntity<ApiResponse<Card>> getCard(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(cardService.findById(id)));
+    }
+
+    /**
+     * Available balance for a card — called by the backend monolith's Open Banking layer.
+     * Routes internally to wallet / account / credit-line based on card type.
+     */
+    @GetMapping("/{id}/balance")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
+    public ResponseEntity<ApiResponse<CardAuthorizationService.BalanceResult>> getBalance(
+            @PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(cardAuthorizationService.getAvailableBalance(id)));
     }
 
     /** Lifecycle commands: block, unblock, cancel, activate, replace. */

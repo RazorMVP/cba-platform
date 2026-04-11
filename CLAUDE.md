@@ -1293,8 +1293,7 @@ RAISED → RETRIEVAL_REQUESTED → CHARGEBACK_INITIATED
 8. ✅ **card-service — Scheme-Compliant Chargeback** — full state machine, reason code framework, timeframe enforcement _(Session 36)_
 8.5. ✅ **card-service — Settlement File Export Framework** — `SettlementFileExporter` interface, 5 stub exporters, SFTP+HTTPS transmitter, nightly scheduler, `SettlementExportController` _(Session 37)_
 9. ✅ **card-service — Open Banking layer** — `/card-api/v1/` Card API, API key auth (SHA-256 + filter), WebClient webhook delivery (HMAC-SHA256 + exponential backoff), MCC spending analytics, dual-mode SecurityConfig chain _(Session 38)_
-10. **backend (monolith)** — `CardServiceClient` REST client; AISP/CBPII extension for card accounts; `ConsentScope` additions
-10. **backend (monolith)** — `CardServiceClient` REST client; AISP/CBPII extension for card accounts; `ConsentScope` additions
+10. ✅ **backend (monolith)** — `CardServiceClient` REST client, `CardAccountAdapter` OB shape mapping, `ConsentScope` enum, AISP card account merge, CBPII card balance extension _(Session 39)_
 11. **Angular `CardsModule`** — 12 screens
 12. **Docker Compose** — `card-service` + `fep-service` service definitions
 13. **Infrastructure / K8s** — new deployment + service manifests
@@ -1527,6 +1526,54 @@ card:
 | `StrictHostKeyChecking=no` in JSch SFTP | Dev-safe default — MUST be replaced with `known_hosts` file and `StrictHostKeyChecking=yes` before production deployment; documented as TODO in `SettlementFileTransmitter` |
 | `buildExportRecords()` uses JdbcTemplate | Intentional — avoids importing domain repositories from other packages (card, interchange); scheme is set to `'UNKNOWN'` in stub SQL and must be resolved via card/BIN join in production serializer implementation |
 | Stub `export()` returns UTF-8 text bytes | Stubs return human-readable field-layout documentation; real implementations replace the body with binary records per scheme spec; the interface contract (`byte[]`) is identical for both |
+
+---
+
+### backend — Card Service Integration (Session 39)
+
+**Build status**: `cd backend && ./mvnw clean compile → BUILD SUCCESS (0 errors)` | `cd card-service && ./mvnw clean compile → BUILD SUCCESS (0 errors)`
+
+**What was built:** Backend monolith extension — `CardServiceClient` REST client calls card-service (:8081), `CardAccountAdapter` translates card-service DTOs to UK Open Banking v3.1 shapes, `ConsentScope` enum replaces hardcoded scope strings. AISP endpoints now aggregate card accounts alongside bank accounts. CBPII funds confirmation falls back to card available balance when the account ID belongs to a card.
+
+**New files (backend):**
+
+```
+backend/src/main/java/com/cba/
+├── config/
+│   └── CardServiceConfig.java          — @Bean("cardServiceRestTemplate"); 3s/5s timeouts; reads card.service.base-url
+├── openbanking/
+│   ├── ConsentScope.java               — enum: 8 scope constants with .value() → stored string
+│   └── card/
+│       ├── CardServiceClient.java      — fail-safe REST client; inner DTOs (CardDto/CardBalanceDto/CardAuthDto);
+│       │                                  manual Map→record deserialization; empty on any RestClientException
+│       └── CardAccountAdapter.java     — static OB shape mapping: toObAccount/toObBalance/toObTransaction;
+│                                          PAN masked to ****{last4}; YYMM→MM/YY expiry; credit/debit/prepaid subtypes
+```
+
+**Modified files (backend):**
+
+| File | Change |
+|------|--------|
+| `AccountInfoController.java` | `getAccounts()` merges card accounts (fail-safe); `getBalances()` + `getTransactions()` try account repo then card-service fallback; ownership enforced as 404 not 403 |
+| `ConsentService.java` | `confirmFunds()` tries bank account first; falls back to card balance if consent has `card_read`/`card_balances_read` scope; uses `ConsentScope` enum constants |
+| `application.yml` | `card.service.base-url` in dev profile (`localhost:8081`) + prod profile (`${CARD_SERVICE_HOST}:${CARD_SERVICE_PORT}`) |
+
+**Modified files (card-service):**
+
+| File | Change |
+|------|--------|
+| `CardAuthorizationService.java` | NEW `getAvailableBalance(UUID cardId)` — pattern-switches on card type; returns `BalanceResult(availableBalance, cardType)` record |
+| `CardController.java` | NEW `GET /api/v1/cards/{id}/balance` — calls `getAvailableBalance()`; ADMIN/TELLER auth |
+
+**Critical gotchas for future sessions:**
+
+| Issue | Fix |
+|-------|-----|
+| UUID namespace separation | Bank account UUIDs live in monolith DB; card UUIDs live in card-service DB. The "try local first" pattern in `AccountInfoController` relies on this — if UUIDs ever collide, the wrong resource is returned. In production, use a UUID v5 namespace prefix per service to guarantee separation. |
+| `CardServiceClient` manual deserialization | `RestTemplate` with `ParameterizedTypeReference<Map<String,Object>>` gives `LinkedHashMap` from Jackson. Manual `mapToDto()` method handles the conversion. If card-service response shape changes, this method must be updated. Alternative: use OpenFeign with proper DTOs — but that adds a dependency. |
+| `cardServiceRestTemplate` bean name | Must use `@Qualifier("cardServiceRestTemplate")` in `CardServiceClient` constructor — the monolith already has other `RestTemplate` beans (e.g. Keycloak admin client). Without the qualifier, Spring throws `NoUniqueBeanDefinitionException`. |
+| CBPII card scope requirement | `confirmFunds()` only calls card-service if `card_read` OR `card_balances_read` is in the consent. If a TPP sends a funds confirmation for a card account with only `fundsconfirmation` scope, it gets a 404 (not a balance). Correct per spec — CBPII for cards requires explicit card scope. |
+| `deriveCurrency()` returns hardcoded "840" | Card DTOs from card-service don't carry currency in the current shape. Full fix: add `currencyCode` to the card-service balance response (already present in `BalanceResult`). For Session 39 the field reads from `BalanceResult.cardType()` only — currency will be threaded through in a future cleanup. |
 
 ---
 

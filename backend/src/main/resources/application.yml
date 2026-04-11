@@ -83,6 +83,11 @@ keycloak:
     username: ${KEYCLOAK_ADMIN_USERNAME:admin}
     password: ${KEYCLOAK_ADMIN_PASSWORD:admin}
 
+# ── Card Service integration ───────────────────────────────────────────────────
+card:
+  service:
+    base-url: http://${CARD_SERVICE_HOST:localhost}:${CARD_SERVICE_PORT:8081}
+
 server:
   port: 8080
   servlet:
@@ -235,6 +240,10 @@ management:
 cba:
   encryption:
     secret-key: ${ENCRYPTION_KEY}
+
+card:
+  service:
+    base-url: http://${CARD_SERVICE_HOST}:${CARD_SERVICE_PORT:8081}
 
 logging:
   level:

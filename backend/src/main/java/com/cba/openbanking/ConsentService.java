@@ -1,11 +1,11 @@
 package com.cba.openbanking;
 
-import com.cba.account.Account;
 import com.cba.account.AccountRepository;
 import com.cba.audit.AuditLogService;
 import com.cba.common.exception.CbaException;
 import com.cba.customer.Customer;
 import com.cba.customer.CustomerRepository;
+import com.cba.openbanking.card.CardServiceClient;
 import com.cba.openbanking.dto.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,10 +18,11 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ConsentService {
 
-    private final ConsentRepository consentRepository;
-    private final CustomerRepository customerRepository;
-    private final AccountRepository accountRepository;
-    private final AuditLogService auditLogService;
+    private final ConsentRepository    consentRepository;
+    private final CustomerRepository   customerRepository;
+    private final AccountRepository    accountRepository;
+    private final AuditLogService      auditLogService;
+    private final CardServiceClient    cardServiceClient;
 
     // ── Consent lifecycle ────────────────────────────────────────────
 
@@ -106,18 +107,38 @@ public class ConsentService {
         if (consent.getStatus() != ConsentStatus.AUTHORISED) {
             throw CbaException.forbidden("Consent " + request.consentId() + " is not authorised");
         }
-        if (!consent.getScopes().contains("fundsconfirmation")) {
+        if (!consent.getScopes().contains(ConsentScope.FUNDS_CONFIRMATION.value())
+                && !consent.getScopes().contains("fundsconfirmation")) {
             throw CbaException.forbidden("Consent does not include 'fundsconfirmation' scope");
         }
         if (consent.getExpiryDate() != null && consent.getExpiryDate().isBefore(Instant.now())) {
             throw CbaException.badRequest("CONSENT_EXPIRED", "Consent has expired");
         }
 
-        Account account = accountRepository.findById(request.accountId())
-                .orElseThrow(() -> CbaException.notFound("Account", request.accountId()));
+        // 1. Try bank account (monolith)
+        var accountOpt = accountRepository.findById(request.accountId());
+        if (accountOpt.isPresent()) {
+            boolean fundsAvailable = accountOpt.get().getBalance().compareTo(request.amount()) >= 0;
+            return buildFundsConfirmationResponse(request, fundsAvailable);
+        }
 
-        boolean fundsAvailable = account.getBalance().compareTo(request.amount()) >= 0;
+        // 2. Fall back to card available balance (card-service)
+        //    Requires CARD_READ or CARD_BALANCES_READ scope in addition to fundsconfirmation
+        boolean hasCardScope = consent.getScopes().contains(ConsentScope.CARD_READ.value())
+                || consent.getScopes().contains(ConsentScope.CARD_BALANCES_READ.value());
+        if (hasCardScope) {
+            var balOpt = cardServiceClient.getCardBalance(request.accountId());
+            if (balOpt.isPresent() && balOpt.get().availableBalance() != null) {
+                boolean fundsAvailable = balOpt.get().availableBalance().compareTo(request.amount()) >= 0;
+                return buildFundsConfirmationResponse(request, fundsAvailable);
+            }
+        }
 
+        throw CbaException.notFound("Account", request.accountId());
+    }
+
+    private FundsConfirmationResponse buildFundsConfirmationResponse(
+            FundsConfirmationRequest request, boolean fundsAvailable) {
         return new FundsConfirmationResponse(
                 "fc-" + UUID.randomUUID().toString().replace("-", "").substring(0, 18),
                 request.consentId(),

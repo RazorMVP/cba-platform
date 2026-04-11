@@ -190,16 +190,38 @@ Read `references/deployment.md` before starting.
 - For new services/packages: add an implementation notes subsection with the verified package structure, resource file list, and any critical gotchas discovered during the build.
 - For completed build order steps: mark them `✅` with the commit SHA.
 
-### Step 3 — Commit and push both files to GitHub
-After updating both docs, immediately run:
+### Step 3 — Check and update API documentation (if applicable)
+After any backend change, ask: **did this session add, remove, or modify any REST endpoints?**
+
+If **yes**, update both of these files before committing:
+
+#### `docs/cba-postman-collection-v2.json`
+- Add new request items for every new endpoint (method, URL, headers, example body, example response)
+- Remove or update items for any endpoints that changed signature or were deleted
+- Maintain the existing Mifos-style folder structure — group by module (e.g. `Card Service / Cards`, `Card Service / Fraud Rules`)
+- Include all supported query params, path params, and request body fields
+- Add at least one example response per request (approved + declined where relevant for card endpoints)
+- Include 8-language code samples (`cURL`, `Java`, `JavaScript`, `Python`, `Go`, `PHP`, `Ruby`, `C#`) on each request
+
+#### `docs/api-reference.html`
+- Mirror the Mifos `apiLive.htm` structure: add a new section anchor for the module, list all endpoints with method badge, path, description, request/response schema tables
+- Update the full API matrix table at the top with new endpoint rows
+- Keep the standalone HTML self-contained (no external CDN dependencies that could break offline)
+
+If **no new endpoints** were added (e.g. build fixes, Flyway migrations only, Angular-only changes), skip this step — do not update the API docs unnecessarily.
+
+### Step 4 — Commit and push all updated docs to GitHub
+After completing Steps 1–3, stage and commit everything together:
 ```bash
 git add cba-log.md CLAUDE.md
+# If API docs were updated, also add:
+git add docs/cba-postman-collection-v2.json docs/api-reference.html
 git commit -m "docs(cba-log+claude): Session N — <one-line summary>
 
 Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 git push origin main
 ```
-This is **not optional** — both files must be committed and pushed to GitHub as part of every session. Do not finish a session without this push. The commit should be the final act of every build session.
+This is **not optional** — all updated doc files must be committed and pushed to GitHub as part of every session. The push is the final act of every build session.
 
 ### When to update
 - After completing any feature (backend or frontend)
@@ -207,6 +229,7 @@ This is **not optional** — both files must be committed and pushed to GitHub a
 - After any build fix or architectural decision
 - After any compile error is diagnosed and fixed (add to gotchas)
 - After every session — even if only one file changed
+- API docs: only when REST endpoints are added, changed, or removed
 
 ---
 

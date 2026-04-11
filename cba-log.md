@@ -59,6 +59,67 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 25 — 2026-04-11
+
+**Open Banking scope designed and documented for the Card Management Service — dual-layer card API covering regulatory AISP/CBPII extension + BaaS-grade dedicated Card API with webhooks, card controls, issuance, and spending analytics. No code written yet; this entry records all design decisions.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `CLAUDE.md` | UPDATED — "Open Banking Extension for Card Services" subsection added to Card Management section; Angular screens table extended to 9 screens; Build Order updated to 7 steps |
+| `cba-log.md` | This session entry |
+
+#### Architecture Decisions Recorded
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Open Banking scope | Both: extend existing AISP/CBPII + dedicated Card API (C) | Regulatory compliance (TPPs see card accounts) + fintech-grade card controls/issuance |
+| Webhooks | Outbound HTTP push with retry/backoff (B) | Industry standard — Marqeta, Stripe Issuing, Galileo all use push webhooks |
+| Webhook events | Full event stream: authorization + lifecycle + fraud (C) | Enterprise observability — TPPs build fraud overlays and dispute workflows on top |
+| Write access | Read + soft controls + card issuance — full BaaS (C) | Marqeta model: fintechs programmatically issue cards for expense/BNPL/corporate spend |
+| Authentication | Dual-mode: FAPI 2.0 consent (customer-facing) + API keys (M2M platform) (C) | Mirrors Stripe Connect — OAuth for customer actions, API keys for platform M2M |
+| Spending analytics | Basic: by MCC category, by merchant, monthly summary (B) | Covers 80% of fintech use cases; avoids overlapping with existing Reports module |
+
+#### New Components Scoped
+
+**Layer 1 — Existing OB module extension (backend monolith):**
+- `CardAccountAdapter` — maps card-service data to UK Open Banking v3.1 account/balance/transaction shapes
+- `ConsentScope` enum — new values: `CARD_READ`, `CARD_TRANSACTIONS_READ`, `CARD_BALANCES_READ`
+- `CardServiceClient` — REST client in `backend` calling `card-service:8081`
+
+**Layer 2 — Dedicated Card API (card-service):**
+- `com.cba.card.openbanking` — `CardApiController` at `/card-api/v1/`
+- `com.cba.card.openbanking.apikey` — API key entity, hashing (PBKDF2), request filter
+- `com.cba.card.openbanking.webhook` — Webhook entity, async delivery (Spring @Async + WebClient), HMAC-SHA256 signing, exponential backoff (15s→60s→5m→30m→2h, 5 retries)
+- `com.cba.card.openbanking.analytics` — MCC aggregation, merchant roll-up, monthly summary
+
+**New DB tables (card-service):** `api_keys`, `webhooks`, `webhook_delivery_log`
+
+#### New Angular Screens (additions to CardsModule)
+
+| Component | Route | Notes |
+|-----------|-------|-------|
+| `ApiKeysComponent` | `/cards/api-keys` | ADMIN — create/revoke API keys, show key once on creation |
+| `WebhooksComponent` | `/cards/webhooks` | ADMIN — register webhooks, delivery log with status/retry counts |
+
+Total CardsModule screens: **9** (7 core + 2 Open Banking)
+
+#### Webhook Event Catalogue (15 events)
+- **Authorization (3):** `AUTHORIZATION.APPROVED`, `AUTHORIZATION.DECLINED`, `AUTHORIZATION.REVERSED`
+- **Card Lifecycle (7):** `CARD.ISSUED`, `CARD.ACTIVATED`, `CARD.BLOCKED`, `CARD.UNBLOCKED`, `CARD.EXPIRED`, `CARD.PIN_CHANGED`, `CARD.LIMIT_CHANGED`
+- **Fraud (3):** `FRAUD.RULE_TRIGGERED`, `FRAUD.CARD_STEP_UP`, `FRAUD.CARD_DECLINED_HIGH_RISK`
+- **Dispute (2):** `DISPUTE.RAISED`, `DISPUTE.RESOLVED`
+
+#### Build Verification
+- No code built yet — this session is architecture-only
+- Updated build order: 7 steps (added card OB layer as step 3, backend OB extension as step 4)
+
+#### Compliance Checklist Update
+- Card Open Banking architecture: ✅ Designed and documented
+- Card Open Banking implementation: ❌ Not yet started
+
+---
+
 ### Session 24 — 2026-04-11
 
 **Architecture designed and documented for Card Management Service and Front End Processing Module — full ISO 8583-1987 card processing stack. No code written yet; this entry records all design decisions made through structured Q&A.**

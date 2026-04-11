@@ -793,15 +793,17 @@ All tables: UUID PKs, `version BIGINT` for optimistic locking, `created_at`/`upd
 
 ### Angular Screens (new `CardsModule`)
 
-| Component | Route | Status |
-|-----------|-------|--------|
-| `CardListComponent` | `/cards` | 🔲 Planned |
-| `CardDetailComponent` | `/cards/:id` | 🔲 Planned |
-| `CardProductsComponent` | `/cards/products` | 🔲 Planned |
-| `FraudRulesComponent` | `/cards/fraud` | 🔲 Planned |
-| `SettlementComponent` | `/cards/settlement` | 🔲 Planned |
-| `DisputesComponent` | `/cards/disputes` | 🔲 Planned |
-| `TerminalSimulatorComponent` | `/cards/terminal` | 🔲 Planned |
+| Component | Route | Auth Required | Status |
+|-----------|-------|--------------|--------|
+| `CardListComponent` | `/cards` | ADMIN/TELLER | 🔲 Planned |
+| `CardDetailComponent` | `/cards/:id` | ADMIN/TELLER | 🔲 Planned |
+| `CardProductsComponent` | `/cards/products` | ADMIN | 🔲 Planned |
+| `FraudRulesComponent` | `/cards/fraud` | ADMIN | 🔲 Planned |
+| `SettlementComponent` | `/cards/settlement` | ADMIN | 🔲 Planned |
+| `DisputesComponent` | `/cards/disputes` | ADMIN/TELLER | 🔲 Planned |
+| `TerminalSimulatorComponent` | `/cards/terminal` | ADMIN/TELLER | 🔲 Planned |
+| `ApiKeysComponent` | `/cards/api-keys` | ADMIN | 🔲 Planned |
+| `WebhooksComponent` | `/cards/webhooks` | ADMIN | 🔲 Planned |
 
 ---
 
@@ -876,14 +878,157 @@ CoreBanking/
 
 ---
 
+### Open Banking Extension for Card Services
+
+The card platform exposes two Open Banking layers. Read this section in full before generating any card-related Open Banking code.
+
+---
+
+#### Layer 1 — Existing Open Banking Module Extension (backend monolith)
+
+Card accounts surface inside the existing `/open-banking/v3.1/` endpoints. The `backend` module adds a `CardServiceClient` REST client to fetch card data from `card-service` and maps it to UK Open Banking v3.1 response shapes.
+
+| Existing Endpoint | Extension |
+|-------------------|-----------|
+| `GET /open-banking/v3.1/accounts` | Card accounts returned with `accountType: CARD`, `accountSubType: DEBIT_CARD / CREDIT_CARD / PREPAID_CARD` |
+| `GET /open-banking/v3.1/accounts/{id}/balances` | `availableBalance` (debit/prepaid = wallet balance; credit = `creditLimit - outstanding`) |
+| `GET /open-banking/v3.1/accounts/{id}/transactions` | Authorization history mapped to OB transaction objects |
+| `POST /open-banking/v3.1/funds-confirmations` | Works against card available balance (CBPII) |
+
+Consent scope additions: `CARD_READ`, `CARD_TRANSACTIONS_READ`, `CARD_BALANCES_READ` — added to `ConsentScope` enum in the existing Open Banking module.
+
+---
+
+#### Layer 2 — Dedicated Card API (card-service at `/card-api/v1/`)
+
+A full BaaS-grade card API hosted in `card-service`. Third parties integrate via API keys (M2M) or FAPI 2.0 consent (customer-facing). All endpoints return the standard CBA response envelope `{ data, meta, errors }`.
+
+##### Authentication — Dual-Mode
+
+| Operation Type | Auth Method | Header |
+|---------------|-------------|--------|
+| Customer-facing (controls, own card data) | FAPI 2.0 consent (existing Keycloak flow) | `Authorization: Bearer {jwt}` |
+| Platform-level M2M (issuance, webhooks, analytics, bulk) | API Key | `Authorization: ApiKey {key}` |
+
+API keys are stored hashed (`PBKDF2WithHmacSHA256`) in the `api_keys` table. Key value shown only once on creation.
+
+##### API Key Management (ADMIN only)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/card-api/v1/api-keys` | `POST` | Issue new API key — returns plaintext key once |
+| `/card-api/v1/api-keys` | `GET` | List active keys (hashed — value not retrievable) |
+| `/card-api/v1/api-keys/{id}` | `DELETE` | Revoke key immediately |
+
+##### Card Issuance (API Key — BaaS)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/card-api/v1/cards` | `POST` | Issue virtual or physical card for a customer against an `accountId` or `loanId` |
+| `/card-api/v1/cards` | `GET` | List cards; filter by `customerId`, `type`, `status` |
+| `/card-api/v1/cards/{id}` | `GET` | Full card details |
+
+##### Card Controls (FAPI 2.0 Consent — customer must authorise)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/card-api/v1/cards/{id}/controls` | `PUT` | Freeze/unfreeze; enable/disable contactless, CNP, international transactions |
+| `/card-api/v1/cards/{id}/limits` | `PUT` | Update daily purchase, daily withdrawal, per-transaction, monthly limits |
+| `/card-api/v1/cards/{id}/pin/change` | `POST` | PIN change — routed through HSM adapter (`CA`/`DC` verify old PIN, `A2` set new) |
+
+##### Transaction & Authorization History
+
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/card-api/v1/cards/{id}/authorizations` | `GET` | API Key or consent | Full authorization log with fraud scores, entry mode, response codes |
+| `/card-api/v1/cards/{id}/transactions` | `GET` | API Key or consent | Settled transactions only (cleared and posted) |
+
+##### Spending Analytics (API Key)
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /card-api/v1/cards/{id}/analytics/by-category` | Spend by MCC category (Dining, Travel, Retail, etc.) aggregated from `authorization_log` |
+| `GET /card-api/v1/cards/{id}/analytics/by-merchant` | Top merchants by total amount and transaction frequency |
+| `GET /card-api/v1/analytics/summary` | Monthly spend totals, approved vs. declined ratio, average transaction value |
+
+All analytics endpoints accept `?from=YYYY-MM-DD&to=YYYY-MM-DD&currency=ISO4217` query params.
+MCC → human-readable category mapping is a static lookup table seeded at startup.
+
+##### Webhook Management (API Key)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/card-api/v1/webhooks` | `POST` | Register webhook: `{ callbackUrl, events[], secret }` |
+| `/card-api/v1/webhooks` | `GET` | List registered webhooks |
+| `/card-api/v1/webhooks/{id}` | `DELETE` | Deregister |
+| `/card-api/v1/webhooks/{id}/deliveries` | `GET` | Delivery log for a webhook (last 100 attempts) |
+
+**Delivery mechanism:**
+- Spring `@Async` WebClient POST to `callbackUrl`
+- Payload signed: `X-CBA-Signature: sha256={HMAC-SHA256(payload, secret)}`
+- `X-CBA-Event` header contains event type (e.g. `AUTHORIZATION.APPROVED`)
+- `X-CBA-Delivery` header contains a unique delivery UUID for idempotency
+- Exponential backoff on failure: retry at 15s → 60s → 5m → 30m → 2h (5 attempts max)
+- Final failure recorded as `FAILED` in `webhook_delivery_log`; no further retries
+
+**Webhook Event Catalogue:**
+
+| Category | Event | Trigger |
+|----------|-------|---------|
+| Authorization | `AUTHORIZATION.APPROVED` | Auth request approved by fraud engine + balance check |
+| Authorization | `AUTHORIZATION.DECLINED` | Auth declined (insufficient funds, fraud, blocked card) |
+| Authorization | `AUTHORIZATION.REVERSED` | `0400` reversal processed |
+| Card Lifecycle | `CARD.ISSUED` | New card created (virtual or physical order placed) |
+| Card Lifecycle | `CARD.ACTIVATED` | Physical card activated or virtual card moved to ACTIVE |
+| Card Lifecycle | `CARD.BLOCKED` | Card status set to BLOCKED |
+| Card Lifecycle | `CARD.UNBLOCKED` | Card unblocked, returned to ACTIVE |
+| Card Lifecycle | `CARD.EXPIRED` | Card reached expiry date (nightly CoB job) |
+| Card Lifecycle | `CARD.PIN_CHANGED` | PIN successfully changed via HSM |
+| Card Lifecycle | `CARD.LIMIT_CHANGED` | Any card limit updated |
+| Fraud | `FRAUD.RULE_TRIGGERED` | Any fraud rule fired (score > 0), with rule ID and weight |
+| Fraud | `FRAUD.CARD_STEP_UP` | Score in 30–69 range — contactless step-up to online PIN |
+| Fraud | `FRAUD.CARD_DECLINED_HIGH_RISK` | Score ≥ 70 — transaction declined by fraud engine |
+| Dispute | `DISPUTE.RAISED` | Customer raised a new dispute |
+| Dispute | `DISPUTE.RESOLVED` | Dispute resolved (RESOLVED_ISSUER or RESOLVED_ACQUIRER) |
+
+---
+
+#### New Database Tables (card-service — additions for Open Banking)
+
+| Table | Key Columns |
+|-------|-------------|
+| `api_keys` | id, name, key_hash, created_by (user UUID), active, scopes (JSONB), last_used_at, created_at |
+| `webhooks` | id, name, callback_url, events (JSONB string array), secret_hash, active, created_by, created_at |
+| `webhook_delivery_log` | id, webhook_id, event_type, delivery_uuid, payload (JSONB), http_status, status (`PENDING`/`DELIVERED`/`FAILED`), attempt_count, last_attempt_at, next_retry_at |
+
+---
+
+#### Package Structure (card-service additions)
+
+| Package | Contents |
+|---------|----------|
+| `com.cba.card.openbanking` | `CardApiController` — all `/card-api/v1/` endpoints |
+| `com.cba.card.openbanking.apikey` | `ApiKey` entity, `ApiKeyService`, key hashing, request filter |
+| `com.cba.card.openbanking.webhook` | `Webhook` entity, `WebhookService`, `WebhookDeliveryService` (async), delivery log |
+| `com.cba.card.openbanking.analytics` | `SpendingAnalyticsService` — MCC aggregation, merchant roll-up, monthly summary |
+
+In `backend` (existing monolith):
+| Package | Contents |
+|---------|----------|
+| `com.cba.openbanking.card` | `CardAccountAdapter` — calls `CardServiceClient`, maps to OB account/balance/transaction DTOs |
+| `com.cba.openbanking` (existing) | `ConsentScope` enum extended with `CARD_READ`, `CARD_TRANSACTIONS_READ`, `CARD_BALANCES_READ` |
+
+---
+
 ### Build Order
 
 1. **fep-service** — ISO 8583 TCP server, jPOS packager, message router, HSM adapter, EMV handler
-2. **card-service** — all domain modules (card, limits, fraud, token, settlement, dispute) + terminal simulator REST
-3. **backend (monolith)** — add `CardServiceClient` REST client; wire to account balance endpoint
-4. **Angular `CardsModule`** — 7 screens including terminal simulator UI
-5. **Docker Compose** — `card-service` + `fep-service` service definitions
-6. **Infrastructure / K8s** — new deployment + service manifests
+2. **card-service — core modules** — card, limits, fraud, token, settlement, dispute, terminal simulator REST
+3. **card-service — Open Banking layer** — Card API (`/card-api/v1/`), API key auth, webhook delivery, spending analytics
+4. **backend (monolith)** — `CardServiceClient` REST client; AISP/CBPII extension for card accounts; `ConsentScope` additions
+5. **Angular `CardsModule`** — 9 screens including terminal simulator, API keys, webhooks
+6. **Docker Compose** — `card-service` + `fep-service` service definitions
+7. **Infrastructure / K8s** — new deployment + service manifests
 
 ---
 

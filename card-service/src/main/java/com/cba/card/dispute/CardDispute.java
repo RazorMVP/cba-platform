@@ -6,13 +6,24 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
  * Represents a cardholder dispute against a transaction.
  *
- * <p>State machine: RAISED → UNDER_REVIEW → RESOLVED_ISSUER | RESOLVED_ACQUIRER | WITHDRAWN
+ * <h3>Full scheme-compliant state machine</h3>
+ * <pre>
+ *   RAISED → RETRIEVAL_REQUESTED → CHARGEBACK_INITIATED
+ *          → REPRESENTMENT → PRE_ARBITRATION → RESOLVED
+ *   Any non-terminal state → WITHDRAWN
+ * </pre>
+ *
+ * <p>When a formal chargeback is initiated, {@code schemeReasonCodeId} is
+ * populated and the three deadline fields are calculated from the reason
+ * code's timeframe parameters. The {@link ChargebackTimeframeEnforcer}
+ * checks these deadlines nightly and auto-escalates where necessary.
  */
 @Entity
 @Table(name = "card_disputes")
@@ -52,6 +63,49 @@ public class CardDispute {
 
     @Column(name = "resolution_notes", columnDefinition = "TEXT")
     private String resolutionNotes;
+
+    // ── Scheme-compliant chargeback fields ────────────────────────────────────
+
+    /**
+     * The scheme reason code attached when {@code CHARGEBACK_INITIATED}.
+     * Determines timeframe deadlines and reporting categories.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "scheme_reason_code_id")
+    private ChargebackReasonCode schemeReasonCode;
+
+    /** ISO 4217 alphabetic currency code of the disputed transaction (e.g. "USD", "KES"). */
+    @Column(name = "currency_code", length = 3)
+    private String currencyCode;
+
+    /**
+     * Scheme deadline by which the issuer must initiate a formal chargeback.
+     * Calculated as: transaction date + {@link ChargebackReasonCode#getMaxDaysToChargeback()}.
+     * {@code null} until reason code is attached.
+     */
+    @Column(name = "chargeback_deadline")
+    private LocalDate chargebackDeadline;
+
+    /**
+     * Acquirer deadline to respond (file a representment) after chargeback initiation.
+     * Calculated as: chargeback initiation date + {@link ChargebackReasonCode#getMaxDaysToRespond()}.
+     */
+    @Column(name = "response_deadline")
+    private LocalDate responseDeadline;
+
+    /**
+     * Issuer deadline to escalate to pre-arbitration after a representment is filed.
+     * Calculated as: representment date + {@link ChargebackReasonCode#getMaxDaysPreArbitration()}.
+     */
+    @Column(name = "pre_arbitration_deadline")
+    private LocalDate preArbitrationDeadline;
+
+    /**
+     * Direction of final resolution: "ISSUER" (cardholder wins) or "ACQUIRER" (merchant wins).
+     * Set only when {@code status == RESOLVED}.
+     */
+    @Column(name = "resolution_favor", length = 10)
+    private String resolutionFavor;
 
     @Version
     private long version;

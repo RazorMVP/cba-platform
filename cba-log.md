@@ -59,6 +59,41 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 36 — 2026-04-11
+**card-service Build Order Step 8 — Scheme-Compliant Chargeback; full state machine, 5-scheme reason code catalogue, retrieval requests, representments, nightly timeframe enforcer. BUILD SUCCESS (0 errors).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/…/dispute/DisputeStatus.java` | REWRITTEN — 7 states: RAISED/RETRIEVAL_REQUESTED/CHARGEBACK_INITIATED/REPRESENTMENT/PRE_ARBITRATION/RESOLVED/WITHDRAWN |
+| `card-service/…/dispute/CardDispute.java` | EXTENDED — `schemeReasonCode` FK, `currencyCode`, 3 deadline fields, `resolutionFavor` |
+| `card-service/…/dispute/ChargebackReasonCode.java` | NEW — entity; UNIQUE(scheme, code); 3 timeframe int fields |
+| `card-service/…/dispute/ChargebackReasonCodeRepository.java` | NEW |
+| `card-service/…/dispute/RetrievalRequest.java` | NEW — entity; dispute FK; deadline; PENDING/FULFILLED/EXPIRED |
+| `card-service/…/dispute/RetrievalRequestRepository.java` | NEW |
+| `card-service/…/dispute/Representment.java` | NEW — entity; dispute FK; deadline; PENDING/ACCEPTED/REJECTED/ESCALATED |
+| `card-service/…/dispute/RepresentmentRepository.java` | NEW |
+| `card-service/…/dispute/ChargebackTimeframeEnforcer.java` | NEW — `@Scheduled(cron "0 0 2 * * *")`; expires overdue retrievals; auto-resolves lapsed representments → ACQUIRER |
+| `card-service/…/dispute/DisputeService.java` | REWRITTEN — 7 named commands; sub-resource queries |
+| `card-service/…/dispute/DisputeController.java` | REWRITTEN — 12 endpoints (GET list/detail/sub-resources/reason-codes; POST lifecycle commands) |
+| `card-service/…/db/migration/V6__chargeback_module.sql` | NEW — `chargeback_reason_codes`, `retrieval_requests`, `representments` tables; extends `card_disputes`; seeds 17 reason codes across 5 schemes |
+| `CLAUDE.md` | Build Order Step 8 marked ✅; Session 36 implementation notes added |
+
+#### Key Decisions
+- Reason code catalogue is Flyway-seeded reference data — no admin CRUD endpoint (changes require a migration, same as production rule books)
+- `initiate_chargeback` is valid from both RAISED and RETRIEVAL_REQUESTED (retrieval is optional — urgent frauds skip it)
+- Expired retrieval requests log a warning but don't auto-escalate — reason code not yet known so scheme deadlines can't be calculated
+- Lapsed representment deadlines auto-resolve ACQUIRER — matches scheme default-win rules
+- `resolutionFavor` validated as "ISSUER"/"ACQUIRER" string (not enum) to keep the column readable without mapping overhead
+
+#### Build Verification
+`cd card-service && ./mvnw clean compile → BUILD SUCCESS (0 errors)`
+
+#### Compliance Checklist Update
+- ✅ Build Order Step 8 complete
+
+---
+
 ### Session 35 — 2026-04-11
 **Gap analysis audit — corrected 5 stale ❌ rows to ✅ and 1 ❌ to ⚠️; no code changes. Docs-only commit.**
 

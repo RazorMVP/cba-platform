@@ -15,9 +15,19 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Dispute management endpoints.
+ * Scheme-compliant chargeback workflow REST API.
  *
- * <p>State machine: RAISED → UNDER_REVIEW → RESOLVED_ISSUER | RESOLVED_ACQUIRER | WITHDRAWN
+ * Full state machine:
+ *   POST /disputes                        -> raise
+ *   POST /disputes/{id}/retrieval         -> RAISED -> RETRIEVAL_REQUESTED
+ *   POST /disputes/{id}/chargeback        -> RAISED/RETRIEVAL_REQUESTED -> CHARGEBACK_INITIATED
+ *   POST /disputes/{id}/representment     -> CHARGEBACK_INITIATED -> REPRESENTMENT
+ *   POST /disputes/{id}/pre-arbitration   -> REPRESENTMENT -> PRE_ARBITRATION
+ *   POST /disputes/{id}/resolve           -> any active -> RESOLVED
+ *   POST /disputes/{id}/withdraw          -> any non-terminal -> WITHDRAWN
+ *
+ * Reference data:
+ *   GET /disputes/reason-codes[?scheme=VISA]
  */
 @RestController
 @RequestMapping("/api/v1/cards/disputes")
@@ -26,7 +36,8 @@ public class DisputeController {
 
     private final DisputeService disputeService;
 
-    /** List all disputes, optionally filtered by status. */
+    // ── Listing ───────────────────────────────────────────────────────────────
+
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ResponseEntity<ApiResponse<List<CardDispute>>> listDisputes(
@@ -34,38 +45,99 @@ public class DisputeController {
         return ResponseEntity.ok(ApiResponse.ok(disputeService.findAll(status)));
     }
 
-    /** Get a single dispute by ID. */
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ResponseEntity<ApiResponse<CardDispute>> getDispute(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(disputeService.findById(id)));
     }
 
-    /** Raise a new dispute. */
+    @GetMapping("/{id}/retrieval-requests")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
+    public ResponseEntity<ApiResponse<List<RetrievalRequest>>> listRetrievalRequests(
+            @PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(disputeService.listRetrievalRequests(id)));
+    }
+
+    @GetMapping("/{id}/representments")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
+    public ResponseEntity<ApiResponse<List<Representment>>> listRepresentments(
+            @PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(disputeService.listRepresentments(id)));
+    }
+
+    // ── Reason codes (reference data) ─────────────────────────────────────────
+
+    @GetMapping("/reason-codes")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
+    public ResponseEntity<ApiResponse<List<ChargebackReasonCode>>> listReasonCodes(
+            @RequestParam(required = false) String scheme) {
+        return ResponseEntity.ok(ApiResponse.ok(disputeService.listReasonCodes(scheme)));
+    }
+
+    // ── Raise ─────────────────────────────────────────────────────────────────
+
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN','TELLER','CUSTOMER')")
     public ResponseEntity<ApiResponse<CardDispute>> raiseDispute(
             @Valid @RequestBody RaiseDisputeRequest req) {
         CardDispute dispute = disputeService.raiseDispute(
                 req.cardId(), req.transactionRef(), req.disputeReason(),
-                req.raisedBy(), req.originalAmount());
+                req.raisedBy(), req.originalAmount(), req.currencyCode());
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(dispute));
     }
 
-    /**
-     * Update dispute state via command param.
-     * Commands: review, resolve_issuer, resolve_acquirer, withdraw
-     */
-    @PutMapping("/{id}")
+    // ── Lifecycle commands ────────────────────────────────────────────────────
+
+    /** RAISED -> RETRIEVAL_REQUESTED */
+    @PostMapping("/{id}/retrieval")
     @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
-    public ResponseEntity<ApiResponse<CardDispute>> updateDispute(
+    public ResponseEntity<ApiResponse<CardDispute>> requestRetrieval(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(disputeService.requestRetrieval(id)));
+    }
+
+    /** RAISED/RETRIEVAL_REQUESTED -> CHARGEBACK_INITIATED */
+    @PostMapping("/{id}/chargeback")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
+    public ResponseEntity<ApiResponse<CardDispute>> initiateChargeback(
             @PathVariable UUID id,
-            @RequestParam String command,
-            @RequestBody(required = false) ResolveDisputeRequest req) {
-        UUID resolvedBy = req != null ? req.resolvedBy() : null;
-        String notes    = req != null ? req.resolutionNotes() : null;
+            @Valid @RequestBody InitiateChargebackRequest req) {
         return ResponseEntity.ok(ApiResponse.ok(
-                disputeService.updateDispute(id, command, resolvedBy, notes)));
+                disputeService.initiateChargeback(id, req.reasonCodeId())));
+    }
+
+    /** CHARGEBACK_INITIATED -> REPRESENTMENT */
+    @PostMapping("/{id}/representment")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
+    public ResponseEntity<ApiResponse<CardDispute>> recordRepresentment(
+            @PathVariable UUID id,
+            @Valid @RequestBody RepresentmentRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                disputeService.recordRepresentment(id, req.acquirerReason())));
+    }
+
+    /** REPRESENTMENT -> PRE_ARBITRATION */
+    @PostMapping("/{id}/pre-arbitration")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<CardDispute>> escalateToPreArbitration(
+            @PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(disputeService.escalateToPreArbitration(id)));
+    }
+
+    /** Any active -> RESOLVED */
+    @PostMapping("/{id}/resolve")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
+    public ResponseEntity<ApiResponse<CardDispute>> resolve(
+            @PathVariable UUID id,
+            @Valid @RequestBody ResolveRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                disputeService.resolve(id, req.resolvedBy(), req.resolutionFavor(), req.notes())));
+    }
+
+    /** Any non-terminal -> WITHDRAWN */
+    @PostMapping("/{id}/withdraw")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER','CUSTOMER')")
+    public ResponseEntity<ApiResponse<CardDispute>> withdraw(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(disputeService.withdraw(id)));
     }
 
     // ── Inner DTOs ────────────────────────────────────────────────────────────
@@ -75,9 +147,17 @@ public class DisputeController {
             @NotBlank String transactionRef,
             @NotNull DisputeReason disputeReason,
             @NotNull UUID raisedBy,
-            @NotNull BigDecimal originalAmount) {}
+            @NotNull BigDecimal originalAmount,
+            String currencyCode) {}
 
-    public record ResolveDisputeRequest(
+    public record InitiateChargebackRequest(
+            @NotNull UUID reasonCodeId) {}
+
+    public record RepresentmentRequest(
+            @NotBlank String acquirerReason) {}
+
+    public record ResolveRequest(
             UUID resolvedBy,
-            String resolutionNotes) {}
+            @NotBlank String resolutionFavor,
+            String notes) {}
 }

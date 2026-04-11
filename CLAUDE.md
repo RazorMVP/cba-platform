@@ -1290,12 +1290,88 @@ RAISED → RETRIEVAL_REQUESTED → CHARGEBACK_INITIATED
 5. ✅ **card-service — Interchange Management Module** — rate tables per scheme, qualification engine, settlement netting _(Session 30)_
 6. ✅ **card-service — 3D Secure ACS** — `threeds` package, ACS endpoints, CAVV generation, OTP challenge, SecurityConfig `@Order(0)` chain _(Session 31)_
 7. ✅ **card-service — Card Personalization Bureau** — CDP file generation, bureau job lifecycle; `ORDERED → PRODUCED → DISPATCHED` state progression _(Session 34)_
-8. **card-service — Scheme-Compliant Chargeback** — full state machine, reason code framework, timeframe enforcement
+8. ✅ **card-service — Scheme-Compliant Chargeback** — full state machine, reason code framework, timeframe enforcement _(Session 36)_
 9. **card-service — Open Banking layer** — Card API (`/card-api/v1/`), API key auth, webhook delivery, spending analytics
 10. **backend (monolith)** — `CardServiceClient` REST client; AISP/CBPII extension for card accounts; `ConsentScope` additions
 11. **Angular `CardsModule`** — 12 screens
 12. **Docker Compose** — `card-service` + `fep-service` service definitions
 13. **Infrastructure / K8s** — new deployment + service manifests
+
+---
+
+### card-service — Scheme-Compliant Chargeback Notes (Session 36)
+
+**Build status**: `cd card-service && ./mvnw clean compile → BUILD SUCCESS (0 errors)`
+
+**What was built:** Upgraded the basic `RAISED → UNDER_REVIEW → RESOLVED` dispute module to a full scheme-compliant chargeback workflow with 5-scheme reason code catalogue, sub-resource records for retrieval requests and representments, and a nightly timeframe enforcer.
+
+**Verified package structure (additions to `com.cba.card.dispute`):**
+
+```
+card-service/src/main/java/com/cba/card/dispute/
+├── DisputeStatus.java            — REWRITTEN: 7 states (RAISED/RETRIEVAL_REQUESTED/
+│                                    CHARGEBACK_INITIATED/REPRESENTMENT/PRE_ARBITRATION/
+│                                    RESOLVED/WITHDRAWN)
+├── CardDispute.java              — EXTENDED: schemeReasonCode FK, currencyCode, 3 deadline
+│                                    fields (chargebackDeadline/responseDeadline/
+│                                    preArbitrationDeadline), resolutionFavor
+├── ChargebackReasonCode.java     — NEW entity: scheme+code UNIQUE; 3 timeframe ints
+├── ChargebackReasonCodeRepository.java — findBySchemeOrderByCode, findBySchemeAndCode
+├── RetrievalRequest.java         — NEW entity: dispute FK, deadline, PENDING/FULFILLED/EXPIRED
+├── RetrievalRequestRepository.java — findByStatusAndDeadlineBefore (timeframe enforcer)
+├── Representment.java            — NEW entity: dispute FK, deadline, PENDING/ACCEPTED/
+│                                    REJECTED/ESCALATED
+├── RepresentmentRepository.java  — findByStatusAndDeadlineBefore (timeframe enforcer)
+├── ChargebackTimeframeEnforcer.java — NEW @Scheduled(cron "0 0 2 * * *"):
+│                                    (1) expire overdue retrieval requests
+│                                    (2) auto-accept lapsed representments → RESOLVED ACQUIRER
+├── DisputeService.java           — REWRITTEN: 7 named methods (raiseDispute,
+│                                    requestRetrieval, initiateChargeback,
+│                                    recordRepresentment, escalateToPreArbitration,
+│                                    resolve, withdraw)
+└── DisputeController.java        — REWRITTEN: 10 endpoints (see below)
+```
+
+**Flyway migration:** `V6__chargeback_module.sql`
+- `chargeback_reason_codes` table + UNIQUE(scheme, code)
+- `retrieval_requests` table + 3 indexes
+- `representments` table + 3 indexes
+- `ALTER TABLE card_disputes ADD COLUMN` (6 new columns)
+- Seeds 17 reason codes across 5 schemes
+
+**Endpoint inventory (dispute module — full replacement):**
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| `GET` | `/api/v1/cards/disputes` | ADMIN/TELLER | List disputes; filter by `?status=` |
+| `GET` | `/api/v1/cards/disputes/{id}` | ADMIN/TELLER | Single dispute detail |
+| `GET` | `/api/v1/cards/disputes/{id}/retrieval-requests` | ADMIN/TELLER | List retrieval requests for dispute |
+| `GET` | `/api/v1/cards/disputes/{id}/representments` | ADMIN/TELLER | List representments for dispute |
+| `GET` | `/api/v1/cards/disputes/reason-codes` | ADMIN/TELLER | Scheme reason code catalogue; `?scheme=VISA` |
+| `POST` | `/api/v1/cards/disputes` | ADMIN/TELLER/CUSTOMER | Raise dispute |
+| `POST` | `/api/v1/cards/disputes/{id}/retrieval` | ADMIN/TELLER | Request documentation from acquirer |
+| `POST` | `/api/v1/cards/disputes/{id}/chargeback` | ADMIN/TELLER | Initiate formal chargeback (body: `reasonCodeId`) |
+| `POST` | `/api/v1/cards/disputes/{id}/representment` | ADMIN/TELLER | Record acquirer representment (body: `acquirerReason`) |
+| `POST` | `/api/v1/cards/disputes/{id}/pre-arbitration` | ADMIN | Escalate to scheme pre-arbitration |
+| `POST` | `/api/v1/cards/disputes/{id}/resolve` | ADMIN/TELLER | Final resolve (body: `resolvedBy`, `resolutionFavor`, `notes`) |
+| `POST` | `/api/v1/cards/disputes/{id}/withdraw` | ADMIN/TELLER/CUSTOMER | Withdraw dispute |
+
+**Timeframe enforcement logic:**
+
+| Condition | Action |
+|-----------|--------|
+| `RetrievalRequest.status=PENDING` and `deadline < today` | Mark EXPIRED; warn in logs; human must initiate chargeback |
+| `Representment.status=PENDING` and `deadline < today` | Mark ACCEPTED; dispute → RESOLVED favor=ACQUIRER (issuer missed deadline) |
+
+**Critical gotchas for future sessions:**
+
+| Issue | Fix |
+|-------|-----|
+| `initiate_chargeback` valid from two states | `RAISED` (skip retrieval) AND `RETRIEVAL_REQUESTED` (after docs requested) — both are valid entry points to `CHARGEBACK_INITIATED` |
+| No auto-escalation on expired retrievals | Unlike representments, expired retrieval requests don't auto-escalate — reason code is not yet known so deadlines can't be calculated. Human decision required. |
+| `resolutionFavor` is "ISSUER" or "ACQUIRER" (not enum) | Stored as VARCHAR(10); validated in service with `equalsIgnoreCase`; normalized to uppercase on save |
+| `listRetrievalRequests` / `listRepresentments` use in-memory filter | Sub-resources are few per dispute; no dedicated `findByDisputeId` query needed — `findAll()` + stream filter is acceptable |
+| `ChargebackReasonCode` is reference data only | No admin endpoint to create/update reason codes at runtime — changes require a new Flyway migration. This mirrors how scheme rule books work in production. |
 
 ---
 

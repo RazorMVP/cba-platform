@@ -959,40 +959,168 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Architecture Compliance Checklist
 
-| CLAUDE.md Requirement | Implemented | Notes |
-|-----------------------|-------------|-------|
+### Backend — Core Standards
+
+| Requirement | Status | Notes |
+|-------------|--------|-------|
 | UUID primary keys | ✅ | `gen_random_uuid()` on all tables |
-| NUMERIC(19,4) for money | ✅ | All balance/amount columns |
+| NUMERIC(19,4) for money | ✅ | All balance/amount/rate columns; `BigDecimal` in Java |
 | Optimistic locking (`version`) | ✅ | All mutable entities |
-| Flyway owns schema (`ddl-auto: validate`) | ✅ | Never `create/update` in non-test |
-| `@Transactional` on all service methods | ✅ | Including `readOnly = true` for reads |
-| `@Transactional(REQUIRES_NEW)` for audit | ✅ | `AuditLogService` |
+| Flyway owns schema (`ddl-auto: validate`) | ✅ | 20 migrations V1–V20; never `create/update` in non-test |
+| `@Transactional` on all service methods | ✅ | `readOnly = true` on queries |
+| `@Transactional(REQUIRES_NEW)` for audit | ✅ | `AuditLogService` — survives main TX rollback |
 | `SELECT FOR UPDATE` for money transfers | ✅ | `AccountRepository.findByIdWithLock()` |
-| Deadlock-safe UUID ordering | ✅ | `min/max(UUID)` before lock acquisition |
-| PII field-level encryption (AES-256) | ✅ | `EncryptedStringConverter` + `PBEWITHHMACSHA512ANDAES_256` |
-| Keycloak JWT + RBAC | ✅ | `realm_access.roles` claim; 4 roles |
-| Standard response envelope | ✅ | `ApiResponse<T>` with data/meta/errors |
+| Deadlock-safe UUID ordering | ✅ | `min/max(UUID)` lock acquisition order |
+| Standard response envelope | ✅ | `ApiResponse<T>` — `{data, meta, errors}` |
 | OpenAPI 3.1 docs | ✅ | springdoc at `/swagger-ui.html` |
 | Annuity EMI formula | ✅ | `RepaymentScheduleEngine` |
-| Double-entry ledger | ✅ | Debit + Credit Transaction records per transfer |
+| Double-entry ledger | ✅ | Debit + Credit `Transaction` records per transfer |
 | Audit trail on write operations | ✅ | `AuditLogService.log()` in all services |
+| Append-only audit log (no UPDATE/DELETE) | ✅ | Enforced by service convention |
+| `tenant_id` column on all tables | ✅ | V1 schema; nullable in v1, ready for v2 multi-tenancy |
+| Base path `/api/v1/` | ✅ | All controllers |
+| No business logic in controllers | ✅ | Controllers call service → return `ResponseEntity<ApiResponse<T>>` |
+
+### Backend — Security
+
+| Requirement | Status | Notes |
+|-------------|--------|-------|
+| PII field-level encryption (AES-256) | ✅ | `EncryptedStringConverter` + `PBEWITHHMACSHA512ANDAES_256` |
+| `ENCRYPTION_KEY` from environment variable | ✅ | `FieldEncryptor` — never in code |
+| Keycloak JWT + RBAC | ✅ | `realm_access.roles`; roles: ADMIN, TELLER, CUSTOMER, API_CLIENT |
+| No PII in logs | ✅ | Encrypted PII never logged directly |
+| Testcontainers (no mock DB in integration tests) | ✅ | `AbstractIntegrationTest` |
+| Two-Factor Authentication (OTP) | ✅ | `com.cba.user` — 6-digit, 10min expiry, EMAIL/SMS |
+| Maker-Checker workflow | ✅ | `com.cba.social` — PENDING → APPROVED/REJECTED |
+| Roles & Permissions RBAC table | ✅ | `com.cba.role` — `Role` → `Permission` many-to-many |
+
+### Backend — Modules
+
+| Module | Status | Package | Flyway |
+|--------|--------|---------|--------|
+| Customer (KYC + onboarding) | ✅ | `com.cba.customer` | V1 |
+| Account (savings/checking/FD) | ✅ | `com.cba.account` | V1 |
+| Loan (full lifecycle) | ✅ | `com.cba.loan` | V1 |
+| Payment (transfers + standing orders) | ✅ | `com.cba.payment` | V1 |
+| Loan Products | ✅ | `com.cba.product` | V1, V20 |
+| Deposit Products | ✅ | `com.cba.product` | V1, V20 |
+| Open Banking (AISP/PISP/CBPII) | ✅ | `com.cba.openbanking` | V1 |
+| Notification (event-driven) | ✅ | `com.cba.notification` | — |
+| Audit Log | ✅ | `com.cba.audit` | V1 |
+| Teller / Cash Management | ✅ | `com.cba.teller` | V5 |
+| Group & Center (microfinance) | ✅ | `com.cba.group` | V7 |
+| Office & Staff | ✅ | `com.cba.office` | V6 |
+| User Management (Keycloak sync) | ✅ | `com.cba.user` | V6 |
+| Self Service (customer-facing) | ✅ | `com.cba.selfservice` | V11 |
+| GL / Accounting | ✅ | `com.cba.accounting` | V8 |
+| Reports (dynamic SQL engine) | ✅ | `com.cba.report` | V9 |
+| CoB Scheduler (Spring Batch + Quartz) | ✅ | `com.cba.cob` | V10 |
+| Batch API (multi-request) | ✅ | `com.cba.batch` | — |
+| Charges | ✅ | `com.cba.charge` | V12 |
+| Fixed Deposit | ✅ | `com.cba.deposit` | V13 |
+| Recurring Deposit | ✅ | `com.cba.deposit` | V13 |
+| Share Products & Accounts | ✅ | `com.cba.share` | V14 |
+| Loan Guarantors & Collateral | ✅ | `com.cba.loan` | V15 |
+| Loan Reschedule / Re-aging / Re-amortization | ✅ | `com.cba.loan` | V15 |
+| Floating Rates | ✅ | `com.cba.system` | V16 |
+| Taxes (Components + Groups) | ✅ | `com.cba.system` | V16 |
+| System Config (Codes, GlobalConfig, Funds, PaymentTypes) | ✅ | `com.cba.system` | V16 |
+| Hooks & Holidays | ✅ | `com.cba.social` | V17 |
+| SMS Campaigns | ✅ | `com.cba.social` | V17 |
+| Report Mailing Jobs | ✅ | `com.cba.social` | V17 |
+| Standing Instructions | ✅ | `com.cba.social` | V17 |
+| Notes & Documents | ✅ | `com.cba.social` | V17 |
+| Client Identifiers & Addresses | ✅ | `com.cba.customer` | V18 |
+| Beneficiaries | ✅ | `com.cba.customer` | V18 |
+| Client Images | ✅ | `com.cba.customer` | V18 |
+| Two-Factor Authentication | ✅ | `com.cba.user` | V18 |
+| DataTables | ✅ | `com.cba.social` | V18 |
+| Credit Bureau | ✅ | `com.cba.system` | V18 |
+| Surveys | ✅ | `com.cba.system` | V18 |
+| Accounting Rules | ✅ | `com.cba.accounting` | V19 |
+| Provisioning Criteria (IFRS 9) | ✅ | `com.cba.accounting` | V19 |
+| Multi-Currency + Exchange Rates | ✅ | `com.cba.currency` + `com.cba.tenant` | V3, V4 |
+| Global Search | ✅ | `com.cba.search` | — |
+| Roles & Permissions | ✅ | `com.cba.role` | V6 |
+
+### Backend — Multi-Currency
+
+| Requirement | Status | Notes |
+|-------------|--------|-------|
 | Tenant base currency (not hardcoded USD) | ✅ | `TenantContext` + `TenantService.getBaseCurrency()` |
 | Auto-inverse exchange rates | ✅ | `ExchangeRateService.setRate()` |
-| Cross-currency transfer with FX audit | ✅ | `PaymentService.transfer()` |
-| Event-driven notifications | ✅ | `@EventListener` + `@Async` |
-| Testcontainers (no mock DB) | ✅ | `AbstractIntegrationTest` |
-| No PII in logs | ✅ | Encrypted PII never logged directly |
-| ENCRYPTION_KEY from environment | ✅ | `FieldEncryptor` reads env var |
-| Teller module | ✅ | `TellerController` + session lifecycle (`V5__teller_module.sql`) |
-| Product REST endpoints | ✅ | `ProductController` — `GET/POST/PUT/DELETE /api/v1/loan-products` + deposit-products |
-| Open Banking consent lifecycle | ✅ | `ConsentService` + `ConsentController` (AWAITING_AUTHORISATION → AUTHORISED → REVOKED) |
-| PISP domestic-payments | ✅ | `PispController` — validates consent then delegates to `PaymentService` |
-| CBPII funds-confirmation | ✅ | `CbpiiController` — balance check without fund movement |
-| Postman collection (8 languages) | ✅ | `docs/cba-postman-collection.json` — 14 folders, 50+ requests |
-| Group & Center module | ✅ | `com.cba.group` — Center + Group CRUD, collection sheets, GLIM; `CenterController` + `GroupController` |
-| CoB batch processing | ✅ | `com.cba.cob` — Spring Batch + Quartz; 3 nightly jobs; `CobController` at `/api/v1/jobs` |
-| Docker Compose | ❌ | Not built |
-| Kubernetes manifests | ❌ | Not built |
-| Keycloak realm JSON | ❌ | Not built |
-| Angular web portal | ❌ | Not built |
-| Flutter mobile app | ❌ | Not built |
+| Cross-currency transfer with FX audit | ✅ | `PaymentService.transfer()` — stores rate used |
+| 3 demo tenant currencies | ✅ | USD, KES, GHS — `V4__multi_currency_demo_data.sql` |
+
+### Angular Web Frontend
+
+| Requirement | Status | Notes |
+|-------------|--------|-------|
+| Angular 17+ standalone components | ✅ | All components use `standalone: true` + `inject()` |
+| `@if`/`@for` control flow (not `*ngIf`/`*ngFor`) | ✅ | Migrated in Session 19 |
+| Nubeero design tokens applied | ✅ | All SCSS uses `@use 'assets/styles/tokens' as *` |
+| Lazy-loaded feature modules | ✅ | `accounting`, `admin`, `groups`, `open-banking`, `operations`, `products`, `reports`, `system` |
+| Auth bypass for Vercel preview | ✅ | `NG_APP_AUTH_BYPASS=true` skips Keycloak |
+| Dashboard | ✅ | KPIs, transaction table, loan portfolio bars, KYC queue |
+| Customers (list + detail) | ✅ | Debounced search, KYC state machine, 5-tab detail |
+| Accounts (list + detail) | ✅ | Type filter, overview/transactions, freeze/close/deposit/withdraw modals |
+| Payments (list + detail) | ✅ | 3-step transfer wizard, standing orders, FX details, reversal |
+| Teller (list + detail) | ✅ | Cashier management, session open/close, cash-in/out/settle |
+| Loans (list + detail) | ✅ | Pipeline view, approve/disburse/repayment/reject, 5-tab detail |
+| Loan Products (list + detail) | ✅ | View/edit toggle, GL linkages, charges, 5 section tabs |
+| Deposit Products (list + detail) | ✅ | Overdraft config, GL linkages, 5 section tabs |
+| Fixed Deposit Products (list + detail) | ✅ | Penalty rate, term range, 4 section tabs |
+| Recurring Deposit Products (list + detail) | ✅ | Deposit frequency, 5 section tabs |
+| Share Products (list + detail) | ✅ | Unit price, dividend policy, 3 section tabs |
+| GL Accounts | ✅ | Type filter tabs, enable/disable, create/edit modal |
+| Journal Entries | ✅ | T-ledger grouped view, manual entry, reversal |
+| Provisioning Criteria | ✅ | IFRS 9 age bands, GL account dropdowns |
+| Reports | ✅ | Dynamic param form, schema-on-read results, CSV export |
+| CoB Scheduler | ✅ | Job cards, Run Now trigger, history panel |
+| Report Mailing Jobs | ✅ | RRULE schedule presets, output type chips |
+| Users | ✅ | Create modal, enable/disable, delete |
+| Roles | ✅ | Permissions matrix grouped by category, select-all-in-group |
+| Offices | ✅ | Hierarchy display, parent office dropdown |
+| Hooks | ✅ | WEB/SMS type chips, event selection chips |
+| Maker-Checker | ✅ | Status filter tabs, approve/reject PENDING entries |
+| TPP Management | ✅ | PSD2 TPP registry: clientId, country, scope chips, cert expiry |
+| Groups (list + detail) | ✅ | Members, Collection Sheet, GLIM Accounts tabs |
+| Centers (list + detail) | ✅ | Groups + All Members tabs |
+| Open Banking Consents (list + detail) | ✅ | AISP/PISP/CBPII filter, Authorise/Revoke flow |
+| Codes & Values | ✅ | Inline accordion, load-on-expand, inline add/edit form |
+| Global Config | ✅ | Type-aware inline edit (string/number/boolean), enabled toggle |
+| Floating Rates | ✅ | Accordion, dynamic period rows in create/edit modal |
+| Taxes | ✅ | Two-tab: Tax Components + Tax Groups with component bundles |
+| **Total Angular components** | **48 / 48** | **0 stubs remaining** |
+
+### CI/CD & Deployment
+
+| Requirement | Status | Notes |
+|-------------|--------|-------|
+| Backend CI (GitHub Actions) | ✅ | `backend-ci.yml` — test → OWASP → SpotBugs → Docker → k8s |
+| Angular CI (GitHub Actions) | ✅ | `web-ci.yml` — lint → test → build → Vercel deploy |
+| Mobile CI (GitHub Actions) | ✅ | `mobile-ci.yml` — analyze → test → APK/IPA build |
+| Security scanning | ✅ | `security-scan.yml` — CodeQL, Trivy, Gitleaks, Snyk, ZAP |
+| GitHub Pages (API docs) | ✅ | `pages.yml` — `docs/api-reference.html` auto-deployed |
+| Vercel deployment (Angular) | ✅ | `--prebuilt` CI flow; live at `cba-web-nine.vercel.app` |
+| Dependabot auto-updates | ✅ | `.github/dependabot.yml` — Maven, npm, pub, Docker, Actions |
+| OWASP false-positive suppressions | ✅ | `docs/owasp-suppressions.xml` |
+| SonarCloud quality gate | ✅ | 70% line coverage minimum (backend + web) |
+
+### Documentation
+
+| Requirement | Status | Notes |
+|-------------|--------|-------|
+| API Reference (HTML) | ✅ | `docs/api-reference.html` — Mifos apiLive.htm style |
+| Postman Collection v2 | ✅ | `docs/cba-postman-collection-v2.json` — 8-language code samples |
+| Postman Coming Soon | ✅ | `docs/cba-postman-collection-coming-soon.json` |
+| Figma design archive | ✅ | `RqbeDCCJiD36eettFSsKZn` — 38 frames across 10 pages |
+
+### Not Yet Built
+
+| Item | Status | Notes |
+|------|--------|-------|
+| Docker Compose | ❌ | Phase 4 — postgres, keycloak, backend, web, mailhog |
+| Kubernetes manifests | ❌ | Phase 4 — namespace `cba-platform`, HPA, Sealed Secrets |
+| Keycloak realm JSON | ❌ | Phase 4 — `cba` realm, FAPI 2.0, demo users |
+| Flutter mobile app | ❌ | Phase 3 — `mobile/` directory is empty |

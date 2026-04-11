@@ -111,6 +111,12 @@
       <artifactId>jackson-datatype-jsr310</artifactId>
     </dependency>
 
+    <!-- ── WebFlux (WebClient for async webhook delivery) ────────── -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-webflux</artifactId>
+    </dependency>
+
     <!-- ── SFTP (settlement file transmission to scheme networks) ──── -->
     <dependency>
       <groupId>com.jcraft</groupId>

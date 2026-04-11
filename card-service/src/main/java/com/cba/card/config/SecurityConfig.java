@@ -1,5 +1,6 @@
 package com.cba.card.config;
 
+import com.cba.card.openbanking.apikey.ApiKeyAuthFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -9,6 +10,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.reactive.function.client.WebClient;
 
 /**
  * Triple security filter chain:
@@ -26,6 +29,17 @@ import org.springframework.security.web.SecurityFilterChain;
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
+
+    /**
+     * WebClient bean used by {@link com.cba.card.openbanking.webhook.WebhookDeliveryService}
+     * for async webhook delivery. Shared singleton — WebClient is thread-safe.
+     */
+    @Bean
+    public WebClient webClient() {
+        return WebClient.builder()
+                .codecs(c -> c.defaultCodecs().maxInMemorySize(1024 * 1024)) // 1 MB
+                .build();
+    }
 
     /**
      * 3DS ACS endpoints — no JWT.
@@ -56,9 +70,36 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /** Public/BaaS endpoints — JWT required. */
+    /**
+     * Card Open Banking API ({@code /card-api/v1/**}) — dual-mode auth.
+     *
+     * <p>Supports either:
+     * <ul>
+     *   <li>{@code Authorization: ApiKey cba_...} — M2M integrator; handled by
+     *       {@link ApiKeyAuthFilter} which sets {@link com.cba.card.openbanking.apikey.ApiKeyAuthentication}</li>
+     *   <li>{@code Authorization: Bearer {jwt}} — FAPI 2.0 customer consent;
+     *       handled by the standard oauth2ResourceServer JWT filter</li>
+     * </ul>
+     * Route-level {@code @PreAuthorize} in {@link com.cba.card.openbanking.CardApiController}
+     * distinguishes which roles are required per endpoint.
+     */
     @Bean
     @Order(2)
+    public SecurityFilterChain cardApiChain(HttpSecurity http, ApiKeyAuthFilter apiKeyAuthFilter)
+            throws Exception {
+        http
+            .securityMatcher("/card-api/v1/**")
+            .addFilterBefore(apiKeyAuthFilter, UsernamePasswordAuthenticationFilter.class)
+            .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}));
+        return http.build();
+    }
+
+    /** All other endpoints — JWT required. */
+    @Bean
+    @Order(3)
     public SecurityFilterChain publicChain(HttpSecurity http) throws Exception {
         http
             .authorizeHttpRequests(auth -> auth

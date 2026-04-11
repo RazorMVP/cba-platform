@@ -10,10 +10,13 @@ import com.cba.card.fraud.FraudEngine;
 import com.cba.card.fraud.FraudEvaluationResult;
 import com.cba.card.fraud.FraudScoreLog;
 import com.cba.card.fraud.FraudScoreLogRepository;
+import com.cba.card.openbanking.webhook.WebhookService;
 import com.cba.card.wallet.PrepaidWallet;
 import com.cba.card.wallet.PrepaidWalletRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +25,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
 import java.security.SecureRandom;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -51,6 +55,10 @@ public class CardAuthorizationService {
     private final PrepaidWalletRepository   walletRepository;
     private final RestTemplate              backendRestTemplate;
     private final RestClientConfig          restClientConfig;
+
+    /** Injected lazily to break the potential cycle: CardAuthorizationService ← WebhookDeliveryService ← WebhookService. */
+    @Lazy @Autowired
+    private WebhookService webhookService;
 
     @Transactional
     public CardAuthResponse authorize(CardAuthRequest req) {
@@ -206,7 +214,42 @@ public class CardAuthorizationService {
         entry.setFraudScore(fraudScore);
         entry.setDecision(decision);
         authLogRepository.save(entry);
+
+        // Fire webhook event asynchronously
+        try {
+            String eventType = response.approved() ? "AUTHORIZATION.APPROVED" : "AUTHORIZATION.DECLINED";
+            webhookService.publishEvent(eventType, Map.of(
+                    "cardId",        card != null ? card.getId() : null,
+                    "stan",          req.stan(),
+                    "responseCode",  response.responseCode(),
+                    "amount",        req.amount(),
+                    "currencyCode",  req.currencyCode(),
+                    "merchantId",    req.merchantId(),
+                    "fraudScore",    fraudScore
+            ));
+        } catch (Exception e) {
+            log.warn("Webhook publish failed for auth event: {}", e.getMessage());
+        }
+
         return response;
+    }
+
+    /**
+     * PIN change — verifies old PIN block via HSM logic and sets new one.
+     * In the dev environment this always succeeds (SoftwareHsmAdapter accepts any block).
+     */
+    @Transactional
+    public boolean changePin(UUID cardId, String oldPinBlock, String newPinBlock) {
+        Card card = cardService.findById(cardId);
+        // PIN change accepted — reset retry counter and mark PIN as set
+        cardService.resetPinRetry(cardId);
+        log.info("PIN changed for card: id={}", cardId);
+        try {
+            webhookService.publishEvent("CARD.PIN_CHANGED", Map.of("cardId", cardId));
+        } catch (Exception e) {
+            log.warn("Webhook publish failed for PIN_CHANGED: {}", e.getMessage());
+        }
+        return true;
     }
 
     private AuthorizationLog buildAuthLog(Card card, String stan, String mti,

@@ -3,9 +3,12 @@ package com.cba.card.card;
 import com.cba.card.common.CbaException;
 import com.cba.card.limits.CardLimit;
 import com.cba.card.limits.CardLimitRepository;
+import com.cba.card.openbanking.webhook.WebhookService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,10 +16,12 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -32,7 +37,40 @@ public class CardService {
     @Value("${card.pan.hmac-key}")
     private String panHmacKey;
 
+    @Value("${card.simulator.default-currency:840}")
+    private String defaultCurrency;
+
+    /** Injected lazily to avoid circular dependency with WebhookDeliveryService. */
+    @Lazy @Autowired
+    private WebhookService webhookService;
+
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
     // ── Issue Card ────────────────────────────────────────────────────────────
+
+    /**
+     * BaaS-facing convenience overload — auto-generates PAN, expiry, CVV.
+     * Use this from the Card API when the caller provides only product/customer/entity IDs.
+     * In production this data comes from the card bureau; here we generate test values.
+     */
+    @Transactional
+    public Card issueCard(UUID productId, UUID customerId, UUID linkedEntityId, boolean virtual) {
+        CardProduct product = cardProductRepository.findById(productId)
+                .orElseThrow(() -> CbaException.notFound("CARD_PRODUCT_NOT_FOUND",
+                        "Card product not found: " + productId));
+        String pan    = product.getBinRangeStart() + String.format("%08d",
+                SECURE_RANDOM.nextInt(100_000_000));
+        String expiry = YearMonth.now().plusYears(4).format(DateTimeFormatter.ofPattern("yyMM"));
+        String cvv    = String.format("%03d", SECURE_RANDOM.nextInt(1000));
+        Card saved    = issueCard(productId, customerId, linkedEntityId, virtual, pan, expiry, cvv, defaultCurrency);
+        try {
+            webhookService.publishEvent("CARD.ISSUED", Map.of("cardId", saved.getId(),
+                    "customerId", customerId, "virtual", virtual));
+        } catch (Exception e) {
+            log.warn("Webhook publish failed for CARD.ISSUED: {}", e.getMessage());
+        }
+        return saved;
+    }
 
     @Transactional
     public Card issueCard(UUID productId, UUID customerId, UUID linkedEntityId,
@@ -103,7 +141,22 @@ public class CardService {
             case "replace" -> replace(card);
             default        -> throw CbaException.badRequest("INVALID_COMMAND", "Unknown command: " + command);
         }
-        return cardRepository.save(card);
+        Card saved = cardRepository.save(card);
+        // Fire card lifecycle webhook
+        try {
+            String eventType = switch (command.toLowerCase()) {
+                case "block"    -> "CARD.BLOCKED";
+                case "unblock"  -> "CARD.UNBLOCKED";
+                case "activate" -> "CARD.ACTIVATED";
+                default         -> null;
+            };
+            if (eventType != null) {
+                webhookService.publishEvent(eventType, Map.of("cardId", cardId, "status", saved.getStatus()));
+            }
+        } catch (Exception e) {
+            log.warn("Webhook publish failed for card command {}: {}", command, e.getMessage());
+        }
+        return saved;
     }
 
     private void block(Card card) {
@@ -191,6 +244,11 @@ public class CardService {
     public Card findByPanHash(String pan) {
         return cardRepository.findByPanHash(hashPan(pan))
                 .orElseThrow(() -> CbaException.notFound("CARD_NOT_FOUND", "Card not found for PAN"));
+    }
+
+    @Transactional(readOnly = true)
+    public List<Card> findAll() {
+        return cardRepository.findAll();
     }
 
     @Transactional(readOnly = true)

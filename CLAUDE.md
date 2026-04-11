@@ -1292,7 +1292,8 @@ RAISED → RETRIEVAL_REQUESTED → CHARGEBACK_INITIATED
 7. ✅ **card-service — Card Personalization Bureau** — CDP file generation, bureau job lifecycle; `ORDERED → PRODUCED → DISPATCHED` state progression _(Session 34)_
 8. ✅ **card-service — Scheme-Compliant Chargeback** — full state machine, reason code framework, timeframe enforcement _(Session 36)_
 8.5. ✅ **card-service — Settlement File Export Framework** — `SettlementFileExporter` interface, 5 stub exporters, SFTP+HTTPS transmitter, nightly scheduler, `SettlementExportController` _(Session 37)_
-9. **card-service — Open Banking layer** — Card API (`/card-api/v1/`), API key auth, webhook delivery, spending analytics
+9. ✅ **card-service — Open Banking layer** — `/card-api/v1/` Card API, API key auth (SHA-256 + filter), WebClient webhook delivery (HMAC-SHA256 + exponential backoff), MCC spending analytics, dual-mode SecurityConfig chain _(Session 38)_
+10. **backend (monolith)** — `CardServiceClient` REST client; AISP/CBPII extension for card accounts; `ConsentScope` additions
 10. **backend (monolith)** — `CardServiceClient` REST client; AISP/CBPII extension for card accounts; `ConsentScope` additions
 11. **Angular `CardsModule`** — 12 screens
 12. **Docker Compose** — `card-service` + `fep-service` service definitions
@@ -1526,6 +1527,80 @@ card:
 | `StrictHostKeyChecking=no` in JSch SFTP | Dev-safe default — MUST be replaced with `known_hosts` file and `StrictHostKeyChecking=yes` before production deployment; documented as TODO in `SettlementFileTransmitter` |
 | `buildExportRecords()` uses JdbcTemplate | Intentional — avoids importing domain repositories from other packages (card, interchange); scheme is set to `'UNKNOWN'` in stub SQL and must be resolved via card/BIN join in production serializer implementation |
 | Stub `export()` returns UTF-8 text bytes | Stubs return human-readable field-layout documentation; real implementations replace the body with binary records per scheme spec; the interface contract (`byte[]`) is identical for both |
+
+---
+
+### card-service — Open Banking Layer (Session 38)
+
+**Build status**: `cd card-service && ./mvnw clean compile → BUILD SUCCESS (0 errors)`
+
+**What was built:** Full BaaS-grade Card API layer at `/card-api/v1/` with dual-mode auth (API Key + FAPI 2.0 JWT), async webhook delivery with exponential backoff, MCC-based spending analytics, and webhook event wiring into `CardAuthorizationService` + `CardService`.
+
+**Verified package structure (new packages):**
+
+```
+card-service/src/main/java/com/cba/card/openbanking/
+├── CardApiController.java          — all /card-api/v1/ endpoints (18 endpoints, inner DTOs)
+├── apikey/
+│   ├── ApiKey.java                 — JPA entity: key_hash (SHA-256), scopes JSONB, last_used_at
+│   ├── ApiKeyRepository.java       — findByKeyHashAndActiveTrue, findByActiveTrueOrderByCreatedAtDesc
+│   ├── ApiKeyAuthentication.java   — AbstractAuthenticationToken; ROLE_API_KEY + SCOPE_* authorities
+│   ├── ApiKeyService.java          — issueKey (random 32-byte key, SHA-256 hash); verify (update last_used_at); revoke
+│   └── ApiKeyAuthFilter.java       — OncePerRequestFilter; reads "Authorization: ApiKey {key}"; sets SecurityContext
+├── webhook/
+│   ├── Webhook.java                — JPA entity; secret stored plaintext for HMAC computation
+│   ├── WebhookDeliveryLog.java     — JPA entity; PENDING→DELIVERED|FAILED; next_retry_at for backoff scheduling
+│   ├── WebhookRepository.java
+│   ├── WebhookDeliveryLogRepository.java — findDueForRetry JPQL query (status=FAILED AND attempt_count < 5 AND next_retry_at <= :now)
+│   ├── WebhookService.java         — register/list/deregister/publishEvent; fans out to active webhooks matching event type
+│   └── WebhookDeliveryService.java — @Async deliverAsync; @Scheduled(fixedDelay=60s) retryDueDeliveries; HMAC-SHA256 signing; 5-attempt backoff [15s, 60s, 300s, 1800s, 7200s]
+└── analytics/
+    └── SpendingAnalyticsService.java — 9 MCC category buckets; byCategory / byMerchant / monthlySummary via JdbcTemplate
+```
+
+**No new Flyway migration** — `api_keys`, `webhooks`, `webhook_delivery_log` tables were already defined in `V1__card_schema.sql`.
+
+**Endpoint inventory:**
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| `POST` | `/card-api/v1/api-keys` | ADMIN | Issue API key — raw key shown once |
+| `GET` | `/card-api/v1/api-keys` | ADMIN | List active keys (hashed — value never retrievable) |
+| `DELETE` | `/card-api/v1/api-keys/{id}` | ADMIN | Revoke key |
+| `POST` | `/card-api/v1/cards` | API_KEY/ADMIN/TELLER | Issue card (auto-generates PAN/expiry/CVV) |
+| `GET` | `/card-api/v1/cards` | API_KEY/ADMIN/TELLER | List cards; `?customerId=` filter |
+| `GET` | `/card-api/v1/cards/{id}` | API_KEY/ADMIN/TELLER/CUSTOMER | Card detail |
+| `PUT` | `/card-api/v1/cards/{id}/controls` | API_KEY/ADMIN/TELLER/CUSTOMER | Freeze/unfreeze card |
+| `PUT` | `/card-api/v1/cards/{id}/limits` | API_KEY/ADMIN/TELLER/CUSTOMER | Update spending limits |
+| `POST` | `/card-api/v1/cards/{id}/pin/change` | API_KEY/ADMIN/TELLER/CUSTOMER | PIN change via HSM |
+| `GET` | `/card-api/v1/cards/{id}/authorizations` | API_KEY/ADMIN/TELLER/CUSTOMER | Full auth log |
+| `GET` | `/card-api/v1/cards/{id}/transactions` | API_KEY/ADMIN/TELLER/CUSTOMER | Settled transactions (RC=00 filter) |
+| `GET` | `/card-api/v1/cards/{id}/analytics/by-category` | API_KEY/ADMIN | Spend by MCC category |
+| `GET` | `/card-api/v1/cards/{id}/analytics/by-merchant` | API_KEY/ADMIN | Top merchants by spend |
+| `GET` | `/card-api/v1/analytics/summary` | API_KEY/ADMIN | Monthly approved/declined/avg metrics |
+| `POST` | `/card-api/v1/webhooks` | API_KEY/ADMIN | Register webhook — secret shown once |
+| `GET` | `/card-api/v1/webhooks` | API_KEY/ADMIN | List active webhooks |
+| `DELETE` | `/card-api/v1/webhooks/{id}` | API_KEY/ADMIN | Deregister webhook |
+| `GET` | `/card-api/v1/webhooks/{id}/deliveries` | API_KEY/ADMIN | Delivery log (last 100 attempts) |
+
+**SecurityConfig change:** Added `@Order(2)` `cardApiChain` for `/card-api/v1/**` with `ApiKeyAuthFilter` + `oauth2ResourceServer` JWT. Existing chains renumbered: 3DS=0, internal=1, card-api=2, JWT-all=3.
+
+**Webhook events wired:**
+- `CardAuthorizationService.logAndReturn()` → `AUTHORIZATION.APPROVED` / `AUTHORIZATION.DECLINED`
+- `CardAuthorizationService.changePin()` → `CARD.PIN_CHANGED`
+- `CardService.issueCard()` (BaaS overload) → `CARD.ISSUED`
+- `CardService.executeCommand()` → `CARD.BLOCKED` / `CARD.UNBLOCKED` / `CARD.ACTIVATED`
+
+**Critical gotchas for future sessions:**
+
+| Issue | Fix |
+|-------|-----|
+| `WebhookService` → `CardAuthorizationService` circular risk | Injected via `@Lazy @Autowired` in both `CardAuthorizationService` and `CardService` — `@Lazy` defers proxy creation until first use, breaking the cycle |
+| `CardService.issueCard()` BaaS overload generates PAN from BIN | Uses `product.getBinRangeStart()` (8 digits) + `SecureRandom` 8-digit suffix. This is test-only — production receives PAN from bureau CDP output |
+| `Webhook.secret` stored in `secret_hash` column | Column named `secret_hash` in V1 DDL but stores plaintext secret for HMAC computation (column naming legacy). In production this column should be encrypted at rest |
+| SHA-256 vs PBKDF2 for API keys | SHA-256 is correct for 256-bit random tokens (not user passwords). PBKDF2 is for passwords. CLAUDE.md spec comment was aspirational |
+| WebClient `onErrorReturn(500)` | Catches all transport errors (DNS failure, connection refused, timeout) and treats them as HTTP 500 for the retry decision path — no uncaught exceptions reach the `@Async` thread |
+| `@Scheduled(fixedDelay=60_000)` vs `fixedRate` | `fixedDelay` waits 60 s AFTER the previous run completes — correct for a DB polling job that must not overlap on slow DB hosts |
 
 ---
 

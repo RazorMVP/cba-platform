@@ -59,6 +59,49 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 38 — 2026-04-11
+**card-service Build Order Step 9 — Open Banking layer: full `/card-api/v1/` Card API, dual-mode API Key + FAPI 2.0 JWT auth, async webhook delivery with exponential backoff, MCC spending analytics. BUILD SUCCESS (0 errors).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/pom.xml` | `spring-boot-starter-webflux` added for WebClient |
+| `card-service/.../openbanking/apikey/ApiKey.java` | NEW: entity; JSONB scopes; `last_used_at` |
+| `card-service/.../openbanking/apikey/ApiKeyRepository.java` | NEW: `findByKeyHashAndActiveTrue`, `findByActiveTrueOrderByCreatedAtDesc` |
+| `card-service/.../openbanking/apikey/ApiKeyAuthentication.java` | NEW: extends `AbstractAuthenticationToken`; principal=UUID; `ROLE_API_KEY` + `SCOPE_{n}` authorities |
+| `card-service/.../openbanking/apikey/ApiKeyService.java` | NEW: `issueKey` (cba_ prefix + Base64URL 32-byte random); SHA-256 keyHash; `verify` + `lastUsedAt` update; `IssueResult` record |
+| `card-service/.../openbanking/apikey/ApiKeyAuthFilter.java` | NEW: `OncePerRequestFilter`; extracts `ApiKey {key}` header; sets `ApiKeyAuthentication` in `SecurityContext` |
+| `card-service/.../openbanking/webhook/Webhook.java` | NEW: entity; `secret` field → `secret_hash` column (plaintext for HMAC); JSONB events list |
+| `card-service/.../openbanking/webhook/WebhookDeliveryLog.java` | NEW: entity; `PENDING→DELIVERED\|FAILED`; `attemptCount`, `nextRetryAt` |
+| `card-service/.../openbanking/webhook/WebhookRepository.java` | NEW: `findByActiveTrueOrderByCreatedAtDesc`, `findByActiveTrue` |
+| `card-service/.../openbanking/webhook/WebhookDeliveryLogRepository.java` | NEW: `findDueForRetry(OffsetDateTime)` JPQL query |
+| `card-service/.../openbanking/webhook/WebhookDeliveryService.java` | NEW: `@Async deliverAsync`; `@Scheduled retryDueDeliveries` (60s); BACKOFF_SECONDS={15,60,300,1800,7200}; WebClient + HMAC-SHA256 signing; `X-CBA-Event/Delivery/Signature` headers |
+| `card-service/.../openbanking/webhook/WebhookService.java` | NEW: `register` (secret shown once); `publishEvent` (fan-out to matching active webhooks); `listActive`, `listDeliveries`, `deregister` |
+| `card-service/.../openbanking/analytics/SpendingAnalyticsService.java` | NEW: 50+ MCC→category static map; `byCategory`, `byMerchant`, `monthlySummary` via JdbcTemplate; optional currency filter |
+| `card-service/.../openbanking/CardApiController.java` | NEW: 18 endpoints under `/card-api/v1/`; `resolveUserId` for dual auth principal |
+| `card-service/.../config/SecurityConfig.java` | MODIFIED: added `WebClient @Bean`; added `@Order(2) cardApiChain` (`/card-api/v1/**`, `ApiKeyAuthFilter` + JWT); renumbered all chains (3DS=0, internal=1, card-api=2, JWT-all=3) |
+| `card-service/.../card/CardService.java` | MODIFIED: 4-param `issueCard` BaaS overload (auto PAN/expiry/CVV); `findAll()`; webhook events for CARD.ISSUED/BLOCKED/UNBLOCKED/ACTIVATED; `@Lazy WebhookService` |
+| `card-service/.../auth/CardAuthorizationService.java` | MODIFIED: `changePin()` method; `logAndReturn()` fires `AUTHORIZATION.APPROVED/DECLINED`; `@Lazy WebhookService` |
+| `CLAUDE.md` | Build Order Step 9 marked ✅; full Session 38 implementation notes added (package structure, 18-endpoint table, SecurityConfig, webhook events, gotchas) |
+
+#### Key Patterns / Decisions
+- SHA-256 (not PBKDF2) for API key hashing — tokens are 256-bit random; PBKDF2 is for user passwords; direct hash lookup, no salt
+- `@Lazy @Autowired WebhookService` in both `CardService` and `CardAuthorizationService` breaks the `CardAuthorizationService → WebhookDeliveryService → WebClient` potential cycle
+- SecurityConfig 4-chain ordering: 3DS ACS → FEP internal → Card API dual-auth → JWT-all; both `ApiKeyAuthFilter` and `oauth2ResourceServer` run on `/card-api/v1/**`; whichever populates `SecurityContext` first wins (API key check is first in filter order)
+- Webhook `secret` stored plaintext in `secret_hash` column (column name is V1 DDL legacy — `secret` is the HMAC key, not a hash of a secret)
+- Analytics via JdbcTemplate only — avoids importing domain repositories across packages; category merging done in Java with `Map.merge()`
+- `Webhook.events` empty list = subscribe to all events (wildcard subscription); non-empty = exact match filter
+
+#### Build Verification
+```
+cd card-service && ./mvnw clean compile → BUILD SUCCESS (0 errors)
+```
+
+#### Compliance Checklist Update
+- ✅ Card Open Banking Layer — `/card-api/v1/` full BaaS Card API with dual auth, webhooks, analytics
+
+---
+
 ### Session 37 — 2026-04-11
 **card-service Settlement File Export Framework — pluggable SettlementFileExporter interface, 5 stub exporters, SFTP+HTTPS transmitter, @Scheduled nightly orchestration, SettlementExportController. BUILD SUCCESS (0 errors). Gap analysis "Scheme settlement file format" updated to ✅ Covered.**
 

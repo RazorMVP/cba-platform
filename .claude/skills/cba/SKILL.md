@@ -162,9 +162,9 @@ Read `references/deployment.md` before starting.
 
 ## Mandatory Documentation Updates
 
-**After every change, addition, or fix — no exceptions — you MUST update both of these files before finishing:**
+**After every change, addition, or fix — no exceptions — you MUST complete ALL of the following steps before finishing:**
 
-### `cba-log.md` (Change Log)
+### Step 1 — Update `cba-log.md` (Change Log)
 - Add a new session entry at the top of the Change History section.
 - Entry format:
   ```
@@ -183,16 +183,30 @@ Read `references/deployment.md` before starting.
   ```
 - Mark the "Not Yet Built" and "Partially Built" tables in the Backend Audit section to reflect completed work.
 
-### `CLAUDE.md` (Body of Knowledge)
+### Step 2 — Update `CLAUDE.md` (Body of Knowledge)
 - Update the **Angular Component Map** table with newly built components — change `🔲 Stub` → `✅ Built` and add a brief description.
 - Update any module catalogue entries, coding standards, or patterns that changed.
 - Update the stub count in "All other feature pages" row.
+- For new services/packages: add an implementation notes subsection with the verified package structure, resource file list, and any critical gotchas discovered during the build.
+- For completed build order steps: mark them `✅` with the commit SHA.
+
+### Step 3 — Commit and push both files to GitHub
+After updating both docs, immediately run:
+```bash
+git add cba-log.md CLAUDE.md
+git commit -m "docs(cba-log+claude): Session N — <one-line summary>
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
+git push origin main
+```
+This is **not optional** — both files must be committed and pushed to GitHub as part of every session. Do not finish a session without this push. The commit should be the final act of every build session.
 
 ### When to update
 - After completing any feature (backend or frontend)
 - After any refactor that changes patterns described in CLAUDE.md
 - After any build fix or architectural decision
-- **Before** committing and pushing — the commit should include the doc updates
+- After any compile error is diagnosed and fixed (add to gotchas)
+- After every session — even if only one file changed
 
 ---
 

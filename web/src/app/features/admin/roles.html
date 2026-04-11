@@ -1,7 +1,158 @@
-<app-page-header title="Roles & Permissions" icon="admin_panel_settings" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">admin_panel_settings</span>
-    <strong>Roles & Permissions</strong><br>Implementation pending.
-  </p>
+<div class="page">
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">admin_panel_settings</span>
+      Roles &amp; Permissions
+    </div>
+    <button class="btn-primary" (click)="openCreateModal()">
+      <span class="material-icons">add</span> New Role
+    </button>
+  </div>
+
+  <div class="card">
+    @if (loading) {
+      <div class="skeleton-card">
+        @for (i of [1,2,3]; track i) { <div class="skeleton skeleton--row"></div> }
+      </div>
+    } @else if (error) {
+      <div class="empty-state">
+        <span class="material-icons">error_outline</span><p>{{ error }}</p>
+      </div>
+    } @else if (roles.length === 0) {
+      <div class="empty-state">
+        <span class="material-icons">admin_panel_settings</span>
+        <p>No roles defined yet.</p>
+      </div>
+    } @else {
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Role Name</th>
+            <th>Description</th>
+            <th>Permissions</th>
+            <th>Status</th>
+            <th class="action-cell">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of roles; track r.id) {
+            <tr class="table-row" [class.row--disabled]="r.disabled">
+              <td><strong>{{ r.name }}</strong></td>
+              <td class="muted">{{ r.description || '—' }}</td>
+              <td><span class="perm-badge">{{ permCount(r) }} permissions</span></td>
+              <td>
+                <app-status-badge [label]="r.disabled ? 'INACTIVE' : 'ACTIVE'" [variant]="r.disabled ? 'neutral' : 'success'"></app-status-badge>
+              </td>
+              <td class="action-cell">
+                <button class="btn-icon" (click)="openPermissionsModal(r)" title="Edit permissions">
+                  <span class="material-icons">key</span>
+                </button>
+                <button class="btn-icon" (click)="openEditModal(r)" title="Edit role">
+                  <span class="material-icons">edit</span>
+                </button>
+                <button class="btn-icon btn-icon--danger" (click)="openDeleteModal(r)" title="Delete">
+                  <span class="material-icons">delete</span>
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <div class="table-footer">{{ roles.length }} role(s)</div>
+    }
+  </div>
 </div>
+
+<!-- Create / Edit Role Modal -->
+@if (activeModal === 'create' || activeModal === 'edit') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">admin_panel_settings</span>
+        {{ activeModal === 'create' ? 'New Role' : 'Edit Role' }}
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Name <span class="required">*</span></label>
+          <input class="form-input" [(ngModel)]="formName" placeholder="e.g. BRANCH_MANAGER">
+        </div>
+        <div class="form-field">
+          <label class="form-label">Description</label>
+          <input class="form-input" [(ngModel)]="formDescription" placeholder="Optional description">
+        </div>
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitRole()" [disabled]="modalWorking">
+          @if (modalWorking) { <span class="spinner"></span> } Save
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Permissions Matrix Modal -->
+@if (activeModal === 'permissions') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--wide" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">key</span>
+        Permissions — {{ formName }}
+      </div>
+      <div class="modal__body modal__body--scroll">
+        @for (group of permGroups; track group) {
+          <div class="perm-group">
+            <label class="perm-group__header">
+              <input type="checkbox"
+                [checked]="groupAllSelected(group)"
+                (change)="toggleGroup(group, $any($event.target).checked)">
+              <span class="perm-group__title">{{ group }}</span>
+            </label>
+            <div class="perm-list">
+              @for (p of permsByGroup(group); track p.id) {
+                <label class="perm-item">
+                  <input type="checkbox"
+                    [checked]="selectedPermIds.includes(p.id)"
+                    (change)="togglePermId(p.id)">
+                  <span class="perm-item__code">{{ p.actionName }}</span>
+                  <span class="perm-item__entity">{{ p.entityName }}</span>
+                </label>
+              }
+            </div>
+          </div>
+        }
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <span class="perm-count">{{ selectedPermIds.length }} selected</span>
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitPermissions()" [disabled]="modalWorking">
+          @if (modalWorking) { <span class="spinner"></span> } Save Permissions
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Delete Modal -->
+@if (activeModal === 'delete') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon modal__icon--danger">delete</span>
+        Delete Role
+      </div>
+      <div class="modal__body">
+        <p>Delete role <strong>{{ deletingName }}</strong>? Users with this role will lose access.</p>
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-danger" (click)="submitDelete()" [disabled]="modalWorking">
+          @if (modalWorking) { <span class="spinner spinner--dark"></span> } Delete
+        </button>
+      </div>
+    </div>
+  </div>
+}

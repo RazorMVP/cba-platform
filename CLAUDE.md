@@ -798,7 +798,22 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Reports list | `ReportsListComponent` | `ReportsModule` | ✅ Built — search/category filter, dynamic param form, schema-on-read results table, CSV export, create/delete |
 | CoB Scheduler | `CobSchedulerComponent` | `ReportsModule` | ✅ Built — job cards with stats, Run Now trigger, inline history panel, duration helper |
 | Report Mailing Jobs | `ReportMailingComponent` | `ReportsModule` | ✅ Built — mailing job CRUD, RRULE schedule presets, output type chips, send-now trigger |
-| All other feature pages | 16 stub components | admin, groups, open-banking, system modules | 🔲 Stub — template+styles only, no API wiring |
+| Users | `UsersComponent` | `AdminModule` | ✅ Built — search filter, create modal (firstname/lastname/username/email/password/office/roles), enable/disable toggle, delete confirm |
+| Roles | `RolesComponent` | `AdminModule` | ✅ Built — list with permission count badge, create/edit modal, permissions matrix modal grouped by grouping with select-all-in-group |
+| Offices | `OfficesComponent` | `AdminModule` | ✅ Built — search, create/edit modal with parent office dropdown, hierarchy column |
+| Hooks | `HooksComponent` | `AdminModule` | ✅ Built — WEB/SMS type chips, create/edit modal with event selection chips |
+| Maker-Checker | `MakerCheckerComponent` | `AdminModule` | ✅ Built — status filter tabs (All/PENDING/APPROVED/REJECTED), metadata table, approve/reject for PENDING entries |
+| TPP Management | `OpenBankingComponent` | `AdminModule` | ✅ Built — TPP registry: clientId, country, scope chips, cert expiry; register/activate/revoke |
+| Groups list | `GroupsListComponent` | `GroupsModule` | ✅ Built — status filter + search, create modal, routerLink to detail |
+| Group detail | `GroupDetailComponent` | `GroupsModule` | ✅ Built — 3 tabs: Members (add/remove), Collection Sheet (generate + table), GLIM Accounts (accordion) |
+| Centers list | `CentersListComponent` | `GroupsModule` | ✅ Built — status filter + search, create modal, routerLink to detail |
+| Center detail | `CenterDetailComponent` | `GroupsModule` | ✅ Built — 2 tabs: Groups (links), All Members |
+| Consents list | `OpenBankingListComponent` | `OpenBankingModule` | ✅ Built — type filter tabs (All/AISP/PISP/CBPII) + status dropdown, type badges, scope chips |
+| Consent detail | `ConsentDetailComponent` | `OpenBankingModule` | ✅ Built — status badge, conditional Authorise/Revoke button, two-column detail grid, confirm modal |
+| Codes & Values | `CodesComponent` | `SystemModule` | ✅ Built — inline accordion expand, load-on-expand, inline add/edit value form, create code modal |
+| Global Config | `GlobalConfigComponent` | `SystemModule` | ✅ Built — searchable table, inline row edit (type-aware: string/number/boolean), enabled toggle |
+| Floating Rates | `FloatingRatesComponent` | `SystemModule` | ✅ Built — accordion with rate periods, create/edit modal with dynamic period rows, delete confirm |
+| Taxes | `TaxesComponent` | `SystemModule` | ✅ Built — two tabs: Tax Components (CRUD) + Tax Groups (component bundles with effective dates) |
 
 ### Angular View/Edit Toggle Pattern
 All detail pages (loan product, deposit product, customer, loan) share this pattern:

@@ -59,6 +59,94 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 21 — 2026-04-11
+
+**All 16 stub Angular components fully implemented — admin, groups, open-banking, and system modules now have complete API-wired UIs.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/src/app/features/admin/admin.service.ts` | NEW — service covering Users, Roles, Offices, Hooks, MakerChecker, TPP |
+| `web/src/app/features/admin/users.ts/.html/.scss` | BUILT — create modal, enable/disable toggle, delete confirm |
+| `web/src/app/features/admin/roles.ts/.html/.scss` | BUILT — permissions matrix modal grouped by category, select-all-in-group |
+| `web/src/app/features/admin/offices.ts/.html/.scss` | BUILT — hierarchy display, parent office dropdown |
+| `web/src/app/features/admin/hooks.ts/.html/.scss` | BUILT — WEB/SMS type chips, event selection chips |
+| `web/src/app/features/admin/maker-checker.ts/.html/.scss` | BUILT — status tabs, approve/reject PENDING entries |
+| `web/src/app/features/admin/open-banking.ts/.html/.scss` | BUILT — TPP registry (platform-level PSD2 view) |
+| `web/src/app/features/groups/groups.service.ts` | NEW — Groups, Centers, CollectionSheet, GLIM interfaces + API calls |
+| `web/src/app/features/groups/groups-list.ts/.html/.scss` | BUILT — status filter tabs, create modal |
+| `web/src/app/features/groups/group-detail/group-detail.ts/.html/.scss` | BUILT — 3 tabs: Members, Collection Sheet, GLIM Accounts |
+| `web/src/app/features/groups/centers-list.ts/.html/.scss` | BUILT — same pattern as groups-list |
+| `web/src/app/features/groups/center-detail/center-detail.ts/.html/.scss` | BUILT — 2 tabs: Groups, All Members |
+| `web/src/app/features/open-banking/open-banking.service.ts` | NEW — Consent service (list, get, authorise, revoke) |
+| `web/src/app/features/open-banking/open-banking-list.ts/.html/.scss` | BUILT — type filter tabs + status dropdown, scope chips |
+| `web/src/app/features/open-banking/consent-detail/consent-detail.ts/.html/.scss` | BUILT — full authorisation flow (Authorise/Revoke), two-column detail grid |
+| `web/src/app/features/system/system.service.ts` | NEW — Codes, GlobalConfig, FloatingRates, Taxes interfaces + API calls |
+| `web/src/app/features/system/codes.ts/.html/.scss` | BUILT — inline accordion, load-on-expand, inline add/edit form |
+| `web/src/app/features/system/global-config.ts/.html/.scss` | BUILT — inline row edit, type-aware inputs (string/number/boolean), enabled toggle |
+| `web/src/app/features/system/floating-rates.ts/.html/.scss` | BUILT — accordion with rate periods, dynamic period rows in modal |
+| `web/src/app/features/system/taxes.ts/.html/.scss` | BUILT — two-tab: Tax Components CRUD + Tax Groups with component bundles |
+| `CLAUDE.md` | UPDATED — component map: all 16 stubs → ✅ Built |
+
+#### Key Patterns / Decisions
+- Admin `open-banking` implemented as a **TPP Management** view (platform-level PSD2 registry), distinct from the operational consents list — maps to FCA/PSD2 TPP registration workflows
+- Codes implemented with **inline accordion** (no route change) — consistent with Mifos convention, keeps admin in context for small value sets
+- Consent detail exposes full **authorisation flow**: Authorise (green) or Revoke (red) conditionally shown based on consent status
+- Maker-checker shows **metadata only** (entity type, action, made-by, timestamp) — no payload content displayed per requirement; approve/reject only for PENDING status
+- GlobalConfig uses **type-aware inline editing**: `valueType()` helper dispatches to text/number/boolean-select input without separate edit forms
+- Taxes uses a **two-tab pattern** (Components / Groups) in one component — avoids route complexity for co-located admin concerns
+- FloatingRates and Tax Groups both use a **dynamic rows pattern** — add/remove rows before submitting parent+children as a single request
+
+#### Build Verification
+- TypeScript: no unused-import errors (FloatingRatePeriod removed after IDE diagnostic)
+- All components follow `inject()` pattern (no constructor injection)
+- All use `@if`/`@for` control flow (not `*ngIf`/`*ngFor`)
+- SCSS: all files use `@use 'assets/styles/tokens' as *`
+
+#### Compliance Checklist Update
+- Angular component map: 0 stubs remaining — all 48 components ✅ Built
+
+---
+
+### Session 20 — 2026-04-11
+
+**Full design system exported to Figma — all 38 built components as 1440×900 frames across 10 pages.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| Figma: `RqbeDCCJiD36eettFSsKZn` | NEW — CoreBanking-Nubeero Figma file fully populated via MCP |
+
+#### Key Patterns / Decisions
+- Stitch MCP unavailable (OAuth token expired); Figma used as design archive destination instead
+- File built from scratch: single Design Tokens page → 10 section pages + 38 frames
+- Design variable collection `Nubeero / CBA` created with 36 color, spacing, and radius tokens
+- All frames are 1440×900, share the same sidebar (260px) + topbar (64px) shell — mirrors Angular layout contract
+- Shared Components page isolates reusable atoms: Sidebar, Topbar, KPI Card, 7 Status Badge variants, Table Header + Row
+
+#### Figma Page Inventory
+| Page | Frames |
+|------|--------|
+| 🔧 Shared Components | Sidebar, Topbar, KPI Card, 7× Status Badges, Table Header + Row |
+| 📊 Dashboard | Full KPIs, transaction table, loan portfolio bars, KYC queue |
+| 👥 Customers | List (10-row, KYC filters) · Detail (5-tab, KYC timeline) |
+| 💳 Accounts | List (type filters) · Detail (overview + transactions) |
+| 💸 Payments | List (summary cards + history) · Detail (status band, route card, audit trail) |
+| 🏦 Tellers | List · Detail (cashiers + session management + settlement) |
+| 🏷️ Loans | List (pipeline + sliding panel) · Detail (5-tab, repayment schedule) |
+| 📦 Products | 9 frames — all 5 product types (list + detail each) |
+| 📈 Accounting | GL Accounts · Journal Entries (T-ledger) · Provisioning Criteria (IFRS 9) |
+| 📋 Reports | Reports + Run Panel · CoB Scheduler · Report Mailing Jobs |
+
+#### Build Verification
+- All 38 frames confirmed via `use_figma` inspection (frame count per page validated)
+- Nubeero token palette applied: `#040609` shell, `#0a1628` sidebar, `#1e2833` CTAs, `Instrument Sans` typography
+
+#### Compliance Checklist Update
+- Design archive: ✅ Complete (all 32 built Angular components have Figma prototypes)
+
+---
+
 ### Session 19 — 2026-04-10
 
 **Vercel deployment pipeline unblocked + demo auth bypass mode.**

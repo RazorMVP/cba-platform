@@ -1,7 +1,199 @@
-<app-page-header title="Group Detail" icon="info" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">info</span>
-    <strong>Group Detail</strong><br>Implementation pending.
-  </p>
+<div class="page">
+  @if (loading) {
+    <div class="skeleton-page">
+      <div class="skeleton skeleton--title"></div>
+      <div class="skeleton skeleton--card"></div>
+    </div>
+  } @else if (error || !group) {
+    <div class="empty-state">
+      <span class="material-icons">error_outline</span>
+      <p>{{ error || 'Group not found.' }}</p>
+      <a routerLink="../.." class="btn-secondary">Back to Groups</a>
+    </div>
+  } @else {
+    <!-- Header -->
+    <div class="page-header">
+      <div class="header-left">
+        <a routerLink="../.." class="back-link">
+          <span class="material-icons">arrow_back</span> Groups
+        </a>
+        <div class="group-title">
+          <span class="material-icons group-icon">groups</span>
+          <div>
+            <h1 class="title">{{ group.name }}</h1>
+            <span class="sub">{{ group.officeName }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <app-status-badge [label]="group.status" [variant]="statusVariant(group.status)"></app-status-badge>
+        @if (group.status === 'PENDING') {
+          <button class="btn-primary" (click)="activateGroup()">
+            <span class="material-icons">check_circle</span> Activate
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- Info strip -->
+    <div class="info-strip">
+      <div class="info-item"><span class="info-label">Center</span><span>{{ group.centerName || '—' }}</span></div>
+      <div class="info-item"><span class="info-label">Loan Officer</span><span>{{ group.staffName || '—' }}</span></div>
+      <div class="info-item"><span class="info-label">Members</span><span>{{ group.memberCount }}</span></div>
+      <div class="info-item"><span class="info-label">Activation Date</span><span>{{ group.activationDate || '—' }}</span></div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab" [class.tab--active]="activeTab === 'members'" (click)="switchTab('members')">Members</button>
+      <button class="tab" [class.tab--active]="activeTab === 'collection-sheet'" (click)="switchTab('collection-sheet')">Collection Sheet</button>
+      <button class="tab" [class.tab--active]="activeTab === 'glim'" (click)="switchTab('glim')">GLIM Accounts</button>
+    </div>
+
+    <!-- Members Tab -->
+    @if (activeTab === 'members') {
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Group Members</span>
+          <button class="btn-primary btn--sm" (click)="openAddMember()">
+            <span class="material-icons">person_add</span> Add Member
+          </button>
+        </div>
+        @if (members.length === 0) {
+          <div class="empty-state">
+            <span class="material-icons">person_outline</span>
+            <p>No members yet. Add customers to this group.</p>
+          </div>
+        } @else {
+          <table class="data-table">
+            <thead>
+              <tr><th>Customer</th><th>Account No.</th><th>Joined</th><th class="action-cell"></th></tr>
+            </thead>
+            <tbody>
+              @for (m of members; track m.customerId) {
+                <tr class="table-row">
+                  <td><strong>{{ m.customerName }}</strong></td>
+                  <td class="mono muted">{{ m.accountNo }}</td>
+                  <td class="muted">{{ m.joinedDate }}</td>
+                  <td class="action-cell">
+                    <button class="btn-icon btn-icon--danger" (click)="removeMember(m.customerId)" title="Remove">
+                      <span class="material-icons">person_remove</span>
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+    }
+
+    <!-- Collection Sheet Tab -->
+    @if (activeTab === 'collection-sheet') {
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Collection Sheet</span>
+          <div class="sheet-controls">
+            <input class="form-input date-input" type="date" [(ngModel)]="sheetDate">
+            <button class="btn-primary btn--sm" (click)="generateSheet()" [disabled]="!sheetDate || sheetLoading">
+              @if (sheetLoading) { <span class="spinner"></span> } Generate
+            </button>
+          </div>
+        </div>
+        @if (!sheet) {
+          <div class="empty-state">
+            <span class="material-icons">receipt_long</span>
+            <p>Select a meeting date and generate the collection sheet.</p>
+          </div>
+        } @else {
+          <div class="sheet-summary">
+            <div class="summary-item">
+              <span class="summary-label">Total Due</span>
+              <span class="summary-value">{{ totalDue | number:'1.2-2' }}</span>
+            </div>
+            <div class="summary-item">
+              <span class="summary-label">Total Collected</span>
+              <span class="summary-value summary-value--success">{{ totalCollected | number:'1.2-2' }}</span>
+            </div>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr><th>Customer</th><th>Loan Account</th><th>Due</th><th>Paid</th><th>Outstanding</th></tr>
+            </thead>
+            <tbody>
+              @for (item of sheet.items; track item.loanId) {
+                <tr class="table-row">
+                  <td>{{ item.customerName }}</td>
+                  <td class="mono muted">{{ item.loanAccountNo }}</td>
+                  <td>{{ item.dueAmount | number:'1.2-2' }}</td>
+                  <td class="success">{{ item.paidAmount | number:'1.2-2' }}</td>
+                  <td [class.danger]="item.outstanding > 0">{{ item.outstanding | number:'1.2-2' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+    }
+
+    <!-- GLIM Tab -->
+    @if (activeTab === 'glim') {
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">GLIM Accounts</span>
+        </div>
+        @if (glim.length === 0) {
+          <div class="empty-state">
+            <span class="material-icons">account_balance</span>
+            <p>No GLIM accounts for this group.</p>
+          </div>
+        } @else {
+          @for (g of glim; track g.id) {
+            <div class="glim-card">
+              <div class="glim-header">
+                <span class="mono">{{ g.accountNo }}</span>
+                <app-status-badge [label]="g.status" [variant]="statusVariant(g.status)"></app-status-badge>
+                <span class="glim-total">Total: {{ g.totalAmount | number:'1.2-2' }}</span>
+              </div>
+              <table class="data-table data-table--compact">
+                <thead>
+                  <tr><th>Member</th><th>Individual Amount</th></tr>
+                </thead>
+                <tbody>
+                  @for (m of g.members; track m.customerId) {
+                    <tr><td>{{ m.customerName }}</td><td>{{ m.individualAmount | number:'1.2-2' }}</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        }
+      </div>
+    }
+  }
 </div>
+
+<!-- Add Member Modal -->
+@if (addMemberModal) {
+  <div class="modal-backdrop" (click)="addMemberModal = false">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">person_add</span>
+        Add Group Member
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Customer ID <span class="required">*</span></label>
+          <input class="form-input" [(ngModel)]="newCustomerId" placeholder="Paste customer UUID">
+        </div>
+        @if (memberError) { <div class="modal__error">{{ memberError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="addMemberModal = false" [disabled]="memberWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitAddMember()" [disabled]="memberWorking">
+          @if (memberWorking) { <span class="spinner"></span> } Add
+        </button>
+      </div>
+    </div>
+  </div>
+}

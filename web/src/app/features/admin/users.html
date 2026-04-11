@@ -1,7 +1,161 @@
-<app-page-header title="Users" icon="manage_accounts" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">manage_accounts</span>
-    <strong>Users</strong><br>Implementation pending.
-  </p>
+<div class="page">
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">manage_accounts</span>
+      Platform Users
+    </div>
+    <button class="btn-primary" (click)="openCreateModal()">
+      <span class="material-icons">add</span> New User
+    </button>
+  </div>
+
+  <div class="filter-bar">
+    <div class="search-wrap">
+      <span class="material-icons search-icon">search</span>
+      <input class="search-input" [(ngModel)]="searchQuery" placeholder="Search users…">
+    </div>
+  </div>
+
+  <div class="card">
+    @if (loading) {
+      <div class="skeleton-card">
+        @for (i of [1,2,3,4]; track i) { <div class="skeleton skeleton--row"></div> }
+      </div>
+    } @else if (error) {
+      <div class="empty-state">
+        <span class="material-icons">error_outline</span>
+        <p>{{ error }}</p>
+      </div>
+    } @else if (filtered.length === 0) {
+      <div class="empty-state">
+        <span class="material-icons">manage_accounts</span>
+        <p>No users found.</p>
+      </div>
+    } @else {
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Full Name</th>
+            <th>Email</th>
+            <th>Office</th>
+            <th>Roles</th>
+            <th>Status</th>
+            <th class="action-cell">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (u of filtered; track u.id) {
+            <tr class="table-row" [class.row--disabled]="!u.enabled">
+              <td class="mono">{{ u.username }}</td>
+              <td>{{ u.firstname }} {{ u.lastname }}</td>
+              <td class="muted">{{ u.email }}</td>
+              <td>{{ u.officeName }}</td>
+              <td class="muted">{{ roleNames(u) }}</td>
+              <td>
+                <app-status-badge [label]="u.enabled ? 'ACTIVE' : 'INACTIVE'" [variant]="u.enabled ? 'success' : 'neutral'"></app-status-badge>
+              </td>
+              <td class="action-cell">
+                <button class="btn-icon" (click)="toggleEnabled(u)"
+                  [title]="u.enabled ? 'Disable' : 'Enable'">
+                  <span class="material-icons">{{ u.enabled ? 'block' : 'check_circle' }}</span>
+                </button>
+                <button class="btn-icon btn-icon--danger" (click)="openDeleteModal(u)" title="Delete">
+                  <span class="material-icons">delete</span>
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <div class="table-footer">{{ filtered.length }} user(s)</div>
+    }
+  </div>
 </div>
+
+<!-- Create Modal -->
+@if (activeModal === 'create') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">person_add</span>
+        New Platform User
+      </div>
+      <div class="modal__body">
+        <div class="form-row">
+          <div class="form-field form-field--half">
+            <label class="form-label">First Name <span class="required">*</span></label>
+            <input class="form-input" [(ngModel)]="form.firstname" placeholder="First name">
+          </div>
+          <div class="form-field form-field--half">
+            <label class="form-label">Last Name <span class="required">*</span></label>
+            <input class="form-input" [(ngModel)]="form.lastname" placeholder="Last name">
+          </div>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Username <span class="required">*</span></label>
+          <input class="form-input" [(ngModel)]="form.username" placeholder="e.g. jdoe">
+        </div>
+        <div class="form-field">
+          <label class="form-label">Email <span class="required">*</span></label>
+          <input class="form-input" type="email" [(ngModel)]="form.email" placeholder="email@bank.com">
+        </div>
+        <div class="form-field">
+          <label class="form-label">Password <span class="required">*</span></label>
+          <input class="form-input" type="password" [(ngModel)]="form.password" placeholder="Temporary password">
+        </div>
+        <div class="form-field">
+          <label class="form-label">Office <span class="required">*</span></label>
+          <select class="form-input" [(ngModel)]="form.officeId">
+            <option value="">Select office…</option>
+            @for (o of offices; track o.id) {
+              <option [value]="o.id">{{ o.name }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Roles</label>
+          <div class="role-chips">
+            @for (r of roles; track r.id) {
+              <label class="role-chip" [class.role-chip--selected]="selectedRoleIds.includes(r.id)">
+                <input type="checkbox" [checked]="selectedRoleIds.includes(r.id)"
+                  (change)="toggleRoleId(r.id)"> {{ r.name }}
+              </label>
+            }
+          </div>
+        </div>
+        @if (modalError) {
+          <div class="modal__error">{{ modalError }}</div>
+        }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitCreate()" [disabled]="modalWorking">
+          @if (modalWorking) { <span class="spinner"></span> } Create User
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Delete Modal -->
+@if (activeModal === 'delete') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon modal__icon--danger">delete</span>
+        Delete User
+      </div>
+      <div class="modal__body">
+        <p>Permanently delete <strong>{{ deletingName }}</strong>? This cannot be undone.</p>
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-danger" (click)="submitDelete()" [disabled]="modalWorking">
+          @if (modalWorking) { <span class="spinner spinner--dark"></span> } Delete
+        </button>
+      </div>
+    </div>
+  </div>
+}

@@ -1,7 +1,81 @@
-<app-page-header title="Open Banking Consents" icon="open_in_new" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">open_in_new</span>
-    <strong>Open Banking Consents</strong><br>Implementation pending.
-  </p>
+<div class="page">
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">open_in_new</span>
+      Open Banking Consents
+    </div>
+  </div>
+
+  <div class="filter-bar">
+    <div class="type-tabs">
+      @for (t of types; track t) {
+        <button class="type-tab" [class.type-tab--active]="typeFilter === t"
+          (click)="typeFilter = t">{{ t || 'All Types' }}</button>
+      }
+    </div>
+    <select class="status-select" [(ngModel)]="statusFilter">
+      @for (s of statuses; track s) {
+        <option [value]="s">{{ s || 'All Statuses' }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="card">
+    @if (loading) {
+      <div class="skeleton-card">
+        @for (i of [1,2,3,4]; track i) { <div class="skeleton skeleton--row"></div> }
+      </div>
+    } @else if (error) {
+      <div class="empty-state">
+        <span class="material-icons">error_outline</span><p>{{ error }}</p>
+      </div>
+    } @else if (filtered.length === 0) {
+      <div class="empty-state">
+        <span class="material-icons">open_in_new</span>
+        <p>No consents match the selected filters.</p>
+      </div>
+    } @else {
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Consent ID</th>
+            <th>Customer</th>
+            <th>TPP</th>
+            <th>Type</th>
+            <th>Scopes</th>
+            <th>Expires</th>
+            <th>Status</th>
+            <th class="action-cell"></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (c of filtered; track c.id) {
+            <tr class="table-row" [routerLink]="[c.id]">
+              <td class="mono muted small">{{ c.consentId }}</td>
+              <td><strong>{{ c.customerName }}</strong></td>
+              <td class="muted">{{ c.tppName }}</td>
+              <td>
+                <span class="type-badge type-badge--{{ c.consentType.toLowerCase() }}">{{ c.consentType }}</span>
+              </td>
+              <td>
+                <div class="scope-list">
+                  @for (s of c.scopes; track s) {
+                    <span class="scope-chip">{{ s }}</span>
+                  }
+                </div>
+              </td>
+              <td class="muted small">{{ c.expirationDateTime || '—' }}</td>
+              <td>
+                <app-status-badge [label]="c.status" [variant]="statusVariant(c.status)"></app-status-badge>
+              </td>
+              <td class="action-cell">
+                <span class="material-icons arrow-icon">chevron_right</span>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <div class="table-footer">{{ filtered.length }} consent(s)</div>
+    }
+  </div>
 </div>

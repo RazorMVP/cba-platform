@@ -1,7 +1,170 @@
-<app-page-header title="Floating Rates" icon="trending_up" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">trending_up</span>
-    <strong>Floating Rates</strong><br>Implementation pending.
-  </p>
+<div class="page">
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">trending_up</span>
+      Floating Rates
+    </div>
+    <button class="btn-primary" (click)="openCreate()">
+      <span class="material-icons">add</span> New Rate
+    </button>
+  </div>
+
+  <div class="filter-bar">
+    <div class="search-wrap">
+      <span class="material-icons search-icon">search</span>
+      <input class="search-input" [(ngModel)]="searchQuery" placeholder="Search rates…">
+    </div>
+  </div>
+
+  <div class="card">
+    @if (loading) {
+      <div class="skeleton-card">
+        @for (i of [1,2,3]; track i) { <div class="skeleton skeleton--row"></div> }
+      </div>
+    } @else if (error) {
+      <div class="empty-state"><span class="material-icons">error_outline</span><p>{{ error }}</p></div>
+    } @else if (filtered.length === 0) {
+      <div class="empty-state">
+        <span class="material-icons">trending_up</span><p>No floating rates defined.</p>
+      </div>
+    } @else {
+      @for (r of filtered; track r.id) {
+        <!-- Rate row -->
+        <div class="rate-row" (click)="toggleExpand(r.id)">
+          <div class="rate-row__left">
+            <span class="material-icons expand-icon">
+              {{ expandedId === r.id ? 'expand_less' : 'expand_more' }}
+            </span>
+            <strong>{{ r.name }}</strong>
+            @if (r.isBaseLendingRate) { <span class="base-badge">Base Lending Rate</span> }
+            <span class="period-count muted">{{ r.ratePeriods?.length ?? 0 }} periods</span>
+          </div>
+          <div class="rate-row__right">
+            <span class="created-meta muted">Created by {{ r.createdBy }}</span>
+            <button class="btn-icon" (click)="$event.stopPropagation(); openEdit(r)" title="Edit">
+              <span class="material-icons">edit</span>
+            </button>
+            <button class="btn-icon btn-icon--danger" (click)="$event.stopPropagation(); openDelete(r)" title="Delete">
+              <span class="material-icons">delete</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Expanded periods -->
+        @if (expandedId === r.id) {
+          <div class="periods-panel">
+            @if (!r.ratePeriods?.length) {
+              <div class="periods-empty">No rate periods defined.</div>
+            } @else {
+              <table class="periods-table">
+                <thead>
+                  <tr><th>From Date</th><th>Interest Rate (%)</th><th>Differential to Base</th></tr>
+                </thead>
+                <tbody>
+                  @for (p of r.ratePeriods; track p.id) {
+                    <tr>
+                      <td>{{ p.fromDate }}</td>
+                      <td>{{ p.interestRate }}%</td>
+                      <td>
+                        <span class="diff-badge" [class.diff-badge--yes]="p.isDifferentialToBaseLendingRate">
+                          {{ p.isDifferentialToBaseLendingRate ? 'Yes' : 'No' }}
+                        </span>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            }
+          </div>
+        }
+      }
+    }
+  </div>
 </div>
+
+<!-- Create / Edit Modal -->
+@if (activeModal === 'create' || activeModal === 'edit') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--md" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">trending_up</span>
+        {{ activeModal === 'edit' ? 'Edit Floating Rate' : 'New Floating Rate' }}
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Rate Name <span class="required">*</span></label>
+          <input class="form-input" [(ngModel)]="form.name" placeholder="e.g. Prime Rate">
+        </div>
+        <div class="form-field">
+          <label class="checkbox-label">
+            <input type="checkbox" [(ngModel)]="form.isBaseLendingRate">
+            <span>Is Base Lending Rate</span>
+          </label>
+        </div>
+
+        <div class="section-title">Rate Periods <span class="required">*</span></div>
+        @for (p of periodRows; track $index; let i = $index) {
+          <div class="period-row">
+            <div class="period-row__fields">
+              <div class="form-field form-field--inline">
+                <label class="form-label">From Date</label>
+                <input class="form-input" type="date" [(ngModel)]="p.fromDate">
+              </div>
+              <div class="form-field form-field--inline">
+                <label class="form-label">Rate (%)</label>
+                <input class="form-input form-input--xs" type="number" step="0.01"
+                       [(ngModel)]="p.interestRate" placeholder="0.00">
+              </div>
+              <div class="form-field form-field--inline form-field--check">
+                <label class="checkbox-label">
+                  <input type="checkbox" [(ngModel)]="p.isDifferentialToBaseLendingRate">
+                  <span>Differential</span>
+                </label>
+              </div>
+            </div>
+            <button class="btn-icon btn-icon--danger" (click)="removePeriod(i)"
+                    [disabled]="periodRows.length === 1" title="Remove period">
+              <span class="material-icons">remove_circle_outline</span>
+            </button>
+          </div>
+        }
+        <button class="btn-link" (click)="addPeriod()">
+          <span class="material-icons">add</span> Add Period
+        </button>
+
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitForm()" [disabled]="modalWorking">
+          @if (modalWorking) { <span class="spinner"></span> }
+          {{ activeModal === 'edit' ? 'Save Changes' : 'Create' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Delete Confirm Modal -->
+@if (activeModal === 'delete') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon modal__icon--danger">delete</span>
+        Delete Floating Rate
+      </div>
+      <div class="modal__body">
+        <p class="confirm-text">
+          Delete <strong>{{ editTarget?.name }}</strong>? This action cannot be undone.
+        </p>
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-danger" (click)="confirmDelete()" [disabled]="modalWorking">
+          @if (modalWorking) { <span class="spinner"></span> } Delete
+        </button>
+      </div>
+    </div>
+  </div>
+}

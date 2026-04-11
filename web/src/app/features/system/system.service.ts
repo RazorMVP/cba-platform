@@ -1,0 +1,191 @@
+import { Injectable, inject } from '@angular/core';
+import { Observable } from 'rxjs';
+import { ApiService } from '../../core/api/api.service';
+
+// ── Codes ─────────────────────────────────────────────────────────────────────
+export interface Code {
+  id: string;
+  name: string;
+  systemDefined: boolean;
+  codeValues: CodeValue[];
+}
+
+export interface CodeValue {
+  id: string;
+  name: string;
+  description: string;
+  position: number;
+  active: boolean;
+}
+
+export interface CreateCodeRequest {
+  name: string;
+}
+
+export interface CreateCodeValueRequest {
+  name: string;
+  description: string;
+  position: number;
+}
+
+// ── Global Configuration ──────────────────────────────────────────────────────
+export interface GlobalConfig {
+  id: string;
+  name: string;
+  enabled: boolean;
+  stringValue: string | null;
+  numericValue: number | null;
+  booleanValue: boolean | null;
+  description: string;
+}
+
+export interface UpdateConfigRequest {
+  enabled: boolean;
+  stringValue?: string;
+  numericValue?: number;
+  booleanValue?: boolean;
+}
+
+// ── Floating Rates ────────────────────────────────────────────────────────────
+export interface FloatingRate {
+  id: string;
+  name: string;
+  isActive: boolean;
+  isBaseLendingRate: boolean;
+  createdBy: string;
+  createdOn: string;
+  ratePeriods: FloatingRatePeriod[];
+}
+
+export interface FloatingRatePeriod {
+  id: string;
+  fromDate: string;
+  interestRate: number;
+  isDifferentialToBaseLendingRate: boolean;
+}
+
+export interface CreateFloatingRateRequest {
+  name: string;
+  isBaseLendingRate: boolean;
+  ratePeriods: Omit<FloatingRatePeriod, 'id'>[];
+}
+
+// ── Taxes ─────────────────────────────────────────────────────────────────────
+export interface TaxComponent {
+  id: string;
+  name: string;
+  percentage: number;
+  startDate: string;
+  creditAccountId: string | null;
+  debitAccountId: string | null;
+}
+
+export interface TaxGroup {
+  id: string;
+  name: string;
+  components: TaxGroupMapping[];
+}
+
+export interface TaxGroupMapping {
+  taxComponentId: string;
+  taxComponentName: string;
+  startDate: string;
+}
+
+export interface CreateTaxComponentRequest {
+  name: string;
+  percentage: number;
+  startDate: string;
+  creditAccountId?: string;
+  debitAccountId?: string;
+}
+
+export interface CreateTaxGroupRequest {
+  name: string;
+  components: { taxComponentId: string; startDate: string }[];
+}
+
+@Injectable({ providedIn: 'root' })
+export class SystemService {
+  private readonly api = inject(ApiService);
+
+  // ── Codes ──────────────────────────────────────────────────────────────────
+  listCodes(): Observable<Code[]> {
+    return this.api.get<Code[]>('/api/v1/codes');
+  }
+
+  createCode(req: CreateCodeRequest): Observable<Code> {
+    return this.api.post<Code>('/api/v1/codes', req);
+  }
+
+  deleteCode(id: string): Observable<void> {
+    return this.api.delete<void>(`/api/v1/codes/${id}`);
+  }
+
+  listCodeValues(codeId: string): Observable<CodeValue[]> {
+    return this.api.get<CodeValue[]>(`/api/v1/codes/${codeId}/codevalues`);
+  }
+
+  createCodeValue(codeId: string, req: CreateCodeValueRequest): Observable<CodeValue> {
+    return this.api.post<CodeValue>(`/api/v1/codes/${codeId}/codevalues`, req);
+  }
+
+  updateCodeValue(codeId: string, valueId: string, req: CreateCodeValueRequest): Observable<CodeValue> {
+    return this.api.put<CodeValue>(`/api/v1/codes/${codeId}/codevalues/${valueId}`, req);
+  }
+
+  deleteCodeValue(codeId: string, valueId: string): Observable<void> {
+    return this.api.delete<void>(`/api/v1/codes/${codeId}/codevalues/${valueId}`);
+  }
+
+  // ── Global Configuration ───────────────────────────────────────────────────
+  listConfigurations(): Observable<GlobalConfig[]> {
+    return this.api.get<GlobalConfig[]>('/api/v1/configurations');
+  }
+
+  updateConfiguration(id: string, req: UpdateConfigRequest): Observable<GlobalConfig> {
+    return this.api.put<GlobalConfig>(`/api/v1/configurations/${id}`, req);
+  }
+
+  // ── Floating Rates ─────────────────────────────────────────────────────────
+  listFloatingRates(): Observable<FloatingRate[]> {
+    return this.api.get<FloatingRate[]>('/api/v1/floatingrates');
+  }
+
+  createFloatingRate(req: CreateFloatingRateRequest): Observable<FloatingRate> {
+    return this.api.post<FloatingRate>('/api/v1/floatingrates', req);
+  }
+
+  updateFloatingRate(id: string, req: CreateFloatingRateRequest): Observable<FloatingRate> {
+    return this.api.put<FloatingRate>(`/api/v1/floatingrates/${id}`, req);
+  }
+
+  deleteFloatingRate(id: string): Observable<void> {
+    return this.api.delete<void>(`/api/v1/floatingrates/${id}`);
+  }
+
+  // ── Taxes ──────────────────────────────────────────────────────────────────
+  listTaxComponents(): Observable<TaxComponent[]> {
+    return this.api.get<TaxComponent[]>('/api/v1/taxes/components');
+  }
+
+  createTaxComponent(req: CreateTaxComponentRequest): Observable<TaxComponent> {
+    return this.api.post<TaxComponent>('/api/v1/taxes/components', req);
+  }
+
+  updateTaxComponent(id: string, req: CreateTaxComponentRequest): Observable<TaxComponent> {
+    return this.api.put<TaxComponent>(`/api/v1/taxes/components/${id}`, req);
+  }
+
+  listTaxGroups(): Observable<TaxGroup[]> {
+    return this.api.get<TaxGroup[]>('/api/v1/taxes/groups');
+  }
+
+  createTaxGroup(req: CreateTaxGroupRequest): Observable<TaxGroup> {
+    return this.api.post<TaxGroup>('/api/v1/taxes/groups', req);
+  }
+
+  updateTaxGroup(id: string, req: CreateTaxGroupRequest): Observable<TaxGroup> {
+    return this.api.put<TaxGroup>(`/api/v1/taxes/groups/${id}`, req);
+  }
+}

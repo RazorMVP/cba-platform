@@ -1,7 +1,111 @@
-<app-page-header title="Consent Detail" icon="info" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">info</span>
-    <strong>Consent Detail</strong><br>Implementation pending.
-  </p>
+<div class="page">
+  @if (loading) {
+    <div class="skeleton-page">
+      <div class="skeleton skeleton--title"></div>
+      <div class="skeleton skeleton--card"></div>
+    </div>
+  } @else if (error || !consent) {
+    <div class="empty-state">
+      <span class="material-icons">error_outline</span>
+      <p>{{ error || 'Consent not found.' }}</p>
+      <a routerLink=".." class="btn-secondary">Back</a>
+    </div>
+  } @else {
+    <div class="page-header">
+      <div class="header-left">
+        <a routerLink=".." class="back-link">
+          <span class="material-icons">arrow_back</span> Consents
+        </a>
+        <div class="consent-title">
+          <span class="material-icons consent-icon">open_in_new</span>
+          <div>
+            <h1 class="title">{{ consent.consentId }}</h1>
+            <span class="sub">{{ consent.tppName }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <app-status-badge [label]="consent.status" [variant]="statusVariant(consent.status)"></app-status-badge>
+        @if (consent.status === 'AWAITING_AUTHORISATION') {
+          <button class="btn-success" (click)="openConfirm('authorise')">
+            <span class="material-icons">verified</span> Authorise
+          </button>
+        }
+        @if (consent.status === 'AUTHORISED') {
+          <button class="btn-danger" (click)="openConfirm('revoke')">
+            <span class="material-icons">block</span> Revoke
+          </button>
+        }
+      </div>
+    </div>
+
+    @if (actionError) {
+      <div class="alert-error">{{ actionError }}</div>
+    }
+
+    <div class="detail-grid">
+      <div class="detail-card">
+        <div class="detail-card__title">Consent Details</div>
+        <div class="detail-row"><span class="detail-label">Consent ID</span><span class="mono">{{ consent.consentId }}</span></div>
+        <div class="detail-row"><span class="detail-label">Type</span>
+          <span class="type-badge type-badge--{{ consent.consentType.toLowerCase() }}">{{ consent.consentType }}</span>
+        </div>
+        <div class="detail-row"><span class="detail-label">Customer</span><span>{{ consent.customerName }}</span></div>
+        <div class="detail-row"><span class="detail-label">TPP Name</span><span>{{ consent.tppName }}</span></div>
+        <div class="detail-row"><span class="detail-label">TPP Client ID</span><span class="mono muted">{{ consent.tppClientId }}</span></div>
+        <div class="detail-row">
+          <span class="detail-label">Scopes</span>
+          <div class="scope-list">
+            @for (s of consent.scopes; track s) {
+              <span class="scope-chip">{{ s }}</span>
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-card">
+        <div class="detail-card__title">Timeline</div>
+        <div class="detail-row"><span class="detail-label">Created</span><span>{{ consent.createdAt }}</span></div>
+        <div class="detail-row"><span class="detail-label">Expires</span><span>{{ consent.expirationDateTime || '—' }}</span></div>
+        <div class="detail-row"><span class="detail-label">Authorised</span><span>{{ consent.authorisedAt || '—' }}</span></div>
+        <div class="detail-row"><span class="detail-label">Revoked</span><span>{{ consent.revokedAt || '—' }}</span></div>
+      </div>
+    </div>
+  }
 </div>
+
+<!-- Confirm Modal -->
+@if (confirmModal && consent) {
+  <div class="modal-backdrop" (click)="closeConfirm()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon"
+          [class.modal__icon--success]="confirmModal === 'authorise'"
+          [class.modal__icon--danger]="confirmModal === 'revoke'">
+          {{ confirmModal === 'authorise' ? 'verified' : 'block' }}
+        </span>
+        {{ confirmModal === 'authorise' ? 'Authorise Consent' : 'Revoke Consent' }}
+      </div>
+      <div class="modal__body">
+        <div class="meta-block">
+          <div class="meta-row"><span class="meta-label">TPP</span><span>{{ consent.tppName }}</span></div>
+          <div class="meta-row"><span class="meta-label">Customer</span><span>{{ consent.customerName }}</span></div>
+          <div class="meta-row"><span class="meta-label">Scopes</span><span>{{ consent.scopes.join(', ') }}</span></div>
+        </div>
+        @if (confirmModal === 'authorise') {
+          <p class="confirm-text">Authorise this consent? The TPP will gain access to the requested scopes.</p>
+        } @else {
+          <p class="confirm-text">Revoke this consent? The TPP will immediately lose access.</p>
+        }
+        @if (actionError) { <div class="modal__error">{{ actionError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeConfirm()" [disabled]="working">Cancel</button>
+        <button [class]="confirmModal === 'authorise' ? 'btn-success' : 'btn-danger'" (click)="confirm()" [disabled]="working">
+          @if (working) { <span class="spinner spinner--white"></span> }
+          {{ confirmModal === 'authorise' ? 'Authorise' : 'Revoke' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

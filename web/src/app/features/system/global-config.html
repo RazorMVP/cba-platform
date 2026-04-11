@@ -1,7 +1,105 @@
-<app-page-header title="Global Configuration" icon="tune" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">tune</span>
-    <strong>Global Configuration</strong><br>Implementation pending.
-  </p>
+<div class="page">
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">settings</span>
+      Global Configuration
+    </div>
+  </div>
+
+  <div class="filter-bar">
+    <div class="search-wrap">
+      <span class="material-icons search-icon">search</span>
+      <input class="search-input" [(ngModel)]="searchQuery" placeholder="Search settings…">
+    </div>
+  </div>
+
+  <div class="card">
+    @if (loading) {
+      <div class="skeleton-card">
+        @for (i of [1,2,3,4,5]; track i) { <div class="skeleton skeleton--row"></div> }
+      </div>
+    } @else if (error) {
+      <div class="empty-state"><span class="material-icons">error_outline</span><p>{{ error }}</p></div>
+    } @else if (filtered.length === 0) {
+      <div class="empty-state">
+        <span class="material-icons">settings</span><p>No configuration entries found.</p>
+      </div>
+    } @else {
+      <table class="config-table">
+        <thead>
+          <tr>
+            <th>Setting</th>
+            <th>Value</th>
+            <th>Enabled</th>
+            <th class="action-cell"></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (c of filtered; track c.id) {
+            @if (editingId === c.id) {
+              <!-- Edit row -->
+              <tr class="edit-row">
+                <td>
+                  <strong class="cfg-name">{{ c.name }}</strong>
+                  @if (c.description) { <div class="cfg-desc">{{ c.description }}</div> }
+                </td>
+                <td>
+                  @if (valueType(c) === 'string') {
+                    <input class="form-input form-input--sm"
+                           [(ngModel)]="editForm.stringValue" placeholder="Value">
+                  } @else if (valueType(c) === 'number') {
+                    <input class="form-input form-input--sm form-input--xs" type="number"
+                           [(ngModel)]="editForm.numericValue" placeholder="0">
+                  } @else if (valueType(c) === 'boolean') {
+                    <select class="form-input form-input--sm form-input--xs"
+                            [(ngModel)]="editForm.booleanValue">
+                      <option [ngValue]="true">true</option>
+                      <option [ngValue]="false">false</option>
+                    </select>
+                  } @else {
+                    <span class="muted">—</span>
+                  }
+                </td>
+                <td>
+                  <label class="toggle">
+                    <input type="checkbox" [(ngModel)]="editForm.enabled">
+                    <span class="toggle__track"></span>
+                  </label>
+                </td>
+                <td class="action-cell">
+                  <div class="edit-actions">
+                    <button class="btn-primary btn--xs" (click)="saveEdit(c)" [disabled]="editWorking">
+                      @if (editWorking) { <span class="spinner"></span> } Save
+                    </button>
+                    <button class="btn-secondary btn--xs" (click)="cancelEdit()">Cancel</button>
+                  </div>
+                  @if (editError) { <div class="inline-error">{{ editError }}</div> }
+                </td>
+              </tr>
+            } @else {
+              <!-- View row -->
+              <tr class="config-row" (click)="startEdit(c)">
+                <td>
+                  <strong class="cfg-name">{{ c.name }}</strong>
+                  @if (c.description) { <div class="cfg-desc">{{ c.description }}</div> }
+                </td>
+                <td class="value-cell">{{ valueDisplay(c) }}</td>
+                <td>
+                  <span class="enabled-badge" [class.enabled-badge--on]="c.enabled"
+                        [class.enabled-badge--off]="!c.enabled">
+                    {{ c.enabled ? 'Enabled' : 'Disabled' }}
+                  </span>
+                </td>
+                <td class="action-cell">
+                  <button class="btn-icon" (click)="$event.stopPropagation(); startEdit(c)" title="Edit">
+                    <span class="material-icons">edit</span>
+                  </button>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    }
+  </div>
 </div>

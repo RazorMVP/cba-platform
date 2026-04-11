@@ -1,7 +1,100 @@
-<app-page-header title="Center Detail" icon="info" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">info</span>
-    <strong>Center Detail</strong><br>Implementation pending.
-  </p>
+<div class="page">
+  @if (loading) {
+    <div class="skeleton-page">
+      <div class="skeleton skeleton--title"></div>
+      <div class="skeleton skeleton--card"></div>
+    </div>
+  } @else if (error || !center) {
+    <div class="empty-state">
+      <span class="material-icons">error_outline</span>
+      <p>{{ error || 'Center not found.' }}</p>
+      <a routerLink="../../" class="btn-secondary">Back to Centers</a>
+    </div>
+  } @else {
+    <div class="page-header">
+      <div class="header-left">
+        <a routerLink="../../" class="back-link">
+          <span class="material-icons">arrow_back</span> Centers
+        </a>
+        <div class="center-title">
+          <span class="material-icons center-icon">location_city</span>
+          <div>
+            <h1 class="title">{{ center.name }}</h1>
+            <span class="sub">{{ center.officeName }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <app-status-badge [label]="center.status" [variant]="statusVariant(center.status)"></app-status-badge>
+        @if (center.status === 'PENDING') {
+          <button class="btn-primary" (click)="activateCenter()">
+            <span class="material-icons">check_circle</span> Activate
+          </button>
+        }
+      </div>
+    </div>
+
+    <div class="info-strip">
+      <div class="info-item"><span class="info-label">Loan Officer</span><span>{{ center.staffName || '—' }}</span></div>
+      <div class="info-item"><span class="info-label">Groups</span><span>{{ center.groupCount }}</span></div>
+      <div class="info-item"><span class="info-label">Activation Date</span><span>{{ center.activationDate || '—' }}</span></div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab" [class.tab--active]="activeTab === 'groups'" (click)="switchTab('groups')">Groups</button>
+      <button class="tab" [class.tab--active]="activeTab === 'members'" (click)="switchTab('members')">All Members</button>
+    </div>
+
+    @if (activeTab === 'groups') {
+      <div class="card">
+        <div class="card-header"><span class="card-title">Groups in this Center</span></div>
+        @if (groups.length === 0) {
+          <div class="empty-state">
+            <span class="material-icons">groups</span>
+            <p>No groups assigned to this center.</p>
+          </div>
+        } @else {
+          <table class="data-table">
+            <thead><tr><th>Group Name</th><th>Loan Officer</th><th>Members</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              @for (g of groups; track g.id) {
+                <tr class="table-row" [routerLink]="['../../groups', g.id]">
+                  <td><strong>{{ g.name }}</strong></td>
+                  <td class="muted">{{ g.staffName || '—' }}</td>
+                  <td>{{ g.memberCount }}</td>
+                  <td><app-status-badge [label]="g.status" [variant]="statusVariant(g.status)"></app-status-badge></td>
+                  <td class="action-cell"><span class="material-icons arrow-icon">chevron_right</span></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+    }
+
+    @if (activeTab === 'members') {
+      <div class="card">
+        <div class="card-header"><span class="card-title">All Members</span></div>
+        @if (members.length === 0) {
+          <div class="empty-state">
+            <span class="material-icons">person_outline</span>
+            <p>No members in this center yet.</p>
+          </div>
+        } @else {
+          <table class="data-table">
+            <thead><tr><th>Customer</th><th>Account No.</th><th>Joined</th></tr></thead>
+            <tbody>
+              @for (m of members; track m.customerId) {
+                <tr class="table-row">
+                  <td>{{ m.customerName }}</td>
+                  <td class="mono muted">{{ m.accountNo }}</td>
+                  <td class="muted">{{ m.joinedDate }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+    }
+  }
 </div>

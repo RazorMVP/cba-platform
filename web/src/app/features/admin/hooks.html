@@ -1,7 +1,129 @@
-<app-page-header title="Hooks & Holidays" icon="webhook" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">webhook</span>
-    <strong>Hooks & Holidays</strong><br>Implementation pending.
-  </p>
+<div class="page">
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">webhook</span>
+      Webhooks
+    </div>
+    <button class="btn-primary" (click)="openCreateModal()">
+      <span class="material-icons">add</span> New Hook
+    </button>
+  </div>
+
+  <div class="card">
+    @if (loading) {
+      <div class="skeleton-card">
+        @for (i of [1,2,3]; track i) { <div class="skeleton skeleton--row"></div> }
+      </div>
+    } @else if (error) {
+      <div class="empty-state">
+        <span class="material-icons">error_outline</span><p>{{ error }}</p>
+      </div>
+    } @else if (hooks.length === 0) {
+      <div class="empty-state">
+        <span class="material-icons">webhook</span>
+        <p>No webhooks configured yet.</p>
+      </div>
+    } @else {
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>URL / Destination</th>
+            <th>Events</th>
+            <th>Status</th>
+            <th class="action-cell">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (h of hooks; track h.id) {
+            <tr class="table-row">
+              <td><strong>{{ h.name }}</strong></td>
+              <td><span class="type-chip type-chip--{{ h.hookType.toLowerCase() }}">{{ h.hookType }}</span></td>
+              <td class="mono muted small">{{ h.url }}</td>
+              <td class="muted">{{ h.events.length }} event(s)</td>
+              <td>
+                <app-status-badge [label]="h.enabled ? 'ACTIVE' : 'INACTIVE'" [variant]="h.enabled ? 'success' : 'neutral'"></app-status-badge>
+              </td>
+              <td class="action-cell">
+                <button class="btn-icon" (click)="openEditModal(h)" title="Edit">
+                  <span class="material-icons">edit</span>
+                </button>
+                <button class="btn-icon btn-icon--danger" (click)="openDeleteModal(h)" title="Delete">
+                  <span class="material-icons">delete</span>
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <div class="table-footer">{{ hooks.length }} hook(s)</div>
+    }
+  </div>
 </div>
+
+@if (activeModal === 'create' || activeModal === 'edit') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">webhook</span>
+        {{ activeModal === 'create' ? 'New Webhook' : 'Edit Webhook' }}
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Name <span class="required">*</span></label>
+          <input class="form-input" [(ngModel)]="formName" placeholder="e.g. Loan Approval Notifier">
+        </div>
+        <div class="form-field">
+          <label class="form-label">Type</label>
+          <select class="form-input" [(ngModel)]="formType">
+            @for (t of hookTypes; track t) { <option [value]="t">{{ t }}</option> }
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">URL / Endpoint <span class="required">*</span></label>
+          <input class="form-input" [(ngModel)]="formUrl" placeholder="https://your-endpoint.com/webhook">
+        </div>
+        <div class="form-field">
+          <label class="form-label">Events <span class="required">*</span></label>
+          <div class="event-grid">
+            @for (e of availableEvents; track e) {
+              <label class="event-chip" [class.event-chip--selected]="formEvents.includes(e)">
+                <input type="checkbox" [checked]="formEvents.includes(e)" (change)="toggleEvent(e)">
+                {{ e }}
+              </label>
+            }
+          </div>
+        </div>
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitModal()" [disabled]="modalWorking">
+          @if (modalWorking) { <span class="spinner"></span> } Save
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (activeModal === 'delete') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon modal__icon--danger">delete</span>
+        Delete Hook
+      </div>
+      <div class="modal__body">
+        <p>Delete webhook <strong>{{ deletingName }}</strong>?</p>
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-danger" (click)="submitDelete()" [disabled]="modalWorking">
+          @if (modalWorking) { <span class="spinner spinner--dark"></span> } Delete
+        </button>
+      </div>
+    </div>
+  </div>
+}

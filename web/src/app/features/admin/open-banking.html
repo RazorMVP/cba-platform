@@ -1,7 +1,143 @@
-<app-page-header title="Open Banking" icon="open_in_new" subtitle="Stub — wire API calls to activate"></app-page-header>
-<div class="card">
-  <p class="text-muted" style="padding:2rem;text-align:center;">
-    <span class="material-icons" style="font-size:48px;display:block;margin-bottom:1rem;opacity:.3">open_in_new</span>
-    <strong>Open Banking</strong><br>Implementation pending.
-  </p>
+<div class="page">
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">open_in_new</span>
+      Third-Party Providers (TPP)
+    </div>
+    <button class="btn-primary" (click)="openCreateModal()">
+      <span class="material-icons">add</span> Register TPP
+    </button>
+  </div>
+
+  <div class="card">
+    @if (loading) {
+      <div class="skeleton-card">
+        @for (i of [1,2,3]; track i) { <div class="skeleton skeleton--row"></div> }
+      </div>
+    } @else if (error) {
+      <div class="empty-state">
+        <span class="material-icons">error_outline</span><p>{{ error }}</p>
+      </div>
+    } @else if (tpps.length === 0) {
+      <div class="empty-state">
+        <span class="material-icons">open_in_new</span>
+        <p>No TPPs registered yet.</p>
+      </div>
+    } @else {
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>TPP Name</th>
+            <th>Client ID</th>
+            <th>Country</th>
+            <th>Allowed Scopes</th>
+            <th>Cert Expiry</th>
+            <th>Status</th>
+            <th class="action-cell">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (t of tpps; track t.id) {
+            <tr class="table-row">
+              <td><strong>{{ t.name }}</strong></td>
+              <td class="mono muted small">{{ t.clientId }}</td>
+              <td>{{ t.country }}</td>
+              <td>
+                <div class="scope-list">
+                  @for (s of t.allowedScopes; track s) {
+                    <span class="scope-chip">{{ s }}</span>
+                  }
+                </div>
+              </td>
+              <td class="muted small">{{ t.certificateExpiry || '—' }}</td>
+              <td>
+                <app-status-badge [label]="t.status" [variant]="statusVariant(t.status)"></app-status-badge>
+              </td>
+              <td class="action-cell">
+                @if (t.status === 'REVOKED' || t.status === 'PENDING') {
+                  <button class="btn-icon btn-icon--success" (click)="activateTpp(t)" title="Activate">
+                    <span class="material-icons">check_circle</span>
+                  </button>
+                }
+                @if (t.status === 'ACTIVE') {
+                  <button class="btn-icon btn-icon--danger" (click)="openDeleteModal(t)" title="Revoke">
+                    <span class="material-icons">block</span>
+                  </button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <div class="table-footer">{{ tpps.length }} TPP(s) registered</div>
+    }
+  </div>
 </div>
+
+@if (activeModal === 'create') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">open_in_new</span>
+        Register Third-Party Provider
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">TPP Name <span class="required">*</span></label>
+          <input class="form-input" [(ngModel)]="form.name" placeholder="e.g. FinTech Bank PLC">
+        </div>
+        <div class="form-field">
+          <label class="form-label">Client ID <span class="required">*</span></label>
+          <input class="form-input" [(ngModel)]="form.clientId" placeholder="Keycloak client ID">
+        </div>
+        <div class="form-field">
+          <label class="form-label">Country</label>
+          <input class="form-input" [(ngModel)]="form.country" placeholder="e.g. GB, KE, GH">
+        </div>
+        <div class="form-field">
+          <label class="form-label">Certificate Expiry</label>
+          <input class="form-input" type="date" [(ngModel)]="form.certificateExpiry">
+        </div>
+        <div class="form-field">
+          <label class="form-label">Allowed Scopes</label>
+          <div class="scope-select">
+            @for (s of availableScopes; track s) {
+              <label class="scope-option" [class.scope-option--selected]="form.allowedScopes.includes(s)">
+                <input type="checkbox" [checked]="form.allowedScopes.includes(s)" (change)="toggleScope(s)">
+                {{ s }}
+              </label>
+            }
+          </div>
+        </div>
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitCreate()" [disabled]="modalWorking">
+          @if (modalWorking) { <span class="spinner"></span> } Register
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (activeModal === 'delete') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon modal__icon--danger">block</span>
+        Revoke TPP Access
+      </div>
+      <div class="modal__body">
+        <p>Revoke access for <strong>{{ deletingName }}</strong>? Their active consents will be invalidated.</p>
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-danger" (click)="submitDelete()" [disabled]="modalWorking">
+          @if (modalWorking) { <span class="spinner spinner--dark"></span> } Revoke
+        </button>
+      </div>
+    </div>
+  </div>
+}

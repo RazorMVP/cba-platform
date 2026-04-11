@@ -59,6 +59,36 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 29 — 2026-04-11
+
+**card-service BIN Management Module verified and gap-filled — two missing endpoints added, request DTO introduced. BUILD SUCCESS (0 errors).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/src/main/java/com/cba/card/bin/BinRangeRequest.java` | NEW — validated request DTO for POST/PUT; replaces raw entity in API surface |
+| `card-service/src/main/java/com/cba/card/bin/BinService.java` | UPDATED — added `findById(UUID)`; `create()`/`update()` now accept `BinRangeRequest` DTO; private `applyRequest()` maps DTO → entity |
+| `card-service/src/main/java/com/cba/card/bin/BinController.java` | UPDATED — added `GET /{id}` (admin detail view); added `GET /{bin}/scheme` (FEP M2M endpoint, returns `{"scheme":"VISA"}` raw map); POST/PUT now use `@Valid BinRangeRequest` |
+
+#### Key Patterns / Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| `GET /api/v1/bins/{bin}/scheme` returns raw `Map<String,String>` | Matches `CardServiceClient.lookupBinScheme()` in fep-service which reads `response.get("scheme")` — no ApiResponse envelope needed for M2M |
+| `GET /api/v1/bins/lookup?pan=` kept alongside `/{bin}/scheme` | `lookup` is a human-facing dev/ops tool (returns ApiResponse); `/{bin}/scheme` is the machine endpoint with the shape fep-service expects |
+| Spring MVC path resolution for literal vs variable | `/bins/all` and `/bins/lookup` (literals) take precedence over `/bins/{id}` (variable) at same depth; `/{bin}/scheme` unambiguous due to 2nd segment |
+| `V3__bin_management.sql` not created | `bin_ranges` table already present in `V1__card_schema.sql`; Flyway migration numbering spec was aspirational — actual table is in V1, which is correct and avoids a redundant migration |
+
+#### Build Verification
+```
+cd card-service && ./mvnw clean compile → BUILD SUCCESS (0 errors, JVM warnings only)
+```
+
+#### Compliance Checklist Update
+- Build Order Step 4 (card-service BIN Management Module) ✅
+
+---
+
 ### Session 28 — 2026-04-11
 
 **card-service core modules complete — dispute, settlement, and terminal simulator packages implemented. BUILD SUCCESS (0 errors). All 7 card-service core packages now have full Java implementations.**

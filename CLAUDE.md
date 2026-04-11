@@ -1286,7 +1286,7 @@ RAISED → RETRIEVAL_REQUESTED → CHARGEBACK_INITIATED
 1. ✅ **fep-service** — ISO 8583 TCP server, jPOS base packager, message router, HSM adapter, EMV handler _(commit `eb398cc`)_
 2. ✅ **fep-service — Scheme Adapter Framework** — `SchemeAdapter` interface, all 5 adapters (Visa/MC/Verve/Afrigo/UnionPay), per-scheme jPOS packager XMLs, `SchemeAdapterFactory` _(commit `eb398cc`)_
 3. ✅ **card-service — core modules** — card, limits, fraud, token, settlement, dispute, terminal simulator REST _(Session 28)_
-4. **card-service — BIN Management Module** — BIN range table, 6/8-digit lookup, scheme routing
+4. ✅ **card-service — BIN Management Module** — BIN range table, 6/8-digit lookup, scheme routing; `GET /{bin}/scheme` M2M endpoint; `BinRangeRequest` DTO _(Session 29)_
 5. **card-service — Interchange Management Module** — rate tables per scheme, qualification engine, settlement netting
 6. **card-service — 3D Secure ACS** — `threeds` package, ACS endpoint, CAVV generation via HSM
 7. **card-service — Card Personalization Bureau** — CDP file generation, bureau job lifecycle
@@ -1369,6 +1369,34 @@ fep-service/src/main/resources/
 | Maven wrapper | fep-service has no `./mvnw` by default; copy from backend: `cp backend/mvnw fep-service/mvnw && chmod +x && cp -r backend/.mvn fep-service/.mvn` |
 | TCP framing | ISO 8583 uses 2-byte big-endian length prefix (excludes the 2-byte header itself). Netty: `LengthFieldBasedFrameDecoder(65535, 0, 2, 0, 2)` + `LengthFieldPrepender(2)` |
 | `@ChannelHandler.Sharable` | Required on `FepMessageHandler` — Netty enforces this at runtime when a single handler instance is added to multiple pipelines |
+
+---
+
+### card-service — BIN Management Module Notes (Session 29)
+
+**Build status**: `cd card-service && ./mvnw clean compile → BUILD SUCCESS (0 errors)`
+
+**Endpoint inventory (BIN module):**
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| `GET` | `/api/v1/bins` | ADMIN | List all BIN ranges (admin UI) |
+| `GET` | `/api/v1/bins/all` | none | Full BIN→scheme export for FEP cache (raw `Map<String,String>`) |
+| `GET` | `/api/v1/bins/lookup?pan=` | none | Dev/ops diagnostic — scheme by PAN prefix (ApiResponse wrapper) |
+| `GET` | `/api/v1/bins/{bin}/scheme` | none | FEP M2M fallback — scheme by BIN string (raw `{"scheme":"VISA"}`) |
+| `GET` | `/api/v1/bins/{id}` | ADMIN | Single BIN range by UUID |
+| `POST` | `/api/v1/bins` | ADMIN | Create BIN range (validated `BinRangeRequest` DTO) |
+| `PUT` | `/api/v1/bins/{id}` | ADMIN | Update BIN range (validated `BinRangeRequest` DTO) |
+| `DELETE` | `/api/v1/bins/{id}` | ADMIN | Soft-delete BIN range (`active=false`) |
+
+**Critical gotchas:**
+
+| Issue | Fix |
+|-------|-----|
+| `GET /api/v1/bins/{bin}/scheme` vs `CardServiceClient.lookupBinScheme()` | fep-service calls this path and reads `response.get("scheme")` — the response must be a raw Map, NOT wrapped in ApiResponse; controller method returns `ResponseEntity<Map<String,String>>` |
+| `GET /api/v1/bins/lookup` vs `/{bin}/scheme` | Different shapes for different consumers: `lookup?pan=` wraps in ApiResponse for human use; `/{bin}/scheme` is bare JSON for machine use |
+| `bin_ranges` in V1, not V3 | CLAUDE.md spec said `V3__bin_management.sql` but the table was already in `V1__card_schema.sql` from initial scaffold — no separate migration needed |
+| `@Cacheable("binLookup")` cache | Spring's simple cache manager handles this automatically when no explicit `CacheManager` bean is declared — no additional config needed |
 
 ---
 

@@ -56,23 +56,36 @@ public class BinService {
         return binRangeRepository.findAll();
     }
 
+    @Transactional(readOnly = true)
+    public BinRange findById(UUID id) {
+        return binRangeRepository.findById(id)
+                .orElseThrow(() -> CbaException.notFound("BIN_NOT_FOUND", "BIN range not found: " + id));
+    }
+
     @Transactional
-    public BinRange create(BinRange range) {
+    public BinRange create(BinRangeRequest req) {
+        BinRange range = new BinRange();
+        applyRequest(range, req);
         return binRangeRepository.save(range);
     }
 
     @Transactional
-    public BinRange update(UUID id, BinRange req) {
+    public BinRange update(UUID id, BinRangeRequest req) {
         BinRange existing = binRangeRepository.findById(id)
                 .orElseThrow(() -> CbaException.notFound("BIN_NOT_FOUND", "BIN range not found: " + id));
-        existing.setBinStart(req.getBinStart());
-        existing.setBinEnd(req.getBinEnd());
-        existing.setScheme(req.getScheme());
-        existing.setProductType(req.getProductType());
-        existing.setCardType(req.getCardType());
-        existing.setCountryCode(req.getCountryCode());
-        existing.setActive(req.isActive());
+        applyRequest(existing, req);
         return binRangeRepository.save(existing);
+    }
+
+    private void applyRequest(BinRange target, BinRangeRequest req) {
+        target.setBinStart(req.binStart());
+        target.setBinEnd(req.binEnd());
+        target.setScheme(req.scheme());
+        target.setProductType(req.productType());
+        target.setCardType(req.cardType());
+        target.setCountryCode(req.countryCode());
+        target.setCurrencyCode(req.currencyCode());
+        target.setActive(req.active());
     }
 
     @Transactional

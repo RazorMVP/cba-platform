@@ -14860,6 +14860,288 @@
       "name": "Card Service",
       "item": [
         {
+          "name": "BIN Management",
+          "item": [
+            {
+              "name": "List All BIN Ranges",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/bins",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "bins"
+                  ]
+                },
+                "description": "Returns all BIN ranges (active and inactive). ADMIN role required."
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"data\": [\n    {\n      \"id\": \"uuid\",\n      \"binStart\": \"40000000\",\n      \"binEnd\": \"49999999\",\n      \"scheme\": \"VISA\",\n      \"productType\": \"CREDIT\",\n      \"cardType\": \"CREDIT\",\n      \"countryCode\": \"USA\",\n      \"currencyCode\": \"840\",\n      \"active\": true\n    }\n  ],\n  \"meta\": {},\n  \"errors\": []\n}"
+                }
+              ]
+            },
+            {
+              "name": "BIN\u2192Scheme Export (FEP Cache)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/bins/all",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "bins",
+                    "all"
+                  ]
+                },
+                "description": "Returns raw Map<binStart, schemeName> for fep-service BIN cache pre-population. No auth required (machine-to-machine). No ApiResponse wrapper."
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"40000000\": \"VISA\",\n  \"51000000\": \"MASTERCARD\",\n  \"50610000\": \"VERVE\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "BIN Lookup by PAN (Dev Tool)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/bins/lookup?pan=4111111111111111",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "bins",
+                    "lookup"
+                  ],
+                  "query": [
+                    {
+                      "key": "pan",
+                      "value": "4111111111111111",
+                      "description": "Full or partial PAN (min 6 digits)"
+                    }
+                  ]
+                },
+                "description": "Admin/dev diagnostic. Returns scheme enum wrapped in ApiResponse."
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"data\": \"VISA\",\n  \"meta\": {},\n  \"errors\": []\n}"
+                }
+              ]
+            },
+            {
+              "name": "Scheme by BIN Prefix (FEP M2M)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/bins/41111111/scheme",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "bins",
+                    "41111111",
+                    "scheme"
+                  ]
+                },
+                "description": "Machine-to-machine endpoint called by fep-service CardServiceClient.lookupBinScheme(). Returns raw {\"scheme\":\"VISA\"} \u2014 no ApiResponse envelope."
+              },
+              "response": [
+                {
+                  "name": "200 OK \u2014 Visa BIN",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"scheme\": \"VISA\"\n}"
+                },
+                {
+                  "name": "200 OK \u2014 Unknown BIN",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"scheme\": \"UNKNOWN\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "Get BIN Range by ID",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/bins/{bin_id}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "bins",
+                    "{{bin_id}}"
+                  ]
+                },
+                "description": "Single BIN range by UUID. ADMIN role required."
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"data\": {\n    \"id\": \"{{bin_id}}\",\n    \"binStart\": \"40000000\",\n    \"binEnd\": \"49999999\",\n    \"scheme\": \"VISA\",\n    \"active\": true\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+                }
+              ]
+            },
+            {
+              "name": "Create BIN Range",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"binStart\": \"65100000\",\n  \"binEnd\": \"65109999\",\n  \"scheme\": \"VERVE\",\n  \"productType\": \"DEBIT\",\n  \"cardType\": \"DEBIT\",\n  \"countryCode\": \"NGA\",\n  \"currencyCode\": \"404\",\n  \"active\": true\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/bins",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "bins"
+                  ]
+                },
+                "description": "Register a new BIN range. binStart/binEnd must be 6 or 8 digits (numeric). ADMIN role required."
+              },
+              "response": [
+                {
+                  "name": "201 Created",
+                  "status": "Created",
+                  "code": 201,
+                  "body": "{\n  \"data\": {\n    \"id\": \"new-uuid\",\n    \"binStart\": \"65100000\",\n    \"binEnd\": \"65109999\",\n    \"scheme\": \"VERVE\",\n    \"active\": true\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+                }
+              ]
+            },
+            {
+              "name": "Update BIN Range",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"binStart\": \"65100000\",\n  \"binEnd\": \"65109999\",\n  \"scheme\": \"VERVE\",\n  \"productType\": \"PREPAID\",\n  \"cardType\": \"PREPAID\",\n  \"countryCode\": \"NGA\",\n  \"currencyCode\": \"404\",\n  \"active\": true\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/v1/bins/{bin_id}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "bins",
+                    "{{bin_id}}"
+                  ]
+                },
+                "description": "Update an existing BIN range. Full replacement \u2014 all fields required. ADMIN role required."
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{}"
+                }
+              ]
+            },
+            {
+              "name": "Delete (Deactivate) BIN Range",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/bins/{bin_id}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "bins",
+                    "{{bin_id}}"
+                  ]
+                },
+                "description": "Soft-delete: sets active=false. BIN range is not physically deleted. ADMIN role required."
+              },
+              "response": [
+                {
+                  "name": "204 No Content",
+                  "status": "No Content",
+                  "code": 204,
+                  "body": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
           "name": "Disputes",
           "item": [
             {

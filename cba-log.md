@@ -59,6 +59,71 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 27 — 2026-04-11
+
+**fep-service Phase 1 complete — real ISO 8583-1987 TCP server fully implemented, compiles clean. All 6 packager XMLs, Netty pipeline, scheme adapters, HSM layer, EMV cryptography, and REST client written.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `fep-service/src/main/resources/iso8583-unionpay.xml` | NEW — China UnionPay packager; QPBOC tags (9F7C/9F77/9F78/9F79) documented; dual-currency DEs |
+| `fep-service/src/main/java/com/cba/fep/FepApplication.java` | NEW — Spring Boot entry point |
+| `fep-service/src/main/java/com/cba/fep/iso/IsoField.java` | NEW — compile-time ISO 8583 field number constants (all 128 DEs) |
+| `fep-service/src/main/java/com/cba/fep/iso/IsoMessageFactory.java` | NEW — one `GenericPackager` per scheme; loaded from classpath XMLs at startup |
+| `fep-service/src/main/java/com/cba/fep/server/FepTcpServer.java` | NEW — Netty `ServerBootstrap` on port 8583; `@PostConstruct`/`@PreDestroy` lifecycle |
+| `fep-service/src/main/java/com/cba/fep/server/FepServerInitializer.java` | NEW — Netty pipeline: `LengthFieldBasedFrameDecoder` (2-byte prefix) → decoder → handler + encoder → `LengthFieldPrepender` |
+| `fep-service/src/main/java/com/cba/fep/server/FepMessageDecoder.java` | NEW — `ByteBuf` → `ISOMsg` via base packager |
+| `fep-service/src/main/java/com/cba/fep/server/FepMessageEncoder.java` | NEW — `ISOMsg` → raw bytes via scheme packager |
+| `fep-service/src/main/java/com/cba/fep/server/FepMessageHandler.java` | NEW — `@Sharable` handler; routes to `MessageRouter`; writes response; sends RC=96 on exception |
+| `fep-service/src/main/java/com/cba/fep/router/MessageRouter.java` | NEW — MTI switch: 0100/0120 → Auth, 0200/0220 → Financial, 0400/0420 → Reversal, 0800 → Network |
+| `fep-service/src/main/java/com/cba/fep/router/AuthorizationHandler.java` | NEW — full 0100/0120 flow: BIN lookup → scheme → PIN verify → ARQC validate → card-service → ARPC embed |
+| `fep-service/src/main/java/com/cba/fep/router/FinancialHandler.java` | NEW — 0200/0220 ATM cash + balance inquiry (DE54 format) |
+| `fep-service/src/main/java/com/cba/fep/router/ReversalHandler.java` | NEW — 0400/0420 idempotent reversal via card-service |
+| `fep-service/src/main/java/com/cba/fep/router/NetworkHandler.java` | NEW — 0800 sign-on/off/echo; 0820 passthrough |
+| `fep-service/src/main/java/com/cba/fep/scheme/SchemeType.java` | NEW — VISA, MASTERCARD, VERVE, AFRIGO, UNIONPAY, UNKNOWN |
+| `fep-service/src/main/java/com/cba/fep/scheme/SchemeAdapter.java` | NEW — pluggable interface: `applyPackager`, `extractPrivateData`, `embedArpc`, `finalizeResponse` |
+| `fep-service/src/main/java/com/cba/fep/scheme/AbstractSchemeAdapter.java` | NEW — default implementations; `appendArpcTag` TLV helper |
+| `fep-service/src/main/java/com/cba/fep/scheme/SchemeAdapterFactory.java` | NEW — BIN cache (8-digit then 6-digit lookup); remote fallback to card-service; adapter registry |
+| `fep-service/src/main/java/com/cba/fep/scheme/VisaSchemeAdapter.java` | NEW — DE60/61/62/63/126 extraction; STIP flag in response DE63 |
+| `fep-service/src/main/java/com/cba/fep/scheme/MastercardSchemeAdapter.java` | NEW — PDS parser (TAG 4+LEN 3+VALUE); DE111–127 extraction; MIP reference in DE111 |
+| `fep-service/src/main/java/com/cba/fep/scheme/VerveSchemeAdapter.java` | NEW — DE62 (Interswitch routing + wallet ref); DE63 (NIBSS routing ID) |
+| `fep-service/src/main/java/com/cba/fep/scheme/AfrigoSchemeAdapter.java` | NEW — DE60 PAPSS routing: source_country(3)+dest_country(3)+institution_code(11)+flags |
+| `fep-service/src/main/java/com/cba/fep/scheme/UnionPaySchemeAdapter.java` | NEW — DE60-63 CUP fields; QPBOC tag parser (9F7C/9F77/9F78/9F79); dual-currency detection |
+| `fep-service/src/main/java/com/cba/fep/scheme/UnknownSchemeAdapter.java` | NEW — fallback; sets RC=57 (Transaction Not Permitted) |
+| `fep-service/src/main/java/com/cba/fep/hsm/HsmAdapter.java` | NEW — interface: verifyPin, verifyCvv, generateMac, verifyMac, translatePinBlock, generateSessionKey |
+| `fep-service/src/main/java/com/cba/fep/hsm/SoftwareHsmAdapter.java` | NEW — Bouncy Castle TDES; dev-only; ISO 9564-1 Format 0 PIN block XOR; CBC-MAC |
+| `fep-service/src/main/java/com/cba/fep/hsm/ThalesPayShieldAdapter.java` | NEW — stub TCP connection to payShield; command protocol documented; `sendCommand` wired |
+| `fep-service/src/main/java/com/cba/fep/emv/EmvTag.java` | NEW — EMV Book 3 tag constants (ARQC/ATC/TVR/IAD + CUP QPBOC extensions) |
+| `fep-service/src/main/java/com/cba/fep/emv/EmvData.java` | NEW — immutable record holding parsed TLV map; `getTagHex`, `getTagNumeric` helpers |
+| `fep-service/src/main/java/com/cba/fep/emv/EmvDataParser.java` | NEW — BER-TLV parser: 1/2-byte tags, short/long-form lengths, recursive constructed unwrap |
+| `fep-service/src/main/java/com/cba/fep/emv/ArqcValidator.java` | NEW — EMV session key derivation (ATC + IMK); CBC-MAC ARQC validation per Book 2 Annex A1 |
+| `fep-service/src/main/java/com/cba/fep/emv/ArpcGenerator.java` | NEW — ARPC Method 1: `3DES-MAC(SK, ARQC XOR ARC)` |
+| `fep-service/src/main/java/com/cba/fep/auth/ResponseCode.java` | NEW — ISO 8583 DE39 constants (approval, referral, decline, system error codes) |
+| `fep-service/src/main/java/com/cba/fep/auth/AuthorizationRequest.java` | NEW — DTO record: pan, amount, scheme, pinVerified, arqcValid, emvData, schemeData |
+| `fep-service/src/main/java/com/cba/fep/auth/AuthorizationResult.java` | NEW — DTO record: responseCode, authorizationCode, approved, standIn, availableBalance |
+| `fep-service/src/main/java/com/cba/fep/auth/CardServiceClient.java` | NEW — REST client: authorize, recordAdvice, reverse, detokenize, lookupBinScheme, getAllBinMappings |
+| `fep-service/src/main/java/com/cba/fep/config/FepConfig.java` | NEW — `RestTemplate` bean; `@EnableScheduling` |
+| `fep-service/src/main/java/com/cba/fep/config/BinCacheRefreshScheduler.java` | NEW — 5-min scheduled BIN cache refresh |
+| `fep-service/pom.xml` | UPDATED — added `maven-compiler-plugin` with explicit `annotationProcessorPaths` for Lombok |
+| `fep-service/mvnw` + `.mvn/` | ADDED — Maven wrapper copied from backend |
+
+#### Key Patterns / Decisions
+- **2-byte length-prefix framing** — standard TPDU format; `LengthFieldBasedFrameDecoder(65535, 0, 2, 0, 2)` strips it before ISO unpack
+- **Scheme adapter pattern** — `SchemeAdapterFactory.detectScheme(pan)` does 8-digit → 6-digit BIN cache lookup + remote fallback; zero core changes for new schemes
+- **BIN cache** — `ConcurrentHashMap` pre-populated at startup; 5-minute scheduled refresh; avoids blocking the auth path
+- **Software HSM** — dev-only Bouncy Castle TDES; activated by `HSM_PROVIDER=SOFTWARE`; Thales adapter activated by `HSM_PROVIDER=THALES`
+- **ARQC/ARPC** — session key derived per EMV Book 2 Annex A1.3; Method 1 ARPC generation
+- **Record accessors** — `AuthorizationResult` is a Java record; accessors are `approved()`, `responseCode()`, `authorizationCode()` — not `isApproved()` / `getResponseCode()`
+
+#### Build Verification
+```
+./mvnw clean compile  →  BUILD SUCCESS (0 errors)
+```
+
+#### Next: card-service implementation
+
+---
+
 ### Session 26 — 2026-04-11
 
 **Multi-scheme card support scoped — Visa, Mastercard, Verve, Afrigo, China UnionPay + future-proof adapter framework. American Express explicitly removed from scope. Six new modules added to card architecture. No code written yet.**

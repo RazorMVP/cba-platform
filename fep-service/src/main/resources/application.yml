@@ -1,0 +1,66 @@
+spring:
+  application:
+    name: fep-service
+  jackson:
+    default-property-inclusion: non_null
+
+server:
+  port: 8082
+
+# ISO 8583 TCP socket server
+fep:
+  tcp:
+    port: 8583
+    boss-threads: 1
+    worker-threads: 4
+    # 2-byte big-endian length header (standard ATM network framing)
+    frame-length-bytes: 2
+    max-frame-length: 65535
+    connect-timeout-ms: 30000
+    idle-timeout-seconds: 300
+
+  # card-service base URL — FEP calls card-service for auth decisions and BIN lookup
+  card-service:
+    base-url: ${CARD_SERVICE_URL:http://localhost:8081}
+    connect-timeout-ms: 2000
+    read-timeout-ms: 5000
+
+  # HSM adapter selection: SOFTWARE (dev) or THALES (prod)
+  hsm:
+    provider: ${HSM_PROVIDER:SOFTWARE}
+    thales:
+      host: ${HSM_HOST:localhost}
+      port: ${HSM_PORT:9999}
+      lmk-check-value: ${HSM_LMK_CHECK_VALUE:AABBCCDDEEFF0011}
+      connect-timeout-ms: 1000
+      response-timeout-ms: 3000
+
+  # ISO 8583 packager resources (classpath)
+  packager:
+    base: classpath:iso8583-base.xml
+    visa: classpath:iso8583-visa.xml
+    mastercard: classpath:iso8583-mastercard.xml
+    verve: classpath:iso8583-verve.xml
+    afrigo: classpath:iso8583-afrigo.xml
+    unionpay: classpath:iso8583-unionpay.xml
+
+  # Network Management
+  network:
+    institution-id: ${FEP_INSTITUTION_ID:99999999}
+    # Sign-on required before processing live transactions
+    require-signon: ${FEP_REQUIRE_SIGNON:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.cba.fep: DEBUG
+    io.netty: WARN
+    org.jpos: WARN

@@ -1602,6 +1602,12 @@ card-service/src/main/java/com/cba/card/openbanking/
 | WebClient `onErrorReturn(500)` | Catches all transport errors (DNS failure, connection refused, timeout) and treats them as HTTP 500 for the retry decision path — no uncaught exceptions reach the `@Async` thread |
 | `@Scheduled(fixedDelay=60_000)` vs `fixedRate` | `fixedDelay` waits 60 s AFTER the previous run completes — correct for a DB polling job that must not overlap on slow DB hosts |
 
+**API documentation updated (Session 38 — commit `dd885ac`):**
+
+`docs/cba-postman-collection-v2.json` — NEW folder "Card Open Banking API" inserted inside the Card Service folder. Contains 6 sub-folders and 18 requests (one per endpoint), each with method, URL, headers (`Authorization: ApiKey cba_{key}` or `Bearer {jwt}`), example request body, approved + error response examples, and 7 language code samples (cURL, Java, JavaScript, Python, Go, Ruby, C#).
+
+`docs/api-reference.html` — NEW section `#card-openbanking-api` added after the 3D Secure section. Contains: auth model explanation (dual-mode ApiKey vs JWT), 6 endpoint sub-tables (API Key Mgmt / Card Issuance / Card Controls / Auth History / Spending Analytics / Webhook Mgmt), 15-event webhook event catalogue table, HMAC-SHA256 signature note (`X-CBA-Signature: sha256={hex}`), exponential backoff schedule (15 s → 60 s → 5 m → 30 m → 2 h). 18 new rows added to the Full API Matrix table under a `<!-- Card Open Banking API -->` comment.
+
 ---
 
 ### card-service — Bureau Module Implementation Notes (Session 33)

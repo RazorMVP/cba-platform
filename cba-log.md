@@ -60,7 +60,7 @@ _None — all Phase 1 backend modules are now complete._
 ## Change History
 
 ### Session 38 — 2026-04-11
-**card-service Build Order Step 9 — Open Banking layer: full `/card-api/v1/` Card API, dual-mode API Key + FAPI 2.0 JWT auth, async webhook delivery with exponential backoff, MCC spending analytics. BUILD SUCCESS (0 errors).**
+**card-service Build Order Step 9 — Open Banking layer: full `/card-api/v1/` Card API, dual-mode API Key + FAPI 2.0 JWT auth, async webhook delivery with exponential backoff, MCC spending analytics. BUILD SUCCESS (0 errors). Commits: `dc61221` (code), `dd885ac` (API docs).**
 
 #### New/Updated Files
 | File | Change |
@@ -82,7 +82,9 @@ _None — all Phase 1 backend modules are now complete._
 | `card-service/.../config/SecurityConfig.java` | MODIFIED: added `WebClient @Bean`; added `@Order(2) cardApiChain` (`/card-api/v1/**`, `ApiKeyAuthFilter` + JWT); renumbered all chains (3DS=0, internal=1, card-api=2, JWT-all=3) |
 | `card-service/.../card/CardService.java` | MODIFIED: 4-param `issueCard` BaaS overload (auto PAN/expiry/CVV); `findAll()`; webhook events for CARD.ISSUED/BLOCKED/UNBLOCKED/ACTIVATED; `@Lazy WebhookService` |
 | `card-service/.../auth/CardAuthorizationService.java` | MODIFIED: `changePin()` method; `logAndReturn()` fires `AUTHORIZATION.APPROVED/DECLINED`; `@Lazy WebhookService` |
-| `CLAUDE.md` | Build Order Step 9 marked ✅; full Session 38 implementation notes added (package structure, 18-endpoint table, SecurityConfig, webhook events, gotchas) |
+| `CLAUDE.md` | Build Order Step 9 marked ✅; full Session 38 implementation notes added (package structure, 18-endpoint table, SecurityConfig, webhook events, gotchas); API doc update noted |
+| `docs/cba-postman-collection-v2.json` | NEW folder: "Card Open Banking API" inside Card Service — 18 requests across 6 sub-folders (API Key Mgmt, Card Issuance, Card Controls, Auth History, Spending Analytics, Webhook Mgmt); each request includes method, headers, example body, approved + declined response examples |
+| `docs/api-reference.html` | NEW section: `card-openbanking-api` with 6 sub-tables, 15-event webhook catalogue, HMAC-SHA256 verification note, exponential backoff schedule; 18 new rows added to Full API Matrix |
 
 #### Key Patterns / Decisions
 - SHA-256 (not PBKDF2) for API key hashing — tokens are 256-bit random; PBKDF2 is for user passwords; direct hash lookup, no salt

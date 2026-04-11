@@ -1283,8 +1283,8 @@ RAISED → RETRIEVAL_REQUESTED → CHARGEBACK_INITIATED
 
 ### Build Order
 
-1. **fep-service** — ISO 8583 TCP server, jPOS base packager, message router, HSM adapter, EMV handler
-2. **fep-service — Scheme Adapter Framework** — `SchemeAdapter` interface, all 5 adapters (Visa/MC/Verve/Afrigo/UnionPay), per-scheme jPOS packager XMLs, `SchemeAdapterFactory`
+1. ✅ **fep-service** — ISO 8583 TCP server, jPOS base packager, message router, HSM adapter, EMV handler _(commit `eb398cc`)_
+2. ✅ **fep-service — Scheme Adapter Framework** — `SchemeAdapter` interface, all 5 adapters (Visa/MC/Verve/Afrigo/UnionPay), per-scheme jPOS packager XMLs, `SchemeAdapterFactory` _(commit `eb398cc`)_
 3. **card-service — core modules** — card, limits, fraud, token, settlement, dispute, terminal simulator REST
 4. **card-service — BIN Management Module** — BIN range table, 6/8-digit lookup, scheme routing
 5. **card-service — Interchange Management Module** — rate tables per scheme, qualification engine, settlement netting
@@ -1296,6 +1296,79 @@ RAISED → RETRIEVAL_REQUESTED → CHARGEBACK_INITIATED
 11. **Angular `CardsModule`** — 12 screens
 12. **Docker Compose** — `card-service` + `fep-service` service definitions
 13. **Infrastructure / K8s** — new deployment + service manifests
+
+---
+
+### fep-service — Implementation Notes (Session 27)
+
+**Build status**: `./mvnw clean compile → BUILD SUCCESS (0 errors)` — commit `eb398cc`
+
+**Verified package structure:**
+
+```
+fep-service/src/main/java/com/cba/fep/
+├── FepApplication.java
+├── server/
+│   ├── FepTcpServer.java           — @PostConstruct/@PreDestroy Netty lifecycle; port from ${fep.tcp.port:8583}
+│   ├── FepServerInitializer.java   — ChannelInitializer; 2-byte LengthFieldBasedFrameDecoder(65535,0,2,0,2)
+│   └── FepMessageHandler.java      — @ChannelHandler.Sharable; RC=96 fallback on unhandled exception
+├── iso/
+│   ├── IsoField.java               — compile-time DE constants (MTI=0 … DE128)
+│   └── IsoMessageFactory.java      — EnumMap<SchemeType, GenericPackager> loaded from classpath XMLs
+├── router/
+│   ├── MessageRouter.java          — Java 21 switch on MTI string; RC=30 for unknown MTI
+│   ├── AuthorizationHandler.java   — 0100/0120 handler with full PIN+EMV+detokenize flow
+│   ├── FinancialHandler.java       — 0200/0220 handler; DE54 balance format: "40"+ccy+"C"+amount(12)
+│   ├── ReversalHandler.java        — 0400/0420; DE90 original data elements
+│   └── NetworkHandler.java         — 0800 sign-on/sign-off/echo; DE70 network codes
+├── scheme/
+│   ├── SchemeType.java             — enum: VISA, MASTERCARD, VERVE, AFRIGO, UNIONPAY, UNKNOWN
+│   ├── SchemeAdapter.java          — interface: applyPackager, extractPrivateData, embedArpc, finalizeResponse
+│   ├── AbstractSchemeAdapter.java  — explicit constructor (NOT @RequiredArgsConstructor); Logger via LoggerFactory.getLogger(getClass())
+│   ├── SchemeAdapterFactory.java   — List<SchemeAdapter> Spring injection; ConcurrentHashMap BIN cache; public refreshBinCache()
+│   ├── VisaSchemeAdapter.java      — DE60-63 private DEs; STIP stand-in via result.standIn() (not isStandIn())
+│   ├── MastercardSchemeAdapter.java— DE48 PDS parser TAG(4)+LEN(3)+VALUE; DE111-125 MIP; result.mipReference()
+│   ├── VerveSchemeAdapter.java     — DE62-63 Interswitch subelements
+│   ├── AfrigoSchemeAdapter.java    — PAPSS minimal private DEs
+│   ├── UnionPaySchemeAdapter.java  — QPBOC tags 9F7C/9F77/9F78/9F79; dual-currency DE49≠DE50 detection
+│   └── UnknownSchemeAdapter.java   — fallback; extracts no private data
+├── hsm/
+│   ├── HsmAdapter.java             — interface: verifyPin, verifyCvv, generateArpc, translatePinBlock, generateMac, generateKcv
+│   ├── SoftwareHsmAdapter.java     — @ConditionalOnProperty(fep.hsm.provider=SOFTWARE, matchIfMissing=true); Bouncy Castle TDES; dev only
+│   └── ThalesPayShieldAdapter.java — @ConditionalOnProperty(fep.hsm.provider=THALES); TCP stubs; 2-byte length framing
+├── emv/
+│   ├── EmvDataParser.java          — BER-TLV parser; multi-byte tags; long-form lengths; constructed tag recursion
+│   ├── ArqcValidator.java          — EMV Book 2 session key derivation; CBC-MAC; ISO/IEC 7816-4 padding (0x80 then 0x00s)
+│   └── ArpcGenerator.java          — Method 1: 3DES-MAC(SK, ARQC XOR ARC)
+└── auth/
+    ├── AuthorizationRequest.java   — @Builder @With record; canonical constructor defaults scheme to UNKNOWN
+    ├── AuthorizationResult.java    — record; factory methods approve/decline/systemError; plain-name accessors (approved(), responseCode())
+    └── CardServiceClient.java      — RestTemplate; all calls catch RestClientException → systemError() fallback
+```
+
+**Resources:**
+```
+fep-service/src/main/resources/
+├── application.yml
+├── iso8583-1987-fields.xml     — base packager (pre-BIN-lookup unpack)
+├── iso8583-visa.xml            — Visa private DEs 60-63, 126
+├── iso8583-mastercard.xml      — MC DE48 PDS structure, DE111-127
+├── iso8583-verve.xml           — Verve/Interswitch DE62-63
+├── iso8583-afrigo.xml          — Afrigo/PAPSS (minimal private DEs)
+└── iso8583-unionpay.xml        — CUP DE60-63, DE36/40/46-47/50; QPBOC tags in DE55 comment
+```
+
+**Critical gotchas for future sessions:**
+
+| Issue | Fix |
+|-------|-----|
+| Lombok not processing in fep-service | `maven-compiler-plugin` must declare `annotationProcessorPaths` with Lombok 1.18.38 explicitly — Spring Boot parent default does NOT reliably activate it |
+| `@RequiredArgsConstructor` on abstract class | Does not work reliably; use explicit constructor + `LoggerFactory.getLogger(getClass())` instead of `@Slf4j` |
+| Java record accessors | Records generate plain-name accessors: `approved()` not `isApproved()`, `responseCode()` not `getResponseCode()`. Applies to `AuthorizationResult` and all other records in fep-service |
+| `refreshBinCache()` visibility | Must be `public` — the `BinCacheRefreshScheduler` is in a different package (`com.cba.fep.config`) |
+| Maven wrapper | fep-service has no `./mvnw` by default; copy from backend: `cp backend/mvnw fep-service/mvnw && chmod +x && cp -r backend/.mvn fep-service/.mvn` |
+| TCP framing | ISO 8583 uses 2-byte big-endian length prefix (excludes the 2-byte header itself). Netty: `LengthFieldBasedFrameDecoder(65535, 0, 2, 0, 2)` + `LengthFieldPrepender(2)` |
+| `@ChannelHandler.Sharable` | Required on `FepMessageHandler` — Netty enforces this at runtime when a single handler instance is added to multiple pipelines |
 
 ---
 

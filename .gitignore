@@ -8,6 +8,7 @@ Thumbs.db
 
 # ── Environment / Secrets ─────────────────────────────────────────────────────
 .env
+.mcp.json
 .env.local
 .env.*.local
 *.env

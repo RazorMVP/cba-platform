@@ -1877,6 +1877,66 @@ difference = actual_cash - closing_balance</pre>
 <p><strong>ECI indicator values:</strong> <code>05</code> = fully authenticated (frictionless or challenge success); <code>06</code> = attempted; <code>07</code> = not authenticated.</p>
 <p><strong>CAVV algorithm (software / dev):</strong> <code>cardKey = HMAC-SHA256(masterKey, cardId)</code> → <code>raw = HMAC-SHA256(cardKey, acsTransId+amount12+currency3+eci2)</code> → <code>cavv = Base64(raw[0..19])</code>. Production uses HSM.</p>
 <p><strong>AReq body fields:</strong> <code>threeDSServerTransID</code>, <code>dsTransID</code>, <code>acctNumber</code>, <code>cardExpiryDate</code>, <code>messageCategory</code> (01=PA, 02=NPA), <code>purchaseAmount</code>, <code>purchaseCurrency</code>, <code>merchantName</code>, <code>deviceChannel</code> (02=browser).</p>
+
+<h3 id="card-openbanking-api">Card Open Banking API</h3>
+<p>BaaS-grade Card API hosted at <code>/card-api/v1/</code> on card-service (port 8081). Dual-mode authentication:</p>
+<ul>
+  <li><strong>M2M / BaaS integrators:</strong> <code>Authorization: ApiKey cba_{key}</code> — key issued via POST /card-api/v1/api-keys</li>
+  <li><strong>Customer-facing consent (FAPI 2.0):</strong> <code>Authorization: Bearer {jwt}</code> — standard Keycloak JWT</li>
+</ul>
+<p>API keys are stored as SHA-256 hashes. The raw key is shown exactly once on creation. Webhook payloads are signed with <code>X-CBA-Signature: sha256={HMAC-SHA256(payload, secret)}</code>.</p>
+
+<h4>API Key Management (ADMIN only)</h4>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/card-api/v1/api-keys</code></td><td>Issue API key — raw key returned once (cba_ prefix, 256-bit random, SHA-256 stored)</td><td>ADMIN</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/api-keys</code></td><td>List active keys — hash/value never returned</td><td>ADMIN</td></tr>
+<tr><td><span class="method delete">DELETE</span></td><td><code>/card-api/v1/api-keys/{id}</code></td><td>Revoke key immediately</td><td>ADMIN</td></tr>
+</table>
+
+<h4>Card Issuance (API Key / BaaS)</h4>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/card-api/v1/cards</code></td><td>Issue virtual or physical card — PAN/expiry/CVV auto-generated from product BIN in dev; bureau-provided in production. virtual=true → ACTIVE; virtual=false → ISSUED + physical order</td><td>API_KEY, ADMIN, TELLER</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/cards</code></td><td>List cards; optional <code>?customerId=</code> filter</td><td>API_KEY, ADMIN, TELLER</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/cards/{id}</code></td><td>Full card detail including status, PIN state, limit summary</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
+</table>
+
+<h4>Card Controls (FAPI 2.0 / API Key)</h4>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td><span class="method put">PUT</span></td><td><code>/card-api/v1/cards/{id}/controls</code></td><td>Freeze/unfreeze (maps to BLOCK/UNBLOCK state machine command); advisory flags: contactlessEnabled, cnpEnabled, internationalEnabled</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td><span class="method put">PUT</span></td><td><code>/card-api/v1/cards/{id}/limits</code></td><td>Update daily purchase, daily withdrawal, per-transaction, and monthly limits (NUMERIC 19,4)</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/card-api/v1/cards/{id}/pin/change</code></td><td>PIN change via HSM adapter — ISO-0 pin blocks; HSM verifies old (CA/DC) before setting new (A2); PIN never logged</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
+</table>
+
+<h4>Authorization &amp; Transaction History</h4>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/cards/{id}/authorizations</code></td><td>Full authorization log: approved + declined, fraud scores, response codes, entry mode, MCC, merchant. Ordered newest-first.</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/cards/{id}/transactions</code></td><td>Settled transactions only (response_code=00 filter on authorization log)</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
+</table>
+
+<h4>Spending Analytics (API Key)</h4>
+<p>All analytics cover approved transactions only (<code>response_code = '00'</code>). Accept optional <code>?from=YYYY-MM-DD&amp;to=YYYY-MM-DD&amp;currency={ISO4217numeric}</code> parameters.</p>
+<p>MCC category buckets: Dining (5812–5814), Travel (4111–7512), Fuel (5541–5983), Grocery (5411–5499), Healthcare (5047–8099), Entertainment (7832–7999), Retail (5600–5999), Utilities (4812–4900), ATM/Cash (6010–6012), Other.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/cards/{id}/analytics/by-category</code></td><td>Total spend and transaction count grouped by MCC category. Results merged in Java via Map.merge()</td><td>API_KEY, ADMIN</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/cards/{id}/analytics/by-merchant</code></td><td>Top 20 merchants by total spend (merchant_id + merchant_name grouping)</td><td>API_KEY, ADMIN</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/analytics/summary</code></td><td>Monthly aggregate: approvedTotal, approvedCount, declinedCount, avgTransactionAmount. Requires <code>?cardId=</code></td><td>API_KEY, ADMIN</td></tr>
+</table>
+
+<h4>Webhook Management (API Key)</h4>
+<p>Delivery mechanism: immediate <code>@Async</code> WebClient POST + <code>@Scheduled</code> (60s) retry picker. Exponential backoff: 15s → 60s → 5m → 30m → 2h (max 5 attempts). HMAC-SHA256 signature in <code>X-CBA-Signature: sha256={hex}</code>. Empty <code>events</code> array subscribes to all event types.</p>
+<p><strong>Webhook Event Catalogue:</strong> AUTHORIZATION.APPROVED, AUTHORIZATION.DECLINED, AUTHORIZATION.REVERSED, CARD.ISSUED, CARD.ACTIVATED, CARD.BLOCKED, CARD.UNBLOCKED, CARD.EXPIRED, CARD.PIN_CHANGED, CARD.LIMIT_CHANGED, FRAUD.RULE_TRIGGERED, FRAUD.CARD_STEP_UP, FRAUD.CARD_DECLINED_HIGH_RISK, DISPUTE.RAISED, DISPUTE.RESOLVED</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/card-api/v1/webhooks</code></td><td>Register webhook — secret returned once; use for HMAC verification. Empty events = all event types.</td><td>API_KEY, ADMIN</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/webhooks</code></td><td>List active webhooks (secret never returned)</td><td>API_KEY, ADMIN</td></tr>
+<tr><td><span class="method delete">DELETE</span></td><td><code>/card-api/v1/webhooks/{id}</code></td><td>Deregister webhook; stops future event delivery</td><td>API_KEY, ADMIN</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/webhooks/{id}/deliveries</code></td><td>Last 100 delivery attempts: status (DELIVERED/FAILED), HTTP status, attempt count, retry schedule</td><td>API_KEY, ADMIN</td></tr>
+</table>
 </section>
 
 <!-- FULL API MATRIX ─────────────────────────────────────────────────────── -->
@@ -2211,6 +2271,25 @@ difference = actual_cash - closing_balance</pre>
 <tr><td>POST</td><td>/api/v1/provisioningcriteria</td><td>Create criteria + definitions</td><td>ADMIN</td></tr>
 <tr><td>PUT</td><td>/api/v1/provisioningcriteria/{id}</td><td>Update criteria (replaces definitions)</td><td>ADMIN</td></tr>
 <tr><td>DELETE</td><td>/api/v1/provisioningcriteria/{id}</td><td>Delete provisioning criteria</td><td>ADMIN</td></tr>
+<!-- Card Open Banking API — /card-api/v1/ (card-service :8081) -->
+<tr><td>POST</td><td>/card-api/v1/api-keys</td><td>Issue API key — raw key shown once; SHA-256 stored</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/card-api/v1/api-keys</td><td>List active API keys (hashed)</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/card-api/v1/api-keys/{id}</td><td>Revoke API key</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/card-api/v1/cards</td><td>Issue card (BaaS — auto PAN/expiry/CVV from BIN)</td><td>API_KEY, ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/card-api/v1/cards</td><td>List cards; optional ?customerId= filter</td><td>API_KEY, ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/card-api/v1/cards/{id}</td><td>Get card detail</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>PUT</td><td>/card-api/v1/cards/{id}/controls</td><td>Freeze/unfreeze; advisory contactless/CNP/international flags</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>PUT</td><td>/card-api/v1/cards/{id}/limits</td><td>Update spending limits (daily/per-txn/monthly)</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>POST</td><td>/card-api/v1/cards/{id}/pin/change</td><td>PIN change via HSM (ISO-0 pin blocks)</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>GET</td><td>/card-api/v1/cards/{id}/authorizations</td><td>Full authorization log (approved + declined)</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>GET</td><td>/card-api/v1/cards/{id}/transactions</td><td>Settled transactions (response_code=00 filter)</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>GET</td><td>/card-api/v1/cards/{id}/analytics/by-category</td><td>Spend by MCC category; ?from&amp;to&amp;currency</td><td>API_KEY, ADMIN</td></tr>
+<tr><td>GET</td><td>/card-api/v1/cards/{id}/analytics/by-merchant</td><td>Top 20 merchants by spend; ?from&amp;to&amp;currency</td><td>API_KEY, ADMIN</td></tr>
+<tr><td>GET</td><td>/card-api/v1/analytics/summary</td><td>Monthly aggregate stats; ?cardId&amp;from&amp;to&amp;currency</td><td>API_KEY, ADMIN</td></tr>
+<tr><td>POST</td><td>/card-api/v1/webhooks</td><td>Register webhook; secret shown once</td><td>API_KEY, ADMIN</td></tr>
+<tr><td>GET</td><td>/card-api/v1/webhooks</td><td>List active webhooks</td><td>API_KEY, ADMIN</td></tr>
+<tr><td>DELETE</td><td>/card-api/v1/webhooks/{id}</td><td>Deregister webhook</td><td>API_KEY, ADMIN</td></tr>
+<tr><td>GET</td><td>/card-api/v1/webhooks/{id}/deliveries</td><td>Webhook delivery log (last 100 attempts)</td><td>API_KEY, ADMIN</td></tr>
 </table>
 
 <h3>Planned (Not Yet Implemented)</h3>

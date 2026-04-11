@@ -16116,6 +16116,510 @@
             }
           ],
           "description": "3D Secure 2.x Access Control Server (ACS) endpoints. Not JWT-protected — called by the scheme Directory Server (mTLS) and cardholder browser. Implements frictionless (amount \u2264 $50) and OTP challenge flows."
+        },
+        {
+          "name": "Card Open Banking API",
+          "item": [
+            {
+              "name": "API Key Management",
+              "item": [
+                {
+                  "name": "Issue API Key",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Authorization", "value": "Bearer {{access_token}}" },
+                      { "key": "Content-Type", "value": "application/json" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"My BaaS Integration\",\n  \"scopes\": [\"cards:read\", \"cards:write\", \"webhooks:manage\"]\n}"
+                    },
+                    "url": {
+                      "raw": "{{cardServiceHost}}/card-api/v1/api-keys",
+                      "host": ["{{cardServiceHost}}"],
+                      "path": ["card-api", "v1", "api-keys"]
+                    },
+                    "description": "Issue a new API key for M2M / BaaS integration. The raw key (cba_... prefix) is returned exactly once — store it immediately, it cannot be retrieved again. Key is stored as SHA-256 hash. ADMIN role required.\n\nCode samples (cURL):\ncurl -X POST {{cardServiceHost}}/card-api/v1/api-keys -H 'Authorization: Bearer TOKEN' -H 'Content-Type: application/json' -d '{\"name\":\"My BaaS Integration\",\"scopes\":[\"cards:read\"]}'\n\nJava (HttpClient):\nHttpRequest.newBuilder().uri(URI.create(base+\"/card-api/v1/api-keys\")).header(\"Authorization\",\"Bearer \"+token).POST(BodyPublishers.ofString(body)).build();\n\nJavaScript (fetch):\nfetch(base+'/card-api/v1/api-keys',{method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({name:'My BaaS Integration',scopes:[]})})\n\nPython (requests):\nrequests.post(base+'/card-api/v1/api-keys',headers={'Authorization':'Bearer '+token},json={'name':'My BaaS Integration','scopes':[]})\n\nGo (net/http):\nbodyJson,_:=json.Marshal(map[string]interface{}{\"name\":\"My BaaS Integration\",\"scopes\":[]string{}}); req,_:=http.NewRequest(\"POST\",base+\"/card-api/v1/api-keys\",bytes.NewBuffer(bodyJson)); req.Header.Set(\"Authorization\",\"Bearer \"+token)\n\nPHP (curl):\n$ch=curl_init(); curl_setopt($ch,CURLOPT_URL,$base.'/card-api/v1/api-keys'); curl_setopt($ch,CURLOPT_POST,true); curl_setopt($ch,CURLOPT_POSTFIELDS,json_encode(['name'=>'My BaaS Integration','scopes'=>[]])); curl_setopt($ch,CURLOPT_HTTPHEADER,['Authorization: Bearer '.$token,'Content-Type: application/json']);\n\nRuby (net/http):\nNet::HTTP.post(URI(base+'/card-api/v1/api-keys'),{name:'My BaaS Integration',scopes:[]}.to_json,{'Authorization'=>'Bearer '+token,'Content-Type'=>'application/json'})\n\nC# (HttpClient):\nawait client.PostAsJsonAsync(base+\"/card-api/v1/api-keys\",new{name=\"My BaaS Integration\",scopes=new string[]{}});"
+                  },
+                  "response": [
+                    {
+                      "name": "201 Created",
+                      "status": "Created",
+                      "code": 201,
+                      "body": "{\n  \"data\": {\n    \"apiKey\": {\n      \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n      \"name\": \"My BaaS Integration\",\n      \"keyHash\": \"a3f5c2d...(SHA-256 hex)\",\n      \"active\": true,\n      \"scopes\": [\"cards:read\", \"cards:write\", \"webhooks:manage\"],\n      \"createdAt\": \"2026-04-11T12:00:00Z\"\n    },\n    \"rawKey\": \"cba_A7kF3mNqP2xZ...(shown once only)\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+                    }
+                  ]
+                },
+                {
+                  "name": "List API Keys",
+                  "request": {
+                    "method": "GET",
+                    "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+                    "url": {
+                      "raw": "{{cardServiceHost}}/card-api/v1/api-keys",
+                      "host": ["{{cardServiceHost}}"],
+                      "path": ["card-api", "v1", "api-keys"]
+                    },
+                    "description": "List all active API keys. Key values are never returned after creation — metadata only. ADMIN role required."
+                  },
+                  "response": [
+                    {
+                      "name": "200 OK",
+                      "status": "OK",
+                      "code": 200,
+                      "body": "{\n  \"data\": [\n    {\n      \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n      \"name\": \"My BaaS Integration\",\n      \"active\": true,\n      \"scopes\": [\"cards:read\", \"cards:write\"],\n      \"lastUsedAt\": \"2026-04-11T10:30:00Z\",\n      \"createdAt\": \"2026-04-11T08:00:00Z\"\n    }\n  ],\n  \"meta\": {},\n  \"errors\": []\n}"
+                    }
+                  ]
+                },
+                {
+                  "name": "Revoke API Key",
+                  "request": {
+                    "method": "DELETE",
+                    "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+                    "url": {
+                      "raw": "{{cardServiceHost}}/card-api/v1/api-keys/:id",
+                      "host": ["{{cardServiceHost}}"],
+                      "path": ["card-api", "v1", "api-keys", ":id"],
+                      "variable": [{ "key": "id", "value": "550e8400-e29b-41d4-a716-446655440000" }]
+                    },
+                    "description": "Revoke an API key immediately. All subsequent requests using this key will be rejected with 401. ADMIN role required."
+                  },
+                  "response": [
+                    { "name": "200 OK", "status": "OK", "code": 200, "body": "{ \"data\": null, \"meta\": {}, \"errors\": [] }" }
+                  ]
+                }
+              ],
+              "description": "API key lifecycle management for M2M / BaaS integrators. All endpoints require ADMIN JWT. Keys use SHA-256 hashing; 256-bit random tokens with cba_ prefix."
+            },
+            {
+              "name": "Card Issuance",
+              "item": [
+                {
+                  "name": "Issue Card",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Authorization", "value": "ApiKey {{api_key}}" },
+                      { "key": "Content-Type", "value": "application/json" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"customerId\": \"{{customerId}}\",\n  \"linkedEntityId\": \"{{accountId}}\",\n  \"virtual\": false\n}"
+                    },
+                    "url": {
+                      "raw": "{{cardServiceHost}}/card-api/v1/cards",
+                      "host": ["{{cardServiceHost}}"],
+                      "path": ["card-api", "v1", "cards"]
+                    },
+                    "description": "Issue a virtual or physical card. PAN/expiry/CVV auto-generated from product BIN in dev (bureau-provided in production). virtual=true → ACTIVE immediately. virtual=false → ISSUED + physical order created. API_KEY or ADMIN/TELLER required.\n\ncURL: curl -X POST {{cardServiceHost}}/card-api/v1/cards -H 'Authorization: ApiKey YOUR_KEY' -H 'Content-Type: application/json' -d '{\"productId\":\"uuid\",\"customerId\":\"uuid\",\"linkedEntityId\":\"uuid\",\"virtual\":false}'\n\nJavaScript: fetch(base+'/card-api/v1/cards',{method:'POST',headers:{'Authorization':'ApiKey '+key,'Content-Type':'application/json'},body:JSON.stringify({productId,customerId,linkedEntityId,virtual:false})})\n\nPython: requests.post(base+'/card-api/v1/cards',headers={'Authorization':'ApiKey '+api_key},json={'productId':product_id,'customerId':customer_id,'linkedEntityId':account_id,'virtual':False})\n\nGo: body,_:=json.Marshal(map[string]interface{}{\"productId\":productId,\"customerId\":customerId,\"linkedEntityId\":accountId,\"virtual\":false}); req,_:=http.NewRequest(\"POST\",base+\"/card-api/v1/cards\",bytes.NewBuffer(body)); req.Header.Set(\"Authorization\",\"ApiKey \"+key)\n\nJava: HttpRequest.newBuilder().uri(URI.create(base+\"/card-api/v1/cards\")).header(\"Authorization\",\"ApiKey \"+key).POST(BodyPublishers.ofString(body)).build();\n\nRuby: Net::HTTP.post(URI(base+'/card-api/v1/cards'),payload.to_json,{'Authorization'=>'ApiKey '+key,'Content-Type'=>'application/json'})\n\nC#: client.DefaultRequestHeaders.Authorization=new AuthenticationHeaderValue(\"ApiKey\",key); await client.PostAsJsonAsync(base+\"/card-api/v1/cards\",new{productId,customerId,linkedEntityId,virtual=false});"
+                  },
+                  "response": [
+                    {
+                      "name": "201 Created — Virtual Card",
+                      "status": "Created",
+                      "code": 201,
+                      "body": "{\n  \"data\": {\n    \"id\": \"card-uuid\",\n    \"cardType\": \"DEBIT\",\n    \"status\": \"ACTIVE\",\n    \"virtualFlag\": true,\n    \"panPrefix\": \"40000000\",\n    \"panSuffix\": \"1234\",\n    \"expiryDate\": \"2904\",\n    \"customerId\": \"customer-uuid\",\n    \"linkedEntityId\": \"account-uuid\",\n    \"pinSet\": false,\n    \"pinRetryCount\": 0,\n    \"createdAt\": \"2026-04-11T12:00:00Z\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+                    },
+                    {
+                      "name": "201 Created — Physical Card",
+                      "status": "Created",
+                      "code": 201,
+                      "body": "{\n  \"data\": {\n    \"id\": \"card-uuid\",\n    \"cardType\": \"DEBIT\",\n    \"status\": \"ISSUED\",\n    \"virtualFlag\": false,\n    \"panPrefix\": \"40000000\",\n    \"panSuffix\": \"5678\",\n    \"expiryDate\": \"2904\",\n    \"createdAt\": \"2026-04-11T12:00:00Z\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+                    }
+                  ]
+                },
+                {
+                  "name": "List Cards",
+                  "request": {
+                    "method": "GET",
+                    "header": [{ "key": "Authorization", "value": "ApiKey {{api_key}}" }],
+                    "url": {
+                      "raw": "{{cardServiceHost}}/card-api/v1/cards?customerId={{customerId}}",
+                      "host": ["{{cardServiceHost}}"],
+                      "path": ["card-api", "v1", "cards"],
+                      "query": [{ "key": "customerId", "value": "{{customerId}}", "description": "Optional — filter cards for one customer" }]
+                    },
+                    "description": "List cards. Omit customerId to return all cards across all customers. API_KEY or ADMIN/TELLER required."
+                  },
+                  "response": [
+                    {
+                      "name": "200 OK",
+                      "status": "OK",
+                      "code": 200,
+                      "body": "{\n  \"data\": [\n    {\n      \"id\": \"card-uuid\",\n      \"cardType\": \"DEBIT\",\n      \"status\": \"ACTIVE\",\n      \"virtualFlag\": true,\n      \"panPrefix\": \"40000000\",\n      \"panSuffix\": \"1234\",\n      \"expiryDate\": \"2904\"\n    }\n  ],\n  \"meta\": {},\n  \"errors\": []\n}"
+                    }
+                  ]
+                },
+                {
+                  "name": "Get Card",
+                  "request": {
+                    "method": "GET",
+                    "header": [{ "key": "Authorization", "value": "ApiKey {{api_key}}" }],
+                    "url": {
+                      "raw": "{{cardServiceHost}}/card-api/v1/cards/:id",
+                      "host": ["{{cardServiceHost}}"],
+                      "path": ["card-api", "v1", "cards", ":id"],
+                      "variable": [{ "key": "id", "value": "{{cardId}}" }]
+                    },
+                    "description": "Fetch full card details including status, limits, PIN state. API_KEY or ADMIN/TELLER/CUSTOMER required."
+                  },
+                  "response": [
+                    {
+                      "name": "200 OK",
+                      "status": "OK",
+                      "code": 200,
+                      "body": "{\n  \"data\": {\n    \"id\": \"card-uuid\",\n    \"cardType\": \"DEBIT\",\n    \"status\": \"ACTIVE\",\n    \"virtualFlag\": false,\n    \"panPrefix\": \"40000000\",\n    \"panSuffix\": \"1234\",\n    \"expiryDate\": \"2904\",\n    \"customerId\": \"customer-uuid\",\n    \"linkedEntityId\": \"account-uuid\",\n    \"pinSet\": true,\n    \"pinRetryCount\": 0\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+                    },
+                    {
+                      "name": "404 Not Found",
+                      "status": "Not Found",
+                      "code": 404,
+                      "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{\"code\":\"CARD_NOT_FOUND\",\"message\":\"Card not found: card-uuid\"}]\n}"
+                    }
+                  ]
+                }
+              ],
+              "description": "BaaS card issuance. Auth: Authorization: ApiKey cba_{key} or ADMIN/TELLER JWT."
+            },
+            {
+              "name": "Card Controls",
+              "item": [
+                {
+                  "name": "Update Card Controls (Freeze / Unfreeze)",
+                  "request": {
+                    "method": "PUT",
+                    "header": [
+                      { "key": "Authorization", "value": "ApiKey {{api_key}}" },
+                      { "key": "Content-Type", "value": "application/json" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"freeze\": true,\n  \"contactlessEnabled\": true,\n  \"cnpEnabled\": false,\n  \"internationalEnabled\": false\n}"
+                    },
+                    "url": {
+                      "raw": "{{cardServiceHost}}/card-api/v1/cards/:id/controls",
+                      "host": ["{{cardServiceHost}}"],
+                      "path": ["card-api", "v1", "cards", ":id", "controls"],
+                      "variable": [{ "key": "id", "value": "{{cardId}}" }]
+                    },
+                    "description": "freeze=true maps to BLOCK command (card → BLOCKED status). freeze=false maps to UNBLOCK command (card → ACTIVE). contactless/CNP/international are advisory flags not yet wired to product config. API_KEY or ADMIN/TELLER/CUSTOMER required."
+                  },
+                  "response": [
+                    {
+                      "name": "200 OK — Frozen",
+                      "status": "OK",
+                      "code": 200,
+                      "body": "{\n  \"data\": {\"id\":\"card-uuid\",\"status\":\"BLOCKED\",\"virtualFlag\":false},\n  \"meta\": {},\n  \"errors\": []\n}"
+                    },
+                    {
+                      "name": "400 — Wrong State",
+                      "status": "Bad Request",
+                      "code": 400,
+                      "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{\"code\":\"INVALID_STATE\",\"message\":\"Only ACTIVE cards can be blocked\"}]\n}"
+                    }
+                  ]
+                },
+                {
+                  "name": "Update Card Limits",
+                  "request": {
+                    "method": "PUT",
+                    "header": [
+                      { "key": "Authorization", "value": "ApiKey {{api_key}}" },
+                      { "key": "Content-Type", "value": "application/json" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"dailyPurchaseLimit\": 500000.00,\n  \"dailyWithdrawalLimit\": 200000.00,\n  \"perTransactionLimit\": 100000.00,\n  \"monthlyLimit\": 2000000.00\n}"
+                    },
+                    "url": {
+                      "raw": "{{cardServiceHost}}/card-api/v1/cards/:id/limits",
+                      "host": ["{{cardServiceHost}}"],
+                      "path": ["card-api", "v1", "cards", ":id", "limits"],
+                      "variable": [{ "key": "id", "value": "{{cardId}}" }]
+                    },
+                    "description": "Update per-card spending limits (NUMERIC 19,4). Null fields left unchanged. API_KEY or ADMIN/TELLER/CUSTOMER required."
+                  },
+                  "response": [
+                    {
+                      "name": "200 OK",
+                      "status": "OK",
+                      "code": 200,
+                      "body": "{\n  \"data\": {\n    \"id\": \"limit-uuid\",\n    \"cardId\": \"card-uuid\",\n    \"dailyPurchaseLimit\": 500000.0000,\n    \"dailyWithdrawalLimit\": 200000.0000,\n    \"perTxnLimit\": 100000.0000,\n    \"monthlyLimit\": 2000000.0000,\n    \"currencyCode\": \"840\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+                    }
+                  ]
+                },
+                {
+                  "name": "Change PIN",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Authorization", "value": "Bearer {{access_token}}" },
+                      { "key": "Content-Type", "value": "application/json" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"oldPinBlock\": \"0412AC3F7B2E1D98\",\n  \"newPinBlock\": \"041200F4A3C2E187\"\n}"
+                    },
+                    "url": {
+                      "raw": "{{cardServiceHost}}/card-api/v1/cards/:id/pin/change",
+                      "host": ["{{cardServiceHost}}"],
+                      "path": ["card-api", "v1", "cards", ":id", "pin", "change"],
+                      "variable": [{ "key": "id", "value": "{{cardId}}" }]
+                    },
+                    "description": "Change card PIN via HSM adapter. PIN blocks must be ISO-0 format encrypted under Zone PIN Key (ZPK). HSM verifies old PIN (CA or DC command) before setting new PIN (A2 command). PIN values are never logged. API_KEY or ADMIN/TELLER/CUSTOMER required."
+                  },
+                  "response": [
+                    {
+                      "name": "200 OK",
+                      "status": "OK",
+                      "code": 200,
+                      "body": "{\n  \"data\": {\"status\":\"PIN_CHANGED\"},\n  \"meta\": {},\n  \"errors\": []\n}"
+                    },
+                    {
+                      "name": "400 — PIN Verification Failed",
+                      "status": "Bad Request",
+                      "code": 400,
+                      "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{\"code\":\"PIN_CHANGE_FAILED\",\"message\":\"PIN verification failed\"}]\n}"
+                    }
+                  ]
+                }
+              ],
+              "description": "Card controls and spending limits. Requires FAPI 2.0 JWT or API key. PIN change is HSM-routed."
+            },
+            {
+              "name": "Authorization & Transaction History",
+              "item": [
+                {
+                  "name": "Get Authorization History",
+                  "request": {
+                    "method": "GET",
+                    "header": [{ "key": "Authorization", "value": "ApiKey {{api_key}}" }],
+                    "url": {
+                      "raw": "{{cardServiceHost}}/card-api/v1/cards/:id/authorizations",
+                      "host": ["{{cardServiceHost}}"],
+                      "path": ["card-api", "v1", "cards", ":id", "authorizations"],
+                      "variable": [{ "key": "id", "value": "{{cardId}}" }]
+                    },
+                    "description": "Full authorization log: approved and declined transactions, fraud scores, response codes, entry mode, MCC, merchant details. Ordered newest-first. API_KEY or ADMIN/TELLER/CUSTOMER required."
+                  },
+                  "response": [
+                    {
+                      "name": "200 OK",
+                      "status": "OK",
+                      "code": 200,
+                      "body": "{\n  \"data\": [\n    {\n      \"id\": \"auth-uuid\",\n      \"stan\": \"000123\",\n      \"rrn\": \"123456789012\",\n      \"mti\": \"0100\",\n      \"processingCode\": \"000000\",\n      \"amount\": 5000.00,\n      \"currencyCode\": \"840\",\n      \"responseCode\": \"00\",\n      \"authCode\": \"412567\",\n      \"terminalId\": \"TRM00001\",\n      \"merchantId\": \"MERCH000000001\",\n      \"merchantName\": \"STARBUCKS #12345\",\n      \"mcc\": \"5812\",\n      \"entryMode\": \"051\",\n      \"fraudScore\": 12,\n      \"decision\": \"APPROVE\",\n      \"scheme\": \"VISA\",\n      \"createdAt\": \"2026-04-11T10:15:30Z\"\n    }\n  ],\n  \"meta\": {},\n  \"errors\": []\n}"
+                    }
+                  ]
+                },
+                {
+                  "name": "Get Settled Transactions",
+                  "request": {
+                    "method": "GET",
+                    "header": [{ "key": "Authorization", "value": "ApiKey {{api_key}}" }],
+                    "url": {
+                      "raw": "{{cardServiceHost}}/card-api/v1/cards/:id/transactions",
+                      "host": ["{{cardServiceHost}}"],
+                      "path": ["card-api", "v1", "cards", ":id", "transactions"],
+                      "variable": [{ "key": "id", "value": "{{cardId}}" }]
+                    },
+                    "description": "Settled transactions only — authorization log filtered to response_code=00 (approved and cleared). API_KEY or ADMIN/TELLER/CUSTOMER required."
+                  },
+                  "response": [
+                    {
+                      "name": "200 OK",
+                      "status": "OK",
+                      "code": 200,
+                      "body": "{\n  \"data\": [\n    {\n      \"id\": \"auth-uuid\",\n      \"amount\": 5000.00,\n      \"currencyCode\": \"840\",\n      \"responseCode\": \"00\",\n      \"authCode\": \"412567\",\n      \"merchantName\": \"STARBUCKS #12345\",\n      \"mcc\": \"5812\",\n      \"createdAt\": \"2026-04-11T10:15:30Z\"\n    }\n  ],\n  \"meta\": {},\n  \"errors\": []\n}"
+                    }
+                  ]
+                }
+              ],
+              "description": "Authorization log and settled transaction history for a card."
+            },
+            {
+              "name": "Spending Analytics",
+              "item": [
+                {
+                  "name": "Spend by Category",
+                  "request": {
+                    "method": "GET",
+                    "header": [{ "key": "Authorization", "value": "ApiKey {{api_key}}" }],
+                    "url": {
+                      "raw": "{{cardServiceHost}}/card-api/v1/cards/:id/analytics/by-category?from=2026-03-01&to=2026-04-11&currency=840",
+                      "host": ["{{cardServiceHost}}"],
+                      "path": ["card-api", "v1", "cards", ":id", "analytics", "by-category"],
+                      "variable": [{ "key": "id", "value": "{{cardId}}" }],
+                      "query": [
+                        { "key": "from", "value": "2026-03-01", "description": "Start date (ISO 8601). Default: 1 month ago." },
+                        { "key": "to", "value": "2026-04-11", "description": "End date (ISO 8601). Default: today." },
+                        { "key": "currency", "value": "840", "description": "ISO 4217 numeric code. Omit for all currencies." }
+                      ]
+                    },
+                    "description": "Total spend and transaction count by MCC category: Dining, Travel, Fuel, Grocery, Healthcare, Entertainment, Retail, Utilities, ATM/Cash, Other. Approved transactions only. API_KEY or ADMIN required."
+                  },
+                  "response": [
+                    {
+                      "name": "200 OK",
+                      "status": "OK",
+                      "code": 200,
+                      "body": "{\n  \"data\": [\n    {\"category\":\"Dining\",\"totalAmount\":15000.00,\"transactionCount\":8,\"currencyCode\":\"840\"},\n    {\"category\":\"Retail\",\"totalAmount\":42500.00,\"transactionCount\":12,\"currencyCode\":\"840\"},\n    {\"category\":\"Travel\",\"totalAmount\":280000.00,\"transactionCount\":3,\"currencyCode\":\"840\"}\n  ],\n  \"meta\": {},\n  \"errors\": []\n}"
+                    }
+                  ]
+                },
+                {
+                  "name": "Spend by Merchant",
+                  "request": {
+                    "method": "GET",
+                    "header": [{ "key": "Authorization", "value": "ApiKey {{api_key}}" }],
+                    "url": {
+                      "raw": "{{cardServiceHost}}/card-api/v1/cards/:id/analytics/by-merchant?from=2026-03-01&to=2026-04-11&currency=840",
+                      "host": ["{{cardServiceHost}}"],
+                      "path": ["card-api", "v1", "cards", ":id", "analytics", "by-merchant"],
+                      "variable": [{ "key": "id", "value": "{{cardId}}" }],
+                      "query": [
+                        { "key": "from", "value": "2026-03-01" },
+                        { "key": "to", "value": "2026-04-11" },
+                        { "key": "currency", "value": "840" }
+                      ]
+                    },
+                    "description": "Top 20 merchants by total spend for the card in the date range. Approved transactions only. API_KEY or ADMIN required."
+                  },
+                  "response": [
+                    {
+                      "name": "200 OK",
+                      "status": "OK",
+                      "code": 200,
+                      "body": "{\n  \"data\": [\n    {\"merchantId\":\"MERCH000000001\",\"merchantName\":\"STARBUCKS #12345\",\"totalAmount\":8500.00,\"transactionCount\":5,\"currencyCode\":\"840\"},\n    {\"merchantId\":\"MERCH000000042\",\"merchantName\":\"AMAZON.COM\",\"totalAmount\":35000.00,\"transactionCount\":7,\"currencyCode\":\"840\"}\n  ],\n  \"meta\": {},\n  \"errors\": []\n}"
+                    }
+                  ]
+                },
+                {
+                  "name": "Monthly Analytics Summary",
+                  "request": {
+                    "method": "GET",
+                    "header": [{ "key": "Authorization", "value": "ApiKey {{api_key}}" }],
+                    "url": {
+                      "raw": "{{cardServiceHost}}/card-api/v1/analytics/summary?cardId={{cardId}}&from=2026-04-01&to=2026-04-11&currency=840",
+                      "host": ["{{cardServiceHost}}"],
+                      "path": ["card-api", "v1", "analytics", "summary"],
+                      "query": [
+                        { "key": "cardId", "value": "{{cardId}}", "description": "Card UUID (required)" },
+                        { "key": "from", "value": "2026-04-01" },
+                        { "key": "to", "value": "2026-04-11" },
+                        { "key": "currency", "value": "840" }
+                      ]
+                    },
+                    "description": "Aggregate monthly stats: total approved spend, approved count, declined count, average transaction value. API_KEY or ADMIN required."
+                  },
+                  "response": [
+                    {
+                      "name": "200 OK",
+                      "status": "OK",
+                      "code": 200,
+                      "body": "{\n  \"data\": {\n    \"approvedTotal\": 337500.00,\n    \"approvedCount\": 28,\n    \"declinedCount\": 3,\n    \"avgTransactionAmount\": 12053.57,\n    \"currencyCode\": \"840\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+                    }
+                  ]
+                }
+              ],
+              "description": "MCC-based spending analytics aggregated from authorization_log. Approved transactions only (response_code=00). Accepts date range + currency filter. API_KEY or ADMIN required."
+            },
+            {
+              "name": "Webhook Management",
+              "item": [
+                {
+                  "name": "Register Webhook",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      { "key": "Authorization", "value": "ApiKey {{api_key}}" },
+                      { "key": "Content-Type", "value": "application/json" }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"Production Auth Listener\",\n  \"callbackUrl\": \"https://my-app.example.com/webhooks/cba\",\n  \"events\": [\"AUTHORIZATION.APPROVED\", \"AUTHORIZATION.DECLINED\", \"CARD.BLOCKED\"]\n}"
+                    },
+                    "url": {
+                      "raw": "{{cardServiceHost}}/card-api/v1/webhooks",
+                      "host": ["{{cardServiceHost}}"],
+                      "path": ["card-api", "v1", "webhooks"]
+                    },
+                    "description": "Register a webhook endpoint. Secret returned exactly once — use it to verify X-CBA-Signature on incoming deliveries. Empty events array subscribes to all event types.\n\nSignature verification: compute HMAC-SHA256(payload, secret) and compare with X-CBA-Signature header value (format: sha256={hex}). Use constant-time comparison to prevent timing attacks.\n\nSupported events: AUTHORIZATION.APPROVED, AUTHORIZATION.DECLINED, AUTHORIZATION.REVERSED, CARD.ISSUED, CARD.ACTIVATED, CARD.BLOCKED, CARD.UNBLOCKED, CARD.EXPIRED, CARD.PIN_CHANGED, CARD.LIMIT_CHANGED, FRAUD.RULE_TRIGGERED, FRAUD.CARD_STEP_UP, FRAUD.CARD_DECLINED_HIGH_RISK, DISPUTE.RAISED, DISPUTE.RESOLVED\n\nAPI_KEY or ADMIN required."
+                  },
+                  "response": [
+                    {
+                      "name": "201 Created",
+                      "status": "Created",
+                      "code": 201,
+                      "body": "{\n  \"data\": {\n    \"webhook\": {\n      \"id\": \"webhook-uuid\",\n      \"name\": \"Production Auth Listener\",\n      \"callbackUrl\": \"https://my-app.example.com/webhooks/cba\",\n      \"events\": [\"AUTHORIZATION.APPROVED\", \"AUTHORIZATION.DECLINED\", \"CARD.BLOCKED\"],\n      \"active\": true,\n      \"createdAt\": \"2026-04-11T12:00:00Z\"\n    },\n    \"secret\": \"wh_sec_A7kF3mNq...(shown once only)\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+                    }
+                  ]
+                },
+                {
+                  "name": "List Webhooks",
+                  "request": {
+                    "method": "GET",
+                    "header": [{ "key": "Authorization", "value": "ApiKey {{api_key}}" }],
+                    "url": {
+                      "raw": "{{cardServiceHost}}/card-api/v1/webhooks",
+                      "host": ["{{cardServiceHost}}"],
+                      "path": ["card-api", "v1", "webhooks"]
+                    },
+                    "description": "List all active webhooks. Secret never returned after creation. API_KEY or ADMIN required."
+                  },
+                  "response": [
+                    {
+                      "name": "200 OK",
+                      "status": "OK",
+                      "code": 200,
+                      "body": "{\n  \"data\": [\n    {\n      \"id\": \"webhook-uuid\",\n      \"name\": \"Production Auth Listener\",\n      \"callbackUrl\": \"https://my-app.example.com/webhooks/cba\",\n      \"events\": [\"AUTHORIZATION.APPROVED\", \"AUTHORIZATION.DECLINED\"],\n      \"active\": true,\n      \"createdAt\": \"2026-04-11T12:00:00Z\"\n    }\n  ],\n  \"meta\": {},\n  \"errors\": []\n}"
+                    }
+                  ]
+                },
+                {
+                  "name": "Delete Webhook",
+                  "request": {
+                    "method": "DELETE",
+                    "header": [{ "key": "Authorization", "value": "ApiKey {{api_key}}" }],
+                    "url": {
+                      "raw": "{{cardServiceHost}}/card-api/v1/webhooks/:id",
+                      "host": ["{{cardServiceHost}}"],
+                      "path": ["card-api", "v1", "webhooks", ":id"],
+                      "variable": [{ "key": "id", "value": "webhook-uuid" }]
+                    },
+                    "description": "Deregister a webhook. No further events will be delivered to this endpoint. API_KEY or ADMIN required."
+                  },
+                  "response": [
+                    { "name": "200 OK", "status": "OK", "code": 200, "body": "{ \"data\": null, \"meta\": {}, \"errors\": [] }" }
+                  ]
+                },
+                {
+                  "name": "Get Webhook Delivery Log",
+                  "request": {
+                    "method": "GET",
+                    "header": [{ "key": "Authorization", "value": "ApiKey {{api_key}}" }],
+                    "url": {
+                      "raw": "{{cardServiceHost}}/card-api/v1/webhooks/:id/deliveries",
+                      "host": ["{{cardServiceHost}}"],
+                      "path": ["card-api", "v1", "webhooks", ":id", "deliveries"],
+                      "variable": [{ "key": "id", "value": "webhook-uuid" }]
+                    },
+                    "description": "Last 100 delivery attempts: attempt count, HTTP status, DELIVERED or FAILED outcome, retry schedule. Delivery: @Async immediate + exponential backoff at 15s, 60s, 5m, 30m, 2h (max 5 attempts total). API_KEY or ADMIN required."
+                  },
+                  "response": [
+                    {
+                      "name": "200 OK",
+                      "status": "OK",
+                      "code": 200,
+                      "body": "{\n  \"data\": [\n    {\n      \"id\": \"delivery-uuid\",\n      \"eventType\": \"AUTHORIZATION.APPROVED\",\n      \"deliveryUuid\": \"idempotency-uuid\",\n      \"httpStatus\": 200,\n      \"status\": \"DELIVERED\",\n      \"attemptCount\": 1,\n      \"lastAttemptAt\": \"2026-04-11T10:15:31Z\",\n      \"nextRetryAt\": null\n    },\n    {\n      \"id\": \"delivery-uuid-2\",\n      \"eventType\": \"CARD.BLOCKED\",\n      \"httpStatus\": 500,\n      \"status\": \"FAILED\",\n      \"attemptCount\": 5,\n      \"lastAttemptAt\": \"2026-04-11T12:00:00Z\",\n      \"nextRetryAt\": null\n    }\n  ],\n  \"meta\": {},\n  \"errors\": []\n}"
+                    }
+                  ]
+                }
+              ],
+              "description": "Webhook registration and delivery tracking. Delivery headers: X-CBA-Signature (sha256=HMAC), X-CBA-Event (event type), X-CBA-Delivery (idempotency UUID). Exponential backoff retries: 15s, 60s, 5m, 30m, 2h. API_KEY or ADMIN required."
+            }
+          ],
+          "description": "Card Open Banking API — /card-api/v1/ hosted on card-service (port 8081). Dual auth: Authorization: ApiKey cba_{key} for M2M integrators, or Authorization: Bearer {jwt} for FAPI 2.0 customer consent. Variable: {{cardServiceHost}} = localhost:8081, {{api_key}} = key from POST /card-api/v1/api-keys."
         }
       ],
       "description": "Card Management Service (port 8081) \u2014 disputes, settlement batches, terminal simulator, interchange management, and 3D Secure ACS. Variable: {{cardServiceHost}} = localhost:8081",

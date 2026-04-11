@@ -59,6 +59,54 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 28 — 2026-04-11
+
+**card-service core modules complete — dispute, settlement, and terminal simulator packages implemented. BUILD SUCCESS (0 errors). All 7 card-service core packages now have full Java implementations.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/src/main/java/com/cba/card/CardApplication.java` | NEW — Spring Boot entry point; `@EnableCaching`, `@EnableAsync`, `@EnableScheduling` |
+| `card-service/src/main/java/com/cba/card/dispute/DisputeReason.java` | NEW — enum: UNAUTHORIZED, GOODS_NOT_RECEIVED, DUPLICATE, AMOUNT_MISMATCH, OTHER |
+| `card-service/src/main/java/com/cba/card/dispute/DisputeStatus.java` | NEW — enum: RAISED, UNDER_REVIEW, RESOLVED_ISSUER, RESOLVED_ACQUIRER, WITHDRAWN |
+| `card-service/src/main/java/com/cba/card/dispute/CardDispute.java` | NEW — JPA entity mapped to `card_disputes` table |
+| `card-service/src/main/java/com/cba/card/dispute/CardDisputeRepository.java` | NEW — JpaRepository with card-scoped and status-filtered queries |
+| `card-service/src/main/java/com/cba/card/dispute/DisputeService.java` | NEW — state machine: raise → review → resolve_issuer/resolve_acquirer/withdraw |
+| `card-service/src/main/java/com/cba/card/dispute/DisputeController.java` | NEW — `GET/POST /api/v1/cards/disputes`, `PUT /api/v1/cards/disputes/{id}?command=...` |
+| `card-service/src/main/java/com/cba/card/settlement/SettlementBatchStatus.java` | NEW — enum: OPEN, CLOSED, SETTLED, FAILED |
+| `card-service/src/main/java/com/cba/card/settlement/SettlementBatch.java` | NEW — JPA entity mapped to `settlement_batches` table |
+| `card-service/src/main/java/com/cba/card/settlement/SettlementItem.java` | NEW — JPA entity mapped to `settlement_items` table; `@ManyToOne` to batch |
+| `card-service/src/main/java/com/cba/card/settlement/SettlementBatchRepository.java` | NEW — find by date+status, batchRef, status |
+| `card-service/src/main/java/com/cba/card/settlement/SettlementItemRepository.java` | NEW — JPQL query for expired pending items (CoB nightly expiry) |
+| `card-service/src/main/java/com/cba/card/settlement/SettlementService.java` | NEW — dual-message batch open/add/close; `@Scheduled` nightly reversal of 7-day-old unmatched auths |
+| `card-service/src/main/java/com/cba/card/settlement/SettlementController.java` | NEW — `GET/POST /api/v1/cards/settlement/batches`, `POST /batches/{id}/close`, `GET /batches/{id}/items` |
+| `card-service/src/main/java/com/cba/card/terminal/FepIso8583Client.java` | NEW — Netty TCP client; 2-byte length-prefix framing; one-connection-per-request pattern |
+| `card-service/src/main/java/com/cba/card/terminal/Iso8583Builder.java` | NEW — minimal ISO 8583 message builder (LLVAR, fixed-length, bitmap, STAN generator) |
+| `card-service/src/main/java/com/cba/card/terminal/SimulateRequest.java` | NEW — request DTO covering all MTI types (purchase, withdrawal, balance, reversal, network) |
+| `card-service/src/main/java/com/cba/card/terminal/SimulateResponse.java` | NEW — response record: responseCode, authCode, availableBalance, STAN, RRN, hex dumps |
+| `card-service/src/main/java/com/cba/card/terminal/TerminalSimulatorService.java` | NEW — builds and sends 0100/0200/0400/0800 messages; best-effort response decoder |
+| `card-service/src/main/java/com/cba/card/terminal/TerminalSimulatorController.java` | NEW — `POST /api/v1/simulate/{purchase,withdrawal,balance,reversal,network/signon,network/echo}` |
+| `card-service/src/main/java/com/cba/card/card/CardController.java` | FIX — `listProducts()` was returning wrong type (`List<Card>` instead of `List<CardProduct>`); now returns `List.of()` placeholder |
+
+#### Key Patterns / Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| `int fieldLen = 0;` before switch in decoder | Java compiler requires definite assignment; switch arrow blocks with embedded reads can leave `fieldLen` uninitialized from compiler perspective |
+| One-connection-per-request in FepIso8583Client | Appropriate for simulator (dev tool); NioEventLoopGroup shut down per call; production would pool connections |
+| `@Scheduled(cron = "0 58 23 * * *")` for auth expiry | Runs at 23:58 nightly, after CoB jobs at 23:55/23:57/23:59 — processes 7-day-old PENDING items |
+| No jPOS in card-service | jPOS dependency lives in fep-service only; card-service's Iso8583Builder handles the minimal field set needed for the simulator |
+
+#### Build Verification
+```
+./mvnw clean compile → BUILD SUCCESS (0 errors)
+```
+
+#### Compliance Checklist Update
+- Build Order Step 3 (card-service core modules) ✅
+
+---
+
 ### Session 27 — 2026-04-11
 
 **fep-service Phase 1 complete — real ISO 8583-1987 TCP server fully implemented, compiles clean. All 6 packager XMLs, Netty pipeline, scheme adapters, HSM layer, EMV cryptography, and REST client written.**

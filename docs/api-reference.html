@@ -1788,6 +1788,43 @@ difference = actual_cash - closing_balance</pre>
 </table>
 </section>
 
+<!-- CARD SERVICE ────────────────────────────────────────────────────────── -->
+<section id="card-service">
+<h2>Card Service (port 8081)</h2>
+<p>Standalone microservice for card lifecycle, fraud, settlement, disputes, and terminal simulation. Base URL: <code>http://localhost:8081</code></p>
+
+<h3>Disputes</h3>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/disputes</code></td><td>List all disputes; filter by <code>?status=</code></td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/disputes/{id}</code></td><td>Get dispute by ID</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/disputes</code></td><td>Raise a new dispute against a transaction RRN</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td><span class="method put">PUT</span></td><td><code>/api/v1/cards/disputes/{id}?command=</code></td><td>State transition: <code>review</code>, <code>resolve_issuer</code>, <code>resolve_acquirer</code>, <code>withdraw</code></td><td>ADMIN, TELLER</td></tr>
+</table>
+
+<h3>Settlement Batches</h3>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/settlement/batches</code></td><td>List batches; filter by <code>?date=YYYY-MM-DD</code></td><td>ADMIN</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/settlement/batches/{id}</code></td><td>Get batch by ID</td><td>ADMIN</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/settlement/batches/open</code></td><td>Open (or retrieve) today's settlement batch</td><td>ADMIN</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/settlement/batches/{id}/close</code></td><td>Close batch and settle all pending items</td><td>ADMIN</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/settlement/batches/{id}/items</code></td><td>List all items in a batch</td><td>ADMIN</td></tr>
+</table>
+
+<h3>Terminal Simulator</h3>
+<p>Builds real ISO 8583 messages and fires them at the FEP TCP socket (port 8583). Returns decoded response + raw hex dump.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>MTI</th><th>Description</th><th>Role</th></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/purchase</code></td><td>0100</td><td>Card purchase at POS (DE3=000000)</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/withdrawal</code></td><td>0200</td><td>ATM cash withdrawal (DE3=010000)</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/balance</code></td><td>0100</td><td>Balance enquiry (DE3=310000)</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/reversal</code></td><td>0400</td><td>Transaction reversal</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/network/signon</code></td><td>0800</td><td>Terminal sign-on (DE70=0001)</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/network/echo</code></td><td>0800</td><td>Echo/heartbeat test (DE70=0301)</td><td>ADMIN, TELLER</td></tr>
+</table>
+</section>
+
 <!-- FULL API MATRIX ─────────────────────────────────────────────────────── -->
 <section id="fullapi">
 <h2>Full API Matrix</h2>

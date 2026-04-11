@@ -1285,7 +1285,7 @@ RAISED → RETRIEVAL_REQUESTED → CHARGEBACK_INITIATED
 
 1. ✅ **fep-service** — ISO 8583 TCP server, jPOS base packager, message router, HSM adapter, EMV handler _(commit `eb398cc`)_
 2. ✅ **fep-service — Scheme Adapter Framework** — `SchemeAdapter` interface, all 5 adapters (Visa/MC/Verve/Afrigo/UnionPay), per-scheme jPOS packager XMLs, `SchemeAdapterFactory` _(commit `eb398cc`)_
-3. **card-service — core modules** — card, limits, fraud, token, settlement, dispute, terminal simulator REST
+3. ✅ **card-service — core modules** — card, limits, fraud, token, settlement, dispute, terminal simulator REST _(Session 28)_
 4. **card-service — BIN Management Module** — BIN range table, 6/8-digit lookup, scheme routing
 5. **card-service — Interchange Management Module** — rate tables per scheme, qualification engine, settlement netting
 6. **card-service — 3D Secure ACS** — `threeds` package, ACS endpoint, CAVV generation via HSM
@@ -1369,6 +1369,84 @@ fep-service/src/main/resources/
 | Maven wrapper | fep-service has no `./mvnw` by default; copy from backend: `cp backend/mvnw fep-service/mvnw && chmod +x && cp -r backend/.mvn fep-service/.mvn` |
 | TCP framing | ISO 8583 uses 2-byte big-endian length prefix (excludes the 2-byte header itself). Netty: `LengthFieldBasedFrameDecoder(65535, 0, 2, 0, 2)` + `LengthFieldPrepender(2)` |
 | `@ChannelHandler.Sharable` | Required on `FepMessageHandler` — Netty enforces this at runtime when a single handler instance is added to multiple pipelines |
+
+---
+
+### card-service — Implementation Notes (Session 28)
+
+**Build status**: `./mvnw clean compile → BUILD SUCCESS (0 errors)`
+
+**Verified package structure:**
+
+```
+card-service/src/main/java/com/cba/card/
+├── CardApplication.java           — @SpringBootApplication + @EnableCaching + @EnableAsync + @EnableScheduling
+├── card/
+│   ├── Card.java                  — JPA entity: pan_encrypted, pan_hash (HMAC-SHA256), pan_prefix/suffix, CardType, CardStatus
+│   ├── CardProduct.java           — card product template: CardType, BIN range, default daily limit, features JSONB
+│   ├── CardService.java           — issueCard, executeCommand (block/unblock/cancel/activate/replace), expireCards (CoB)
+│   └── CardController.java        — GET/POST /api/v1/cards, GET/POST /api/v1/cards/{id}?command=...
+├── limits/
+│   ├── CardLimit.java             — UNIQUE on card_id; daily_purchase/withdrawal, per_txn, monthly limits
+│   └── CardLimitService.java      — update limits; validate ≥0; enforce per_txn ≤ daily
+├── fraud/
+│   ├── FraudEngine.java           — rules evaluated in priority order; hard-block rules short-circuit
+│   ├── FraudRuleEntity.java       — rule_id UNIQUE, weight 0-100, params JSONB
+│   └── FraudController.java       — GET/PUT /api/v1/cards/fraud/rules
+├── token/
+│   ├── TokenVault.java            — dpan_encrypted + dpan_hash (HMAC-SHA256); DPAN BIN prefix "9999"
+│   └── TokenService.java          — generateToken, detokenize, suspendToken, deleteToken
+├── auth/
+│   ├── CardAuthorizationService.java — full 0100/0120 flow: card lookup → fraud → balance → approve/decline
+│   └── CardAuthorizationController.java — POST /api/v1/cards/authorize (called by fep-service)
+├── settlement/
+│   ├── SettlementBatch.java       — batch_ref UNIQUE; OPEN → CLOSED → SETTLED | FAILED
+│   ├── SettlementItem.java        — @ManyToOne batch; PENDING → SETTLED | FAILED
+│   ├── SettlementService.java     — openOrGetTodaysBatch, addToCurrentBatch, closeBatch; @Scheduled(cron "0 58 23 * * *") expiry
+│   └── SettlementController.java  — GET/POST /api/v1/cards/settlement/batches, POST /batches/{id}/close
+├── dispute/
+│   ├── CardDispute.java           — card_id, transaction_ref (RRN), DisputeReason, DisputeStatus
+│   ├── DisputeService.java        — raiseDispute, updateDispute (review/resolve_issuer/resolve_acquirer/withdraw)
+│   └── DisputeController.java     — GET/POST /api/v1/cards/disputes, PUT /api/v1/cards/disputes/{id}?command=...
+├── terminal/
+│   ├── FepIso8583Client.java      — Netty TCP client; same 2-byte length-prefix framing as FEP server; one-connection-per-request
+│   ├── Iso8583Builder.java        — minimal ISO 8583 builder: LLVAR, fixed-length, 8-byte primary bitmap, STAN counter
+│   ├── SimulateRequest.java       — covers all MTI types; optional fields null-safe
+│   ├── SimulateResponse.java      — responseCode + description, authCode, availableBalance, STAN, RRN, hex dumps
+│   ├── TerminalSimulatorService.java — builds 0100/0200/0400/0800; best-effort response decoder (no jPOS)
+│   └── TerminalSimulatorController.java — POST /api/v1/simulate/{purchase,withdrawal,balance,reversal,network/signon,network/echo}
+├── bin/
+│   ├── BinRange.java              — bin_start/bin_end VARCHAR(8); 6 and 8-digit BIN support
+│   └── BinService.java            — lookupScheme(pan) via range scan; caches results
+├── wallet/
+│   └── PrepaidWallet.java         — balance NUMERIC(19,4); UNIQUE on card_id
+└── common/ config/
+    ├── ApiResponse.java            — { data, meta, errors } standard envelope
+    ├── CbaException.java           — notFound/badRequest/conflict factory methods
+    └── RestClientConfig.java       — RestTemplate bean for monolith backend calls
+```
+
+**Resources:**
+```
+card-service/src/main/resources/
+├── application.yml                 — port 8081, card_db PostgreSQL, Jasypt AES-256, Keycloak JWT, FEP TCP config
+└── db/migration/
+    ├── V1__card_schema.sql         — all tables: cards, card_products, physical_card_orders, card_limits,
+    │                                 prepaid_wallets, bin_ranges, authorization_log, fraud_rules, fraud_score_log,
+    │                                 token_vault, settlement_batches, settlement_items, card_disputes,
+    │                                 api_keys, webhooks, webhook_delivery_log
+    └── V2__card_demo_data.sql      — demo card products, BIN ranges, fraud rules, sample cards
+```
+
+**Critical gotchas for future sessions:**
+
+| Issue | Fix |
+|-------|-----|
+| `int fieldLen` uninitialized in switch | Arrow-block switch cases don't guarantee assignment for javac; initialize `int fieldLen = 0;` before the switch |
+| `CardController.listProducts()` type mismatch | Pre-existing bug: was returning `cardService.findByCustomer(null)` (List<Card>) as `List<CardProduct>`; fixed to `List.of()` |
+| No jPOS in card-service | card-service's `Iso8583Builder` is a minimal custom builder (no jPOS); jPOS lives only in fep-service |
+| `FepIso8583Client` one-connection-per-request | Appropriate for simulator; NioEventLoopGroup shut down after each call; acceptable overhead for dev tooling |
+| Maven wrapper | Copy from backend (same as fep-service): `cp backend/mvnw card-service/mvnw && chmod +x && cp -r backend/.mvn card-service/.mvn` |
 
 ---
 

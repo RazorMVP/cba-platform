@@ -14855,6 +14855,496 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Card Service",
+      "item": [
+        {
+          "name": "Disputes",
+          "item": [
+            {
+              "name": "List Disputes",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/api/v1/cards/disputes",
+                  "host": [
+                    "{{cardServiceHost}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "cards",
+                    "disputes"
+                  ]
+                },
+                "description": "List all disputes; optionally filter by ?status=RAISED|UNDER_REVIEW|RESOLVED_ISSUER|RESOLVED_ACQUIRER|WITHDRAWN"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Dispute",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/api/v1/cards/disputes/:id",
+                  "host": [
+                    "{{cardServiceHost}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "cards",
+                    "disputes",
+                    ":id"
+                  ]
+                },
+                "description": "Get a single dispute by ID"
+              },
+              "response": []
+            },
+            {
+              "name": "Raise Dispute",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/api/v1/cards/disputes",
+                  "host": [
+                    "{{cardServiceHost}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "cards",
+                    "disputes"
+                  ]
+                },
+                "description": "Raise a new dispute against a transaction (RRN = transactionRef)",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"cardId\": \"{{cardId}}\",\n  \"transactionRef\": \"123456789012\",\n  \"disputeReason\": \"UNAUTHORIZED\",\n  \"raisedBy\": \"{{customerId}}\",\n  \"originalAmount\": 10000\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Dispute",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/api/v1/cards/disputes/:id?command=review",
+                  "host": [
+                    "{{cardServiceHost}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "cards",
+                    "disputes",
+                    ":id"
+                  ]
+                },
+                "description": "Advance dispute state. Commands: review, resolve_issuer, resolve_acquirer, withdraw",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"resolvedBy\": null,\n  \"resolutionNotes\": null\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Settlement",
+          "item": [
+            {
+              "name": "List Settlement Batches",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/batches",
+                  "host": [
+                    "{{cardServiceHost}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "cards",
+                    "settlement",
+                    "batches"
+                  ]
+                },
+                "description": "List settlement batches; optionally filter by ?date=YYYY-MM-DD"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Settlement Batch",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/batches/:id",
+                  "host": [
+                    "{{cardServiceHost}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "cards",
+                    "settlement",
+                    "batches",
+                    ":id"
+                  ]
+                },
+                "description": "Get a single batch by ID"
+              },
+              "response": []
+            },
+            {
+              "name": "Open Settlement Batch",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/batches/open",
+                  "host": [
+                    "{{cardServiceHost}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "cards",
+                    "settlement",
+                    "batches",
+                    "open"
+                  ]
+                },
+                "description": "Opens (or retrieves) today's settlement batch"
+              },
+              "response": []
+            },
+            {
+              "name": "Close Settlement Batch",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/batches/:id/close",
+                  "host": [
+                    "{{cardServiceHost}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "cards",
+                    "settlement",
+                    "batches",
+                    ":id",
+                    "close"
+                  ]
+                },
+                "description": "Closes the batch and settles all pending items"
+              },
+              "response": []
+            },
+            {
+              "name": "Get Batch Items",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/batches/:id/items",
+                  "host": [
+                    "{{cardServiceHost}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "cards",
+                    "settlement",
+                    "batches",
+                    ":id",
+                    "items"
+                  ]
+                },
+                "description": "List all settlement items in a batch"
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Terminal Simulator",
+          "item": [
+            {
+              "name": "Simulate Purchase",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/api/v1/simulate/purchase",
+                  "host": [
+                    "{{cardServiceHost}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "simulate",
+                    "purchase"
+                  ]
+                },
+                "description": "MTI 0100 purchase authorization. entryMode: SWIPE|CHIP|CONTACTLESS",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"cardNumber\": \"4111111111111111\",\n  \"expiryDate\": \"2712\",\n  \"amount\": 100.0,\n  \"currency\": \"840\",\n  \"terminalId\": \"TERM0001\",\n  \"merchantId\": \"MERCHANT0000001\",\n  \"merchantName\": \"SUPERMART NAIROBI KE\",\n  \"mcc\": \"5411\",\n  \"entryMode\": \"CHIP\",\n  \"pinBlock\": null\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Simulate ATM Withdrawal",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/api/v1/simulate/withdrawal",
+                  "host": [
+                    "{{cardServiceHost}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "simulate",
+                    "withdrawal"
+                  ]
+                },
+                "description": "MTI 0200 cash withdrawal. PIN block strongly recommended.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"cardNumber\": \"4111111111111111\",\n  \"expiryDate\": \"2712\",\n  \"amount\": 500.0,\n  \"currency\": \"840\",\n  \"terminalId\": \"ATM00001\",\n  \"merchantId\": \"BANK000000000001\",\n  \"merchantName\": \"CBA ATM NAIROBI BRANCH\",\n  \"mcc\": \"6010\",\n  \"entryMode\": \"CHIP\",\n  \"pinBlock\": \"0123456789ABCDEF\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Simulate Balance Enquiry",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/api/v1/simulate/balance",
+                  "host": [
+                    "{{cardServiceHost}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "simulate",
+                    "balance"
+                  ]
+                },
+                "description": "MTI 0100 with DE3=310000. Available balance returned in response.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"cardNumber\": \"4111111111111111\",\n  \"expiryDate\": \"2712\",\n  \"currency\": \"840\",\n  \"terminalId\": \"ATM00001\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Simulate Reversal",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/api/v1/simulate/reversal",
+                  "host": [
+                    "{{cardServiceHost}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "simulate",
+                    "reversal"
+                  ]
+                },
+                "description": "MTI 0400 reversal of a prior authorization.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"cardNumber\": \"4111111111111111\",\n  \"expiryDate\": \"2712\",\n  \"amount\": 100.0,\n  \"currency\": \"840\",\n  \"terminalId\": \"TERM0001\",\n  \"originalStan\": \"100001\",\n  \"originalRrn\": \"012345678901\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Network Sign-On",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/api/v1/simulate/network/signon",
+                  "host": [
+                    "{{cardServiceHost}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "simulate",
+                    "network",
+                    "signon"
+                  ]
+                },
+                "description": "MTI 0800 DE70=0001 \u2014 terminal sign-on to FEP"
+              },
+              "response": []
+            },
+            {
+              "name": "Network Echo",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/api/v1/simulate/network/echo",
+                  "host": [
+                    "{{cardServiceHost}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "simulate",
+                    "network",
+                    "echo"
+                  ]
+                },
+                "description": "MTI 0800 DE70=0301 \u2014 heartbeat/echo test to verify FEP connectivity"
+              },
+              "response": []
+            }
+          ]
+        }
+      ],
+      "description": "Card Management Service (port 8081) \u2014 disputes, settlement batches, and terminal simulator. Variable: {{cardServiceHost}} = localhost:8081",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{accessToken}}",
+            "type": "string"
+          }
+        ]
+      }
     }
   ]
 }

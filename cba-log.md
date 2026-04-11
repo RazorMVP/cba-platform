@@ -59,6 +59,42 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 34 — 2026-04-11
+**card-service Build Order Step 7 — Card Personalization Bureau module; CDP generation, bureau job lifecycle ORDERED→PRODUCED→DISPATCHED. BUILD SUCCESS (0 errors).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/…/bureau/BureauJob.java` | NEW — JPA entity for batch jobs |
+| `card-service/…/bureau/BureauJobItem.java` | NEW — per-card personalization item |
+| `card-service/…/bureau/BureauJobStatus.java` | NEW — enum PENDING/SENT/CONFIRMED/FAILED |
+| `card-service/…/bureau/BureauJobItemStatus.java` | NEW — enum PENDING/PERSONALIZED/FAILED |
+| `card-service/…/bureau/BureauJobRepository.java` | NEW |
+| `card-service/…/bureau/BureauJobItemRepository.java` | NEW |
+| `card-service/…/bureau/CdpRecord.java` | NEW — CDP data record (panEncryptedForBureau never in REST) |
+| `card-service/…/bureau/CdpGenerator.java` | NEW — scheme-aware AID/AIP/service-code generation + SHA-256 hash |
+| `card-service/…/bureau/BureauConfirmRequest.java` | NEW — bureau callback DTO |
+| `card-service/…/bureau/BureauService.java` | NEW — 4-step lifecycle service |
+| `card-service/…/bureau/BureauController.java` | NEW — 8 REST endpoints |
+| `card-service/…/card/PhysicalCardOrderRepository.java` | Added `findByStatus()` |
+| `card-service/src/main/resources/application.yml` | Added `card.bureau.name` |
+| `card-service/…/db/migration/V5__bureau_module.sql` | NEW — bureau_jobs + bureau_job_items tables |
+| `CLAUDE.md` | Build Order Step 7 → ✅; added Session 34 impl notes |
+
+#### Key Patterns / Decisions
+- CDP record carries `panEncryptedForBureau` (Jasypt ciphertext); `CdpPreviewResponse` in controller strips it — the encrypted PAN never appears in REST responses
+- SHA-256 integrity hash: build record with `hash=""`, compute SHA-256 of key fields, rebuild record — stored in `bureau_job_items.personalization_data_hash`
+- Bureau confirmations are partial — `confirmJob()` only updates items present in the payload; job closes to CONFIRMED only when no items remain PENDING
+- Card status is driven exclusively by bureau events: confirm → PRODUCED, dispatch → DISPATCHED
+
+#### Build Verification
+`cd card-service && ./mvnw clean compile → BUILD SUCCESS (0 errors)`
+
+#### Compliance Checklist Update
+- Build Order Step 7 complete — physical card lifecycle now fully connected from ORDERED through PRODUCED to DISPATCHED
+
+---
+
 ### Session 33 — 2026-04-11
 **fep-service QPBOC SM4 adapter — domestic China UnionPay ARQC now validated with SM4 cipher; CID offline detection added. BUILD SUCCESS (0 errors).**
 

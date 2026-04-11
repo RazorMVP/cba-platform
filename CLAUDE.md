@@ -1289,7 +1289,7 @@ RAISED → RETRIEVAL_REQUESTED → CHARGEBACK_INITIATED
 4. ✅ **card-service — BIN Management Module** — BIN range table, 6/8-digit lookup, scheme routing; `GET /{bin}/scheme` M2M endpoint; `BinRangeRequest` DTO _(Session 29)_
 5. ✅ **card-service — Interchange Management Module** — rate tables per scheme, qualification engine, settlement netting _(Session 30)_
 6. ✅ **card-service — 3D Secure ACS** — `threeds` package, ACS endpoints, CAVV generation, OTP challenge, SecurityConfig `@Order(0)` chain _(Session 31)_
-7. **card-service — Card Personalization Bureau** — CDP file generation, bureau job lifecycle
+7. ✅ **card-service — Card Personalization Bureau** — CDP file generation, bureau job lifecycle; `ORDERED → PRODUCED → DISPATCHED` state progression _(Session 33)_
 8. **card-service — Scheme-Compliant Chargeback** — full state machine, reason code framework, timeframe enforcement
 9. **card-service — Open Banking layer** — Card API (`/card-api/v1/`), API key auth, webhook delivery, spending analytics
 10. **backend (monolith)** — `CardServiceClient` REST client; AISP/CBPII extension for card accounts; `ConsentScope` additions
@@ -1383,6 +1383,75 @@ card-service/src/main/resources/
 | OTP at DEBUG log level only | `log.debug("3DS OTP: {}", otp)` — never at INFO in production; application.yml sets `com.cba.card: INFO` so DEBUG is off by default |
 | CAVV uses `frictionless ECI "05"` not "06" | EMVCo 3DS 2.x: ECI "05" applies to both frictionless and challenge-verified authentications; "06" = attempted (3DS tried, not verified); "07" = no 3DS |
 | `panHmacKey` used for both PAN hash and OTP hash | Consistent key hierarchy — same key used in `CardService` for PAN hashing; avoids a second key in config |
+
+---
+
+### card-service — Bureau Module Implementation Notes (Session 33)
+
+**Build status**: `cd card-service && ./mvnw clean compile → BUILD SUCCESS (0 errors)`
+
+**Package**: `com.cba.card.bureau`
+
+**Flyway**: `V5__bureau_module.sql` — `bureau_jobs` + `bureau_job_items` tables
+
+**Verified package structure:**
+```
+card-service/src/main/java/com/cba/card/bureau/
+├── BureauJobStatus.java          — enum: PENDING | SENT | CONFIRMED | FAILED
+├── BureauJobItemStatus.java      — enum: PENDING | PERSONALIZED | FAILED
+├── BureauJob.java                — JPA entity; batch_ref UNIQUE; @OneToMany items
+├── BureauJobItem.java            — JPA entity; personalization_data_hash SHA-256 hex
+├── BureauJobRepository.java
+├── BureauJobItemRepository.java  — findByJobIdAndStatus for dispatch step
+├── CdpRecord.java                — record: all CDP fields; panEncryptedForBureau never in REST response
+├── CdpGenerator.java             — scheme-aware AID/AIP/service-code/IAC resolution; SHA-256 hash
+├── BureauConfirmRequest.java     — bureau callback DTO; partial confirmation support
+├── BureauService.java            — 4-step lifecycle: createJob/submitJob/confirmJob/dispatchJob
+└── BureauController.java         — POST /api/v1/bureau/jobs + lifecycle commands
+```
+
+**Endpoint inventory:**
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| `POST` | `/api/v1/bureau/jobs` | ADMIN | Create batch from all ORDERED cards |
+| `GET` | `/api/v1/bureau/jobs` | ADMIN | List all jobs (newest first) |
+| `GET` | `/api/v1/bureau/jobs/{id}` | ADMIN | Job detail + items |
+| `POST` | `/api/v1/bureau/jobs/{id}/submit` | ADMIN | Generate CDP, mark SENT |
+| `POST` | `/api/v1/bureau/jobs/{id}/confirm` | ADMIN | Bureau callback → PRODUCED |
+| `POST` | `/api/v1/bureau/jobs/{id}/dispatch` | ADMIN | Mark DISPATCHED |
+| `POST` | `/api/v1/bureau/jobs/{id}/fail` | ADMIN | Mark FAILED + reason |
+| `GET` | `/api/v1/bureau/jobs/{jobId}/cdp/{cardId}` | ADMIN | CDP preview (no PAN in response) |
+
+**Card status progression driven by bureau lifecycle:**
+
+| Bureau event | Card status | PhysicalCardOrder status |
+|---|---|---|
+| `createJob` | ORDERED (unchanged) | ORDERED |
+| `submitJob` | ORDERED (unchanged) | productionRequestDate set |
+| `confirmJob` | **PRODUCED** | **PRODUCED** + bureauRef |
+| `dispatchJob` | **DISPATCHED** | **DISPATCHED** + dispatchDate |
+| Cardholder activates | ACTIVATION_PENDING → ACTIVE | — |
+
+**EMV AID lookup by scheme:**
+| Scheme | Card Type | AID |
+|--------|-----------|-----|
+| Visa | Debit/Credit | `A0000000031010` |
+| Mastercard | Credit | `A0000000041010` |
+| Mastercard | Debit | `A0000000043060` (Maestro) |
+| Verve | Any | `A000000333010101` |
+| Afrigo | Any | `A000000337010008` |
+| UnionPay | Any | `A000000333010102` |
+
+**Critical gotchas for future sessions:**
+
+| Issue | Fix |
+|-------|-----|
+| `panEncryptedForBureau` must never appear in REST responses | `CdpPreviewResponse` record in controller strips it — `CdpRecord` carries it for bureau file generation only |
+| SHA-256 hash computed on `CdpRecord` with empty hash field | Two-step construction: build record with `hash=""`, compute hash, rebuild record with computed hash |
+| `PhysicalCardOrderRepository.findByStatus()` was missing | Added to repository — needed by `BureauService.createJob()` to collect ORDERED orders |
+| `ApiResponse.ok()` not `ApiResponse.of()` | The `ApiResponse` envelope uses `ok()` as the factory method |
+| Bureau name from config | `${card.bureau.name:CBA_BUREAU}` in `application.yml` — override per deployment |
 
 ---
 

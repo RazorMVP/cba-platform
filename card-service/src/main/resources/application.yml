@@ -79,6 +79,8 @@ card:
     acs-base-url: ${ACS_BASE_URL:http://localhost:8081}  # Used in ARes.acsURL for challenge redirect
   simulator:
     default-currency: "840"     # ISO 4217 numeric code used when test requests omit currency field — override per deployment
+  bureau:
+    name: ${BUREAU_NAME:CBA_BUREAU}   # Configured bureau name — e.g. THALES_HID, IDEMIA, HID_GLOBAL
 
 # Monolith backend (for balance checks)
 backend:

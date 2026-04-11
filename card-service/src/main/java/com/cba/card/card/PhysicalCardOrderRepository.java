@@ -11,4 +11,6 @@ public interface PhysicalCardOrderRepository extends JpaRepository<PhysicalCardO
     List<PhysicalCardOrder> findByCardId(UUID cardId);
 
     Optional<PhysicalCardOrder> findByCardIdAndStatus(UUID cardId, String status);
+
+    List<PhysicalCardOrder> findByStatus(String status);
 }

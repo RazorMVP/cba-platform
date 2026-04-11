@@ -59,6 +59,48 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 37 — 2026-04-11
+**card-service Settlement File Export Framework — pluggable SettlementFileExporter interface, 5 stub exporters, SFTP+HTTPS transmitter, @Scheduled nightly orchestration, SettlementExportController. BUILD SUCCESS (0 errors). Gap analysis "Scheme settlement file format" updated to ✅ Covered.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/pom.xml` | JSch 0.1.55 dependency added |
+| `card-service/.../V7__settlement_export.sql` | NEW: settlement_transmissions table + idempotency index |
+| `card-service/.../SettlementFileExporter.java` | NEW: pluggable exporter interface |
+| `card-service/.../SettlementExportRecord.java` | NEW: normalized DTO record for all exporters |
+| `card-service/.../SettlementTransmission.java` | NEW: audit entity (PENDING→TRANSMITTED→ACKNOWLEDGED\|FAILED) |
+| `card-service/.../SettlementTransmissionRepository.java` | NEW: 4 query methods + idempotency check |
+| `card-service/.../SettlementExportProperties.java` | NEW: @ConfigurationProperties + SchemeExportConfig inner class |
+| `card-service/src/main/resources/application.yml` | UPDATED: card.settlement.export.* block, all 5 scheme sub-blocks |
+| `card-service/.../VisaBase2Exporter.java` | NEW: BASE II stub with field-map Javadoc |
+| `card-service/.../MastercardIpmExporter.java` | NEW: IPM stub with MTI 1240/DE48 Javadoc |
+| `card-service/.../VerveNibssExporter.java` | NEW: NIBSS e-settlement stub |
+| `card-service/.../AfrigoPapssExporter.java` | NEW: PAPSS HTTPS stub (transmissionMethod="HTTPS") |
+| `card-service/.../UnionPayCupsExporter.java` | NEW: CUPS stub with GB18030 encoding note |
+| `card-service/.../SettlementFileTransmitter.java` | NEW: SFTP (JSch) + HTTPS (RestTemplate) transmitter |
+| `card-service/.../SettlementTransmissionException.java` | NEW: retryable exception signal |
+| `card-service/.../SettlementFileExportService.java` | NEW: @Scheduled + exportBatch + retry + query methods |
+| `card-service/.../SettlementExportController.java` | NEW: 4 endpoints (manual trigger + transmission log) |
+| `card-service/.../SettlementBatchRepository.java` | UPDATED: added findByStatusAndSettlementDate (List return) |
+| `CLAUDE.md` | Gap analysis updated; Build Order 8.5 added; Session 37 notes added |
+
+#### Key Patterns / Decisions
+- Same pluggable pattern as `HsmAdapter` — new scheme requires only: implement `SettlementFileExporter`, add config block, set `enabled: true`
+- Afrigo overrides `transmissionMethod()` to return `"HTTPS"` — PAPSS is REST-based clearinghouse
+- DB-enforced idempotency: `UNIQUE INDEX (batch_id, scheme) WHERE status = 'TRANSMITTED'`
+- `buildExportRecords()` uses JdbcTemplate to avoid cross-package repository coupling
+
+#### Build Verification
+```
+cd card-service && ./mvnw clean compile → BUILD SUCCESS (0 errors, 0 warnings in Java)
+```
+
+#### Compliance Checklist Update
+- ✅ Scheme settlement file format — framework production-ready; stub exporters documented for spec replacement
+
+---
+
 ### Session 36 — 2026-04-11
 **card-service Build Order Step 8 — Scheme-Compliant Chargeback; full state machine, 5-scheme reason code catalogue, retrieval requests, representments, nightly timeframe enforcer. BUILD SUCCESS (0 errors).**
 

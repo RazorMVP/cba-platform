@@ -81,6 +81,51 @@ card:
     default-currency: "840"     # ISO 4217 numeric code used when test requests omit currency field — override per deployment
   bureau:
     name: ${BUREAU_NAME:CBA_BUREAU}   # Configured bureau name — e.g. THALES_HID, IDEMIA, HID_GLOBAL
+  settlement:
+    export:
+      acquirer-bin: ${ACQUIRER_BIN:000000}     # Bank's BIN — embedded in all scheme file headers
+      member-id: ${MEMBER_ID:CBA001}           # Scheme membership identifier
+      export-cron: "0 58 23 * * *"             # Nightly export at 23:58 — runs after settlement batch closes at 23:57
+      max-retries: 3
+      retry-delay-seconds: 300                 # 5 minutes between retries
+      schemes:
+        visa:
+          enabled: false                       # Set true + configure credentials at production
+          sftp-host: ${VISA_SFTP_HOST:visanet.visa.com}
+          sftp-port: ${VISA_SFTP_PORT:22}
+          sftp-user: ${VISA_SFTP_USER:}
+          sftp-key-path: ${VISA_SFTP_KEY_PATH:}
+          remote-dir: ${VISA_SFTP_DIR:/incoming}
+          participant-id: ${VISA_PARTICIPANT_ID:}
+        mastercard:
+          enabled: false
+          sftp-host: ${MC_SFTP_HOST:banknet.mastercard.com}
+          sftp-port: ${MC_SFTP_PORT:22}
+          sftp-user: ${MC_SFTP_USER:}
+          sftp-key-path: ${MC_SFTP_KEY_PATH:}
+          remote-dir: ${MC_SFTP_DIR:/incoming}
+          participant-id: ${MC_PARTICIPANT_ID:}
+        verve:
+          enabled: false
+          sftp-host: ${VERVE_SFTP_HOST:nibss-plc.com.ng}
+          sftp-port: ${VERVE_SFTP_PORT:22}
+          sftp-user: ${VERVE_SFTP_USER:}
+          sftp-key-path: ${VERVE_SFTP_KEY_PATH:}
+          remote-dir: ${VERVE_SFTP_DIR:/settlement}
+          participant-id: ${VERVE_PARTICIPANT_ID:}
+        afrigo:
+          enabled: false
+          https-endpoint: ${PAPSS_ENDPOINT:https://gateway.papss.com/settlement}
+          https-api-key: ${PAPSS_API_KEY:}
+          participant-id: ${PAPSS_PARTICIPANT_ID:}
+        unionpay:
+          enabled: false
+          sftp-host: ${CUP_SFTP_HOST:cups.unionpay.com}
+          sftp-port: ${CUP_SFTP_PORT:22}
+          sftp-user: ${CUP_SFTP_USER:}
+          sftp-key-path: ${CUP_SFTP_KEY_PATH:}
+          remote-dir: ${CUP_SFTP_DIR:/incoming}
+          participant-id: ${CUP_PARTICIPANT_ID:}
 
 # Monolith backend (for balance checks)
 backend:

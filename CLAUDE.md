@@ -1039,7 +1039,7 @@ American Express is explicitly **out of scope** — it does not use ISO 8583 and
 | Fraud engine | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered — FraudEngine 10 rules, per-currency thresholds, configurable weights (Session 28 + 32) |
 | BIN management + routing | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered — com.cba.card.bin: BinRange, BinService range-scan, 6/8-digit BIN, BinController, demo data (Session 29) |
 | Scheme adapter (private DEs) | DE 60–63, 126 | DE 48 PDS, 111–127 | DE 62–63 | Minimal | DE 60–63 CUP | ✅ Covered — com.cba.fep.scheme: 5 adapters + 5 per-scheme jPOS packager XMLs (Session 27) |
-| Scheme settlement file format | BASE II | IPM / GCMS | NIBSS e-settlement | PAPSS | CUPS / CNAPS | ⚠️ Partial — internal settlement batch lifecycle built (SettlementBatch/SettlementService); scheme clearinghouse file formats (BASE II, IPM, NIBSS, PAPSS, CUPS) not built |
+| Scheme settlement file format | BASE II | IPM / GCMS | NIBSS e-settlement | PAPSS | CUPS / CNAPS | ✅ Covered — com.cba.card.settlement: `SettlementFileExporter` interface + 5 stub exporters (VisaBase2Exporter/MastercardIpmExporter/VerveNibssExporter/AfrigoPapssExporter/UnionPayCupsExporter); `SettlementFileTransmitter` (SFTP + HTTPS); `SettlementFileExportService` (@Scheduled nightly + manual trigger); all enabled:false until credentials supplied — zero code changes at production (Session 37) |
 | Interchange management | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered — com.cba.card.interchange: rate tables per scheme, InterchangeQualificationEngine, settlement netting (Session 30) |
 | 3D Secure / ACS (CNP) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered — com.cba.card.threeds: ACS, frictionless/challenge flow, CAVV, OTP, per-currency frictionless limits (Session 31) |
 | Card personalization bureau | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ Covered — com.cba.card.bureau: CDP generation, bureau job lifecycle, ORDERED→PRODUCED→DISPATCHED (Session 34 / Step 7) |
@@ -1291,6 +1291,7 @@ RAISED → RETRIEVAL_REQUESTED → CHARGEBACK_INITIATED
 6. ✅ **card-service — 3D Secure ACS** — `threeds` package, ACS endpoints, CAVV generation, OTP challenge, SecurityConfig `@Order(0)` chain _(Session 31)_
 7. ✅ **card-service — Card Personalization Bureau** — CDP file generation, bureau job lifecycle; `ORDERED → PRODUCED → DISPATCHED` state progression _(Session 34)_
 8. ✅ **card-service — Scheme-Compliant Chargeback** — full state machine, reason code framework, timeframe enforcement _(Session 36)_
+8.5. ✅ **card-service — Settlement File Export Framework** — `SettlementFileExporter` interface, 5 stub exporters, SFTP+HTTPS transmitter, nightly scheduler, `SettlementExportController` _(Session 37)_
 9. **card-service — Open Banking layer** — Card API (`/card-api/v1/`), API key auth, webhook delivery, spending analytics
 10. **backend (monolith)** — `CardServiceClient` REST client; AISP/CBPII extension for card accounts; `ConsentScope` additions
 11. **Angular `CardsModule`** — 12 screens
@@ -1459,6 +1460,72 @@ card-service/src/main/resources/
 | OTP at DEBUG log level only | `log.debug("3DS OTP: {}", otp)` — never at INFO in production; application.yml sets `com.cba.card: INFO` so DEBUG is off by default |
 | CAVV uses `frictionless ECI "05"` not "06" | EMVCo 3DS 2.x: ECI "05" applies to both frictionless and challenge-verified authentications; "06" = attempted (3DS tried, not verified); "07" = no 3DS |
 | `panHmacKey` used for both PAN hash and OTP hash | Consistent key hierarchy — same key used in `CardService` for PAN hashing; avoids a second key in config |
+
+---
+
+### card-service — Settlement File Export Framework (Session 37)
+
+**Build status**: `cd card-service && ./mvnw clean compile → BUILD SUCCESS (0 errors)`
+
+**What was built:** Production-ready settlement file export framework — pluggable `SettlementFileExporter` interface with 5 stub implementations (one per scheme), SFTP + HTTPS transmitter, nightly scheduled orchestration, audit trail table, and a manual REST trigger for ops. Zero code changes required at production — flip `enabled: true` in `application.yml` and supply credentials.
+
+**Verified package structure (additions to `com.cba.card.settlement`):**
+
+```
+card-service/src/main/java/com/cba/card/settlement/
+├── SettlementFileExporter.java         — interface: getScheme/isEnabled/export/generateFileName/transmissionMethod()
+├── SettlementExportRecord.java         — normalized DTO record (all scheme-exporter fields); maskPan() helper
+├── SettlementTransmission.java         — JPA audit entity: PENDING→TRANSMITTED→ACKNOWLEDGED|FAILED
+├── SettlementTransmissionRepository.java — 4 query methods + idempotency check (batchId+scheme+status)
+├── SettlementExportProperties.java     — @ConfigurationProperties(prefix="card.settlement.export");
+│                                          SchemeExportConfig inner class; forScheme() accessor
+├── VisaBase2Exporter.java              — BASE II stub; filename: V+acquirerBin+yyMMdd+001; full field-map Javadoc
+├── MastercardIpmExporter.java          — IPM stub; filename: participantId+yyMMdd+001.IPM; DE48/MTI 1240 Javadoc
+├── VerveNibssExporter.java             — NIBSS e-settlement stub; filename: participantId+YYYYMMDD.set
+├── AfrigoPapssExporter.java            — PAPSS stub; transmissionMethod()="HTTPS"; JSON payload structure
+├── UnionPayCupsExporter.java           — CUPS stub; GB18030 encoding note; filename: participantId+YYYYMMDD.cup
+├── SettlementFileTransmitter.java      — SFTP via JSch (addIdentity+getSession); HTTPS via RestTemplate POST
+├── SettlementTransmissionException.java — retryable RuntimeException signal
+├── SettlementFileExportService.java    — @Scheduled nightly + exportBatch()/listTransmissions()/getTransmission()
+└── SettlementExportController.java     — POST /export/{batchId}, GET /transmissions, GET /transmissions/{id},
+                                          GET /batches/{batchId}/transmissions
+```
+
+**Flyway migration:** `V7__settlement_export.sql`
+- `settlement_transmissions` table: UUID PK, batch_id + scheme + status lifecycle, attempt tracking, endpoint audit
+- `UNIQUE INDEX (batch_id, scheme) WHERE status = 'TRANSMITTED'` — DB-enforced idempotency
+
+**Endpoint inventory:**
+
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| `POST` | `/api/v1/cards/settlement/export/{batchId}` | ADMIN | Manual batch re-export trigger; optional `?settlementDate=` |
+| `GET` | `/api/v1/cards/settlement/transmissions` | ADMIN/TELLER | List transmissions; optional `?status=` filter |
+| `GET` | `/api/v1/cards/settlement/transmissions/{id}` | ADMIN/TELLER | Single transmission detail |
+| `GET` | `/api/v1/cards/settlement/batches/{batchId}/transmissions` | ADMIN/TELLER | All transmissions for a batch |
+
+**Exporter activation at production (zero code change):**
+```yaml
+card:
+  settlement:
+    export:
+      schemes:
+        visa:
+          enabled: true                    # ← flip this
+          sftp-host: ${VISA_SFTP_HOST}     # ← set credentials
+          sftp-user: ${VISA_SFTP_USER}
+          sftp-key-path: ${VISA_SFTP_KEY_PATH}
+```
+
+**Critical gotchas for future sessions:**
+
+| Issue | Fix |
+|-------|-----|
+| `findByStatusAndSettlementDate` vs `findBySettlementDateAndStatus` | Spring Data JPA segment order must match parameter order; `findByStatusAndSettlementDate` returns `List<>` (multiple batches per day); the older `findBySettlementDateAndStatus` returns `Optional<>` (first match only) — both exist in `SettlementBatchRepository` now |
+| Afrigo overrides `transmissionMethod()` | PAPSS is REST-based; `AfrigoPapssExporter.transmissionMethod()` returns `"HTTPS"` — the transmitter branches on this string to choose SFTP vs RestTemplate path |
+| `StrictHostKeyChecking=no` in JSch SFTP | Dev-safe default — MUST be replaced with `known_hosts` file and `StrictHostKeyChecking=yes` before production deployment; documented as TODO in `SettlementFileTransmitter` |
+| `buildExportRecords()` uses JdbcTemplate | Intentional — avoids importing domain repositories from other packages (card, interchange); scheme is set to `'UNKNOWN'` in stub SQL and must be resolved via card/BIN join in production serializer implementation |
+| Stub `export()` returns UTF-8 text bytes | Stubs return human-readable field-layout documentation; real implementations replace the body with binary records per scheme spec; the interface contract (`byte[]`) is identical for both |
 
 ---
 

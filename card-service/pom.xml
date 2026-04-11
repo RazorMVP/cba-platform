@@ -111,6 +111,13 @@
       <artifactId>jackson-datatype-jsr310</artifactId>
     </dependency>
 
+    <!-- ── SFTP (settlement file transmission to scheme networks) ──── -->
+    <dependency>
+      <groupId>com.jcraft</groupId>
+      <artifactId>jsch</artifactId>
+      <version>0.1.55</version>
+    </dependency>
+
     <!-- ── Test ───────────────────────────────────────────────────── -->
     <dependency>
       <groupId>org.springframework.boot</groupId>

@@ -50,7 +50,7 @@ INSERT INTO bin_ranges (bin_start, bin_end, scheme, product_type, card_type, cou
 -- ── Fraud Rules ───────────────────────────────────────────────────────────────
 INSERT INTO fraud_rules (rule_id, weight, enabled, params) VALUES
   ('VELOCITY_LIMIT',           40,  true,  '{"max_transactions": 5, "window_minutes": 10}'),
-  ('SINGLE_AMOUNT_LIMIT',      35,  true,  '{}'),
+  ('SINGLE_AMOUNT_LIMIT',      35,  true,  '{"thresholds":{"840":100000,"404":13000000,"288":500000,"566":7500000},"default_threshold_minor_units":100000}'),
   ('BLOCKED_COUNTRY',          60,  true,  '{"blocked_country_codes": ["PRK", "IRN", "CUB"]}'),
   ('BLOCKED_MCC',              45,  true,  '{"blocked_mccs": ["7995", "9754"]}'),
   ('DUPLICATE_TRANSACTION',    50,  true,  '{"window_minutes": 2}'),

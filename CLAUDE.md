@@ -1299,6 +1299,43 @@ RAISED → RETRIEVAL_REQUESTED → CHARGEBACK_INITIATED
 
 ---
 
+### card-service — Multi-Currency Rules (Session 32)
+
+The card platform is **fully multi-currency**. Every monetary threshold and comparison must be per-currency. The following rules apply to all future card-service development:
+
+#### Currency Representation
+- All amounts in the system use **ISO 4217 minor units** (e.g. cents for USD/KES/GHS, kobo for NGN)
+- Currency is identified by **ISO 4217 numeric code** (e.g. `"840"`=USD, `"404"`=KES, `"288"`=GHS, `"566"`=NGN) — the same code that appears in DE49 of ISO 8583 messages
+- Never use alphabetic codes (`USD`, `KES`) as map keys in config or DB — use numeric codes for consistency with the wire format
+
+#### Per-Currency Config Pattern
+Use a YAML map keyed by ISO numeric code with a `"default"` fallback:
+```yaml
+card.threeds.frictionless-limits:
+  "840": 5000      # USD: $50.00
+  "404": 700000    # KES: 7,000 KES
+  "288": 50000     # GHS: 500 GHS
+  "default": 5000  # fallback for unlisted currencies
+```
+Inject as `@Value("#{${card.threeds.frictionless-limits}}") Map<String, Long>` and resolve with `map.getOrDefault(currencyCode, map.getOrDefault("default", fallback))`.
+
+#### Fraud Rule Per-Currency Thresholds
+Store currency-specific thresholds in the rule's `params` JSONB column under a `"thresholds"` map key:
+```json
+{"thresholds":{"840":100000,"404":13000000,"288":500000},"default_threshold_minor_units":100000}
+```
+The `FraudEngine.resolveSingleAmountThreshold()` method handles this lookup. Add new currencies by updating the DB row — no code change needed.
+
+#### Hard Rules — Never Do These
+| Don't | Do instead |
+|-------|-----------|
+| Hardcode `"840"` as a currency default | Use configurable `@Value` with `"default"` key |
+| Compare `amountCents` to a single threshold | Look up threshold by `currencyCode` from a map |
+| Default `currencyCode` to `null` or `"USD"` when missing | Throw `IllegalArgumentException` — fail loudly |
+| Use alphabetic codes (`USD`) as YAML/DB map keys | Use ISO numeric codes (`"840"`) |
+
+---
+
 ### card-service — 3DS ACS Implementation Notes (Session 31)
 
 **Build status**: `./mvnw clean compile → BUILD SUCCESS (0 errors)`

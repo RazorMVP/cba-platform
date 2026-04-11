@@ -63,7 +63,11 @@ public class CavvGenerator {
             String amountStr = amount != null
                     ? String.format("%012d", amount.movePointRight(2).longValue())
                     : "000000000000";
-            String currencyStr = currency != null ? String.format("%-3s", currency) : "840";
+            if (currency == null || currency.isBlank()) {
+                throw new IllegalArgumentException(
+                        "Currency code is required for CAVV generation — cannot default to USD");
+            }
+            String currencyStr = String.format("%-3s", currency);
             String eciStr      = eci != null ? eci : "06";
             String input = acsTransId.toString() + amountStr + currencyStr + eciStr;
 

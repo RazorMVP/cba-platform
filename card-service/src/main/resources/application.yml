@@ -62,16 +62,23 @@ card:
     step-up-threshold: 70       # Score 30-69 → STEP_UP; ≥70 → DECLINE
   settlement:
     auth-expiry-days: 7         # Unmatched authorizations reversed after 7 days
-  tap-limit:                    # Single-message (real-time) threshold per currency
-    USD: 2500                   # $25.00 in cents
-    KES: 3500                   # ~350 KES
-    GHS: 5000                   # ~50 GHS
+  tap-limit:                    # Single-message (real-time) threshold per ISO 4217 numeric code (minor units)
+    "840": 2500                 # USD: $25.00 (2500 cents)
+    "404": 350000               # KES: 3,500 KES (350000 cents)
+    "288": 30000                # GHS: 300 GHS (30000 pesewas)
   threeds:
     cavv-master-key: ${THREEDS_CAVV_MASTER_KEY:dev-cavv-master-key-change-in-prod}
-    frictionless-limit: 5000    # Transactions ≤ $50.00 (in cents) go frictionless
+    frictionless-limits:        # Per-currency frictionless threshold in minor units (ISO 4217 numeric code keys)
+      "840": 5000               # USD: $50.00 (5000 cents)
+      "404": 700000             # KES: 7,000 KES (700000 cents)
+      "288": 50000              # GHS: 500 GHS (50000 pesewas)
+      "566": 7500000            # NGN: 75,000 NGN (7500000 kobo)
+      "default": 5000           # Fallback for any unlisted currency
     otp-expiry-minutes: 10      # OTP valid for 10 minutes
     max-otp-attempts: 3         # Lock session after 3 failed OTP attempts
     acs-base-url: ${ACS_BASE_URL:http://localhost:8081}  # Used in ARes.acsURL for challenge redirect
+  simulator:
+    default-currency: "840"     # ISO 4217 numeric code used when test requests omit currency field — override per deployment
 
 # Monolith backend (for balance checks)
 backend:

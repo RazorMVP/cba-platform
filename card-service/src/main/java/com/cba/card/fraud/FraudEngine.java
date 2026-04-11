@@ -74,10 +74,12 @@ public class FraudEngine {
         // ── SINGLE_AMOUNT_LIMIT ────────────────────────────────────────────
         FraudRuleEntity limitRule = ruleMap.get("SINGLE_AMOUNT_LIMIT");
         if (limitRule != null && ctx.card() != null) {
-            // Limit checked elsewhere (CardLimitService), but we still score it
-            // For demo: flag if amount > 100000 cents ($1000) with no per-txn limit override
-            BigDecimal amountThreshold = BigDecimal.valueOf(
-                    intParam(limitRule.getParams(), "threshold_minor_units", 100000));
+            // Threshold is currency-aware: rule params may carry a "thresholds" map keyed by
+            // ISO 4217 numeric currency code (e.g. {"840":100000,"404":13000000,"288":500000}).
+            // Falls back to "default_threshold_minor_units", then to 100000 (last resort only).
+            // All values are in the currency's minor units (cents, fils, pesewas, etc.).
+            BigDecimal amountThreshold = resolveSingleAmountThreshold(
+                    limitRule.getParams(), ctx.currencyCode());
             if (ctx.amount() != null && ctx.amount().compareTo(amountThreshold) > 0) {
                 results.add(FraudRuleResult.triggered("SINGLE_AMOUNT_LIMIT", limitRule.getWeight()));
                 totalScore += limitRule.getWeight();
@@ -156,6 +158,36 @@ public class FraudEngine {
     private FraudEvaluationResult buildResult(FraudContext ctx, List<FraudRuleResult> results,
                                                int score, FraudDecision decision) {
         return new FraudEvaluationResult(score, decision, results);
+    }
+
+    /**
+     * Resolve the SINGLE_AMOUNT_LIMIT threshold for the transaction's currency.
+     *
+     * <p>Lookup order:
+     * <ol>
+     *   <li>Rule params {@code thresholds} map keyed by ISO 4217 numeric code
+     *       (e.g. {@code {"840":100000,"404":13000000,"288":500000}})</li>
+     *   <li>Rule params {@code default_threshold_minor_units} scalar</li>
+     *   <li>Hardcoded last-resort 100 000 (never treated as "$1 000" — purely a guard)</li>
+     * </ol>
+     *
+     * @param params       rule params JSON from DB
+     * @param currencyCode ISO 4217 numeric code of the transaction (may be null)
+     * @return threshold in the currency's minor units
+     */
+    @SuppressWarnings("unchecked")
+    private BigDecimal resolveSingleAmountThreshold(Map<String, Object> params, String currencyCode) {
+        if (currencyCode != null) {
+            Object thresholdsObj = params.get("thresholds");
+            if (thresholdsObj instanceof Map<?, ?> thresholdMap) {
+                Object currencyThreshold = ((Map<String, Object>) thresholdMap).get(currencyCode);
+                if (currencyThreshold instanceof Number n) {
+                    return BigDecimal.valueOf(n.longValue());
+                }
+            }
+        }
+        // Fall back to default scalar in the rule params, or hardcoded guard
+        return BigDecimal.valueOf(intParam(params, "default_threshold_minor_units", 100_000));
     }
 
     private int intParam(Map<String, Object> params, String key, int defaultValue) {

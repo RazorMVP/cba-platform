@@ -46,8 +46,22 @@ public class ThreeDsService {
     private final CardRepository cardRepository;
     private final CavvGenerator cavvGenerator;
 
-    @Value("${card.threeds.frictionless-limit:5000}")
-    private long frictionlessLimitCents;
+    /**
+     * Per-currency frictionless limit in ISO 4217 minor units (e.g. cents for USD/KES/GHS).
+     * Key = ISO 4217 numeric currency code. If the transaction currency is not in the map,
+     * the entry keyed {@code "default"} is used. All amounts are in minor units.
+     *
+     * <p>Example config:
+     * <pre>
+     * card.threeds.frictionless-limits:
+     *   "840": 5000     # USD: $50.00
+     *   "404": 700000   # KES: 7,000 KES
+     *   "288": 50000    # GHS: 500 GHS
+     *   "default": 5000 # fallback for any other currency
+     * </pre>
+     */
+    @Value("#{${card.threeds.frictionless-limits:{840:5000,404:700000,288:50000,default:5000}}}")
+    private java.util.Map<String, Long> frictionlessLimits;
 
     @Value("${card.threeds.otp-expiry-minutes:10}")
     private int otpExpiryMinutes;
@@ -90,9 +104,10 @@ public class ThreeDsService {
         }
 
         BigDecimal amount = req.scaledAmount();
-        long amountCents = amount.movePointRight(2).longValue();
+        long amountMinorUnits = amount.movePointRight(2).longValue();
+        long frictionlessLimit = resolveFrictionlessLimit(req.purchaseCurrency());
 
-        if (amountCents <= frictionlessLimitCents) {
+        if (amountMinorUnits <= frictionlessLimit) {
             return processFrictionless(session, card, req, acsTransId, amount, req.purchaseCurrency());
         } else {
             return processChallenge(session, card, acsTransId,
@@ -239,6 +254,17 @@ public class ThreeDsService {
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * Look up the frictionless threshold for a given ISO 4217 numeric currency code.
+     * Falls back to the "default" key, then to 5000 (hardcoded last resort).
+     */
+    private long resolveFrictionlessLimit(String currencyCode) {
+        if (currencyCode != null && frictionlessLimits.containsKey(currencyCode)) {
+            return frictionlessLimits.get(currencyCode);
+        }
+        return frictionlessLimits.getOrDefault("default", 5000L);
+    }
 
     private ThreeDsSession buildSession(AReqMessage req, UUID acsTransId, Card card) {
         ThreeDsSession s = new ThreeDsSession();

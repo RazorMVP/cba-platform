@@ -36,7 +36,8 @@ public class CardService {
 
     @Transactional
     public Card issueCard(UUID productId, UUID customerId, UUID linkedEntityId,
-                          boolean virtual, String pan, String expiry, String cvv) {
+                          boolean virtual, String pan, String expiry, String cvv,
+                          String currencyCode) {
         CardProduct product = cardProductRepository.findById(productId)
                 .orElseThrow(() -> CbaException.notFound("CARD_PRODUCT_NOT_FOUND",
                         "Card product not found: " + productId));
@@ -69,7 +70,11 @@ public class CardService {
         limit.setDailyWithdrawalLimit(product.getDefaultDailyLimit().multiply(BigDecimal.valueOf(0.4)));
         limit.setPerTxnLimit(product.getDefaultDailyLimit().multiply(BigDecimal.valueOf(0.2)));
         limit.setMonthlyLimit(product.getDefaultDailyLimit().multiply(BigDecimal.valueOf(4)));
-        limit.setCurrencyCode("USD");
+        if (currencyCode == null || currencyCode.isBlank()) {
+            throw new IllegalArgumentException(
+                    "Currency code is required when issuing a card — the system is multi-currency");
+        }
+        limit.setCurrencyCode(currencyCode);
         cardLimitRepository.save(limit);
 
         // For physical cards, create an order record

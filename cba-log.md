@@ -59,6 +59,43 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 32 — 2026-04-11
+
+**Multi-currency audit — 5 critical USD lockouts fixed across card-service. BUILD SUCCESS (0 errors).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/.../threeds/ThreeDsService.java` | FIXED — replaced `frictionlessLimitCents` (single `long`) with `Map<String,Long> frictionlessLimits` injected via `@Value("#{${...}}")`, keyed by ISO 4217 numeric code; `resolveFrictionlessLimit(currencyCode)` lookup with `"default"` fallback |
+| `card-service/.../threeds/CavvGenerator.java` | FIXED — removed silent "840" fallback on null currency; now throws `IllegalArgumentException` with explicit message: fail loudly rather than generate a USD-bound CAVV for a non-USD transaction |
+| `card-service/.../card/CardService.java` | FIXED — `issueCard()` now accepts `String currencyCode`; throws if null/blank; sets `CardLimit.currencyCode` from caller rather than hardcoding "USD" |
+| `card-service/.../card/CardController.java` | FIXED — `IssueCardRequest` DTO gains `@NotNull String currencyCode`; passes to `cardService.issueCard()` |
+| `card-service/.../fraud/FraudEngine.java` | FIXED — `SINGLE_AMOUNT_LIMIT` now calls `resolveSingleAmountThreshold(params, currencyCode)`; lookup order: `params.thresholds[currencyCode]` → `params.default_threshold_minor_units` → hardcoded 100,000 guard |
+| `card-service/.../terminal/TerminalSimulatorService.java` | FIXED — removed 3× hardcoded "840"; new `@Value("${card.simulator.default-currency:840}") String defaultSimulatorCurrency` injected field used for all fallbacks |
+| `card-service/src/main/resources/application.yml` | UPDATED — `tap-limit` keys changed from `USD/KES/GHS` to ISO numeric `"840"/"404"/"288"`; `card.threeds.frictionless-limits` map replaces single `frictionless-limit`; `card.simulator.default-currency` added |
+| `card-service/src/main/resources/db/migration/V2__card_demo_data.sql` | UPDATED — `SINGLE_AMOUNT_LIMIT` params now include `thresholds` map: `{"840":100000,"404":13000000,"288":500000,"566":7500000}` |
+
+#### Key Patterns / Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| Per-currency map in `@Value("#{${...}}")` SpEL | Spring Boot supports Map injection from YAML keys natively via SpEL map literal; `"default"` key acts as fallback so new currencies need only a YAML entry, not a code change |
+| `CavvGenerator` throws on null currency | A CAVV bound to the wrong currency will silently fail issuer verification at authorization time — noisy failure at generation time is far easier to diagnose |
+| Fraud threshold in rule params JSON, not config | Per-currency thresholds live in the `fraud_rules` table so operations can update them via the admin API without a deployment; `resolveSingleAmountThreshold()` has a 3-level fallback for graceful degradation |
+| `card.simulator.default-currency` in config | Terminal simulator is a dev tool — its "default" should match the deployment's primary market currency, not be hardcoded to USD globally |
+| `IssueCardRequest.currencyCode` `@NotNull` | Fail at the API boundary (400 Bad Request) rather than at the DB constraint (500) — callers must consciously set the currency when issuing a card |
+| `tap-limit` keys as ISO numeric codes | Changed from `USD/KES/GHS` strings to `"840"/"404"/"288"` — consistent with the ISO 4217 numeric codes used in DE49 of ISO 8583 messages |
+
+#### Build Verification
+```
+cd card-service && ./mvnw clean compile → BUILD SUCCESS (0 errors)
+```
+
+#### Compliance Checklist Update
+- Multi-currency audit and USD lockout remediation ✅
+
+---
+
 ### Session 31 — 2026-04-11
 
 **card-service 3D Secure ACS complete — `threeds` package: entities, CAVV generator, service, controller, challenge HTML. BUILD SUCCESS (0 errors).**

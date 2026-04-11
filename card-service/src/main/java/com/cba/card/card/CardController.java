@@ -26,7 +26,8 @@ public class CardController {
         Card card = cardService.issueCard(
                 req.productId(), req.customerId(), req.linkedEntityId(),
                 req.virtual() != null && req.virtual(),
-                req.pan(), req.expiryDate(), req.cvv());
+                req.pan(), req.expiryDate(), req.cvv(),
+                req.currencyCode());
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(card));
     }
 
@@ -73,5 +74,7 @@ public class CardController {
             Boolean virtual,
             @NotNull String pan,
             @NotNull String expiryDate,
-            @NotNull String cvv) {}
+            @NotNull String cvv,
+            /** ISO 4217 numeric currency code for card limits (e.g. "840"=USD, "404"=KES, "288"=GHS). Required. */
+            @NotNull String currencyCode) {}
 }

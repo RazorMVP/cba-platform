@@ -29,6 +29,14 @@ public class TerminalSimulatorService {
 
     private final FepIso8583Client fepClient;
 
+    /**
+     * Default ISO 4217 numeric currency code used when a simulation request omits the
+     * currency field. Configurable per deployment — set to the local market's currency.
+     * Never assumed to be USD; defaults to "840" only as a compile-time guard.
+     */
+    @org.springframework.beans.factory.annotation.Value("${card.simulator.default-currency:840}")
+    private String defaultSimulatorCurrency;
+
     // ── Transaction Types ─────────────────────────────────────────────────────
 
     /** MTI 0100 — Authorization Request (purchase or balance enquiry). */
@@ -81,7 +89,7 @@ public class TerminalSimulatorService {
                 .set(41, terminal(req))                                        // DE41 Terminal ID
                 .set(42, merchant(req))                                        // DE42 Merchant ID
                 .set(43, merchantName(req))                                    // DE43 Merchant Name
-                .set(49, req.currency() != null ? req.currency() : "840");   // DE49 Currency
+                .set(49, req.currency() != null ? req.currency() : defaultSimulatorCurrency);   // DE49 Currency
 
         if (req.pinBlock() != null && !req.pinBlock().isBlank()) {
             // DE52 PIN Block — 8 binary bytes (16 hex chars)
@@ -115,7 +123,7 @@ public class TerminalSimulatorService {
                 .set(41, terminal(req))
                 .set(42, merchant(req))
                 .set(43, merchantName(req))
-                .set(49, req.currency() != null ? req.currency() : "840");
+                .set(49, req.currency() != null ? req.currency() : defaultSimulatorCurrency);
 
         if (req.pinBlock() != null && !req.pinBlock().isBlank()) {
             builder.set(52, req.pinBlock().substring(0, Math.min(16, req.pinBlock().length())));
@@ -143,7 +151,7 @@ public class TerminalSimulatorService {
                 .set(37, rrn)
                 .set(41, terminal(req))
                 .set(42, merchant(req))
-                .set(49, req.currency() != null ? req.currency() : "840");
+                .set(49, req.currency() != null ? req.currency() : defaultSimulatorCurrency);
 
         return sendAndDecode(builder, stan, rrn);
     }

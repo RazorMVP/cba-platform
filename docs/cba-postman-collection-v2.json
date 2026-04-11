@@ -16021,7 +16021,104 @@
           ]
         }
       ],
-      "description": "Card Management Service (port 8081) \u2014 disputes, settlement batches, and terminal simulator. Variable: {{cardServiceHost}} = localhost:8081",
+        {
+          "name": "3D Secure ACS",
+          "item": [
+            {
+              "name": "ACS — Receive AReq (Directory Server)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/3ds/acs/areq",
+                  "host": ["http://{{cardServiceHost}}"],
+                  "path": ["3ds", "acs", "areq"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"threeDSServerTransID\": \"a291b490-e0c8-4f59-9bc0-000000000001\",\n  \"dsTransID\": \"a291b490-e0c8-4f59-9bc0-000000000002\",\n  \"acctNumber\": \"4111111111111111\",\n  \"cardExpiryDate\": \"2612\",\n  \"messageCategory\": \"01\",\n  \"transType\": \"01\",\n  \"purchaseAmount\": 2500,\n  \"purchaseCurrency\": \"840\",\n  \"purchaseExponent\": \"2\",\n  \"merchantName\": \"AMAZON.COM\",\n  \"merchantCountryCode\": \"840\",\n  \"acquirerBIN\": \"411111\",\n  \"acquirerMerchantID\": \"MERCH001\",\n  \"deviceChannel\": \"02\",\n  \"notificationURL\": \"https://merchant.example.com/3ds/notification\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Receive a 3DS 2.x Authentication Request (AReq) from the Directory Server. Returns ARes with transStatus Y (frictionless) or C (challenge required). No JWT — called by scheme Directory Server with mTLS in production."
+              },
+              "response": [
+                {
+                  "name": "200 OK — Frictionless (transStatus=Y)",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"threeDSServerTransID\": \"a291b490-e0c8-4f59-9bc0-000000000001\",\n  \"dsTransID\": \"a291b490-e0c8-4f59-9bc0-000000000002\",\n  \"acsTransID\": \"b3c4d5e6-f7a8-9012-bcde-000000000003\",\n  \"transStatus\": \"Y\",\n  \"eci\": \"05\",\n  \"authenticationValue\": \"AAAAAAAAAAAAAAAAAAAAAAAAAAM=\",\n  \"acsURL\": null,\n  \"messageVersion\": \"2.3.1\"\n}"
+                },
+                {
+                  "name": "200 OK — Challenge Required (transStatus=C)",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"threeDSServerTransID\": \"a291b490-e0c8-4f59-9bc0-000000000001\",\n  \"dsTransID\": \"a291b490-e0c8-4f59-9bc0-000000000002\",\n  \"acsTransID\": \"b3c4d5e6-f7a8-9012-bcde-000000000003\",\n  \"transStatus\": \"C\",\n  \"eci\": null,\n  \"authenticationValue\": null,\n  \"acsURL\": \"http://localhost:8081/3ds/acs/challenge/b3c4d5e6-f7a8-9012-bcde-000000000003\",\n  \"messageVersion\": \"2.3.1\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "ACS — Challenge Page (browser HTML)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "Accept", "value": "text/html" }
+                ],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/3ds/acs/challenge/{{acsTransId}}",
+                  "host": ["http://{{cardServiceHost}}"],
+                  "path": ["3ds", "acs", "challenge", "{{acsTransId}}"]
+                },
+                "description": "Returns the OTP challenge HTML page. Called by the cardholder's browser after the Directory Server redirects them to the acsURL from the ARes. No authentication required."
+              },
+              "response": []
+            },
+            {
+              "name": "ACS — Verify OTP (challenge submit)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/3ds/acs/challenge/{{acsTransId}}/verify",
+                  "host": ["http://{{cardServiceHost}}"],
+                  "path": ["3ds", "acs", "challenge", "{{acsTransId}}", "verify"]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"otp\": \"123456\"\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "description": "Verify the OTP entered by the cardholder. Called by the challenge page JavaScript or a mobile 3DS SDK. Returns status AUTHENTICATED (with CAVV), FAILED (with attempts remaining), or LOCKED (max attempts exceeded)."
+              },
+              "response": [
+                {
+                  "name": "200 OK — Authenticated",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"status\": \"AUTHENTICATED\",\n  \"eci\": \"05\",\n  \"authenticationValue\": \"AAAAAAAAAAAAAAAAAAAAAAAAAAM=\",\n  \"message\": \"Authentication successful\"\n}"
+                },
+                {
+                  "name": "200 OK — Failed (attempts remaining)",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"status\": \"FAILED\",\n  \"eci\": null,\n  \"authenticationValue\": null,\n  \"message\": \"Incorrect OTP. Attempts remaining: 2\"\n}"
+                },
+                {
+                  "name": "200 OK — Locked (max attempts)",
+                  "status": "OK",
+                  "code": 200,
+                  "body": "{\n  \"status\": \"LOCKED\",\n  \"eci\": null,\n  \"authenticationValue\": null,\n  \"message\": \"Maximum OTP attempts exceeded. Session locked.\"\n}"
+                }
+              ]
+            }
+          ],
+          "description": "3D Secure 2.x Access Control Server (ACS) endpoints. Not JWT-protected — called by the scheme Directory Server (mTLS) and cardholder browser. Implements frictionless (amount \u2264 $50) and OTP challenge flows."
+        }
+      ],
+      "description": "Card Management Service (port 8081) \u2014 disputes, settlement batches, terminal simulator, interchange management, and 3D Secure ACS. Variable: {{cardServiceHost}} = localhost:8081",
       "auth": {
         "type": "bearer",
         "bearer": [

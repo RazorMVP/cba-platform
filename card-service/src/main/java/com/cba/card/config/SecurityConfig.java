@@ -11,9 +11,11 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * Dual security filter chain:
+ * Triple security filter chain:
  *
  * <ol>
+ *   <li>Order 0 — 3DS ACS endpoints ({@code /3ds/acs/**}): open to Directory Server
+ *       (mTLS in prod) and cardholder browsers. No JWT.</li>
  *   <li>Order 1 — Internal endpoints ({@code /api/v1/internal/**}): open to
  *       network-isolated callers (FEP). No JWT required. In production this path
  *       is protected at the network/ingress level, not at the application layer.</li>
@@ -24,6 +26,23 @@ import org.springframework.security.web.SecurityFilterChain;
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
+
+    /**
+     * 3DS ACS endpoints — no JWT.
+     *
+     * <p>Called by the scheme Directory Server (mTLS client cert in production)
+     * and by the cardholder's browser (no auth). Must not require a Keycloak token.
+     */
+    @Bean
+    @Order(0)
+    public SecurityFilterChain threeDsChain(HttpSecurity http) throws Exception {
+        http
+            .securityMatcher("/3ds/acs/**")
+            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+        return http.build();
+    }
 
     /** Internal endpoints called by FEP — no JWT, network-isolation is the guard. */
     @Bean

@@ -59,6 +59,51 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 31 — 2026-04-11
+
+**card-service 3D Secure ACS complete — `threeds` package: entities, CAVV generator, service, controller, challenge HTML. BUILD SUCCESS (0 errors).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/.../db/migration/V4__threeds_module.sql` | NEW — 2 tables: `threeds_sessions` (5-status CHECK), `threeds_otp_tokens` (HMAC-hash only, no plaintext) |
+| `card-service/.../threeds/ThreeDsStatus.java` | NEW — enum: INITIATED, CHALLENGE_REQUIRED, AUTHENTICATED, FAILED, REJECTED |
+| `card-service/.../threeds/ThreeDsSession.java` | NEW — JPA entity; `@Version`; `@PreUpdate`; CAVV stored in `authentication_value` |
+| `card-service/.../threeds/ThreeDsOtpToken.java` | NEW — JPA entity; `otp_hash` only (HMAC-SHA256, never plaintext) |
+| `card-service/.../threeds/ThreeDsSessionRepository.java` | NEW — findByAcsTransId, findByCardId, findByStatus |
+| `card-service/.../threeds/ThreeDsOtpTokenRepository.java` | NEW — findTopBySessionIdAndVerifiedFalseOrderByCreatedAtDesc |
+| `card-service/.../threeds/CavvGenerator.java` | NEW — software CAVV: `HMAC-SHA256(masterKey,cardId)` → card key → `HMAC-SHA256(cardKey,input)` → Base64(raw[0..19]); `@Value` for master key; `hmacHex()` for OTP hashing |
+| `card-service/.../threeds/AReqMessage.java` | NEW — EMVCo 3DS 2.3 AReq DTO record; `scaledAmount()` helper; Jackson-friendly field names |
+| `card-service/.../threeds/AResMessage.java` | NEW — ARes record; factory methods: `frictionless()`, `challenge()`, `declined()`, `attempted()` |
+| `card-service/.../threeds/ChallengeSubmitRequest.java` | NEW — cardholder OTP submission DTO (`@NotBlank @Size(min=4,max=8)`) |
+| `card-service/.../threeds/ChallengeVerifyResponse.java` | NEW — outcome record; factory methods: `authenticated()`, `failed(attemptsRemaining)`, `locked()` |
+| `card-service/.../threeds/ThreeDsService.java` | NEW — orchestration: AReq → frictionless/challenge decision; OTP generation (SecureRandom); CAVV generation; challenge verification with attempt counter |
+| `card-service/.../threeds/ThreeDsController.java` | NEW — 3 endpoints; challenge page returns inline HTML (no Thymeleaf); JavaScript `fetch` for OTP verify |
+| `card-service/config/SecurityConfig.java` | UPDATED — new `@Order(0)` chain for `/3ds/acs/**` (permits all — called by Directory Server + cardholder browser) |
+| `card-service/src/main/resources/application.yml` | UPDATED — `card.threeds` config block: `cavv-master-key`, `frictionless-limit`, `otp-expiry-minutes`, `max-otp-attempts`, `acs-base-url` |
+
+#### Key Patterns / Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| `@Order(0)` separate security chain for `/3ds/acs/**` | Directory Server calls AReq with mTLS (not Keycloak JWT); cardholder browser has no token at all — clean separation avoids `permitAll()` bleed into the JWT chain |
+| Frictionless via amount threshold | Low-risk implementation: `amount ≤ frictionless-limit (5000 cents / $50)` → frictionless. Production would layer in ML-based RBA (Risk Based Authentication) |
+| OTP stored as HMAC-SHA256 hash only | Same key as PAN hash (`card.pan.hmac-key`) — consistent key hierarchy; plaintext OTP never persists even briefly |
+| CAVV as `HMAC-SHA256(HMAC-SHA256(masterKey, cardId), acsTransId+amount+currency+eci)[0..19]` | Deterministic per session; binds authentication event to specific card+transaction; 20 bytes → 28-char Base64 (EMVCo maximum) |
+| Inline HTML for challenge page | Avoids Thymeleaf/MVC template dependency in card-service; `TEXT_HTML_VALUE` produce type; `%%` escapes in Java text blocks for `String.formatted()` |
+| ECI "05" for both frictionless and challenge success | EMVCo 3DS 2.x: "05" = fully authenticated regardless of friction path; "06" = attempted (frictionless path where 3DS was tried but not confirmed) |
+| OTP logged at DEBUG only | Plaintext OTP must never appear in INFO/WARN logs in production — security requirement; debug logging disabled by default in `application.yml` |
+
+#### Build Verification
+```
+cd card-service && ./mvnw clean compile → BUILD SUCCESS (0 errors, JVM module warnings only)
+```
+
+#### Compliance Checklist Update
+- Build Order Step 6 (card-service 3D Secure ACS) ✅
+
+---
+
 ### Session 30 — 2026-04-11
 
 **card-service Interchange Management Module complete — qualification engine, rate tables, scheme fees, interchange log. BUILD SUCCESS (0 errors).**

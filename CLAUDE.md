@@ -1288,7 +1288,7 @@ RAISED → RETRIEVAL_REQUESTED → CHARGEBACK_INITIATED
 3. ✅ **card-service — core modules** — card, limits, fraud, token, settlement, dispute, terminal simulator REST _(Session 28)_
 4. ✅ **card-service — BIN Management Module** — BIN range table, 6/8-digit lookup, scheme routing; `GET /{bin}/scheme` M2M endpoint; `BinRangeRequest` DTO _(Session 29)_
 5. ✅ **card-service — Interchange Management Module** — rate tables per scheme, qualification engine, settlement netting _(Session 30)_
-6. **card-service — 3D Secure ACS** — `threeds` package, ACS endpoint, CAVV generation via HSM
+6. ✅ **card-service — 3D Secure ACS** — `threeds` package, ACS endpoints, CAVV generation, OTP challenge, SecurityConfig `@Order(0)` chain _(Session 31)_
 7. **card-service — Card Personalization Bureau** — CDP file generation, bureau job lifecycle
 8. **card-service — Scheme-Compliant Chargeback** — full state machine, reason code framework, timeframe enforcement
 9. **card-service — Open Banking layer** — Card API (`/card-api/v1/`), API key auth, webhook delivery, spending analytics
@@ -1296,6 +1296,56 @@ RAISED → RETRIEVAL_REQUESTED → CHARGEBACK_INITIATED
 11. **Angular `CardsModule`** — 12 screens
 12. **Docker Compose** — `card-service` + `fep-service` service definitions
 13. **Infrastructure / K8s** — new deployment + service manifests
+
+---
+
+### card-service — 3DS ACS Implementation Notes (Session 31)
+
+**Build status**: `./mvnw clean compile → BUILD SUCCESS (0 errors)`
+
+**Verified package structure:**
+
+```
+card-service/src/main/java/com/cba/card/threeds/
+├── ThreeDsStatus.java           — enum: INITIATED, CHALLENGE_REQUIRED, AUTHENTICATED, FAILED, REJECTED
+├── ThreeDsSession.java          — JPA entity; @Version; @PreUpdate; stores CAVV in authentication_value
+├── ThreeDsOtpToken.java         — JPA entity; otp_hash only (HMAC-SHA256, never plaintext)
+├── ThreeDsSessionRepository.java — findByAcsTransId, findByCardId, findByStatus
+├── ThreeDsOtpTokenRepository.java — findTopBySessionIdAndVerifiedFalseOrderByCreatedAtDesc
+├── CavvGenerator.java           — software CAVV via javax.crypto.Mac (HmacSHA256); hmacHex() for OTP hashing
+├── AReqMessage.java             — EMVCo 3DS 2.3 AReq DTO record; scaledAmount() helper
+├── AResMessage.java             — ARes record; factory methods frictionless/challenge/declined/attempted
+├── ChallengeSubmitRequest.java  — cardholder OTP DTO (@NotBlank @Size(min=4,max=8))
+├── ChallengeVerifyResponse.java — outcome record; authenticated/failed/locked factory methods
+├── ThreeDsService.java          — orchestration; frictionless decision; OTP gen (SecureRandom); CAVV gen; verify
+└── ThreeDsController.java       — POST /3ds/acs/areq, GET /3ds/acs/challenge/{id} (HTML), POST /3ds/acs/challenge/{id}/verify
+```
+
+**Resources added:**
+```
+card-service/src/main/resources/
+├── application.yml               — card.threeds.* config block (cavv-master-key, frictionless-limit, otp-expiry, max-attempts, acs-base-url)
+└── db/migration/V4__threeds_module.sql — threeds_sessions + threeds_otp_tokens tables
+```
+
+**Endpoints (3DS ACS — no JWT):**
+
+| Method | Path | Caller | Description |
+|--------|------|--------|-------------|
+| `POST` | `/3ds/acs/areq` | Directory Server | Receive AReq; return ARes (Y/N/C) |
+| `GET` | `/3ds/acs/challenge/{acsTransId}` | Cardholder browser | Challenge HTML page |
+| `POST` | `/3ds/acs/challenge/{acsTransId}/verify` | Browser JS / 3DS SDK | Submit OTP; returns JSON |
+
+**Critical gotchas for future sessions:**
+
+| Issue | Fix |
+|-------|-----|
+| `@Order(0)` chain must be declared first | `threeDsChain` at Order 0 matches `/3ds/acs/**` and permits all — must be before the JWT chain at Order 2 or the JWT filter intercepts first |
+| `GET /3ds/acs/challenge/{id}` returns `TEXT_HTML_VALUE` | Produces HTML because the cardholder's browser is redirected here; `@RestController` would normally return JSON — override with `produces = MediaType.TEXT_HTML_VALUE` |
+| `%%` in Java text blocks for `String.formatted()` | Text blocks with `%s` for `String.formatted()` need literal `%%` wherever the HTML contains a single `%` — affects CSS percentages in the challenge page |
+| OTP at DEBUG log level only | `log.debug("3DS OTP: {}", otp)` — never at INFO in production; application.yml sets `com.cba.card: INFO` so DEBUG is off by default |
+| CAVV uses `frictionless ECI "05"` not "06" | EMVCo 3DS 2.x: ECI "05" applies to both frictionless and challenge-verified authentications; "06" = attempted (3DS tried, not verified); "07" = no 3DS |
+| `panHmacKey` used for both PAN hash and OTP hash | Consistent key hierarchy — same key used in `CardService` for PAN hashing; avoids a second key in config |
 
 ---
 

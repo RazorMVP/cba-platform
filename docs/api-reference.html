@@ -1865,6 +1865,18 @@ difference = actual_cash - closing_balance</pre>
 <tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/network/signon</code></td><td>0800</td><td>Terminal sign-on (DE70=0001)</td><td>ADMIN, TELLER</td></tr>
 <tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/network/echo</code></td><td>0800</td><td>Echo/heartbeat test (DE70=0301)</td><td>ADMIN, TELLER</td></tr>
 </table>
+
+<h3 id="threeds-acs">3D Secure ACS (Access Control Server)</h3>
+<p>EMVCo 3DS 2.3-compatible ACS. <strong>Not JWT-protected</strong> — called by the scheme Directory Server (mTLS in production) and the cardholder's browser. Implements frictionless (amount ≤ $50) and OTP challenge flows. CAVV is computed with HMAC-SHA256 and returned to the merchant for inclusion in DE 55 of the ISO 8583 authorization.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Caller</th><th>Description</th><th>Role</th></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/3ds/acs/areq</code></td><td>Directory Server</td><td>Receive AReq; return ARes with <code>transStatus</code> Y (frictionless+CAVV), C (challenge), or N (declined)</td><td>none</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/3ds/acs/challenge/{acsTransId}</code></td><td>Cardholder browser</td><td>Render HTML OTP challenge page; displays merchant name and amount</td><td>none</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/3ds/acs/challenge/{acsTransId}/verify</code></td><td>Browser JS / 3DS SDK</td><td>Verify OTP; returns JSON: <code>AUTHENTICATED</code> (with CAVV+ECI), <code>FAILED</code> (attempts remaining), or <code>LOCKED</code></td><td>none</td></tr>
+</table>
+<p><strong>ECI indicator values:</strong> <code>05</code> = fully authenticated (frictionless or challenge success); <code>06</code> = attempted; <code>07</code> = not authenticated.</p>
+<p><strong>CAVV algorithm (software / dev):</strong> <code>cardKey = HMAC-SHA256(masterKey, cardId)</code> → <code>raw = HMAC-SHA256(cardKey, acsTransId+amount12+currency3+eci2)</code> → <code>cavv = Base64(raw[0..19])</code>. Production uses HSM.</p>
+<p><strong>AReq body fields:</strong> <code>threeDSServerTransID</code>, <code>dsTransID</code>, <code>acctNumber</code>, <code>cardExpiryDate</code>, <code>messageCategory</code> (01=PA, 02=NPA), <code>purchaseAmount</code>, <code>purchaseCurrency</code>, <code>merchantName</code>, <code>deviceChannel</code> (02=browser).</p>
 </section>
 
 <!-- FULL API MATRIX ─────────────────────────────────────────────────────── -->

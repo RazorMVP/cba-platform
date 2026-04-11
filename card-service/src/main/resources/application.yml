@@ -66,6 +66,12 @@ card:
     USD: 2500                   # $25.00 in cents
     KES: 3500                   # ~350 KES
     GHS: 5000                   # ~50 GHS
+  threeds:
+    cavv-master-key: ${THREEDS_CAVV_MASTER_KEY:dev-cavv-master-key-change-in-prod}
+    frictionless-limit: 5000    # Transactions ≤ $50.00 (in cents) go frictionless
+    otp-expiry-minutes: 10      # OTP valid for 10 minutes
+    max-otp-attempts: 3         # Lock session after 3 failed OTP attempts
+    acs-base-url: ${ACS_BASE_URL:http://localhost:8081}  # Used in ARes.acsURL for challenge redirect
 
 # Monolith backend (for balance checks)
 backend:

@@ -1,0 +1,58 @@
+<div class="page">
+  <div class="page-header">
+    <div><h1>BIN Management</h1><p class="subtitle">Bank Identification Number ranges for scheme routing (6 and 8 digit BINs)</p></div>
+    <button class="btn-primary" (click)="openCreate()"><span class="material-symbols-outlined">add</span> Add BIN Range</button>
+  </div>
+
+  <div class="card-panel">
+    <div *ngIf="loading" class="empty-state">Loading…</div>
+    <div *ngIf="!loading && bins.length === 0" class="empty-state">No BIN ranges defined.</div>
+    <table *ngIf="!loading && bins.length > 0" class="data-table">
+      <thead>
+        <tr><th>BIN Range</th><th>Scheme</th><th>Card Type</th><th>Product</th><th>Country</th><th>Currency</th><th>Active</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let b of bins">
+          <td class="mono">{{ b.binStart }} – {{ b.binEnd }}</td>
+          <td><span class="scheme-badge" [style.background]="schemeColor(b.scheme)">{{ b.scheme }}</span></td>
+          <td>{{ b.cardType }}</td>
+          <td>{{ b.productType }}</td>
+          <td>{{ b.countryCode }}</td>
+          <td>{{ b.currencyCode }}</td>
+          <td><app-status-badge [label]="b.active ? 'Active' : 'Inactive'" [variant]="b.active ? 'success' : 'neutral'" /></td>
+          <td>
+            <button class="btn-ghost sm" (click)="openEdit(b)">Edit</button>
+            <button class="btn-ghost sm danger-btn" (click)="delete(b.id)">Delete</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
+  <div class="modal" (click)="$event.stopPropagation()">
+    <div class="modal-header"><h2>{{ editId ? 'Edit' : 'Add' }} BIN Range</h2><button class="btn-icon" (click)="closeModal()"><span class="material-symbols-outlined">close</span></button></div>
+    <div class="modal-body">
+      <label>BIN Start (6–8 digits) <input [(ngModel)]="form.binStart" maxlength="8" /></label>
+      <label>BIN End (6–8 digits) <input [(ngModel)]="form.binEnd" maxlength="8" /></label>
+      <label>Scheme
+        <select [(ngModel)]="form.scheme">
+          <option *ngFor="let s of schemes" [value]="s">{{ s }}</option>
+        </select>
+      </label>
+      <label>Card Type
+        <select [(ngModel)]="form.cardType">
+          <option *ngFor="let t of cardTypes" [value]="t">{{ t }}</option>
+        </select>
+      </label>
+      <label>Product Type <input [(ngModel)]="form.productType" placeholder="e.g. CLASSIC, GOLD, PLATINUM" /></label>
+      <label>Country Code (ISO 3166) <input [(ngModel)]="form.countryCode" maxlength="2" /></label>
+      <label>Currency Code (ISO 4217) <input [(ngModel)]="form.currencyCode" maxlength="3" /></label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" (click)="closeModal()">Cancel</button>
+      <button class="btn-primary" (click)="submit()">{{ editId ? 'Save' : 'Add' }}</button>
+    </div>
+  </div>
+</div>

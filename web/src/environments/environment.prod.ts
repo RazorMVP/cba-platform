@@ -4,6 +4,7 @@ export const environment = {
   production: true,
   authBypass: true,
   apiBaseUrl: '/api/v1',
+  cardServiceUrl: '/card-svc',
   keycloak: {
     url: 'https://auth.cba.com',
     realm: 'cba',

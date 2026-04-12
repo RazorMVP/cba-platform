@@ -105,6 +105,12 @@ export const routes: Routes = [
         path: 'open-banking',
         loadChildren: () => import('./features/open-banking/open-banking.routes').then(m => m.OPEN_BANKING_ROUTES),
       },
+
+      // ── Cards ──────────────────────────────────────────────────────────────
+      {
+        path: 'cards',
+        loadChildren: () => import('./features/cards/cards.routes').then(m => m.CARDS_ROUTES),
+      },
     ],
   },
   { path: '**', redirectTo: 'operations/dashboard' },

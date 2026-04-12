@@ -59,6 +59,48 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 41 — 2026-04-12
+**Build Order Step 11 — Angular `CardsModule`: all 12 screens built, environment dual-URL pattern, sidebar wired, lazy-loaded route registered. BUILD SUCCESS (0 errors, 0 type errors). Commit: pending.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/src/environments/environment.ts` | ADD `cardServiceUrl: 'http://localhost:8081'` |
+| `web/src/environments/environment.prod.ts` | ADD `cardServiceUrl: '/card-svc'` |
+| `web/src/app/features/cards/cards.service.ts` | NEW: full dual-base-URL service (`/api/v1` + `/card-api/v1`); all card-service + card-api endpoints; `ApiResponse<T>` unwrapping helpers; typed interfaces for all domain objects |
+| `web/src/app/features/cards/cards.routes.ts` | NEW: 12 child routes for the cards feature module |
+| `web/src/app/features/cards/card-list/card-list.ts` + `.html` + `.scss` | NEW: search by PAN/customer, status + type filters, issue card modal |
+| `web/src/app/features/cards/card-detail/card-detail.ts` + `.html` + `.scss` | NEW: 3 tabs (overview / authorizations / limits), block/unblock/cancel/activate commands, edit limits modal |
+| `web/src/app/features/cards/card-products/card-products.ts` + `.html` + `.scss` | NEW: product list with BIN range, create product modal |
+| `web/src/app/features/cards/fraud-rules/fraud-rules.ts` + `.html` + `.scss` | NEW: score threshold legend (0–29/30–69/70–100), inline weight + enabled editing, JSON params, hard-block indicator |
+| `web/src/app/features/cards/settlement/settlement.ts` + `.html` + `.scss` | NEW: batch accordion, close + export triggers, transmissions tab |
+| `web/src/app/features/cards/disputes/disputes.ts` + `.html` + `.scss` | NEW: 7-state chargeback workflow, action buttons per state, raise + resolve modals, reason code catalogue |
+| `web/src/app/features/cards/terminal-simulator/terminal-simulator.ts` + `.html` + `.scss` | NEW: transaction type selector, entry mode toggle, currency selector, approve/decline banner, ISO 8583 hex dump panel |
+| `web/src/app/features/cards/api-keys/api-keys.ts` + `.html` + `.scss` | NEW: issue key with scope checkboxes, two-step modal (form → one-time key reveal with clipboard copy), revoke |
+| `web/src/app/features/cards/webhooks/webhooks.ts` + `.html` + `.scss` | NEW: webhook list, delivery log side panel, event-category grouped selector |
+| `web/src/app/features/cards/bin-management/bin-management.ts` + `.html` + `.scss` | NEW: BIN range CRUD, 6/8-digit support, scheme-colour badges, soft-delete |
+| `web/src/app/features/cards/scheme-config/scheme-config.ts` + `.html` + `.scss` | NEW: static informational accordion for 5 schemes; adapter class, private DEs, settlement format, YAML activation snippet |
+| `web/src/app/features/cards/interchange/interchange.ts` + `.html` + `.scss` | NEW: rate table with scheme filter, rate + scheme-fee CRUD modal tabs |
+| `web/src/app/app.routes.ts` | ADD lazy-loaded cards route after Open Banking |
+| `web/src/app/layout/sidebar/sidebar.ts` | ADD Cards nav group (11 items) before Admin group |
+| `CLAUDE.md` | Angular Component Map: 13 new rows for all card screens; Build Order step 11 marked ✅ |
+
+#### Key Patterns / Decisions
+- **Dual base URL**: `CardsService` maintains `this.base` (`/api/v1`) and `this.cardApi` (`/card-api/v1`), both from `environment.cardServiceUrl`. Private helpers accept a `cardApi: boolean` flag.
+- **Local `type V` alias**: Angular template type-checking enforces `BadgeVariant`; instead of importing the type (which triggers "declared but never read"), each component that uses `statusVariant()` declares `type V = 'success' | 'warning' | 'error' | 'info' | 'neutral' | 'primary'` locally.
+- **SCSS import**: All 12 SCSS files use `@use 'assets/styles/tokens' as *;` — the project-correct path (confirmed by batch `sed` fix applied during build).
+- **Scheme config is read-only**: `SchemeConfigComponent` has no API calls — it renders a static accordion describing the 5 scheme adapters and their activation YAML. Purely informational for ops.
+
+#### Build Verification
+`npx ng build --configuration=production` — **BUILD SUCCESS** (0 errors, 0 TypeScript errors; pre-existing CSS budget warnings on `payments-list.scss` and `journal-entries.scss` only)
+
+#### Compliance Checklist Update
+- ✅ All 12 card screens accessible under `/cards` with lazy-loaded route
+- ✅ No `BadgeVariant` type errors — local `type V` alias pattern used consistently
+- ✅ Dual-URL architecture keeps card-service separate from monolith in Angular service layer
+
+---
+
 ### Session 40 — 2026-04-12
 **Account Number Algorithm Framework — pluggable per-tenant, per-account-type algorithm system; NUBAN (Nigerian CBN) first implementation; Angular config screen. BUILD SUCCESS (0 errors). Commit: `f577942`.**
 

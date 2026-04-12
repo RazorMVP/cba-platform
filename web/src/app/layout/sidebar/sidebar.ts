@@ -82,6 +82,22 @@ export class SidebarComponent {
       ],
     },
     {
+      label: 'Cards',
+      items: [
+        { label: 'Card List',          icon: 'credit_card',         route: '/cards' },
+        { label: 'Card Products',      icon: 'style',               route: '/cards/products' },
+        { label: 'Fraud Rules',        icon: 'security',            route: '/cards/fraud' },
+        { label: 'Settlement',         icon: 'receipt',             route: '/cards/settlement' },
+        { label: 'Disputes',           icon: 'gavel',               route: '/cards/disputes' },
+        { label: 'Terminal Simulator', icon: 'point_of_sale',       route: '/cards/terminal' },
+        { label: 'BIN Management',     icon: 'dialpad',             route: '/cards/bins' },
+        { label: 'Schemes',            icon: 'hub',                 route: '/cards/schemes' },
+        { label: 'Interchange',        icon: 'currency_exchange',   route: '/cards/interchange' },
+        { label: 'API Keys',           icon: 'key',                 route: '/cards/api-keys' },
+        { label: 'Webhooks',           icon: 'webhook',             route: '/cards/webhooks' },
+      ],
+    },
+    {
       label: 'Admin',
       items: [
         { label: 'Users',              icon: 'manage_accounts',   route: '/admin/users' },

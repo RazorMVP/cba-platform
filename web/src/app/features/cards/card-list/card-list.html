@@ -1,0 +1,78 @@
+<div class="page">
+  <div class="page-header">
+    <div>
+      <h1>Cards</h1>
+      <p class="subtitle">Manage issued cards across all customers</p>
+    </div>
+    <button class="btn-primary" (click)="openIssue()">
+      <span class="material-symbols-outlined">add</span> Issue Card
+    </button>
+  </div>
+
+  <div class="filters">
+    <div class="search-box">
+      <span class="material-symbols-outlined">search</span>
+      <input placeholder="Search by last 4 digits, customer ID…" [ngModel]="searchQuery" (ngModelChange)="onSearch($event)" />
+    </div>
+    <select [(ngModel)]="typeFilter" (ngModelChange)="applyFilter()">
+      <option value="">All Types</option>
+      <option *ngFor="let t of types" [value]="t">{{ t }}</option>
+    </select>
+    <select [(ngModel)]="statusFilter" (ngModelChange)="applyFilter()">
+      <option value="">All Statuses</option>
+      <option *ngFor="let s of statuses" [value]="s">{{ s }}</option>
+    </select>
+  </div>
+
+  <div class="card-panel">
+    <div *ngIf="loading" class="empty-state">Loading cards…</div>
+    <div *ngIf="!loading && filtered.length === 0" class="empty-state">No cards found.</div>
+
+    <table *ngIf="!loading && filtered.length > 0" class="data-table">
+      <thead>
+        <tr>
+          <th>PAN (masked)</th>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Expiry</th>
+          <th>Customer ID</th>
+          <th>Virtual</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let card of filtered">
+          <td class="mono">****&nbsp;****&nbsp;****&nbsp;{{ card.panSuffix }}</td>
+          <td><span class="chip">{{ card.cardType }}</span></td>
+          <td><app-status-badge [label]="card.status" [variant]="statusVariant(card.status)" /></td>
+          <td>{{ card.expiryDate }}</td>
+          <td class="mono">{{ card.customerId }}</td>
+          <td><span class="material-symbols-outlined" [class.active]="card.virtualFlag">{{ card.virtualFlag ? 'check_circle' : 'remove' }}</span></td>
+          <td><a [routerLink]="['/cards', card.id]" class="link-action">View</a></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Issue Card Modal -->
+<div class="modal-overlay" *ngIf="showIssueModal" (click)="closeIssue()">
+  <div class="modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Issue New Card</h2>
+      <button class="btn-icon" (click)="closeIssue()"><span class="material-symbols-outlined">close</span></button>
+    </div>
+    <div class="modal-body">
+      <label>Customer ID <input [(ngModel)]="issueForm.customerId" /></label>
+      <label>Product ID <input [(ngModel)]="issueForm.productId" /></label>
+      <label>Linked Entity ID (Account / Loan) <input [(ngModel)]="issueForm.linkedEntityId" /></label>
+      <label class="checkbox-row">
+        <input type="checkbox" [(ngModel)]="issueForm.virtualFlag" /> Virtual card
+      </label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" (click)="closeIssue()">Cancel</button>
+      <button class="btn-primary" (click)="submitIssue()">Issue</button>
+    </div>
+  </div>
+</div>

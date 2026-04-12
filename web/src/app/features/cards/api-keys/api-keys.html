@@ -1,0 +1,72 @@
+<div class="page">
+  <div class="page-header">
+    <div><h1>API Keys</h1><p class="subtitle">M2M API keys for Card Open Banking API access</p></div>
+    <button class="btn-primary" (click)="openCreate()"><span class="material-symbols-outlined">add</span> Issue Key</button>
+  </div>
+
+  <div class="card-panel">
+    <div *ngIf="loading" class="empty-state">Loading…</div>
+    <div *ngIf="!loading && keys.length === 0" class="empty-state">No API keys issued.</div>
+    <table *ngIf="!loading && keys.length > 0" class="data-table">
+      <thead><tr><th>Name</th><th>Scopes</th><th>Last Used</th><th>Created</th><th></th></tr></thead>
+      <tbody>
+        <tr *ngFor="let key of keys">
+          <td><strong>{{ key.name }}</strong></td>
+          <td>
+            <div class="scopes">
+              <span class="scope-chip" *ngFor="let s of key.scopes">{{ s }}</span>
+            </div>
+          </td>
+          <td>{{ formatDate(key.lastUsedAt) }}</td>
+          <td>{{ key.createdAt | date:'shortDate' }}</td>
+          <td><button class="btn-ghost danger-btn sm" (click)="revoke(key.id)">Revoke</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Issue Key Modal -->
+<div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
+  <div class="modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Issue API Key</h2>
+      <button class="btn-icon" (click)="closeModal()"><span class="material-symbols-outlined">close</span></button>
+    </div>
+
+    <!-- Step 1: form -->
+    <div class="modal-body" *ngIf="!newKeyResult">
+      <label>Key Name <input [(ngModel)]="form.name" placeholder="e.g. Payment Processor" /></label>
+      <div class="scope-section">
+        <p class="scope-label">Scopes</p>
+        <label class="checkbox-row" *ngFor="let s of allScopes">
+          <input type="checkbox" [checked]="hasScope(s)" (change)="toggleScope(s)" /> {{ s }}
+        </label>
+      </div>
+    </div>
+
+    <!-- Step 2: show key -->
+    <div class="modal-body key-reveal" *ngIf="newKeyResult">
+      <div class="key-warning">
+        <span class="material-symbols-outlined">warning</span>
+        <p>This key will only be shown <strong>once</strong>. Copy it now — it cannot be retrieved later.</p>
+      </div>
+      <div class="key-box">
+        <code>{{ newKeyResult.key }}</code>
+        <button class="btn-icon copy-btn" (click)="copyKey()">
+          <span class="material-symbols-outlined">{{ copiedKey ? 'check' : 'content_copy' }}</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <ng-container *ngIf="!newKeyResult">
+        <button class="btn-ghost" (click)="closeModal()">Cancel</button>
+        <button class="btn-primary" (click)="submit()" [disabled]="!form.name || form.scopes.length === 0">Issue</button>
+      </ng-container>
+      <ng-container *ngIf="newKeyResult">
+        <button class="btn-primary" (click)="closeModal()">Done</button>
+      </ng-container>
+    </div>
+  </div>
+</div>

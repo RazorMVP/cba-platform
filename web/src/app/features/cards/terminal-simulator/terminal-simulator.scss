@@ -1,0 +1,30 @@
+@use 'assets/styles/tokens' as *;
+
+.simulator-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.request-panel, .response-panel { display: flex; flex-direction: column; gap: 16px; }
+
+.entry-toggle { display: flex; gap: 8px; margin-top: 4px;
+  button { padding: 6px 16px; border: 1px solid var(--color-border, #e2e8f0); border-radius: 20px; background: #fff; cursor: pointer; font-size: 0.875rem;
+    &.active { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+  }
+}
+
+.send-btn { width: 100%; justify-content: center; gap: 8px; margin-top: 8px; }
+
+.response-banner { display: flex; align-items: flex-start; gap: 16px; padding: 16px; border-radius: 12px; margin-bottom: 16px;
+  .material-symbols-outlined { font-size: 2rem; margin-top: 2px; }
+  strong { display: block; font-size: 1rem; }
+  .rc { font-family: 'Roboto Mono', monospace; font-size: 0.85rem; color: var(--color-muted, #888); }
+  p { margin: 4px 0 0; font-size: 0.875rem; }
+  &.approved { background: #dcfce7; color: #166534; }
+  &.declined  { background: #fee2e2; color: #991b1b; }
+}
+
+.response-fields { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.field-row { display: flex; gap: 16px; font-size: 0.875rem;
+  .label { color: var(--color-muted, #888); min-width: 140px; }
+}
+.mono { font-family: 'Roboto Mono', monospace; }
+
+.hex-toggle { width: 100%; justify-content: center; gap: 8px; }
+.hex-dump { background: #0f172a; color: #94a3b8; border-radius: 8px; padding: 16px; font-size: 0.75rem; font-family: 'Roboto Mono', monospace; overflow-x: auto; white-space: pre-wrap; word-break: break-all; margin-top: 8px; }

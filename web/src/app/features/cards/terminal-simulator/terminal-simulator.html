@@ -1,0 +1,81 @@
+<div class="page">
+  <div class="page-header">
+    <div><h1>Terminal Simulator</h1><p class="subtitle">Construct and fire ISO 8583 messages to the FEP via card-service</p></div>
+  </div>
+
+  <div class="simulator-layout">
+    <!-- Request Panel -->
+    <div class="card-panel request-panel">
+      <h3>Transaction Request</h3>
+
+      <label>Transaction Type
+        <select [(ngModel)]="txnType">
+          <option *ngFor="let t of txnTypes" [value]="t.value">{{ t.label }}</option>
+        </select>
+      </label>
+
+      <ng-container *ngIf="needsCardFields">
+        <label>Card Number (PAN) <input [(ngModel)]="request.cardNumber" maxlength="19" placeholder="4111111111111111" /></label>
+        <label>Expiry Date (YYMM) <input [(ngModel)]="request.expiryDate" maxlength="4" placeholder="2512" /></label>
+        <label>Entry Mode
+          <div class="entry-toggle">
+            <button *ngFor="let m of entryModes" [class.active]="entryMode === m" (click)="entryMode = m">{{ m }}</button>
+          </div>
+        </label>
+        <label>PIN Block (hex, optional) <input [(ngModel)]="request.pinBlock" placeholder="Leave blank for no PIN" /></label>
+      </ng-container>
+
+      <ng-container *ngIf="needsAmount">
+        <label>Amount (minor units)
+          <input type="number" [(ngModel)]="request.amount" />
+        </label>
+        <label>Currency
+          <select [(ngModel)]="request.currency">
+            <option *ngFor="let c of currencies" [value]="c.code">{{ c.label }}</option>
+          </select>
+        </label>
+      </ng-container>
+
+      <label>Terminal ID (8 chars) <input [(ngModel)]="request.terminalId" maxlength="8" /></label>
+      <label>Merchant ID <input [(ngModel)]="request.merchantId" /></label>
+      <label>Merchant Name <input [(ngModel)]="request.merchantName" /></label>
+
+      <button class="btn-primary send-btn" (click)="send()" [disabled]="loading">
+        <span class="material-symbols-outlined">send</span>
+        {{ loading ? 'Sending…' : 'Send Transaction' }}
+      </button>
+    </div>
+
+    <!-- Response Panel -->
+    <div class="card-panel response-panel">
+      <h3>Response</h3>
+
+      <div *ngIf="!response && !loading" class="empty-state">Fire a transaction to see the response.</div>
+      <div *ngIf="loading" class="empty-state">Sending to FEP…</div>
+
+      <div *ngIf="response" class="response-content">
+        <div class="response-banner" [class.approved]="approved" [class.declined]="!approved">
+          <span class="material-symbols-outlined">{{ approved ? 'check_circle' : 'cancel' }}</span>
+          <div>
+            <strong>{{ approved ? 'APPROVED' : 'DECLINED' }}</strong>
+            <span class="rc">RC: {{ response.responseCode }}</span>
+            <p>{{ response.responseDescription }}</p>
+          </div>
+        </div>
+
+        <div class="response-fields">
+          <div class="field-row" *ngIf="response.authCode"><span class="label">Auth Code</span><span class="mono">{{ response.authCode }}</span></div>
+          <div class="field-row"><span class="label">STAN</span><span class="mono">{{ response.stan }}</span></div>
+          <div class="field-row"><span class="label">RRN</span><span class="mono">{{ response.rrn }}</span></div>
+          <div class="field-row" *ngIf="response.availableBalance !== null"><span class="label">Available Balance</span><span class="mono">{{ response.availableBalance | number:'1.2-2' }}</span></div>
+        </div>
+
+        <button class="btn-ghost hex-toggle" (click)="showHexDump = !showHexDump">
+          <span class="material-symbols-outlined">data_object</span>
+          {{ showHexDump ? 'Hide' : 'Show' }} ISO 8583 Hex Dump
+        </button>
+        <pre class="hex-dump" *ngIf="showHexDump">{{ response.hexDump }}</pre>
+      </div>
+    </div>
+  </div>
+</div>

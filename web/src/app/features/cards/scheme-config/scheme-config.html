@@ -1,0 +1,55 @@
+<div class="page">
+  <div class="page-header">
+    <div>
+      <h1>Scheme Configuration</h1>
+      <p class="subtitle">Pluggable SchemeAdapter framework — 5 schemes, zero core changes for new schemes</p>
+    </div>
+  </div>
+
+  <div class="notice card-panel">
+    <span class="material-symbols-outlined">info</span>
+    <div>
+      <strong>Stub Implementations Active</strong>
+      <p>All scheme adapters are live but use stub exporters. To activate scheme transmission, flip <code>enabled: true</code> in <code>application.yml</code> and supply scheme credentials. No code changes required.</p>
+    </div>
+  </div>
+
+  <div class="scheme-list">
+    <div class="scheme-card" *ngFor="let s of schemes" (click)="toggle(s.code)">
+      <div class="scheme-header">
+        <div class="scheme-badge" [style.background]="s.color">{{ s.name }}</div>
+        <div class="scheme-meta">
+          <code class="adapter-name">{{ s.adapter }}</code>
+          <span class="status-chip">Adapter Ready</span>
+        </div>
+        <span class="material-symbols-outlined expand-icon">{{ expanded === s.code ? 'expand_less' : 'expand_more' }}</span>
+      </div>
+
+      <div class="scheme-detail" *ngIf="expanded === s.code" (click)="$event.stopPropagation()">
+        <div class="detail-grid">
+          <div class="detail-row"><span class="label">Private DEs</span><span>{{ s.privateDes }}</span></div>
+          <div class="detail-row"><span class="label">Settlement Format</span><span>{{ s.settlementFormat }}</span></div>
+          <div class="detail-row"><span class="label">jPOS Packager</span><code>{{ s.packagerXml }}</code></div>
+        </div>
+
+        <div class="capabilities">
+          <p class="cap-label">Capabilities</p>
+          <div class="cap-chips">
+            <span class="cap-chip" *ngFor="let cap of s.capabilities">{{ cap }}</span>
+          </div>
+        </div>
+
+        <div class="activate-section">
+          <p class="scope-label">To activate in <code>card-service/src/main/resources/application.yml</code>:</p>
+          <pre class="code-block">card:
+  settlement:
+    export:
+      schemes:
+        {{ s.code | lowercase }}:
+          enabled: true
+          sftp-host: ${{ '{' + s.code + '_SFTP_HOST}' }}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

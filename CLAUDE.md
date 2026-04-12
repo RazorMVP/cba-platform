@@ -1307,7 +1307,7 @@ RAISED → RETRIEVAL_REQUESTED → CHARGEBACK_INITIATED
 8.5. ✅ **card-service — Settlement File Export Framework** — `SettlementFileExporter` interface, 5 stub exporters, SFTP+HTTPS transmitter, nightly scheduler, `SettlementExportController` _(Session 37)_
 9. ✅ **card-service — Open Banking layer** — `/card-api/v1/` Card API, API key auth (SHA-256 + filter), WebClient webhook delivery (HMAC-SHA256 + exponential backoff), MCC spending analytics, dual-mode SecurityConfig chain _(Session 38)_
 10. ✅ **backend (monolith)** — `CardServiceClient` REST client, `CardAccountAdapter` OB shape mapping, `ConsentScope` enum, AISP card account merge, CBPII card balance extension _(Session 39)_
-11. **Angular `CardsModule`** — 12 screens
+11. ✅ **Angular `CardsModule`** — 12 screens: CardList, CardDetail, CardProducts, FraudRules, Settlement, Disputes, TerminalSimulator, ApiKeys, Webhooks, BinManagement, SchemeConfig, Interchange _(Session 41)_
 12. **Docker Compose** — `card-service` + `fep-service` service definitions
 13. **Infrastructure / K8s** — new deployment + service manifests
 
@@ -2327,6 +2327,18 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Floating Rates | `FloatingRatesComponent` | `SystemModule` | ✅ Built — accordion with rate periods, create/edit modal with dynamic period rows, delete confirm |
 | Taxes | `TaxesComponent` | `SystemModule` | ✅ Built — two tabs: Tax Components (CRUD) + Tax Groups (component bundles with effective dates) |
 | Account Algorithms | `AccountAlgorithmsComponent` | `SystemModule` | ✅ Built — per-tenant, per-account-type algorithm config; MIFOS/NUBAN toggle per type; bank code input; STRICT/PARANOID validation mode toggle |
+| Card List | `CardListComponent` | `CardsModule` | ✅ Built — search by PAN suffix/customer, type + status filters, issue card modal |
+| Card Detail | `CardDetailComponent` | `CardsModule` | ✅ Built — 3 tabs (overview/authorizations/limits), block/unblock/cancel/activate commands, edit limits modal |
+| Card Products | `CardProductsComponent` | `CardsModule` | ✅ Built — product list with BIN range display, create product modal |
+| Fraud Rules | `FraudRulesComponent` | `CardsModule` | ✅ Built — score legend (0–29/30–69/70–100), inline weight/enabled edit, JSON params editor, hard-block indicator |
+| Settlement | `SettlementComponent` | `CardsModule` | ✅ Built — batch accordion with close + export triggers, transmissions tab per scheme |
+| Disputes | `DisputesComponent` | `CardsModule` | ✅ Built — sliding detail panel, 7-state chargeback workflow actions, raise + resolve modals |
+| Terminal Simulator | `TerminalSimulatorComponent` | `CardsModule` | ✅ Built — txn type selector, entry mode toggle (CHIP/SWIPE/CONTACTLESS), approve/decline response banner, collapsible hex dump |
+| API Keys | `ApiKeysComponent` | `CardsModule` | ✅ Built — issue key with scope checkboxes, one-time key reveal with copy button, revoke |
+| Webhooks | `WebhooksComponent` | `CardsModule` | ✅ Built — webhook list, delivery log side panel, event-category selector, HMAC secret input |
+| BIN Management | `BinManagementComponent` | `CardsModule` | ✅ Built — 6/8-digit BIN range CRUD, scheme colour badges, soft-delete |
+| Scheme Config | `SchemeConfigComponent` | `CardsModule` | ✅ Built — accordion per scheme (Visa/MC/Verve/Afrigo/UnionPay), adapter details, YAML activation snippet |
+| Interchange | `InterchangeComponent` | `CardsModule` | ✅ Built — rate table with scheme filter, rate + fee CRUD modals, tabs for rates vs scheme fees |
 
 ### Angular View/Edit Toggle Pattern
 All detail pages (loan product, deposit product, customer, loan) share this pattern:

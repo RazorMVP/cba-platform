@@ -1,0 +1,76 @@
+<div class="page">
+  <div class="page-header">
+    <div><h1>Settlement</h1><p class="subtitle">Batch settlement tracking and scheme file transmission</p></div>
+  </div>
+
+  <div class="tab-bar">
+    <button [class.active]="activeTab === 'batches'" (click)="activeTab = 'batches'">Batches</button>
+    <button [class.active]="activeTab === 'transmissions'" (click)="activeTab = 'transmissions'">Transmissions</button>
+  </div>
+
+  <!-- Batches Tab -->
+  <div *ngIf="activeTab === 'batches'">
+    <div *ngIf="loading" class="card-panel empty-state">Loading…</div>
+    <div *ngIf="!loading && batches.length === 0" class="card-panel empty-state">No settlement batches.</div>
+
+    <div class="batch-list" *ngIf="!loading">
+      <div class="batch-card" *ngFor="let batch of batches">
+        <div class="batch-header" (click)="toggleExpand(batch.id)">
+          <div class="batch-meta">
+            <span class="batch-ref mono">{{ batch.batchRef }}</span>
+            <app-status-badge [label]="batch.status" [variant]="statusVariant(batch.status)" />
+            <span class="batch-date">{{ batch.settlementDate }}</span>
+          </div>
+          <div class="batch-stats">
+            <span><strong>{{ batch.itemCount }}</strong> items</span>
+            <span><strong>{{ totalAmount(batch) }}</strong></span>
+          </div>
+          <div class="batch-actions">
+            <button class="btn-ghost sm" *ngIf="batch.status === 'OPEN'" (click)="closeBatch(batch.id); $event.stopPropagation()">Close Batch</button>
+            <button class="btn-primary sm" *ngIf="batch.status === 'CLOSED'" (click)="triggerExport(batch.id); $event.stopPropagation()">Export Files</button>
+            <span class="material-symbols-outlined">{{ expandedBatch === batch.id ? 'expand_less' : 'expand_more' }}</span>
+          </div>
+        </div>
+
+        <div class="batch-detail" *ngIf="expandedBatch === batch.id">
+          <div class="detail-grid">
+            <div class="detail-row"><span class="label">Opened</span><span>{{ batch.openedAt | date:'medium' }}</span></div>
+            <div class="detail-row"><span class="label">Closed</span><span>{{ batch.closedAt ? (batch.closedAt | date:'medium') : '—' }}</span></div>
+          </div>
+          <div *ngIf="batchTransmissions(batch.id).length > 0" class="transmissions-mini">
+            <h4>Transmissions</h4>
+            <table class="data-table">
+              <thead><tr><th>Scheme</th><th>Status</th><th>Attempts</th><th>Last Attempt</th></tr></thead>
+              <tbody>
+                <tr *ngFor="let t of batchTransmissions(batch.id)">
+                  <td>{{ t.scheme }}</td>
+                  <td><app-status-badge [label]="t.status" [variant]="statusVariant(t.status)" /></td>
+                  <td>{{ t.attemptCount }}</td>
+                  <td>{{ t.lastAttemptAt ? (t.lastAttemptAt | date:'short') : '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transmissions Tab -->
+  <div class="card-panel" *ngIf="activeTab === 'transmissions'">
+    <div *ngIf="transmissions.length === 0" class="empty-state">No transmission records.</div>
+    <table *ngIf="transmissions.length > 0" class="data-table">
+      <thead><tr><th>Batch</th><th>Scheme</th><th>Status</th><th>Attempts</th><th>Last Attempt</th><th>Transmitted</th></tr></thead>
+      <tbody>
+        <tr *ngFor="let t of transmissions">
+          <td class="mono">{{ t.batchId.slice(0,8) }}…</td>
+          <td><span class="chip-scheme">{{ t.scheme }}</span></td>
+          <td><app-status-badge [label]="t.status" [variant]="statusVariant(t.status)" /></td>
+          <td>{{ t.attemptCount }}</td>
+          <td>{{ t.lastAttemptAt ? (t.lastAttemptAt | date:'short') : '—' }}</td>
+          <td>{{ t.transmittedAt ? (t.transmittedAt | date:'short') : '—' }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

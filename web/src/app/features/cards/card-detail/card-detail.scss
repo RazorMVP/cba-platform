@@ -1,0 +1,9 @@
+@use 'assets/styles/tokens' as *;
+
+.summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.high-risk { color: var(--color-danger, #ef4444); font-weight: 600; }
+.medium-risk { color: var(--color-warning, #f59e0b); font-weight: 600; }
+.danger-text { color: var(--color-danger, #ef4444); font-weight: 600; }
+.mono { font-family: 'Roboto Mono', monospace; font-size: 0.85rem; }
+.actions { display: flex; gap: 8px; align-items: center; }
+.danger { background: var(--color-danger, #ef4444) !important; }

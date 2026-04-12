@@ -1,0 +1,81 @@
+<div class="page">
+  <div class="page-header">
+    <div><h1>Webhooks</h1><p class="subtitle">Register callback URLs to receive card platform events</p></div>
+    <button class="btn-primary" (click)="openCreate()"><span class="material-symbols-outlined">add</span> Register Webhook</button>
+  </div>
+
+  <div class="webhooks-layout">
+    <!-- List -->
+    <div class="card-panel webhook-list">
+      <div *ngIf="loading" class="empty-state">Loading…</div>
+      <div *ngIf="!loading && webhooks.length === 0" class="empty-state">No webhooks registered.</div>
+      <div class="webhook-row" *ngFor="let w of webhooks" [class.selected]="selectedWebhook?.id === w.id" (click)="viewDeliveries(w)">
+        <div class="webhook-header">
+          <strong>{{ w.name }}</strong>
+          <span class="material-symbols-outlined active-dot" [class.on]="w.active">{{ w.active ? 'wifi' : 'wifi_off' }}</span>
+        </div>
+        <p class="url mono">{{ w.callbackUrl }}</p>
+        <div class="event-chips">
+          <span class="event-chip" *ngFor="let e of w.events.slice(0,3)">{{ e }}</span>
+          <span class="event-chip more" *ngIf="w.events.length > 3">+{{ w.events.length - 3 }} more</span>
+        </div>
+        <div class="webhook-footer">
+          <span class="date">{{ w.createdAt | date:'shortDate' }}</span>
+          <button class="btn-ghost sm danger-btn" (click)="deregister(w.id); $event.stopPropagation()">Deregister</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delivery Log Panel -->
+    <div class="card-panel delivery-panel" *ngIf="selectedWebhook">
+      <div class="panel-header">
+        <h3>Delivery Log — {{ selectedWebhook.name }}</h3>
+        <button class="btn-icon" (click)="selectedWebhook = null"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <div *ngIf="loadingDeliveries" class="empty-state">Loading deliveries…</div>
+      <div *ngIf="!loadingDeliveries && deliveries.length === 0" class="empty-state">No deliveries yet.</div>
+      <table *ngIf="!loadingDeliveries && deliveries.length > 0" class="data-table">
+        <thead><tr><th>Event</th><th>Status</th><th>HTTP</th><th>Attempts</th><th>Last Attempt</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let d of deliveries">
+            <td class="event-type">{{ d.eventType }}</td>
+            <td>
+              <span [class]="'status-dot ' + deliveryVariant(d.status)">{{ d.status }}</span>
+            </td>
+            <td class="mono">{{ d.httpStatus ?? '—' }}</td>
+            <td>{{ d.attemptCount }}</td>
+            <td>{{ d.lastAttemptAt ? (d.lastAttemptAt | date:'short') : '—' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Register Webhook Modal -->
+<div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
+  <div class="modal modal-lg" (click)="$event.stopPropagation()">
+    <div class="modal-header"><h2>Register Webhook</h2><button class="btn-icon" (click)="closeModal()"><span class="material-symbols-outlined">close</span></button></div>
+    <div class="modal-body">
+      <label>Webhook Name <input [(ngModel)]="form.name" /></label>
+      <label>Callback URL <input [(ngModel)]="form.callbackUrl" placeholder="https://your-server.com/webhook" /></label>
+      <label>Secret (for HMAC-SHA256 signature) <input [(ngModel)]="form.secret" type="password" /></label>
+
+      <div class="event-selector">
+        <p class="scope-label">Events to subscribe</p>
+        <div class="event-groups" *ngFor="let cat of ['AUTHORIZATION','CARD','FRAUD','DISPUTE']">
+          <p class="group-label">{{ cat }}</p>
+          <label class="checkbox-row" *ngFor="let e of allEvents" [class.hidden]="!e.startsWith(cat)">
+            <ng-container *ngIf="e.startsWith(cat)">
+              <input type="checkbox" [checked]="hasEvent(e)" (change)="toggleEvent(e)" /> {{ e }}
+            </ng-container>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" (click)="closeModal()">Cancel</button>
+      <button class="btn-primary" (click)="submit()">Register</button>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,55 @@
+<div class="page">
+  <div class="page-header">
+    <div>
+      <h1>Fraud Rules</h1>
+      <p class="subtitle">Configure rule weights and thresholds — score 0–29 approve, 30–69 step-up, 70–100 decline</p>
+    </div>
+  </div>
+
+  <div class="score-legend card-panel">
+    <div class="legend-item low"><strong>0–29</strong> Approve</div>
+    <div class="legend-item medium"><strong>30–69</strong> Step-Up (force PIN)</div>
+    <div class="legend-item high"><strong>70–100</strong> Decline</div>
+  </div>
+
+  <div class="card-panel">
+    <div *ngIf="loading" class="empty-state">Loading rules…</div>
+    <table *ngIf="!loading" class="data-table">
+      <thead><tr><th>Rule ID</th><th>Description</th><th>Weight</th><th>Enabled</th><th>Hard Block</th><th>Actions</th></tr></thead>
+      <tbody>
+        <tr *ngFor="let rule of rules" [class.editing]="editingId === rule.id">
+          <td class="mono rule-id">{{ rule.ruleId }}</td>
+          <td class="description">{{ ruleDescriptions[rule.ruleId] || '—' }}</td>
+          <td>
+            <ng-container *ngIf="editingId !== rule.id">
+              <span [class]="'weight-badge ' + scoreColor(rule.weight)">{{ rule.weight }}</span>
+            </ng-container>
+            <input *ngIf="editingId === rule.id" type="number" min="0" max="100" [(ngModel)]="editForm.weight" class="weight-input" />
+          </td>
+          <td>
+            <ng-container *ngIf="editingId !== rule.id">
+              <span class="material-symbols-outlined" [class.on]="rule.enabled">{{ rule.enabled ? 'check_circle' : 'cancel' }}</span>
+            </ng-container>
+            <input *ngIf="editingId === rule.id" type="checkbox" [(ngModel)]="editForm.enabled" />
+          </td>
+          <td><span *ngIf="isHardBlock(rule.ruleId)" class="chip-danger">Hard Block</span></td>
+          <td>
+            <ng-container *ngIf="editingId !== rule.id">
+              <button class="btn-ghost sm" (click)="startEdit(rule)" [disabled]="isHardBlock(rule.ruleId)">Edit</button>
+            </ng-container>
+            <ng-container *ngIf="editingId === rule.id">
+              <button class="btn-primary sm" (click)="saveEdit(rule.id)">Save</button>
+              <button class="btn-ghost sm" (click)="cancelEdit()">Cancel</button>
+            </ng-container>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Params editor (inline below edit row) -->
+  <div class="card-panel params-editor" *ngIf="editingId">
+    <h3>Rule Params (JSON)</h3>
+    <textarea [(ngModel)]="paramsJson" rows="6"></textarea>
+  </div>
+</div>

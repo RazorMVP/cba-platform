@@ -365,6 +365,19 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 - Package: `com.cba.system`; Flyway: `V16__system_modules.sql`
 - Endpoints: `GET/POST/DELETE /api/v1/codes`, `GET/POST/PUT/DELETE /api/v1/codes/{id}/codevalues`, `GET/PUT /api/v1/configurations`, `GET/POST/PUT /api/v1/funds`, `GET/POST/PUT/DELETE /api/v1/paymenttypes`, `GET/POST/PUT/DELETE /api/v1/accountnumberformats`
 
+### 26b. Account Number Algorithm Module _(Session 40)_
+- **Pluggable strategy pattern**: `AccountNumberAlgorithm` interface — `getType()`, `generate(AlgorithmContext)`, `validate(String, AlgorithmContext)`. New algorithms added as `@Component` beans; Spring injects `List<AccountNumberAlgorithm>` into `AccountNumberAlgorithmService`.
+- **AlgorithmType** enum: `MIFOS` (fallback), `NUBAN`. New countries implement the interface only — zero framework changes.
+- **NUBAN algorithm**: 10-digit format = `bankCode(3) + serial(6) + checkDigit(1)`. Check digit: weights `{3,7,3,3,7,3,3,7,3}`, formula `(10 - (Σ digit×weight % 10)) % 10`. Outer `%10` handles `sum%10==0` edge case.
+- **NUBAN serial sequence**: `nuban_sequences` table with composite PK `(tenant_id, account_type)`. `@Lock(PESSIMISTIC_WRITE)` prevents concurrent duplicates. `@Transactional(REQUIRES_NEW)` commits sequence independently of outer account-creation TX.
+- **Per-tenant config**: stored as JSONB `country_params` on `tenants` table; `ObjectMapper` reads/writes `TenantAlgorithmConfig` record — `bankCode`, `validationMode`, `algorithms Map<String,String>`.
+- **ValidationMode**: `STRICT` (check digit only, inter-bank); `PARANOID` (check digit + own bank code, intra-bank).
+- **Inbound validation** wired at three points: `AccountService.createAccount()`, `PaymentService.transfer()`, `BeneficiaryService.applyRequest()`.
+- **Override behaviour**: when a tenant has an algorithm configured, it takes full precedence; falls back to Mifos `{branch}-{type}-{seq}` when no algorithm is set.
+- Package: `com.cba.account.algorithm` (algorithm framework) + `com.cba.system.AccountAlgorithmController`
+- Flyway: `V21__account_number_algorithms.sql` — adds `country_params JSONB` to `tenants`; creates `nuban_sequences`; seeds `CBA_NG` Nigeria demo tenant (bankCode `058`, NUBAN on SAVINGS+CHECKING).
+- Endpoints: `GET /api/v1/tenants/{id}/account-algorithm`, `PUT /api/v1/tenants/{id}/account-algorithm` — ADMIN
+
 ### 27. Notes & Documents Module
 - Polymorphic: `entityType VARCHAR(50)` + `entityId UUID` — one table serves all entity types (clients, loans, accounts, etc.)
 - `Document` stores file metadata only (`fileName`, `fileSize`, `contentType`, `storagePath`) — actual binary handled by external storage
@@ -2313,6 +2326,7 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Global Config | `GlobalConfigComponent` | `SystemModule` | ✅ Built — searchable table, inline row edit (type-aware: string/number/boolean), enabled toggle |
 | Floating Rates | `FloatingRatesComponent` | `SystemModule` | ✅ Built — accordion with rate periods, create/edit modal with dynamic period rows, delete confirm |
 | Taxes | `TaxesComponent` | `SystemModule` | ✅ Built — two tabs: Tax Components (CRUD) + Tax Groups (component bundles with effective dates) |
+| Account Algorithms | `AccountAlgorithmsComponent` | `SystemModule` | ✅ Built — per-tenant, per-account-type algorithm config; MIFOS/NUBAN toggle per type; bank code input; STRICT/PARANOID validation mode toggle |
 
 ### Angular View/Edit Toggle Pattern
 All detail pages (loan product, deposit product, customer, loan) share this pattern:

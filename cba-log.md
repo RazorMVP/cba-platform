@@ -59,6 +59,60 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 40 — 2026-04-12
+**Account Number Algorithm Framework — pluggable per-tenant, per-account-type algorithm system; NUBAN (Nigerian CBN) first implementation; Angular config screen. BUILD SUCCESS (0 errors). Commit: `f577942`.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/.../account/algorithm/AccountNumberAlgorithm.java` | NEW interface: `getType()`, `generate(AlgorithmContext)`, `validate(String, AlgorithmContext)` |
+| `backend/.../account/algorithm/AlgorithmType.java` | NEW enum: `MIFOS`, `NUBAN` |
+| `backend/.../account/algorithm/ValidationMode.java` | NEW enum: `STRICT`, `PARANOID` |
+| `backend/.../account/algorithm/TenantAlgorithmConfig.java` | NEW `@JsonIgnoreProperties` record: `bankCode`, `validationMode`, `algorithms Map<String,String>`, helpers |
+| `backend/.../account/algorithm/AlgorithmContext.java` | NEW record: `tenantId`, `accountType`, `config`, `branchCode` |
+| `backend/.../account/algorithm/ValidationResult.java` | NEW record: `valid`, `errorCode`, `message`; factory methods `ok/fail/skipped` |
+| `backend/.../account/algorithm/NubanSequence.java` | NEW JPA entity: `@EmbeddedId(tenantId, accountType)`, `lastSequence`, `@Version` |
+| `backend/.../account/algorithm/NubanSequenceRepository.java` | NEW: `@Lock(PESSIMISTIC_WRITE)` find for update |
+| `backend/.../account/algorithm/NubanAlgorithm.java` | NEW: NUBAN generate (check digit = `(10 - (sum%10))%10`); validate with STRICT/PARANOID modes; `REQUIRES_NEW` serial increment |
+| `backend/.../account/algorithm/MifosAccountNumberAlgorithm.java` | NEW: wraps existing `AccountNumberGenerator`; `validate()` always returns `skipped()` |
+| `backend/.../account/algorithm/AccountNumberAlgorithmService.java` | NEW: Spring `List<AccountNumberAlgorithm>` injection; `generate`, `validateOrThrow`, `validatePaymentDestination`, `getConfig`, `updateConfig` |
+| `backend/.../system/AccountAlgorithmController.java` | NEW: `GET/PUT /api/v1/tenants/{id}/account-algorithm` — ADMIN |
+| `backend/.../tenant/Tenant.java` | ADD `country_params JSONB` field (`String countryParams`) |
+| `backend/.../account/AccountService.java` | USE `AccountNumberAlgorithmService.generate()` instead of direct `AccountNumberGenerator` |
+| `backend/.../payment/dto/TransferRequest.java` | ADD `destinationAccountNumber` (5th record component, nullable) |
+| `backend/.../payment/PaymentService.java` | ADD `validatePaymentDestination()` call in `transfer()` |
+| `backend/.../customer/BeneficiaryService.java` | ADD `validatePaymentDestination()` call in `applyRequest()` |
+| `backend/.../cob/StandingOrderExecutionJob.java` | FIX `TransferRequest` constructor — pass `null` for new 5th arg |
+| `backend/.../openbanking/PispController.java` | FIX `TransferRequest` constructor — pass `null` for new 5th arg |
+| `backend/.../db/migration/V21__account_number_algorithms.sql` | ADD `country_params` to tenants; CREATE `nuban_sequences`; seed CBA_NG demo tenant with NUBAN config |
+| `web/.../system/account-algorithms.ts` | NEW standalone component: tenant card grid, per-type algorithm toggle, bank code input, STRICT/PARANOID toggle |
+| `web/.../system/account-algorithms.html` | NEW template: view mode (badge matrix + footer info) + edit mode (toggles + bank code field) |
+| `web/.../system/account-algorithms.scss` | NEW styles: Nubeero tokens, badge-nuban/badge-mifos, toggle-group, edit-section |
+| `web/.../system/system.service.ts` | ADD `TenantAlgorithmConfig`, `UpdateAlgorithmConfigRequest` interfaces; `getAlgorithmConfig`, `updateAlgorithmConfig` methods |
+| `web/.../admin/admin.service.ts` | ADD `Tenant` interface and `listTenants()` method (`GET /api/v1/tenants`) |
+| `web/.../system/system.routes.ts` | ADD `{ path: 'account-algorithms', component: AccountAlgorithmsComponent }` |
+| `web/.../layout/sidebar/sidebar.ts` | ADD `Account Algorithms` nav item to System group |
+| `docs/api-reference.html` | NEW `#account-algorithms` section; 2 new rows in full API matrix; nav link |
+| `docs/cba-postman-collection-v2.json` | NEW `24b · Account Number Algorithms` folder with GET + PUT requests, response examples; **also fixed pre-existing JSON structure corruption** (stray `},` + mismatched `}` in card-service interchange section) |
+
+#### Key Patterns / Decisions
+- Strategy pattern: `List<AccountNumberAlgorithm>` beans injected by Spring — new algorithm = new `@Component`, zero framework changes
+- `REQUIRES_NEW` + `PESSIMISTIC_WRITE` on NUBAN sequence increment prevents serial reuse on rollback and concurrent collisions
+- Inbound validation wired at 3 points: account creation, payment transfer, beneficiary registration
+- STRICT mode validates check digit only (any bank); PARANOID also enforces own bank code
+- `country_params` stored as JSONB `String` on `Tenant` entity — `ObjectMapper` handles ser/deser in service layer
+
+#### Build Verification
+`./mvnw clean compile` — **BUILD SUCCESS** (0 errors) on backend
+`npx ng build --configuration=production` — **BUILD SUCCESS** (0 errors, pre-existing CSS budget warnings only)
+
+#### Compliance Checklist Update
+- ✅ Account number validation wired at payment, beneficiary, and account creation boundaries
+- ✅ Existing accounts unaffected (no back-migration of account numbers)
+- ✅ Multi-tenant isolation: `nuban_sequences` composite PK `(tenant_id, account_type)`
+
+---
+
 ### Session 39 — 2026-04-12
 **Build Order Step 10 — backend monolith: `CardServiceClient` REST client, `CardAccountAdapter` OB shape mapping, `ConsentScope` enum, AISP card account/balance/transaction merge, CBPII card balance extension. BUILD SUCCESS (0 errors) on both backend and card-service. Commits: `7cd68c7` (code + docs update), `e460667` (API docs).**
 

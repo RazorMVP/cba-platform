@@ -743,7 +743,7 @@ Steps 12–13: Docker Compose + Kubernetes
 
 #### Compliance Checklist Update
 - Multi-scheme architecture (Visa/MC/Verve/Afrigo/UnionPay): ✅ Designed and documented
-- Multi-scheme implementation: ❌ Not yet started
+- Multi-scheme implementation: ✅ Complete — Sessions 27–41: fep-service `SchemeAdapter` interface + 5 adapters (Visa/MC/Verve/Afrigo/UnionPay) + per-scheme jPOS packager XMLs; BIN management module (`bin_ranges` table, range-scan lookup, `SchemeAdapterFactory`); interchange rate tables per scheme; settlement file exporters per scheme (BASE II / IPM / NIBSS / PAPSS / CUPS); scheme-compliant chargeback with per-scheme reason codes; Angular BIN management, scheme config, and interchange screens
 - American Express: 🚫 Explicitly out of scope
 
 ---

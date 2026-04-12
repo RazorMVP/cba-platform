@@ -105,6 +105,19 @@ export interface CreateTaxGroupRequest {
   components: { taxComponentId: string; startDate: string }[];
 }
 
+// ── Account Number Algorithms ─────────────────────────────────────────────
+export interface TenantAlgorithmConfig {
+  bankCode:       string | null;
+  validationMode: 'STRICT' | 'PARANOID';
+  algorithms:     Record<string, string>;
+}
+
+export interface UpdateAlgorithmConfigRequest {
+  bankCode:       string;
+  validationMode: 'STRICT' | 'PARANOID';
+  algorithms:     Record<string, string>;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SystemService {
   private readonly api = inject(ApiService);
@@ -187,5 +200,14 @@ export class SystemService {
 
   updateTaxGroup(id: string, req: CreateTaxGroupRequest): Observable<TaxGroup> {
     return this.api.put<TaxGroup>(`/api/v1/taxes/groups/${id}`, req);
+  }
+
+  // ── Account Number Algorithms ─────────────────────────────────────────────
+  getAlgorithmConfig(tenantId: string): Observable<TenantAlgorithmConfig> {
+    return this.api.get<TenantAlgorithmConfig>(`/api/v1/tenants/${tenantId}/account-algorithm`);
+  }
+
+  updateAlgorithmConfig(tenantId: string, req: UpdateAlgorithmConfigRequest): Observable<TenantAlgorithmConfig> {
+    return this.api.put<TenantAlgorithmConfig>(`/api/v1/tenants/${tenantId}/account-algorithm`, req);
   }
 }

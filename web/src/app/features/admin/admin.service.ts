@@ -111,6 +111,16 @@ export interface MakerCheckerEntry {
   resourceId: string | null;
 }
 
+// ── Tenants ───────────────────────────────────────────────────────────────────
+export interface Tenant {
+  id: string;
+  code: string;
+  name: string;
+  currencyCode: string;
+  countryCode: string | null;
+  localeCode: string;
+}
+
 // ── TPP (Open Banking admin) ──────────────────────────────────────────────────
 export type TppStatus = 'ACTIVE' | 'REVOKED' | 'PENDING';
 
@@ -225,6 +235,11 @@ export class AdminService {
 
   rejectMakerChecker(id: string): Observable<MakerCheckerEntry> {
     return this.api.command<MakerCheckerEntry>(`/api/v1/makercheckers/${id}`, 'reject');
+  }
+
+  // ── Tenants ────────────────────────────────────────────────────────────────
+  listTenants(): Observable<Tenant[]> {
+    return this.api.get<Tenant[]>('/api/v1/tenants');
   }
 
   // ── TPP ────────────────────────────────────────────────────────────────────

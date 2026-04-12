@@ -1,0 +1,185 @@
+.page-wrap {
+  padding: 2rem;
+  max-width: 960px;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+
+.page-title   { font-size: 1.5rem; font-weight: 600; color: var(--color-text); margin: 0 0 .25rem; }
+.page-subtitle { font-size: .875rem; color: var(--color-muted); margin: 0; }
+
+.state-message { color: var(--color-muted); padding: 2rem 0; }
+.state-error   { color: #dc2626; padding: 1rem; background: #fef2f2; border-radius: 8px; }
+
+// ── Tenant grid ────────────────────────────────────────────────────────────
+.tenant-grid { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.tenant-card {
+  background: var(--bg-card);
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.tenant-name { font-weight: 600; font-size: 1rem; display: block; }
+.tenant-meta { font-size: .8rem; color: var(--color-muted); margin-top: .15rem; display: block; }
+
+// ── Algorithm matrix (view) ────────────────────────────────────────────────
+.algo-matrix {
+  padding: 1rem 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem 1.5rem;
+}
+
+.algo-row {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  min-width: 180px;
+}
+
+.algo-type {
+  font-size: .8rem;
+  font-weight: 500;
+  color: var(--color-muted);
+  min-width: 110px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.card-footer-info {
+  display: flex;
+  gap: 1.5rem;
+  padding: .75rem 1.5rem;
+  border-top: 1px solid #f3f4f6;
+  background: #fafafa;
+  font-size: .8rem;
+
+  .label { color: var(--color-muted); margin-right: .4rem; }
+  code   { font-family: monospace; background: #f3f4f6; padding: .1rem .4rem; border-radius: 4px; }
+}
+
+// ── Badges ─────────────────────────────────────────────────────────────────
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: .2rem .65rem;
+  border-radius: 999px;
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .03em;
+}
+
+.badge-nuban  { background: #dcfce7; color: #15803d; }
+.badge-mifos  { background: #f1f5f9; color: #475569; }
+.badge-mode   { background: #ede9fe; color: #6d28d9; }
+
+// ── Edit mode ──────────────────────────────────────────────────────────────
+.edit-section { padding: 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; }
+
+.field-group { display: flex; flex-direction: column; gap: .4rem; }
+.field-group.required .field-label::after {
+  content: ' *';
+  color: #dc2626;
+}
+
+.field-label {
+  font-size: .875rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.field-hint {
+  font-size: .78rem;
+  font-weight: 400;
+  color: var(--color-muted);
+  margin-left: .5rem;
+}
+
+.field-required { font-size: .78rem; color: #dc2626; }
+
+.field-input {
+  width: 140px;
+  padding: .5rem .75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: .875rem;
+  outline: none;
+  &:focus { border-color: var(--color-primary); box-shadow: 0 0 0 2px rgba(30,40,51,.12); }
+}
+
+// ── Algorithm edit grid ────────────────────────────────────────────────────
+.algo-edit-grid { display: flex; flex-direction: column; gap: .6rem; }
+
+.algo-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+// ── Toggle group ───────────────────────────────────────────────────────────
+.toggle-group {
+  display: inline-flex;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.toggle-btn {
+  padding: .35rem .85rem;
+  font-size: .8rem;
+  font-weight: 500;
+  border: none;
+  background: #fff;
+  cursor: pointer;
+  color: var(--color-muted);
+  transition: background .15s, color .15s;
+
+  & + & { border-left: 1px solid #d1d5db; }
+
+  &.active {
+    background: var(--color-primary);
+    color: #fff;
+  }
+
+  &:hover:not(.active) { background: #f9fafb; }
+}
+
+// ── Edit actions ───────────────────────────────────────────────────────────
+.edit-error   { font-size: .85rem; color: #dc2626; padding: .5rem; background: #fef2f2; border-radius: 6px; }
+
+.edit-actions {
+  display: flex;
+  gap: .75rem;
+  padding-top: .5rem;
+}
+
+// ── Buttons ────────────────────────────────────────────────────────────────
+.btn {
+  padding: .5rem 1.25rem;
+  border-radius: 8px;
+  font-size: .875rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: opacity .15s;
+  &:disabled { opacity: .5; cursor: not-allowed; }
+}
+
+.btn-primary { background: var(--color-primary); color: #fff; }
+.btn-outline { background: #fff; border: 1px solid #d1d5db; color: var(--color-text); }
+.btn-ghost   { background: transparent; color: var(--color-muted); }

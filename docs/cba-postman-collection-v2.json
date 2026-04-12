@@ -10012,6 +10012,82 @@
       ]
     },
     {
+      "name": "24b \u00b7 Account Number Algorithms",
+      "description": "Per-tenant, per-account-type account number algorithm configuration. Supports MIFOS (default Fineract-style) and NUBAN (Nigerian CBN 10-digit standard). Framework is pluggable — new country algorithms require only a new AccountNumberAlgorithm implementation.",
+      "item": [
+        {
+          "name": "Get Tenant Algorithm Config",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "X-Tenant-ID",   "value": "{{tenant_id}}" }
+            ],
+            "url": {
+              "raw":  "{{baseUrl}}/api/v1/tenants/{{tenantId}}/account-algorithm",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "tenants", "{{tenantId}}", "account-algorithm"]
+            },
+            "description": "Returns the algorithm configuration for a tenant: bankCode (3-digit CBN sort code when NUBAN selected), validationMode (STRICT or PARANOID), and a map of account type → algorithm name."
+          },
+          "response": [
+            {
+              "name": "200 OK — NUBAN on SAVINGS+CHECKING",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"bankCode\": \"058\",\n  \"validationMode\": \"STRICT\",\n  \"algorithms\": {\n    \"SAVINGS\":       \"NUBAN\",\n    \"CHECKING\":      \"NUBAN\",\n    \"FIXED_DEPOSIT\": \"MIFOS\",\n    \"LOAN\":          \"MIFOS\",\n    \"SHARE\":         \"MIFOS\"\n  }\n}"
+            },
+            {
+              "name": "200 OK — MIFOS only (new tenant, no config yet)",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"bankCode\": null,\n  \"validationMode\": \"STRICT\",\n  \"algorithms\": {}\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Tenant Algorithm Config",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization",  "value": "Bearer {{access_token}}" },
+              { "key": "X-Tenant-ID",    "value": "{{tenant_id}}" },
+              { "key": "Content-Type",   "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bankCode\": \"058\",\n  \"validationMode\": \"STRICT\",\n  \"algorithms\": {\n    \"SAVINGS\":       \"NUBAN\",\n    \"CHECKING\":      \"NUBAN\",\n    \"FIXED_DEPOSIT\": \"MIFOS\",\n    \"LOAN\":          \"MIFOS\",\n    \"SHARE\":         \"MIFOS\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw":  "{{baseUrl}}/api/v1/tenants/{{tenantId}}/account-algorithm",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "tenants", "{{tenantId}}", "account-algorithm"]
+            },
+            "description": "Updates the algorithm configuration for a tenant. bankCode is required when any account type is set to NUBAN. Validation mode STRICT checks digit only; PARANOID also enforces own bank code."
+          },
+          "response": [
+            {
+              "name": "200 OK — Updated",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"bankCode\": \"058\",\n  \"validationMode\": \"STRICT\",\n  \"algorithms\": {\n    \"SAVINGS\":       \"NUBAN\",\n    \"CHECKING\":      \"NUBAN\",\n    \"FIXED_DEPOSIT\": \"MIFOS\",\n    \"LOAN\":          \"MIFOS\",\n    \"SHARE\":         \"MIFOS\"\n  }\n}"
+            },
+            {
+              "name": "400 Bad Request — NUBAN selected but bankCode missing",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{\n    \"code\": \"BANK_CODE_REQUIRED\",\n    \"message\": \"bankCode is required when NUBAN algorithm is selected for any account type\",\n    \"field\": \"bankCode\"\n  }]\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "25 \u00b7 System Config (Codes, Funds, Payment Types)",
       "description": "",
       "item": [
@@ -16065,9 +16141,8 @@
               "response": []
             }
           ]
-        }
-      ],
-        {
+        },
+      {
           "name": "3D Secure ACS",
           "item": [
             {

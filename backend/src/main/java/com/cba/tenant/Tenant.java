@@ -40,6 +40,15 @@ public class Tenant {
     @Column(nullable = false)
     private boolean active = true;
 
+    /**
+     * Account number algorithm configuration stored as a JSONB string.
+     * Shape: {"bankCode":"058","validationMode":"STRICT",
+     *         "algorithms":{"SAVINGS":"NUBAN","CHECKING":"NUBAN"}}
+     * Parsed by AccountNumberAlgorithmService using ObjectMapper.
+     */
+    @Column(name = "country_params", columnDefinition = "jsonb")
+    private String countryParams = "{}";
+
     @Column(name = "created_at", updatable = false)
     private Instant createdAt = Instant.now();
 }

@@ -13,5 +13,13 @@ public record TransferRequest(
         @NotNull @DecimalMin("0.01")
         BigDecimal amount,
 
-        String description
+        String description,
+
+        /**
+         * Optional external destination account number string.
+         * When provided, validated against the tenant's configured account
+         * number algorithm before the transfer is processed.
+         * Null for internal (UUID-based) transfers.
+         */
+        String destinationAccountNumber
 ) {}

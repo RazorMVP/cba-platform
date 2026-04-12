@@ -1,5 +1,6 @@
 package com.cba.account;
 
+import com.cba.account.algorithm.AccountNumberAlgorithmService;
 import com.cba.audit.AuditLogService;
 import com.cba.common.exception.CbaException;
 import com.cba.common.tenant.TenantContext;
@@ -34,7 +35,7 @@ public class AccountService {
     private final TransactionRepository transactionRepository;
     private final CustomerRepository customerRepository;
     private final DepositProductRepository depositProductRepository;
-    private final AccountNumberGenerator accountNumberGenerator;
+    private final AccountNumberAlgorithmService accountNumberAlgorithmService;
     private final AuditLogService auditLogService;
     private final ApplicationEventPublisher eventPublisher;
     private final TenantService tenantService;
@@ -53,7 +54,7 @@ public class AccountService {
             .orElseThrow(() -> CbaException.notFound("DepositProduct", request.productId()));
 
         Account account = new Account();
-        account.setAccountNumber(accountNumberGenerator.generate(request.accountType()));
+        account.setAccountNumber(accountNumberAlgorithmService.generate(request.accountType(), "001"));
         account.setCustomer(customer);
         account.setProduct(product);
         account.setAccountType(request.accountType());

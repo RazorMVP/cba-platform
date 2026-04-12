@@ -45,7 +45,8 @@ public class PispController {
                 request.sourceAccountId(),
                 request.destinationAccountId(),
                 request.amount(),
-                request.reference()
+                request.reference(),
+                null
         );
         PaymentResponse payment = paymentService.transfer(transfer, "open-banking:" + request.consentId());
 

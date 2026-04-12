@@ -1,0 +1,133 @@
+<div class="page-wrap">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Account Number Algorithms</h1>
+      <p class="page-subtitle">Configure per-tenant account number generation and validation rules</p>
+    </div>
+  </div>
+
+  <!-- Loading / Error -->
+  <div *ngIf="loading" class="state-message">Loading tenants…</div>
+  <div *ngIf="error"   class="state-error">{{ error }}</div>
+
+  <!-- Tenant cards -->
+  <div *ngIf="!loading && !error" class="tenant-grid">
+
+    <div *ngFor="let tenant of tenants" class="tenant-card">
+
+      <!-- Card header -->
+      <div class="card-header">
+        <div class="tenant-info">
+          <span class="tenant-name">{{ tenant.name }}</span>
+          <span class="tenant-meta">{{ tenant.code }} · {{ tenant.countryCode ?? '—' }} · {{ tenant.currencyCode }}</span>
+        </div>
+        <button *ngIf="editingTenantId !== tenant.id"
+                class="btn btn-outline"
+                (click)="startEdit(tenant)">
+          Configure
+        </button>
+      </div>
+
+      <!-- View mode: algorithm matrix -->
+      <ng-container *ngIf="editingTenantId !== tenant.id">
+        <div class="algo-matrix">
+          <div *ngFor="let type of accountTypes" class="algo-row">
+            <span class="algo-type">{{ type }}</span>
+            <span class="badge" [ngClass]="algorithmBadgeClass(algorithmFor(tenant.id, type))">
+              {{ algorithmFor(tenant.id, type) }}
+            </span>
+          </div>
+        </div>
+
+        <div class="card-footer-info" *ngIf="configFor(tenant.id) as cfg">
+          <span *ngIf="cfg.bankCode">
+            <span class="label">Bank code</span>
+            <code>{{ cfg.bankCode }}</code>
+          </span>
+          <span>
+            <span class="label">Validation</span>
+            <span class="badge badge-mode">{{ cfg.validationMode ?? 'STRICT' }}</span>
+          </span>
+        </div>
+      </ng-container>
+
+      <!-- Edit mode -->
+      <ng-container *ngIf="editingTenantId === tenant.id">
+
+        <div class="edit-section">
+
+          <!-- Algorithm per account type -->
+          <div class="field-group">
+            <label class="field-label">Algorithm per account type</label>
+            <div class="algo-edit-grid">
+              <div *ngFor="let type of accountTypes" class="algo-edit-row">
+                <span class="algo-type">{{ type }}</span>
+                <div class="toggle-group">
+                  <button *ngFor="let algo of algorithms"
+                          class="toggle-btn"
+                          [class.active]="(editForm.algorithms[type] ?? 'MIFOS') === algo"
+                          (click)="setAlgorithm(type, algo)">
+                    {{ algo }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bank code (required when NUBAN selected) -->
+          <div class="field-group" [class.required]="nubanSelected">
+            <label class="field-label">
+              CBN Bank Sort Code
+              <span class="field-hint">3-digit code assigned by Central Bank (e.g. 058)</span>
+            </label>
+            <input class="field-input"
+                   type="text"
+                   maxlength="3"
+                   placeholder="e.g. 058"
+                   [(ngModel)]="editForm.bankCode"
+                   [required]="nubanSelected" />
+            <span *ngIf="nubanSelected && !editForm.bankCode?.trim()" class="field-required">
+              Required when NUBAN is selected
+            </span>
+          </div>
+
+          <!-- Validation mode -->
+          <div class="field-group">
+            <label class="field-label">
+              Validation mode
+              <span class="field-hint">
+                STRICT — checks digit only (inter-bank transfers).
+                PARANOID — also enforces own bank code (intra-bank).
+              </span>
+            </label>
+            <div class="toggle-group">
+              <button *ngFor="let mode of validationModes"
+                      class="toggle-btn"
+                      [class.active]="(editForm.validationMode ?? 'STRICT') === mode"
+                      (click)="editForm.validationMode = mode">
+                {{ mode }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Error -->
+          <div *ngIf="editError" class="edit-error">{{ editError }}</div>
+
+          <!-- Actions -->
+          <div class="edit-actions">
+            <button class="btn btn-ghost" (click)="cancelEdit()" [disabled]="editWorking">
+              Cancel
+            </button>
+            <button class="btn btn-primary" (click)="saveEdit(tenant)" [disabled]="editWorking">
+              {{ editWorking ? 'Saving…' : 'Save' }}
+            </button>
+          </div>
+
+        </div>
+      </ng-container>
+
+    </div>
+  </div>
+</div>

@@ -6,6 +6,7 @@ import com.cba.account.AccountStatus;
 import com.cba.account.Transaction;
 import com.cba.account.TransactionRepository;
 import com.cba.account.TransactionType;
+import com.cba.account.algorithm.AccountNumberAlgorithmService;
 import com.cba.audit.AuditLogService;
 import com.cba.common.exception.CbaException;
 import com.cba.currency.ExchangeRateService;
@@ -31,12 +32,13 @@ import java.util.UUID;
 @Slf4j
 public class PaymentService {
 
-    private final PaymentRepository paymentRepository;
-    private final AccountRepository accountRepository;
-    private final TransactionRepository transactionRepository;
-    private final AuditLogService auditLogService;
-    private final ExchangeRateService exchangeRateService;
-    private final StandingOrderRepository standingOrderRepository;
+    private final PaymentRepository             paymentRepository;
+    private final AccountRepository             accountRepository;
+    private final TransactionRepository         transactionRepository;
+    private final AccountNumberAlgorithmService accountNumberAlgorithmService;
+    private final AuditLogService               auditLogService;
+    private final ExchangeRateService           exchangeRateService;
+    private final StandingOrderRepository       standingOrderRepository;
 
     /**
      * Double-entry internal transfer with cross-currency support.
@@ -54,6 +56,9 @@ public class PaymentService {
             throw CbaException.badRequest("SAME_ACCOUNT_TRANSFER",
                 "Source and destination accounts must differ");
         }
+
+        // Validate external destination account number if provided
+        accountNumberAlgorithmService.validatePaymentDestination(request.destinationAccountNumber());
 
         // Lock both accounts — order by UUID to prevent deadlocks
         UUID firstId  = min(request.sourceAccountId(), request.destinationAccountId());

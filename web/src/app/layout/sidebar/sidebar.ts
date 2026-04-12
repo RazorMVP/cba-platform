@@ -78,6 +78,7 @@ export class SidebarComponent {
         { label: 'Global Config',      icon: 'tune',              route: '/system/config' },
         { label: 'Floating Rates',     icon: 'trending_up',       route: '/system/floating-rates' },
         { label: 'Taxes',              icon: 'account_balance_wallet', route: '/system/taxes' },
+        { label: 'Account Algorithms', icon: 'pin',               route: '/system/account-algorithms' },
       ],
     },
     {

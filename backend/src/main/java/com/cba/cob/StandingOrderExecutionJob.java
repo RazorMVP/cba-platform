@@ -74,7 +74,8 @@ public class StandingOrderExecutionJob {
                         order.getSourceAccount().getId(),
                         order.getDestinationAccount().getId(),
                         order.getAmount(),
-                        "Standing order: " + order.getDescription()
+                        "Standing order: " + order.getDescription(),
+                        null
                 );
                 paymentService.transfer(transferReq, "system");
 

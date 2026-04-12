@@ -1,5 +1,6 @@
 package com.cba.customer;
 
+import com.cba.account.algorithm.AccountNumberAlgorithmService;
 import com.cba.audit.AuditLogService;
 import com.cba.common.exception.CbaException;
 import lombok.RequiredArgsConstructor;
@@ -21,8 +22,9 @@ public class BeneficiaryService {
         BigDecimal transferLimit
     ) {}
 
-    private final BeneficiaryRepository beneficiaryRepository;
-    private final AuditLogService       auditLogService;
+    private final BeneficiaryRepository          beneficiaryRepository;
+    private final AccountNumberAlgorithmService  accountNumberAlgorithmService;
+    private final AuditLogService                auditLogService;
 
     @Transactional(readOnly = true)
     public List<Beneficiary> listBeneficiaries(UUID customerId) {
@@ -67,6 +69,8 @@ public class BeneficiaryService {
     }
 
     private void applyRequest(Beneficiary b, CreateBeneficiaryRequest req) {
+        // Validate the beneficiary account number if the tenant has an algorithm configured
+        accountNumberAlgorithmService.validatePaymentDestination(req.accountNumber());
         b.setName(req.name());
         b.setAccountNumber(req.accountNumber());
         b.setBankNumber(req.bankNumber());

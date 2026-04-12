@@ -135,6 +135,7 @@ details.endpoint[open] .endpoint-body{display:block}
     <a href="#loan-extensions">Loan Extensions</a>
     <a href="#floating-rates">Floating Rates</a>
     <a href="#taxes">Tax Components/Groups</a>
+    <a href="#account-algorithms">Account Number Algorithms</a>
     <div class="section-head">System Config</div>
     <a href="#codes">Codes &amp; Values</a>
     <a href="#global-config">Global Config</a>
@@ -1468,6 +1469,62 @@ difference = actual_cash - closing_balance</pre>
 </table>
 </section>
 
+<!-- ACCOUNT NUMBER ALGORITHMS ───────────────────────────────────────────── -->
+<section id="account-algorithms">
+<h2>Account Number Algorithms</h2>
+<p>Pluggable per-tenant account number generation and validation framework. Each tenant can independently configure which algorithm applies to each account type. Currently supported algorithms: <code>MIFOS</code> (default Fineract-style <code>{branch}-{type}-{seq}</code>) and <code>NUBAN</code> (Nigerian Uniform Bank Account Number — 10-digit CBN standard). New country algorithms are added by implementing the <code>AccountNumberAlgorithm</code> interface — zero framework changes required.</p>
+<h3>Validation Modes</h3>
+<table>
+<tr><th>Mode</th><th>Description</th></tr>
+<tr><td>STRICT</td><td>Validates check digit only — accepts account numbers from any bank. Use for inter-bank transfers and external beneficiary registration.</td></tr>
+<tr><td>PARANOID</td><td>Validates check digit <em>and</em> enforces own bank code. Rejects account numbers from other banks. Use for intra-bank-only deployments.</td></tr>
+</table>
+<h3>Endpoints</h3>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/tenants/{tenantId}/account-algorithm</td><td>Get algorithm configuration for a tenant (bankCode, validationMode, per-type algorithm map)</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/tenants/{tenantId}/account-algorithm</td><td>Update algorithm configuration for a tenant</td><td>ADMIN</td></tr>
+</table>
+<h3>Request/Response — GET</h3>
+<pre><code>GET /api/v1/tenants/3fa85f64-5717-4562-b3fc-2c963f66afa6/account-algorithm
+
+200 OK
+{
+  "bankCode": "058",
+  "validationMode": "STRICT",
+  "algorithms": {
+    "SAVINGS":       "NUBAN",
+    "CHECKING":      "NUBAN",
+    "FIXED_DEPOSIT": "MIFOS",
+    "LOAN":          "MIFOS",
+    "SHARE":         "MIFOS"
+  }
+}</code></pre>
+<h3>Request/Response — PUT</h3>
+<pre><code>PUT /api/v1/tenants/3fa85f64-5717-4562-b3fc-2c963f66afa6/account-algorithm
+Content-Type: application/json
+
+{
+  "bankCode": "058",
+  "validationMode": "STRICT",
+  "algorithms": {
+    "SAVINGS":       "NUBAN",
+    "CHECKING":      "NUBAN",
+    "FIXED_DEPOSIT": "MIFOS",
+    "LOAN":          "MIFOS",
+    "SHARE":         "MIFOS"
+  }
+}
+
+200 OK — returns updated configuration</code></pre>
+<h3>Validation Rules</h3>
+<ul>
+<li>NUBAN requires <code>bankCode</code> (3-digit CBN sort code, e.g. <code>058</code>). Request returns <code>400</code> if any account type is set to NUBAN and <code>bankCode</code> is missing.</li>
+<li>Account creation, payment transfer destination, and beneficiary registration all trigger inbound validation against the configured algorithm for the relevant account type.</li>
+<li>Existing accounts are never re-validated — only new accounts and inbound references.</li>
+</ul>
+</section>
+
 <!-- CODES ───────────────────────────────────────────────────────────────── -->
 <section id="codes">
 <h2>Codes &amp; Code Values</h2>
@@ -2167,6 +2224,9 @@ difference = actual_cash - closing_balance</pre>
 <tr><td>GET</td><td>/api/v1/taxes/groups</td><td>List tax groups</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/taxes/groups</td><td>Create tax group</td><td>ADMIN</td></tr>
 <tr><td>PUT</td><td>/api/v1/taxes/groups/{id}</td><td>Update tax group</td><td>ADMIN</td></tr>
+<!-- Account Number Algorithms -->
+<tr><td>GET</td><td>/api/v1/tenants/{tenantId}/account-algorithm</td><td>Get tenant algorithm config</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/tenants/{tenantId}/account-algorithm</td><td>Update tenant algorithm config</td><td>ADMIN</td></tr>
 <!-- System Config -->
 <tr><td>GET</td><td>/api/v1/codes</td><td>List code sets</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/codes</td><td>Create code</td><td>ADMIN</td></tr>

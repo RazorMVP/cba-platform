@@ -675,12 +675,59 @@ Where:
 
 <details class="endpoint">
   <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/accounts/{id}</span>
+    <span class="endpoint-summary">Get account details</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "data": { "id": "...", "accountNumber": "001-SAV-0001234", "accountType": "SAVINGS", "status": "ACTIVE", "balance": "1500.00", "currencyCode": "USD" } }</pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
     <span class="method POST">POST</span>
     <span class="endpoint-path">/api/v1/accounts</span>
     <span class="endpoint-summary">Open an account</span>
   </summary>
   <div class="endpoint-body">
     <pre>{ "customerId": "...", "productId": "...", "accountType": "SAVINGS", "currencyCode": "USD", "openingBalance": "1000.00" }</pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method PUT">PUT</span>
+    <span class="endpoint-path">/api/v1/accounts/{id}/status</span>
+    <span class="endpoint-summary">Change account status</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Allowed status values: <code>ACTIVE</code>, <code>FROZEN</code>, <code>DORMANT</code>, <code>CLOSED</code>. Roles: ADMIN, TELLER.</p>
+    <p>Request: <code>?status=FROZEN</code> (query param). Returns updated account record.</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/accounts/{id}/deposit</span>
+    <span class="endpoint-summary">Deposit funds (teller operation)</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Roles: ADMIN, TELLER. Params: <code>?amount=500.00&amp;description=Cash+deposit</code>. Creates an immutable Transaction ledger record and updates account balance atomically.</p>
+    <pre>{ "data": { "id": "...", "transactionType": "DEPOSIT", "amount": "500.00", "runningBalance": "2000.00", "referenceNumber": "TXN-..." } }</pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/accounts/{id}/withdraw</span>
+    <span class="endpoint-summary">Withdraw funds (teller operation)</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Roles: ADMIN, TELLER. Params: <code>?amount=200.00&amp;description=Cash+withdrawal</code>. Fails if balance falls below the product minimum balance. Creates an immutable Transaction ledger record.</p>
+    <pre>{ "data": { "id": "...", "transactionType": "WITHDRAWAL", "amount": "200.00", "runningBalance": "1800.00", "referenceNumber": "TXN-..." } }</pre>
   </div>
 </details>
 
@@ -1291,17 +1338,24 @@ difference = actual_cash - closing_balance</pre>
 <p>Customer-facing restricted-scope endpoints. Based on <a href="https://demo.mifos.io/api-docs/apiLive.htm#selfservice_overview" target="_blank">Mifos Self Service API</a>. JWT <code>sub</code> is mapped to the customer's Keycloak ID — a customer can only see their own data (returns 404, not 403, to prevent enumeration).</p>
 <div class="callout success">Implemented in <code>com.cba.selfservice</code>. All endpoints require <code>CUSTOMER</code> role.</div>
 
-<h3>Planned Endpoints</h3>
+<h3>Implemented Endpoints</h3>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th></tr>
-<tr><td>POST</td><td>/api/v1/self/authenticate</td><td>Customer login (scoped token)</td></tr>
-<tr><td>GET</td><td>/api/v1/self/clients/{id}</td><td>Get my profile</td></tr>
-<tr><td>GET</td><td>/api/v1/self/clients/{id}/accounts</td><td>Get my accounts</td></tr>
-<tr><td>GET</td><td>/api/v1/self/loans/{id}</td><td>Get my loan details</td></tr>
-<tr><td>GET</td><td>/api/v1/self/loans/{id}/repaymentschedule</td><td>Get my repayment schedule</td></tr>
-<tr><td>POST</td><td>/api/v1/self/loanapplications</td><td>Apply for a loan</td></tr>
-<tr><td>POST</td><td>/api/v1/self/accounttransfers</td><td>Transfer between my accounts</td></tr>
-<tr><td>GET</td><td>/api/v1/self/beneficiaries/tpt</td><td>My saved beneficiaries</td></tr>
+<tr><td>GET</td><td>/api/v1/self/userdetails</td><td>Get own profile (customer record matched via JWT <code>sub</code> → Keycloak ID)</td></tr>
+<tr><td>GET</td><td>/api/v1/self/accounts</td><td>List own accounts</td></tr>
+<tr><td>GET</td><td>/api/v1/self/accounts/{accountId}/transactions</td><td>List transactions on own account</td></tr>
+<tr><td>GET</td><td>/api/v1/self/loans</td><td>List own loans</td></tr>
+<tr><td>GET</td><td>/api/v1/self/loans/{loanId}</td><td>Get own loan details (includes repayment schedule)</td></tr>
+</table>
+
+<h3>Planned / Future Endpoints</h3>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th></tr>
+<tr><td>POST</td><td>/api/v1/self/authenticate</td><td>Customer login (scoped Keycloak token — currently handled by Keycloak directly)</td></tr>
+<tr><td>GET</td><td>/api/v1/self/loans/{id}/repaymentschedule</td><td>Standalone repayment schedule endpoint (currently embedded in loan detail response)</td></tr>
+<tr><td>POST</td><td>/api/v1/self/loanapplications</td><td>Apply for a loan from the customer portal</td></tr>
+<tr><td>POST</td><td>/api/v1/self/accounttransfers</td><td>Customer-initiated transfer between own accounts</td></tr>
+<tr><td>GET</td><td>/api/v1/self/beneficiaries/tpt</td><td>List saved third-party beneficiaries</td></tr>
 </table>
 </section>
 
@@ -2139,13 +2193,13 @@ Content-Type: application/json
 <tr><td>PUT</td><td>/api/v1/clients/{id}/addresses/{aId}</td><td>Update address</td><td>ADMIN</td></tr>
 <tr><td>DELETE</td><td>/api/v1/clients/{id}/addresses/{aId}</td><td>Remove address</td><td>ADMIN</td></tr>
 <!-- Savings Accounts -->
-<tr><td>GET</td><td>/api/v1/accounts</td><td>List accounts</td><td>ADMIN, TELLER</td></tr>
-<tr><td>GET</td><td>/api/v1/accounts/{id}</td><td>Get account</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/accounts</td><td>List accounts (filter by ?customerId, ?accountType, ?status)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/accounts/{id}</td><td>Get account details</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
 <tr><td>POST</td><td>/api/v1/accounts</td><td>Open account</td><td>ADMIN, TELLER</td></tr>
-<tr><td>PUT</td><td>/api/v1/accounts/{id}</td><td>Update account</td><td>ADMIN</td></tr>
-<tr><td>POST</td><td>/api/v1/accounts/{id}/activate</td><td>Activate account</td><td>ADMIN</td></tr>
-<tr><td>POST</td><td>/api/v1/accounts/{id}/close</td><td>Close account</td><td>ADMIN</td></tr>
-<tr><td>GET</td><td>/api/v1/accounts/{id}/transactions</td><td>Transaction ledger</td><td>ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/api/v1/accounts/{id}/status</td><td>Change account status (ACTIVE/FROZEN/DORMANT/CLOSED)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/accounts/{id}/deposit</td><td>Teller deposit — creates immutable Transaction ledger record</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/accounts/{id}/withdraw</td><td>Teller withdrawal — enforces minimum balance rule</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/accounts/{id}/transactions</td><td>Transaction ledger (paginated)</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
 <!-- Loans -->
 <tr><td>GET</td><td>/api/v1/loans</td><td>List loans</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/loans/{id}</td><td>Get loan</td><td>ADMIN, TELLER</td></tr>
@@ -2558,10 +2612,11 @@ Content-Type: application/json
 <h3>Planned (Not Yet Implemented)</h3>
 <table>
 <tr><th>Module</th><th>Endpoints</th><th>Status</th></tr>
-<tr><td>Notifications</td><td>/api/v1/notifications/*</td><td>Planned Phase 4</td></tr>
-<tr><td>Savings Account Commands</td><td>/api/v1/accounts/{id}?command=deposit|withdraw</td><td>Planned Phase 4</td></tr>
+<tr><td>Notifications REST API</td><td>/api/v1/notifications/*</td><td>Planned Phase 4 — event listener exists but no REST endpoints</td></tr>
 <tr><td>Bulk Loan Import</td><td>/api/v1/loans/batch</td><td>Planned Phase 4</td></tr>
-<tr><td>Standing Orders Extended</td><td>/api/v1/standingorders/{id}/pause|resume</td><td>Planned Phase 4</td></tr>
+<tr><td>Standing Orders Extended</td><td>/api/v1/standingorders/{id}/pause|resume</td><td>Planned Phase 4 — note: disable/enable for Standing Instructions is implemented at <code>/api/v1/standinginstructions/{id}?command=disable|enable</code></td></tr>
+<tr><td>Self Service — Account Transfers</td><td>/api/v1/self/accounttransfers</td><td>Planned — customer-initiated transfers between own accounts</td></tr>
+<tr><td>Self Service — Loan Applications</td><td>/api/v1/self/loanapplications</td><td>Planned — customer-facing loan origination</td></tr>
 </table>
 </section>
 

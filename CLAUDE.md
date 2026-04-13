@@ -2372,22 +2372,22 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 ### Angular Component Map (Nubeero Design)
 | Design Component | Angular Component | Module | Status |
 |-----------------|-------------------|--------|--------|
-| Sidebar nav | `SidebarComponent` | `LayoutModule` | ✅ Built |
+| Sidebar nav | `SidebarComponent` | `LayoutModule` | ✅ Built — `exact: true` on Dashboard + Card List nav items; `[routerLinkActiveOptions]="{ exact: item.exact ?? false }"` prevents prefix-match active state on sub-routes |
 | Topbar | `TopbarComponent` | `LayoutModule` | ✅ Built |
 | KPI card | `KpiCardComponent` | `SharedModule` | ✅ Built |
 | Data table | `DataTableComponent` | `SharedModule` | ✅ Built |
 | Status badge | `StatusBadgeComponent` | `SharedModule` | ✅ Built — inputs: `[label]` (string) + `[variant]` (success/warning/error/info/neutral/primary) — **never use `[status]`** |
 | Dashboard | `DashboardComponent` | `OperationsModule` | ✅ Built — KPIs, transaction table, portfolio bars, KYC queue |
 | Customers list | `CustomersListComponent` | `OperationsModule` | ✅ Built — debounced search, KYC filter tabs, pagination |
-| Customer detail | `CustomerDetailComponent` | `OperationsModule` | ✅ Built — 5 tabs, KYC state machine |
+| Customer detail | `CustomerDetailComponent` | `OperationsModule` | ✅ Built — 5 tabs, KYC state machine; `isNew` mode: `id === 'new'` skips API fetch and shows inline creation form (firstName/lastName/email required; phone/DOB/nationalId optional); on save navigates to new customer's detail page |
 | Accounts list | `AccountsListComponent` | `OperationsModule` | ✅ Built — type filter, pagination |
-| Account detail | `AccountDetailComponent` | `OperationsModule` | ✅ Built — header card, overview/transactions tabs, freeze/unfreeze/close/deposit/withdraw modals, Statement modal (date range picker, summary KPIs, transaction table) |
+| Account detail | `AccountDetailComponent` | `OperationsModule` | ✅ Built — header card, overview/transactions tabs, freeze/unfreeze/close/deposit/withdraw modals, Statement modal (date range picker, summary KPIs, transaction table); `isNew` mode: shows Open Account form (customerId, productId, accountType select, currencyCode) |
 | Payments list | `PaymentsListComponent` | `OperationsModule` | ✅ Built — account context picker, paginated payment history, 3-step transfer wizard modal, standing order modal |
 | Payment detail | `PaymentDetailComponent` | `OperationsModule` | ✅ Built — status band with FX details, transfer route card, payment details card, reverse modal |
 | Teller list | `TellerListComponent` | `OperationsModule` | ✅ Built — search + status filter, create teller modal |
 | Teller detail | `TellerDetailComponent` | `OperationsModule` | ✅ Built — overview/cashiers/sessions tabs, session expand/collapse, cash-in/out/settle modals, lifecycle buttons |
 | Loans list | `LoansListComponent` | `OperationsModule` | ✅ Built — pipeline view, sliding detail panel |
-| Loan detail | `LoanDetailComponent` | `OperationsModule` | ✅ Built — 5 tabs, approve/disburse/repayment/reject |
+| Loan detail | `LoanDetailComponent` | `OperationsModule` | ✅ Built — 5 tabs, approve/disburse/repayment/reject; `isNew` mode: shows New Loan Application form (customerId, productId, principalAmount, termMonths required; interestRate, disbursementDate optional) |
 | Loan products list | `LoanProductsListComponent` | `ProductsModule` | ✅ Built — search, active filter, pagination |
 | Loan product detail | `LoanProductDetailComponent` | `ProductsModule` | ✅ Built — view/edit toggle, 5 section tabs, GL linkages, charges |
 | Deposit products list | `DepositProductsListComponent` | `ProductsModule` | ✅ Built — search, type filter, pagination |

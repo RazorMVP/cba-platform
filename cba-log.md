@@ -59,6 +59,38 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 48 — 2026-04-13
+**Fixed Cards sidebar perpetual-active state (routerLinkActive exact matching) and implemented inline creation forms for Add Customer, Open Account, and New Loan (commits `224bbfb`, `c8f188e`).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/src/app/layout/sidebar/sidebar.ts` | FIXED: added `exact?: boolean` to `NavItem` interface; `exact: true` on Dashboard and Card List nav items |
+| `web/src/app/layout/sidebar/sidebar.html` | FIXED: `[routerLinkActiveOptions]="{ exact: item.exact ?? false }"` on every nav link — stops `/cards` from staying highlighted on all `/cards/*` sub-routes |
+| `web/src/app/features/operations/customers/customer-detail/customer-detail.ts` | EXTENDED: `isNew` flag, `newForm: CustomerCreateRequest`, `saving`, `saveError`, `submitCreate()`; `ngOnInit` early-exits when `id === 'new'` instead of calling `GET /customers/new` |
+| `web/src/app/features/operations/customers/customer-detail/customer-detail.html` | EXTENDED: `@else if (isNew)` block — creation form with firstName/lastName/email (required), phone/dateOfBirth/nationalId (optional), save button, cancel link |
+| `web/src/app/features/operations/accounts/account-detail/account-detail.ts` | EXTENDED: same `isNew` pattern; `newForm: AccountCreateRequest`; `submitCreate()` calling `svc.create()` |
+| `web/src/app/features/operations/accounts/account-detail/account-detail.html` | EXTENDED: `@else if (isNew)` — form with customerId, productId, accountType select, currencyCode |
+| `web/src/app/features/operations/loans/loan-detail/loan-detail.ts` | EXTENDED: `isNew` pattern; `newForm: LoanCreateRequest`; `submitCreate()` with Router navigation on success |
+| `web/src/app/features/operations/loans/loan-detail/loan-detail.html` | EXTENDED: `@else if (isNew)` — form with customerId, productId, principalAmount, termMonths (required), interestRate, disbursementDate (optional) |
+| `web/src/assets/styles/_design-system.scss` | EXTENDED: `.create-form-wrap`, `.create-title`, `.create-actions` utility classes shared by all three creation forms |
+
+#### Key Patterns / Decisions
+- **`id === 'new'` detection in `ngOnInit`**: The `:id` route already matches the string `'new'` — no extra route entry needed. Early-exit sets `isNew = true; loading = false` and skips the API fetch entirely. On save, `router.navigate(['..', created.id], { relativeTo: this.route })` redirects to the new entity's detail page.
+- **routerLinkActive prefix matching**: Angular's `routerLinkActive` defaults to prefix matching — `/cards` matches on `/cards/products`, `/cards/fraud`, etc. The fix is `[routerLinkActiveOptions]="{ exact: item.exact ?? false }"` with `exact: true` only on index routes (Dashboard, Card List). Other nav items do NOT need `exact: true` because they are leaf routes with no children.
+- **Root cause of "perpetual loading"**: Not a routing bug — routes correctly matched `'new'` to `:id`. The actual problem was that the detail component tried to call `GET /api/v1/customers/new`, which returns 404 on Vercel (no backend deployed). The `@else if (isNew)` form bypasses the API call entirely, so it renders immediately regardless of backend availability.
+- **No new Angular routes required**: Adding `{ path: 'new', component: ... }` before `{ path: ':id', ... }` would also work, but is unnecessary here because the detail component already handles both create and view concerns — matching the CLAUDE.md documented `isNew` pattern.
+
+#### Build Verification
+`npx ng build --configuration=production` → **Build complete** (no errors; only pre-existing NG8107 optional-chain warnings)
+
+#### Compliance Checklist Update
+- No new backend endpoints — API docs unchanged
+- Sidebar routerLinkActive: ✅ Fixed — exact matching on Dashboard + Card List
+- Add Customer / Open Account / New Loan: ✅ Creation forms implemented
+
+---
+
 ### Session 47 — 2026-04-13
 **Fixed 5 critical service bugs in CardsModule Angular frontend; applied design-system SCSS partial to all 57 feature components; deployed to Vercel (commit `14892c2`).**
 

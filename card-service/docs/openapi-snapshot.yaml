@@ -1,0 +1,14 @@
+# openapi-snapshot-placeholder
+#
+# This file is intentionally empty. On the first run of the integration test suite
+# (mvn verify -Pfull-integration), the CardOpenApiSnapshotTest will boot the full
+# Spring Boot context, call /v3/api-docs.yaml, and write the live spec here.
+#
+# After the test generates this file, commit it:
+#   git add card-service/docs/openapi-snapshot.yaml
+#   git commit -m "docs(openapi): initial card-service API contract snapshot"
+#
+# To regenerate after intentional API changes:
+#   cd card-service && ./mvnw verify -Pfull-integration -Dupdate.api.snapshot=true
+#   git add card-service/docs/openapi-snapshot.yaml
+#   git commit -m "docs(openapi): update card-service API contract snapshot — <describe what changed>"

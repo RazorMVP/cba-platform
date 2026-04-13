@@ -293,7 +293,7 @@
                 </executions>
             </plugin>
 
-            <!-- Surefire — JUnit 5 -->
+            <!-- Surefire — JUnit 5 (unit tests only by default) -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
@@ -302,6 +302,12 @@
                         <include>**/*Test.java</include>
                         <include>**/*Tests.java</include>
                     </includes>
+                    <!-- Exclude heavyweight integration tests from the fast unit-test phase.
+                         Run them with: mvn verify -Pfull-integration -->
+                    <excludes>
+                        <exclude>**/*IntegrationTest.java</exclude>
+                        <exclude>**/openapi/**/*Test.java</exclude>
+                    </excludes>
                     <!-- Required for Mockito inline mocks on Java 21+.
                          net.bytebuddy.experimental=true allows Byte Buddy to
                          instrument Java 25 classes (not yet officially supported). -->
@@ -315,5 +321,38 @@
 
         </plugins>
     </build>
+
+    <!-- ─── Profiles ──────────────────────────────────────────────────────── -->
+    <profiles>
+        <!--
+          full-integration — enables heavyweight @SpringBootTest + Testcontainers tests.
+          Usage: mvn verify -Pfull-integration
+          CI usage: mvn verify -Pfull-integration - -no-transfer-progress
+        -->
+        <profile>
+            <id>full-integration</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <includes>
+                                <include>**/*Test.java</include>
+                                <include>**/*Tests.java</include>
+                            </includes>
+                            <!-- Remove the exclusions — run ALL tests including integration -->
+                            <excludes/>
+                            <argLine>
+                                ${argLine}
+                                -Dnet.bytebuddy.experimental=true
+                                -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar
+                            </argLine>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>

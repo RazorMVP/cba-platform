@@ -23,7 +23,21 @@
     <netty.version>4.1.115.Final</netty.version>
     <bouncycastle.version>1.78.1</bouncycastle.version>
     <jasypt.version>3.0.5</jasypt.version>
+    <springdoc.version>2.8.6</springdoc.version>
+    <testcontainers.version>1.20.4</testcontainers.version>
   </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>testcontainers-bom</artifactId>
+        <version>${testcontainers.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
 
   <dependencies>
 
@@ -124,6 +138,13 @@
       <version>0.1.55</version>
     </dependency>
 
+    <!-- ── OpenAPI Documentation ─────────────────────────────────── -->
+    <dependency>
+      <groupId>org.springdoc</groupId>
+      <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+      <version>${springdoc.version}</version>
+    </dependency>
+
     <!-- ── Test ───────────────────────────────────────────────────── -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -133,6 +154,16 @@
     <dependency>
       <groupId>org.springframework.security</groupId>
       <artifactId>spring-security-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>postgresql</artifactId>
       <scope>test</scope>
     </dependency>
 
@@ -169,7 +200,52 @@
         </configuration>
       </plugin>
 
+      <!-- Surefire — JUnit 5 (unit tests only by default) -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <includes>
+            <include>**/*Test.java</include>
+            <include>**/*Tests.java</include>
+          </includes>
+          <!-- Exclude heavyweight integration tests from the fast unit-test phase.
+               Run them with: mvn verify -Pfull-integration -->
+          <excludes>
+            <exclude>**/*IntegrationTest.java</exclude>
+            <exclude>**/openapi/**/*Test.java</exclude>
+          </excludes>
+        </configuration>
+      </plugin>
+
     </plugins>
   </build>
+
+  <!-- ─── Profiles ─────────────────────────────────────────────────── -->
+  <profiles>
+    <!--
+      full-integration — enables heavyweight @SpringBootTest + Testcontainers tests.
+      Usage: mvn verify -Pfull-integration
+    -->
+    <profile>
+      <id>full-integration</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <configuration>
+              <includes>
+                <include>**/*Test.java</include>
+                <include>**/*Tests.java</include>
+              </includes>
+              <!-- Remove exclusions — run ALL tests including integration -->
+              <excludes/>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 
 </project>

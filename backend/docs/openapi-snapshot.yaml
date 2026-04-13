@@ -1,0 +1,14 @@
+# openapi-snapshot-placeholder
+#
+# This file is intentionally empty. On the first run of the integration test suite
+# (mvn verify -Pfull-integration), the OpenApiSnapshotTest will boot the full
+# Spring Boot context, call /api-docs.yaml, and write the live spec here.
+#
+# After the test generates this file, commit it:
+#   git add backend/docs/openapi-snapshot.yaml
+#   git commit -m "docs(openapi): initial backend API contract snapshot"
+#
+# To regenerate after intentional API changes:
+#   cd backend && ./mvnw verify -Pfull-integration -Dupdate.api.snapshot=true
+#   git add backend/docs/openapi-snapshot.yaml
+#   git commit -m "docs(openapi): update backend API contract snapshot — <describe what changed>"

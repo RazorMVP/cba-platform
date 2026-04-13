@@ -1,0 +1,31 @@
+spring:
+  # Use jwk-set-uri instead of issuer-uri — prevents startup OIDC discovery
+  # request to Keycloak (which is not running in tests). The JwtDecoder bean
+  # in AbstractCardIntegrationTest is @Primary and overrides this in tests.
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:0/protocol/openid-connect/certs
+
+  # Flyway and datasource URLs are overridden by @DynamicPropertySource in
+  # AbstractCardIntegrationTest using the live Testcontainers container URL.
+  jpa:
+    show-sql: false
+
+# Use a predictable encryption key for test reproducibility
+jasypt:
+  encryptor:
+    password: test-encryption-key-do-not-use-in-production
+
+card:
+  pan:
+    hmac-key: test-pan-hmac-key-do-not-use-in-production
+  threeds:
+    cavv-master-key: test-cavv-master-key-do-not-use-in-production
+
+logging:
+  level:
+    com.cba.card: WARN
+    org.testcontainers: WARN
+    org.springframework.security: WARN

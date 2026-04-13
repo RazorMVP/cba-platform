@@ -1,21 +1,21 @@
-name: Backend CI/CD
+name: Card Service CI/CD
 
 on:
   push:
     branches: [main, develop]
     paths:
-      - 'backend/**'
-      - '.github/workflows/backend-ci.yml'
+      - 'card-service/**'
+      - '.github/workflows/card-service-ci.yml'
   pull_request:
     branches: [main, develop]
     paths:
-      - 'backend/**'
-      - '.github/workflows/backend-ci.yml'
+      - 'card-service/**'
+      - '.github/workflows/card-service-ci.yml'
 
 env:
   JAVA_VERSION: '21'
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/cba-backend
+  IMAGE_NAME: ${{ github.repository }}/cba-card-service
 
 jobs:
   # ─── API Documentation Consistency Enforcement ───────────────────────────────
@@ -28,7 +28,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check API docs are updated when controller annotations change
+      - name: Check API docs updated when controller annotations change
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -38,7 +38,7 @@ jobs:
             | grep -v '^+++' || true)
 
           if [ -z "$CONTROLLER_CHANGES" ]; then
-            echo "No REST endpoint annotation changes detected — skipping doc check."
+            echo "No REST endpoint annotation changes — skipping doc check."
             exit 0
           fi
 
@@ -46,23 +46,21 @@ jobs:
           echo "$CONTROLLER_CHANGES"
 
           DOC_CHANGES=$(git diff "$BASE_SHA" "$HEAD_SHA" --name-only \
-            | grep -E '(docs/openapi-snapshot\.yaml|docs/api-reference\.html|docs/cba-postman-collection-v2\.json)' \
+            | grep -E '(card-service/docs/openapi-snapshot\.yaml|docs/card-api-reference\.html|docs/cba-postman-collection-v2\.json)' \
             || true)
 
           if [ -z "$DOC_CHANGES" ]; then
-            echo "FAIL: REST endpoint annotations changed but no API documentation was updated."
-            echo "Update at least one of:"
-            echo "  - backend/docs/openapi-snapshot.yaml  (mvn verify -Pfull-integration -Dupdate.api.snapshot=true)"
-            echo "  - docs/api-reference.html"
+            echo "FAIL: Controller annotations changed without updating card-service API docs."
+            echo "Update one of:"
+            echo "  - card-service/docs/openapi-snapshot.yaml"
+            echo "  - docs/card-api-reference.html"
             echo "  - docs/cba-postman-collection-v2.json"
-            echo "See CLAUDE.md 'Mandatory Documentation Updates' for details."
             exit 1
           fi
 
-          echo "API documentation updated alongside controller changes:"
-          echo "$DOC_CHANGES"
+          echo "API docs updated alongside controller changes: $DOC_CHANGES"
 
-  # ─── Unit + Integration Tests ────────────────────────────────────────────────
+  # ─── Unit + Integration Tests ─────────────────────────────────────────────────
   test:
     name: Test (Java 21 + Testcontainers)
     runs-on: ubuntu-latest
@@ -77,11 +75,11 @@ jobs:
           cache: maven
 
       - name: Run unit tests
-        working-directory: backend
+        working-directory: card-service
         run: mvn test --no-transfer-progress
 
-      - name: Run integration tests (Testcontainers + PostgreSQL)
-        working-directory: backend
+      - name: Run integration tests (Testcontainers + OpenAPI snapshot)
+        working-directory: card-service
         run: mvn verify -Pfull-integration --no-transfer-progress
         env:
           TESTCONTAINERS_RYUK_DISABLED: 'true'
@@ -90,53 +88,16 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: backend-test-reports
-          path: backend/target/surefire-reports/
+          name: card-service-test-reports
+          path: card-service/target/surefire-reports/
 
       - name: Publish test results
         if: always()
         uses: dorny/test-reporter@v1
         with:
-          name: Backend Tests
-          path: backend/target/surefire-reports/*.xml
+          name: Card Service Tests
+          path: card-service/target/surefire-reports/*.xml
           reporter: java-junit
-
-  # ─── Code Quality — SonarCloud ───────────────────────────────────────────────
-  sonar:
-    name: SonarCloud Analysis
-    runs-on: ubuntu-latest
-    needs: test
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: temurin
-          cache: maven
-
-      - name: Cache SonarCloud packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.sonar/cache
-          key: ${{ runner.os }}-sonar
-
-      - name: SonarCloud analysis
-        working-directory: backend
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_ORG: ${{ vars.SONAR_ORG }}
-        run: |
-          mvn verify sonar:sonar \
-            -Dsonar.projectKey=cba-platform_backend \
-            -Dsonar.organization="${SONAR_ORG}" \
-            -Dsonar.host.url=https://sonarcloud.io \
-            --no-transfer-progress
 
   # ─── Security — OWASP Dependency Check ───────────────────────────────────────
   owasp-check:
@@ -153,53 +114,27 @@ jobs:
           cache: maven
 
       - name: Run OWASP Dependency Check
-        working-directory: backend
+        working-directory: card-service
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: |
           mvn org.owasp:dependency-check-maven:check \
             -DfailBuildOnCVSS=7 \
-            -DsuppressionsLocation=../docs/owasp-suppressions.xml \
-            -DnvdApiKey="${NVD_API_KEY}" \
+            -DnvdApiKey="$NVD_API_KEY" \
             --no-transfer-progress
 
       - name: Upload OWASP report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: owasp-report
-          path: backend/target/dependency-check-report.html
-
-  # ─── Security — SpotBugs Static Analysis ─────────────────────────────────────
-  spotbugs:
-    name: SpotBugs Static Analysis
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: temurin
-          cache: maven
-
-      - name: Run SpotBugs
-        working-directory: backend
-        run: mvn compile spotbugs:check --no-transfer-progress
-
-      - name: Upload SpotBugs report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: spotbugs-report
-          path: backend/target/spotbugsXml.xml
+          name: card-service-owasp-report
+          path: card-service/target/dependency-check-report.html
 
   # ─── Docker Build + Push ─────────────────────────────────────────────────────
   docker:
     name: Build & Push Docker Image
     runs-on: ubuntu-latest
-    needs: [test, owasp-check, spotbugs, api-doc-check]
+    needs: [test, owasp-check, api-doc-check]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     permissions:
       contents: read
@@ -215,8 +150,8 @@ jobs:
           distribution: temurin
           cache: maven
 
-      - name: Build JAR (skip tests — already ran)
-        working-directory: backend
+      - name: Build JAR (skip tests)
+        working-directory: card-service
         run: mvn package -DskipTests --no-transfer-progress
 
       - name: Set up Docker Buildx
@@ -233,7 +168,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}/cba-backend
+          images: ghcr.io/${{ github.repository }}/cba-card-service
           tags: |
             type=ref,event=branch
             type=sha,prefix=sha-
@@ -242,7 +177,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: backend
+          context: card-service
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -252,9 +187,9 @@ jobs:
       - name: Scan Docker image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ghcr.io/${{ github.repository }}/cba-backend:sha-${{ github.sha }}
+          image-ref: ${{ steps.meta.outputs.tags }}
           format: sarif
-          output: trivy-docker.sarif
+          output: trivy-card-service.sarif
           severity: CRITICAL,HIGH
           exit-code: '1'
 
@@ -262,7 +197,7 @@ jobs:
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: trivy-docker.sarif
+          sarif_file: trivy-card-service.sarif
 
   # ─── Deploy to Staging ────────────────────────────────────────────────────────
   deploy-staging:
@@ -280,22 +215,21 @@ jobs:
       - name: Write kubeconfig
         env:
           KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_STAGING }}
-        run: echo "${KUBE_CONFIG}" | base64 -d > /tmp/kubeconfig.yml
+        run: echo "$KUBE_CONFIG" | base64 -d > /tmp/kubeconfig.yml
 
-      - name: Update image in manifests
+      - name: Update image in k8s manifests
         env:
-          IMAGE_TAG: sha-${{ github.sha }}
-          REGISTRY: ghcr.io/${{ github.repository }}/cba-backend
+          IMAGE_TAGS: ${{ needs.docker.outputs.tags }}
         run: |
-          sed -i "s|cba/backend:latest|${REGISTRY}:${IMAGE_TAG}|g" \
-            infrastructure/k8s/backend/deployment.yaml
+          sed -i "s|cba/card-service:latest|ghcr.io/${{ github.repository }}/cba-card-service:sha-$(git rev-parse HEAD)|g" \
+            infrastructure/k8s/card-service/deployment.yaml
 
       - name: Apply Kubernetes manifests
-        run: kubectl apply -f infrastructure/k8s/ --kubeconfig=/tmp/kubeconfig.yml
+        run: kubectl apply -f infrastructure/k8s/card-service/ --kubeconfig=/tmp/kubeconfig.yml
 
       - name: Wait for rollout
         run: |
-          kubectl rollout status deployment/cba-backend \
+          kubectl rollout status deployment/cba-card-service \
             -n cba-platform \
             --kubeconfig=/tmp/kubeconfig.yml \
             --timeout=300s
@@ -316,22 +250,19 @@ jobs:
       - name: Write kubeconfig
         env:
           KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_PROD }}
-        run: echo "${KUBE_CONFIG}" | base64 -d > /tmp/kubeconfig.yml
+        run: echo "$KUBE_CONFIG" | base64 -d > /tmp/kubeconfig.yml
 
-      - name: Update image in manifests
-        env:
-          IMAGE_TAG: sha-${{ github.sha }}
-          REGISTRY: ghcr.io/${{ github.repository }}/cba-backend
+      - name: Update image in k8s manifests
         run: |
-          sed -i "s|cba/backend:latest|${REGISTRY}:${IMAGE_TAG}|g" \
-            infrastructure/k8s/backend/deployment.yaml
+          sed -i "s|cba/card-service:latest|ghcr.io/${{ github.repository }}/cba-card-service:sha-$(git rev-parse HEAD)|g" \
+            infrastructure/k8s/card-service/deployment.yaml
 
       - name: Apply Kubernetes manifests
-        run: kubectl apply -f infrastructure/k8s/ --kubeconfig=/tmp/kubeconfig.yml
+        run: kubectl apply -f infrastructure/k8s/card-service/ --kubeconfig=/tmp/kubeconfig.yml
 
       - name: Wait for rollout
         run: |
-          kubectl rollout status deployment/cba-backend \
+          kubectl rollout status deployment/cba-card-service \
             -n cba-platform \
             --kubeconfig=/tmp/kubeconfig.yml \
             --timeout=300s

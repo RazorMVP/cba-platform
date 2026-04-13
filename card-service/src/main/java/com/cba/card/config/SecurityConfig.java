@@ -104,6 +104,9 @@ public class SecurityConfig {
         http
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                // OpenAPI / Swagger UI — documentation is always public
+                .requestMatchers("/v3/api-docs/**", "/v3/api-docs.yaml", "/swagger-ui/**",
+                        "/swagger-ui.html").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/simulate/**").hasAnyRole("ADMIN", "TELLER")
                 .requestMatchers("/api/v1/simulate/**").hasAnyRole("ADMIN", "TELLER")
                 .anyRequest().authenticated())

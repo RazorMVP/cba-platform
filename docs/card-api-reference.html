@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CBA Card Service — API Reference</title>
+<style>
+:root{
+  --bg-app:#040609;--bg-sidebar:#0a1628;--bg-card:#ffffff;
+  --color-primary:#1e2833;--color-text:#000314;--color-muted:#888888;
+  --color-accent:#2563eb;--color-success:#16a34a;--color-warning:#d97706;
+  --color-danger:#dc2626;--font:"Instrument Sans",system-ui,sans-serif;
+  --sidebar-w:270px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg-app);color:var(--color-text);display:flex;min-height:100vh}
+a{color:var(--color-accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre{font-family:"JetBrains Mono","Fira Code",monospace;font-size:.875rem}
+pre{background:#0d1117;color:#e6edf3;border-radius:8px;padding:1rem;overflow-x:auto;margin:.75rem 0}
+pre code{background:none;padding:0;color:inherit}
+code{background:#f0f0f0;padding:.1em .3em;border-radius:3px;color:#c7254e}
+#sidebar{position:fixed;top:0;left:0;width:var(--sidebar-w);height:100vh;background:var(--bg-sidebar);overflow-y:auto;padding:1.5rem 0;z-index:100}
+#sidebar .logo{padding:.5rem 1.5rem 1.5rem;border-bottom:1px solid #1e3a5f}
+#sidebar .logo h1{color:#fff;font-size:1.1rem;font-weight:700;line-height:1.3}
+#sidebar .logo span{color:#5b8db8;font-size:.75rem}
+#sidebar nav{padding:.5rem 0}
+#sidebar nav a{display:block;padding:.45rem 1.5rem;color:#94afc7;font-size:.83rem;border-left:3px solid transparent;transition:all .15s}
+#sidebar nav a:hover{color:#fff;background:rgba(255,255,255,.06);text-decoration:none}
+#sidebar nav a.active{color:#60a5fa;border-left-color:#60a5fa;background:rgba(96,165,250,.08)}
+#sidebar nav .section-head{padding:.6rem 1.5rem .2rem;color:#3d6080;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+#main{margin-left:var(--sidebar-w);flex:1;background:#f8fafc;min-height:100vh}
+.page-header{background:var(--color-primary);color:#fff;padding:3rem 3rem 2rem;border-bottom:4px solid #2563eb}
+.page-header h1{font-size:2rem;font-weight:800;margin-bottom:.5rem}
+.page-header p{color:#94a3b8;font-size:1rem}
+.badge{display:inline-block;padding:.2em .6em;border-radius:999px;font-size:.72rem;font-weight:600;text-transform:uppercase}
+.badge-get{background:#dbeafe;color:#1d4ed8}
+.badge-post{background:#dcfce7;color:#15803d}
+.badge-put{background:#fef9c3;color:#92400e}
+.badge-delete{background:#fee2e2;color:#b91c1c}
+section{padding:3rem;border-bottom:1px solid #e2e8f0;scroll-margin-top:1rem}
+section:last-child{border-bottom:none}
+h2{font-size:1.5rem;font-weight:700;color:var(--color-primary);margin-bottom:1rem;padding-bottom:.5rem;border-bottom:2px solid #e2e8f0}
+h3{font-size:1.1rem;font-weight:600;color:#1e40af;margin:1.5rem 0 .5rem}
+h4{font-size:.95rem;font-weight:600;color:#374151;margin:1rem 0 .35rem}
+p{color:#374151;line-height:1.7;margin-bottom:.75rem}
+ul,ol{margin:.5rem 0 .75rem 1.5rem;color:#374151;line-height:1.8}
+table{border-collapse:collapse;width:100%;margin:.75rem 0 1rem;font-size:.875rem}
+th{background:#f1f5f9;text-align:left;padding:.6rem .85rem;border:1px solid #e2e8f0;font-weight:600;color:#1e3a5f}
+td{padding:.55rem .85rem;border:1px solid #e2e8f0;color:#374151;vertical-align:top}
+tr:nth-child(even) td{background:#f8fafc}
+.endpoint{background:#fff;border:1px solid #e2e8f0;border-radius:10px;margin:.85rem 0;overflow:hidden}
+.endpoint-header{display:flex;align-items:center;gap:.75rem;padding:.8rem 1rem;cursor:pointer;user-select:none}
+.endpoint-header:hover{background:#f8fafc}
+.method{font-weight:700;font-size:.78rem;padding:.25em .7em;border-radius:5px;text-transform:uppercase;min-width:58px;text-align:center}
+.method.GET{background:#dbeafe;color:#1d4ed8}
+.method.POST{background:#dcfce7;color:#15803d}
+.method.PUT{background:#fef9c3;color:#92400e}
+.method.DELETE{background:#fee2e2;color:#b91c1c}
+.endpoint-path{font-family:monospace;font-size:.9rem;font-weight:600;color:#111827;flex:1}
+.endpoint-summary{color:#6b7280;font-size:.82rem}
+.endpoint-body{padding:1rem 1.1rem;border-top:1px solid #e2e8f0;display:none}
+details.endpoint[open] .endpoint-body{display:block}
+.callout{border-left:4px solid;border-radius:0 6px 6px 0;padding:.75rem 1rem;margin:.75rem 0;font-size:.875rem}
+.callout.info{border-color:#3b82f6;background:#eff6ff;color:#1e40af}
+.callout.warning{border-color:#f59e0b;background:#fffbeb;color:#92400e}
+.callout.success{border-color:#10b981;background:#ecfdf5;color:#065f46}
+.callout.danger{border-color:#ef4444;background:#fef2f2;color:#991b1b}
+.status-flow{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:.5rem 0 1rem;padding:.75rem 1rem;background:#f1f5f9;border-radius:8px}
+.status-pill{padding:.25em .8em;border-radius:999px;font-size:.78rem;font-weight:600;background:#e2e8f0;color:#374151}
+.arrow{color:#94a3b8;font-size:.85rem}
+</style>
+</head>
+<body>
+
+<nav id="sidebar">
+  <div class="logo">
+    <h1>CBA Card Service</h1>
+    <span>API Reference v1 · port 8081</span>
+  </div>
+  <nav>
+    <div class="section-head">Getting Started</div>
+    <a href="#overview">Overview</a>
+    <a href="#auth">Authentication</a>
+    <a href="#fullapi">Full API Matrix</a>
+
+    <div class="section-head">Card Management</div>
+    <a href="#cards">Cards</a>
+    <a href="#card-limits">Card Limits</a>
+    <a href="#card-commands">Card Lifecycle Commands</a>
+
+    <div class="section-head">Fraud &amp; Auth</div>
+    <a href="#fraud">Fraud Rules</a>
+    <a href="#authorization">Authorization</a>
+    <a href="#threeds">3D Secure ACS</a>
+
+    <div class="section-head">Tokenization</div>
+    <a href="#tokens">Token Vault</a>
+    <a href="#bins">BIN Management</a>
+
+    <div class="section-head">Settlement &amp; Clearing</div>
+    <a href="#settlement">Settlement</a>
+    <a href="#settlement-export">Settlement Export</a>
+    <a href="#interchange">Interchange</a>
+
+    <div class="section-head">Disputes</div>
+    <a href="#disputes">Disputes &amp; Chargebacks</a>
+
+    <div class="section-head">Operations</div>
+    <a href="#bureau">Card Bureau</a>
+    <a href="#simulator">Terminal Simulator</a>
+
+    <div class="section-head">Card Open Banking API</div>
+    <a href="#card-api-keys">API Key Management</a>
+    <a href="#card-api-issuance">Card Issuance (BaaS)</a>
+    <a href="#card-api-controls">Card Controls</a>
+    <a href="#card-api-analytics">Spending Analytics</a>
+    <a href="#card-api-webhooks">Webhooks</a>
+  </nav>
+</nav>
+
+<div id="main">
+
+<div class="page-header">
+  <h1>Card Service API Reference</h1>
+  <p>ISO 8583 card processing, card lifecycle management, fraud engine, token vault, settlement, and BaaS card API.<br>
+  Base URL: <code>http://localhost:8081</code> · Card Open Banking: <code>/card-api/v1/</code></p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="overview">
+<h2>Overview</h2>
+<p>The <strong>card-service</strong> is a standalone Spring Boot microservice (port 8081) that owns all card domain data.
+It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port 8583) and the <strong>backend monolith</strong> (port 8080).</p>
+
+<h3>Architecture</h3>
+<pre><code>[POS / ATM Terminal]
+      ↓  ISO 8583 over TCP (port 8583)
+[fep-service]  ──REST──▶  [card-service :8081]  ──REST──▶  [backend :8080]
+                              Card lifecycle                Account balances
+                              Fraud engine                  Transaction posting
+                              Token vault, settlement</code></pre>
+
+<h3>Response Envelope</h3>
+<p>All card-service REST endpoints return the standard CBA response envelope:</p>
+<pre><code>{
+  "data": { ... },
+  "meta": { "page": 0, "size": 20, "total": 150 },
+  "errors": []
+}</code></pre>
+
+<h3>Error Format</h3>
+<pre><code>{
+  "data": null,
+  "meta": {},
+  "errors": [{ "code": "CARD_NOT_FOUND", "message": "Card abc123 not found", "field": null }]
+}</code></pre>
+
+<h3>Card Lifecycle</h3>
+<p><strong>Virtual card:</strong></p>
+<div class="status-flow">
+  <span class="status-pill">ISSUED</span><span class="arrow">→</span>
+  <span class="status-pill">ACTIVE</span><span class="arrow">⇄</span>
+  <span class="status-pill">BLOCKED</span><span class="arrow">→</span>
+  <span class="status-pill">EXPIRED</span><span class="arrow">→</span>
+  <span class="status-pill">CANCELLED</span>
+</div>
+<p><strong>Physical card:</strong></p>
+<div class="status-flow">
+  <span class="status-pill">ORDERED</span><span class="arrow">→</span>
+  <span class="status-pill">PRODUCED</span><span class="arrow">→</span>
+  <span class="status-pill">DISPATCHED</span><span class="arrow">→</span>
+  <span class="status-pill">ACTIVATION_PENDING</span><span class="arrow">→</span>
+  <span class="status-pill">ACTIVE</span><span class="arrow">⇄</span>
+  <span class="status-pill">BLOCKED</span>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="auth">
+<h2>Authentication</h2>
+<p>Card-service supports three authentication modes depending on the endpoint group:</p>
+<table>
+  <tr><th>Endpoint Group</th><th>Auth Method</th><th>Header</th></tr>
+  <tr><td><code>/3ds/acs/**</code></td><td>None (Directory Server mTLS in prod)</td><td>—</td></tr>
+  <tr><td><code>/api/v1/internal/**</code></td><td>None (network isolation)</td><td>—</td></tr>
+  <tr><td><code>/api/v1/**</code></td><td>JWT (Keycloak realm <code>cba</code>)</td><td><code>Authorization: Bearer {jwt}</code></td></tr>
+  <tr><td><code>/card-api/v1/**</code></td><td>JWT <em>or</em> API Key (dual-mode)</td><td><code>Authorization: Bearer {jwt}</code> or <code>Authorization: ApiKey cba_{key}</code></td></tr>
+</table>
+
+<h3>RBAC Roles</h3>
+<table>
+  <tr><th>Role</th><th>Access Level</th></tr>
+  <tr><td><code>ADMIN</code></td><td>Full card-service access including fraud rule management, settlement, bureau</td></tr>
+  <tr><td><code>TELLER</code></td><td>Card operations: block/unblock, dispute raising, settlement view</td></tr>
+  <tr><td><code>CUSTOMER</code></td><td>Own card controls via self-service (via consent)</td></tr>
+  <tr><td><code>API_KEY</code></td><td>M2M BaaS integrator — card issuance, analytics, webhooks</td></tr>
+</table>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="fullapi">
+<h2>Full API Matrix</h2>
+<table>
+  <tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr>
+  <!-- Cards -->
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards</code></td><td>ADMIN/TELLER</td><td>List cards</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards</code></td><td>ADMIN/TELLER</td><td>Issue card</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/{id}</code></td><td>ADMIN/TELLER</td><td>Card details</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/{id}?command=</code></td><td>ADMIN/TELLER</td><td>Lifecycle command (block/unblock/cancel/activate/replace)</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/{id}/balance</code></td><td>ADMIN/TELLER</td><td>Available balance (debit/prepaid/credit)</td></tr>
+  <tr><td><span class="badge badge-put">PUT</span></td><td><code>/api/v1/cards/{id}/limits</code></td><td>ADMIN/TELLER</td><td>Update spending limits</td></tr>
+  <!-- Fraud -->
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/fraud/rules</code></td><td>ADMIN</td><td>List fraud rules</td></tr>
+  <tr><td><span class="badge badge-put">PUT</span></td><td><code>/api/v1/cards/fraud/rules/{id}</code></td><td>ADMIN</td><td>Update fraud rule weight/params</td></tr>
+  <!-- Authorization -->
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/authorize</code></td><td>Internal</td><td>Process authorization (called by FEP)</td></tr>
+  <!-- Tokens -->
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/tokens</code></td><td>ADMIN</td><td>Generate DPAN token</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/tokens/detokenize</code></td><td>Internal</td><td>Resolve DPAN → PAN (called by FEP)</td></tr>
+  <!-- BINs -->
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/bins</code></td><td>ADMIN</td><td>List BIN ranges</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/bins</code></td><td>ADMIN</td><td>Create BIN range</td></tr>
+  <tr><td><span class="badge badge-put">PUT</span></td><td><code>/api/v1/bins/{id}</code></td><td>ADMIN</td><td>Update BIN range</td></tr>
+  <tr><td><span class="badge badge-delete">DELETE</span></td><td><code>/api/v1/bins/{id}</code></td><td>ADMIN</td><td>Soft-delete BIN range</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/bins/lookup?pan=</code></td><td>None</td><td>Test BIN lookup (dev/ops)</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/bins/{bin}/scheme</code></td><td>None</td><td>Scheme by BIN (FEP M2M)</td></tr>
+  <!-- Interchange -->
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/interchange/rates</code></td><td>ADMIN</td><td>List interchange rates</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/interchange/rates</code></td><td>ADMIN</td><td>Create interchange rate</td></tr>
+  <tr><td><span class="badge badge-put">PUT</span></td><td><code>/api/v1/interchange/rates/{id}</code></td><td>ADMIN</td><td>Update rate</td></tr>
+  <tr><td><span class="badge badge-delete">DELETE</span></td><td><code>/api/v1/interchange/rates/{id}</code></td><td>ADMIN</td><td>Delete rate</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/interchange/fees</code></td><td>ADMIN</td><td>List scheme fees</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/interchange/fees</code></td><td>ADMIN</td><td>Create scheme fee</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/interchange/calculate?authId=</code></td><td>ADMIN</td><td>Calculate interchange for an auth</td></tr>
+  <!-- Settlement -->
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/settlement/batches</code></td><td>ADMIN/TELLER</td><td>List settlement batches</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/settlement/batches/{id}/close</code></td><td>ADMIN</td><td>Close settlement batch</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/settlement/export/{batchId}</code></td><td>ADMIN</td><td>Manual scheme file export</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/settlement/transmissions</code></td><td>ADMIN/TELLER</td><td>List transmission records</td></tr>
+  <!-- Disputes -->
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/disputes</code></td><td>ADMIN/TELLER</td><td>List disputes</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/disputes</code></td><td>ADMIN/TELLER/CUSTOMER</td><td>Raise dispute</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/disputes/{id}</code></td><td>ADMIN/TELLER</td><td>Dispute detail</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/disputes/{id}/chargeback</code></td><td>ADMIN/TELLER</td><td>Initiate chargeback</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/disputes/{id}/resolve</code></td><td>ADMIN/TELLER</td><td>Resolve dispute</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/disputes/reason-codes</code></td><td>ADMIN/TELLER</td><td>Scheme reason code catalogue</td></tr>
+  <!-- Bureau -->
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/bureau/jobs</code></td><td>ADMIN</td><td>List bureau jobs</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/bureau/jobs</code></td><td>ADMIN</td><td>Create bureau batch</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/bureau/jobs/{id}/submit</code></td><td>ADMIN</td><td>Generate CDP, mark SENT</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/bureau/jobs/{id}/confirm</code></td><td>ADMIN</td><td>Bureau confirmation → PRODUCED</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/bureau/jobs/{id}/dispatch</code></td><td>ADMIN</td><td>Mark DISPATCHED</td></tr>
+  <!-- Simulator -->
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/simulate/purchase</code></td><td>ADMIN/TELLER</td><td>Simulate POS purchase (MTI 0100)</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/simulate/withdrawal</code></td><td>ADMIN/TELLER</td><td>Simulate ATM withdrawal (MTI 0200)</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/simulate/balance</code></td><td>ADMIN/TELLER</td><td>Simulate balance enquiry</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/simulate/reversal</code></td><td>ADMIN/TELLER</td><td>Simulate reversal (MTI 0400)</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/simulate/network/signon</code></td><td>ADMIN/TELLER</td><td>FEP network sign-on (MTI 0800)</td></tr>
+  <!-- Card API -->
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/card-api/v1/api-keys</code></td><td>ADMIN</td><td>Issue API key</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/card-api/v1/api-keys</code></td><td>ADMIN</td><td>List API keys</td></tr>
+  <tr><td><span class="badge badge-delete">DELETE</span></td><td><code>/card-api/v1/api-keys/{id}</code></td><td>ADMIN</td><td>Revoke API key</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/card-api/v1/cards</code></td><td>API_KEY/ADMIN/TELLER</td><td>Issue card (BaaS)</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/card-api/v1/cards</code></td><td>API_KEY/ADMIN/TELLER</td><td>List cards (BaaS)</td></tr>
+  <tr><td><span class="badge badge-put">PUT</span></td><td><code>/card-api/v1/cards/{id}/controls</code></td><td>API_KEY/CUSTOMER</td><td>Freeze/unfreeze, toggle contactless/CNP</td></tr>
+  <tr><td><span class="badge badge-put">PUT</span></td><td><code>/card-api/v1/cards/{id}/limits</code></td><td>API_KEY/CUSTOMER</td><td>Update card limits</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/card-api/v1/cards/{id}/pin/change</code></td><td>API_KEY/CUSTOMER</td><td>PIN change via HSM</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/card-api/v1/cards/{id}/analytics/by-category</code></td><td>API_KEY/ADMIN</td><td>Spend by MCC category</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/card-api/v1/analytics/summary</code></td><td>API_KEY/ADMIN</td><td>Monthly spend summary</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/card-api/v1/webhooks</code></td><td>API_KEY/ADMIN</td><td>Register webhook</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/card-api/v1/webhooks/{id}/deliveries</code></td><td>API_KEY/ADMIN</td><td>Webhook delivery log</td></tr>
+  <!-- 3DS -->
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/3ds/acs/areq</code></td><td>None</td><td>Receive AReq from Directory Server</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/3ds/acs/challenge/{acsTransId}</code></td><td>None</td><td>Cardholder OTP challenge page</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/3ds/acs/challenge/{acsTransId}/verify</code></td><td>None</td><td>Verify OTP submission</td></tr>
+</table>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="cards">
+<h2>Cards</h2>
+<p>Card lifecycle management — issue, block, activate, cancel, replace. Card entities are linked to a bank account, loan (credit card), or prepaid wallet.</p>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/cards</span>
+    <span class="endpoint-summary">List cards with optional filters</span>
+  </summary>
+  <div class="endpoint-body">
+    <h4>Query Parameters</h4>
+    <table><tr><th>Param</th><th>Type</th><th>Description</th></tr>
+      <tr><td>customerId</td><td>UUID</td><td>Filter by customer</td></tr>
+      <tr><td>type</td><td>DEBIT | PREPAID | CREDIT</td><td>Card type filter</td></tr>
+      <tr><td>status</td><td>ACTIVE | BLOCKED | ORDERED…</td><td>Status filter</td></tr>
+      <tr><td>page / size</td><td>int</td><td>Pagination</td></tr>
+    </table>
+    <h4>Response (200)</h4>
+    <pre><code>{ "data": [{ "id": "...", "panPrefix": "4111", "panSuffix": "1111",
+  "cardType": "DEBIT", "status": "ACTIVE", "expiryDate": "2027-12-31",
+  "virtualFlag": false, "customerId": "...", "linkedEntityId": "..." }],
+  "meta": { "page": 0, "size": 20, "total": 5 }, "errors": [] }</code></pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/cards</span>
+    <span class="endpoint-summary">Issue a new card</span>
+  </summary>
+  <div class="endpoint-body">
+    <h4>Request Body</h4>
+    <pre><code>{
+  "customerId": "uuid",
+  "cardProductId": "uuid",
+  "linkedEntityId": "uuid",       // account or loan UUID
+  "virtualFlag": false,
+  "cardType": "DEBIT"             // DEBIT | PREPAID | CREDIT
+}</code></pre>
+    <h4>Response (201)</h4>
+    <pre><code>{ "data": { "id": "...", "panPrefix": "4111", "panSuffix": "1111",
+  "status": "ISSUED", "expiryDate": "2028-12-31" }, "errors": [] }</code></pre>
+    <div class="callout info">PAN, CVV, and expiry are generated by the service. PAN is stored encrypted; only prefix (first 4) and suffix (last 4) are returned in responses.</div>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/cards/{id}/balance</span>
+    <span class="endpoint-summary">Available balance for a card</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Returns available balance in minor units. Debit/prepaid reads wallet balance; credit reads <code>creditLimit − outstandingBalance</code>.</p>
+    <h4>Response (200)</h4>
+    <pre><code>{ "data": { "availableBalance": 250000, "cardType": "DEBIT", "currency": "840" }, "errors": [] }</code></pre>
+  </div>
+</details>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="card-commands">
+<h2>Card Lifecycle Commands</h2>
+<p>State transitions are triggered via <code>POST /api/v1/cards/{id}?command={action}</code>.</p>
+<table>
+  <tr><th>Command</th><th>From State(s)</th><th>To State</th><th>Notes</th></tr>
+  <tr><td>block</td><td>ACTIVE</td><td>BLOCKED</td><td>Triggers <code>CARD.BLOCKED</code> webhook</td></tr>
+  <tr><td>unblock</td><td>BLOCKED</td><td>ACTIVE</td><td>Triggers <code>CARD.UNBLOCKED</code> webhook</td></tr>
+  <tr><td>cancel</td><td>ACTIVE, BLOCKED</td><td>CANCELLED</td><td>Terminal state — irreversible</td></tr>
+  <tr><td>activate</td><td>ACTIVATION_PENDING</td><td>ACTIVE</td><td>Physical cards only; requires activation code</td></tr>
+  <tr><td>replace</td><td>ACTIVE, BLOCKED</td><td>CANCELLED (old) + ISSUED (new)</td><td>Issues replacement card with new PAN</td></tr>
+</table>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="fraud">
+<h2>Fraud Rules</h2>
+<p>Rule-based fraud engine with configurable weights (0–100). Hard-block rules (<code>CARD_EXPIRED</code>, <code>CARD_BLOCKED</code>, <code>PIN_RETRY_EXCEEDED</code>) always have weight 100 and short-circuit evaluation.</p>
+
+<h3>Score Thresholds</h3>
+<table>
+  <tr><th>Score Range</th><th>Decision</th><th>DE39 Response Code</th></tr>
+  <tr><td>0–29</td><td>APPROVE</td><td>00</td></tr>
+  <tr><td>30–69</td><td>STEP_UP (force online PIN)</td><td>0110 with PIN required</td></tr>
+  <tr><td>70–100</td><td>DECLINE</td><td>05 / 62</td></tr>
+</table>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method PUT">PUT</span>
+    <span class="endpoint-path">/api/v1/cards/fraud/rules/{id}</span>
+    <span class="endpoint-summary">Update rule weight and parameters</span>
+  </summary>
+  <div class="endpoint-body">
+    <h4>Request Body</h4>
+    <pre><code>{
+  "weight": 45,
+  "enabled": true,
+  "params": {
+    "thresholds": { "840": 100000, "404": 13000000 },
+    "default_threshold_minor_units": 100000
+  }
+}</code></pre>
+    <div class="callout warning">Currency thresholds in <code>params.thresholds</code> use ISO 4217 numeric codes as keys. Always include a <code>default_threshold_minor_units</code> fallback.</div>
+  </div>
+</details>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="authorization">
+<h2>Authorization (Internal)</h2>
+<p>Called by <strong>fep-service</strong> for every 0100/0200 ISO 8583 message. Not intended for external integrators.</p>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/internal/cards/authorize</span>
+    <span class="endpoint-summary">Process card authorization request (FEP internal)</span>
+  </summary>
+  <div class="endpoint-body">
+    <h4>Request Body</h4>
+    <pre><code>{
+  "pan": "4111111111111111",
+  "expiryDate": "2811",           // YYMM format
+  "processingCode": "000000",     // 000000=purchase, 010000=cash, 310000=balance
+  "amount": 5000,                 // minor units
+  "currencyCode": "840",
+  "stan": "123456",
+  "rrn": "123456789012",
+  "terminalId": "TERM0001",
+  "merchantId": "MERCH000000001",
+  "mcc": "5411",
+  "entryMode": "CHIP",
+  "pinBlock": "...",              // optional, ISO-0 encrypted
+  "scheme": "VISA"
+}</code></pre>
+    <h4>Response</h4>
+    <pre><code>{
+  "responseCode": "00",
+  "authCode": "AUTH01",
+  "availableBalance": 245000,
+  "fraudScore": 12,
+  "decision": "APPROVE"
+}</code></pre>
+  </div>
+</details>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="tokens">
+<h2>Token Vault</h2>
+<p>Simulated EMVCo TSP — maps real PANs to Device PANs (DPANs). DPAN BIN prefix is <code>9999xx</code>. FEP detects token BIN and calls <code>/tokens/detokenize</code> before authorization lookup.</p>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/tokens</span>
+    <span class="endpoint-summary">Generate DPAN token for a card</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre><code>// Request
+{ "cardId": "uuid", "deviceId": "device-xyz" }
+
+// Response (201)
+{ "data": { "dpan": "9999111111111111", "expiryDate": "2812",
+  "tokenRef": "tok_abc123", "status": "ACTIVE" }, "errors": [] }</code></pre>
+  </div>
+</details>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="bins">
+<h2>BIN Management</h2>
+<p>Manages BIN (Bank Identification Number) ranges for scheme routing. Supports both 6-digit (legacy) and 8-digit BINs (EMV 2019 mandate). FEP calls <code>/api/v1/bins/{bin}/scheme</code> to route messages to the correct scheme adapter.</p>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/bins</span>
+    <span class="endpoint-summary">Register a BIN range</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre><code>// Request
+{
+  "binStart": "41111100",         // 6 or 8 digits
+  "binEnd":   "41111199",
+  "scheme": "VISA",               // VISA | MASTERCARD | VERVE | AFRIGO | UNION_PAY
+  "cardType": "DEBIT",
+  "productType": "CLASSIC",
+  "countryCode": "US",
+  "currencyCode": "840"
+}
+
+// Response (201)
+{ "data": { "id": "...", "binStart": "41111100", "scheme": "VISA", "active": true } }</code></pre>
+  </div>
+</details>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="settlement">
+<h2>Settlement</h2>
+<p>Dual-message settlement batches. Authorizations are held pending until end-of-day batch close (nightly at 23:58). Single-message (real-time) transactions bypass batching.</p>
+
+<h3>Dual-Message Flow</h3>
+<pre><code>0100 Auth Request → 0110 Auth Response (hold funds)
+     ↓ (end of day)
+0320 Batch Upload → 0322 Batch Advice → 0324 Batch Close → GL posting</code></pre>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/cards/settlement/batches/{id}/close</span>
+    <span class="endpoint-summary">Close an open settlement batch</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Closing a batch triggers scheme file export (if configured) and final GL debit/credit entries via the monolith backend.</p>
+    <pre><code>// Response (200)
+{ "data": { "id": "...", "status": "CLOSED", "totalAmount": 1250000,
+  "itemCount": 47, "closedAt": "2026-01-15T23:58:00Z" } }</code></pre>
+  </div>
+</details>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="settlement-export">
+<h2>Settlement File Export</h2>
+<p>Pluggable scheme file exporters. Each scheme has its own file format (Visa BASE II, Mastercard IPM, Verve NIBSS, Afrigo PAPSS, UnionPay CUPS). Exporters are disabled by default — flip <code>enabled: true</code> and supply credentials in <code>application.yml</code> to activate at production.</p>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/cards/settlement/export/{batchId}</span>
+    <span class="endpoint-summary">Manually trigger scheme file export for a batch</span>
+  </summary>
+  <div class="endpoint-body">
+    <h4>Query Parameters</h4>
+    <table><tr><th>Param</th><th>Description</th></tr>
+      <tr><td>settlementDate</td><td>Override date (YYYY-MM-DD). Defaults to batch date.</td></tr>
+    </table>
+    <pre><code>// Response (200) — one record per enabled exporter
+{ "data": [
+  { "id": "...", "scheme": "VISA", "status": "TRANSMITTED", "attemptCount": 1,
+    "transmittedAt": "2026-01-15T23:59:00Z" },
+  { "id": "...", "scheme": "MASTERCARD", "status": "FAILED", "errorMessage": "SFTP timeout" }
+], "errors": [] }</code></pre>
+  </div>
+</details>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="interchange">
+<h2>Interchange Management</h2>
+<p>Per-scheme interchange rate tables and scheme assessment fees. The <code>InterchangeQualificationEngine</code> determines the applicable rate based on scheme + card type + MCC + transaction type + channel.</p>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/interchange/rates</span>
+    <span class="endpoint-summary">Create interchange rate tier</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre><code>{
+  "scheme": "VISA",
+  "cardType": "DEBIT",
+  "mccCategory": "GROCERY",       // null = applies to all categories
+  "transactionType": "PURCHASE",  // PURCHASE | CASH | REFUND
+  "channel": "CARD_PRESENT",      // CARD_PRESENT | CNP
+  "ratePercent": 0.8000,
+  "fixedFee": 0.1000,
+  "currencyCode": "840",
+  "effectiveFrom": "2026-01-01",
+  "effectiveTo": null             // null = no expiry
+}</code></pre>
+  </div>
+</details>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="disputes">
+<h2>Disputes &amp; Chargebacks</h2>
+<p>Scheme-compliant chargeback workflow. Supports Visa, Mastercard, Verve, Afrigo, and UnionPay reason codes with enforced processing timeframes.</p>
+
+<h3>State Machine</h3>
+<div class="status-flow">
+  <span class="status-pill">RAISED</span><span class="arrow">→</span>
+  <span class="status-pill">RETRIEVAL_REQUESTED</span><span class="arrow">→</span>
+  <span class="status-pill">CHARGEBACK_INITIATED</span><span class="arrow">→</span>
+  <span class="status-pill">REPRESENTMENT</span><span class="arrow">→</span>
+  <span class="status-pill">PRE_ARBITRATION</span><span class="arrow">→</span>
+  <span class="status-pill">RESOLVED</span>
+</div>
+<div class="callout info">A nightly scheduled job (<code>ChargebackTimeframeEnforcer</code>) auto-expires retrieval requests and auto-accepts lapsed representments per scheme deadlines.</div>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/cards/disputes</span>
+    <span class="endpoint-summary">Raise a new dispute</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre><code>{
+  "cardId": "uuid",
+  "transactionRef": "123456789012",   // RRN (DE37) of disputed transaction
+  "disputeReason": "UNAUTHORIZED",    // UNAUTHORIZED | GOODS_NOT_RECEIVED | DUPLICATE | AMOUNT_MISMATCH | OTHER
+  "originalAmount": 5000,
+  "raisedBy": "customer-uuid"
+}</code></pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/cards/disputes/{id}/chargeback</span>
+    <span class="endpoint-summary">Initiate formal chargeback</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre><code>{ "reasonCodeId": "uuid" }   // From /api/v1/cards/disputes/reason-codes</code></pre>
+    <div class="callout warning">Valid from <code>RAISED</code> (skip retrieval) or <code>RETRIEVAL_REQUESTED</code> (after docs obtained). The chargeback deadline is set from the reason code's <code>maxDaysToRespond</code>.</div>
+  </div>
+</details>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="bureau">
+<h2>Card Personalization Bureau</h2>
+<p>Physical card issuance requires EMV chip personalization via a certified bureau (Thales, HID Global, Idemia). The bureau module manages the CDP (Card Data Preparation) lifecycle and progresses card status from <code>ORDERED</code> → <code>PRODUCED</code> → <code>DISPATCHED</code>.</p>
+
+<h3>Bureau Job Lifecycle</h3>
+<div class="status-flow">
+  <span class="status-pill">PENDING</span><span class="arrow">→</span>
+  <span class="status-pill">SENT</span><span class="arrow">→</span>
+  <span class="status-pill">CONFIRMED</span><span class="arrow">→</span>
+  <span class="status-pill">FAILED</span>
+</div>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/bureau/jobs</span>
+    <span class="endpoint-summary">Create bureau batch from all ORDERED cards</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Collects all cards in <code>ORDERED</code> status and creates a batch job. Returns the job with all items.</p>
+    <pre><code>// Response (201)
+{ "data": { "id": "...", "batchRef": "CBA-2026-01-15-001",
+  "cardCount": 12, "status": "PENDING", "submittedAt": null } }</code></pre>
+  </div>
+</details>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="simulator">
+<h2>Terminal Simulator</h2>
+<p>REST API that constructs ISO 8583 messages and fires them to the fep-service TCP socket (port 8583). Returns the decoded response with raw hex dump for debugging.</p>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/simulate/purchase</span>
+    <span class="endpoint-summary">Simulate a POS purchase (MTI 0100)</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre><code>// Request
+{
+  "cardNumber": "4111111111111111",
+  "expiryDate": "2811",
+  "amount": 5000,
+  "currencyCode": "840",
+  "terminalId": "TERM0001",
+  "merchantId": "MERCH000000001",
+  "merchantName": "Coffee Shop Lagos",
+  "entryMode": "CHIP",            // CHIP | SWIPE | CONTACTLESS
+  "pinBlock": null                // optional ISO-0 encrypted PIN block
+}
+
+// Response (200)
+{
+  "responseCode": "00",
+  "responseDescription": "Approved",
+  "authCode": "AUTH01",
+  "availableBalance": 245000,
+  "stan": "000042",
+  "rrn": "202601150001",
+  "requestHex": "0100...",       // raw ISO 8583 hex for debugging
+  "responseHex": "0110..."
+}</code></pre>
+  </div>
+</details>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="threeds">
+<h2>3D Secure ACS</h2>
+<p>Access Control Server for card-not-present authentication. Receives authentication requests (<code>AReq</code>) from scheme Directory Servers, performs risk-based frictionless flow or OTP challenge, and returns <code>ARes</code> with CAVV.</p>
+
+<div class="callout info">
+  3DS endpoints are not JWT-protected — they are called by scheme Directory Servers (mTLS in production) and by cardholder browsers. In staging/dev, they are open.
+</div>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/3ds/acs/areq</span>
+    <span class="endpoint-summary">Receive authentication request from Directory Server</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre><code>// AReq (sent by Directory Server)
+{
+  "threeDSServerTransID": "uuid",
+  "dsTransID": "uuid",
+  "acsTransID": "uuid",
+  "messageVersion": "2.3.1",
+  "pan": "4111111111111111",
+  "cardExpiryDate": "2811",
+  "purchaseAmount": "5000",
+  "purchaseCurrency": "840",
+  "merchantName": "PayOnline Ltd",
+  "notificationURL": "https://ds.example.com/notify"
+}
+
+// ARes — frictionless
+{ "acsTransID": "...", "transStatus": "Y",
+  "authenticationValue": "CAVV_HEX", "eci": "05" }
+
+// ARes — challenge required
+{ "acsTransID": "...", "transStatus": "C",
+  "acsURL": "https://acs.cba.com/3ds/acs/challenge/{acsTransId}" }</code></pre>
+  </div>
+</details>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="card-api-keys">
+<h2>API Key Management</h2>
+<p>API keys are hashed with SHA-256 and stored in the <code>api_keys</code> table. The raw key value is shown exactly once on creation and cannot be retrieved again.</p>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/card-api/v1/api-keys</span>
+    <span class="endpoint-summary">Issue a new API key (shows key once)</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre><code>// Request
+{ "name": "Fintech Partner A", "scopes": ["CARD_READ", "CARD_ISSUE", "WEBHOOK_MANAGE"] }
+
+// Response (201) — rawKey shown ONCE, store it immediately
+{ "data": { "id": "...", "name": "Fintech Partner A",
+  "rawKey": "cba_a1b2c3d4e5f6...",    // only time this appears
+  "scopes": ["CARD_READ", "CARD_ISSUE"], "createdAt": "..." } }</code></pre>
+  </div>
+</details>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="card-api-issuance">
+<h2>Card Issuance (BaaS)</h2>
+<p>BaaS-grade card issuance for fintech partners. Requires an API key with <code>CARD_ISSUE</code> scope.</p>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/card-api/v1/cards</span>
+    <span class="endpoint-summary">Issue card for a customer (BaaS)</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre><code>{
+  "customerId": "uuid",
+  "cardProductId": "uuid",
+  "linkedEntityId": "uuid",
+  "virtualFlag": true,
+  "cardType": "PREPAID"
+}</code></pre>
+    <div class="callout success">Triggers <code>CARD.ISSUED</code> webhook event to all registered webhooks.</div>
+  </div>
+</details>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="card-api-controls">
+<h2>Card Controls (Consent-gated)</h2>
+<p>Customer card controls require FAPI 2.0 consent or an API key. Controls include freeze/unfreeze, enabling/disabling contactless/CNP transactions, and PIN change via HSM.</p>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method PUT">PUT</span>
+    <span class="endpoint-path">/card-api/v1/cards/{id}/controls</span>
+    <span class="endpoint-summary">Update card controls (freeze, contactless, CNP, international)</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre><code>{
+  "frozen": false,
+  "contactlessEnabled": true,
+  "cnpEnabled": false,
+  "internationalEnabled": true
+}</code></pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/card-api/v1/cards/{id}/pin/change</span>
+    <span class="endpoint-summary">Change PIN (routed through HSM)</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre><code>{ "oldPinBlock": "...", "newPinBlock": "..." }  // ISO-0 format</code></pre>
+    <div class="callout warning">HSM verifies old PIN using IBM 3624 (<code>CA</code> command) or Visa PVV (<code>DC</code> command) before setting the new PIN offset (<code>A2</code> command).</div>
+  </div>
+</details>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="card-api-analytics">
+<h2>Spending Analytics</h2>
+<p>MCC-based spending analytics aggregated from the <code>authorization_log</code> table. All endpoints accept <code>?from=YYYY-MM-DD&amp;to=YYYY-MM-DD&amp;currency=840</code> query params.</p>
+
+<h3>MCC Category Buckets</h3>
+<table>
+  <tr><th>Category</th><th>MCC Ranges</th></tr>
+  <tr><td>DINING</td><td>5811–5814</td></tr>
+  <tr><td>GROCERY</td><td>5411, 5422, 5441</td></tr>
+  <tr><td>TRAVEL</td><td>3000–3999, 4111–4131</td></tr>
+  <tr><td>ENTERTAINMENT</td><td>7832, 7922, 7993</td></tr>
+  <tr><td>FUEL</td><td>5172, 5541, 5542</td></tr>
+  <tr><td>HEALTHCARE</td><td>5912, 8011, 8049</td></tr>
+  <tr><td>RETAIL</td><td>5311–5399, 5600–5699</td></tr>
+  <tr><td>UTILITIES</td><td>4900, 4911, 4941</td></tr>
+  <tr><td>OTHER</td><td>All other MCCs</td></tr>
+</table>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<section id="card-api-webhooks">
+<h2>Webhooks</h2>
+<p>Register callback URLs to receive real-time card events. Delivery is async via Spring <code>@Async</code> WebClient with HMAC-SHA256 payload signing. Exponential backoff: 15 s → 60 s → 5 min → 30 min → 2 h (5 attempts).</p>
+
+<h3>Signature Verification</h3>
+<pre><code>X-CBA-Signature: sha256={HMAC-SHA256(payload, secret)}
+X-CBA-Event: AUTHORIZATION.APPROVED
+X-CBA-Delivery: {uuid}</code></pre>
+
+<h3>Event Catalogue</h3>
+<table>
+  <tr><th>Event</th><th>Trigger</th></tr>
+  <tr><td>AUTHORIZATION.APPROVED</td><td>Auth approved by fraud engine + balance check</td></tr>
+  <tr><td>AUTHORIZATION.DECLINED</td><td>Auth declined (insufficient funds, fraud, blocked)</td></tr>
+  <tr><td>AUTHORIZATION.REVERSED</td><td>Reversal processed (MTI 0400)</td></tr>
+  <tr><td>CARD.ISSUED</td><td>New card created</td></tr>
+  <tr><td>CARD.ACTIVATED</td><td>Card moved to ACTIVE</td></tr>
+  <tr><td>CARD.BLOCKED</td><td>Card blocked</td></tr>
+  <tr><td>CARD.UNBLOCKED</td><td>Card unblocked</td></tr>
+  <tr><td>CARD.EXPIRED</td><td>Card reached expiry (nightly CoB job)</td></tr>
+  <tr><td>CARD.PIN_CHANGED</td><td>PIN changed via HSM</td></tr>
+  <tr><td>CARD.LIMIT_CHANGED</td><td>Any spending limit updated</td></tr>
+  <tr><td>FRAUD.RULE_TRIGGERED</td><td>Any fraud rule score &gt; 0</td></tr>
+  <tr><td>FRAUD.CARD_STEP_UP</td><td>Score 30–69; contactless step-up to online PIN</td></tr>
+  <tr><td>FRAUD.CARD_DECLINED_HIGH_RISK</td><td>Score ≥ 70</td></tr>
+  <tr><td>DISPUTE.RAISED</td><td>New dispute created</td></tr>
+  <tr><td>DISPUTE.RESOLVED</td><td>Dispute resolved (ISSUER or ACQUIRER favor)</td></tr>
+</table>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/card-api/v1/webhooks</span>
+    <span class="endpoint-summary">Register webhook endpoint</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre><code>// Request
+{
+  "name": "Partner Events",
+  "callbackUrl": "https://partner.example.com/card-events",
+  "events": ["AUTHORIZATION.APPROVED", "CARD.BLOCKED"],
+  "secret": "my-webhook-secret"   // used for HMAC-SHA256 signing
+}
+
+// Response (201) — secret shown once
+{ "data": { "id": "...", "name": "Partner Events",
+  "callbackUrl": "https://...", "active": true } }</code></pre>
+  </div>
+</details>
+</section>
+
+</div><!-- #main -->
+
+<script>
+// Active sidebar link on scroll
+const sections = document.querySelectorAll('section[id]');
+const links = document.querySelectorAll('#sidebar nav a');
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      links.forEach(l => l.classList.remove('active'));
+      const a = document.querySelector('#sidebar nav a[href="#'+e.target.id+'"]');
+      if (a) a.classList.add('active');
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+sections.forEach(s => obs.observe(s));
+</script>
+</body>
+</html>

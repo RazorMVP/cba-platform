@@ -20,6 +20,8 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -102,5 +104,45 @@ public class AccountController {
         Page<TransactionResponse> page = accountService.getTransactions(id, pageable);
         return ResponseEntity.ok(ApiResponse.ok(page,
             ApiResponse.PageMeta.of(page.getNumber(), page.getSize(), page.getTotalElements())));
+    }
+
+    @GetMapping("/{id}/statement")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER', 'CUSTOMER')")
+    @Operation(summary = "Generate an account statement for a date range")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getStatement(
+            @PathVariable UUID id,
+            @RequestParam LocalDate from,
+            @RequestParam LocalDate to,
+            @PageableDefault(size = 500) Pageable pageable) {
+        AccountResponse account = accountService.getAccount(id);
+        Page<TransactionResponse> txns = accountService.getTransactionsByDateRange(id, from, to, pageable);
+        BigDecimal totalDebits = txns.getContent().stream()
+                .filter(t -> t.amount().compareTo(BigDecimal.ZERO) < 0)
+                .map(t -> t.amount().abs())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalCredits = txns.getContent().stream()
+                .filter(t -> t.amount().compareTo(BigDecimal.ZERO) > 0)
+                .map(TransactionResponse::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        Map<String, Object> statement = Map.of(
+                "accountNumber", account.accountNumber(),
+                "accountType",   account.accountType(),
+                "currency",      account.currencyCode(),
+                "statementFrom", from,
+                "statementTo",   to,
+                "closingBalance", account.balance(),
+                "totalCredits",  totalCredits,
+                "totalDebits",   totalDebits,
+                "transactionCount", txns.getTotalElements(),
+                "transactions",  txns.getContent()
+        );
+        return ResponseEntity.ok(ApiResponse.ok(statement));
+    }
+
+    @GetMapping("/{id}/template")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER', 'CUSTOMER')")
+    @Operation(summary = "Get the product configuration (interest rates, limits) applied to this account")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getAccountTemplate(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(accountService.getAccountTemplate(id)));
     }
 }

@@ -742,6 +742,30 @@ Where:
     <pre>{ "data": [{ "id": "...", "transactionType": "DEPOSIT", "amount": "500.00", "runningBalance": "1500.00", "referenceNumber": "TXN-..." }] }</pre>
   </div>
 </details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/accounts/{id}/statement</span>
+    <span class="endpoint-summary">Generate account statement for a date range</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Roles: ADMIN, TELLER, CUSTOMER. Query params: <code>?from=2025-01-01&amp;to=2025-12-31</code>. Returns a summary with totalCredits, totalDebits, closingBalance, transactionCount, and the full transaction list for the period.</p>
+    <pre>{ "data": { "accountNumber": "001-SAV-0001234", "currency": "USD", "statementFrom": "2025-01-01", "statementTo": "2025-12-31", "closingBalance": 2500.00, "totalCredits": 5000.00, "totalDebits": 2500.00, "transactionCount": 12, "transactions": [...] } }</pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/accounts/{id}/template</span>
+    <span class="endpoint-summary">Get product configuration for this account</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Roles: ADMIN, TELLER, CUSTOMER. Returns the deposit product settings currently applied to this account — interest rate, compounding, minimum balance, overdraft config. Useful for displaying product terms to the customer.</p>
+    <pre>{ "data": { "productId": "...", "productName": "Classic Savings", "interestRate": 3.50, "interestCompounding": "MONTHLY", "minimumBalance": 100.00, "allowOverdraft": false, "currency": "USD" } }</pre>
+  </div>
+</details>
 </section>
 
 <!-- LOANS ───────────────────────────────────────────────────────────────── -->
@@ -1338,7 +1362,7 @@ difference = actual_cash - closing_balance</pre>
 <p>Customer-facing restricted-scope endpoints. Based on <a href="https://demo.mifos.io/api-docs/apiLive.htm#selfservice_overview" target="_blank">Mifos Self Service API</a>. JWT <code>sub</code> is mapped to the customer's Keycloak ID — a customer can only see their own data (returns 404, not 403, to prevent enumeration).</p>
 <div class="callout success">Implemented in <code>com.cba.selfservice</code>. All endpoints require <code>CUSTOMER</code> role.</div>
 
-<h3>Implemented Endpoints</h3>
+<h3>Endpoints</h3>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th></tr>
 <tr><td>GET</td><td>/api/v1/self/userdetails</td><td>Get own profile (customer record matched via JWT <code>sub</code> → Keycloak ID)</td></tr>
@@ -1346,17 +1370,13 @@ difference = actual_cash - closing_balance</pre>
 <tr><td>GET</td><td>/api/v1/self/accounts/{accountId}/transactions</td><td>List transactions on own account</td></tr>
 <tr><td>GET</td><td>/api/v1/self/loans</td><td>List own loans</td></tr>
 <tr><td>GET</td><td>/api/v1/self/loans/{loanId}</td><td>Get own loan details (includes repayment schedule)</td></tr>
+<tr><td>GET</td><td>/api/v1/self/loans/{loanId}/repayment-schedule</td><td>Standalone repayment schedule for own loan</td></tr>
+<tr><td>POST</td><td>/api/v1/self/loanapplications</td><td>Apply for a loan — body: <code>{ productId, linkedAccountId, principalAmount, termMonths, notes }</code></td></tr>
+<tr><td>GET</td><td>/api/v1/self/beneficiaries</td><td>List own active transfer beneficiaries</td></tr>
+<tr><td>POST</td><td>/api/v1/self/beneficiaries</td><td>Add a beneficiary — body: <code>{ nickname, accountNumber, bankCode, transferLimit }</code></td></tr>
+<tr><td>DELETE</td><td>/api/v1/self/beneficiaries/{id}</td><td>Remove a beneficiary (soft-delete, sets active=false)</td></tr>
 </table>
-
-<h3>Planned / Future Endpoints</h3>
-<table>
-<tr><th>Method</th><th>Path</th><th>Description</th></tr>
-<tr><td>POST</td><td>/api/v1/self/authenticate</td><td>Customer login (scoped Keycloak token — currently handled by Keycloak directly)</td></tr>
-<tr><td>GET</td><td>/api/v1/self/loans/{id}/repaymentschedule</td><td>Standalone repayment schedule endpoint (currently embedded in loan detail response)</td></tr>
-<tr><td>POST</td><td>/api/v1/self/loanapplications</td><td>Apply for a loan from the customer portal</td></tr>
-<tr><td>POST</td><td>/api/v1/self/accounttransfers</td><td>Customer-initiated transfer between own accounts</td></tr>
-<tr><td>GET</td><td>/api/v1/self/beneficiaries/tpt</td><td>List saved third-party beneficiaries</td></tr>
-</table>
+<p><strong>Ownership enforcement:</strong> JWT <code>sub</code> → <code>Customer.keycloakId</code>. All resource lookups validate ownership and return 404 (not 403) when the resource belongs to another customer — prevents enumeration attacks.</p>
 </section>
 
 <!-- GROUPS ─────────────────────────────────────────────────────────────── -->
@@ -1385,6 +1405,8 @@ difference = actual_cash - closing_balance</pre>
 <tr><td>POST</td><td>/api/v1/groups/{id}/activate</td><td>Activate a pending group</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/groups/{groupId}/members/{customerId}</td><td>Add customer to group</td><td>ADMIN, TELLER</td></tr>
 <tr><td>DELETE</td><td>/api/v1/groups/{groupId}/members/{customerId}</td><td>Remove customer from group</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/groups/{groupId}/assignstaff?staffId=&lt;uuid&gt;</td><td>Assign a loan officer to the group</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/groups/{groupId}/assignstaff</td><td>Remove the assigned staff from the group</td><td>ADMIN</td></tr>
 </table>
 
 <h3>Collection Sheets &amp; GLIM</h3>
@@ -1416,6 +1438,18 @@ difference = actual_cash - closing_balance</pre>
 <h2>General Ledger / Accounting <span style="font-size:.75rem;font-weight:400;color:#065f46;background:#d1fae5;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Live</span></h2>
 <p>Double-entry GL with auto-posting via <code>GlAccountingService.postDoubleEntry()</code>, manual journal entries, and financial period closures. <code>FinancialActivityAccount</code> maps abstract activities to concrete GL codes.</p>
 <div class="callout success">Implemented in <code>com.cba.accounting</code>. Endpoints: <code>GET /api/v1/glaccounts</code>, <code>POST/GET /api/v1/journalentries</code>, <code>POST /api/v1/glclosures</code>.</div>
+
+<h3>Financial Activity Accounts</h3>
+<p>Maps abstract financial activities (e.g. <code>ASSET_LOAN_PORTFOLIO</code>, <code>INCOME_INTEREST</code>) to concrete GL account codes. These mappings drive the automatic journal posting engine — without them, auto-posting throws a configuration error.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/financialactivityaccounts</td><td>List all financial activity → GL mappings</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/financialactivityaccounts/{id}</td><td>Get single mapping</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/financialactivityaccounts</td><td>Create mapping — body: <code>{ financialActivity, glAccountId }</code></td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/financialactivityaccounts/{id}</td><td>Update GL account for an activity</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/financialactivityaccounts/{id}</td><td>Remove mapping</td><td>ADMIN</td></tr>
+</table>
+<p><strong>Activity types:</strong> <code>ASSET_FUND_SOURCE</code>, <code>ASSET_LOAN_PORTFOLIO</code>, <code>ASSET_RECEIVABLE</code>, <code>LIABILITY_LINKED_TO_FLOAT</code>, <code>LIABILITY_PAYMENT_GATEWAY</code>, <code>INCOME_INTEREST</code>, <code>INCOME_FEE</code>, <code>EXPENSE_LOAN_LOSSES</code></p>
 </section>
 
 <!-- CHARGES ─────────────────────────────────────────────────────────────── -->
@@ -2506,6 +2540,29 @@ Content-Type: application/json
 <tr><td>POST</td><td>/api/v1/provisioningcriteria</td><td>Create criteria + definitions</td><td>ADMIN</td></tr>
 <tr><td>PUT</td><td>/api/v1/provisioningcriteria/{id}</td><td>Update criteria (replaces definitions)</td><td>ADMIN</td></tr>
 <tr><td>DELETE</td><td>/api/v1/provisioningcriteria/{id}</td><td>Delete provisioning criteria</td><td>ADMIN</td></tr>
+<!-- NOTIFICATIONS ADMIN ─────────────────────────────────────────────────── -->
+<section id="notifications-admin">
+<h2>Notifications Admin <span style="font-size:.75rem;font-weight:400;color:#065f46;background:#d1fae5;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Live</span></h2>
+<p>Manage notification templates and view delivery history. Templates are event-type + delivery method pairs with a subject/body. The test endpoint sends a real notification (caught by MailHog in dev) and records the attempt in the delivery log. All write operations require <code>ADMIN</code> role.</p>
+<h3>Templates</h3>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/notifications/templates</td><td>List templates — optional <code>?active=true</code> filter</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/notifications/templates/{id}</td><td>Get single template</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/notifications/templates</td><td>Create template — body: <code>{ name, eventType, deliveryMethod, subject, body }</code></td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/notifications/templates/{id}</td><td>Update template</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/notifications/templates/{id}</td><td>Deactivate (soft-delete) template</td><td>ADMIN</td></tr>
+</table>
+<h3>Test &amp; History</h3>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>POST</td><td>/api/v1/notifications/test</td><td>Send test notification — body: <code>{ templateId, recipientRef }</code>. Recipient masked in log.</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/notifications/history</td><td>Paginated delivery log — filter by <code>?eventType=</code> or <code>?recipientId=</code></td><td>ADMIN</td></tr>
+</table>
+<p><strong>Delivery methods:</strong> <code>EMAIL</code>, <code>SMS</code> — <strong>Log statuses:</strong> <code>SENT</code>, <code>FAILED</code>, <code>SKIPPED</code> — <strong>Masking:</strong> emails masked to <code>a***@domain.com</code>; phones to <code>****1234</code></p>
+<p><strong>Flyway:</strong> <code>V22__notification_admin.sql</code> — seeds 7 standard templates (ACCOUNT_OPENED, ACCOUNT_CLOSED, LOAN_APPROVED, LOAN_DISBURSED, LOAN_DUE, LARGE_TRANSACTION, LOGIN_FAILED)</p>
+</section>
+
 <!-- Card Service — /api/v1/ (card-service :8081) -->
 <tr><td>GET</td><td>/api/v1/cards/products</td><td>List card products</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/cards/products/{id}</td><td>Get card product</td><td>ADMIN, TELLER</td></tr>
@@ -2612,7 +2669,7 @@ Content-Type: application/json
 <h3>Planned (Not Yet Implemented)</h3>
 <table>
 <tr><th>Module</th><th>Endpoints</th><th>Status</th></tr>
-<tr><td>Notifications REST API</td><td>/api/v1/notifications/*</td><td>Planned Phase 4 — event listener exists but no REST endpoints</td></tr>
+<tr><td>Notifications Admin</td><td>/api/v1/notifications/*</td><td>Templates CRUD, test send, delivery history — Session 46</td></tr>
 <tr><td>Bulk Loan Import</td><td>/api/v1/loans/batch</td><td>Planned Phase 4</td></tr>
 <tr><td>Standing Orders Extended</td><td>/api/v1/standingorders/{id}/pause|resume</td><td>Planned Phase 4 — note: disable/enable for Standing Instructions is implemented at <code>/api/v1/standinginstructions/{id}?command=disable|enable</code></td></tr>
 <tr><td>Self Service — Account Transfers</td><td>/api/v1/self/accounttransfers</td><td>Planned — customer-initiated transfers between own accounts</td></tr>

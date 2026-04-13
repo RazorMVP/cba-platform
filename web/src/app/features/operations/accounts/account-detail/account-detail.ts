@@ -7,7 +7,7 @@ import { AccountService, Account, Transaction } from '../account.service';
 import { PageResponse } from '../../../../core/models/api-response.model';
 
 type ActiveTab = 'overview' | 'transactions';
-type ModalType = 'freeze' | 'unfreeze' | 'close' | 'deposit' | 'withdraw' | null;
+type ModalType = 'freeze' | 'unfreeze' | 'close' | 'deposit' | 'withdraw' | 'statement' | null;
 
 @Component({
   selector: 'app-account-detail',
@@ -43,6 +43,13 @@ export class AccountDetailComponent implements OnInit {
   // Teller action form
   tellerAmount      = 0;
   tellerDescription = '';
+
+  // Statement
+  stmtFrom    = '';
+  stmtTo      = '';
+  stmtData: Record<string, unknown> | null = null;
+  stmtLoading = false;
+  stmtError   = '';
 
   readonly typeLabels: Record<string, string> = {
     SAVINGS: 'Savings', CHECKING: 'Checking', FIXED_DEPOSIT: 'Fixed Deposit',
@@ -106,6 +113,22 @@ export class AccountDetailComponent implements OnInit {
     this.modalError       = '';
     this.tellerAmount     = 0;
     this.tellerDescription = '';
+    if (type === 'statement') {
+      this.stmtData    = null;
+      this.stmtError   = '';
+      this.stmtLoading = false;
+    }
+  }
+
+  loadStatement(): void {
+    if (!this.account || !this.stmtFrom || !this.stmtTo) return;
+    this.stmtLoading = true;
+    this.stmtData    = null;
+    this.stmtError   = '';
+    this.svc.getStatement(this.account.id, this.stmtFrom, this.stmtTo).subscribe({
+      next:  data => { this.stmtData = data; this.stmtLoading = false; },
+      error: ()   => { this.stmtError = 'Failed to generate statement.'; this.stmtLoading = false; },
+    });
   }
 
   closeModal(): void { if (!this.modalWorking) this.activeModal = null; }

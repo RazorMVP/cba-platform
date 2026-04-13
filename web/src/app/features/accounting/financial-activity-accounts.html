@@ -1,0 +1,93 @@
+<div class="page-wrap">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Financial Activity Accounts</h1>
+      <p class="page-sub">Map abstract financial activities to concrete GL accounts for automatic journal posting.</p>
+    </div>
+    <button class="btn btn--primary" (click)="openCreate()">+ Add Mapping</button>
+  </div>
+
+  <!-- Loading / Error -->
+  @if (loading) {
+    <div class="state-msg">Loading…</div>
+  } @else if (error) {
+    <div class="state-msg state-msg--error">{{ error }}</div>
+  } @else if (items.length === 0) {
+    <div class="state-msg">No financial activity mappings configured. Add one to enable automatic GL posting.</div>
+  } @else {
+    <div class="card">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Financial Activity</th>
+            <th>GL Account Code</th>
+            <th>GL Account Name</th>
+            <th>Type</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of items; track item.id) {
+            <tr>
+              <td><span class="activity-label">{{ activityLabel(item.financialActivity) }}</span></td>
+              <td><code class="gl-code">{{ item.glCode }}</code></td>
+              <td>{{ item.glAccountName }}</td>
+              <td><span class="badge badge--neutral">{{ item.glAccountType }}</span></td>
+              <td class="actions">
+                <button class="btn-icon" title="Edit" (click)="openEdit(item)">
+                  <span class="material-icons">edit</span>
+                </button>
+                <button class="btn-icon btn-icon--danger" title="Remove" (click)="remove(item.id)">
+                  <span class="material-icons">delete</span>
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
+
+<!-- Modal -->
+@if (showModal) {
+  <div class="modal-overlay" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span>{{ editingId ? 'Edit' : 'Add' }} Financial Activity Mapping</span>
+        <button class="modal__close" (click)="closeModal()">×</button>
+      </div>
+      <div class="modal__body">
+        @if (modalError) {
+          <div class="alert alert--error">{{ modalError }}</div>
+        }
+        <div class="form-group">
+          <label class="form-label">Financial Activity *</label>
+          <select class="form-control" [(ngModel)]="form.financialActivity" [disabled]="!!editingId">
+            @for (a of activities; track a) {
+              <option [value]="a">{{ activityLabel(a) }}</option>
+            }
+          </select>
+          @if (editingId) {
+            <p class="form-hint">Activity type cannot be changed. Create a new mapping instead.</p>
+          }
+        </div>
+        <div class="form-group">
+          <label class="form-label">GL Account *</label>
+          <select class="form-control" [(ngModel)]="form.glAccountId">
+            <option value="">— select GL account —</option>
+            @for (g of glAccounts; track g.id) {
+              <option [value]="g.id">{{ g.glCode }} — {{ g.name }}</option>
+            }
+          </select>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn btn--ghost" (click)="closeModal()" [disabled]="working">Cancel</button>
+        <button class="btn btn--primary" (click)="save()" [disabled]="working || !form.glAccountId">
+          {{ working ? 'Saving…' : 'Save' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

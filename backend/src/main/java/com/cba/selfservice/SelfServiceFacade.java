@@ -5,17 +5,23 @@ import com.cba.account.AccountService;
 import com.cba.account.dto.AccountResponse;
 import com.cba.account.dto.TransactionResponse;
 import com.cba.common.exception.CbaException;
+import com.cba.customer.Beneficiary;
+import com.cba.customer.BeneficiaryService;
 import com.cba.customer.Customer;
 import com.cba.customer.CustomerRepository;
 import com.cba.customer.CustomerService;
 import com.cba.customer.dto.CustomerResponse;
 import com.cba.loan.LoanService;
+import com.cba.loan.dto.LoanApplicationRequest;
 import com.cba.loan.dto.LoanResponse;
+import com.cba.loan.dto.RepaymentScheduleResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
 
 import java.util.List;
 import java.util.UUID;
@@ -34,6 +40,7 @@ public class SelfServiceFacade {
     private final AccountService accountService;
     private final AccountRepository accountRepository;
     private final LoanService loanService;
+    private final BeneficiaryService beneficiaryService;
 
     @Transactional(readOnly = true)
     public CustomerResponse getProfile(String keycloakSub) {
@@ -75,6 +82,57 @@ public class SelfServiceFacade {
             throw CbaException.notFound("Loan", loanId.toString()); // return 404 rather than 403 to avoid enumeration
         }
         return loan;
+    }
+
+    // ── Self-Service Loan Application ─────────────────────────────────────────
+
+    public record SelfLoanApplicationRequest(
+        java.util.UUID productId,
+        java.util.UUID linkedAccountId,
+        @jakarta.validation.constraints.DecimalMin("1.00") BigDecimal principalAmount,
+        @jakarta.validation.constraints.Min(1) Integer termMonths,
+        String notes
+    ) {}
+
+    @Transactional
+    public LoanResponse applyForLoan(String keycloakSub, SelfLoanApplicationRequest req) {
+        Customer customer = resolveCustomer(keycloakSub);
+        LoanApplicationRequest appReq = new LoanApplicationRequest(
+                customer.getId(),
+                req.productId(),
+                req.linkedAccountId(),
+                req.principalAmount(),
+                req.termMonths(),
+                req.notes()
+        );
+        return loanService.applyForLoan(appReq);
+    }
+
+    @Transactional(readOnly = true)
+    public List<RepaymentScheduleResponse> getRepaymentSchedule(String keycloakSub, UUID loanId) {
+        Customer customer = resolveCustomer(keycloakSub);
+        LoanResponse loan = loanService.getLoan(loanId);
+        if (!loan.customerId().equals(customer.getId())) {
+            throw CbaException.notFound("Loan", loanId.toString());
+        }
+        return loanService.getRepaymentSchedule(loanId);
+    }
+
+    // ── Self-Service Beneficiaries ────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<Beneficiary> getBeneficiaries(String keycloakSub) {
+        return beneficiaryService.listBeneficiaries(resolveCustomer(keycloakSub).getId());
+    }
+
+    @Transactional
+    public Beneficiary addBeneficiary(String keycloakSub, BeneficiaryService.CreateBeneficiaryRequest req) {
+        return beneficiaryService.createBeneficiary(resolveCustomer(keycloakSub).getId(), req);
+    }
+
+    @Transactional
+    public void removeBeneficiary(String keycloakSub, UUID beneficiaryId) {
+        beneficiaryService.deactivate(resolveCustomer(keycloakSub).getId(), beneficiaryId);
     }
 
     private Customer resolveCustomer(String keycloakSub) {

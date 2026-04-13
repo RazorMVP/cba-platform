@@ -7,7 +7,7 @@ import {
   GroupsService, Group, GroupMember, CollectionSheet, GlimAccount,
 } from '../groups.service';
 
-type Tab = 'members' | 'collection-sheet' | 'glim';
+type Tab = 'members' | 'collection-sheet' | 'glim' | 'staff';
 
 @Component({
   selector: 'app-group-detail',
@@ -36,6 +36,12 @@ export class GroupDetailComponent implements OnInit {
   newCustomerId  = '';
   memberWorking  = false;
   memberError    = '';
+
+  // ── Staff assignment modal ─────────────────────────────────────────────────
+  staffModal     = false;
+  newStaffId     = '';
+  staffWorking   = false;
+  staffError     = '';
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id')!;
@@ -94,6 +100,32 @@ export class GroupDetailComponent implements OnInit {
     if (!this.group) return;
     this.svc.removeMember(this.group.id, customerId).subscribe({
       next: () => { this.members = this.members.filter(m => m.customerId !== customerId); },
+    });
+  }
+
+  // ── Staff assignment ───────────────────────────────────────────────────────
+  openStaffModal(): void {
+    this.staffModal   = true;
+    this.newStaffId   = '';
+    this.staffWorking = false;
+    this.staffError   = '';
+  }
+
+  closeStaffModal(): void { if (!this.staffWorking) this.staffModal = false; }
+
+  submitAssignStaff(): void {
+    if (!this.group || !this.newStaffId) return;
+    this.staffWorking = true;
+    this.svc.assignStaff(this.group.id, this.newStaffId).subscribe({
+      next: g => { this.group = g; this.staffModal = false; this.staffWorking = false; },
+      error: () => { this.staffError = 'Failed to assign staff.'; this.staffWorking = false; },
+    });
+  }
+
+  removeStaff(): void {
+    if (!this.group?.staffId) return;
+    this.svc.unassignStaff(this.group.id).subscribe({
+      next: g => { this.group = g; },
     });
   }
 

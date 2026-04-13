@@ -139,6 +139,14 @@ export class GroupsService {
     return this.api.get<GlimAccount[]>(`/api/v1/groups/${groupId}/glimaccounts`);
   }
 
+  assignStaff(groupId: string, staffId: string): Observable<Group> {
+    return this.api.post<Group>(`/api/v1/groups/${groupId}/assignstaff?staffId=${staffId}`, {});
+  }
+
+  unassignStaff(groupId: string): Observable<Group> {
+    return this.api.delete<Group>(`/api/v1/groups/${groupId}/assignstaff`);
+  }
+
   // ── Centers ────────────────────────────────────────────────────────────────
   listCenters(status?: GroupStatus): Observable<Center[]> {
     const params = status ? { status } : undefined;

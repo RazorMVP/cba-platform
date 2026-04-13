@@ -3,6 +3,27 @@ import { Observable } from 'rxjs';
 import { ApiService } from '../../core/api/api.service';
 import { PageResponse } from '../../core/models/api-response.model';
 
+// ── Financial Activity Accounts ────────────────────────────────────────────────
+
+export type FinancialActivityType =
+  | 'ASSET_FUND_SOURCE' | 'ASSET_LOAN_PORTFOLIO' | 'ASSET_RECEIVABLE' | 'ASSET_OVERPAYMENT_LIABILITY'
+  | 'LIABILITY_LINKED_TO_FLOAT' | 'LIABILITY_PAYMENT_GATEWAY' | 'LIABILITY_TRANSFER_IN_SUSPENSE'
+  | 'INCOME_INTEREST' | 'INCOME_FEE' | 'EXPENSE_DEPRECIATION' | 'EXPENSE_LOAN_LOSSES';
+
+export interface FinancialActivityAccount {
+  id: string;
+  financialActivity: FinancialActivityType;
+  glAccountId: string;
+  glCode: string;
+  glAccountName: string;
+  glAccountType: GlAccountType;
+}
+
+export interface FinancialActivityRequest {
+  financialActivity: FinancialActivityType;
+  glAccountId: string;
+}
+
 // ── GL Accounts ───────────────────────────────────────────────────────────────
 
 export type GlAccountType  = 'ASSET' | 'LIABILITY' | 'EQUITY' | 'INCOME' | 'EXPENSE';
@@ -127,6 +148,20 @@ export interface ProvisioningCriteriaRequest {
 @Injectable({ providedIn: 'root' })
 export class AccountingService {
   private readonly api = inject(ApiService);
+
+  // Financial Activity Accounts
+  listFinancialActivityAccounts(): Observable<FinancialActivityAccount[]> {
+    return this.api.get<FinancialActivityAccount[]>('/api/v1/financialactivityaccounts');
+  }
+  createFinancialActivityAccount(req: FinancialActivityRequest): Observable<FinancialActivityAccount> {
+    return this.api.post<FinancialActivityAccount>('/api/v1/financialactivityaccounts', req);
+  }
+  updateFinancialActivityAccount(id: string, req: FinancialActivityRequest): Observable<FinancialActivityAccount> {
+    return this.api.put<FinancialActivityAccount>(`/api/v1/financialactivityaccounts/${id}`, req);
+  }
+  deleteFinancialActivityAccount(id: string): Observable<void> {
+    return this.api.delete<void>(`/api/v1/financialactivityaccounts/${id}`);
+  }
 
   // GL Accounts
   listGlAccounts(params?: Record<string, string>): Observable<GlAccount[]> {

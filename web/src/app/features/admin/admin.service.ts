@@ -121,6 +121,39 @@ export interface Tenant {
   localeCode: string;
 }
 
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+export type NotificationDeliveryMethod = 'EMAIL' | 'SMS';
+export type NotificationLogStatus      = 'SENT' | 'FAILED' | 'SKIPPED';
+
+export interface NotificationTemplate {
+  id: string;
+  name: string;
+  eventType: string;
+  deliveryMethod: NotificationDeliveryMethod;
+  subject?: string;
+  body: string;
+  active: boolean;
+}
+
+export interface NotificationLog {
+  id: string;
+  templateId: string;
+  eventType: string;
+  recipientRef?: string;
+  deliveryMethod: NotificationDeliveryMethod;
+  status: NotificationLogStatus;
+  sentAt: string;
+}
+
+export interface CreateTemplateRequest {
+  name: string;
+  eventType: string;
+  deliveryMethod: NotificationDeliveryMethod;
+  subject?: string;
+  body: string;
+}
+
 // ── TPP (Open Banking admin) ──────────────────────────────────────────────────
 export type TppStatus = 'ACTIVE' | 'REVOKED' | 'PENDING';
 
@@ -240,6 +273,32 @@ export class AdminService {
   // ── Tenants ────────────────────────────────────────────────────────────────
   listTenants(): Observable<Tenant[]> {
     return this.api.get<Tenant[]>('/api/v1/tenants');
+  }
+
+  // ── Notifications ──────────────────────────────────────────────────────────
+  listNotificationTemplates(activeOnly = false): Observable<NotificationTemplate[]> {
+    const params = activeOnly ? { active: 'true' } : undefined;
+    return this.api.get<NotificationTemplate[]>('/api/v1/notifications/templates', params);
+  }
+
+  createNotificationTemplate(req: CreateTemplateRequest): Observable<NotificationTemplate> {
+    return this.api.post<NotificationTemplate>('/api/v1/notifications/templates', req);
+  }
+
+  updateNotificationTemplate(id: string, req: CreateTemplateRequest): Observable<NotificationTemplate> {
+    return this.api.put<NotificationTemplate>(`/api/v1/notifications/templates/${id}`, req);
+  }
+
+  deactivateNotificationTemplate(id: string): Observable<void> {
+    return this.api.delete<void>(`/api/v1/notifications/templates/${id}`);
+  }
+
+  sendTestNotification(templateId: string, recipientRef: string): Observable<NotificationLog> {
+    return this.api.post<NotificationLog>('/api/v1/notifications/test', { templateId, recipientRef });
+  }
+
+  listNotificationHistory(params?: Record<string, string>): Observable<NotificationLog[]> {
+    return this.api.get<NotificationLog[]>('/api/v1/notifications/history', params);
   }
 
   // ── TPP ────────────────────────────────────────────────────────────────────

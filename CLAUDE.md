@@ -268,6 +268,7 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 - Package: `com.cba.accounting`
 - Entities: `GlAccount`, `JournalEntry`, `FinancialActivityAccount`, `GlClosure`
 - Endpoints: `GET /api/v1/glaccounts`, `POST/GET /api/v1/journalentries`, `POST /api/v1/journalentries/{id}/reverse`, `POST/GET /api/v1/glclosures`
+- Financial Activity Accounts CRUD: `GET/POST/PUT/DELETE /api/v1/financialactivityaccounts` — maps abstract activities to concrete GL codes; implemented via inner `FinancialActivityRequest` record in `GlAccountingController`
 
 ### 15. Reports Module
 - Dynamic SQL engine: report SQL with `${paramName}` placeholders stored in DB (V9 migration)
@@ -2362,7 +2363,7 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Customers list | `CustomersListComponent` | `OperationsModule` | ✅ Built — debounced search, KYC filter tabs, pagination |
 | Customer detail | `CustomerDetailComponent` | `OperationsModule` | ✅ Built — 5 tabs, KYC state machine |
 | Accounts list | `AccountsListComponent` | `OperationsModule` | ✅ Built — type filter, pagination |
-| Account detail | `AccountDetailComponent` | `OperationsModule` | ✅ Built — header card, overview/transactions tabs, freeze/unfreeze/close/deposit/withdraw modals |
+| Account detail | `AccountDetailComponent` | `OperationsModule` | ✅ Built — header card, overview/transactions tabs, freeze/unfreeze/close/deposit/withdraw modals, Statement modal (date range picker, summary KPIs, transaction table) |
 | Payments list | `PaymentsListComponent` | `OperationsModule` | ✅ Built — account context picker, paginated payment history, 3-step transfer wizard modal, standing order modal |
 | Payment detail | `PaymentDetailComponent` | `OperationsModule` | ✅ Built — status band with FX details, transfer route card, payment details card, reverse modal |
 | Teller list | `TellerListComponent` | `OperationsModule` | ✅ Built — search + status filter, create teller modal |
@@ -2382,6 +2383,7 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | GL accounts | `GlAccountsComponent` | `AccountingModule` | ✅ Built — type filter tabs, search, enable/disable, create/edit modal |
 | Journal entries | `JournalEntriesComponent` | `AccountingModule` | ✅ Built — T-ledger grouped view, date filter, manual entry modal with balance validation, reversal |
 | Provisioning criteria | `ProvisioningComponent` | `AccountingModule` | ✅ Built — IFRS 9 age bands, create/edit/delete, GL account dropdowns by type |
+| Financial Activity Accounts | `FinancialActivityAccountsComponent` | `AccountingModule` | ✅ Built — maps abstract activities to GL account codes; create/edit/delete; activity-type selector; GL account picker |
 | Reports list | `ReportsListComponent` | `ReportsModule` | ✅ Built — search/category filter, dynamic param form, schema-on-read results table, CSV export, create/delete |
 | CoB Scheduler | `CobSchedulerComponent` | `ReportsModule` | ✅ Built — job cards with stats, Run Now trigger, inline history panel, duration helper |
 | Report Mailing Jobs | `ReportMailingComponent` | `ReportsModule` | ✅ Built — mailing job CRUD, RRULE schedule presets, output type chips, send-now trigger |
@@ -2390,9 +2392,10 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Offices | `OfficesComponent` | `AdminModule` | ✅ Built — search, create/edit modal with parent office dropdown, hierarchy column |
 | Hooks | `HooksComponent` | `AdminModule` | ✅ Built — WEB/SMS type chips, create/edit modal with event selection chips |
 | Maker-Checker | `MakerCheckerComponent` | `AdminModule` | ✅ Built — status filter tabs (All/PENDING/APPROVED/REJECTED), metadata table, approve/reject for PENDING entries |
+| Notifications Admin | `NotificationsComponent` | `AdminModule` | ✅ Built — templates CRUD (two-column form modal, event type + delivery method + body), test send modal, delivery history tab with event filter |
 | TPP Management | `OpenBankingComponent` | `AdminModule` | ✅ Built — TPP registry: clientId, country, scope chips, cert expiry; register/activate/revoke |
 | Groups list | `GroupsListComponent` | `GroupsModule` | ✅ Built — status filter + search, create modal, routerLink to detail |
-| Group detail | `GroupDetailComponent` | `GroupsModule` | ✅ Built — 3 tabs: Members (add/remove), Collection Sheet (generate + table), GLIM Accounts (accordion) |
+| Group detail | `GroupDetailComponent` | `GroupsModule` | ✅ Built — 4 tabs: Members (add/remove), Collection Sheet (generate + table), GLIM Accounts (accordion), Staff (assign/remove loan officer) |
 | Centers list | `CentersListComponent` | `GroupsModule` | ✅ Built — status filter + search, create modal, routerLink to detail |
 | Center detail | `CenterDetailComponent` | `GroupsModule` | ✅ Built — 2 tabs: Groups (links), All Members |
 | Consents list | `OpenBankingListComponent` | `OpenBankingModule` | ✅ Built — type filter tabs (All/AISP/PISP/CBPII) + status dropdown, type badges, scope chips |

@@ -171,6 +171,27 @@ public class GroupService {
         return glimRepository.findByGroupId(groupId);
     }
 
+    // ── Staff Assignment ─────────────────────────────────────────────────────
+
+    @Transactional
+    public GroupResponse assignStaff(UUID groupId, UUID staffId) {
+        Group group = findGroupOrThrow(groupId);
+        group.setStaff(staffRepository.findById(staffId)
+                .orElseThrow(() -> CbaException.notFound("Staff", staffId.toString())));
+        Group saved = groupRepository.save(group);
+        auditLogService.log("GROUP", groupId.toString(), "STAFF_ASSIGNED", null, "staffId=" + staffId);
+        return GroupResponse.from(saved);
+    }
+
+    @Transactional
+    public GroupResponse unassignStaff(UUID groupId) {
+        Group group = findGroupOrThrow(groupId);
+        group.setStaff(null);
+        Group saved = groupRepository.save(group);
+        auditLogService.log("GROUP", groupId.toString(), "STAFF_UNASSIGNED", null, null);
+        return GroupResponse.from(saved);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private Group findGroupOrThrow(UUID id) {

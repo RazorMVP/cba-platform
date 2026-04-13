@@ -23,7 +23,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -135,6 +139,35 @@ public class AccountService {
     public Page<TransactionResponse> getTransactions(UUID accountId, Pageable pageable) {
         return transactionRepository.findByAccountId(accountId, pageable)
             .map(this::toTransactionResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<TransactionResponse> getTransactionsByDateRange(
+            UUID accountId, LocalDate from, LocalDate to, Pageable pageable) {
+        Instant fromInstant = from.atStartOfDay(ZoneOffset.UTC).toInstant();
+        Instant toInstant = to.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+        return transactionRepository.findByAccountIdAndTransactionDateBetween(accountId, fromInstant, toInstant, pageable)
+            .map(this::toTransactionResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> getAccountTemplate(UUID id) {
+        Account account = findById(id);
+        DepositProduct product = account.getProduct();
+        Map<String, Object> template = new LinkedHashMap<>();
+        template.put("productId", product.getId());
+        template.put("productName", product.getName());
+        template.put("shortName", product.getShortName());
+        template.put("accountType", account.getAccountType());
+        template.put("interestRate", product.getInterestRate());
+        template.put("interestCompounding", product.getInterestCompounding());
+        template.put("interestPostingPeriodType", product.getInterestPostingPeriodType());
+        template.put("minimumBalance", product.getMinimumBalance());
+        template.put("minRequiredOpeningBalance", product.getMinRequiredOpeningBalance());
+        template.put("allowOverdraft", product.isAllowOverdraft());
+        template.put("overdraftLimit", product.getOverdraftLimit());
+        template.put("currency", account.getCurrencyCode());
+        return template;
     }
 
     private void validateAccountActive(Account account) {

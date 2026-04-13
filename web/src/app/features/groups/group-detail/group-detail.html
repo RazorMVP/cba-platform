@@ -48,6 +48,7 @@
       <button class="tab" [class.tab--active]="activeTab === 'members'" (click)="switchTab('members')">Members</button>
       <button class="tab" [class.tab--active]="activeTab === 'collection-sheet'" (click)="switchTab('collection-sheet')">Collection Sheet</button>
       <button class="tab" [class.tab--active]="activeTab === 'glim'" (click)="switchTab('glim')">GLIM Accounts</button>
+      <button class="tab" [class.tab--active]="activeTab === 'staff'" (click)="switchTab('staff')">Staff</button>
     </div>
 
     <!-- Members Tab -->
@@ -170,8 +171,62 @@
         }
       </div>
     }
+
+    <!-- Staff Tab -->
+    @if (activeTab === 'staff') {
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Assigned Loan Officer</span>
+          <button class="btn-primary btn--sm" (click)="openStaffModal()">
+            <span class="material-icons">assignment_ind</span> Assign Staff
+          </button>
+        </div>
+        @if (group.staffName) {
+          <div class="staff-row">
+            <span class="material-icons staff-icon">person</span>
+            <div>
+              <div class="staff-name">{{ group.staffName }}</div>
+              <div class="staff-id muted">ID: {{ group.staffId }}</div>
+            </div>
+            <button class="btn-icon btn-icon--danger" title="Remove assignment" (click)="removeStaff()">
+              <span class="material-icons">person_remove</span>
+            </button>
+          </div>
+        } @else {
+          <div class="empty-state">
+            <span class="material-icons">person_off</span>
+            <p>No loan officer assigned. Use "Assign Staff" to assign one.</p>
+          </div>
+        }
+      </div>
+    }
   }
 </div>
+
+<!-- Staff Modal -->
+@if (staffModal) {
+  <div class="modal-backdrop" (click)="closeStaffModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">assignment_ind</span>
+        Assign Loan Officer
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Staff ID <span class="required">*</span></label>
+          <input class="form-input" [(ngModel)]="newStaffId" placeholder="Paste staff member UUID">
+        </div>
+        @if (staffError) { <div class="modal__error">{{ staffError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeStaffModal()" [disabled]="staffWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitAssignStaff()" [disabled]="staffWorking || !newStaffId">
+          @if (staffWorking) { <span class="spinner"></span> } Assign
+        </button>
+      </div>
+    </div>
+  </div>
+}
 
 <!-- Add Member Modal -->
 @if (addMemberModal) {

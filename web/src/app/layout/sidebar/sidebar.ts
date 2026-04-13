@@ -61,6 +61,7 @@ export class SidebarComponent {
         { label: 'GL Accounts',        icon: 'menu_book',         route: '/accounting/gl-accounts' },
         { label: 'Journal Entries',    icon: 'receipt_long',      route: '/accounting/journal-entries' },
         { label: 'Provisioning',       icon: 'shield',            route: '/accounting/provisioning' },
+        { label: 'Financial Activity', icon: 'account_tree',      route: '/accounting/financial-activity' },
       ],
     },
     {
@@ -106,6 +107,7 @@ export class SidebarComponent {
         { label: 'Open Banking',       icon: 'open_in_new',       route: '/admin/open-banking' },
         { label: 'Hooks',              icon: 'webhook',           route: '/admin/hooks' },
         { label: 'Maker-Checker',      icon: 'verified',          route: '/admin/maker-checker' },
+        { label: 'Notifications',      icon: 'notifications',     route: '/admin/notifications' },
       ],
     },
   ];

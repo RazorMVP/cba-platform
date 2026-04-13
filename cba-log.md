@@ -59,6 +59,60 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 46 — 2026-04-13
+**Shipped 5 new backend modules (Notification Admin, Financial Activity Accounts, Group Staff Assignment, Account Statement/Template, Self-Service extensions), 3 new Angular screens, consolidated Postman collection, and deleted the two legacy Postman files.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/src/main/java/com/cba/account/AccountService.java` | FIXED: added two missing methods called by `AccountController` — `getTransactionsByDateRange()` (converts `LocalDate` → `Instant` at UTC start-of-day; `to.plusDays(1)` for inclusive end bound) and `getAccountTemplate()` (returns product config map from the account's `DepositProduct`) |
+| `backend/src/main/java/com/cba/notification/` | NEW package: `NotificationTemplate` entity, `NotificationLog` entity, `NotificationRepository` ×2, `NotificationService`, `NotificationController` — 7 endpoints covering template CRUD + test delivery + delivery history |
+| `backend/src/main/resources/db/migration/V22__notification_admin.sql` | NEW: `notification_templates` (id, name, event_type, delivery_method, subject, body, active, version, timestamps) + `notification_logs` (id, template_id, event_type, delivery_method, recipient_ref, status, sent_at, error_message) |
+| `web/src/app/features/accounting/financial-activity-accounts.ts` | NEW: `FinancialActivityAccountsComponent` — full CRUD for Financial Activity → GL Account mappings; `activityLabels` map for 11 activity types; GL account picker for `ASSET`/`LIABILITY`/`INCOME`/`EXPENSE` accounts |
+| `web/src/app/features/accounting/financial-activity-accounts.html` | NEW: table of mappings + create/edit modal |
+| `web/src/app/features/accounting/financial-activity-accounts.scss` | NEW: `.activity-label`, `.gl-code` monospace highlight |
+| `web/src/app/features/admin/notifications.ts` | NEW: `NotificationsComponent` — two-tab UI (Templates + Delivery History); template CRUD; test delivery modal with masked recipient display; history filter by eventType |
+| `web/src/app/features/admin/notifications.html` | NEW: templates table (name/eventType/method/status/actions), history table with masked `recipientRef`, template create/edit modal, test delivery modal |
+| `web/src/app/features/admin/notifications.scss` | NEW: `.event-code`, `.method-chip`, `.masked-ref`, `.form-grid` 2-column CSS grid |
+| `web/src/app/features/accounting/accounting.service.ts` | EXTENDED: `FinancialActivityType` union type, `FinancialActivityAccount` + `FinancialActivityRequest` interfaces, 4 service methods calling `/api/v1/financialactivityaccounts` |
+| `web/src/app/features/admin/admin.service.ts` | EXTENDED: `NotificationTemplate`, `NotificationLog`, `CreateTemplateRequest` interfaces, 6 service methods for `/api/v1/notifications/*` |
+| `web/src/app/features/operations/accounts/account.service.ts` | EXTENDED: `getStatement(id, from, to)` + `getTemplate(id)` service methods |
+| `web/src/app/features/groups/groups.service.ts` | EXTENDED: `assignStaff(groupId, staffId)` + `unassignStaff(groupId)` service methods |
+| `web/src/app/features/accounting/accounting.routes.ts` | EXTENDED: added `financial-activity` route |
+| `web/src/app/features/admin/admin.routes.ts` | EXTENDED: added `notifications` route |
+| `web/src/app/features/groups/group-detail/group-detail.ts` | EXTENDED: added Staff tab (4th tab) with `staffModal`, `newStaffId`, `staffWorking`, `staffError` state + `openStaffModal/closeStaffModal/submitAssignStaff/removeStaff` methods |
+| `web/src/app/features/groups/group-detail/group-detail.html` | EXTENDED: Staff tab button + Staff tab content block + Staff Assignment modal |
+| `web/src/app/features/operations/accounts/account-detail/account-detail.ts` | EXTENDED: `'statement'` added to `ModalType`; `stmtFrom/stmtTo/stmtData/stmtLoading/stmtError` fields; `loadStatement()` method |
+| `web/src/app/features/operations/accounts/account-detail/account-detail.html` | EXTENDED: "Statement" button visible for all account statuses; Statement modal with date range pickers, Generate button, summary KPI cards, transaction table |
+| `web/src/app/layout/sidebar/sidebar.ts` | EXTENDED: added Financial Activity to Accounting section; added Notifications to Admin section |
+| `docs/cba-postman-collection-v2.json` | EXTENDED: 21 new requests — 5 to `21 · GL / Accounting` (Financial Activity Accounts), 2 to `18 · Groups & Centers` (staff assign/unassign), 5 to `23 · Self Service` (self-service extensions), 2 to `02 · Accounts` (statement + template), new `41 · Notifications Admin` folder with 7 requests |
+| `docs/cba-postman-collection-coming-soon.json` | DELETED — all non-trivial planned endpoints are now either built or intentionally deferred; single v2 file is the canonical reference |
+| `docs/cba-postman-collection.json` | DELETED — superseded by v2 collection |
+| `docs/api-reference.html` | EXTENDED: Accounts section — `/accounts/{id}/statement` + `/accounts/{id}/template` endpoint blocks; Groups section — staff assign/unassign rows; Accounting section — new "Financial Activity Accounts" h3 sub-section with 5-endpoint table + 11-activity-type list; Self-service section — merged Implemented+Planned into single 10-endpoint table with ownership note; new `#notifications-admin` section covering Templates + Test + History endpoints; Full API Matrix — Notifications row updated to "Live — Session 46" |
+| `CLAUDE.md` | EXTENDED: AccountDetailComponent row + Statement modal; new FinancialActivityAccountsComponent row (AccountingModule); new NotificationsComponent row (AdminModule); GroupDetailComponent updated 3→4 tabs; GL/Accounting module catalogue — Financial Activity Accounts CRUD note added |
+
+#### Key Patterns / Decisions
+- **`LocalDate` → `Instant` conversion for date-range queries**: repository uses `Instant`; `AccountService` converts with `LocalDate.atStartOfDay(ZoneOffset.UTC).toInstant()`. End bound uses `to.plusDays(1)` to make the `to` date fully inclusive (midnight of the following day).
+- **Notification template soft-delete**: `active=false` pattern — consistent with Codes, BIN ranges, and other reference data. Deactivated templates remain in history but cannot be used for new deliveries.
+- **Recipient masking in history**: email → `a***@domain.com`, phone → `****NNNN`. Masking applied at service layer before persisting to `recipient_ref` — the full recipient is never stored in the log.
+- **Staff assignment as sub-resource**: `POST /api/v1/groups/{id}/assignstaff?staffId=` and `DELETE /api/v1/groups/{id}/assignstaff` — matches the Mifos pattern for staff association (query param for assignment, parameterless DELETE for removal).
+- **Postman file consolidation**: The two legacy files (`cba-postman-collection.json`, `cba-postman-collection-coming-soon.json`) were deleted. `cba-postman-collection-v2.json` is now the single source of truth for all Postman requests.
+
+#### Build Verification
+- `cd backend && ./mvnw clean compile -q` → **BUILD SUCCESS** (0 errors; only JVM compatibility warnings)
+- Angular screens: new standalone components follow existing codebase patterns (CommonModule + FormsModule, `@if`/`@for` control flow, inject() service injection, lazy-loaded routes)
+
+#### Compliance Checklist Update
+- Financial Activity Accounts: ✅ Built (backend CRUD + Angular screen)
+- Group Staff Assignment: ✅ Built (backend endpoints + Angular Staff tab)
+- Notification Admin: ✅ Built (backend 7 endpoints + Flyway V22 + Angular screen)
+- Account Statement + Template: ✅ Built (backend endpoints + Angular Statement modal)
+- Self-Service extensions: ✅ Built (backend endpoints documented)
+- Legacy Postman files: ✅ Deleted — v2 is canonical
+- API docs (Postman v2 + api-reference.html): ✅ Updated
+
+---
+
 ### Session 45 — 2026-04-13
 **API documentation accuracy audit: removed 3 non-existent account endpoints from Postman collection; corrected loan approve/disburse HTTP verb from POST to PUT across Postman collection and api-reference.html.**
 

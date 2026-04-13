@@ -39,6 +39,9 @@
       </div>
 
       <div class="acct-header__actions">
+        <button class="btn-outline" (click)="openModal('statement')">
+          <span class="material-icons">description</span> Statement
+        </button>
         @if (account.status === 'ACTIVE') {
           <button class="btn-outline" (click)="openModal('deposit')">
             <span class="material-icons">add</span> Deposit
@@ -338,6 +341,85 @@
           @if (modalWorking) { <span class="spinner"></span> }
           Withdraw
         </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── Statement Modal ── -->
+@if (activeModal === 'statement') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--lg" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">description</span>
+        Account Statement
+        <button class="modal__close" (click)="closeModal()">×</button>
+      </div>
+      <div class="modal__body">
+        <div class="stmt-filters">
+          <div class="form-field">
+            <label class="form-label">From Date</label>
+            <input type="date" class="form-input" [(ngModel)]="stmtFrom" />
+          </div>
+          <div class="form-field">
+            <label class="form-label">To Date</label>
+            <input type="date" class="form-input" [(ngModel)]="stmtTo" />
+          </div>
+          <button class="btn-primary" (click)="loadStatement()"
+                  [disabled]="stmtLoading || !stmtFrom || !stmtTo">
+            @if (stmtLoading) { <span class="spinner"></span> }
+            Generate
+          </button>
+        </div>
+
+        @if (stmtError) {
+          <div class="modal__error">{{ stmtError }}</div>
+        }
+
+        @if (stmtData) {
+          <div class="stmt-summary">
+            <div class="stmt-kpi">
+              <span class="stmt-kpi__label">Total Credits</span>
+              <span class="stmt-kpi__value credit">{{ stmtData['totalCredits'] | number:'1.2-2' }}</span>
+            </div>
+            <div class="stmt-kpi">
+              <span class="stmt-kpi__label">Total Debits</span>
+              <span class="stmt-kpi__value debit">{{ stmtData['totalDebits'] | number:'1.2-2' }}</span>
+            </div>
+            <div class="stmt-kpi">
+              <span class="stmt-kpi__label">Closing Balance</span>
+              <span class="stmt-kpi__value">{{ stmtData['closingBalance'] | number:'1.2-2' }}</span>
+            </div>
+            <div class="stmt-kpi">
+              <span class="stmt-kpi__label">Transactions</span>
+              <span class="stmt-kpi__value">{{ stmtData['transactionCount'] }}</span>
+            </div>
+          </div>
+
+          @if ($any(stmtData['transactions'])?.length) {
+            <table class="data-table stmt-table">
+              <thead>
+                <tr><th>Date</th><th>Description</th><th>Reference</th><th class="text-right">Amount</th><th class="text-right">Balance</th></tr>
+              </thead>
+              <tbody>
+                @for (tx of $any(stmtData['transactions']); track tx.id) {
+                  <tr>
+                    <td>{{ tx.transactionDate | date:'dd MMM yyyy' }}</td>
+                    <td>{{ tx.description || '—' }}</td>
+                    <td class="muted">{{ tx.referenceNumber }}</td>
+                    <td class="text-right" [class.credit]="tx.amount > 0" [class.debit]="tx.amount < 0">
+                      {{ tx.amount | number:'1.2-2' }}
+                    </td>
+                    <td class="text-right">{{ tx.runningBalance | number:'1.2-2' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()">Close</button>
       </div>
     </div>
   </div>

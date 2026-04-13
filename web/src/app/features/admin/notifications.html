@@ -1,0 +1,214 @@
+<div class="page-wrap">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Notifications</h1>
+      <p class="page-sub">Manage notification templates and view delivery history.</p>
+    </div>
+    @if (activeTab === 'templates') {
+      <button class="btn btn--primary" (click)="openCreate()">+ New Template</button>
+    }
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab" [class.tab--active]="activeTab === 'templates'" (click)="switchTab('templates')">Templates</button>
+    <button class="tab" [class.tab--active]="activeTab === 'history'"   (click)="switchTab('history')">Delivery History</button>
+  </div>
+
+  <!-- ── Templates ────────────────────────────────────────────────────────── -->
+  @if (activeTab === 'templates') {
+    @if (tplLoading) {
+      <div class="state-msg">Loading…</div>
+    } @else if (tplError) {
+      <div class="state-msg state-msg--error">{{ tplError }}</div>
+    } @else if (templates.length === 0) {
+      <div class="state-msg">No templates configured.</div>
+    } @else {
+      <div class="card">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Event Type</th>
+              <th>Method</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (t of templates; track t.id) {
+              <tr>
+                <td class="fw-medium">{{ t.name }}</td>
+                <td><code class="event-code">{{ t.eventType }}</code></td>
+                <td>
+                  <span class="method-chip">
+                    <span class="material-icons method-icon">{{ methodIcon(t.deliveryMethod) }}</span>
+                    {{ t.deliveryMethod }}
+                  </span>
+                </td>
+                <td>
+                  @if (t.active) {
+                    <span class="badge badge--success">Active</span>
+                  } @else {
+                    <span class="badge badge--neutral">Inactive</span>
+                  }
+                </td>
+                <td class="actions">
+                  <button class="btn-icon" title="Send test" (click)="openTest(t)">
+                    <span class="material-icons">send</span>
+                  </button>
+                  <button class="btn-icon" title="Edit" (click)="openEdit(t)">
+                    <span class="material-icons">edit</span>
+                  </button>
+                  @if (t.active) {
+                    <button class="btn-icon btn-icon--danger" title="Deactivate" (click)="deactivate(t)">
+                      <span class="material-icons">block</span>
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+
+  <!-- ── History ───────────────────────────────────────────────────────────── -->
+  @if (activeTab === 'history') {
+    <div class="filter-row">
+      <input class="form-control filter-input" placeholder="Filter by event type…"
+             [(ngModel)]="histFilter" (keyup.enter)="applyFilter()" />
+      <button class="btn btn--ghost" (click)="applyFilter()">Search</button>
+    </div>
+
+    @if (histLoading) {
+      <div class="state-msg">Loading…</div>
+    } @else if (histError) {
+      <div class="state-msg state-msg--error">{{ histError }}</div>
+    } @else if (history.length === 0) {
+      <div class="state-msg">No delivery records found.</div>
+    } @else {
+      <div class="card">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Event Type</th>
+              <th>Recipient</th>
+              <th>Method</th>
+              <th>Status</th>
+              <th>Sent At</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (log of history; track log.id) {
+              <tr>
+                <td><code class="event-code">{{ log.eventType }}</code></td>
+                <td class="masked-ref">{{ log.recipientRef }}</td>
+                <td>
+                  <span class="method-chip">
+                    <span class="material-icons method-icon">{{ methodIcon(log.deliveryMethod) }}</span>
+                    {{ log.deliveryMethod }}
+                  </span>
+                </td>
+                <td>
+                  <span class="badge" [class]="'badge--' + statusVariant(log.status)">{{ log.status }}</span>
+                </td>
+                <td class="muted">{{ log.sentAt | date:'dd MMM yyyy HH:mm' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+</div>
+
+<!-- ── Template Modal ─────────────────────────────────────────────────────── -->
+@if (showModal) {
+  <div class="modal-overlay" (click)="closeModal()">
+    <div class="modal modal--wide" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span>{{ editingId ? 'Edit' : 'New' }} Template</span>
+        <button class="modal__close" (click)="closeModal()">×</button>
+      </div>
+      <div class="modal__body">
+        @if (modalError) {
+          <div class="alert alert--error">{{ modalError }}</div>
+        }
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Template Name *</label>
+            <input class="form-control" [(ngModel)]="form.name" placeholder="e.g. Account Opened Email" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Event Type *</label>
+            <input class="form-control" [(ngModel)]="form.eventType" placeholder="e.g. ACCOUNT_OPENED" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Delivery Method *</label>
+            <select class="form-control" [(ngModel)]="form.deliveryMethod">
+              <option value="EMAIL">Email</option>
+              <option value="SMS">SMS</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Subject</label>
+            <input class="form-control" [(ngModel)]="form.subject" placeholder="Email subject line (email only)" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Body *</label>
+          <textarea class="form-control form-control--textarea" rows="6"
+                    [(ngModel)]="form.body"
+                    placeholder="Template body. Use {{customerName}}, {{accountNumber}}, {{amount}} as placeholders."></textarea>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn btn--ghost" (click)="closeModal()" [disabled]="working">Cancel</button>
+        <button class="btn btn--primary" (click)="saveTemplate()"
+                [disabled]="working || !form.name || !form.eventType || !form.body">
+          {{ working ? 'Saving…' : 'Save Template' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── Test Send Modal ────────────────────────────────────────────────────── -->
+@if (showTest) {
+  <div class="modal-overlay" (click)="closeTest()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span>Send Test Notification</span>
+        <button class="modal__close" (click)="closeTest()">×</button>
+      </div>
+      <div class="modal__body">
+        @if (testError) {
+          <div class="alert alert--error">{{ testError }}</div>
+        }
+        @if (testResult) {
+          <div class="alert alert--success">
+            Test sent — status: <strong>{{ testResult.status }}</strong>
+            @if (testResult.recipientRef) {
+              &nbsp;to <strong>{{ testResult.recipientRef }}</strong>
+            }
+          </div>
+        }
+        <div class="form-group">
+          <label class="form-label">Recipient (email or phone)</label>
+          <input class="form-control" [(ngModel)]="testRecipient"
+                 placeholder="test@example.com or +234…" />
+          <p class="form-hint">The recipient address will be masked in the delivery log.</p>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn btn--ghost" (click)="closeTest()" [disabled]="testWorking">Cancel</button>
+        <button class="btn btn--primary" (click)="sendTest()"
+                [disabled]="testWorking || !testRecipient">
+          {{ testWorking ? 'Sending…' : 'Send Test' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

@@ -1122,6 +1122,88 @@
               "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/api/v1/accounts/{{accountId}}/transactions')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Get.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nputs http.request(req).body"
             }
           ]
+        },
+        {
+          "name": "Get Account Statement",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/:id/statement",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts",
+                ":id",
+                "statement"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2025-01-01",
+                  "description": "Start date (YYYY-MM-DD)"
+                },
+                {
+                  "key": "to",
+                  "value": "2025-12-31",
+                  "description": "End date (YYYY-MM-DD)"
+                }
+              ]
+            },
+            "description": "Returns a summary statement with total credits, debits, and transaction list for the date range."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Account Product Template",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/:id/template",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts",
+                ":id",
+                "template"
+              ]
+            },
+            "description": "Returns the deposit product configuration applied to this account (rates, limits, overdraft settings)."
+          },
+          "response": []
         }
       ]
     },
@@ -7781,6 +7863,83 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "Assign Staff to Group",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/groups/:groupId/assignstaff",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                ":groupId",
+                "assignstaff"
+              ],
+              "query": [
+                {
+                  "key": "staffId",
+                  "value": "{{staffId}}",
+                  "description": "UUID of the staff member to assign"
+                }
+              ]
+            },
+            "description": "Assigns a loan officer to a group."
+          },
+          "response": []
+        },
+        {
+          "name": "Remove Staff from Group",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/groups/:groupId/assignstaff",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "groups",
+                ":groupId",
+                "assignstaff"
+              ]
+            },
+            "description": "Removes the assigned staff/loan officer from a group."
+          },
+          "response": []
         }
       ]
     },
@@ -8915,6 +9074,182 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "List Financial Activity Accounts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financialactivityaccounts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financialactivityaccounts"
+              ]
+            },
+            "description": "Returns all GL account mappings for abstract financial activities."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Financial Activity Account",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financialactivityaccounts/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financialactivityaccounts",
+                ":id"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Create Financial Activity Account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financialactivityaccounts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financialactivityaccounts"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"financialActivity\": \"ASSET_LOAN_PORTFOLIO\",\n  \"glAccountId\": \"{{glAccountId}}\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Financial Activity Account",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financialactivityaccounts/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financialactivityaccounts",
+                ":id"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"financialActivity\": \"ASSET_LOAN_PORTFOLIO\",\n  \"glAccountId\": \"{{glAccountId}}\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Financial Activity Account",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/financialactivityaccounts/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "financialactivityaccounts",
+                ":id"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
         }
       ]
     },
@@ -9506,6 +9841,187 @@
                 }
               ]
             }
+          },
+          "response": []
+        },
+        {
+          "name": "Apply for Loan (Self)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/self/loanapplications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "self",
+                "loanapplications"
+              ]
+            },
+            "description": "Customer submits a loan application on their own behalf.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"linkedAccountId\": \"{{accountId}}\",\n  \"principalAmount\": 50000,\n  \"termMonths\": 12,\n  \"notes\": \"Personal loan\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Loan Repayment Schedule (Self)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/self/loans/:loanId/repayment-schedule",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "self",
+                "loans",
+                ":loanId",
+                "repayment-schedule"
+              ]
+            },
+            "description": "Returns the full repayment schedule for one of the authenticated customer's loans."
+          },
+          "response": []
+        },
+        {
+          "name": "List Beneficiaries (Self)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/self/beneficiaries",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "self",
+                "beneficiaries"
+              ]
+            },
+            "description": "Lists all active beneficiaries for the authenticated customer."
+          },
+          "response": []
+        },
+        {
+          "name": "Add Beneficiary (Self)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/self/beneficiaries",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "self",
+                "beneficiaries"
+              ]
+            },
+            "description": "Adds a new transfer beneficiary for the authenticated customer.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nickname\": \"Mum's Account\",\n  \"accountNumber\": \"001-SAV-0001001\",\n  \"bankCode\": \"058\",\n  \"transferLimit\": 100000\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Remove Beneficiary (Self)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/self/beneficiaries/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "self",
+                "beneficiaries",
+                ":id"
+              ]
+            },
+            "description": "Soft-deletes a beneficiary (sets active=false)."
           },
           "response": []
         }
@@ -14902,6 +15418,283 @@
                 }
               ]
             }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "41 \u00b7 Notifications Admin",
+      "item": [
+        {
+          "name": "List Templates",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/templates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "templates"
+              ],
+              "query": [
+                {
+                  "key": "active",
+                  "value": "true",
+                  "description": "Filter to active templates only"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Get Template",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/templates/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "templates",
+                ":id"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Create Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/templates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "templates"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Account Opened Email\",\n  \"eventType\": \"ACCOUNT_OPENED\",\n  \"deliveryMethod\": \"EMAIL\",\n  \"subject\": \"Your account is ready\",\n  \"body\": \"Dear {{customerName}}, your account {{accountNumber}} is now active.\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Template",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/templates/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "templates",
+                ":id"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Account Opened Email\",\n  \"eventType\": \"ACCOUNT_OPENED\",\n  \"deliveryMethod\": \"EMAIL\",\n  \"subject\": \"Your CBA account is ready\",\n  \"body\": \"Dear {{customerName}}, your account {{accountNumber}} is now active.\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate Template",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/templates/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "templates",
+                ":id"
+              ]
+            },
+            "description": "Soft-deletes (deactivates) a template. The template record is retained for history."
+          },
+          "response": []
+        },
+        {
+          "name": "Send Test Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/test",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "test"
+              ]
+            },
+            "description": "Sends a test notification using the specified template. Recipient is masked in the log.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"templateId\": \"{{templateId}}\",\n  \"recipientRef\": \"test@example.com\"\n}"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Delivery History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "history"
+              ],
+              "query": [
+                {
+                  "key": "eventType",
+                  "value": "",
+                  "description": "Filter by event type"
+                },
+                {
+                  "key": "recipientId",
+                  "value": "",
+                  "description": "Filter by recipient customer UUID"
+                }
+              ]
+            },
+            "description": ""
           },
           "response": []
         }

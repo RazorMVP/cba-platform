@@ -81,4 +81,12 @@ export class AccountService {
     if (description) params['description'] = description;
     return this.api.postParams<Transaction>(`/accounts/${id}/withdraw`, params);
   }
+
+  getStatement(id: string, from: string, to: string): Observable<Record<string, unknown>> {
+    return this.api.get<Record<string, unknown>>(`/accounts/${id}/statement`, { from, to });
+  }
+
+  getTemplate(id: string): Observable<Record<string, unknown>> {
+    return this.api.get<Record<string, unknown>>(`/accounts/${id}/template`);
+  }
 }

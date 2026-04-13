@@ -73,6 +73,23 @@ public class GroupController {
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
 
+    // ── Staff Assignment ─────────────────────────────────────────────────────
+
+    @PostMapping("/api/v1/groups/{groupId}/assignstaff")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Assign a loan officer to a group (or change the current assignment)")
+    public ResponseEntity<ApiResponse<GroupResponse>> assignStaff(
+            @PathVariable UUID groupId, @RequestParam UUID staffId) {
+        return ResponseEntity.ok(ApiResponse.ok(groupService.assignStaff(groupId, staffId)));
+    }
+
+    @DeleteMapping("/api/v1/groups/{groupId}/assignstaff")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Remove staff assignment from a group")
+    public ResponseEntity<ApiResponse<GroupResponse>> unassignStaff(@PathVariable UUID groupId) {
+        return ResponseEntity.ok(ApiResponse.ok(groupService.unassignStaff(groupId)));
+    }
+
     // ── Collection Sheets ─────────────────────────────────────────────────────
 
     @PostMapping("/api/v1/collectionsheets")

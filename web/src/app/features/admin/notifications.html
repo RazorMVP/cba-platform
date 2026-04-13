@@ -12,12 +12,12 @@
   </div>
 
   <!-- Tabs -->
-  <div class="tabs">
-    <button class="tab" [class.tab--active]="activeTab === 'templates'" (click)="switchTab('templates')">Templates</button>
-    <button class="tab" [class.tab--active]="activeTab === 'history'"   (click)="switchTab('history')">Delivery History</button>
+  <div class="tab-bar">
+    <button class="tab-item" [class.tab-item--active]="activeTab === 'templates'" (click)="switchTab('templates')">Templates</button>
+    <button class="tab-item" [class.tab-item--active]="activeTab === 'history'"   (click)="switchTab('history')">Delivery History</button>
   </div>
 
-  <!-- ── Templates tab ────────────────────────────────────────────────────── -->
+  <!-- ── Templates ────────────────────────────────────────────────────────── -->
   @if (activeTab === 'templates') {
     <div class="card">
       @if (tplLoading) {
@@ -32,7 +32,7 @@
       } @else if (templates.length === 0) {
         <div class="empty-state">
           <span class="material-icons">notifications_none</span>
-          <p>No templates configured. Create one to get started.</p>
+          <p>No templates configured yet. Create one to get started.</p>
         </div>
       } @else {
         <table class="data-table">
@@ -49,7 +49,7 @@
             @for (t of templates; track t.id) {
               <tr class="table-row">
                 <td><strong>{{ t.name }}</strong></td>
-                <td><span class="mono small muted">{{ t.eventType }}</span></td>
+                <td class="mono muted small">{{ t.eventType }}</td>
                 <td>
                   <span class="method-chip">
                     <span class="material-icons method-icon">{{ methodIcon(t.deliveryMethod) }}</span>
@@ -84,7 +84,7 @@
     </div>
   }
 
-  <!-- ── History tab ──────────────────────────────────────────────────────── -->
+  <!-- ── History ───────────────────────────────────────────────────────────── -->
   @if (activeTab === 'history') {
     <div class="filter-bar">
       <input class="form-input filter-input" placeholder="Filter by event type…"
@@ -121,8 +121,8 @@
           <tbody>
             @for (log of history; track log.id) {
               <tr class="table-row">
-                <td><span class="mono small muted">{{ log.eventType }}</span></td>
-                <td class="mono small muted">{{ log.recipientRef }}</td>
+                <td class="mono muted small">{{ log.eventType }}</td>
+                <td class="mono muted small">{{ log.recipientRef }}</td>
                 <td>
                   <span class="method-chip">
                     <span class="material-icons method-icon">{{ methodIcon(log.deliveryMethod) }}</span>
@@ -143,7 +143,7 @@
   }
 </div>
 
-<!-- ── Template Modal ──────────────────────────────────────────────────────── -->
+<!-- ── Template Modal ─────────────────────────────────────────────────────── -->
 @if (showModal) {
   <div class="modal-backdrop" (click)="closeModal()">
     <div class="modal" (click)="$event.stopPropagation()">
@@ -209,7 +209,7 @@
         @if (testError) { <div class="modal__error">{{ testError }}</div> }
         @if (testResult) {
           <div class="modal__success">
-            Sent — status: <strong>{{ testResult.status }}</strong>
+            Sent successfully — status: <strong>{{ testResult.status }}</strong>
             @if (testResult.recipientRef) { &nbsp;to <strong>{{ testResult.recipientRef }}</strong> }
           </div>
         }

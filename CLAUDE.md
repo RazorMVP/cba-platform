@@ -2290,6 +2290,24 @@ PostgreSQL (encrypted at rest)
 | `--color-text` | `#000314` | Primary text |
 | `--color-muted` | `#888888` | Labels, secondary text |
 
+### SCSS Architecture — Component Styling Pattern _(Session 47)_
+
+All feature component SCSS files use `@use 'assets/styles/design-system' as *` (NOT `@use 'assets/styles/tokens' as *`).
+
+The `_design-system.scss` partial at `web/src/assets/styles/_design-system.scss`:
+- `@forward './tokens'` — re-exports all SCSS token variables to consuming components (required for `$space-6` etc. to be available in component SCSS)
+- `@use './tokens' as *` — makes tokens available within the partial itself for CSS class definitions
+- Contains all shared CSS classes: `.btn-primary`, `.modal-backdrop`, `.data-table`, `.form-input`, `.badge`, etc.
+
+This ensures each component gets its own scoped copy of shared CSS classes, immune to global specificity conflicts.
+
+**angular.json budget**: `anyComponentStyle` set to 20kB warning / 40kB error (design-system inline adds ~7kB per component vs the default 8kB/16kB).
+
+**Common gotchas:**
+- Never use `@use` for a shared module if consumers need the module's imported variables — use `@forward` to re-export
+- `disputeCommand()` in `cards.service.ts` must use path-segment routing (`/disputes/{id}/{command}`), NOT `?command=` query params — Java `DisputeController` has specific POST endpoints
+- `listCards()` must use `cardApi` base (`/card-api/v1/cards`), NOT `base` (`/api/v1/cards`) — the internal endpoint requires `customerId`
+
 ### Available Screen Prototypes
 Located in `.claude/skills/cba/designs/screens/backoffice/`:
 - `dashboard.html` — KPIs, transaction table, loan portfolio, charts

@@ -59,6 +59,33 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 47 — 2026-04-13
+**Fixed 5 critical service bugs in CardsModule Angular frontend; applied design-system SCSS partial to all 57 feature components; deployed to Vercel (commit `14892c2`).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/src/assets/styles/_design-system.scss` | NEW: shared SCSS partial; `@forward './tokens'` re-exports all token variables; `@use './tokens' as *` for internal use; contains all shared CSS classes (`.btn-primary`, `.modal-backdrop`, `.data-table`, etc.) |
+| `web/src/app/features/cards/cards.service.ts` | FIXED: `IssueCardRequest.virtualFlag` → `virtual` (matches Java record); `ResolveDisputeRequest.resolutionNotes` → `notes`; added `currencyCode` to `RaiseDisputeRequest`; fixed `getCardLimits()` broken URL (`.replace` regex mangled `/card-api/v1/` → `/card-/`); fixed `disputeCommand()` routing (was `?command=X` query param, Java expects `/disputes/{id}/X` path segment); fixed `listCards()` to use `cardApi` base for admin list |
+| `web/src/app/features/cards/card-list/card-list.ts` | FIXED: `issueForm.virtualFlag` → `virtual` in both `openIssue` and `closeIssue` resets |
+| `web/src/app/features/cards/card-list/card-list.html` | FIXED: `issueForm.virtualFlag` → `issueForm.virtual` in checkbox binding |
+| `web/src/app/features/cards/disputes/disputes.ts` | FIXED: `resolveForm.resolutionNotes` → `notes`; added `currencyCode: 'USD'` default to `raiseForm` |
+| `web/src/app/features/cards/disputes/disputes.html` | FIXED: `resolveForm.resolutionNotes` → `resolveForm.notes`; added currency code field to raise dispute modal |
+| `web/src/app/features/**/*.scss` (57 files) | UPDATED: `@use 'assets/styles/tokens' as *` → `@use 'assets/styles/design-system' as *` across all feature SCSS files |
+| `web/angular.json` | UPDATED: `anyComponentStyle` budget raised to 20kB warning / 40kB error (design-system inline adds ~7kB per component) |
+
+#### Key Patterns / Decisions
+- `@forward './tokens'` in `_design-system.scss` is required (not `@use`) to re-export SCSS variables to downstream consumers; `@use` alone only makes variables available within the partial itself
+- `disputeCommand()` must use path-segment routing: `POST /cards/disputes/{id}/{command}` — Java's `DisputeController` has specific endpoints per command, NOT a `?command=` query param pattern
+- `listCards()` must use `/card-api/v1/cards` (open banking BaaS endpoint) for admin list — `/api/v1/cards` is the internal auth-only endpoint that requires a `customerId` param
+- CSS budget increase is necessary because each component now inlines ~7kB of shared CSS classes instead of relying solely on global styles; trade-off: more reliable style isolation vs slightly larger per-component CSS
+
+#### Build Verification
+`npx ng build --configuration production` → Build artifacts in `dist/cba-web/` — no TypeScript errors, no compilation errors. Only pre-existing NG8107 optional-chain warnings (non-blocking).
+
+#### Compliance Checklist Update
+- No new backend endpoints — API docs unchanged
+
 ### Session 46 — 2026-04-13
 **Shipped 5 new backend modules (Notification Admin, Financial Activity Accounts, Group Staff Assignment, Account Statement/Template, Self-Service extensions), 3 new Angular screens, consolidated Postman collection, and deleted the two legacy Postman files.**
 

@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge';
-import { AccountService, Account, Transaction } from '../account.service';
+import { AccountService, Account, Transaction, AccountCreateRequest } from '../account.service';
 import { PageResponse } from '../../../../core/models/api-response.model';
 
 type ActiveTab = 'overview' | 'transactions';
@@ -24,6 +24,12 @@ export class AccountDetailComponent implements OnInit {
   account: Account | null = null;
   loading = true;
   error   = '';
+
+  // Creation mode
+  isNew = false;
+  saving = false;
+  saveError = '';
+  newForm: AccountCreateRequest = { customerId: '', productId: '', accountType: 'SAVINGS' };
 
   activeTab: ActiveTab = 'overview';
 
@@ -60,9 +66,24 @@ export class AccountDetailComponent implements OnInit {
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id')!;
+    if (id === 'new') {
+      this.isNew = true;
+      this.loading = false;
+      return;
+    }
     this.svc.get(id).subscribe({
       next:  a  => { this.account = a; this.loading = false; },
       error: () => { this.error = 'Account not found.'; this.loading = false; },
+    });
+  }
+
+  submitCreate(): void {
+    if (!this.newForm.customerId || !this.newForm.productId) return;
+    this.saving = true;
+    this.saveError = '';
+    this.svc.create(this.newForm).subscribe({
+      next:  a  => this.router.navigate(['..', a.id], { relativeTo: this.route }),
+      error: () => { this.saveError = 'Failed to open account. Please try again.'; this.saving = false; },
     });
   }
 

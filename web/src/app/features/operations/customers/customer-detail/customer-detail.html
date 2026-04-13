@@ -20,6 +20,47 @@
       <p>{{ error }}</p>
       <a routerLink=".." class="btn-secondary">Go back</a>
     </div>
+  } @else if (isNew) {
+    <div class="create-form-wrap">
+      <h2 class="create-title">Add New Customer</h2>
+      <div class="form-row">
+        <div class="form-field">
+          <label class="form-label">First Name <span class="required">*</span></label>
+          <input class="form-input" type="text" [(ngModel)]="newForm.firstName" placeholder="e.g. Amara" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Last Name <span class="required">*</span></label>
+          <input class="form-input" type="text" [(ngModel)]="newForm.lastName" placeholder="e.g. Osei" />
+        </div>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Email Address <span class="required">*</span></label>
+        <input class="form-input" type="email" [(ngModel)]="newForm.email" placeholder="amara.osei@example.com" />
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label class="form-label">Phone</label>
+          <input class="form-input" type="text" [(ngModel)]="newForm.phone" placeholder="+234 800 000 0000" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Date of Birth</label>
+          <input class="form-input" type="date" [(ngModel)]="newForm.dateOfBirth" />
+        </div>
+      </div>
+      <div class="form-field">
+        <label class="form-label">National ID</label>
+        <input class="form-input" type="text" [(ngModel)]="newForm.nationalId" placeholder="NIN / Passport number" />
+      </div>
+      @if (saveError) {
+        <div class="modal__error">{{ saveError }}</div>
+      }
+      <div class="create-actions">
+        <button class="btn-primary" [disabled]="saving || !newForm.firstName || !newForm.lastName || !newForm.email" (click)="submitCreate()">
+          @if (saving) { <span class="spinner"></span> Saving… } @else { Save Customer }
+        </button>
+        <a routerLink=".." class="btn-secondary">Cancel</a>
+      </div>
+    </div>
   } @else if (customer) {
 
     <!-- Profile header card -->

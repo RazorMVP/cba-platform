@@ -441,6 +441,29 @@
   margin-top: 0.75rem;
 }
 
+// ── Create / New form wrapper ─────────────────────────────────────────────────
+.create-form-wrap {
+  background: var(--bg-card);
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  padding: 2rem;
+  max-width: 640px;
+}
+
+.create-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0 0 1.5rem;
+}
+
+.create-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 1.5rem;
+}
+
 // ── Scope utilities ───────────────────────────────────────────────────────────
 .muted  { color: var(--color-muted); }
 .small  { font-size: 0.75rem; }

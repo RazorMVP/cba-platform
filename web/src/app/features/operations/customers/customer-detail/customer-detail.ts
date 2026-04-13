@@ -1,11 +1,12 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule, CurrencyPipe, DatePipe, TitleCasePipe } from '@angular/common';
-import { RouterLink, ActivatedRoute } from '@angular/router';
+import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge';
 import {
   CustomerService, Customer, KycStatus,
   ClientIdentifier, ClientAddress, Beneficiary,
+  CustomerCreateRequest,
 } from '../customer.service';
 import { AccountService, Account } from '../../accounts/account.service';
 import { LoanService, Loan } from '../../loans/loan.service';
@@ -23,6 +24,7 @@ const AVATAR_COLORS = ['#3b82f6','#16a34a','#7c3aed','#ea580c','#db2777','#0891b
 })
 export class CustomerDetailComponent implements OnInit {
   private readonly route    = inject(ActivatedRoute);
+  private readonly router   = inject(Router);
   private readonly custSvc  = inject(CustomerService);
   private readonly accSvc   = inject(AccountService);
   private readonly loanSvc  = inject(LoanService);
@@ -30,6 +32,12 @@ export class CustomerDetailComponent implements OnInit {
   customer: Customer | null = null;
   loading = true;
   error = '';
+
+  // Creation mode
+  isNew = false;
+  saving = false;
+  saveError = '';
+  newForm: CustomerCreateRequest = { firstName: '', lastName: '', email: '' };
 
   activeTab: DetailTab = 'overview';
 
@@ -76,9 +84,24 @@ export class CustomerDetailComponent implements OnInit {
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id')!;
+    if (id === 'new') {
+      this.isNew = true;
+      this.loading = false;
+      return;
+    }
     this.custSvc.get(id).subscribe({
       next:  c  => { this.customer = c; this.loading = false; },
       error: () => { this.error = 'Customer not found.'; this.loading = false; },
+    });
+  }
+
+  submitCreate(): void {
+    if (!this.newForm.firstName || !this.newForm.lastName || !this.newForm.email) return;
+    this.saving = true;
+    this.saveError = '';
+    this.custSvc.create(this.newForm).subscribe({
+      next:  c  => this.router.navigate(['..', c.id], { relativeTo: this.route }),
+      error: () => { this.saveError = 'Failed to create customer. Please try again.'; this.saving = false; },
     });
   }
 

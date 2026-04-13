@@ -1,11 +1,12 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule, CurrencyPipe, DatePipe, PercentPipe } from '@angular/common';
-import { RouterLink, ActivatedRoute } from '@angular/router';
+import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge';
 import {
   LoanService, Loan, RepaymentInstallment,
   LoanCharge, Guarantor, Collateral, AuditEntry,
+  LoanCreateRequest,
 } from '../loan.service';
 
 export type LoanTab = 'summary' | 'schedule' | 'charges' | 'collateral' | 'audit';
@@ -18,13 +19,20 @@ export type LoanTab = 'summary' | 'schedule' | 'charges' | 'collateral' | 'audit
   styleUrl: './loan-detail.scss',
 })
 export class LoanDetailComponent implements OnInit {
-  private readonly route = inject(ActivatedRoute);
-  private readonly svc   = inject(LoanService);
+  private readonly route  = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly svc    = inject(LoanService);
 
   loan: Loan | null = null;
   loading = true;
   error = '';
   activeTab: LoanTab = 'summary';
+
+  // Creation mode
+  isNew = false;
+  saving = false;
+  saveError = '';
+  newForm: LoanCreateRequest = { customerId: '', productId: '', principalAmount: 0, termMonths: 12 };
 
   // Schedule tab
   schedule: RepaymentInstallment[] = [];
@@ -74,9 +82,24 @@ export class LoanDetailComponent implements OnInit {
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id')!;
+    if (id === 'new') {
+      this.isNew = true;
+      this.loading = false;
+      return;
+    }
     this.svc.get(id).subscribe({
       next:  l  => { this.loan = l; this.loading = false; },
       error: () => { this.error = 'Loan not found.'; this.loading = false; },
+    });
+  }
+
+  submitCreate(): void {
+    if (!this.newForm.customerId || !this.newForm.productId || this.newForm.principalAmount <= 0 || this.newForm.termMonths <= 0) return;
+    this.saving = true;
+    this.saveError = '';
+    this.svc.create(this.newForm).subscribe({
+      next:  l  => this.router.navigate(['..', l.id], { relativeTo: this.route }),
+      error: () => { this.saveError = 'Failed to create loan. Please try again.'; this.saving = false; },
     });
   }
 

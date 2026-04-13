@@ -56,7 +56,7 @@
               <td class="mono muted">{{ card.expiryDate }}</td>
               <td class="mono muted small">{{ card.customerId }}</td>
               <td>
-                <span class="material-icons" [style.color]="card.virtualFlag ? '#15803d' : '#d1d5db'">
+                <span class="material-icons" [style.color]="card.virtualFlag ? '#15803d' : '#d1d5db'" title="{{ card.virtualFlag ? 'Virtual' : 'Physical' }}">
                   {{ card.virtualFlag ? 'check_circle' : 'remove_circle_outline' }}
                 </span>
               </td>
@@ -96,7 +96,7 @@
         </div>
         <div class="form-field">
           <label class="form-label" style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
-            <input type="checkbox" [(ngModel)]="issueForm.virtualFlag" />
+            <input type="checkbox" [(ngModel)]="issueForm.virtual" />
             Virtual card (no physical production)
           </label>
         </div>

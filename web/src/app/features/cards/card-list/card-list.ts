@@ -23,7 +23,7 @@ export class CardListComponent implements OnInit {
   typeFilter: CardType | '' = '';
 
   showIssueModal = false;
-  issueForm: IssueCardRequest = { customerId: '', productId: '', linkedEntityId: '', virtualFlag: false };
+  issueForm: IssueCardRequest = { customerId: '', productId: '', linkedEntityId: '', virtual: false };
 
   readonly statuses: CardStatus[] = ['ACTIVE', 'BLOCKED', 'ORDERED', 'PRODUCED', 'DISPATCHED', 'ACTIVATION_PENDING', 'EXPIRED', 'CANCELLED'];
   readonly types: CardType[] = ['DEBIT', 'PREPAID', 'CREDIT'];
@@ -53,7 +53,7 @@ export class CardListComponent implements OnInit {
   onSearch(q: string): void { this.searchQuery = q; this.applyFilter(); }
 
   openIssue(): void { this.showIssueModal = true; }
-  closeIssue(): void { this.showIssueModal = false; this.issueForm = { customerId: '', productId: '', linkedEntityId: '', virtualFlag: false }; }
+  closeIssue(): void { this.showIssueModal = false; this.issueForm = { customerId: '', productId: '', linkedEntityId: '', virtual: false }; }
 
   submitIssue(): void {
     this.svc.issueCard(this.issueForm).subscribe({ next: () => { this.closeIssue(); this.load(); } });

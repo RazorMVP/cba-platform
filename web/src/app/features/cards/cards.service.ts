@@ -52,7 +52,7 @@ export interface IssueCardRequest {
   customerId: string;
   productId: string;
   linkedEntityId: string;
-  virtualFlag: boolean;
+  virtual: boolean;
 }
 
 export interface CardLimit {
@@ -165,12 +165,13 @@ export interface RaiseDisputeRequest {
   disputeReason: DisputeReason;
   raisedBy: string;
   originalAmount: number;
+  currencyCode: string;
 }
 
 export interface ResolveDisputeRequest {
   resolvedBy: string;
   resolutionFavor: 'ISSUER' | 'ACQUIRER';
-  resolutionNotes: string;
+  notes: string;
 }
 
 export interface ChargebackReasonCode {
@@ -371,12 +372,18 @@ export class CardsService {
   createProduct(req: CardProductRequest): Observable<CardProduct> { return this.post<CardProduct>('/cards/products', req); }
 
   // ── Cards ──────────────────────────────────────────────────────────────────
-  listCards(params?: Record<string, string>): Observable<Card[]> { return this.get<Card[]>('/cards', params); }
+  listCards(params?: Record<string, string>): Observable<Card[]> {
+    let p = new HttpParams();
+    if (params) Object.entries(params).forEach(([k, v]) => p = p.set(k, v));
+    return this.http.get<ApiResponse<Card[]>>(`${this.cardApi}/cards`, { params: p }).pipe(map(r => r.data));
+  }
   getCard(id: string): Observable<Card> { return this.get<Card>(`/cards/${id}`); }
   issueCard(req: IssueCardRequest): Observable<Card> { return this.post<Card>('/cards', req); }
   commandCard(id: string, command: string): Observable<Card> { return this.cmd<Card>(`/cards/${id}`, command); }
   getCardBalance(id: string): Observable<CardBalance> { return this.get<CardBalance>(`/cards/${id}/balance`); }
-  getCardLimits(id: string): Observable<CardLimit> { return this.get<CardLimit>(`/card-api/v1/cards/${id}/limits`.replace('/api/v1', '')); }
+  getCardLimits(id: string): Observable<CardLimit> {
+    return this.http.get<ApiResponse<CardLimit>>(`${this.cardApi}/cards/${id}/limits`).pipe(map(r => r.data));
+  }
   updateCardLimits(id: string, req: UpdateLimitsRequest): Observable<CardLimit> {
     return this.http.put<ApiResponse<CardLimit>>(`${this.cardApi}/cards/${id}/limits`, req).pipe(map(r => r.data));
   }
@@ -402,7 +409,7 @@ export class CardsService {
   }
   raiseDispute(req: RaiseDisputeRequest): Observable<CardDispute> { return this.post<CardDispute>('/cards/disputes', req); }
   disputeCommand(id: string, command: string, body: unknown = {}): Observable<CardDispute> {
-    return this.cmd<CardDispute>(`/cards/disputes/${id}`, command, body);
+    return this.post<CardDispute>(`/cards/disputes/${id}/${command}`, body);
   }
   resolveDispute(id: string, req: ResolveDisputeRequest): Observable<CardDispute> {
     return this.post<CardDispute>(`/cards/disputes/${id}/resolve`, req);

@@ -147,9 +147,15 @@
           <label class="form-label">Raised By (User ID)</label>
           <input class="form-input" [(ngModel)]="raiseForm.raisedBy" />
         </div>
-        <div class="form-field">
-          <label class="form-label">Original Amount (minor units)</label>
-          <input class="form-input" type="number" [(ngModel)]="raiseForm.originalAmount" />
+        <div class="form-row">
+          <div class="form-field">
+            <label class="form-label">Original Amount (minor units)</label>
+            <input class="form-input" type="number" [(ngModel)]="raiseForm.originalAmount" />
+          </div>
+          <div class="form-field">
+            <label class="form-label">Currency Code</label>
+            <input class="form-input" [(ngModel)]="raiseForm.currencyCode" placeholder="USD" maxlength="3" />
+          </div>
         </div>
       </div>
       <div class="modal__footer">
@@ -181,7 +187,7 @@
         </div>
         <div class="form-field">
           <label class="form-label">Resolution Notes</label>
-          <textarea class="form-input form-input--textarea" [(ngModel)]="resolveForm.resolutionNotes"
+          <textarea class="form-input form-input--textarea" [(ngModel)]="resolveForm.notes"
                     rows="3"></textarea>
         </div>
       </div>

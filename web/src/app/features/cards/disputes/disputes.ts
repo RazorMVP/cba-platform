@@ -23,10 +23,10 @@ export class DisputesComponent implements OnInit {
   selectedDispute: CardDispute | null = null;
 
   showRaiseModal = false;
-  raiseForm: RaiseDisputeRequest = { cardId: '', transactionRef: '', disputeReason: 'UNAUTHORIZED', raisedBy: '', originalAmount: 0 };
+  raiseForm: RaiseDisputeRequest = { cardId: '', transactionRef: '', disputeReason: 'UNAUTHORIZED', raisedBy: '', originalAmount: 0, currencyCode: 'USD' };
 
   showResolveModal = false;
-  resolveForm: ResolveDisputeRequest = { resolvedBy: '', resolutionFavor: 'ISSUER', resolutionNotes: '' };
+  resolveForm: ResolveDisputeRequest = { resolvedBy: '', resolutionFavor: 'ISSUER', notes: '' };
 
   readonly statuses: DisputeStatus[] = ['RAISED', 'RETRIEVAL_REQUESTED', 'CHARGEBACK_INITIATED', 'REPRESENTMENT', 'PRE_ARBITRATION', 'RESOLVED', 'WITHDRAWN'];
   readonly reasons: DisputeReason[] = ['UNAUTHORIZED', 'GOODS_NOT_RECEIVED', 'DUPLICATE', 'AMOUNT_MISMATCH', 'OTHER'];
@@ -46,7 +46,7 @@ export class DisputesComponent implements OnInit {
     this.svc.raiseDispute(this.raiseForm).subscribe({ next: () => { this.showRaiseModal = false; this.load(); } });
   }
 
-  openResolve(d: CardDispute): void { this.selectedDispute = d; this.resolveForm = { resolvedBy: '', resolutionFavor: 'ISSUER', resolutionNotes: '' }; this.showResolveModal = true; }
+  openResolve(d: CardDispute): void { this.selectedDispute = d; this.resolveForm = { resolvedBy: '', resolutionFavor: 'ISSUER', notes: '' }; this.showResolveModal = true; }
   submitResolve(): void {
     if (!this.selectedDispute) return;
     this.svc.resolveDispute(this.selectedDispute.id, this.resolveForm).subscribe({ next: () => { this.showResolveModal = false; this.load(); this.closeDetail(); } });

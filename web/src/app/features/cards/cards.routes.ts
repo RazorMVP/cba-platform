@@ -13,8 +13,8 @@ import { SchemeConfigComponent }      from './scheme-config/scheme-config';
 import { InterchangeComponent }       from './interchange/interchange';
 
 export const CARDS_ROUTES: Routes = [
+  // Static paths MUST come before :id — Angular matches top-to-bottom
   { path: '',           component: CardListComponent },
-  { path: ':id',        component: CardDetailComponent },
   { path: 'products',   component: CardProductsComponent },
   { path: 'fraud',      component: FraudRulesComponent },
   { path: 'settlement', component: SettlementComponent },
@@ -25,4 +25,6 @@ export const CARDS_ROUTES: Routes = [
   { path: 'bins',       component: BinManagementComponent },
   { path: 'schemes',    component: SchemeConfigComponent },
   { path: 'interchange',component: InterchangeComponent },
+  // Parameterised route last — never shadows static paths above
+  { path: ':id',        component: CardDetailComponent },
 ];

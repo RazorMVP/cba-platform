@@ -1,58 +1,122 @@
 <div class="page">
   <div class="page-header">
-    <div><h1>BIN Management</h1><p class="subtitle">Bank Identification Number ranges for scheme routing (6 and 8 digit BINs)</p></div>
-    <button class="btn-primary" (click)="openCreate()"><span class="material-symbols-outlined">add</span> Add BIN Range</button>
+    <div class="page-header__title">
+      <span class="material-icons">dialpad</span>
+      BIN Management
+    </div>
+    <button class="btn-primary" (click)="openCreate()">
+      <span class="material-icons">add</span> Add BIN Range
+    </button>
   </div>
 
-  <div class="card-panel">
-    <div *ngIf="loading" class="empty-state">Loading…</div>
-    <div *ngIf="!loading && bins.length === 0" class="empty-state">No BIN ranges defined.</div>
-    <table *ngIf="!loading && bins.length > 0" class="data-table">
-      <thead>
-        <tr><th>BIN Range</th><th>Scheme</th><th>Card Type</th><th>Product</th><th>Country</th><th>Currency</th><th>Active</th><th>Actions</th></tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let b of bins">
-          <td class="mono">{{ b.binStart }} – {{ b.binEnd }}</td>
-          <td><span class="scheme-badge" [style.background]="schemeColor(b.scheme)">{{ b.scheme }}</span></td>
-          <td>{{ b.cardType }}</td>
-          <td>{{ b.productType }}</td>
-          <td>{{ b.countryCode }}</td>
-          <td>{{ b.currencyCode }}</td>
-          <td><app-status-badge [label]="b.active ? 'Active' : 'Inactive'" [variant]="b.active ? 'success' : 'neutral'" /></td>
-          <td>
-            <button class="btn-ghost sm" (click)="openEdit(b)">Edit</button>
-            <button class="btn-ghost sm danger-btn" (click)="delete(b.id)">Delete</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+  <div class="card">
+    @if (loading) {
+      <div class="skeleton-card">
+        @for (i of [1,2,3,4]; track i) { <div class="skeleton skeleton--row"></div> }
+      </div>
+    } @else if (bins.length === 0) {
+      <div class="empty-state">
+        <span class="material-icons">dialpad</span>
+        <p>No BIN ranges defined.</p>
+      </div>
+    } @else {
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>BIN Range</th>
+            <th>Scheme</th>
+            <th>Card Type</th>
+            <th>Product</th>
+            <th>Country</th>
+            <th>Currency</th>
+            <th>Status</th>
+            <th class="action-cell">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (b of bins; track b.id) {
+            <tr class="table-row">
+              <td class="mono">{{ b.binStart }} – {{ b.binEnd }}</td>
+              <td>
+                <span class="scheme-badge" [style.background]="schemeColor(b.scheme)"
+                      [style.color]="'#fff'">{{ b.scheme }}</span>
+              </td>
+              <td>{{ b.cardType }}</td>
+              <td class="muted small">{{ b.productType }}</td>
+              <td class="muted">{{ b.countryCode }}</td>
+              <td class="muted">{{ b.currencyCode }}</td>
+              <td>
+                <app-status-badge [label]="b.active ? 'Active' : 'Inactive'"
+                                  [variant]="b.active ? 'success' : 'neutral'" />
+              </td>
+              <td class="action-cell">
+                <button class="btn-icon" title="Edit" (click)="openEdit(b)">
+                  <span class="material-icons">edit</span>
+                </button>
+                <button class="btn-icon btn-icon--danger" title="Delete" (click)="delete(b.id)">
+                  <span class="material-icons">delete</span>
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <div class="table-footer">{{ bins.length }} BIN range(s)</div>
+    }
   </div>
 </div>
 
-<div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
-  <div class="modal" (click)="$event.stopPropagation()">
-    <div class="modal-header"><h2>{{ editId ? 'Edit' : 'Add' }} BIN Range</h2><button class="btn-icon" (click)="closeModal()"><span class="material-symbols-outlined">close</span></button></div>
-    <div class="modal-body">
-      <label>BIN Start (6–8 digits) <input [(ngModel)]="form.binStart" maxlength="8" /></label>
-      <label>BIN End (6–8 digits) <input [(ngModel)]="form.binEnd" maxlength="8" /></label>
-      <label>Scheme
-        <select [(ngModel)]="form.scheme">
-          <option *ngFor="let s of schemes" [value]="s">{{ s }}</option>
-        </select>
-      </label>
-      <label>Card Type
-        <select [(ngModel)]="form.cardType">
-          <option *ngFor="let t of cardTypes" [value]="t">{{ t }}</option>
-        </select>
-      </label>
-      <label>Product Type <input [(ngModel)]="form.productType" placeholder="e.g. CLASSIC, GOLD, PLATINUM" /></label>
-      <label>Country Code (ISO 3166) <input [(ngModel)]="form.countryCode" maxlength="2" /></label>
-      <label>Currency Code (ISO 4217) <input [(ngModel)]="form.currencyCode" maxlength="3" /></label>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-ghost" (click)="closeModal()">Cancel</button>
-      <button class="btn-primary" (click)="submit()">{{ editId ? 'Save' : 'Add' }}</button>
+@if (showModal) {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">dialpad</span>
+        {{ editId ? 'Edit' : 'Add' }} BIN Range
+      </div>
+      <div class="modal__body">
+        <div class="form-row">
+          <div class="form-field">
+            <label class="form-label">BIN Start (6–8 digits)</label>
+            <input class="form-input mono" [(ngModel)]="form.binStart" maxlength="8" />
+          </div>
+          <div class="form-field">
+            <label class="form-label">BIN End (6–8 digits)</label>
+            <input class="form-input mono" [(ngModel)]="form.binEnd" maxlength="8" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label class="form-label">Scheme</label>
+            <select class="form-input" [(ngModel)]="form.scheme">
+              @for (s of schemes; track s) { <option [value]="s">{{ s }}</option> }
+            </select>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Card Type</label>
+            <select class="form-input" [(ngModel)]="form.cardType">
+              @for (t of cardTypes; track t) { <option [value]="t">{{ t }}</option> }
+            </select>
+          </div>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Product Type</label>
+          <input class="form-input" [(ngModel)]="form.productType" placeholder="e.g. CLASSIC, GOLD, PLATINUM" />
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label class="form-label">Country Code (ISO 3166)</label>
+            <input class="form-input" [(ngModel)]="form.countryCode" maxlength="2" placeholder="NG" />
+          </div>
+          <div class="form-field">
+            <label class="form-label">Currency Code (ISO 4217)</label>
+            <input class="form-input" [(ngModel)]="form.currencyCode" maxlength="3" placeholder="NGN" />
+          </div>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()">Cancel</button>
+        <button class="btn-primary" (click)="submit()">{{ editId ? 'Save' : 'Add' }}</button>
+      </div>
     </div>
   </div>
-</div>
+}

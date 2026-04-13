@@ -1,78 +1,113 @@
 <div class="page">
   <div class="page-header">
-    <div>
-      <h1>Cards</h1>
-      <p class="subtitle">Manage issued cards across all customers</p>
+    <div class="page-header__title">
+      <span class="material-icons">credit_card</span>
+      Cards
     </div>
     <button class="btn-primary" (click)="openIssue()">
-      <span class="material-symbols-outlined">add</span> Issue Card
+      <span class="material-icons">add</span> Issue Card
     </button>
   </div>
 
-  <div class="filters">
-    <div class="search-box">
-      <span class="material-symbols-outlined">search</span>
-      <input placeholder="Search by last 4 digits, customer ID…" [ngModel]="searchQuery" (ngModelChange)="onSearch($event)" />
-    </div>
-    <select [(ngModel)]="typeFilter" (ngModelChange)="applyFilter()">
+  <div class="filter-bar">
+    <input class="form-input filter-input" placeholder="Search by last 4 digits, customer…"
+           [ngModel]="searchQuery" (ngModelChange)="onSearch($event)" />
+    <select class="form-input" style="width:160px" [(ngModel)]="typeFilter" (ngModelChange)="applyFilter()">
       <option value="">All Types</option>
-      <option *ngFor="let t of types" [value]="t">{{ t }}</option>
+      @for (t of types; track t) { <option [value]="t">{{ t }}</option> }
     </select>
-    <select [(ngModel)]="statusFilter" (ngModelChange)="applyFilter()">
+    <select class="form-input" style="width:180px" [(ngModel)]="statusFilter" (ngModelChange)="applyFilter()">
       <option value="">All Statuses</option>
-      <option *ngFor="let s of statuses" [value]="s">{{ s }}</option>
+      @for (s of statuses; track s) { <option [value]="s">{{ s }}</option> }
     </select>
   </div>
 
-  <div class="card-panel">
-    <div *ngIf="loading" class="empty-state">Loading cards…</div>
-    <div *ngIf="!loading && filtered.length === 0" class="empty-state">No cards found.</div>
-
-    <table *ngIf="!loading && filtered.length > 0" class="data-table">
-      <thead>
-        <tr>
-          <th>PAN (masked)</th>
-          <th>Type</th>
-          <th>Status</th>
-          <th>Expiry</th>
-          <th>Customer ID</th>
-          <th>Virtual</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let card of filtered">
-          <td class="mono">****&nbsp;****&nbsp;****&nbsp;{{ card.panSuffix }}</td>
-          <td><span class="chip">{{ card.cardType }}</span></td>
-          <td><app-status-badge [label]="card.status" [variant]="statusVariant(card.status)" /></td>
-          <td>{{ card.expiryDate }}</td>
-          <td class="mono">{{ card.customerId }}</td>
-          <td><span class="material-symbols-outlined" [class.active]="card.virtualFlag">{{ card.virtualFlag ? 'check_circle' : 'remove' }}</span></td>
-          <td><a [routerLink]="['/cards', card.id]" class="link-action">View</a></td>
-        </tr>
-      </tbody>
-    </table>
+  <div class="card">
+    @if (loading) {
+      <div class="skeleton-card">
+        @for (i of [1,2,3,4,5]; track i) { <div class="skeleton skeleton--row"></div> }
+      </div>
+    } @else if (filtered.length === 0) {
+      <div class="empty-state">
+        <span class="material-icons">credit_card_off</span>
+        <p>No cards found.</p>
+      </div>
+    } @else {
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>PAN (masked)</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Expiry</th>
+            <th>Customer ID</th>
+            <th>Virtual</th>
+            <th class="action-cell">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (card of filtered; track card.id) {
+            <tr class="table-row">
+              <td class="mono">**** **** **** {{ card.panSuffix }}</td>
+              <td><span class="method-chip">{{ card.cardType }}</span></td>
+              <td>
+                <app-status-badge [label]="card.status" [variant]="statusVariant(card.status)" />
+              </td>
+              <td class="mono muted">{{ card.expiryDate }}</td>
+              <td class="mono muted small">{{ card.customerId }}</td>
+              <td>
+                <span class="material-icons" [style.color]="card.virtualFlag ? '#15803d' : '#d1d5db'">
+                  {{ card.virtualFlag ? 'check_circle' : 'remove_circle_outline' }}
+                </span>
+              </td>
+              <td class="action-cell">
+                <a [routerLink]="['/cards', card.id]" class="btn-icon" title="View">
+                  <span class="material-icons">open_in_new</span>
+                </a>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <div class="table-footer">{{ filtered.length }} card(s)</div>
+    }
   </div>
 </div>
 
-<!-- Issue Card Modal -->
-<div class="modal-overlay" *ngIf="showIssueModal" (click)="closeIssue()">
-  <div class="modal" (click)="$event.stopPropagation()">
-    <div class="modal-header">
-      <h2>Issue New Card</h2>
-      <button class="btn-icon" (click)="closeIssue()"><span class="material-symbols-outlined">close</span></button>
-    </div>
-    <div class="modal-body">
-      <label>Customer ID <input [(ngModel)]="issueForm.customerId" /></label>
-      <label>Product ID <input [(ngModel)]="issueForm.productId" /></label>
-      <label>Linked Entity ID (Account / Loan) <input [(ngModel)]="issueForm.linkedEntityId" /></label>
-      <label class="checkbox-row">
-        <input type="checkbox" [(ngModel)]="issueForm.virtualFlag" /> Virtual card
-      </label>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-ghost" (click)="closeIssue()">Cancel</button>
-      <button class="btn-primary" (click)="submitIssue()">Issue</button>
+@if (showIssueModal) {
+  <div class="modal-backdrop" (click)="closeIssue()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">add_card</span>
+        Issue New Card
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Customer ID <span class="required">*</span></label>
+          <input class="form-input" [(ngModel)]="issueForm.customerId" placeholder="Customer UUID" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Product ID <span class="required">*</span></label>
+          <input class="form-input" [(ngModel)]="issueForm.productId" placeholder="Card product UUID" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Linked Entity ID <span class="hint">(account or loan)</span></label>
+          <input class="form-input" [(ngModel)]="issueForm.linkedEntityId" placeholder="Account / Loan UUID" />
+        </div>
+        <div class="form-field">
+          <label class="form-label" style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
+            <input type="checkbox" [(ngModel)]="issueForm.virtualFlag" />
+            Virtual card (no physical production)
+          </label>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeIssue()">Cancel</button>
+        <button class="btn-primary" (click)="submitIssue()"
+                [disabled]="!issueForm.customerId || !issueForm.productId">
+          Issue
+        </button>
+      </div>
     </div>
   </div>
-</div>
+}

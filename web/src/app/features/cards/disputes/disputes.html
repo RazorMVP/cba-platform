@@ -1,102 +1,194 @@
 <div class="page">
   <div class="page-header">
-    <div><h1>Disputes</h1><p class="subtitle">Scheme-compliant chargeback workflow management</p></div>
-    <button class="btn-primary" (click)="showRaiseModal = true"><span class="material-symbols-outlined">add</span> Raise Dispute</button>
+    <div class="page-header__title">
+      <span class="material-icons">gavel</span>
+      Disputes
+    </div>
+    <button class="btn-primary" (click)="showRaiseModal = true">
+      <span class="material-icons">add</span> Raise Dispute
+    </button>
   </div>
 
-  <div class="filters">
-    <select [(ngModel)]="statusFilter" (ngModelChange)="load()">
+  <div class="filter-bar">
+    <select class="form-input" style="width:200px" [(ngModel)]="statusFilter" (ngModelChange)="load()">
       <option value="">All Statuses</option>
-      <option *ngFor="let s of statuses" [value]="s">{{ s }}</option>
+      @for (s of statuses; track s) { <option [value]="s">{{ s }}</option> }
     </select>
   </div>
 
   <div class="disputes-layout">
     <!-- List Panel -->
-    <div class="card-panel list-panel">
-      <div *ngIf="loading" class="empty-state">Loading…</div>
-      <div *ngIf="!loading && disputes.length === 0" class="empty-state">No disputes found.</div>
-      <div class="dispute-row" *ngFor="let d of disputes" [class.selected]="selectedDispute?.id === d.id" (click)="select(d)">
-        <div class="dispute-top">
-          <span class="mono">{{ d.transactionRef }}</span>
-          <app-status-badge [label]="d.status" [variant]="statusVariant(d.status)" />
+    <div class="card">
+      @if (loading) {
+        <div class="skeleton-card">
+          @for (i of [1,2,3]; track i) { <div class="skeleton skeleton--row"></div> }
         </div>
-        <div class="dispute-meta">
-          <span>{{ d.disputeReason }}</span>
-          <span>{{ d.originalAmount | number:'1.2-2' }}</span>
+      } @else if (disputes.length === 0) {
+        <div class="empty-state">
+          <span class="material-icons">gavel</span>
+          <p>No disputes found.</p>
         </div>
-        <div class="dispute-date">{{ d.createdAt | date:'shortDate' }}</div>
-      </div>
+      } @else {
+        @for (d of disputes; track d.id) {
+          <div class="dispute-row" [class.dispute-row--selected]="selectedDispute?.id === d.id"
+               (click)="select(d)">
+            <div class="dispute-top">
+              <span class="mono small">{{ d.transactionRef }}</span>
+              <app-status-badge [label]="d.status" [variant]="statusVariant(d.status)" />
+            </div>
+            <div class="dispute-meta">
+              <span class="muted small">{{ d.disputeReason }}</span>
+              <span class="mono small">{{ d.originalAmount | number:'1.2-2' }}</span>
+            </div>
+            <div class="muted small" style="margin-top:.25rem">{{ d.createdAt | date:'shortDate' }}</div>
+          </div>
+        }
+      }
     </div>
 
     <!-- Detail Panel -->
-    <div class="card-panel detail-panel" *ngIf="selectedDispute">
-      <div class="panel-header">
-        <h3>Dispute Detail</h3>
-        <button class="btn-icon" (click)="closeDetail()"><span class="material-symbols-outlined">close</span></button>
-      </div>
-      <div class="detail-grid">
-        <div class="detail-row"><span class="label">Status</span><app-status-badge [label]="selectedDispute.status" [variant]="statusVariant(selectedDispute.status)" /></div>
-        <div class="detail-row"><span class="label">Card ID</span><span class="mono">{{ selectedDispute.cardId }}</span></div>
-        <div class="detail-row"><span class="label">Transaction Ref</span><span class="mono">{{ selectedDispute.transactionRef }}</span></div>
-        <div class="detail-row"><span class="label">Reason</span><span>{{ selectedDispute.disputeReason }}</span></div>
-        <div class="detail-row"><span class="label">Amount</span><span>{{ selectedDispute.originalAmount | number:'1.2-2' }}</span></div>
-        <div class="detail-row"><span class="label">Chargeback Deadline</span><span>{{ selectedDispute.chargebackDeadline || '—' }}</span></div>
-        <div class="detail-row"><span class="label">Response Deadline</span><span>{{ selectedDispute.responseDeadline || '—' }}</span></div>
-        <div class="detail-row"><span class="label">Reason Code</span><span>{{ selectedDispute.schemeReasonCode || '—' }}</span></div>
-      </div>
+    @if (selectedDispute) {
+      <div class="card">
+        <div class="detail-panel-header">
+          <strong>Dispute Detail</strong>
+          <button class="btn-icon" (click)="closeDetail()">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
+        <div class="detail-grid" style="padding:1rem 1.25rem">
+          <div>
+            <div class="detail-item__label">Status</div>
+            <app-status-badge [label]="selectedDispute.status" [variant]="statusVariant(selectedDispute.status)" />
+          </div>
+          <div>
+            <div class="detail-item__label">Card ID</div>
+            <div class="detail-item__value mono small">{{ selectedDispute.cardId }}</div>
+          </div>
+          <div>
+            <div class="detail-item__label">Transaction Ref</div>
+            <div class="detail-item__value mono">{{ selectedDispute.transactionRef }}</div>
+          </div>
+          <div>
+            <div class="detail-item__label">Reason</div>
+            <div class="detail-item__value">{{ selectedDispute.disputeReason }}</div>
+          </div>
+          <div>
+            <div class="detail-item__label">Amount</div>
+            <div class="detail-item__value">{{ selectedDispute.originalAmount | number:'1.2-2' }}</div>
+          </div>
+          <div>
+            <div class="detail-item__label">Chargeback Deadline</div>
+            <div class="detail-item__value">{{ selectedDispute.chargebackDeadline || '—' }}</div>
+          </div>
+          <div>
+            <div class="detail-item__label">Response Deadline</div>
+            <div class="detail-item__value">{{ selectedDispute.responseDeadline || '—' }}</div>
+          </div>
+          <div>
+            <div class="detail-item__label">Reason Code</div>
+            <div class="detail-item__value">{{ selectedDispute.schemeReasonCode || '—' }}</div>
+          </div>
+        </div>
 
-      <div class="panel-actions">
-        <button class="btn-ghost sm" *ngIf="selectedDispute.status === 'RAISED'" (click)="advanceDispute(selectedDispute, 'retrieval')">Request Retrieval</button>
-        <button class="btn-ghost sm" *ngIf="selectedDispute.status === 'RAISED' || selectedDispute.status === 'RETRIEVAL_REQUESTED'" (click)="advanceDispute(selectedDispute, 'chargeback')">Initiate Chargeback</button>
-        <button class="btn-ghost sm" *ngIf="selectedDispute.status === 'CHARGEBACK_INITIATED'" (click)="advanceDispute(selectedDispute, 'representment')">Record Representment</button>
-        <button class="btn-ghost sm" *ngIf="selectedDispute.status === 'REPRESENTMENT'" (click)="advanceDispute(selectedDispute, 'pre-arbitration')">Pre-Arbitration</button>
-        <button class="btn-primary sm" *ngIf="selectedDispute.status !== 'RESOLVED' && selectedDispute.status !== 'WITHDRAWN'" (click)="openResolve(selectedDispute)">Resolve</button>
-        <button class="btn-ghost sm" *ngIf="selectedDispute.status !== 'RESOLVED' && selectedDispute.status !== 'WITHDRAWN'" (click)="advanceDispute(selectedDispute, 'withdraw')">Withdraw</button>
+        <div class="panel-actions">
+          @if (selectedDispute.status === 'RAISED') {
+            <button class="btn-secondary" (click)="advanceDispute(selectedDispute, 'retrieval')">
+              Request Retrieval
+            </button>
+          }
+          @if (selectedDispute.status === 'RAISED' || selectedDispute.status === 'RETRIEVAL_REQUESTED') {
+            <button class="btn-secondary" (click)="advanceDispute(selectedDispute, 'chargeback')">
+              Initiate Chargeback
+            </button>
+          }
+          @if (selectedDispute.status === 'CHARGEBACK_INITIATED') {
+            <button class="btn-secondary" (click)="advanceDispute(selectedDispute, 'representment')">
+              Record Representment
+            </button>
+          }
+          @if (selectedDispute.status === 'REPRESENTMENT') {
+            <button class="btn-secondary" (click)="advanceDispute(selectedDispute, 'pre-arbitration')">
+              Pre-Arbitration
+            </button>
+          }
+          @if (selectedDispute.status !== 'RESOLVED' && selectedDispute.status !== 'WITHDRAWN') {
+            <button class="btn-primary" (click)="openResolve(selectedDispute)">Resolve</button>
+            <button class="btn-secondary" (click)="advanceDispute(selectedDispute, 'withdraw')">Withdraw</button>
+          }
+        </div>
       </div>
-    </div>
+    }
   </div>
 </div>
 
-<!-- Raise Dispute Modal -->
-<div class="modal-overlay" *ngIf="showRaiseModal" (click)="showRaiseModal = false">
-  <div class="modal" (click)="$event.stopPropagation()">
-    <div class="modal-header"><h2>Raise Dispute</h2><button class="btn-icon" (click)="showRaiseModal = false"><span class="material-symbols-outlined">close</span></button></div>
-    <div class="modal-body">
-      <label>Card ID <input [(ngModel)]="raiseForm.cardId" /></label>
-      <label>Transaction Ref (RRN) <input [(ngModel)]="raiseForm.transactionRef" /></label>
-      <label>Reason
-        <select [(ngModel)]="raiseForm.disputeReason">
-          <option *ngFor="let r of reasons" [value]="r">{{ r }}</option>
-        </select>
-      </label>
-      <label>Raised By (User ID) <input [(ngModel)]="raiseForm.raisedBy" /></label>
-      <label>Original Amount (minor units) <input type="number" [(ngModel)]="raiseForm.originalAmount" /></label>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-ghost" (click)="showRaiseModal = false">Cancel</button>
-      <button class="btn-primary" (click)="raiseDispute()">Raise</button>
+@if (showRaiseModal) {
+  <div class="modal-backdrop" (click)="showRaiseModal = false">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">gavel</span>
+        Raise Dispute
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Card ID <span class="required">*</span></label>
+          <input class="form-input" [(ngModel)]="raiseForm.cardId" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Transaction Ref (RRN) <span class="required">*</span></label>
+          <input class="form-input mono" [(ngModel)]="raiseForm.transactionRef" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Reason <span class="required">*</span></label>
+          <select class="form-input" [(ngModel)]="raiseForm.disputeReason">
+            @for (r of reasons; track r) { <option [value]="r">{{ r }}</option> }
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Raised By (User ID)</label>
+          <input class="form-input" [(ngModel)]="raiseForm.raisedBy" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Original Amount (minor units)</label>
+          <input class="form-input" type="number" [(ngModel)]="raiseForm.originalAmount" />
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="showRaiseModal = false">Cancel</button>
+        <button class="btn-primary" (click)="raiseDispute()">Raise</button>
+      </div>
     </div>
   </div>
-</div>
+}
 
-<!-- Resolve Modal -->
-<div class="modal-overlay" *ngIf="showResolveModal" (click)="showResolveModal = false">
-  <div class="modal" (click)="$event.stopPropagation()">
-    <div class="modal-header"><h2>Resolve Dispute</h2><button class="btn-icon" (click)="showResolveModal = false"><span class="material-symbols-outlined">close</span></button></div>
-    <div class="modal-body">
-      <label>Resolved By (Staff ID) <input [(ngModel)]="resolveForm.resolvedBy" /></label>
-      <label>Resolution Favor
-        <select [(ngModel)]="resolveForm.resolutionFavor">
-          <option value="ISSUER">Issuer (Bank wins)</option>
-          <option value="ACQUIRER">Acquirer (Merchant wins)</option>
-        </select>
-      </label>
-      <label>Resolution Notes <textarea [(ngModel)]="resolveForm.resolutionNotes" rows="3"></textarea></label>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-ghost" (click)="showResolveModal = false">Cancel</button>
-      <button class="btn-primary" (click)="submitResolve()">Resolve</button>
+@if (showResolveModal) {
+  <div class="modal-backdrop" (click)="showResolveModal = false">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">check_circle</span>
+        Resolve Dispute
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Resolved By (Staff ID)</label>
+          <input class="form-input" [(ngModel)]="resolveForm.resolvedBy" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Resolution Favor</label>
+          <select class="form-input" [(ngModel)]="resolveForm.resolutionFavor">
+            <option value="ISSUER">Issuer (Bank wins)</option>
+            <option value="ACQUIRER">Acquirer (Merchant wins)</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Resolution Notes</label>
+          <textarea class="form-input form-input--textarea" [(ngModel)]="resolveForm.resolutionNotes"
+                    rows="3"></textarea>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="showResolveModal = false">Cancel</button>
+        <button class="btn-primary" (click)="submitResolve()">Resolve</button>
+      </div>
     </div>
   </div>
-</div>
+}

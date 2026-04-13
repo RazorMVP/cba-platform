@@ -1,121 +1,230 @@
-<div class="page" *ngIf="!loading && card">
-  <div class="page-header">
-    <div>
-      <h1>Card ****&nbsp;{{ card.panSuffix }}</h1>
-      <app-status-badge [label]="card.status" [variant]="statusVariant(card.status)" />
+@if (loading) {
+  <div class="page"><div class="empty-state"><span class="spinner spinner--dark"></span></div></div>
+}
+@if (!loading && card) {
+  <div class="page">
+    <div class="page-header">
+      <div class="page-header__title">
+        <span class="material-icons">credit_card</span>
+        Card **** {{ card.panSuffix }}
+        <app-status-badge [label]="card.status" [variant]="statusVariant(card.status)" />
+      </div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        @if (card.status === 'ACTIVE') {
+          <button class="btn-secondary" (click)="confirmAction('block')">
+            <span class="material-icons">block</span> Block
+          </button>
+        }
+        @if (card.status === 'BLOCKED') {
+          <button class="btn-secondary" (click)="confirmAction('unblock')">
+            <span class="material-icons">lock_open</span> Unblock
+          </button>
+        }
+        @if (card.status === 'ACTIVATION_PENDING') {
+          <button class="btn-secondary" (click)="confirmAction('activate')">
+            <span class="material-icons">check_circle</span> Activate
+          </button>
+        }
+        @if (card.status !== 'CANCELLED' && card.status !== 'EXPIRED') {
+          <button class="btn-danger" (click)="confirmAction('cancel')">
+            <span class="material-icons">cancel</span> Cancel
+          </button>
+        }
+        <button class="btn-primary" (click)="openLimits()">
+          <span class="material-icons">tune</span> Edit Limits
+        </button>
+      </div>
     </div>
-    <div class="actions">
-      <button class="btn-ghost" *ngIf="card.status === 'ACTIVE'" (click)="confirmAction('block')">Block</button>
-      <button class="btn-ghost" *ngIf="card.status === 'BLOCKED'" (click)="confirmAction('unblock')">Unblock</button>
-      <button class="btn-ghost" *ngIf="card.status === 'ACTIVATION_PENDING'" (click)="confirmAction('activate')">Activate</button>
-      <button class="btn-ghost danger" *ngIf="card.status !== 'CANCELLED' && card.status !== 'EXPIRED'" (click)="confirmAction('cancel')">Cancel</button>
-      <button class="btn-primary" (click)="openLimits()">Edit Limits</button>
+
+    <!-- Summary KPI row -->
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <span class="kpi-label">Type</span>
+        <span class="kpi-value">{{ card.cardType }}</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Expiry</span>
+        <span class="kpi-value mono">{{ card.expiryDate }}</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Available Balance</span>
+        <span class="kpi-value">{{ balance ? (balance.availableBalance | number:'1.2-2') : '—' }}</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Virtual</span>
+        <span class="kpi-value">{{ card.virtualFlag ? 'Yes' : 'No' }}</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">PIN Retries</span>
+        <span class="kpi-value" [style.color]="card.pinRetryCount >= 2 ? '#dc2626' : 'inherit'">
+          {{ card.pinRetryCount }} / 3
+        </span>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tab-bar">
+      <button class="tab-item" [class.tab-item--active]="activeTab === 'overview'"
+              (click)="activeTab = 'overview'">Overview</button>
+      <button class="tab-item" [class.tab-item--active]="activeTab === 'authorizations'"
+              (click)="activeTab = 'authorizations'">Authorizations</button>
+      <button class="tab-item" [class.tab-item--active]="activeTab === 'limits'"
+              (click)="activeTab = 'limits'">Limits</button>
+    </div>
+
+    @if (activeTab === 'overview') {
+      <div class="card">
+        <div class="detail-grid" style="padding:1.25rem">
+          <div>
+            <div class="detail-item__label">Card ID</div>
+            <div class="detail-item__value mono small">{{ card.id }}</div>
+          </div>
+          <div>
+            <div class="detail-item__label">Customer ID</div>
+            <div class="detail-item__value mono small">{{ card.customerId }}</div>
+          </div>
+          <div>
+            <div class="detail-item__label">Product ID</div>
+            <div class="detail-item__value mono small">{{ card.productId }}</div>
+          </div>
+          <div>
+            <div class="detail-item__label">Linked Entity</div>
+            <div class="detail-item__value mono small">{{ card.linkedEntityId }}</div>
+          </div>
+          <div>
+            <div class="detail-item__label">Created</div>
+            <div class="detail-item__value">{{ card.createdAt | date:'medium' }}</div>
+          </div>
+          <div>
+            <div class="detail-item__label">Updated</div>
+            <div class="detail-item__value">{{ card.updatedAt | date:'medium' }}</div>
+          </div>
+        </div>
+      </div>
+    }
+
+    @if (activeTab === 'authorizations') {
+      <div class="card">
+        @if (auths.length === 0) {
+          <div class="empty-state">
+            <span class="material-icons">history</span>
+            <p>No authorization history.</p>
+          </div>
+        } @else {
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Date</th><th>Amount</th><th>Merchant</th>
+                <th>Entry</th><th>Fraud Score</th><th>RC</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (a of auths; track a.id) {
+                <tr class="table-row">
+                  <td class="muted small">{{ a.createdAt | date:'short' }}</td>
+                  <td class="mono">{{ a.amount | number:'1.2-2' }} {{ a.currencyCode }}</td>
+                  <td>{{ a.merchantName }}</td>
+                  <td><span class="method-chip">{{ a.entryMode }}</span></td>
+                  <td>
+                    <span [class]="a.fraudScore >= 70 ? 'score-high' : a.fraudScore >= 30 ? 'score-med' : 'score-low'">
+                      {{ a.fraudScore }}
+                    </span>
+                  </td>
+                  <td><app-status-badge [label]="a.responseCode" [variant]="rcVariant(a.responseCode)" /></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+    }
+
+    @if (activeTab === 'limits') {
+      <div class="card">
+        @if (!limits) {
+          <div class="empty-state">
+            <span class="material-icons">tune</span>
+            <p>No limit data available.</p>
+          </div>
+        } @else {
+          <div class="detail-grid" style="padding:1.25rem">
+            <div>
+              <div class="detail-item__label">Daily Purchase</div>
+              <div class="detail-item__value">{{ limits.dailyPurchaseLimit | number:'1.2-2' }}</div>
+            </div>
+            <div>
+              <div class="detail-item__label">Daily Withdrawal</div>
+              <div class="detail-item__value">{{ limits.dailyWithdrawalLimit | number:'1.2-2' }}</div>
+            </div>
+            <div>
+              <div class="detail-item__label">Per Transaction</div>
+              <div class="detail-item__value">{{ limits.perTxnLimit | number:'1.2-2' }}</div>
+            </div>
+            <div>
+              <div class="detail-item__label">Monthly</div>
+              <div class="detail-item__value">{{ limits.monthlyLimit | number:'1.2-2' }}</div>
+            </div>
+            <div>
+              <div class="detail-item__label">Currency</div>
+              <div class="detail-item__value">{{ limits.currencyCode }}</div>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  </div>
+}
+
+@if (showLimitsModal) {
+  <div class="modal-backdrop" (click)="showLimitsModal = false">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">tune</span>
+        Edit Card Limits
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Daily Purchase Limit</label>
+          <input class="form-input" type="number" [(ngModel)]="limitsForm.dailyPurchaseLimit" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Daily Withdrawal Limit</label>
+          <input class="form-input" type="number" [(ngModel)]="limitsForm.dailyWithdrawalLimit" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Per Transaction Limit</label>
+          <input class="form-input" type="number" [(ngModel)]="limitsForm.perTxnLimit" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Monthly Limit</label>
+          <input class="form-input" type="number" [(ngModel)]="limitsForm.monthlyLimit" />
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="showLimitsModal = false">Cancel</button>
+        <button class="btn-primary" (click)="saveLimits()">Save</button>
+      </div>
     </div>
   </div>
+}
 
-  <!-- Summary row -->
-  <div class="summary-cards">
-    <div class="kpi-card">
-      <span class="kpi-label">Type</span>
-      <span class="kpi-value">{{ card.cardType }}</span>
-    </div>
-    <div class="kpi-card">
-      <span class="kpi-label">Expiry</span>
-      <span class="kpi-value mono">{{ card.expiryDate }}</span>
-    </div>
-    <div class="kpi-card">
-      <span class="kpi-label">Available Balance</span>
-      <span class="kpi-value">{{ balance ? (balance.availableBalance | number:'1.2-2') : '—' }}</span>
-    </div>
-    <div class="kpi-card">
-      <span class="kpi-label">Virtual</span>
-      <span class="kpi-value">{{ card.virtualFlag ? 'Yes' : 'No' }}</span>
-    </div>
-    <div class="kpi-card">
-      <span class="kpi-label">PIN Retries</span>
-      <span class="kpi-value" [class.danger-text]="card.pinRetryCount >= 2">{{ card.pinRetryCount }} / 3</span>
+@if (showBlockConfirm) {
+  <div class="modal-backdrop" (click)="showBlockConfirm = false">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">warning</span>
+        Confirm {{ confirmCommand | titlecase }}
+      </div>
+      <div class="modal__body">
+        <p>Are you sure you want to <strong>{{ confirmCommand }}</strong> this card?</p>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="showBlockConfirm = false">Cancel</button>
+        <button [class]="confirmCommand === 'cancel' ? 'btn-danger' : 'btn-primary'"
+                (click)="executeCommand()">
+          {{ confirmCommand | titlecase }}
+        </button>
+      </div>
     </div>
   </div>
-
-  <!-- Tabs -->
-  <div class="tab-bar">
-    <button [class.active]="activeTab === 'overview'" (click)="activeTab = 'overview'">Overview</button>
-    <button [class.active]="activeTab === 'authorizations'" (click)="activeTab = 'authorizations'">Authorizations</button>
-    <button [class.active]="activeTab === 'limits'" (click)="activeTab = 'limits'">Limits</button>
-  </div>
-
-  <!-- Overview Tab -->
-  <div class="card-panel" *ngIf="activeTab === 'overview'">
-    <div class="detail-grid">
-      <div class="detail-row"><span class="label">Card ID</span><span class="mono">{{ card.id }}</span></div>
-      <div class="detail-row"><span class="label">Customer ID</span><span class="mono">{{ card.customerId }}</span></div>
-      <div class="detail-row"><span class="label">Product ID</span><span class="mono">{{ card.productId }}</span></div>
-      <div class="detail-row"><span class="label">Linked Entity</span><span class="mono">{{ card.linkedEntityId }}</span></div>
-      <div class="detail-row"><span class="label">Created</span><span>{{ card.createdAt | date:'medium' }}</span></div>
-      <div class="detail-row"><span class="label">Updated</span><span>{{ card.updatedAt | date:'medium' }}</span></div>
-    </div>
-  </div>
-
-  <!-- Authorizations Tab -->
-  <div class="card-panel" *ngIf="activeTab === 'authorizations'">
-    <div *ngIf="auths.length === 0" class="empty-state">No authorization history.</div>
-    <table *ngIf="auths.length > 0" class="data-table">
-      <thead>
-        <tr><th>Date</th><th>Amount</th><th>Merchant</th><th>Entry</th><th>Fraud Score</th><th>RC</th></tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let a of auths">
-          <td>{{ a.createdAt | date:'short' }}</td>
-          <td class="mono">{{ a.amount | number:'1.2-2' }} {{ a.currencyCode }}</td>
-          <td>{{ a.merchantName }}</td>
-          <td>{{ a.entryMode }}</td>
-          <td [class.high-risk]="a.fraudScore >= 70" [class.medium-risk]="a.fraudScore >= 30 && a.fraudScore < 70">{{ a.fraudScore }}</td>
-          <td><app-status-badge [label]="a.responseCode" [variant]="rcVariant(a.responseCode)" /></td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Limits Tab -->
-  <div class="card-panel" *ngIf="activeTab === 'limits'">
-    <div *ngIf="!limits" class="empty-state">No limit data available.</div>
-    <div *ngIf="limits" class="detail-grid">
-      <div class="detail-row"><span class="label">Daily Purchase</span><span>{{ limits.dailyPurchaseLimit | number:'1.2-2' }}</span></div>
-      <div class="detail-row"><span class="label">Daily Withdrawal</span><span>{{ limits.dailyWithdrawalLimit | number:'1.2-2' }}</span></div>
-      <div class="detail-row"><span class="label">Per Transaction</span><span>{{ limits.perTxnLimit | number:'1.2-2' }}</span></div>
-      <div class="detail-row"><span class="label">Monthly</span><span>{{ limits.monthlyLimit | number:'1.2-2' }}</span></div>
-      <div class="detail-row"><span class="label">Currency</span><span>{{ limits.currencyCode }}</span></div>
-    </div>
-  </div>
-</div>
-
-<div *ngIf="loading" class="page empty-state">Loading card…</div>
-
-<!-- Edit Limits Modal -->
-<div class="modal-overlay" *ngIf="showLimitsModal" (click)="showLimitsModal = false">
-  <div class="modal" (click)="$event.stopPropagation()">
-    <div class="modal-header"><h2>Edit Card Limits</h2><button class="btn-icon" (click)="showLimitsModal = false"><span class="material-symbols-outlined">close</span></button></div>
-    <div class="modal-body">
-      <label>Daily Purchase Limit <input type="number" [(ngModel)]="limitsForm.dailyPurchaseLimit" /></label>
-      <label>Daily Withdrawal Limit <input type="number" [(ngModel)]="limitsForm.dailyWithdrawalLimit" /></label>
-      <label>Per Transaction Limit <input type="number" [(ngModel)]="limitsForm.perTxnLimit" /></label>
-      <label>Monthly Limit <input type="number" [(ngModel)]="limitsForm.monthlyLimit" /></label>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-ghost" (click)="showLimitsModal = false">Cancel</button>
-      <button class="btn-primary" (click)="saveLimits()">Save</button>
-    </div>
-  </div>
-</div>
-
-<!-- Confirm Command Modal -->
-<div class="modal-overlay" *ngIf="showBlockConfirm" (click)="showBlockConfirm = false">
-  <div class="modal modal-sm" (click)="$event.stopPropagation()">
-    <div class="modal-header"><h2>Confirm {{ confirmCommand | titlecase }}</h2></div>
-    <div class="modal-body"><p>Are you sure you want to <strong>{{ confirmCommand }}</strong> this card?</p></div>
-    <div class="modal-footer">
-      <button class="btn-ghost" (click)="showBlockConfirm = false">Cancel</button>
-      <button class="btn-primary" [class.danger]="confirmCommand === 'cancel'" (click)="executeCommand()">{{ confirmCommand | titlecase }}</button>
-    </div>
-  </div>
-</div>
+}

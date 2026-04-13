@@ -1,6 +1,11 @@
 @use 'assets/styles/tokens' as *;
 
-.mono { font-family: 'Roboto Mono', monospace; font-size: 0.85rem; }
-.scheme-badge { color: #fff; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
-.sm { padding: 4px 10px; font-size: 0.8rem; }
-.danger-btn { color: #ef4444; }
+:host { display: block; }
+
+.scheme-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}

@@ -1,76 +1,127 @@
 <div class="page">
   <div class="page-header">
-    <div><h1>Settlement</h1><p class="subtitle">Batch settlement tracking and scheme file transmission</p></div>
-  </div>
-
-  <div class="tab-bar">
-    <button [class.active]="activeTab === 'batches'" (click)="activeTab = 'batches'">Batches</button>
-    <button [class.active]="activeTab === 'transmissions'" (click)="activeTab = 'transmissions'">Transmissions</button>
-  </div>
-
-  <!-- Batches Tab -->
-  <div *ngIf="activeTab === 'batches'">
-    <div *ngIf="loading" class="card-panel empty-state">Loading…</div>
-    <div *ngIf="!loading && batches.length === 0" class="card-panel empty-state">No settlement batches.</div>
-
-    <div class="batch-list" *ngIf="!loading">
-      <div class="batch-card" *ngFor="let batch of batches">
-        <div class="batch-header" (click)="toggleExpand(batch.id)">
-          <div class="batch-meta">
-            <span class="batch-ref mono">{{ batch.batchRef }}</span>
-            <app-status-badge [label]="batch.status" [variant]="statusVariant(batch.status)" />
-            <span class="batch-date">{{ batch.settlementDate }}</span>
-          </div>
-          <div class="batch-stats">
-            <span><strong>{{ batch.itemCount }}</strong> items</span>
-            <span><strong>{{ totalAmount(batch) }}</strong></span>
-          </div>
-          <div class="batch-actions">
-            <button class="btn-ghost sm" *ngIf="batch.status === 'OPEN'" (click)="closeBatch(batch.id); $event.stopPropagation()">Close Batch</button>
-            <button class="btn-primary sm" *ngIf="batch.status === 'CLOSED'" (click)="triggerExport(batch.id); $event.stopPropagation()">Export Files</button>
-            <span class="material-symbols-outlined">{{ expandedBatch === batch.id ? 'expand_less' : 'expand_more' }}</span>
-          </div>
-        </div>
-
-        <div class="batch-detail" *ngIf="expandedBatch === batch.id">
-          <div class="detail-grid">
-            <div class="detail-row"><span class="label">Opened</span><span>{{ batch.openedAt | date:'medium' }}</span></div>
-            <div class="detail-row"><span class="label">Closed</span><span>{{ batch.closedAt ? (batch.closedAt | date:'medium') : '—' }}</span></div>
-          </div>
-          <div *ngIf="batchTransmissions(batch.id).length > 0" class="transmissions-mini">
-            <h4>Transmissions</h4>
-            <table class="data-table">
-              <thead><tr><th>Scheme</th><th>Status</th><th>Attempts</th><th>Last Attempt</th></tr></thead>
-              <tbody>
-                <tr *ngFor="let t of batchTransmissions(batch.id)">
-                  <td>{{ t.scheme }}</td>
-                  <td><app-status-badge [label]="t.status" [variant]="statusVariant(t.status)" /></td>
-                  <td>{{ t.attemptCount }}</td>
-                  <td>{{ t.lastAttemptAt ? (t.lastAttemptAt | date:'short') : '—' }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+    <div class="page-header__title">
+      <span class="material-icons">account_balance_wallet</span>
+      Settlement
     </div>
   </div>
 
-  <!-- Transmissions Tab -->
-  <div class="card-panel" *ngIf="activeTab === 'transmissions'">
-    <div *ngIf="transmissions.length === 0" class="empty-state">No transmission records.</div>
-    <table *ngIf="transmissions.length > 0" class="data-table">
-      <thead><tr><th>Batch</th><th>Scheme</th><th>Status</th><th>Attempts</th><th>Last Attempt</th><th>Transmitted</th></tr></thead>
-      <tbody>
-        <tr *ngFor="let t of transmissions">
-          <td class="mono">{{ t.batchId.slice(0,8) }}…</td>
-          <td><span class="chip-scheme">{{ t.scheme }}</span></td>
-          <td><app-status-badge [label]="t.status" [variant]="statusVariant(t.status)" /></td>
-          <td>{{ t.attemptCount }}</td>
-          <td>{{ t.lastAttemptAt ? (t.lastAttemptAt | date:'short') : '—' }}</td>
-          <td>{{ t.transmittedAt ? (t.transmittedAt | date:'short') : '—' }}</td>
-        </tr>
-      </tbody>
-    </table>
+  <div class="tab-bar">
+    <button class="tab-item" [class.tab-item--active]="activeTab === 'batches'"
+            (click)="activeTab = 'batches'">Batches</button>
+    <button class="tab-item" [class.tab-item--active]="activeTab === 'transmissions'"
+            (click)="activeTab = 'transmissions'">Transmissions</button>
   </div>
+
+  @if (activeTab === 'batches') {
+    @if (loading) {
+      <div class="card">
+        <div class="skeleton-card">
+          @for (i of [1,2,3]; track i) { <div class="skeleton skeleton--row"></div> }
+        </div>
+      </div>
+    } @else if (batches.length === 0) {
+      <div class="card">
+        <div class="empty-state">
+          <span class="material-icons">account_balance_wallet</span>
+          <p>No settlement batches.</p>
+        </div>
+      </div>
+    } @else {
+      @for (batch of batches; track batch.id) {
+        <div class="card batch-card">
+          <div class="batch-header" (click)="toggleExpand(batch.id)">
+            <div class="batch-meta">
+              <span class="mono">{{ batch.batchRef }}</span>
+              <app-status-badge [label]="batch.status" [variant]="statusVariant(batch.status)" />
+              <span class="muted small">{{ batch.settlementDate }}</span>
+            </div>
+            <div class="batch-right">
+              <span class="muted small"><strong>{{ batch.itemCount }}</strong> items · {{ totalAmount(batch) }}</span>
+              @if (batch.status === 'OPEN') {
+                <button class="btn-secondary" (click)="closeBatch(batch.id); $event.stopPropagation()">
+                  Close Batch
+                </button>
+              }
+              @if (batch.status === 'CLOSED') {
+                <button class="btn-primary" (click)="triggerExport(batch.id); $event.stopPropagation()">
+                  <span class="material-icons">upload</span> Export
+                </button>
+              }
+              <span class="material-icons muted">
+                {{ expandedBatch === batch.id ? 'expand_less' : 'expand_more' }}
+              </span>
+            </div>
+          </div>
+
+          @if (expandedBatch === batch.id) {
+            <div class="batch-detail">
+              <div class="detail-grid" style="padding:0 1.25rem 1rem">
+                <div>
+                  <div class="detail-item__label">Opened</div>
+                  <div class="detail-item__value">{{ batch.openedAt | date:'medium' }}</div>
+                </div>
+                <div>
+                  <div class="detail-item__label">Closed</div>
+                  <div class="detail-item__value">{{ batch.closedAt ? (batch.closedAt | date:'medium') : '—' }}</div>
+                </div>
+              </div>
+              @if (batchTransmissions(batch.id).length > 0) {
+                <div style="padding:0 1.25rem 1rem">
+                  <p class="muted small" style="margin-bottom:.5rem">Transmissions</p>
+                  <table class="data-table">
+                    <thead>
+                      <tr><th>Scheme</th><th>Status</th><th>Attempts</th><th>Last Attempt</th></tr>
+                    </thead>
+                    <tbody>
+                      @for (t of batchTransmissions(batch.id); track t.id) {
+                        <tr class="table-row">
+                          <td><span class="method-chip">{{ t.scheme }}</span></td>
+                          <td><app-status-badge [label]="t.status" [variant]="statusVariant(t.status)" /></td>
+                          <td>{{ t.attemptCount }}</td>
+                          <td class="muted small">{{ t.lastAttemptAt ? (t.lastAttemptAt | date:'short') : '—' }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      }
+    }
+  }
+
+  @if (activeTab === 'transmissions') {
+    <div class="card">
+      @if (transmissions.length === 0) {
+        <div class="empty-state">
+          <span class="material-icons">send</span>
+          <p>No transmission records.</p>
+        </div>
+      } @else {
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Batch</th><th>Scheme</th><th>Status</th>
+              <th>Attempts</th><th>Last Attempt</th><th>Transmitted</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (t of transmissions; track t.id) {
+              <tr class="table-row">
+                <td class="mono muted small">{{ t.batchId.slice(0,8) }}…</td>
+                <td><span class="method-chip">{{ t.scheme }}</span></td>
+                <td><app-status-badge [label]="t.status" [variant]="statusVariant(t.status)" /></td>
+                <td>{{ t.attemptCount }}</td>
+                <td class="muted small">{{ t.lastAttemptAt ? (t.lastAttemptAt | date:'short') : '—' }}</td>
+                <td class="muted small">{{ t.transmittedAt ? (t.transmittedAt | date:'short') : '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </div>
+  }
 </div>

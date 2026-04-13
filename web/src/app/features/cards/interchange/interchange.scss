@@ -1,9 +1,10 @@
 @use 'assets/styles/tokens' as *;
 
-.mono { font-family: 'Roboto Mono', monospace; font-size: 0.85rem; }
+:host { display: block; }
+
 .rate-cell { font-weight: 600; color: var(--color-primary); }
-.scheme-chip { background: var(--color-primary); color: #fff; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
-.dot-active   { color: #22c55e; }
-.dot-inactive { color: #94a3b8; }
-.sm { padding: 4px 10px; font-size: 0.8rem; }
-.danger-btn { color: #ef4444; }
+
+.danger-icon {
+  color: #ef4444;
+  &:hover { color: #dc2626; }
+}

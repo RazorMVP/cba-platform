@@ -1,81 +1,138 @@
 <div class="page">
   <div class="page-header">
-    <div><h1>Webhooks</h1><p class="subtitle">Register callback URLs to receive card platform events</p></div>
-    <button class="btn-primary" (click)="openCreate()"><span class="material-symbols-outlined">add</span> Register Webhook</button>
+    <div class="page-header__title">
+      <span class="material-icons">webhook</span>
+      Webhooks
+    </div>
+    <button class="btn-primary" (click)="openCreate()">
+      <span class="material-icons">add</span>
+      Register Webhook
+    </button>
   </div>
 
   <div class="webhooks-layout">
-    <!-- List -->
-    <div class="card-panel webhook-list">
-      <div *ngIf="loading" class="empty-state">Loading…</div>
-      <div *ngIf="!loading && webhooks.length === 0" class="empty-state">No webhooks registered.</div>
-      <div class="webhook-row" *ngFor="let w of webhooks" [class.selected]="selectedWebhook?.id === w.id" (click)="viewDeliveries(w)">
-        <div class="webhook-header">
-          <strong>{{ w.name }}</strong>
-          <span class="material-symbols-outlined active-dot" [class.on]="w.active">{{ w.active ? 'wifi' : 'wifi_off' }}</span>
+    <!-- Webhook List -->
+    <div class="card" style="padding:0">
+      @if (loading) {
+        <div class="skeleton-card" style="padding:1.25rem">
+          @for (i of [1,2,3]; track i) { <div class="skeleton skeleton--row"></div> }
         </div>
-        <p class="url mono">{{ w.callbackUrl }}</p>
-        <div class="event-chips">
-          <span class="event-chip" *ngFor="let e of w.events.slice(0,3)">{{ e }}</span>
-          <span class="event-chip more" *ngIf="w.events.length > 3">+{{ w.events.length - 3 }} more</span>
+      } @else if (webhooks.length === 0) {
+        <div class="empty-state">
+          <span class="material-icons">webhook</span>
+          <p>No webhooks registered.</p>
         </div>
-        <div class="webhook-footer">
-          <span class="date">{{ w.createdAt | date:'shortDate' }}</span>
-          <button class="btn-ghost sm danger-btn" (click)="deregister(w.id); $event.stopPropagation()">Deregister</button>
-        </div>
-      </div>
+      } @else {
+        @for (w of webhooks; track w.id) {
+          <div class="webhook-row" [class.webhook-row--selected]="selectedWebhook?.id === w.id"
+               (click)="viewDeliveries(w)">
+            <div class="webhook-top">
+              <strong>{{ w.name }}</strong>
+              <span class="material-icons" [class.active-icon]="w.active" [class.muted]="!w.active">
+                {{ w.active ? 'wifi' : 'wifi_off' }}
+              </span>
+            </div>
+            <p class="mono muted small" style="margin:.25rem 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ w.callbackUrl }}</p>
+            <div class="event-chips">
+              @for (e of w.events.slice(0,3); track e) {
+                <span class="event-chip">{{ e }}</span>
+              }
+              @if (w.events.length > 3) {
+                <span class="event-chip event-chip--more">+{{ w.events.length - 3 }} more</span>
+              }
+            </div>
+            <div class="webhook-footer">
+              <span class="muted small">{{ w.createdAt | date:'shortDate' }}</span>
+              <button class="btn-secondary danger-btn" (click)="deregister(w.id); $event.stopPropagation()">
+                Deregister
+              </button>
+            </div>
+          </div>
+        }
+      }
     </div>
 
     <!-- Delivery Log Panel -->
-    <div class="card-panel delivery-panel" *ngIf="selectedWebhook">
-      <div class="panel-header">
-        <h3>Delivery Log — {{ selectedWebhook.name }}</h3>
-        <button class="btn-icon" (click)="selectedWebhook = null"><span class="material-symbols-outlined">close</span></button>
+    @if (selectedWebhook) {
+      <div class="card" style="padding:0">
+        <div class="detail-panel-header">
+          <strong>Delivery Log — {{ selectedWebhook.name }}</strong>
+          <button class="btn-icon" (click)="selectedWebhook = null">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
+        @if (loadingDeliveries) {
+          <div class="empty-state">
+            <span class="spinner spinner--dark"></span>
+            <p>Loading deliveries…</p>
+          </div>
+        } @else if (deliveries.length === 0) {
+          <div class="empty-state">
+            <span class="material-icons">send</span>
+            <p>No deliveries yet.</p>
+          </div>
+        } @else {
+          <table class="data-table">
+            <thead>
+              <tr><th>Event</th><th>Status</th><th>HTTP</th><th>Attempts</th><th>Last Attempt</th></tr>
+            </thead>
+            <tbody>
+              @for (d of deliveries; track d.id) {
+                <tr class="table-row">
+                  <td class="small mono">{{ d.eventType }}</td>
+                  <td><span class="badge" [class]="'badge--' + deliveryVariant(d.status)">{{ d.status }}</span></td>
+                  <td class="mono">{{ d.httpStatus ?? '—' }}</td>
+                  <td>{{ d.attemptCount }}</td>
+                  <td class="muted small">{{ d.lastAttemptAt ? (d.lastAttemptAt | date:'short') : '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
       </div>
-      <div *ngIf="loadingDeliveries" class="empty-state">Loading deliveries…</div>
-      <div *ngIf="!loadingDeliveries && deliveries.length === 0" class="empty-state">No deliveries yet.</div>
-      <table *ngIf="!loadingDeliveries && deliveries.length > 0" class="data-table">
-        <thead><tr><th>Event</th><th>Status</th><th>HTTP</th><th>Attempts</th><th>Last Attempt</th></tr></thead>
-        <tbody>
-          <tr *ngFor="let d of deliveries">
-            <td class="event-type">{{ d.eventType }}</td>
-            <td>
-              <span [class]="'status-dot ' + deliveryVariant(d.status)">{{ d.status }}</span>
-            </td>
-            <td class="mono">{{ d.httpStatus ?? '—' }}</td>
-            <td>{{ d.attemptCount }}</td>
-            <td>{{ d.lastAttemptAt ? (d.lastAttemptAt | date:'short') : '—' }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    }
   </div>
 </div>
 
-<!-- Register Webhook Modal -->
-<div class="modal-overlay" *ngIf="showModal" (click)="closeModal()">
-  <div class="modal modal-lg" (click)="$event.stopPropagation()">
-    <div class="modal-header"><h2>Register Webhook</h2><button class="btn-icon" (click)="closeModal()"><span class="material-symbols-outlined">close</span></button></div>
-    <div class="modal-body">
-      <label>Webhook Name <input [(ngModel)]="form.name" /></label>
-      <label>Callback URL <input [(ngModel)]="form.callbackUrl" placeholder="https://your-server.com/webhook" /></label>
-      <label>Secret (for HMAC-SHA256 signature) <input [(ngModel)]="form.secret" type="password" /></label>
+@if (showModal) {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--wide" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">webhook</span>
+        Register Webhook
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Webhook Name</label>
+          <input class="form-input" [(ngModel)]="form.name" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Callback URL</label>
+          <input class="form-input mono" [(ngModel)]="form.callbackUrl" placeholder="https://your-server.com/webhook" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Secret (for HMAC-SHA256 signature)</label>
+          <input class="form-input" [(ngModel)]="form.secret" type="password" />
+        </div>
 
-      <div class="event-selector">
-        <p class="scope-label">Events to subscribe</p>
-        <div class="event-groups" *ngFor="let cat of ['AUTHORIZATION','CARD','FRAUD','DISPUTE']">
-          <p class="group-label">{{ cat }}</p>
-          <label class="checkbox-row" *ngFor="let e of allEvents" [class.hidden]="!e.startsWith(cat)">
-            <ng-container *ngIf="e.startsWith(cat)">
-              <input type="checkbox" [checked]="hasEvent(e)" (change)="toggleEvent(e)" /> {{ e }}
-            </ng-container>
-          </label>
+        <div class="event-selector">
+          <p class="scope-label">Events to subscribe</p>
+          @for (cat of ['AUTHORIZATION','CARD','FRAUD','DISPUTE']; track cat) {
+            <p class="group-label">{{ cat }}</p>
+            @for (e of allEvents; track e) {
+              @if (e.startsWith(cat)) {
+                <label class="checkbox-row">
+                  <input type="checkbox" [checked]="hasEvent(e)" (change)="toggleEvent(e)" /> {{ e }}
+                </label>
+              }
+            }
+          }
         </div>
       </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-ghost" (click)="closeModal()">Cancel</button>
-      <button class="btn-primary" (click)="submit()">Register</button>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()">Cancel</button>
+        <button class="btn-primary" (click)="submit()">Register</button>
+      </div>
     </div>
   </div>
-</div>
+}

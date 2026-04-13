@@ -1,81 +1,144 @@
 <div class="page">
   <div class="page-header">
-    <div><h1>Terminal Simulator</h1><p class="subtitle">Construct and fire ISO 8583 messages to the FEP via card-service</p></div>
+    <div class="page-header__title">
+      <span class="material-icons">point_of_sale</span>
+      Terminal Simulator
+    </div>
   </div>
 
   <div class="simulator-layout">
     <!-- Request Panel -->
-    <div class="card-panel request-panel">
-      <h3>Transaction Request</h3>
+    <div class="card" style="padding:1.5rem">
+      <p class="section-title">Transaction Request</p>
 
-      <label>Transaction Type
-        <select [(ngModel)]="txnType">
-          <option *ngFor="let t of txnTypes" [value]="t.value">{{ t.label }}</option>
+      <div class="form-field">
+        <label class="form-label">Transaction Type</label>
+        <select class="form-input" [(ngModel)]="txnType">
+          @for (t of txnTypes; track t.value) {
+            <option [value]="t.value">{{ t.label }}</option>
+          }
         </select>
-      </label>
+      </div>
 
-      <ng-container *ngIf="needsCardFields">
-        <label>Card Number (PAN) <input [(ngModel)]="request.cardNumber" maxlength="19" placeholder="4111111111111111" /></label>
-        <label>Expiry Date (YYMM) <input [(ngModel)]="request.expiryDate" maxlength="4" placeholder="2512" /></label>
-        <label>Entry Mode
+      @if (needsCardFields) {
+        <div class="form-field">
+          <label class="form-label">Card Number (PAN)</label>
+          <input class="form-input mono" [(ngModel)]="request.cardNumber" maxlength="19" placeholder="4111111111111111" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Expiry Date (YYMM)</label>
+          <input class="form-input mono" [(ngModel)]="request.expiryDate" maxlength="4" placeholder="2512" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Entry Mode</label>
           <div class="entry-toggle">
-            <button *ngFor="let m of entryModes" [class.active]="entryMode === m" (click)="entryMode = m">{{ m }}</button>
+            @for (m of entryModes; track m) {
+              <button class="entry-btn" [class.entry-btn--active]="entryMode === m"
+                      (click)="entryMode = m">{{ m }}</button>
+            }
           </div>
-        </label>
-        <label>PIN Block (hex, optional) <input [(ngModel)]="request.pinBlock" placeholder="Leave blank for no PIN" /></label>
-      </ng-container>
+        </div>
+        <div class="form-field">
+          <label class="form-label">PIN Block (hex, optional)</label>
+          <input class="form-input mono" [(ngModel)]="request.pinBlock" placeholder="Leave blank for no PIN" />
+        </div>
+      }
 
-      <ng-container *ngIf="needsAmount">
-        <label>Amount (minor units)
-          <input type="number" [(ngModel)]="request.amount" />
-        </label>
-        <label>Currency
-          <select [(ngModel)]="request.currency">
-            <option *ngFor="let c of currencies" [value]="c.code">{{ c.label }}</option>
-          </select>
-        </label>
-      </ng-container>
+      @if (needsAmount) {
+        <div class="form-row">
+          <div class="form-field">
+            <label class="form-label">Amount (minor units)</label>
+            <input class="form-input" type="number" [(ngModel)]="request.amount" />
+          </div>
+          <div class="form-field">
+            <label class="form-label">Currency</label>
+            <select class="form-input" [(ngModel)]="request.currency">
+              @for (c of currencies; track c.code) {
+                <option [value]="c.code">{{ c.label }}</option>
+              }
+            </select>
+          </div>
+        </div>
+      }
 
-      <label>Terminal ID (8 chars) <input [(ngModel)]="request.terminalId" maxlength="8" /></label>
-      <label>Merchant ID <input [(ngModel)]="request.merchantId" /></label>
-      <label>Merchant Name <input [(ngModel)]="request.merchantName" /></label>
+      <div class="form-field">
+        <label class="form-label">Terminal ID (8 chars)</label>
+        <input class="form-input mono" [(ngModel)]="request.terminalId" maxlength="8" />
+      </div>
+      <div class="form-field">
+        <label class="form-label">Merchant ID</label>
+        <input class="form-input mono" [(ngModel)]="request.merchantId" />
+      </div>
+      <div class="form-field">
+        <label class="form-label">Merchant Name</label>
+        <input class="form-input" [(ngModel)]="request.merchantName" />
+      </div>
 
-      <button class="btn-primary send-btn" (click)="send()" [disabled]="loading">
-        <span class="material-symbols-outlined">send</span>
+      <button class="btn-primary" style="width:100%;justify-content:center;margin-top:.5rem"
+              (click)="send()" [disabled]="loading">
+        <span class="material-icons">send</span>
         {{ loading ? 'Sending…' : 'Send Transaction' }}
       </button>
     </div>
 
     <!-- Response Panel -->
-    <div class="card-panel response-panel">
-      <h3>Response</h3>
+    <div class="card" style="padding:1.5rem">
+      <p class="section-title">Response</p>
 
-      <div *ngIf="!response && !loading" class="empty-state">Fire a transaction to see the response.</div>
-      <div *ngIf="loading" class="empty-state">Sending to FEP…</div>
-
-      <div *ngIf="response" class="response-content">
-        <div class="response-banner" [class.approved]="approved" [class.declined]="!approved">
-          <span class="material-symbols-outlined">{{ approved ? 'check_circle' : 'cancel' }}</span>
+      @if (!response && !loading) {
+        <div class="empty-state">
+          <span class="material-icons">sensors</span>
+          <p>Fire a transaction to see the response.</p>
+        </div>
+      }
+      @if (loading) {
+        <div class="empty-state">
+          <span class="spinner spinner--dark"></span>
+          <p>Sending to FEP…</p>
+        </div>
+      }
+      @if (response) {
+        <div class="response-banner" [class.response-banner--approved]="approved"
+             [class.response-banner--declined]="!approved">
+          <span class="material-icons">{{ approved ? 'check_circle' : 'cancel' }}</span>
           <div>
             <strong>{{ approved ? 'APPROVED' : 'DECLINED' }}</strong>
-            <span class="rc">RC: {{ response.responseCode }}</span>
-            <p>{{ response.responseDescription }}</p>
+            <span class="muted small"> · RC: {{ response.responseCode }}</span>
+            <p class="small">{{ response.responseDescription }}</p>
           </div>
         </div>
 
         <div class="response-fields">
-          <div class="field-row" *ngIf="response.authCode"><span class="label">Auth Code</span><span class="mono">{{ response.authCode }}</span></div>
-          <div class="field-row"><span class="label">STAN</span><span class="mono">{{ response.stan }}</span></div>
-          <div class="field-row"><span class="label">RRN</span><span class="mono">{{ response.rrn }}</span></div>
-          <div class="field-row" *ngIf="response.availableBalance !== null"><span class="label">Available Balance</span><span class="mono">{{ response.availableBalance | number:'1.2-2' }}</span></div>
+          @if (response.authCode) {
+            <div class="field-row">
+              <span class="muted small">Auth Code</span>
+              <span class="mono">{{ response.authCode }}</span>
+            </div>
+          }
+          <div class="field-row">
+            <span class="muted small">STAN</span>
+            <span class="mono">{{ response.stan }}</span>
+          </div>
+          <div class="field-row">
+            <span class="muted small">RRN</span>
+            <span class="mono">{{ response.rrn }}</span>
+          </div>
+          @if (response.availableBalance !== null) {
+            <div class="field-row">
+              <span class="muted small">Available Balance</span>
+              <span class="mono">{{ response.availableBalance | number:'1.2-2' }}</span>
+            </div>
+          }
         </div>
 
-        <button class="btn-ghost hex-toggle" (click)="showHexDump = !showHexDump">
-          <span class="material-symbols-outlined">data_object</span>
+        <button class="btn-secondary" style="margin-top:1rem" (click)="showHexDump = !showHexDump">
+          <span class="material-icons">data_object</span>
           {{ showHexDump ? 'Hide' : 'Show' }} ISO 8583 Hex Dump
         </button>
-        <pre class="hex-dump" *ngIf="showHexDump">{{ response.hexDump }}</pre>
-      </div>
+        @if (showHexDump) {
+          <pre class="hex-dump">{{ response.hexDump }}</pre>
+        }
+      }
     </div>
   </div>
 </div>

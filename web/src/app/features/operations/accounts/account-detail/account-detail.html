@@ -380,15 +380,15 @@
           <div class="stmt-summary">
             <div class="stmt-kpi">
               <span class="stmt-kpi__label">Total Credits</span>
-              <span class="stmt-kpi__value credit">{{ stmtData['totalCredits'] | number:'1.2-2' }}</span>
+              <span class="stmt-kpi__value credit">{{ $any(stmtData['totalCredits']) | number:'1.2-2' }}</span>
             </div>
             <div class="stmt-kpi">
               <span class="stmt-kpi__label">Total Debits</span>
-              <span class="stmt-kpi__value debit">{{ stmtData['totalDebits'] | number:'1.2-2' }}</span>
+              <span class="stmt-kpi__value debit">{{ $any(stmtData['totalDebits']) | number:'1.2-2' }}</span>
             </div>
             <div class="stmt-kpi">
               <span class="stmt-kpi__label">Closing Balance</span>
-              <span class="stmt-kpi__value">{{ stmtData['closingBalance'] | number:'1.2-2' }}</span>
+              <span class="stmt-kpi__value">{{ $any(stmtData['closingBalance']) | number:'1.2-2' }}</span>
             </div>
             <div class="stmt-kpi">
               <span class="stmt-kpi__label">Transactions</span>

@@ -6,6 +6,7 @@ export interface NavItem {
   label: string;
   icon: string;
   route?: string;
+  exact?: boolean;
   children?: NavItem[];
 }
 
@@ -31,7 +32,7 @@ export class SidebarComponent {
     {
       label: 'Operations',
       items: [
-        { label: 'Dashboard',  icon: 'dashboard',         route: '/operations/dashboard' },
+        { label: 'Dashboard',  icon: 'dashboard',         route: '/operations/dashboard', exact: true },
         { label: 'Customers',  icon: 'people',            route: '/operations/customers' },
         { label: 'Accounts',   icon: 'account_balance',   route: '/operations/accounts' },
         { label: 'Loans',      icon: 'payments',          route: '/operations/loans' },
@@ -85,7 +86,7 @@ export class SidebarComponent {
     {
       label: 'Cards',
       items: [
-        { label: 'Card List',          icon: 'credit_card',         route: '/cards' },
+        { label: 'Card List',          icon: 'credit_card',         route: '/cards',             exact: true },
         { label: 'Card Products',      icon: 'style',               route: '/cards/products' },
         { label: 'Fraud Rules',        icon: 'security',            route: '/cards/fraud' },
         { label: 'Settlement',         icon: 'receipt',             route: '/cards/settlement' },

@@ -30,6 +30,7 @@
                 class="nav-item"
                 [routerLink]="item.route"
                 routerLinkActive="nav-item--active"
+                [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
                 [title]="collapsed ? item.label : ''"
               >
                 <span class="material-icons nav-item__icon">{{ item.icon }}</span>

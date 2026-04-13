@@ -580,9 +580,9 @@ Where:
 <!-- CUSTOMERS ──────────────────────────────────────────────────────────── -->
 <section id="customers">
 <h2>Customers</h2>
-<p>Manages customer KYC onboarding, profile management, and identity verification.</p>
+<p>Manages customer KYC onboarding, profile management, lifecycle commands, staff assignment, and inter-branch transfer. Modelled on the Mifos Client module (full Mifos parity added in Session 49).</p>
 
-<h3>Status Flow</h3>
+<h3>Status Flow (7 States)</h3>
 <div class="status-flow">
   <span class="status-pill pending">PENDING_KYC</span>
   <span class="arrow">→</span>
@@ -592,13 +592,27 @@ Where:
   <span class="arrow">→</span>
   <span class="status-pill terminal">CLOSED</span>
 </div>
+<div class="status-flow" style="margin-top:4px">
+  <span class="status-pill pending">PENDING_KYC</span>
+  <span class="arrow">→</span>
+  <span class="status-pill terminal">REJECTED</span>
+  &nbsp;|&nbsp;
+  <span class="status-pill terminal">WITHDRAWN</span>
+  &nbsp;&nbsp;&nbsp;
+  <span class="status-pill active">ACTIVE</span>
+  <span class="arrow">→</span>
+  <span class="status-pill info" style="background:#0891b2;color:white;padding:2px 8px;border-radius:4px;font-size:11px">TRANSFER_IN_PROGRESS</span>
+</div>
 
 <h3>Key Rules</h3>
 <ul>
 <li>All PII (name, email, phone, national ID) is encrypted at field level using AES-256</li>
 <li>Sensitive fields are masked in logs and audit records</li>
-<li>Closed customers cannot be reopened</li>
+<li><code>REJECTED</code> and <code>WITHDRAWN</code> can be undone (returned to <code>PENDING_KYC</code>) via <code>undoRejection</code> / <code>undoWithdrawal</code> commands</li>
+<li><code>CLOSED</code> is terminal — cannot be reopened</li>
+<li>Only <code>PENDING_KYC</code> customers can be deleted (<code>DELETE /{id}</code>); all others must be closed first</li>
 <li>KYC status transitions are immutably logged in the audit trail</li>
+<li>Lifecycle fields (dates, reasons, staffId, officeId, transfer fields) are set by service commands — not writable on create or profile update</li>
 </ul>
 
 <details class="endpoint">
@@ -608,15 +622,32 @@ Where:
     <span class="endpoint-summary">List all customers</span>
   </summary>
   <div class="endpoint-body">
-    <p>Returns a paginated list of customers. Supports <code>?page</code>, <code>?size</code>, <code>?sort</code> parameters.</p>
+    <p>Returns a paginated list of customers. Supports <code>?page</code>, <code>?size</code>, <code>?sort</code>, <code>?search</code>, <code>?kycStatus</code> filter parameters.</p>
     <h4>Query Parameters</h4>
     <table><tr><th>Parameter</th><th>Default</th><th>Description</th></tr>
     <tr><td>page</td><td>0</td><td>Page index</td></tr>
     <tr><td>size</td><td>20</td><td>Results per page</td></tr>
     <tr><td>sort</td><td>createdAt,desc</td><td>Sort field and direction</td></tr>
+    <tr><td>search</td><td>—</td><td>Free-text search across name / email</td></tr>
+    <tr><td>kycStatus</td><td>—</td><td>Filter by KYC status (e.g. <code>PENDING_KYC</code>)</td></tr>
     </table>
+    <h4>Required Role</h4><p>ADMIN, TELLER</p>
     <h4>Example Response</h4>
     <pre>{ "data": [{ "id": "...", "firstName": "Jane", "lastName": "Doe", "kycStatus": "ACTIVE" }], "meta": { "page": 0, "size": 20, "total": 142 }, "errors": [] }</pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/customers/{id}</span>
+    <span class="endpoint-summary">Get customer by ID</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Returns full customer profile including all lifecycle fields (dates, reasons, staff assignment, transfer details).</p>
+    <h4>Required Role</h4><p>ADMIN, TELLER</p>
+    <h4>Example Response</h4>
+    <pre>{ "data": { "id": "uuid", "firstName": "Jane", "lastName": "Doe", "email": "jane@example.com", "kycStatus": "ACTIVE", "staffId": null, "officeId": "uuid", "activationDate": "2024-01-15", "createdAt": "2024-01-10T09:00:00Z" }, "meta": {}, "errors": [] }</pre>
   </div>
 </details>
 
@@ -627,8 +658,16 @@ Where:
     <span class="endpoint-summary">Create a customer</span>
   </summary>
   <div class="endpoint-body">
-    <p>Create a new customer. Status starts at <code>PENDING_KYC</code>.</p>
+    <p>Create a new customer. Status starts at <code>PENDING_KYC</code>. Lifecycle fields (staffId, officeId, dates) are managed by commands — not settable on create.</p>
     <h4>Request Body</h4>
+    <table><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+    <tr><td>firstName</td><td>string</td><td>✓</td><td>Legal first name (encrypted at rest)</td></tr>
+    <tr><td>lastName</td><td>string</td><td>✓</td><td>Legal last name (encrypted at rest)</td></tr>
+    <tr><td>email</td><td>string</td><td>✓</td><td>Email address (encrypted at rest)</td></tr>
+    <tr><td>phone</td><td>string</td><td>—</td><td>Phone number</td></tr>
+    <tr><td>nationalId</td><td>string</td><td>—</td><td>National identification number (encrypted)</td></tr>
+    <tr><td>dateOfBirth</td><td>date</td><td>—</td><td>ISO 8601 date (YYYY-MM-DD)</td></tr>
+    </table>
     <pre>{ "firstName": "Jane", "lastName": "Doe", "email": "jane@example.com", "phone": "+1-555-0123", "nationalId": "A12345678", "dateOfBirth": "1985-03-15" }</pre>
     <h4>Required Role</h4><p>ADMIN</p>
   </div>
@@ -637,12 +676,101 @@ Where:
 <details class="endpoint">
   <summary class="endpoint-header">
     <span class="method PUT">PUT</span>
-    <span class="endpoint-path">/api/v1/customers/{id}/kyc-status</span>
-    <span class="endpoint-summary">Update KYC status</span>
+    <span class="endpoint-path">/api/v1/customers/{id}</span>
+    <span class="endpoint-summary">Update customer profile</span>
   </summary>
   <div class="endpoint-body">
+    <p>Partial profile update — all fields optional. Only supplied fields are written. PII fields are re-encrypted on every write. Lifecycle and status fields cannot be updated here — use <code>?command=</code> instead.</p>
+    <h4>Request Body (all fields optional)</h4>
+    <table><tr><th>Field</th><th>Type</th><th>Description</th></tr>
+    <tr><td>firstName</td><td>string</td><td>Legal first name</td></tr>
+    <tr><td>lastName</td><td>string</td><td>Legal last name</td></tr>
+    <tr><td>email</td><td>string</td><td>Email address</td></tr>
+    <tr><td>phone</td><td>string</td><td>Phone number</td></tr>
+    <tr><td>nationalId</td><td>string</td><td>National ID (encrypted)</td></tr>
+    <tr><td>dateOfBirth</td><td>date</td><td>YYYY-MM-DD</td></tr>
+    <tr><td>notes</td><td>string</td><td>Internal notes</td></tr>
+    </table>
+    <pre>{ "email": "jane.new@example.com", "phone": "+1-555-9999" }</pre>
+    <h4>Required Role</h4><p>ADMIN</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/customers/{id}?command={command}</span>
+    <span class="endpoint-summary">Execute lifecycle command</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Mifos command pattern — single endpoint dispatches all lifecycle transitions. Returns the updated <code>Customer</code> object on success.</p>
+    <h4>Command Catalogue</h4>
+    <table>
+    <tr><th>Command</th><th>From State(s)</th><th>To State</th><th>Payload Fields</th><th>Role</th></tr>
+    <tr><td><code>activate</code></td><td>PENDING_KYC</td><td>ACTIVE</td><td>—</td><td>ADMIN</td></tr>
+    <tr><td><code>reject</code></td><td>PENDING_KYC</td><td>REJECTED</td><td><code>reason</code> (optional)</td><td>ADMIN</td></tr>
+    <tr><td><code>withdraw</code></td><td>PENDING_KYC, ACTIVE</td><td>WITHDRAWN</td><td><code>reason</code> (optional)</td><td>ADMIN</td></tr>
+    <tr><td><code>reactivate</code></td><td>SUSPENDED</td><td>ACTIVE</td><td>—</td><td>ADMIN</td></tr>
+    <tr><td><code>undoRejection</code></td><td>REJECTED</td><td>PENDING_KYC</td><td>—</td><td>ADMIN</td></tr>
+    <tr><td><code>undoWithdrawal</code></td><td>WITHDRAWN</td><td>PENDING_KYC</td><td>—</td><td>ADMIN</td></tr>
+    <tr><td><code>suspend</code></td><td>ACTIVE</td><td>SUSPENDED</td><td><code>reason</code> (optional)</td><td>ADMIN</td></tr>
+    <tr><td><code>close</code></td><td>ACTIVE, SUSPENDED</td><td>CLOSED</td><td><code>reason</code> (optional)</td><td>ADMIN</td></tr>
+    <tr><td><code>assignStaff</code></td><td>any non-CLOSED</td><td>(unchanged)</td><td><code>staffId</code> (UUID, required)</td><td>ADMIN, TELLER</td></tr>
+    <tr><td><code>unassignStaff</code></td><td>any non-CLOSED</td><td>(unchanged)</td><td>—</td><td>ADMIN, TELLER</td></tr>
+    <tr><td><code>proposeTransfer</code></td><td>ACTIVE</td><td>TRANSFER_IN_PROGRESS</td><td><code>destinationOfficeId</code> (UUID, required), <code>transferDate</code> (date, optional), <code>transferNote</code> (string, optional)</td><td>ADMIN</td></tr>
+    <tr><td><code>acceptTransfer</code></td><td>TRANSFER_IN_PROGRESS</td><td>ACTIVE (new office)</td><td>—</td><td>ADMIN</td></tr>
+    <tr><td><code>rejectTransfer</code></td><td>TRANSFER_IN_PROGRESS</td><td>ACTIVE (original office)</td><td>—</td><td>ADMIN</td></tr>
+    <tr><td><code>withdrawTransfer</code></td><td>TRANSFER_IN_PROGRESS</td><td>ACTIVE (original office)</td><td>—</td><td>ADMIN</td></tr>
+    </table>
+    <h4>Request Body</h4>
+    <pre>// reject / withdraw / suspend / close:
+{ "reason": "Insufficient documentation" }
+
+// assignStaff:
+{ "staffId": "uuid-of-staff-member" }
+
+// proposeTransfer:
+{ "destinationOfficeId": "uuid-of-target-branch", "transferDate": "2024-06-01", "transferNote": "Customer requested branch change" }
+
+// activate / reactivate / undoRejection / undoWithdrawal / unassignStaff / acceptTransfer / rejectTransfer / withdrawTransfer:
+{}</pre>
+    <h4>Error Responses</h4>
+    <table><tr><th>Code</th><th>Meaning</th></tr>
+    <tr><td>400</td><td>Invalid state transition (e.g. trying to activate an already-ACTIVE customer)</td></tr>
+    <tr><td>404</td><td>Customer not found</td></tr>
+    <tr><td>400</td><td>Unknown command</td></tr>
+    </table>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method DELETE">DELETE</span>
+    <span class="endpoint-path">/api/v1/customers/{id}</span>
+    <span class="endpoint-summary">Delete customer (PENDING_KYC only)</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Permanently deletes a customer record. Only allowed when the customer is in <code>PENDING_KYC</code> status — customers that have been activated must be closed instead. Returns <code>204 No Content</code> on success.</p>
+    <h4>Required Role</h4><p>ADMIN</p>
+    <h4>Error Responses</h4>
+    <table><tr><th>Code</th><th>Meaning</th></tr>
+    <tr><td>400</td><td>Customer is not in PENDING_KYC status — cannot be deleted</td></tr>
+    <tr><td>404</td><td>Customer not found</td></tr>
+    </table>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method PUT">PUT</span>
+    <span class="endpoint-path">/api/v1/customers/{id}/kyc-status</span>
+    <span class="endpoint-summary">Update KYC status (legacy)</span>
+  </summary>
+  <div class="endpoint-body">
+    <p><strong>Kept for backward compatibility.</strong> Prefer <code>POST /{id}?command=activate</code> and other lifecycle commands for new integrations.</p>
     <pre>{ "kycStatus": "ACTIVE", "note": "Documents verified" }</pre>
     <p>Valid transitions: PENDING_KYC→ACTIVE, ACTIVE→SUSPENDED, ACTIVE→CLOSED</p>
+    <h4>Required Role</h4><p>ADMIN</p>
   </div>
 </details>
 </section>

@@ -223,7 +223,7 @@
     },
     {
       "name": "01 \u00b7 Customers",
-      "description": "## Customer Module\n\nManages customer KYC onboarding, profile management, and identity verification. Modelled on the Mifos Client module.\n\n### Status Flow\n```\nPENDING_KYC \u2192 ACTIVE \u2192 SUSPENDED \u2192 CLOSED\n```\n\n### Key Rules\n- All PII (name, email, phone, national ID) is encrypted at field level (AES-256)\n- Account numbers are auto-generated using the branch code + type + sequence pattern\n- KYC status changes are logged in the immutable audit trail\n- Closed customers cannot be reopened\n\n### Required Role\n- Read: ADMIN, TELLER\n- Write: ADMIN",
+      "description": "## Customer Module\n\nManages customer KYC onboarding, profile management, lifecycle commands, staff assignment, and inter-branch transfer. Full Mifos parity added in Session 49.\n\n### Status Flow (7 States)\n```\nPENDING_KYC \u2192 ACTIVE \u2192 SUSPENDED \u2192 CLOSED\nPENDING_KYC \u2192 REJECTED  (undoable via undoRejection)\nPENDING_KYC \u2192 WITHDRAWN  (undoable via undoWithdrawal)\nACTIVE \u2192 TRANSFER_IN_PROGRESS \u2192 ACTIVE (accepted/rejected/withdrawn)\n```\n\n### Key Rules\n- All PII (name, email, phone, national ID) is encrypted at field level (AES-256)\n- Lifecycle fields (dates, reasons, staffId, officeId, transfer) are set by service commands only\n- Only PENDING_KYC customers can be deleted; others must be closed first\n- KYC status changes are immutably logged in the audit trail\n- `?command=` pattern (Mifos convention): single POST endpoint dispatches 14 lifecycle transitions\n\n### Required Role\n- Read: ADMIN, TELLER\n- Write (profile): ADMIN\n- Commands: ADMIN (lifecycle), ADMIN/TELLER (staff assignment)",
       "item": [
         {
           "name": "List Customers",
@@ -573,6 +573,104 @@
             {
               "lang": "Ruby (Net::HTTP)",
               "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/api/v1/customers/{{customerId}}/kyc-status')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Put.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq.body = \"{\\\"kycStatus\\\": \\\"ACTIVE\\\", \\\"note\\\": \\\"Identity documents verified\\\"}\"\nputs http.request(req).body"
+            }
+          ]
+        },
+        {
+          "name": "Execute Customer Command",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/customers/{{customerId}}?command=activate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "customers", "{{customerId}}"],
+              "query": [{ "key": "command", "value": "activate" }]
+            },
+            "description": "Mifos command pattern — dispatches lifecycle transitions via `?command=` query parameter. Returns the updated Customer object.\n\n### Available Commands\n\n| Command | From State | To State | Payload |\n|---------|-----------|----------|---------|\n| `activate` | PENDING_KYC | ACTIVE | — |\n| `reject` | PENDING_KYC | REJECTED | `reason` (opt) |\n| `withdraw` | PENDING_KYC, ACTIVE | WITHDRAWN | `reason` (opt) |\n| `reactivate` | SUSPENDED | ACTIVE | — |\n| `undoRejection` | REJECTED | PENDING_KYC | — |\n| `undoWithdrawal` | WITHDRAWN | PENDING_KYC | — |\n| `suspend` | ACTIVE | SUSPENDED | `reason` (opt) |\n| `close` | ACTIVE, SUSPENDED | CLOSED | `reason` (opt) |\n| `assignStaff` | any non-CLOSED | (unchanged) | `staffId` (UUID, required) |\n| `unassignStaff` | any non-CLOSED | (unchanged) | — |\n| `proposeTransfer` | ACTIVE | TRANSFER_IN_PROGRESS | `destinationOfficeId` (required), `transferDate` (opt), `transferNote` (opt) |\n| `acceptTransfer` | TRANSFER_IN_PROGRESS | ACTIVE | — |\n| `rejectTransfer` | TRANSFER_IN_PROGRESS | ACTIVE | — |\n| `withdrawTransfer` | TRANSFER_IN_PROGRESS | ACTIVE | — |",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Identity documents fully verified and approved\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "x-code-samples": [
+            {
+              "lang": "cURL",
+              "source": "# activate (no body needed)\ncurl -X POST '{{base_url}}/api/v1/customers/{{customerId}}?command=activate' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -d '{}'\n\n# reject with reason\ncurl -X POST '{{base_url}}/api/v1/customers/{{customerId}}?command=reject' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -d '{\"reason\": \"Insufficient documentation\"}'\n\n# assignStaff\ncurl -X POST '{{base_url}}/api/v1/customers/{{customerId}}?command=assignStaff' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -d '{\"staffId\": \"uuid-of-staff-member\"}'\n\n# proposeTransfer\ncurl -X POST '{{base_url}}/api/v1/customers/{{customerId}}?command=proposeTransfer' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -d '{\"destinationOfficeId\": \"uuid-of-branch\", \"transferDate\": \"2024-06-01\", \"transferNote\": \"Customer requested change\"}'"
+            },
+            {
+              "lang": "JavaScript (fetch)",
+              "source": "// Generic helper — pass command and optional payload\nasync function customerCommand(customerId, command, payload = {}) {\n  const res = await fetch(\n    `{{base_url}}/api/v1/customers/${customerId}?command=${command}`,\n    {\n      method: 'POST',\n      headers: {\n        'Authorization': 'Bearer {{access_token}}',\n        'Content-Type': 'application/json',\n        'X-Tenant-ID': '{{tenant_id}}'\n      },\n      body: JSON.stringify(payload)\n    }\n  );\n  return res.json();\n}\n\n// Examples:\nawait customerCommand('{{customerId}}', 'activate');\nawait customerCommand('{{customerId}}', 'reject', { reason: 'Insufficient docs' });\nawait customerCommand('{{customerId}}', 'assignStaff', { staffId: 'uuid' });\nawait customerCommand('{{customerId}}', 'proposeTransfer', { destinationOfficeId: 'uuid', transferDate: '2024-06-01' });"
+            },
+            {
+              "lang": "Python (requests)",
+              "source": "import requests\n\ndef customer_command(customer_id, command, payload=None):\n    return requests.post(\n        f'{{base_url}}/api/v1/customers/{customer_id}',\n        params={'command': command},\n        headers={\n            'Authorization': 'Bearer {{access_token}}',\n            'X-Tenant-ID': '{{tenant_id}}'\n        },\n        json=payload or {}\n    ).json()\n\n# Examples\ncustomer_command('{{customerId}}', 'activate')\ncustomer_command('{{customerId}}', 'reject', {'reason': 'Insufficient documentation'})\ncustomer_command('{{customerId}}', 'assignStaff', {'staffId': 'uuid-of-staff'})\ncustomer_command('{{customerId}}', 'proposeTransfer', {\n    'destinationOfficeId': 'uuid-of-branch',\n    'transferDate': '2024-06-01',\n    'transferNote': 'Customer requested branch change'\n})"
+            },
+            {
+              "lang": "Java (OkHttp)",
+              "source": "// activate\nOkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/api/v1/customers/{{customerId}}?command=activate\")\n    .post(RequestBody.create(\"{}\", MediaType.parse(\"application/json\")))\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nSystem.out.println(client.newCall(request).execute().body().string());\n\n// reject with reason\nRequest rejectRequest = new Request.Builder()\n    .url(\"{{base_url}}/api/v1/customers/{{customerId}}?command=reject\")\n    .post(RequestBody.create(\"{\\\"reason\\\":\\\"Insufficient documentation\\\"}\", MediaType.parse(\"application/json\")))\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nSystem.out.println(client.newCall(rejectRequest).execute().body().string());"
+            },
+            {
+              "lang": "C# (HttpClient)",
+              "source": "var client = new HttpClient();\nclient.DefaultRequestHeaders.Authorization =\n    new AuthenticationHeaderValue(\"Bearer\", \"{{access_token}}\");\nclient.DefaultRequestHeaders.Add(\"X-Tenant-ID\", \"{{tenant_id}}\");\n\n// activate\nvar activateContent = new StringContent(\"{}\", Encoding.UTF8, \"application/json\");\nvar activateResp = await client.PostAsync(\n    \"{{base_url}}/api/v1/customers/{{customerId}}?command=activate\", activateContent);\n\n// reject with reason\nvar rejectContent = new StringContent(\n    \"{\\\"reason\\\":\\\"Insufficient documentation\\\"}\", Encoding.UTF8, \"application/json\");\nvar rejectResp = await client.PostAsync(\n    \"{{base_url}}/api/v1/customers/{{customerId}}?command=reject\", rejectContent);\nConsole.WriteLine(await rejectResp.Content.ReadAsStringAsync());"
+            },
+            {
+              "lang": "Go (net/http)",
+              "source": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n    \"strings\"\n    \"io/ioutil\"\n)\n\nfunc customerCommand(customerID, command, body string) {\n    req, _ := http.NewRequest(\"POST\",\n        fmt.Sprintf(\"{{base_url}}/api/v1/customers/%s?command=%s\", customerID, command),\n        strings.NewReader(body))\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"Content-Type\", \"application/json\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := new(http.Client).Do(req)\n    defer resp.Body.Close()\n    b, _ := ioutil.ReadAll(resp.Body)\n    fmt.Println(string(b))\n}\n\nfunc main() {\n    customerCommand(\"{{customerId}}\", \"activate\", \"{}\")\n    customerCommand(\"{{customerId}}\", \"reject\", \"{\\\"reason\\\":\\\"Insufficient documentation\\\"}\")\n    customerCommand(\"{{customerId}}\", \"assignStaff\", \"{\\\"staffId\\\":\\\"uuid-of-staff\\\"}\")\n}"
+            },
+            {
+              "lang": "Ruby (Net::HTTP)",
+              "source": "require 'net/http'\nrequire 'json'\n\ndef customer_command(customer_id, command, payload = {})\n  uri = URI(\"{{base_url}}/api/v1/customers/#{customer_id}\")\n  uri.query = URI.encode_www_form(command: command)\n  http = Net::HTTP.new(uri.host, uri.port)\n  req = Net::HTTP::Post.new(uri)\n  req['Authorization'] = 'Bearer {{access_token}}'\n  req['Content-Type'] = 'application/json'\n  req['X-Tenant-ID'] = '{{tenant_id}}'\n  req.body = payload.to_json\n  http.request(req).body\nend\n\nputs customer_command('{{customerId}}', 'activate')\nputs customer_command('{{customerId}}', 'reject', reason: 'Insufficient documentation')\nputs customer_command('{{customerId}}', 'assignStaff', staffId: 'uuid-of-staff')"
+            }
+          ]
+        },
+        {
+          "name": "Delete Customer (PENDING_KYC only)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/customers/{{customerId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "customers", "{{customerId}}"]
+            },
+            "description": "Permanently deletes a customer record. Only allowed when the customer is in `PENDING_KYC` status. Customers that have been activated must be closed (via `?command=close`) instead. Returns `204 No Content` on success.\n\n**Required Role**: ADMIN\n\n**Error cases**:\n- `400` — Customer is not in PENDING_KYC status\n- `404` — Customer not found"
+          },
+          "x-code-samples": [
+            {
+              "lang": "cURL",
+              "source": "curl -X DELETE '{{base_url}}/api/v1/customers/{{customerId}}' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'X-Tenant-ID: {{tenant_id}}'"
+            },
+            {
+              "lang": "JavaScript (fetch)",
+              "source": "const res = await fetch('{{base_url}}/api/v1/customers/{{customerId}}', {\n  method: 'DELETE',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'X-Tenant-ID': '{{tenant_id}}'\n  }\n});\nconsole.log(res.status); // 204 on success"
+            },
+            {
+              "lang": "Python (requests)",
+              "source": "import requests\n\nresponse = requests.delete(\n    '{{base_url}}/api/v1/customers/{{customerId}}',\n    headers={\n        'Authorization': 'Bearer {{access_token}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    }\n)\nprint(response.status_code)  # 204 on success"
+            },
+            {
+              "lang": "Java (OkHttp)",
+              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/api/v1/customers/{{customerId}}\")\n    .delete()\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.code()); // 204 on success"
+            },
+            {
+              "lang": "C# (HttpClient)",
+              "source": "var client = new HttpClient();\nclient.DefaultRequestHeaders.Authorization =\n    new AuthenticationHeaderValue(\"Bearer\", \"{{access_token}}\");\nclient.DefaultRequestHeaders.Add(\"X-Tenant-ID\", \"{{tenant_id}}\");\nvar response = await client.DeleteAsync(\"{{base_url}}/api/v1/customers/{{customerId}}\");\nConsole.WriteLine(response.StatusCode); // NoContent on success"
+            },
+            {
+              "lang": "Go (net/http)",
+              "source": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n)\n\nfunc main() {\n    req, _ := http.NewRequest(\"DELETE\", \"{{base_url}}/api/v1/customers/{{customerId}}\", nil)\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := new(http.Client).Do(req)\n    defer resp.Body.Close()\n    fmt.Println(resp.StatusCode) // 204 on success\n}"
+            },
+            {
+              "lang": "Ruby (Net::HTTP)",
+              "source": "require 'net/http'\n\nuri = URI('{{base_url}}/api/v1/customers/{{customerId}}')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Delete.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nputs http.request(req).code  # '204' on success"
             }
           ]
         }

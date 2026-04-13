@@ -4,5 +4,8 @@ public enum KycStatus {
     PENDING_KYC,
     ACTIVE,
     SUSPENDED,
-    CLOSED
+    CLOSED,
+    REJECTED,
+    WITHDRAWN,
+    TRANSFER_IN_PROGRESS
 }

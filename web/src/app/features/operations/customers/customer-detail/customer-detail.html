@@ -91,6 +91,37 @@
         <div class="kyc-section">
           <app-status-badge [variant]="kycVariant(customer.kycStatus)" [label]="kycLabel(customer.kycStatus)" />
 
+          <!-- Quick command buttons based on status -->
+          <div class="cmd-row">
+            @if (customer.kycStatus === 'PENDING_KYC') {
+              <button class="btn-ghost btn-sm cmd-danger" (click)="showRejectModal = true">Reject</button>
+              <button class="btn-ghost btn-sm" (click)="showWithdrawModal = true">Withdraw</button>
+              <button class="btn-ghost btn-sm cmd-danger" (click)="showDeleteConfirm = true">Delete</button>
+            }
+            @if (customer.kycStatus === 'REJECTED') {
+              <button class="btn-ghost btn-sm" (click)="showUndoRejectionConfirm = true">Undo Rejection</button>
+              <button class="btn-ghost btn-sm" (click)="showReactivateConfirm = true">Reactivate</button>
+            }
+            @if (customer.kycStatus === 'WITHDRAWN') {
+              <button class="btn-ghost btn-sm" (click)="showUndoWithdrawalConfirm = true">Undo Withdrawal</button>
+              <button class="btn-ghost btn-sm" (click)="showReactivateConfirm = true">Reactivate</button>
+            }
+            @if (customer.kycStatus === 'SUSPENDED') {
+              <button class="btn-ghost btn-sm" (click)="showReactivateConfirm = true">Reactivate</button>
+              <button class="btn-ghost btn-sm cmd-danger" (click)="showCloseModal = true">Close</button>
+            }
+            @if (customer.kycStatus === 'ACTIVE') {
+              <button class="btn-ghost btn-sm cmd-danger" (click)="showCloseModal = true">Close</button>
+              <button class="btn-ghost btn-sm" (click)="showWithdrawModal = true">Withdraw</button>
+            }
+            @if (customer.kycStatus === 'TRANSFER_IN_PROGRESS') {
+              <button class="btn-ghost btn-sm" (click)="showAcceptTransferConfirm = true">Accept Transfer</button>
+              <button class="btn-ghost btn-sm" (click)="showRejectTransferConfirm = true">Reject Transfer</button>
+              <button class="btn-ghost btn-sm" (click)="showWithdrawTransferConfirm = true">Withdraw Transfer</button>
+            }
+          </div>
+
+          <!-- Legacy KYC dropdown (for PENDING_KYC→ACTIVE, ACTIVE→SUSPENDED, etc.) -->
           @if (availableKycTransitions.length > 0) {
             <button class="btn-ghost" (click)="showKycDropdown = !showKycDropdown">
               Change status <span class="material-icons">expand_more</span>
@@ -117,6 +148,14 @@
         </div>
       </div>
     </div>
+
+    <!-- Global command error -->
+    @if (cmdError) {
+      <div class="cmd-error-banner">
+        <span class="material-icons">error_outline</span> {{ cmdError }}
+        <button class="btn-ghost btn-sm" (click)="cmdError = ''">Dismiss</button>
+      </div>
+    }
 
     <!-- Tab bar -->
     <div class="tab-bar">
@@ -150,6 +189,12 @@
                 <span class="detail-key">Phone</span>
                 <span class="detail-val">{{ customer.phone ?? '—' }}</span>
               </div>
+              @if (customer.dateOfBirth) {
+                <div class="detail-row">
+                  <span class="detail-key">Date of Birth</span>
+                  <span class="detail-val">{{ customer.dateOfBirth | date:'mediumDate' }}</span>
+                </div>
+              }
               <div class="detail-row">
                 <span class="detail-key">Customer ID</span>
                 <span class="detail-val mono">{{ customer.id }}</span>
@@ -164,6 +209,36 @@
                   <app-status-badge [variant]="kycVariant(customer.kycStatus)" [label]="kycLabel(customer.kycStatus)" />
                 </span>
               </div>
+              @if (customer.activationDate) {
+                <div class="detail-row">
+                  <span class="detail-key">Activated</span>
+                  <span class="detail-val">{{ customer.activationDate | date:'mediumDate' }}</span>
+                </div>
+              }
+              @if (customer.rejectionDate) {
+                <div class="detail-row">
+                  <span class="detail-key">Rejected</span>
+                  <span class="detail-val">{{ customer.rejectionDate | date:'mediumDate' }}
+                    @if (customer.rejectionReason) { — {{ customer.rejectionReason }} }
+                  </span>
+                </div>
+              }
+              @if (customer.withdrawalDate) {
+                <div class="detail-row">
+                  <span class="detail-key">Withdrawn</span>
+                  <span class="detail-val">{{ customer.withdrawalDate | date:'mediumDate' }}
+                    @if (customer.withdrawalReason) { — {{ customer.withdrawalReason }} }
+                  </span>
+                </div>
+              }
+              @if (customer.closureDate) {
+                <div class="detail-row">
+                  <span class="detail-key">Closed</span>
+                  <span class="detail-val">{{ customer.closureDate | date:'mediumDate' }}
+                    @if (customer.closureReason) { — {{ customer.closureReason }} }
+                  </span>
+                </div>
+              }
               <div class="detail-row">
                 <span class="detail-key">Joined</span>
                 <span class="detail-val">{{ customer.createdAt | date:'medium' }}</span>
@@ -187,6 +262,14 @@
               <button class="action-tile" (click)="selectTab('loans')">
                 <span class="material-icons">payments</span>
                 <span>View Loans</span>
+              </button>
+              <button class="action-tile" (click)="selectTab('staff')">
+                <span class="material-icons">manage_accounts</span>
+                <span>Staff Assignment</span>
+              </button>
+              <button class="action-tile" (click)="selectTab('transfer')">
+                <span class="material-icons">swap_horiz</span>
+                <span>Branch Transfer</span>
               </button>
               <button class="action-tile" (click)="selectTab('identifiers')">
                 <span class="material-icons">badge</span>
@@ -315,15 +398,15 @@
               <div class="tab-empty"><span class="material-icons">badge</span><p>No documents on file.</p></div>
             } @else {
               <div class="card__body">
-                @for (id of identifiers; track id.id) {
-                  <div class="id-card" [class.id-card--inactive]="!id.active">
+                @for (ident of identifiers; track ident.id) {
+                  <div class="id-card" [class.id-card--inactive]="!ident.active">
                     <div class="id-header">
-                      <span class="id-type">{{ id.documentType }}</span>
-                      @if (!id.active) { <span class="badge-inactive">Inactive</span> }
+                      <span class="id-type">{{ ident.documentType }}</span>
+                      @if (!ident.active) { <span class="badge-inactive">Inactive</span> }
                     </div>
-                    <div class="id-key mono">{{ id.documentKey }}</div>
-                    @if (id.expiryDate) {
-                      <div class="id-expiry muted">Expires {{ id.expiryDate | date:'mediumDate' }}</div>
+                    <div class="id-key mono">{{ ident.documentKey }}</div>
+                    @if (ident.expiryDate) {
+                      <div class="id-expiry muted">Expires {{ ident.expiryDate | date:'mediumDate' }}</div>
                     }
                   </div>
                 }
@@ -399,7 +482,402 @@
         </div>
       }
 
+      <!-- STAFF TAB -->
+      @if (activeTab === 'staff') {
+        <div class="card">
+          <div class="card__header">
+            <div class="card__title">Staff Assignment</div>
+            @if (!customer.staffId) {
+              <button class="btn-primary btn-sm" (click)="showAssignStaffModal = true">
+                <span class="material-icons">person_add</span> Assign Staff
+              </button>
+            }
+          </div>
+          <div class="card__body">
+            @if (customer.staffId) {
+              <div class="staff-assigned">
+                <span class="material-icons staff-icon">manage_accounts</span>
+                <div class="staff-info">
+                  <div class="staff-label">Assigned Staff Officer</div>
+                  <div class="staff-id mono">{{ customer.staffId }}</div>
+                  @if (customer.officeId) {
+                    <div class="staff-office muted">Office: {{ customer.officeId }}</div>
+                  }
+                </div>
+                <button class="btn-ghost btn-sm cmd-danger" (click)="unassignStaff()">Unassign</button>
+              </div>
+            } @else {
+              <div class="tab-empty">
+                <span class="material-icons">manage_accounts</span>
+                <p>No staff officer assigned to this customer.</p>
+                <button class="btn-primary btn-sm" (click)="showAssignStaffModal = true">Assign Staff</button>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- TRANSFER TAB -->
+      @if (activeTab === 'transfer') {
+        <div class="card">
+          <div class="card__header">
+            <div class="card__title">Inter-Branch Transfer</div>
+            @if (customer.kycStatus === 'ACTIVE') {
+              <button class="btn-primary btn-sm" (click)="showProposeTransferModal = true">
+                <span class="material-icons">swap_horiz</span> Propose Transfer
+              </button>
+            }
+          </div>
+          <div class="card__body">
+            @if (customer.kycStatus === 'TRANSFER_IN_PROGRESS') {
+              <div class="transfer-pending">
+                <div class="transfer-status">
+                  <app-status-badge variant="info" label="Transfer In Progress" />
+                </div>
+                @if (customer.transferToOfficeId) {
+                  <div class="detail-row">
+                    <span class="detail-key">Destination Office</span>
+                    <span class="detail-val mono">{{ customer.transferToOfficeId }}</span>
+                  </div>
+                }
+                @if (customer.transferDate) {
+                  <div class="detail-row">
+                    <span class="detail-key">Transfer Date</span>
+                    <span class="detail-val">{{ customer.transferDate | date:'mediumDate' }}</span>
+                  </div>
+                }
+                @if (customer.transferNote) {
+                  <div class="detail-row">
+                    <span class="detail-key">Note</span>
+                    <span class="detail-val">{{ customer.transferNote }}</span>
+                  </div>
+                }
+                <div class="transfer-actions">
+                  <button class="btn-primary btn-sm" (click)="showAcceptTransferConfirm = true">Accept Transfer</button>
+                  <button class="btn-ghost btn-sm" (click)="showRejectTransferConfirm = true">Reject</button>
+                  <button class="btn-ghost btn-sm" (click)="showWithdrawTransferConfirm = true">Withdraw Proposal</button>
+                </div>
+              </div>
+            } @else if (customer.officeId) {
+              <div class="detail-row">
+                <span class="detail-key">Current Office</span>
+                <span class="detail-val mono">{{ customer.officeId }}</span>
+              </div>
+              @if (customer.kycStatus !== 'ACTIVE') {
+                <p class="muted" style="margin-top:12px">Customer must be ACTIVE to initiate a transfer.</p>
+              }
+            } @else {
+              <div class="tab-empty">
+                <span class="material-icons">swap_horiz</span>
+                <p>No inter-branch transfer in progress. Customer must be ACTIVE to propose a transfer.</p>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
     </div>
   }
 
 </div>
+
+<!-- ═══════════════════════ MODALS ═══════════════════════════════════════════ -->
+
+<!-- Reject modal -->
+@if (showRejectModal) {
+  <div class="modal-backdrop" (click)="closeAllModals()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h3 class="modal__title">Reject Customer</h3>
+        <button class="modal__close" (click)="closeAllModals()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="modal__body">
+        <p class="modal__desc">This customer will be moved to <strong>REJECTED</strong> status.</p>
+        <div class="form-field">
+          <label class="form-label">Reason <span class="muted">(optional)</span></label>
+          <textarea class="form-input" rows="3" [(ngModel)]="rejectReason" placeholder="e.g. Incomplete documentation"></textarea>
+        </div>
+        @if (cmdError) { <div class="modal__error">{{ cmdError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-primary" [disabled]="cmdWorking" (click)="rejectCustomer()">
+          {{ cmdWorking ? 'Saving…' : 'Reject Customer' }}
+        </button>
+        <button class="btn-ghost" (click)="closeAllModals()">Cancel</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Withdraw modal -->
+@if (showWithdrawModal) {
+  <div class="modal-backdrop" (click)="closeAllModals()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h3 class="modal__title">Withdraw Customer</h3>
+        <button class="modal__close" (click)="closeAllModals()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="modal__body">
+        <p class="modal__desc">The customer application will be <strong>WITHDRAWN</strong>.</p>
+        <div class="form-field">
+          <label class="form-label">Reason <span class="muted">(optional)</span></label>
+          <textarea class="form-input" rows="3" [(ngModel)]="withdrawReason" placeholder="e.g. Customer requested cancellation"></textarea>
+        </div>
+        @if (cmdError) { <div class="modal__error">{{ cmdError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-primary" [disabled]="cmdWorking" (click)="withdrawCustomer()">
+          {{ cmdWorking ? 'Saving…' : 'Withdraw' }}
+        </button>
+        <button class="btn-ghost" (click)="closeAllModals()">Cancel</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Close modal -->
+@if (showCloseModal) {
+  <div class="modal-backdrop" (click)="closeAllModals()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h3 class="modal__title">Close Customer Account</h3>
+        <button class="modal__close" (click)="closeAllModals()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="modal__body">
+        <p class="modal__desc">The customer will be permanently <strong>CLOSED</strong>. This cannot be undone.</p>
+        <div class="form-field">
+          <label class="form-label">Closure Reason <span class="muted">(optional)</span></label>
+          <textarea class="form-input" rows="3" [(ngModel)]="closeReason" placeholder="e.g. Account consolidation"></textarea>
+        </div>
+        @if (cmdError) { <div class="modal__error">{{ cmdError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-primary" [disabled]="cmdWorking" (click)="closeCustomer()">
+          {{ cmdWorking ? 'Saving…' : 'Close Customer' }}
+        </button>
+        <button class="btn-ghost" (click)="closeAllModals()">Cancel</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Reactivate confirm -->
+@if (showReactivateConfirm) {
+  <div class="modal-backdrop" (click)="closeAllModals()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h3 class="modal__title">Reactivate Customer</h3>
+        <button class="modal__close" (click)="closeAllModals()"><span class="material-icons">close</span></button>
+      </div>
+      <div class="modal__body">
+        <p class="modal__desc">Customer will be moved back to <strong>ACTIVE</strong> status.</p>
+        @if (cmdError) { <div class="modal__error">{{ cmdError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-primary" [disabled]="cmdWorking" (click)="reactivateCustomer()">
+          {{ cmdWorking ? 'Saving…' : 'Reactivate' }}
+        </button>
+        <button class="btn-ghost" (click)="closeAllModals()">Cancel</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Undo rejection confirm -->
+@if (showUndoRejectionConfirm) {
+  <div class="modal-backdrop" (click)="closeAllModals()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h3 class="modal__title">Undo Rejection</h3>
+        <button class="modal__close" (click)="closeAllModals()"><span class="material-icons">close</span></button>
+      </div>
+      <div class="modal__body">
+        <p class="modal__desc">Customer will return to <strong>PENDING_KYC</strong> status with rejection cleared.</p>
+        @if (cmdError) { <div class="modal__error">{{ cmdError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-primary" [disabled]="cmdWorking" (click)="undoRejection()">
+          {{ cmdWorking ? 'Saving…' : 'Undo Rejection' }}
+        </button>
+        <button class="btn-ghost" (click)="closeAllModals()">Cancel</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Undo withdrawal confirm -->
+@if (showUndoWithdrawalConfirm) {
+  <div class="modal-backdrop" (click)="closeAllModals()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h3 class="modal__title">Undo Withdrawal</h3>
+        <button class="modal__close" (click)="closeAllModals()"><span class="material-icons">close</span></button>
+      </div>
+      <div class="modal__body">
+        <p class="modal__desc">Customer will return to <strong>PENDING_KYC</strong> status.</p>
+        @if (cmdError) { <div class="modal__error">{{ cmdError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-primary" [disabled]="cmdWorking" (click)="undoWithdrawal()">
+          {{ cmdWorking ? 'Saving…' : 'Undo Withdrawal' }}
+        </button>
+        <button class="btn-ghost" (click)="closeAllModals()">Cancel</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Assign staff modal -->
+@if (showAssignStaffModal) {
+  <div class="modal-backdrop" (click)="closeAllModals()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h3 class="modal__title">Assign Staff Officer</h3>
+        <button class="modal__close" (click)="closeAllModals()"><span class="material-icons">close</span></button>
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Staff ID (UUID) <span class="required">*</span></label>
+          <input class="form-input" type="text" [(ngModel)]="assignStaffId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+        </div>
+        @if (cmdError) { <div class="modal__error">{{ cmdError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-primary" [disabled]="cmdWorking || !assignStaffId.trim()" (click)="assignStaff()">
+          {{ cmdWorking ? 'Saving…' : 'Assign Staff' }}
+        </button>
+        <button class="btn-ghost" (click)="closeAllModals()">Cancel</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Propose transfer modal -->
+@if (showProposeTransferModal) {
+  <div class="modal-backdrop" (click)="closeAllModals()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h3 class="modal__title">Propose Inter-Branch Transfer</h3>
+        <button class="modal__close" (click)="closeAllModals()"><span class="material-icons">close</span></button>
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Destination Office ID <span class="required">*</span></label>
+          <input class="form-input" type="text" [(ngModel)]="transferDestinationOfficeId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Transfer Date</label>
+          <input class="form-input" type="date" [(ngModel)]="transferDate" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Note</label>
+          <textarea class="form-input" rows="2" [(ngModel)]="transferNote" placeholder="Reason for transfer"></textarea>
+        </div>
+        @if (cmdError) { <div class="modal__error">{{ cmdError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-primary" [disabled]="cmdWorking || !transferDestinationOfficeId.trim()" (click)="proposeTransfer()">
+          {{ cmdWorking ? 'Saving…' : 'Propose Transfer' }}
+        </button>
+        <button class="btn-ghost" (click)="closeAllModals()">Cancel</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Accept transfer confirm -->
+@if (showAcceptTransferConfirm) {
+  <div class="modal-backdrop" (click)="closeAllModals()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h3 class="modal__title">Accept Transfer</h3>
+        <button class="modal__close" (click)="closeAllModals()"><span class="material-icons">close</span></button>
+      </div>
+      <div class="modal__body">
+        <p class="modal__desc">The customer will be transferred to the destination office and set to <strong>ACTIVE</strong>.</p>
+        @if (cmdError) { <div class="modal__error">{{ cmdError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-primary" [disabled]="cmdWorking" (click)="acceptTransfer()">
+          {{ cmdWorking ? 'Saving…' : 'Accept Transfer' }}
+        </button>
+        <button class="btn-ghost" (click)="closeAllModals()">Cancel</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Reject transfer confirm -->
+@if (showRejectTransferConfirm) {
+  <div class="modal-backdrop" (click)="closeAllModals()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h3 class="modal__title">Reject Transfer</h3>
+        <button class="modal__close" (click)="closeAllModals()"><span class="material-icons">close</span></button>
+      </div>
+      <div class="modal__body">
+        <p class="modal__desc">The transfer proposal will be rejected. Customer returns to <strong>ACTIVE</strong>.</p>
+        @if (cmdError) { <div class="modal__error">{{ cmdError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-primary" [disabled]="cmdWorking" (click)="rejectTransfer()">
+          {{ cmdWorking ? 'Saving…' : 'Reject Transfer' }}
+        </button>
+        <button class="btn-ghost" (click)="closeAllModals()">Cancel</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Withdraw transfer confirm -->
+@if (showWithdrawTransferConfirm) {
+  <div class="modal-backdrop" (click)="closeAllModals()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h3 class="modal__title">Withdraw Transfer Proposal</h3>
+        <button class="modal__close" (click)="closeAllModals()"><span class="material-icons">close</span></button>
+      </div>
+      <div class="modal__body">
+        <p class="modal__desc">The transfer proposal will be cancelled. Customer returns to <strong>ACTIVE</strong>.</p>
+        @if (cmdError) { <div class="modal__error">{{ cmdError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-primary" [disabled]="cmdWorking" (click)="withdrawTransfer()">
+          {{ cmdWorking ? 'Saving…' : 'Withdraw Proposal' }}
+        </button>
+        <button class="btn-ghost" (click)="closeAllModals()">Cancel</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Delete confirm -->
+@if (showDeleteConfirm) {
+  <div class="modal-backdrop" (click)="closeAllModals()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h3 class="modal__title">Delete Customer</h3>
+        <button class="modal__close" (click)="closeAllModals()"><span class="material-icons">close</span></button>
+      </div>
+      <div class="modal__body">
+        <p class="modal__desc">
+          This will permanently delete <strong>{{ customer?.firstName }} {{ customer?.lastName }}</strong>.
+          Only customers in <strong>PENDING_KYC</strong> status can be deleted.
+        </p>
+        @if (cmdError) { <div class="modal__error">{{ cmdError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-primary" [disabled]="deleteWorking" (click)="confirmDelete()">
+          {{ deleteWorking ? 'Deleting…' : 'Delete Customer' }}
+        </button>
+        <button class="btn-ghost" (click)="closeAllModals()">Cancel</button>
+      </div>
+    </div>
+  </div>
+}

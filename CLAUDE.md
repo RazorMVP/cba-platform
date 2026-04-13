@@ -2773,3 +2773,255 @@ The token lives only in:
 - `.claude/skills/cba/credentials.json` (gitignored)
 
 Never paste the token into any file that is tracked by git.
+
+---
+
+## PRD Gap Analysis — Session 49 (2026-04-14)
+
+This section records the findings from comparing the Confluence PRD (`akinwalenubeero.atlassian.net/wiki/spaces/NCBP`) against what is fully built (backend **and** Angular UI). "Built" means both the Java REST API and the Angular component exist. Backend-only counts as ⚠️ partial.
+
+Gap closures are being done **one module at a time, sequentially**. Update this table as gaps are closed.
+
+### Summary Scorecard
+
+| # | PRD Module | Backend | Angular UI | Overall |
+|---|-----------|---------|------------|---------|
+| 1 | Customer Onboarding | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
+| 2 | Customer Account Management (Savings) | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
+| 3 | Loan Management | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
+| 4 | Fees & Charges | ✅ Built | ❌ Missing | ⚠️ Gap |
+| 5 | GL Accounting | ✅ Built | ✅ Built | ✅ Done |
+| 6 | Treasury | ❌ Missing | ❌ Missing | ❌ Gap |
+| 7 | Audit & Internal Control | ⚠️ Partial | ❌ Missing | ⚠️ Gap |
+| 8 | System Administrator | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
+| 9 | Notification & Messaging | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
+| 10 | Fraud & Risk Management | ⚠️ Card only | ❌ Core banking | ⚠️ Gap |
+| 11 | Business Intelligence | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
+
+---
+
+### Module 1 — Customer Onboarding
+
+**PRD requirements**: Full Mifos-parity customer lifecycle — onboarding, KYC, staff assignment, inter-branch transfer, status reversals, rejection/withdrawal, client photo, field configuration.
+
+| PRD Feature | Backend Status | Angular Status | Gap |
+|-------------|---------------|----------------|-----|
+| Create customer (name, email, phone, DOB, national ID) | ✅ `POST /api/v1/customers` | ✅ `isNew` creation form | — |
+| KYC status transitions (activate, suspend, close) | ✅ `PUT /kyc-status` | ✅ Dropdown in CustomerDetail | — |
+| Reject customer (`REJECTED` state) | ❌ No `?command=reject` endpoint | ❌ No button/modal | ❌ |
+| Withdraw customer (`WITHDRAWN` state) | ❌ No `?command=withdraw` endpoint | ❌ No button/modal | ❌ |
+| Reactivate customer (undo rejection/withdrawal) | ❌ No `?command=reactivate` endpoint | ❌ No button/modal | ❌ |
+| Undo rejection (`REJECTED → PENDING_KYC`) | ❌ No `?command=undoRejection` | ❌ No button | ❌ |
+| Undo withdrawal (`WITHDRAWN → PENDING_KYC`) | ❌ No `?command=undoWithdrawal` | ❌ No button | ❌ |
+| Assign staff to customer | ❌ No `?command=assignStaff` | ❌ No Staff tab | ❌ |
+| Unassign staff from customer | ❌ No `?command=unassignStaff` | ❌ No Staff tab | ❌ |
+| Propose inter-branch transfer | ❌ No transfer commands | ❌ No Transfer tab | ❌ |
+| Accept / Reject transfer proposal | ❌ Missing | ❌ Missing | ❌ |
+| Direct transfer (same as propose+accept) | ❌ Missing | ❌ Missing | ❌ |
+| Withdraw transfer proposal | ❌ Missing | ❌ Missing | ❌ |
+| Update customer profile (`PUT /{id}`) | ❌ No `PUT /customers/{id}` | ❌ No edit form in overview | ❌ |
+| Delete pending customer (`DELETE /{id}`) | ❌ No `DELETE /customers/{id}` | ❌ No delete action | ❌ |
+| Client photo upload / resize | ❌ Binary handling stub only | ❌ No photo upload UI | ❌ |
+| Field configuration viewer (`/fieldconfiguration/ADDRESS`) | ❌ Not implemented | ❌ Not implemented | ❌ |
+| KycStatus: `REJECTED`, `WITHDRAWN`, `TRANSFER_IN_PROGRESS` | ✅ Extended in Session 49 | ⚠️ Not yet shown in transitions | ⚠️ |
+| Lifecycle fields on `Customer` entity (dates, reasons, staffId, officeId, transfer fields) | ✅ Extended in Session 49 | ❌ Not yet surfaced in UI | ⚠️ |
+| `CustomerResponse` DTO with all lifecycle fields | ✅ Extended in Session 49 | — | — |
+
+**Closure order**: Backend commands → Flyway V23 migration → Angular CustomerDetail tabs + modals → then move to Module 2.
+
+---
+
+### Module 2 — Customer Account Management (Savings)
+
+**PRD requirements**: Full Mifos savings account lifecycle — open, activate, deposit, withdrawal, hold funds, block/unblock, close, dormancy, interest posting, account transfers, statements.
+
+| PRD Feature | Backend Status | Angular Status | Gap |
+|-------------|---------------|----------------|-----|
+| Open savings account | ✅ `POST /api/v1/accounts` | ✅ `isNew` creation form | — |
+| Approve / Activate account | ❌ No `?command=approve` | ❌ No button | ❌ |
+| Deposit / Credit | ✅ Via payment/transaction | ✅ Deposit modal | — |
+| Withdrawal / Debit | ✅ Via payment/transaction | ✅ Withdraw modal | — |
+| Hold funds (`HOLD` transaction type) | ❌ No hold mechanism | ❌ Missing | ❌ |
+| Block account | ✅ Freeze modal → `?command=freeze` | ✅ Freeze button | — |
+| Unblock account | ✅ Unfreeze modal | ✅ Unfreeze button | — |
+| Close account | ✅ Close modal | ✅ Close button | — |
+| Dormancy detection (nightly CoB job) | ❌ No dormancy status / CoB job | ❌ Missing | ❌ |
+| Interest posting (daily accrual, periodic posting) | ⚠️ `interestAccrualJob` exists (CoB) | ❌ No interest posting UI | ⚠️ |
+| Account transfers (internal) | ✅ Via payment service | ✅ Transfer wizard modal | — |
+| Statement download | ✅ Statement modal with date filter | ✅ Statement modal | — |
+| Savings account template (`?template=true`) | ❌ No template endpoint | ❌ Missing | ❌ |
+| Overdraft (`allowOverdraft` product-level) | ✅ Deposit product has overdraft fields | ❌ No overdraft enforcement in AccountService | ⚠️ |
+| Minimum balance enforcement | ❌ `minimumBalance` on product but not enforced in debit logic | ❌ Missing | ⚠️ |
+
+---
+
+### Module 3 — Loan Management
+
+**PRD requirements**: Full Mifos loan lifecycle — application, approval, disbursement, repayment schedule, charges, arrears, rescheduling, write-off, guarantors, collateral, documents.
+
+| PRD Feature | Backend Status | Angular Status | Gap |
+|-------------|---------------|----------------|-----|
+| Loan application (`POST /loans`) | ✅ | ✅ `isNew` creation form | — |
+| Approve loan | ✅ `?command=approve` | ✅ Approve button | — |
+| Disburse loan | ✅ `?command=disburse` | ✅ Disburse button | — |
+| Reject loan | ✅ `?command=reject` | ✅ Reject button | — |
+| Repayment (manual) | ✅ Repayment modal | ✅ Repayment modal | — |
+| Repayment schedule view | ✅ Schedule tab | ✅ Schedule tab | — |
+| Write off loan | ❌ No `?command=writeOff` | ❌ No button | ❌ |
+| Undo write-off | ❌ Missing | ❌ Missing | ❌ |
+| Waive interest | ❌ No `?command=waiveInterest` | ❌ Missing | ❌ |
+| Waive charge | ✅ Charges module (pay command) | ❌ No charge waive UI on loan detail | ⚠️ |
+| Loan charges tab (view + add + pay + waive) | ✅ `LoanCharge` entity/service | ❌ No charges tab on LoanDetail | ⚠️ |
+| Guarantors tab | ✅ Guarantors module (Module 22) | ❌ No Guarantors tab on LoanDetail | ⚠️ |
+| Collateral tab | ✅ Collateral module (Module 22) | ❌ No Collateral tab on LoanDetail | ⚠️ |
+| Loan documents tab | ✅ Notes & Documents module | ❌ No Documents tab on LoanDetail | ⚠️ |
+| Loan notes tab | ✅ Notes module | ❌ No Notes tab on LoanDetail | ⚠️ |
+| Loan reschedule | ✅ Reschedule module (Module 23) | ❌ No Reschedule UI | ⚠️ |
+| Loan re-aging | ✅ Re-aging module (Module 23) | ❌ No Re-aging UI | ⚠️ |
+| Foreclose loan | ❌ No `?command=foreclose` | ❌ Missing | ❌ |
+| Recover from NPA | ❌ Missing | ❌ Missing | ❌ |
+| In-arrears classification (CoB) | ✅ `arrearsClassificationJob` | ❌ No arrears indicator in UI | ⚠️ |
+
+---
+
+### Module 4 — Fees & Charges
+
+**PRD requirements**: Charge definition templates, apply charges to loans/accounts, waive, pay, manage per-loan charges.
+
+| PRD Feature | Backend Status | Angular Status | Gap |
+|-------------|---------------|----------------|-----|
+| Charge definition CRUD (`/api/v1/charges`) | ✅ Module 18 | ❌ No Angular component | ❌ |
+| Apply charge to loan | ✅ `POST /loans/{id}/charges` | ❌ Not accessible from LoanDetail | ⚠️ |
+| Pay charge on loan | ✅ `?command=pay` | ❌ Not accessible from LoanDetail | ⚠️ |
+| Waive charge on loan | ❌ No waive command in ChargesModule | ❌ Missing | ❌ |
+| List charges on loan | ✅ `GET /loans/{id}/charges` | ❌ No charges tab on LoanDetail | ⚠️ |
+| Charges management page (global) | ✅ Backend | ❌ No Angular route/component | ❌ |
+
+---
+
+### Module 5 — GL Accounting
+
+**PRD requirements**: Chart of accounts, journal entries, GL closures, financial activity accounts, accounting rules, provisioning.
+
+| PRD Feature | Backend Status | Angular Status | Gap |
+|-------------|---------------|----------------|-----|
+| GL accounts CRUD | ✅ | ✅ GlAccountsComponent | — |
+| Journal entries (view + manual post + reverse) | ✅ | ✅ JournalEntriesComponent | — |
+| GL closures | ✅ | ❌ No Angular UI for GL closures | ⚠️ |
+| Financial Activity Accounts CRUD | ✅ | ✅ FinancialActivityAccountsComponent | — |
+| Accounting Rules CRUD | ✅ Module 42 | ❌ No Angular component | ❌ |
+| Provisioning Criteria CRUD | ✅ | ✅ ProvisioningComponent | — |
+
+---
+
+### Module 6 — Treasury
+
+**PRD requirements**: Investment accounts, fixed-term placements, fund management, liquidity management, inter-bank transfers.
+
+| PRD Feature | Backend Status | Angular Status | Gap |
+|-------------|---------------|----------------|-----|
+| Treasury placements / investments | ❌ No treasury module | ❌ Missing | ❌ |
+| Fund management (track sources of capital) | ⚠️ `Funds` entity in SystemModule | ❌ No Angular UI | ⚠️ |
+| Liquidity management / cash position | ❌ Missing | ❌ Missing | ❌ |
+| Inter-bank transfers (SWIFT/SEPA) | ❌ Stub only in payment module | ❌ Missing | ❌ |
+
+---
+
+### Module 7 — Audit & Internal Control
+
+**PRD requirements**: Immutable audit trail, maker-checker workflow, system logs, compliance reports.
+
+| PRD Feature | Backend Status | Angular Status | Gap |
+|-------------|---------------|----------------|-----|
+| Audit log (append-only, 7-year retention) | ✅ Module 8 | ❌ No Angular Audit Log viewer | ❌ |
+| Audit search (`GET /api/v1/audits`) | ✅ `AuditController` | ❌ No Angular component | ❌ |
+| Maker-Checker workflow | ✅ Module 29 | ✅ MakerCheckerComponent | — |
+| System access logs / login history | ❌ No login history tracking | ❌ Missing | ❌ |
+| Compliance / audit report | ⚠️ Reports module with TrialBalance seed | ❌ No dedicated compliance report UI | ⚠️ |
+
+---
+
+### Module 8 — System Administrator
+
+**PRD requirements**: User management, roles/permissions, offices, codes/code values, global configuration, payment types, account number formats, bulk imports.
+
+| PRD Feature | Backend Status | Angular Status | Gap |
+|-------------|---------------|----------------|-----|
+| User management | ✅ Module 12 | ✅ UsersComponent | — |
+| Roles & Permissions | ✅ Module 32 | ✅ RolesComponent | — |
+| Office hierarchy | ✅ Module 11 | ✅ OfficesComponent | — |
+| Staff management | ✅ Module 11 | ❌ No StaffComponent (staff listed in OfficesComponent only) | ⚠️ |
+| Codes & Code Values | ✅ Module 26 | ✅ CodesComponent | — |
+| Global Configuration | ✅ Module 26 | ✅ GlobalConfigComponent | — |
+| Payment Types | ✅ Module 26 | ❌ No Angular component | ❌ |
+| Account Number Formats | ✅ Module 26 | ❌ No Angular component | ❌ |
+| Funds management | ✅ Module 26 | ❌ No Angular component | ❌ |
+| Holidays management | ✅ Module 28 | ❌ No Angular component | ❌ |
+| Bulk import (customers / loans) | ❌ Not implemented | ❌ Missing | ❌ |
+| Password / security policy | ❌ Delegated to Keycloak | ❌ No admin UI for Keycloak policies | ⚠️ |
+
+---
+
+### Module 9 — Notification & Messaging
+
+**PRD requirements**: Email/SMS notification templates, event-driven triggers, SMS campaigns, in-app notifications, report mailing.
+
+| PRD Feature | Backend Status | Angular Status | Gap |
+|-------------|---------------|----------------|-----|
+| Notification event listeners (email/SMS) | ✅ Module 7 (AccountEvent, LoanEvent) | ✅ NotificationsComponent (templates + test send) | — |
+| SMS Campaigns | ✅ Module 33 | ❌ No Angular SMS Campaigns component | ❌ |
+| Report Mailing Jobs | ✅ Module 34 | ✅ ReportMailingComponent | — |
+| Hooks (web / SMS webhook) | ✅ Module 28 | ✅ HooksComponent | — |
+| In-app notification center | ❌ Not implemented | ❌ Missing | ❌ |
+| Push notifications (mobile) | ❌ Not implemented | ❌ Missing (mobile only) | ❌ |
+
+---
+
+### Module 10 — Fraud & Risk Management
+
+**PRD requirements**: Blacklist management, transaction velocity rules, fraud alerts, risk scoring per customer/account, card fraud rules (already built in card-service).
+
+| PRD Feature | Backend Status | Angular Status | Gap |
+|-------------|---------------|----------------|-----|
+| Card fraud rules engine | ✅ `card-service` FraudEngine | ✅ FraudRulesComponent | — |
+| Core banking transaction velocity limits (non-card) | ❌ No fraud engine in backend monolith | ❌ Missing | ❌ |
+| Customer blacklist / sanctions screening | ❌ Not implemented | ❌ Missing | ❌ |
+| Fraud alerts / case management | ❌ Not implemented | ❌ Missing | ❌ |
+| Risk score per customer | ❌ Not implemented | ❌ Missing | ❌ |
+| AML transaction monitoring | ❌ Not implemented | ❌ Missing | ❌ |
+
+---
+
+### Module 11 — Business Intelligence
+
+**PRD requirements**: KPI dashboards, loan portfolio analytics, deposit analytics, repayment performance, custom report builder.
+
+| PRD Feature | Backend Status | Angular Status | Gap |
+|-------------|---------------|----------------|-----|
+| Dynamic report engine | ✅ Module 15 (SQL-based) | ✅ ReportsListComponent | — |
+| Dashboard KPIs (total loans, deposits, customers) | ⚠️ No dedicated `/api/v1/dashboard` endpoint | ✅ DashboardComponent (mock data + partial) | ⚠️ |
+| Loan portfolio breakdown chart | ❌ No `/api/v1/analytics/loans` | ⚠️ DashboardComponent portfolio bars (mock) | ⚠️ |
+| Deposit analytics | ❌ No analytics endpoint | ❌ Missing | ❌ |
+| Repayment performance metrics | ❌ No analytics endpoint | ❌ Missing | ❌ |
+| CoB job history / scheduler UI | ✅ `CobJobHistory` entity | ✅ CobSchedulerComponent | — |
+| Report mailing scheduler | ✅ Module 34 | ✅ ReportMailingComponent | — |
+| Export (CSV / XLS / PDF) | ⚠️ CSV export in Reports UI | ⚠️ Only CSV; XLS/PDF not wired | ⚠️ |
+| Real-time dashboard API | ❌ Not implemented | ❌ Missing | ❌ |
+
+---
+
+### Gap Closure Progress
+
+| Module | Status | Session Closed |
+|--------|--------|---------------|
+| Customer Onboarding | 🔄 In Progress | Session 49 |
+| Customer Account Management | 🔲 Queued | — |
+| Loan Management | 🔲 Queued | — |
+| Fees & Charges | 🔲 Queued | — |
+| GL Accounting | ✅ Done | Prior sessions |
+| Treasury | 🔲 Queued | — |
+| Audit & Internal Control | 🔲 Queued | — |
+| System Administrator | 🔲 Queued | — |
+| Notification & Messaging | 🔲 Queued | — |
+| Fraud & Risk Management | 🔲 Queued | — |
+| Business Intelligence | 🔲 Queued | — |

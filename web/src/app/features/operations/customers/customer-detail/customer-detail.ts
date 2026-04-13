@@ -6,12 +6,19 @@ import { StatusBadgeComponent } from '../../../../shared/components/status-badge
 import {
   CustomerService, Customer, KycStatus,
   ClientIdentifier, ClientAddress, Beneficiary,
-  CustomerCreateRequest,
+  CustomerCreateRequest, CustomerCommandRequest,
 } from '../customer.service';
 import { AccountService, Account } from '../../accounts/account.service';
 import { LoanService, Loan } from '../../loans/loan.service';
 
-export type DetailTab = 'overview' | 'accounts' | 'loans' | 'identifiers' | 'beneficiaries';
+export type DetailTab =
+  | 'overview'
+  | 'accounts'
+  | 'loans'
+  | 'identifiers'
+  | 'beneficiaries'
+  | 'staff'
+  | 'transfer';
 
 const AVATAR_COLORS = ['#3b82f6','#16a34a','#7c3aed','#ea580c','#db2777','#0891b2'];
 
@@ -33,46 +40,14 @@ export class CustomerDetailComponent implements OnInit {
   loading = true;
   error = '';
 
-  // Creation mode
+  // ── Creation mode ───────────────────────────────────────────────────────
   isNew = false;
   saving = false;
   saveError = '';
   newForm: CustomerCreateRequest = { firstName: '', lastName: '', email: '' };
 
+  // ── Tab state ────────────────────────────────────────────────────────────
   activeTab: DetailTab = 'overview';
-
-  // Accounts tab
-  accounts: Account[] = [];
-  accountsLoaded = false;
-  accountsLoading = false;
-
-  // Loans tab
-  loans: Loan[] = [];
-  loansLoaded = false;
-  loansLoading = false;
-
-  // Identifiers tab
-  identifiers: ClientIdentifier[] = [];
-  addresses: ClientAddress[] = [];
-  identifiersLoaded = false;
-  identifiersLoading = false;
-
-  // Beneficiaries tab
-  beneficiaries: Beneficiary[] = [];
-  beneficiariesLoaded = false;
-  beneficiariesLoading = false;
-
-  // KYC change workflow
-  showKycDropdown = false;
-  pendingKycStatus: KycStatus | null = null;
-  kycChanging = false;
-
-  readonly kycTransitions: Record<KycStatus, KycStatus[]> = {
-    PENDING_KYC: ['ACTIVE'],
-    ACTIVE:      ['SUSPENDED', 'CLOSED'],
-    SUSPENDED:   ['ACTIVE', 'CLOSED'],
-    CLOSED:      [],
-  };
 
   readonly tabs: Array<{ id: DetailTab; label: string; icon: string }> = [
     { id: 'overview',      label: 'Overview',      icon: 'person' },
@@ -80,7 +55,87 @@ export class CustomerDetailComponent implements OnInit {
     { id: 'loans',         label: 'Loans',         icon: 'payments' },
     { id: 'identifiers',   label: 'ID & Address',  icon: 'badge' },
     { id: 'beneficiaries', label: 'Beneficiaries', icon: 'group' },
+    { id: 'staff',         label: 'Staff',         icon: 'manage_accounts' },
+    { id: 'transfer',      label: 'Transfer',      icon: 'swap_horiz' },
   ];
+
+  // ── Accounts tab ─────────────────────────────────────────────────────────
+  accounts: Account[] = [];
+  accountsLoaded = false;
+  accountsLoading = false;
+
+  // ── Loans tab ────────────────────────────────────────────────────────────
+  loans: Loan[] = [];
+  loansLoaded = false;
+  loansLoading = false;
+
+  // ── Identifiers tab ──────────────────────────────────────────────────────
+  identifiers: ClientIdentifier[] = [];
+  addresses: ClientAddress[] = [];
+  identifiersLoaded = false;
+  identifiersLoading = false;
+
+  // ── Beneficiaries tab ────────────────────────────────────────────────────
+  beneficiaries: Beneficiary[] = [];
+  beneficiariesLoaded = false;
+  beneficiariesLoading = false;
+
+  // ── KYC dropdown (legacy transitions) ───────────────────────────────────
+  showKycDropdown = false;
+  pendingKycStatus: KycStatus | null = null;
+  kycChanging = false;
+
+  readonly kycTransitions: Partial<Record<KycStatus, KycStatus[]>> = {
+    PENDING_KYC:         ['ACTIVE'],
+    ACTIVE:              ['SUSPENDED', 'CLOSED'],
+    SUSPENDED:           ['ACTIVE', 'CLOSED'],
+    CLOSED:              [],
+    REJECTED:            [],
+    WITHDRAWN:           [],
+    TRANSFER_IN_PROGRESS: [],
+  };
+
+  // ── Command modals ────────────────────────────────────────────────────────
+  // Shared command working state
+  cmdWorking = false;
+  cmdError = '';
+
+  // Reject modal
+  showRejectModal = false;
+  rejectReason = '';
+
+  // Withdraw modal
+  showWithdrawModal = false;
+  withdrawReason = '';
+
+  // Close modal
+  showCloseModal = false;
+  closeReason = '';
+
+  // Reactivate / undo modals (no payload)
+  showReactivateConfirm = false;
+  showUndoRejectionConfirm = false;
+  showUndoWithdrawalConfirm = false;
+
+  // Assign staff modal
+  showAssignStaffModal = false;
+  assignStaffId = '';
+
+  // Transfer modals
+  showProposeTransferModal = false;
+  transferDestinationOfficeId = '';
+  transferDate = '';
+  transferNote = '';
+
+  showAcceptTransferConfirm = false;
+  showRejectTransferConfirm = false;
+  showWithdrawTransferConfirm = false;
+
+  // Delete confirm
+  showDeleteConfirm = false;
+  deleteWorking = false;
+
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id')!;
@@ -95,6 +150,8 @@ export class CustomerDetailComponent implements OnInit {
     });
   }
 
+  // ── Creation ──────────────────────────────────────────────────────────────
+
   submitCreate(): void {
     if (!this.newForm.firstName || !this.newForm.lastName || !this.newForm.email) return;
     this.saving = true;
@@ -104,6 +161,8 @@ export class CustomerDetailComponent implements OnInit {
       error: () => { this.saveError = 'Failed to create customer. Please try again.'; this.saving = false; },
     });
   }
+
+  // ── Tab navigation ────────────────────────────────────────────────────────
 
   selectTab(tab: DetailTab): void {
     this.activeTab = tab;
@@ -141,6 +200,8 @@ export class CustomerDetailComponent implements OnInit {
     }
   }
 
+  // ── KYC dropdown (legacy) ─────────────────────────────────────────────────
+
   confirmKycChange(): void {
     if (!this.pendingKycStatus || !this.customer) return;
     this.kycChanging = true;
@@ -153,6 +214,101 @@ export class CustomerDetailComponent implements OnInit {
       },
       error: () => { this.kycChanging = false; },
     });
+  }
+
+  // ── Commands ──────────────────────────────────────────────────────────────
+
+  private runCommand(command: string, payload: CustomerCommandRequest = {}): void {
+    if (!this.customer) return;
+    this.cmdWorking = true;
+    this.cmdError = '';
+    this.custSvc.executeCommand(this.customer.id, command, payload).subscribe({
+      next: updated => {
+        this.customer = updated;
+        this.cmdWorking = false;
+        this.closeAllModals();
+      },
+      error: (err) => {
+        this.cmdError = err?.error?.errors?.[0]?.message ?? 'Operation failed. Please try again.';
+        this.cmdWorking = false;
+      },
+    });
+  }
+
+  rejectCustomer(): void {
+    this.runCommand('reject', { reason: this.rejectReason || undefined });
+  }
+
+  withdrawCustomer(): void {
+    this.runCommand('withdraw', { reason: this.withdrawReason || undefined });
+  }
+
+  closeCustomer(): void {
+    this.runCommand('close', { reason: this.closeReason || undefined });
+  }
+
+  reactivateCustomer(): void    { this.runCommand('reactivate'); }
+  undoRejection(): void         { this.runCommand('undoRejection'); }
+  undoWithdrawal(): void        { this.runCommand('undoWithdrawal'); }
+
+  assignStaff(): void {
+    if (!this.assignStaffId.trim()) return;
+    this.runCommand('assignStaff', { staffId: this.assignStaffId.trim() });
+  }
+
+  unassignStaff(): void { this.runCommand('unassignStaff'); }
+
+  proposeTransfer(): void {
+    if (!this.transferDestinationOfficeId.trim()) return;
+    this.runCommand('proposeTransfer', {
+      destinationOfficeId: this.transferDestinationOfficeId.trim(),
+      transferDate: this.transferDate || undefined,
+      transferNote: this.transferNote || undefined,
+    });
+  }
+
+  acceptTransfer(): void  { this.runCommand('acceptTransfer'); }
+  rejectTransfer(): void  { this.runCommand('rejectTransfer'); }
+  withdrawTransfer(): void { this.runCommand('withdrawTransfer'); }
+
+  // ── Delete ────────────────────────────────────────────────────────────────
+
+  confirmDelete(): void {
+    if (!this.customer) return;
+    this.deleteWorking = true;
+    this.custSvc.delete(this.customer.id).subscribe({
+      next: () => this.router.navigate(['..'], { relativeTo: this.route }),
+      error: (err) => {
+        this.cmdError = err?.error?.errors?.[0]?.message ?? 'Delete failed.';
+        this.deleteWorking = false;
+        this.showDeleteConfirm = false;
+      },
+    });
+  }
+
+  // ── Utilities ─────────────────────────────────────────────────────────────
+
+  closeAllModals(): void {
+    this.showRejectModal = false;
+    this.showWithdrawModal = false;
+    this.showCloseModal = false;
+    this.showReactivateConfirm = false;
+    this.showUndoRejectionConfirm = false;
+    this.showUndoWithdrawalConfirm = false;
+    this.showAssignStaffModal = false;
+    this.showProposeTransferModal = false;
+    this.showAcceptTransferConfirm = false;
+    this.showRejectTransferConfirm = false;
+    this.showWithdrawTransferConfirm = false;
+    this.showDeleteConfirm = false;
+    this.rejectReason = '';
+    this.withdrawReason = '';
+    this.closeReason = '';
+    this.assignStaffId = '';
+    this.transferDestinationOfficeId = '';
+    this.transferDate = '';
+    this.transferNote = '';
+    this.cmdError = '';
   }
 
   get availableKycTransitions(): KycStatus[] {
@@ -170,11 +326,29 @@ export class CustomerDetailComponent implements OnInit {
     return AVATAR_COLORS[idx];
   }
 
-  kycVariant(s: KycStatus): 'success' | 'warning' | 'error' | 'neutral' {
-    return s === 'ACTIVE' ? 'success' : s === 'PENDING_KYC' ? 'warning' : s === 'SUSPENDED' ? 'error' : 'neutral';
+  kycVariant(s: KycStatus): 'success' | 'warning' | 'error' | 'neutral' | 'info' {
+    switch (s) {
+      case 'ACTIVE':              return 'success';
+      case 'PENDING_KYC':         return 'warning';
+      case 'SUSPENDED':           return 'error';
+      case 'REJECTED':            return 'error';
+      case 'WITHDRAWN':           return 'neutral';
+      case 'TRANSFER_IN_PROGRESS': return 'info';
+      default:                    return 'neutral';
+    }
   }
+
   kycLabel(s: KycStatus): string {
-    return s === 'PENDING_KYC' ? 'Pending KYC' : s.charAt(0) + s.slice(1).toLowerCase();
+    const map: Record<KycStatus, string> = {
+      PENDING_KYC:          'Pending KYC',
+      ACTIVE:               'Active',
+      SUSPENDED:            'Suspended',
+      CLOSED:               'Closed',
+      REJECTED:             'Rejected',
+      WITHDRAWN:            'Withdrawn',
+      TRANSFER_IN_PROGRESS: 'Transfer In Progress',
+    };
+    return map[s] ?? s;
   }
 
   accountStatusVariant(s: Account['status']): 'success' | 'warning' | 'error' | 'neutral' {
@@ -189,8 +363,13 @@ export class CustomerDetailComponent implements OnInit {
     };
     return m[s] ?? 'neutral';
   }
+
   loanStatusLabel(s: Loan['status']): string {
-    const m: Record<string,string> = { SUBMITTED:'Submitted', UNDER_REVIEW:'Under Review', APPROVED:'Approved', DISBURSED:'Disbursed', ACTIVE:'Active', IN_ARREARS:'In Arrears', CLOSED_OBLIGATIONS_MET:'Closed', WRITTEN_OFF:'Written Off' };
+    const m: Record<string, string> = {
+      SUBMITTED:'Submitted', UNDER_REVIEW:'Under Review', APPROVED:'Approved',
+      DISBURSED:'Disbursed', ACTIVE:'Active', IN_ARREARS:'In Arrears',
+      CLOSED_OBLIGATIONS_MET:'Closed', WRITTEN_OFF:'Written Off',
+    };
     return m[s] ?? s;
   }
 }

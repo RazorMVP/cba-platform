@@ -59,6 +59,53 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 49 — 2026-04-14
+**PRD gap analysis: compared Confluence PRD (11 modules) against full-stack build; began Customer Onboarding gap closure — extended KycStatus, Customer entity, and CustomerResponse DTO.**
+
+#### PRD Gap Analysis Summary
+Read 7 Confluence feature-list pages under the `NCBP` space. Compared every PRD requirement against CLAUDE.md to determine what is fully built (backend + Angular UI), partially built, or missing. Results recorded in `CLAUDE.md` under "PRD Gap Analysis — Session 49".
+
+| Module | Backend | Angular | Overall |
+|--------|---------|---------|---------|
+| Customer Onboarding | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
+| Savings Account Management | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
+| Loan Management | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
+| Fees & Charges | ✅ Built | ❌ Missing | ⚠️ Gap |
+| GL Accounting | ✅ Built | ✅ Built | ✅ Done |
+| Treasury | ❌ Missing | ❌ Missing | ❌ Gap |
+| Audit & Internal Control | ⚠️ Partial | ❌ Missing | ⚠️ Gap |
+| System Administrator | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
+| Notification & Messaging | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
+| Fraud & Risk Management | ⚠️ Card only | ❌ Core banking | ⚠️ Gap |
+| Business Intelligence | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
+
+**Decision**: Close gaps sequentially, one module at a time (Customer Onboarding first), fixing both backend and Angular in the same session before moving to the next module.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/src/main/java/com/cba/customer/KycStatus.java` | EXTENDED: added `REJECTED`, `WITHDRAWN`, `TRANSFER_IN_PROGRESS` states |
+| `backend/src/main/java/com/cba/customer/Customer.java` | EXTENDED: added 11 new fields — lifecycle dates (`activationDate`, `closureDate`, `rejectionDate`, `withdrawalDate`), lifecycle reasons (`closureReason`, `rejectionReason`, `withdrawalReason`), staff/office (`staffId`, `officeId`), inter-branch transfer (`transferToOfficeId`, `transferDate`, `transferNote`) |
+| `backend/src/main/java/com/cba/customer/dto/CustomerResponse.java` | REWRITTEN: Java record now includes all lifecycle dates, reasons, staff/office, and transfer fields |
+| `CLAUDE.md` | ADDED: "PRD Gap Analysis — Session 49" section with 11-module scorecard + per-module gap tables |
+
+#### Key Patterns / Decisions
+- **Documentation-first policy**: Gap analysis must be recorded in `CLAUDE.md` and `cba-log.md` before any implementation code is written — this creates a durable point of reference that survives context compaction.
+- **Full-stack = both layers**: A feature is only "built" when backend REST endpoint AND Angular component both exist. Backend-only counts as ⚠️ partial.
+- **Sequential gap closure**: Modules closed one at a time to completion (backend + Angular) before moving to the next. Customer Onboarding is first.
+- **Mifos command pattern**: Customer lifecycle extensions use `POST /{id}?command=reject|withdraw|reactivate|...` — same pattern as Mifos, avoids creating many new route-specific endpoints.
+- **KycStatus enum extension**: Adding `REJECTED`, `WITHDRAWN`, `TRANSFER_IN_PROGRESS` required re-checking the Angular `CustomerDetail` KYC transitions map — these new states need their own allowed-transition entries.
+
+#### Build Verification
+Backend `KycStatus`, `Customer.java`, `CustomerResponse.java` modified — compile not run yet (remaining gap closure work continues next).
+
+#### Compliance Checklist Update
+- PRD comparison: ✅ Completed — 11 modules analysed
+- Gap analysis recorded in CLAUDE.md: ✅
+- Customer Onboarding entity/DTO extensions: ✅ (backend commands, Flyway V23, Angular still pending)
+
+---
+
 ### Session 48 — 2026-04-13
 **Fixed Cards sidebar perpetual-active state (routerLinkActive exact matching) and implemented inline creation forms for Add Customer, Open Account, and New Loan (commits `224bbfb`, `c8f188e`).**
 

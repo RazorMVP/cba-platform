@@ -184,3 +184,52 @@
 .addr-card  { padding: $space-4; border: 1px solid $color-border-default; border-radius: $radius-sm; margin-bottom: $space-3; &:last-child { margin-bottom: 0; } }
 .addr-type  { font-size: $text-xs; font-weight: $font-weight-semibold; text-transform: uppercase; letter-spacing: 0.5px; color: $color-primary-800; margin-bottom: $space-2; }
 .addr-line  { font-size: $text-sm; line-height: 1.6; }
+
+// Command row buttons
+.cmd-row { display: flex; flex-wrap: wrap; gap: $space-2; margin-top: $space-2; }
+.cmd-danger { color: $color-error-600; border-color: $color-error-100; &:hover { background: $color-error-50; } }
+
+// Command error banner
+.cmd-error-banner {
+  display: flex; align-items: center; gap: $space-3;
+  background: $color-error-50; border: 1px solid $color-error-100; border-radius: $radius-sm;
+  padding: $space-3 $space-4; margin-bottom: $space-4; font-size: $text-sm; color: $color-error-600;
+  .material-icons { font-size: 18px; color: $color-error-600; }
+}
+
+// Staff tab
+.staff-assigned {
+  display: flex; align-items: center; gap: $space-4; padding: $space-4;
+  border: 1px solid $color-border-default; border-radius: $radius-sm;
+}
+.staff-icon { font-size: 36px; color: $color-primary-800; }
+.staff-info { flex: 1; }
+.staff-label { font-size: $text-xs; color: $color-text-muted; margin-bottom: 2px; }
+.staff-id   { font-size: $text-sm; font-weight: $font-weight-medium; }
+.staff-office { font-size: $text-xs; margin-top: 2px; }
+
+// Transfer tab
+.transfer-pending { padding: $space-4; }
+.transfer-status  { margin-bottom: $space-4; }
+.transfer-actions { display: flex; gap: $space-3; margin-top: $space-5; padding-top: $space-4; border-top: 1px solid $color-border-default; }
+
+// Modals
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200;
+  display: flex; align-items: center; justify-content: center; padding: $space-4;
+}
+.modal {
+  background: white; border-radius: $radius-md; box-shadow: $shadow-modal;
+  width: 100%; max-width: 480px;
+  &__header { display: flex; align-items: center; justify-content: space-between; padding: $space-5; border-bottom: 1px solid $color-border-default; }
+  &__title  { font-size: $text-base; font-weight: $font-weight-semibold; }
+  &__close  { background: none; border: none; cursor: pointer; color: $color-text-muted; .material-icons { font-size: 20px; } }
+  &__body   { padding: $space-5; }
+  &__desc   { font-size: $text-sm; color: $color-text-muted; margin-bottom: $space-4; line-height: 1.6; }
+  &__error  { background: $color-error-50; border: 1px solid $color-error-100; border-radius: $radius-sm; padding: $space-3 $space-4; font-size: $text-sm; color: $color-error-600; margin-top: $space-3; }
+  &__footer { display: flex; gap: $space-3; padding: $space-4 $space-5; border-top: 1px solid $color-border-default; }
+}
+
+// Spinner
+.spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }

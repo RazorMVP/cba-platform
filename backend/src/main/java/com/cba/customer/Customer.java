@@ -60,4 +60,44 @@ public class Customer extends AuditableEntity {
     /** Keycloak user UUID (JWT `sub` claim) — set when customer registers for self-service. */
     @Column(name = "keycloak_id", unique = true, length = 100)
     private String keycloakId;
+
+    // ── Lifecycle dates ──────────────────────────────────────────────────────
+    @Column(name = "activation_date")
+    private LocalDate activationDate;
+
+    @Column(name = "closure_date")
+    private LocalDate closureDate;
+
+    @Column(name = "rejection_date")
+    private LocalDate rejectionDate;
+
+    @Column(name = "withdrawal_date")
+    private LocalDate withdrawalDate;
+
+    // ── Lifecycle reasons ────────────────────────────────────────────────────
+    @Column(name = "closure_reason", length = 500)
+    private String closureReason;
+
+    @Column(name = "rejection_reason", length = 500)
+    private String rejectionReason;
+
+    @Column(name = "withdrawal_reason", length = 500)
+    private String withdrawalReason;
+
+    // ── Staff / office assignment ────────────────────────────────────────────
+    @Column(name = "staff_id")
+    private UUID staffId;
+
+    @Column(name = "office_id")
+    private UUID officeId;
+
+    // ── Inter-branch transfer ────────────────────────────────────────────────
+    @Column(name = "transfer_to_office_id")
+    private UUID transferToOfficeId;
+
+    @Column(name = "transfer_date")
+    private LocalDate transferDate;
+
+    @Column(name = "transfer_note", length = 500)
+    private String transferNote;
 }

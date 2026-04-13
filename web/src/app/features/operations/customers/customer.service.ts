@@ -10,12 +10,37 @@ export interface Customer {
   lastName: string;
   email: string;
   phone?: string;
-  kycStatus: 'PENDING_KYC' | 'ACTIVE' | 'SUSPENDED' | 'CLOSED';
+  dateOfBirth?: string;
+  kycStatus: KycStatus;
+  // Lifecycle dates
+  activationDate?: string;
+  closureDate?: string;
+  rejectionDate?: string;
+  withdrawalDate?: string;
+  // Lifecycle reasons
+  closureReason?: string;
+  rejectionReason?: string;
+  withdrawalReason?: string;
+  // Staff / office
+  staffId?: string;
+  officeId?: string;
+  // Transfer
+  transferToOfficeId?: string;
+  transferDate?: string;
+  transferNote?: string;
+  // Timestamps
   createdAt: string;
   updatedAt?: string;
 }
 
-export type KycStatus = Customer['kycStatus'];
+export type KycStatus =
+  | 'PENDING_KYC'
+  | 'ACTIVE'
+  | 'SUSPENDED'
+  | 'CLOSED'
+  | 'REJECTED'
+  | 'WITHDRAWN'
+  | 'TRANSFER_IN_PROGRESS';
 
 export interface CustomerCreateRequest {
   firstName: string;
@@ -24,6 +49,24 @@ export interface CustomerCreateRequest {
   phone?: string;
   nationalId?: string;
   dateOfBirth?: string;
+}
+
+export interface CustomerUpdateRequest {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  nationalId?: string;
+  dateOfBirth?: string;
+  notes?: string;
+}
+
+export interface CustomerCommandRequest {
+  reason?: string;
+  staffId?: string;
+  destinationOfficeId?: string;
+  transferDate?: string;
+  transferNote?: string;
 }
 
 export interface ClientIdentifier {
@@ -73,8 +116,22 @@ export class CustomerService {
     return this.api.post<Customer>('/customers', body);
   }
 
+  update(id: string, body: CustomerUpdateRequest): Observable<Customer> {
+    return this.api.put<Customer>(`/customers/${id}`, body);
+  }
+
+  /** Mifos command pattern: POST /customers/{id}?command=... */
+  executeCommand(id: string, command: string, payload: CustomerCommandRequest = {}): Observable<Customer> {
+    return this.api.post<Customer>(`/customers/${id}?command=${command}`, payload);
+  }
+
+  delete(id: string): Observable<void> {
+    return this.api.delete<void>(`/customers/${id}`);
+  }
+
+  /** Legacy — kept for backward compat; prefer executeCommand('activate') */
   updateKycStatus(id: string, status: KycStatus): Observable<Customer> {
-    return this.api.command<Customer>(`/customers/${id}/kyc-status`, 'update', { status });
+    return this.api.put<Customer>(`/customers/${id}/kyc-status`, { kycStatus: status });
   }
 
   getIdentifiers(id: string): Observable<ClientIdentifier[]> {

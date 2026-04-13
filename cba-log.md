@@ -59,6 +59,31 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 43 — 2026-04-12
+**API documentation audit and gap-fill: updated `docs/api-reference.html` and `docs/cba-postman-collection-v2.json` to cover all implemented endpoints — added Card Management, Fraud Management, Token Management, Bureau/Personalization, full 12-endpoint Chargeback Workflow, Settlement Export Framework, and 79 new Full API Matrix rows.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `docs/api-reference.html` | UPDATED: Card Service section fully rewritten — 8 new sub-sections (Card Management, Fraud Management, Token Management, Bureau, updated Disputes, updated Settlement, updated Terminal Simulator); sidebar extended with Card Platform nav links; Full API Matrix expanded with 79 new card service rows covering all implemented endpoints |
+| `docs/cba-postman-collection-v2.json` | UPDATED: Card Service folder expanded — Card Management subfolder now has Card Products (5) + Cards Lifecycle (12) sub-groups; Disputes replaced with full 12-endpoint chargeback workflow; Settlement extended with 4 export framework endpoints; 3 new subfolders added: Fraud Management (2), Token Management (4), Bureau/Personalization (8) |
+
+#### Key Patterns / Decisions
+- **Documentation debt pattern**: Sessions 36–39 (Bureau, Token, Fraud, Settlement Export, Chargeback) were never documented — added all missing sections in this session
+- **Full API Matrix now accurate**: 79 card service rows added covering all implemented endpoints across both services; previously only card-api/v1 rows existed for card-service
+- **Chargeback workflow corrected**: Old 4-endpoint dispute section (RAISED/UNDER_REVIEW/RESOLVED) replaced with accurate 12-endpoint, 7-state workflow matching Session 36 implementation
+- **Postman nested structure**: Card Management uses nested subfolders (Card Products, Cards Lifecycle) to mirror the clean separation between product config and instance management
+
+#### Build Verification
+No compilation step — JSON and HTML documentation files only. JSON validated via Python `json.load()`.
+
+#### Compliance Checklist Update
+- ✅ API documentation covers all implemented endpoints (card-service + backend)
+- ✅ Postman collection: Bureau (8), Token (4), Fraud (2), updated Disputes (12), Settlement Export (4) — all previously missing
+- ✅ api-reference.html: Card Management, Fraud Management, Token Management, Bureau, Chargeback Workflow, Settlement Export — all previously missing sections added
+
+---
+
 ### Session 42 — 2026-04-13
 **Build Order Steps 12 + 13 — complete infrastructure: Docker Compose (two profiles) + Keycloak pre-configured realm + full Kubernetes manifests for all 9 services. Deployment-agnostic: AWS / Azure / GCP / DigitalOcean / on-premises / Docker. Commit: pending.**
 

@@ -153,6 +153,19 @@ details.endpoint[open] .endpoint-body{display:block}
     <a href="#roles">Roles &amp; Permissions</a>
     <a href="#client-ext">Client Identifiers/Addresses</a>
     <a href="#audit-rest">Audit Search</a>
+    <div class="section-head">Card Platform</div>
+    <a href="#card-service">Card Service Overview</a>
+    <a href="#interchange-management">Interchange Management</a>
+    <a href="#bin-management">BIN Management</a>
+    <a href="#card-management">Card Management</a>
+    <a href="#fraud-management">Fraud Management</a>
+    <a href="#token-management">Token Management</a>
+    <a href="#bureau">Bureau / Personalization</a>
+    <a href="#card-disputes">Disputes (Chargeback)</a>
+    <a href="#settlement">Settlement &amp; Export</a>
+    <a href="#terminal-sim">Terminal Simulator</a>
+    <a href="#threeds-acs">3D Secure ACS</a>
+    <a href="#card-openbanking-api">Card Open Banking API</a>
     <a href="#fullapi">Full API Matrix</a>
   </nav>
 </nav>
@@ -1858,99 +1871,190 @@ Content-Type: application/json
 <!-- CARD SERVICE ────────────────────────────────────────────────────────── -->
 <section id="card-service">
 <h2>Card Service (port 8081)</h2>
-<p>Standalone microservice for card lifecycle, fraud, settlement, disputes, and terminal simulation. Base URL: <code>http://localhost:8081</code></p>
+<p>Standalone microservice for card lifecycle, fraud, tokenization, bureau integration, settlement, disputes, and terminal simulation. Base URL: <code>http://localhost:8081</code></p>
+<div class="callout info"><strong>Security chains (Spring Security @Order):</strong> 3DS ACS (0, no JWT) → internal JWT chain (1) → card-api dual-mode (2, ApiKey + JWT) → fallback JWT-all (3)</div>
 
 <h3 id="interchange-management">Interchange Management</h3>
-<p>Per-scheme/card-type/MCC interchange rate tiers and scheme assessment fees. The <code>InterchangeQualificationEngine</code> calculates fee amounts and nets them against gross settlement amounts.</p>
+<p>Per-scheme/card-type/MCC interchange rate tiers and scheme assessment fees. The <code>InterchangeQualificationEngine</code> resolves by: scheme + card_type + MCC specificity (non-null before null) + channel (CARD_PRESENT / CNP) + transaction type (PURCHASE / CASH / REFUND).</p>
 <h4>Interchange Rates</h4>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/api/v1/interchange/rates</code></td><td>List all active rate tiers</td><td>ADMIN</td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/api/v1/interchange/rates/{id}</code></td><td>Single rate by UUID</td><td>ADMIN</td></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/api/v1/interchange/rates</code></td><td>Create rate (<code>InterchangeRateRequest</code> DTO)</td><td>ADMIN</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/interchange/rates</code></td><td>Create rate — fields: scheme, cardType, mccCategory, transactionType, channel, ratePercent, fixedFee, currencyCode, effectiveFrom/To</td><td>ADMIN</td></tr>
 <tr><td><span class="method put">PUT</span></td><td><code>/api/v1/interchange/rates/{id}</code></td><td>Update rate — full replacement</td><td>ADMIN</td></tr>
 <tr><td><span class="method delete">DELETE</span></td><td><code>/api/v1/interchange/rates/{id}</code></td><td>Soft-delete (<code>active=false</code>)</td><td>ADMIN</td></tr>
 </table>
 <h4>Scheme Fees</h4>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
-<tr><td><span class="method get">GET</span></td><td><code>/api/v1/interchange/fees</code></td><td>List all active scheme fees (ASSESSMENT, NETWORK, CROSS_BORDER, INTERNATIONAL_SERVICE)</td><td>ADMIN</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/interchange/fees</code></td><td>List all active scheme fees — types: ASSESSMENT, NETWORK, CROSS_BORDER, INTERNATIONAL_SERVICE</td><td>ADMIN</td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/api/v1/interchange/fees/{id}</code></td><td>Single fee by UUID</td><td>ADMIN</td></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/api/v1/interchange/fees</code></td><td>Create scheme fee (<code>SchemeFeeRequest</code> DTO)</td><td>ADMIN</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/interchange/fees</code></td><td>Create scheme fee</td><td>ADMIN</td></tr>
 <tr><td><span class="method put">PUT</span></td><td><code>/api/v1/interchange/fees/{id}</code></td><td>Update fee</td><td>ADMIN</td></tr>
 <tr><td><span class="method delete">DELETE</span></td><td><code>/api/v1/interchange/fees/{id}</code></td><td>Soft-delete</td><td>ADMIN</td></tr>
 </table>
 <h4>Calculation</h4>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
-<tr><td><span class="method get">GET</span></td><td><code>/api/v1/interchange/calculate?authId={uuid}</code></td><td>Calculate interchange for an auth log entry; persists to <code>interchange_log</code>. Returns: interchangeAmount, schemeFeeAmount, netSettlementAmount, rateApplied</td><td>ADMIN</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/interchange/calculate?authId={uuid}</code></td><td>Calculate interchange for an authorization log entry; persists to <code>interchange_log</code>. Returns: interchangeAmount, schemeFeeAmount, netSettlementAmount, rateApplied</td><td>ADMIN</td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/api/v1/interchange/log/{authId}</code></td><td>Retrieve most recent interchange log record for an auth</td><td>ADMIN</td></tr>
 </table>
-<p><strong>Settlement netting formula:</strong> <code>Net = Gross − InterchangeFee − SchemeFees</code></p>
+<p><strong>Settlement netting formula:</strong> <code>Net = Gross − InterchangeFee − SchemeFees − CrossBorderFee (if international)</code></p>
 
 <h3 id="bin-management">BIN Management</h3>
-<p>Bank Identification Number ranges — maps the first 6 or 8 digits of a PAN to a card scheme. Also exposes machine-to-machine endpoints consumed by <code>fep-service</code>.</p>
+<p>Bank Identification Number ranges — maps the first 6 or 8 digits of a PAN to a card scheme. Supports both legacy 6-digit and EMV 2019 8-digit BINs. Also exposes machine-to-machine endpoints consumed by <code>fep-service</code>.</p>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/api/v1/bins</code></td><td>List all BIN ranges (admin UI)</td><td>ADMIN</td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/api/v1/bins/all</code></td><td>Full BIN→scheme map export for FEP cache — raw <code>Map&lt;String,String&gt;</code>, no envelope</td><td>none</td></tr>
-<tr><td><span class="method get">GET</span></td><td><code>/api/v1/bins/lookup?pan=</code></td><td>Dev/ops diagnostic — scheme by PAN prefix (returns <code>ApiResponse&lt;SchemeType&gt;</code>)</td><td>none</td></tr>
-<tr><td><span class="method get">GET</span></td><td><code>/api/v1/bins/{bin}/scheme</code></td><td>FEP M2M fallback — scheme by 6/8-digit BIN prefix; returns <code>{"scheme":"VISA"}</code></td><td>none</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/bins/lookup?pan=</code></td><td>Dev/ops diagnostic — scheme by PAN prefix (ApiResponse wrapper)</td><td>none</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/bins/{bin}/scheme</code></td><td>FEP M2M fallback — scheme by 6/8-digit BIN prefix; returns bare <code>{"scheme":"VISA"}</code></td><td>none</td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/api/v1/bins/{id}</code></td><td>Single BIN range by UUID</td><td>ADMIN</td></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/api/v1/bins</code></td><td>Register a new BIN range (<code>BinRangeRequest</code> validated DTO)</td><td>ADMIN</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/bins</code></td><td>Register a new BIN range — fields: binStart, binEnd (VARCHAR 8), scheme, productType, cardType, countryCode, currencyCode</td><td>ADMIN</td></tr>
 <tr><td><span class="method put">PUT</span></td><td><code>/api/v1/bins/{id}</code></td><td>Update BIN range — full replacement</td><td>ADMIN</td></tr>
 <tr><td><span class="method delete">DELETE</span></td><td><code>/api/v1/bins/{id}</code></td><td>Soft-delete: sets <code>active=false</code></td><td>ADMIN</td></tr>
 </table>
 
-<h3>Card Management (Internal)</h3>
-<p>Internal card endpoints called by the backend monolith for Open Banking integration. Auth: Bearer JWT.</p>
+<h3 id="card-management">Card Management</h3>
+<p>Full card lifecycle — issue, command-based state transitions, fraud authorization, product management, and per-card spending limits.</p>
+<h4>Card Products</h4>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
-<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/{id}/balance</code></td><td>Available balance routed by card type: DEBIT → linked account in monolith; PREPAID → internal wallet; CREDIT → revolving credit line. Returns <code>{ availableBalance, cardType }</code>. Returns <code>availableBalance: null</code> if linked source is unreachable (graceful degradation).</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/products</code></td><td>List all card products (DEBIT, PREPAID, CREDIT) including BIN range and default limits</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/products/{id}</code></td><td>Single card product by UUID</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/products</code></td><td>Create card product — fields: name, cardType, binRangeStart, binRangeEnd, defaultDailyLimit, features (JSONB)</td><td>ADMIN</td></tr>
+<tr><td><span class="method put">PUT</span></td><td><code>/api/v1/cards/products/{id}</code></td><td>Update card product</td><td>ADMIN</td></tr>
+<tr><td><span class="method delete">DELETE</span></td><td><code>/api/v1/cards/products/{id}</code></td><td>Delete card product</td><td>ADMIN</td></tr>
+</table>
+<h4>Cards</h4>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards</code></td><td>List cards; optional <code>?customerId=</code> filter</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/{id}</code></td><td>Card detail: PAN last-4 (never full), status, card type, expiry YYMM, PIN state, product</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards</code></td><td>Issue card — fields: customerId, productId, linkedEntityId (accountId or loanId), virtualFlag</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/{id}?command=block</code></td><td>Block card (status → BLOCKED). Card remains in the system; can be unblocked.</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/{id}?command=unblock</code></td><td>Unblock card (status → ACTIVE)</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/{id}?command=cancel</code></td><td>Cancel card permanently (terminal state)</td><td>ADMIN</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/{id}?command=activate</code></td><td>Activate physical card from ACTIVATION_PENDING state (for cards received from bureau)</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/{id}?command=replace</code></td><td>Replace card — cancels current, issues new card against same linked entity</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/{id}/balance</code></td><td>Available balance routed by card type: DEBIT → linked account in monolith; PREPAID → internal wallet; CREDIT → revolving credit line. Returns <code>null</code> balance on graceful degradation.</td><td>ADMIN, TELLER</td></tr>
+</table>
+<h4>Card Limits</h4>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/{id}/limits</code></td><td>Get spending limits for a card — daily purchase, daily withdrawal, per-transaction, monthly (NUMERIC 19,4)</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method put">PUT</span></td><td><code>/api/v1/cards/{id}/limits</code></td><td>Update all limits — validates: all ≥ 0, perTxn ≤ dailyPurchase</td><td>ADMIN, TELLER</td></tr>
+</table>
+<h4>Card Authorization (Internal — called by fep-service)</h4>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/authorize</code></td><td>Full authorization flow: card lookup → fraud engine → balance check → approve/decline. Returns responseCode (DE39), authCode, availableBalance, fraudScore, decision. Called by fep-service only — not exposed externally.</td><td>ADMIN</td></tr>
 </table>
 
-<h3>Disputes</h3>
+<h3 id="fraud-management">Fraud Management</h3>
+<p>10 configurable fraud rules with per-rule weight (0–100). Score thresholds: 0–29 = APPROVE, 30–69 = STEP_UP (force online PIN), 70–100 = DECLINE. Hard-block rules (CARD_EXPIRED, CARD_BLOCKED, PIN_RETRY_EXCEEDED) always score 100 and short-circuit evaluation. Rule weights and params are stored in the <code>fraud_rules</code> table and configurable at runtime.</p>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
-<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/disputes</code></td><td>List all disputes; filter by <code>?status=</code></td><td>ADMIN, TELLER</td></tr>
-<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/disputes/{id}</code></td><td>Get dispute by ID</td><td>ADMIN, TELLER</td></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/disputes</code></td><td>Raise a new dispute against a transaction RRN</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
-<tr><td><span class="method put">PUT</span></td><td><code>/api/v1/cards/disputes/{id}?command=</code></td><td>State transition: <code>review</code>, <code>resolve_issuer</code>, <code>resolve_acquirer</code>, <code>withdraw</code></td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/fraud/rules</code></td><td>List all fraud rules with current weight, enabled flag, and params (JSONB). Params example for VELOCITY_LIMIT: <code>{"thresholds":{"840":100000},"velocity_count":5,"velocity_window_minutes":10}</code></td><td>ADMIN</td></tr>
+<tr><td><span class="method put">PUT</span></td><td><code>/api/v1/cards/fraud/rules/{id}</code></td><td>Update rule weight (0–100) and enabled flag; replaces params JSON. Rule IDs: VELOCITY_LIMIT, SINGLE_AMOUNT_LIMIT, BLOCKED_COUNTRY, BLOCKED_MCC, DUPLICATE_TRANSACTION, CNP_DEBIT, OUTSIDE_HOURS, CARD_EXPIRED, CARD_BLOCKED, PIN_RETRY_EXCEEDED</td><td>ADMIN</td></tr>
 </table>
 
-<h3>Settlement Batches</h3>
+<h3 id="token-management">Token Management (Simulated TSP)</h3>
+<p>Internal Token Vault maps DPANs (Device PANs) to real PANs. Token BIN prefix: <code>9999xx</code>. All PANs and DPANs are stored encrypted at rest. FEP auto-detokenizes DE2 when the PAN starts with the token BIN prefix. Token lifecycle: ACTIVE → SUSPENDED → DELETED.</p>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
-<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/settlement/batches</code></td><td>List batches; filter by <code>?date=YYYY-MM-DD</code></td><td>ADMIN</td></tr>
-<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/settlement/batches/{id}</code></td><td>Get batch by ID</td><td>ADMIN</td></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/settlement/batches/open</code></td><td>Open (or retrieve) today's settlement batch</td><td>ADMIN</td></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/settlement/batches/{id}/close</code></td><td>Close batch and settle all pending items</td><td>ADMIN</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/tokens</code></td><td>Generate a DPAN for a PAN — body: <code>{"pan","expiryDate","customerId","cardId"}</code>. Returns: <code>{"dpan","expiryDate","tokenRef"}</code>. Raw key shown once.</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/tokens/detokenize</code></td><td>Resolve a DPAN to its real PAN — body: <code>{"dpan"}</code>. Returns: <code>{"pan","cardId","status"}</code>. Returns 404 if token is SUSPENDED or DELETED.</td><td>ADMIN</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/tokens/{tokenRef}/suspend</code></td><td>Suspend token — called on card block event. DPAN is no longer accepted by FEP until unsuspended.</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method delete">DELETE</span></td><td><code>/api/v1/tokens/{tokenRef}</code></td><td>Delete token permanently — called on card cancel. DPAN removed from vault lookup.</td><td>ADMIN</td></tr>
+</table>
+
+<h3 id="bureau">Card Personalization Bureau</h3>
+<p>Manages the physical card production lifecycle: collect ORDERED cards → generate CDP (Card Data Preparation) files → submit to bureau → receive confirmation → dispatch. Bureau name is configured in <code>application.yml</code> via <code>${card.bureau.name:CBA_BUREAU}</code>. CDP data includes: EMV AID, AIP, service code, IAC, PAN/expiry in scheme format, PIN offset, Track 1/2. PAN is never returned in CDP preview responses — only the SHA-256 hash for verification.</p>
+<div class="callout warning"><strong>State progression:</strong> Cards move through ORDERED → PRODUCED → DISPATCHED → ACTIVATION_PENDING as bureau lifecycle events are processed. Card remains ORDERED during CDP generation and submission (SENT).</div>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/bureau/jobs</code></td><td>Create a new bureau batch from all cards currently in ORDERED status. Returns batch UUID and item count.</td><td>ADMIN</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/bureau/jobs</code></td><td>List all bureau jobs ordered by newest-first. Includes status, card count, and dates.</td><td>ADMIN</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/bureau/jobs/{id}</code></td><td>Job detail including all item statuses (PENDING / PERSONALIZED / FAILED)</td><td>ADMIN</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/bureau/jobs/{id}/submit</code></td><td>Generate CDP for all items in batch; set job status SENT; set productionRequestDate on physical orders. CDP contains AID resolved by scheme (Visa: A0000000031010, MC credit: A0000000041010, Verve: A000000333010101, etc.)</td><td>ADMIN</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/bureau/jobs/{id}/confirm</code></td><td>Bureau confirmation callback — body: <code>{"confirmedItems":[{"cardId","chipSerialNo","bureauRef"}]}</code>. Confirmed cards transition to PRODUCED; physical orders updated with bureauRef and PRODUCED status.</td><td>ADMIN</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/bureau/jobs/{id}/dispatch</code></td><td>Mark all confirmed items in job as DISPATCHED; updates dispatchDate on physical orders. Cards move to DISPATCHED status.</td><td>ADMIN</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/bureau/jobs/{id}/fail</code></td><td>Mark job as FAILED — body: <code>{"reason":"string"}</code>. Allows retry by creating a new job for the same ORDERED cards.</td><td>ADMIN</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/bureau/jobs/{jobId}/cdp/{cardId}</code></td><td>CDP preview for a single card (dev/ops tool). PAN is never included in response — only panHash (SHA-256 hex). Used to verify CDP generation before actual bureau submission.</td><td>ADMIN</td></tr>
+</table>
+
+<h3 id="card-disputes">Disputes — Scheme-Compliant Chargeback Workflow</h3>
+<p>Full 7-state chargeback workflow compatible with Visa, Mastercard, Verve, Afrigo, and UnionPay reason code frameworks. A <code>@Scheduled(cron "0 0 2 * * *")</code> nightly enforcer auto-expires overdue retrieval requests and auto-resolves lapsed representments in favour of the acquirer.</p>
+<div class="status-flow">
+  <span class="status-pill pending">RAISED</span><span class="arrow">→</span>
+  <span class="status-pill pending">RETRIEVAL_REQUESTED</span><span class="arrow">→</span>
+  <span class="status-pill pending">CHARGEBACK_INITIATED</span><span class="arrow">→</span>
+  <span class="status-pill pending">REPRESENTMENT</span><span class="arrow">→</span>
+  <span class="status-pill pending">PRE_ARBITRATION</span><span class="arrow">→</span>
+  <span class="status-pill active">RESOLVED</span>
+  <span class="arrow">or</span><span class="status-pill terminal">WITHDRAWN</span>
+</div>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/disputes</code></td><td>List all disputes; optional <code>?status=</code> filter</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/disputes/{id}</code></td><td>Single dispute detail including schemeReasonCode, deadlines (chargeback/response/preArbitration), and resolutionFavor</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/disputes/{id}/retrieval-requests</code></td><td>List retrieval requests for a dispute — status: PENDING / FULFILLED / EXPIRED</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/disputes/{id}/representments</code></td><td>List representments — status: PENDING / ACCEPTED / REJECTED / ESCALATED</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/disputes/reason-codes</code></td><td>Scheme reason code catalogue with timeframes; optional <code>?scheme=VISA|MASTERCARD|VERVE|AFRIGO|UNION_PAY</code>. Seeds 17 codes across 5 schemes.</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/disputes</code></td><td>Raise a new dispute — body: <code>{"cardId","transactionRef"(RRN/DE37),"disputeReason","originalAmount","currencyCode"}</code>. DisputeReason values: UNAUTHORIZED, GOODS_NOT_RECEIVED, DUPLICATE, AMOUNT_MISMATCH, OTHER</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/disputes/{id}/retrieval</code></td><td>Request documentation from acquirer — transitions to RETRIEVAL_REQUESTED; sets deadline from reason code <code>maxDaysToRespond</code></td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/disputes/{id}/chargeback</code></td><td>Initiate formal chargeback — valid from RAISED or RETRIEVAL_REQUESTED states; body: <code>{"reasonCodeId"}</code>; sets chargebackDeadline + responseDeadline</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/disputes/{id}/representment</code></td><td>Record acquirer's representment response — body: <code>{"acquirerReason":"string"}</code>; sets preArbitrationDeadline</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/disputes/{id}/pre-arbitration</code></td><td>Escalate to scheme pre-arbitration panel</td><td>ADMIN</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/disputes/{id}/resolve</code></td><td>Final resolution — body: <code>{"resolvedBy"(userId),"resolutionFavor":"ISSUER"|"ACQUIRER","notes":"string"}</code></td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/disputes/{id}/withdraw</code></td><td>Withdraw dispute (customer or ops decision)</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+</table>
+
+<h3 id="settlement">Settlement Batches &amp; File Export</h3>
+<h4>Settlement Batches</h4>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/settlement/batches</code></td><td>List batches; optional <code>?date=YYYY-MM-DD</code></td><td>ADMIN</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/settlement/batches/{id}</code></td><td>Get batch by UUID (status: OPEN → CLOSED → SETTLED | FAILED)</td><td>ADMIN</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/settlement/batches/open</code></td><td>Open or retrieve today's batch (idempotent)</td><td>ADMIN</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/settlement/batches/{id}/close</code></td><td>Close batch and settle all pending items; triggers nightly CoB at 23:58</td><td>ADMIN</td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/settlement/batches/{id}/items</code></td><td>List all items in a batch</td><td>ADMIN</td></tr>
 </table>
+<h4>Settlement File Export Framework</h4>
+<p>Pluggable <code>SettlementFileExporter</code> interface — one implementation per scheme (Visa BASE II, Mastercard IPM, Verve NIBSS, Afrigo PAPSS, UnionPay CUPS). Nightly scheduler transmits via SFTP (Visa/MC/Verve/CUP) or HTTPS (Afrigo/PAPSS). Enable per scheme in <code>application.yml</code> (<code>card.settlement.export.schemes.visa.enabled: true</code>). All stubs disabled by default — zero code changes needed for production.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/settlement/export/{batchId}</code></td><td>Manual export trigger for a specific batch — optional <code>?settlementDate=YYYY-MM-DD</code>. Runs all enabled scheme exporters; records result in <code>settlement_transmissions</code> table.</td><td>ADMIN</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/settlement/transmissions</code></td><td>List all transmission records; optional <code>?status=PENDING|TRANSMITTED|ACKNOWLEDGED|FAILED</code></td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/settlement/transmissions/{id}</code></td><td>Single transmission record — includes endpoint audited, attempt count, error message if FAILED</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/settlement/batches/{batchId}/transmissions</code></td><td>All transmission records for a specific batch (one per enabled scheme)</td><td>ADMIN, TELLER</td></tr>
+</table>
 
-<h3>Terminal Simulator</h3>
-<p>Builds real ISO 8583 messages and fires them at the FEP TCP socket (port 8583). Returns decoded response + raw hex dump.</p>
+<h3 id="terminal-sim">Terminal Simulator</h3>
+<p>Builds real ISO 8583-1987 messages and fires them at the FEP TCP socket (port 8583). Returns decoded response + raw hex dump of request and response frames. PAN is passed from request body (no PAN lookup at this layer). Use for integration testing before connecting real ATM/POS hardware.</p>
 <table>
 <tr><th>Method</th><th>Path</th><th>MTI</th><th>Description</th><th>Role</th></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/purchase</code></td><td>0100</td><td>Card purchase at POS (DE3=000000)</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/purchase</code></td><td>0100</td><td>Card purchase at POS (DE3=000000). Body: cardNumber, expiryDate, amount, currency, terminalId, merchantId, merchantName, entryMode (SWIPE/CHIP/CONTACTLESS), pinBlock (optional)</td><td>ADMIN, TELLER</td></tr>
 <tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/withdrawal</code></td><td>0200</td><td>ATM cash withdrawal (DE3=010000)</td><td>ADMIN, TELLER</td></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/balance</code></td><td>0100</td><td>Balance enquiry (DE3=310000)</td><td>ADMIN, TELLER</td></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/reversal</code></td><td>0400</td><td>Transaction reversal</td><td>ADMIN, TELLER</td></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/network/signon</code></td><td>0800</td><td>Terminal sign-on (DE70=0001)</td><td>ADMIN, TELLER</td></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/network/echo</code></td><td>0800</td><td>Echo/heartbeat test (DE70=0301)</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/balance</code></td><td>0100</td><td>Balance enquiry (DE3=310000). Returns availableBalance in DE54.</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/reversal</code></td><td>0400</td><td>Transaction reversal. Body must include originalStan and originalRrn for DE90.</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/network/signon</code></td><td>0800</td><td>Terminal sign-on (DE70=0001). Response: 0810 with DE39=00 and DE70=0001.</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/network/echo</code></td><td>0800</td><td>Echo/heartbeat test (DE70=0301). Round-trip latency visible in response metadata.</td><td>ADMIN, TELLER</td></tr>
 </table>
+<p><strong>Response fields:</strong> <code>responseCode</code> (DE39), <code>responseDescription</code>, <code>authCode</code> (DE38, on approval), <code>availableBalance</code>, <code>stan</code> (DE11), <code>rrn</code> (DE37), <code>requestHex</code>, <code>responseHex</code></p>
 
 <h3 id="threeds-acs">3D Secure ACS (Access Control Server)</h3>
-<p>EMVCo 3DS 2.3-compatible ACS. <strong>Not JWT-protected</strong> — called by the scheme Directory Server (mTLS in production) and the cardholder's browser. Implements frictionless (amount ≤ $50) and OTP challenge flows. CAVV is computed with HMAC-SHA256 and returned to the merchant for inclusion in DE 55 of the ISO 8583 authorization.</p>
+<p>EMVCo 3DS 2.3-compatible ACS. <strong>Not JWT-protected</strong> — called by the scheme Directory Server (mTLS in production) and the cardholder's browser. Implements frictionless (amount ≤ configured limit) and OTP challenge flows. CAVV is HMAC-SHA256 signed and returned to the merchant for inclusion in the authorization request.</p>
 <table>
 <tr><th>Method</th><th>Path</th><th>Caller</th><th>Description</th><th>Role</th></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/3ds/acs/areq</code></td><td>Directory Server</td><td>Receive AReq; return ARes with <code>transStatus</code> Y (frictionless+CAVV), C (challenge), or N (declined)</td><td>none</td></tr>
-<tr><td><span class="method get">GET</span></td><td><code>/3ds/acs/challenge/{acsTransId}</code></td><td>Cardholder browser</td><td>Render HTML OTP challenge page; displays merchant name and amount</td><td>none</td></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/3ds/acs/challenge/{acsTransId}/verify</code></td><td>Browser JS / 3DS SDK</td><td>Verify OTP; returns JSON: <code>AUTHENTICATED</code> (with CAVV+ECI), <code>FAILED</code> (attempts remaining), or <code>LOCKED</code></td><td>none</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/3ds/acs/areq</code></td><td>Directory Server</td><td>Receive AReq; return ARes with <code>transStatus</code>: Y (frictionless+CAVV), C (challenge), or N (declined). Frictionless ECI is "05" — not "06".</td><td>none</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/3ds/acs/challenge/{acsTransId}</code></td><td>Cardholder browser</td><td>Render HTML OTP challenge page; produces <code>text/html</code> (not JSON). Displays merchant name, amount, and OTP input field.</td><td>none</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/3ds/acs/challenge/{acsTransId}/verify</code></td><td>Browser / 3DS SDK</td><td>Verify OTP. Returns: <code>AUTHENTICATED</code> (with CAVV+ECI), <code>FAILED</code> (attemptsRemaining), or <code>LOCKED</code> (maxAttempts exceeded).</td><td>none</td></tr>
 </table>
-<p><strong>ECI indicator values:</strong> <code>05</code> = fully authenticated (frictionless or challenge success); <code>06</code> = attempted; <code>07</code> = not authenticated.</p>
-<p><strong>CAVV algorithm (software / dev):</strong> <code>cardKey = HMAC-SHA256(masterKey, cardId)</code> → <code>raw = HMAC-SHA256(cardKey, acsTransId+amount12+currency3+eci2)</code> → <code>cavv = Base64(raw[0..19])</code>. Production uses HSM.</p>
-<p><strong>AReq body fields:</strong> <code>threeDSServerTransID</code>, <code>dsTransID</code>, <code>acctNumber</code>, <code>cardExpiryDate</code>, <code>messageCategory</code> (01=PA, 02=NPA), <code>purchaseAmount</code>, <code>purchaseCurrency</code>, <code>merchantName</code>, <code>deviceChannel</code> (02=browser).</p>
+<p><strong>ECI values:</strong> 05 = authenticated; 06 = attempted (3DS tried, cardholder not verified); 07 = no 3DS.</p>
+<p><strong>Per-currency frictionless limits (YAML keys = ISO 4217 numeric):</strong> 840 (USD): 5000 cents ($50), 404 (KES): 700000 cents, 288 (GHS): 50000 cents. "default" fallback for unlisted currencies.</p>
 
 <h3 id="card-openbanking-api">Card Open Banking API</h3>
 <p>BaaS-grade Card API hosted at <code>/card-api/v1/</code> on card-service (port 8081). Dual-mode authentication:</p>
@@ -1971,7 +2075,7 @@ Content-Type: application/json
 <h4>Card Issuance (API Key / BaaS)</h4>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/card-api/v1/cards</code></td><td>Issue virtual or physical card — PAN/expiry/CVV auto-generated from product BIN in dev; bureau-provided in production. virtual=true → ACTIVE; virtual=false → ISSUED + physical order</td><td>API_KEY, ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/card-api/v1/cards</code></td><td>Issue virtual or physical card — PAN/expiry/CVV auto-generated from product BIN in dev; bureau-provided in production. virtual=true → ACTIVE; virtual=false → ISSUED + physical order created</td><td>API_KEY, ADMIN, TELLER</td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/cards</code></td><td>List cards; optional <code>?customerId=</code> filter</td><td>API_KEY, ADMIN, TELLER</td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/cards/{id}</code></td><td>Full card detail including status, PIN state, limit summary</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
 </table>
@@ -1979,7 +2083,7 @@ Content-Type: application/json
 <h4>Card Controls (FAPI 2.0 / API Key)</h4>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
-<tr><td><span class="method put">PUT</span></td><td><code>/card-api/v1/cards/{id}/controls</code></td><td>Freeze/unfreeze (maps to BLOCK/UNBLOCK state machine command); advisory flags: contactlessEnabled, cnpEnabled, internationalEnabled</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td><span class="method put">PUT</span></td><td><code>/card-api/v1/cards/{id}/controls</code></td><td>Freeze/unfreeze (maps to BLOCK/UNBLOCK); advisory flags: contactlessEnabled, cnpEnabled, internationalEnabled</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
 <tr><td><span class="method put">PUT</span></td><td><code>/card-api/v1/cards/{id}/limits</code></td><td>Update daily purchase, daily withdrawal, per-transaction, and monthly limits (NUMERIC 19,4)</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
 <tr><td><span class="method post">POST</span></td><td><code>/card-api/v1/cards/{id}/pin/change</code></td><td>PIN change via HSM adapter — ISO-0 pin blocks; HSM verifies old (CA/DC) before setting new (A2); PIN never logged</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
 </table>
@@ -1992,21 +2096,21 @@ Content-Type: application/json
 </table>
 
 <h4>Spending Analytics (API Key)</h4>
-<p>All analytics cover approved transactions only (<code>response_code = '00'</code>). Accept optional <code>?from=YYYY-MM-DD&amp;to=YYYY-MM-DD&amp;currency={ISO4217numeric}</code> parameters.</p>
+<p>All analytics cover approved transactions only (<code>response_code = '00'</code>). Accept <code>?from=YYYY-MM-DD&amp;to=YYYY-MM-DD&amp;currency={ISO4217numeric}</code> params. Currency codes are ISO 4217 numeric (840=USD, 404=KES, 566=NGN, 288=GHS).</p>
 <p>MCC category buckets: Dining (5812–5814), Travel (4111–7512), Fuel (5541–5983), Grocery (5411–5499), Healthcare (5047–8099), Entertainment (7832–7999), Retail (5600–5999), Utilities (4812–4900), ATM/Cash (6010–6012), Other.</p>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
-<tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/cards/{id}/analytics/by-category</code></td><td>Total spend and transaction count grouped by MCC category. Results merged in Java via Map.merge()</td><td>API_KEY, ADMIN</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/cards/{id}/analytics/by-category</code></td><td>Total spend and transaction count grouped by MCC category. Results merged in Java via <code>Map.merge()</code>.</td><td>API_KEY, ADMIN</td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/cards/{id}/analytics/by-merchant</code></td><td>Top 20 merchants by total spend (merchant_id + merchant_name grouping)</td><td>API_KEY, ADMIN</td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/analytics/summary</code></td><td>Monthly aggregate: approvedTotal, approvedCount, declinedCount, avgTransactionAmount. Requires <code>?cardId=</code></td><td>API_KEY, ADMIN</td></tr>
 </table>
 
 <h4>Webhook Management (API Key)</h4>
-<p>Delivery mechanism: immediate <code>@Async</code> WebClient POST + <code>@Scheduled</code> (60s) retry picker. Exponential backoff: 15s → 60s → 5m → 30m → 2h (max 5 attempts). HMAC-SHA256 signature in <code>X-CBA-Signature: sha256={hex}</code>. Empty <code>events</code> array subscribes to all event types.</p>
+<p>Delivery mechanism: immediate <code>@Async</code> WebClient POST + <code>@Scheduled</code> (60s) retry picker. Exponential backoff: 15s → 60s → 5m → 30m → 2h (max 5 attempts). HMAC-SHA256 signature: <code>X-CBA-Signature: sha256={hex}</code>. Empty <code>events</code> array subscribes to all event types.</p>
 <p><strong>Webhook Event Catalogue:</strong> AUTHORIZATION.APPROVED, AUTHORIZATION.DECLINED, AUTHORIZATION.REVERSED, CARD.ISSUED, CARD.ACTIVATED, CARD.BLOCKED, CARD.UNBLOCKED, CARD.EXPIRED, CARD.PIN_CHANGED, CARD.LIMIT_CHANGED, FRAUD.RULE_TRIGGERED, FRAUD.CARD_STEP_UP, FRAUD.CARD_DECLINED_HIGH_RISK, DISPUTE.RAISED, DISPUTE.RESOLVED</p>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/card-api/v1/webhooks</code></td><td>Register webhook — secret returned once; use for HMAC verification. Empty events = all event types.</td><td>API_KEY, ADMIN</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/card-api/v1/webhooks</code></td><td>Register webhook — secret returned once; use for HMAC verification</td><td>API_KEY, ADMIN</td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/webhooks</code></td><td>List active webhooks (secret never returned)</td><td>API_KEY, ADMIN</td></tr>
 <tr><td><span class="method delete">DELETE</span></td><td><code>/card-api/v1/webhooks/{id}</code></td><td>Deregister webhook; stops future event delivery</td><td>API_KEY, ADMIN</td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/webhooks/{id}/deliveries</code></td><td>Last 100 delivery attempts: status (DELIVERED/FAILED), HTTP status, attempt count, retry schedule</td><td>API_KEY, ADMIN</td></tr>
@@ -2348,6 +2452,88 @@ Content-Type: application/json
 <tr><td>POST</td><td>/api/v1/provisioningcriteria</td><td>Create criteria + definitions</td><td>ADMIN</td></tr>
 <tr><td>PUT</td><td>/api/v1/provisioningcriteria/{id}</td><td>Update criteria (replaces definitions)</td><td>ADMIN</td></tr>
 <tr><td>DELETE</td><td>/api/v1/provisioningcriteria/{id}</td><td>Delete provisioning criteria</td><td>ADMIN</td></tr>
+<!-- Card Service — /api/v1/ (card-service :8081) -->
+<tr><td>GET</td><td>/api/v1/cards/products</td><td>List card products</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/cards/products/{id}</td><td>Get card product</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/cards/products</td><td>Create card product</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/cards/products/{id}</td><td>Update card product</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/cards/products/{id}</td><td>Delete card product</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/cards</td><td>List cards</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/cards/{id}</td><td>Get card detail (PAN masked)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/cards</td><td>Issue card</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/cards/{id}?command=block</td><td>Block card</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/cards/{id}?command=unblock</td><td>Unblock card</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/cards/{id}?command=cancel</td><td>Cancel card (terminal)</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/cards/{id}?command=activate</td><td>Activate physical card</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>POST</td><td>/api/v1/cards/{id}?command=replace</td><td>Replace card</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/cards/{id}/balance</td><td>Available balance (by card type)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/cards/{id}/limits</td><td>Get card spending limits</td><td>ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/api/v1/cards/{id}/limits</td><td>Update card limits</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/cards/authorize</td><td>Card authorization (internal — FEP only)</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/cards/fraud/rules</td><td>List fraud rules with weights + params</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/cards/fraud/rules/{id}</td><td>Update fraud rule weight/enabled/params</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/tokens</td><td>Generate DPAN (tokenize PAN)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/tokens/detokenize</td><td>Resolve DPAN to PAN</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/tokens/{tokenRef}/suspend</td><td>Suspend token</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/tokens/{tokenRef}</td><td>Delete token permanently</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/bureau/jobs</td><td>Create bureau batch from ORDERED cards</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/bureau/jobs</td><td>List bureau jobs</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/bureau/jobs/{id}</td><td>Get bureau job + items</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/bureau/jobs/{id}/submit</td><td>Generate CDP + submit to bureau</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/bureau/jobs/{id}/confirm</td><td>Bureau confirmation callback (→ PRODUCED)</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/bureau/jobs/{id}/dispatch</td><td>Mark dispatched (→ DISPATCHED)</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/bureau/jobs/{id}/fail</td><td>Mark job failed + reason</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/bureau/jobs/{jobId}/cdp/{cardId}</td><td>CDP preview — no PAN in response</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/cards/disputes</td><td>List disputes; ?status filter</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/cards/disputes/{id}</td><td>Get dispute detail</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/cards/disputes/{id}/retrieval-requests</td><td>List retrieval requests for dispute</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/cards/disputes/{id}/representments</td><td>List representments for dispute</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/cards/disputes/reason-codes</td><td>Scheme reason code catalogue; ?scheme filter</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/cards/disputes</td><td>Raise dispute</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>POST</td><td>/api/v1/cards/disputes/{id}/retrieval</td><td>Request retrieval documentation</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/cards/disputes/{id}/chargeback</td><td>Initiate chargeback (from RAISED or RETRIEVAL_REQUESTED)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/cards/disputes/{id}/representment</td><td>Record acquirer representment</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/cards/disputes/{id}/pre-arbitration</td><td>Escalate to scheme pre-arbitration</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/cards/disputes/{id}/resolve</td><td>Final resolve (ISSUER or ACQUIRER)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/cards/disputes/{id}/withdraw</td><td>Withdraw dispute</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>GET</td><td>/api/v1/cards/settlement/batches</td><td>List settlement batches</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/cards/settlement/batches/{id}</td><td>Get batch</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/cards/settlement/batches/open</td><td>Open today's batch (idempotent)</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/cards/settlement/batches/{id}/close</td><td>Close and settle batch</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/cards/settlement/batches/{id}/items</td><td>List batch items</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/cards/settlement/export/{batchId}</td><td>Manual settlement file export trigger</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/cards/settlement/transmissions</td><td>List transmission records; ?status filter</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/cards/settlement/transmissions/{id}</td><td>Get transmission record</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/cards/settlement/batches/{batchId}/transmissions</td><td>Transmissions for a batch</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/simulate/purchase</td><td>Terminal simulator — POS purchase (MTI 0100)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/simulate/withdrawal</td><td>Terminal simulator — ATM withdrawal (MTI 0200)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/simulate/balance</td><td>Terminal simulator — balance enquiry (MTI 0100)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/simulate/reversal</td><td>Terminal simulator — reversal (MTI 0400)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/simulate/network/signon</td><td>Terminal simulator — sign-on (MTI 0800)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/simulate/network/echo</td><td>Terminal simulator — echo test (MTI 0800)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/interchange/rates</td><td>List interchange rates</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/interchange/rates/{id}</td><td>Get interchange rate</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/interchange/rates</td><td>Create interchange rate</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/interchange/rates/{id}</td><td>Update interchange rate</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/interchange/rates/{id}</td><td>Delete interchange rate</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/interchange/fees</td><td>List scheme fees</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/interchange/fees/{id}</td><td>Get scheme fee</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/interchange/fees</td><td>Create scheme fee</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/interchange/fees/{id}</td><td>Update scheme fee</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/interchange/fees/{id}</td><td>Delete scheme fee</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/interchange/calculate?authId=</td><td>Calculate interchange for auth</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/interchange/log/{authId}</td><td>Interchange log for auth</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/bins</td><td>List BIN ranges</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/bins/all</td><td>BIN→scheme export (FEP cache)</td><td>none</td></tr>
+<tr><td>GET</td><td>/api/v1/bins/lookup?pan=</td><td>BIN lookup by PAN prefix</td><td>none</td></tr>
+<tr><td>GET</td><td>/api/v1/bins/{bin}/scheme</td><td>Scheme by BIN (FEP M2M)</td><td>none</td></tr>
+<tr><td>GET</td><td>/api/v1/bins/{id}</td><td>Get BIN range</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/bins</td><td>Create BIN range</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/bins/{id}</td><td>Update BIN range</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/bins/{id}</td><td>Delete BIN range</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/3ds/acs/areq</td><td>3DS ACS — receive AReq from Directory Server</td><td>none</td></tr>
+<tr><td>GET</td><td>/3ds/acs/challenge/{acsTransId}</td><td>3DS ACS — cardholder challenge HTML page</td><td>none</td></tr>
+<tr><td>POST</td><td>/3ds/acs/challenge/{acsTransId}/verify</td><td>3DS ACS — verify OTP</td><td>none</td></tr>
 <!-- Card Open Banking API — /card-api/v1/ (card-service :8081) -->
 <tr><td>POST</td><td>/card-api/v1/api-keys</td><td>Issue API key — raw key shown once; SHA-256 stored</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/card-api/v1/api-keys</td><td>List active API keys (hashed)</td><td>ADMIN</td></tr>
@@ -2407,4 +2593,4 @@ window.addEventListener('scroll', () => {
 }, {passive: true});
 </script>
 </body>
-</html><!-- CBA Platform API Reference - 2026-04-07T07:28:45Z -->
+</html><!-- CBA Platform API Reference - 2026-04-12T00:00:00Z — Updated: Card Management, Fraud Management, Token Management, Bureau, Chargeback Workflow, Settlement Export added -->

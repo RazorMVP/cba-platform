@@ -2,13 +2,14 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AdminService, NotificationTemplate, NotificationLog, CreateTemplateRequest } from './admin.service';
+import { StatusBadgeComponent } from '../../shared/components/status-badge/status-badge';
 
 type Tab = 'templates' | 'history';
 
 @Component({
   selector: 'app-notifications',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, StatusBadgeComponent],
   templateUrl: './notifications.html',
   styleUrl: './notifications.scss',
 })

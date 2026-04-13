@@ -1,11 +1,3 @@
-.event-code {
-  font-family: var(--font-mono, monospace);
-  font-size: 0.75rem;
-  background: var(--bg-muted, #f5f5f5);
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
 .method-chip {
   display: inline-flex;
   align-items: center;
@@ -15,33 +7,15 @@
 }
 
 .method-icon {
-  font-size: 0.9rem;
+  font-size: 1rem;
   color: var(--color-muted);
-}
-
-.masked-ref {
-  font-family: var(--font-mono, monospace);
-  font-size: 0.8125rem;
-  color: var(--color-muted);
-}
-
-.filter-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
 }
 
 .filter-input {
-  max-width: 320px;
+  max-width: 300px;
 }
 
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-.form-control--textarea {
+.form-input--textarea {
   resize: vertical;
   min-height: 120px;
 }
@@ -50,4 +24,20 @@
   font-size: 0.75rem;
   color: var(--color-muted);
   margin-top: 4px;
+}
+
+.hint {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  font-weight: 400;
+}
+
+.modal__success {
+  background: var(--color-success-bg, #f0fdf4);
+  color: var(--color-success, #15803d);
+  border: 1px solid var(--color-success-border, #bbf7d0);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 0.875rem;
+  margin-top: 12px;
 }

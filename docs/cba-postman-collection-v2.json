@@ -1050,143 +1050,6 @@
           ]
         },
         {
-          "name": "Activate Account",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "X-Tenant-ID",
-                "value": "{{tenant_id}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/v1/accounts/{{accountId}}/activate",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "accounts",
-                "{{accountId}}",
-                "activate"
-              ]
-            },
-            "description": "Activate a newly opened account, making it available for transactions."
-          },
-          "x-code-samples": [
-            {
-              "lang": "cURL",
-              "source": "curl -X POST '{{base_url}}/api/v1/accounts/{{accountId}}/activate' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}'"
-            },
-            {
-              "lang": "JavaScript (fetch)",
-              "source": "fetch('{{base_url}}/api/v1/accounts/{{accountId}}/activate', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  }\n}).then(r => r.json()).then(console.log);"
-            },
-            {
-              "lang": "Python (requests)",
-              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/api/v1/accounts/{{accountId}}/activate',\n    headers={\n        'Authorization': 'Bearer {{access_token}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    }\n)\nprint(response.json())"
-            },
-            {
-              "lang": "Java (OkHttp)",
-              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/api/v1/accounts/{{accountId}}/activate\")\n    .get()\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
-            },
-            {
-              "lang": "C# (HttpClient)",
-              "source": "var client = new HttpClient();\nclient.DefaultRequestHeaders.Authorization =\n    new AuthenticationHeaderValue(\"Bearer\", \"{{access_token}}\");\nclient.DefaultRequestHeaders.Add(\"X-Tenant-ID\", \"{{tenant_id}}\");\nvar response = await client.GetAsync(\"{{base_url}}/api/v1/accounts/{{accountId}}/activate\");\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
-            },
-            {
-              "lang": "PHP (cURL)",
-              "source": "<?php\n$ch = curl_init();\ncurl_setopt_array($ch, [\n    CURLOPT_URL => '{{base_url}}/api/v1/accounts/{{accountId}}/activate',\n    CURLOPT_CUSTOMREQUEST => 'POST',\n    CURLOPT_HTTPHEADER => [\n        'Authorization: Bearer {{access_token}}',\n        'Content-Type: application/json',\n        'X-Tenant-ID: {{tenant_id}}'\n    ],\n    CURLOPT_RETURNTRANSFER => true\n]);\necho curl_exec($ch);\ncurl_close($ch);"
-            },
-            {
-              "lang": "Go (net/http)",
-              "source": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n    \"strings\"\n    \"io/ioutil\"\n)\n\nfunc main() {\n    req, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/accounts/{{accountId}}/activate\", nil)\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"Content-Type\", \"application/json\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := new(http.Client).Do(req)\n    defer resp.Body.Close()\n    b, _ := ioutil.ReadAll(resp.Body)\n    fmt.Println(string(b))\n}"
-            },
-            {
-              "lang": "Ruby (Net::HTTP)",
-              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/api/v1/accounts/{{accountId}}/activate')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Post.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nputs http.request(req).body"
-            }
-          ]
-        },
-        {
-          "name": "Close Account",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "X-Tenant-ID",
-                "value": "{{tenant_id}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/v1/accounts/{{accountId}}/close",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "accounts",
-                "{{accountId}}",
-                "close"
-              ]
-            },
-            "description": "Close an account. Balance must be zero or a withdrawal account must be specified for final balance transfer.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"closureReason\": \"Customer request\",\n  \"withdrawalAccountId\": \"{{withdrawalAccountId}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "x-code-samples": [
-            {
-              "lang": "cURL",
-              "source": "curl -X POST '{{base_url}}/api/v1/accounts/{{accountId}}/close' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -d '{\n  \"closureReason\": \"Customer request\",\n  \"withdrawalAccountId\": \"{{withdrawalAccountId}}\"\n}'"
-            },
-            {
-              "lang": "JavaScript (fetch)",
-              "source": "fetch('{{base_url}}/api/v1/accounts/{{accountId}}/close', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  },\n  body: JSON.stringify({\"closureReason\": \"Customer request\", \"withdrawalAccountId\": \"{{withdrawalAccountId}}\"})\n}).then(r => r.json()).then(console.log);"
-            },
-            {
-              "lang": "Python (requests)",
-              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/api/v1/accounts/{{accountId}}/close',\n    headers={\n        'Authorization': 'Bearer {{access_token}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    },\n    json={\"closureReason\": \"Customer request\", \"withdrawalAccountId\": \"{{withdrawalAccountId}}\"}\n)\nprint(response.json())"
-            },
-            {
-              "lang": "Java (OkHttp)",
-              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/api/v1/accounts/{{accountId}}/close\")\n    .post(RequestBody.create(\"{\\\"closureReason\\\": \\\"Customer request\\\", \\\"withdrawalAccountId\\\": \\\"{{withdrawalAccountId}}\\\"}\", MediaType.parse(\"application/json\")))\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
-            },
-            {
-              "lang": "C# (HttpClient)",
-              "source": "var client = new HttpClient();\nclient.DefaultRequestHeaders.Authorization =\n    new AuthenticationHeaderValue(\"Bearer\", \"{{access_token}}\");\nclient.DefaultRequestHeaders.Add(\"X-Tenant-ID\", \"{{tenant_id}}\");\nvar content = new StringContent(\"{\\\"closureReason\\\": \\\"Customer request\\\", \\\"withdrawalAccountId\\\": \\\"{{withdrawalAccountId}}\\\"}\", Encoding.UTF8, \"application/json\");\nvar response = await client.PostAsync(\"{{base_url}}/api/v1/accounts/{{accountId}}/close\", content);\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
-            },
-            {
-              "lang": "PHP (cURL)",
-              "source": "<?php\n$ch = curl_init();\ncurl_setopt_array($ch, [\n    CURLOPT_URL => '{{base_url}}/api/v1/accounts/{{accountId}}/close',\n    CURLOPT_CUSTOMREQUEST => 'POST',\n    CURLOPT_POSTFIELDS => json_encode({\"closureReason\": \"Customer request\", \"withdrawalAccountId\": \"{{withdrawalAccountId}}\"}),\n    CURLOPT_HTTPHEADER => [\n        'Authorization: Bearer {{access_token}}',\n        'Content-Type: application/json',\n        'X-Tenant-ID: {{tenant_id}}'\n    ],\n    CURLOPT_RETURNTRANSFER => true\n]);\necho curl_exec($ch);\ncurl_close($ch);"
-            },
-            {
-              "lang": "Go (net/http)",
-              "source": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n    \"strings\"\n    \"io/ioutil\"\n)\n\nfunc main() {\n    body := strings.NewReader(\"{\\\"closureReason\\\": \\\"Customer request\\\", \\\"withdrawalAccountId\\\": \\\"{{withdrawalAccountId}}\\\"}\")\nreq, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/accounts/{{accountId}}/close\", body)\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"Content-Type\", \"application/json\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := new(http.Client).Do(req)\n    defer resp.Body.Close()\n    b, _ := ioutil.ReadAll(resp.Body)\n    fmt.Println(string(b))\n}"
-            },
-            {
-              "lang": "Ruby (Net::HTTP)",
-              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/api/v1/accounts/{{accountId}}/close')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Post.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq.body = \"{\\\"closureReason\\\": \\\"Customer request\\\", \\\"withdrawalAccountId\\\": \\\"{{withdrawalAccountId}}\\\"}\"\nputs http.request(req).body"
-            }
-          ]
-        },
-        {
           "name": "Get Account Transactions",
           "request": {
             "method": "GET",
@@ -1257,70 +1120,6 @@
             {
               "lang": "Ruby (Net::HTTP)",
               "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/api/v1/accounts/{{accountId}}/transactions')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Get.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nputs http.request(req).body"
-            }
-          ]
-        },
-        {
-          "name": "Get Account Balance",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "X-Tenant-ID",
-                "value": "{{tenant_id}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/v1/accounts/{{accountId}}/balance",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "accounts",
-                "{{accountId}}",
-                "balance"
-              ]
-            },
-            "description": "Retrieve the current balance of an account without the full transaction history."
-          },
-          "x-code-samples": [
-            {
-              "lang": "cURL",
-              "source": "curl -X GET '{{base_url}}/api/v1/accounts/{{accountId}}/balance' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}'"
-            },
-            {
-              "lang": "JavaScript (fetch)",
-              "source": "fetch('{{base_url}}/api/v1/accounts/{{accountId}}/balance', {\n  method: 'GET',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  }\n}).then(r => r.json()).then(console.log);"
-            },
-            {
-              "lang": "Python (requests)",
-              "source": "import requests\n\nresponse = requests.get(\n    '{{base_url}}/api/v1/accounts/{{accountId}}/balance',\n    headers={\n        'Authorization': 'Bearer {{access_token}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    }\n)\nprint(response.json())"
-            },
-            {
-              "lang": "Java (OkHttp)",
-              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/api/v1/accounts/{{accountId}}/balance\")\n    .get()\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
-            },
-            {
-              "lang": "C# (HttpClient)",
-              "source": "var client = new HttpClient();\nclient.DefaultRequestHeaders.Authorization =\n    new AuthenticationHeaderValue(\"Bearer\", \"{{access_token}}\");\nclient.DefaultRequestHeaders.Add(\"X-Tenant-ID\", \"{{tenant_id}}\");\nvar response = await client.GetAsync(\"{{base_url}}/api/v1/accounts/{{accountId}}/balance\");\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
-            },
-            {
-              "lang": "PHP (cURL)",
-              "source": "<?php\n$ch = curl_init();\ncurl_setopt_array($ch, [\n    CURLOPT_URL => '{{base_url}}/api/v1/accounts/{{accountId}}/balance',\n    CURLOPT_CUSTOMREQUEST => 'GET',\n    CURLOPT_HTTPHEADER => [\n        'Authorization: Bearer {{access_token}}',\n        'Content-Type: application/json',\n        'X-Tenant-ID: {{tenant_id}}'\n    ],\n    CURLOPT_RETURNTRANSFER => true\n]);\necho curl_exec($ch);\ncurl_close($ch);"
-            },
-            {
-              "lang": "Go (net/http)",
-              "source": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n    \"strings\"\n    \"io/ioutil\"\n)\n\nfunc main() {\n    req, _ := http.NewRequest(\"GET\", \"{{base_url}}/api/v1/accounts/{{accountId}}/balance\", nil)\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"Content-Type\", \"application/json\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := new(http.Client).Do(req)\n    defer resp.Body.Close()\n    b, _ := ioutil.ReadAll(resp.Body)\n    fmt.Println(string(b))\n}"
-            },
-            {
-              "lang": "Ruby (Net::HTTP)",
-              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/api/v1/accounts/{{accountId}}/balance')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Get.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nputs http.request(req).body"
             }
           ]
         }
@@ -1539,7 +1338,7 @@
         {
           "name": "Approve Loan",
           "request": {
-            "method": "POST",
+            "method": "PUT",
             "header": [
               {
                 "key": "Content-Type",
@@ -1612,7 +1411,7 @@
         {
           "name": "Disburse Loan",
           "request": {
-            "method": "POST",
+            "method": "PUT",
             "header": [
               {
                 "key": "Content-Type",

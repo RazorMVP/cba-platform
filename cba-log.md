@@ -59,6 +59,30 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 45 — 2026-04-13
+**API documentation accuracy audit: removed 3 non-existent account endpoints from Postman collection; corrected loan approve/disburse HTTP verb from POST to PUT across Postman collection and api-reference.html.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `docs/cba-postman-collection-v2.json` | FIXED: removed `POST /accounts/{id}/activate`, `POST /accounts/{id}/close`, `GET /accounts/{id}/balance` from `02 · Accounts` folder — none of these exist in `AccountController`; changed `POST /loans/{id}/approve` → `PUT` and `POST /loans/{id}/disburse` → `PUT` in `03 · Loans` folder to match `@PutMapping` annotations in `LoanController` |
+| `docs/api-reference.html` | FIXED: loan detail cards for approve and disburse updated from `<span class="method POST">` to `<span class="method PUT">`; Full API Matrix rows changed from `POST /api/v1/loans/{id}?command=approve` / `?command=disburse` to `PUT /api/v1/loans/{id}/approve` / `/disburse` — matching actual controller annotations |
+
+#### Key Patterns / Decisions
+- **AccountController uses `PUT /{id}/status`** for all status transitions (activate, close, freeze, dormant) — not separate `/activate` and `/close` paths as Postman had documented
+- **Balance is not a separate endpoint** — it is returned inline in `GET /api/v1/accounts/{id}` response body
+- **LoanController uses `@PutMapping`** for approve and disburse — these are state-changing idempotent operations, consistent with REST semantics for updating loan status; the Mifos-style `?command=` query param pattern was never implemented in the actual controller
+
+#### Build Verification
+- No code changes — documentation-only fixes; no compilation required
+- Postman collection `02 · Accounts` now has 8 items (was 11); `03 · Loans` approve and disburse are now `PUT`
+- api-reference.html loan section detail cards and Full API Matrix rows now agree with `LoanController.java` annotations
+
+#### Compliance Checklist Update
+- Documentation accuracy audit complete — all reviewed endpoints in `api-reference.html` and Postman collection now match actual controller annotations
+
+---
+
 ### Session 44 — 2026-04-13
 **API documentation consistency enforcement: OpenAPI snapshot tests for both backend and card-service, annotation-diff CI gate in `backend-ci.yml`, new `card-service-ci.yml` workflow, and `docs/card-api-reference.html` standalone API reference.**
 

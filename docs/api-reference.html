@@ -778,7 +778,7 @@ Where:
 
 <details class="endpoint">
   <summary class="endpoint-header">
-    <span class="method POST">POST</span>
+    <span class="method PUT">PUT</span>
     <span class="endpoint-path">/api/v1/loans/{id}/approve</span>
     <span class="endpoint-summary">Approve a loan</span>
   </summary>
@@ -790,7 +790,7 @@ Where:
 
 <details class="endpoint">
   <summary class="endpoint-header">
-    <span class="method POST">POST</span>
+    <span class="method PUT">PUT</span>
     <span class="endpoint-path">/api/v1/loans/{id}/disburse</span>
     <span class="endpoint-summary">Disburse a loan</span>
   </summary>
@@ -2204,8 +2204,8 @@ Content-Type: application/json
 <tr><td>GET</td><td>/api/v1/loans</td><td>List loans</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/loans/{id}</td><td>Get loan</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/loans</td><td>Apply for loan</td><td>ADMIN, TELLER</td></tr>
-<tr><td>POST</td><td>/api/v1/loans/{id}?command=approve</td><td>Approve loan</td><td>ADMIN</td></tr>
-<tr><td>POST</td><td>/api/v1/loans/{id}?command=disburse</td><td>Disburse loan</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/loans/{id}/approve</td><td>Approve loan</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/loans/{id}/disburse</td><td>Disburse loan</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/loans/{id}?command=reject</td><td>Reject loan</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/loans/{id}?command=withdrawnByApplicant</td><td>Withdraw loan</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/loans/{id}?command=writeOff</td><td>Write off loan</td><td>ADMIN</td></tr>

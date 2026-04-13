@@ -1308,8 +1308,8 @@ RAISED → RETRIEVAL_REQUESTED → CHARGEBACK_INITIATED
 9. ✅ **card-service — Open Banking layer** — `/card-api/v1/` Card API, API key auth (SHA-256 + filter), WebClient webhook delivery (HMAC-SHA256 + exponential backoff), MCC spending analytics, dual-mode SecurityConfig chain _(Session 38)_
 10. ✅ **backend (monolith)** — `CardServiceClient` REST client, `CardAccountAdapter` OB shape mapping, `ConsentScope` enum, AISP card account merge, CBPII card balance extension _(Session 39)_
 11. ✅ **Angular `CardsModule`** — 12 screens: CardList, CardDetail, CardProducts, FraudRules, Settlement, Disputes, TerminalSimulator, ApiKeys, Webhooks, BinManagement, SchemeConfig, Interchange _(Session 41)_
-12. **Docker Compose** — `card-service` + `fep-service` service definitions
-13. **Infrastructure / K8s** — new deployment + service manifests
+12. ✅ **Infrastructure — Docker Compose + Keycloak Realm** — infrastructure-only default profile (postgres-main, postgres-card, keycloak, redis, mailhog); `--profile app` full-stack profile (backend, card-service, fep-service, web); pre-configured `cba-realm.json` auto-imported on Keycloak first boot; PostgreSQL init script creates `keycloak_db` alongside `cba_db` _(Session 42)_
+13. ✅ **Infrastructure — Kubernetes** — generic/vanilla manifests for all 9 services: two PostgreSQL StatefulSets (isolated DBs), Keycloak Deployment + realm ConfigMap, Redis, backend + card-service (Deployment + ClusterIP + HPA + nginx Ingress), fep-service (Deployment + ClusterIP HTTP + LoadBalancer TCP 8583), web (Deployment + ClusterIP + nginx Ingress); namespace `cba-platform`; Secrets with `<CHANGE_ME>` placeholders; ConfigMaps per service _(Session 42)_
 
 ---
 

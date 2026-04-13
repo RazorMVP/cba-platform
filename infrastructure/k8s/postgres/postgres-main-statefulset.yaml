@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-main
+  namespace: cba-platform
+  labels:
+    app: postgres-main
+    app.kubernetes.io/part-of: cba-platform
+spec:
+  serviceName: postgres-main
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-main
+  template:
+    metadata:
+      labels:
+        app: postgres-main
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: cba_db
+            - name: POSTGRES_USER
+              value: cba_user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-main-secret
+                  key: POSTGRES_MAIN_PASSWORD
+            - name: KEYCLOAK_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-main-secret
+                  key: KEYCLOAK_DB_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: postgres-main-data
+              mountPath: /var/lib/postgresql/data
+            - name: init-scripts
+              mountPath: /docker-entrypoint-initdb.d
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "cba_user", "-d", "cba_db"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "cba_user", "-d", "cba_db"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: init-scripts
+          configMap:
+            name: postgres-main-init
+            defaultMode: 0755
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-main-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi

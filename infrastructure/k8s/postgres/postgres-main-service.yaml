@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-main
+  namespace: cba-platform
+  labels:
+    app: postgres-main
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres-main
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432

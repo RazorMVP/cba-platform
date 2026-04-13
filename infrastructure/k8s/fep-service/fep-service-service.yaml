@@ -1,0 +1,56 @@
+# ── FEP HTTP admin/health — internal only (ClusterIP) ────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: fep-service-http
+  namespace: cba-platform
+  labels:
+    app: fep-service
+spec:
+  type: ClusterIP
+  selector:
+    app: fep-service
+  ports:
+    - name: http
+      port: 8082
+      targetPort: 8082
+
+---
+# ── FEP ISO 8583 TCP — external LoadBalancer ─────────────────
+#
+# This service provisions an external load balancer with a stable
+# public IP for ATM/POS terminal connections on port 8583.
+#
+# On managed cloud (EKS / AKS / GKE / DigitalOcean):
+#   The cloud provider automatically provisions a Layer-4 load balancer.
+#   Retrieve the external IP after apply:
+#     kubectl get svc fep-service-tcp -n cba-platform
+#
+# On bare metal / on-premises (K3s / kubeadm):
+#   Install MetalLB and configure an IP address pool:
+#     kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/main/config/manifests/metallb-native.yaml
+#   Then create an IPAddressPool pointing to your network range.
+#
+# Scheme certification: provide the EXTERNAL-IP:8583 endpoint to
+# Visa / Mastercard / Verve / Afrigo / UnionPay during FEP registration.
+apiVersion: v1
+kind: Service
+metadata:
+  name: fep-service-tcp
+  namespace: cba-platform
+  labels:
+    app: fep-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: fep-service
+  ports:
+    - name: iso8583
+      port: 8583
+      targetPort: 8583
+      protocol: TCP
+  # Optional: restrict which source IPs can reach the FEP socket.
+  # Add scheme network IP ranges (Visa, MC, etc.) here for production.
+  # loadBalancerSourceRanges:
+  #   - "192.0.2.0/24"   # Visa network range (example)
+  #   - "198.51.100.0/24" # Mastercard network range (example)

@@ -1,0 +1,251 @@
+{
+  "id": "cba",
+  "realm": "cba",
+  "displayName": "CBA Banking Platform",
+  "displayNameHtml": "<b>CBA</b> Banking Platform",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 5,
+  "accessTokenLifespan": 300,
+  "accessTokenLifespanForImplicitFlow": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "offlineSessionIdleTimeout": 2592000,
+  "offlineSessionMaxLifespanEnabled": false,
+  "accessCodeLifespan": 60,
+  "accessCodeLifespanUserAction": 300,
+  "accessCodeLifespanLogin": 1800,
+  "actionTokenGeneratedByAdminLifespan": 43200,
+  "actionTokenGeneratedByUserLifespan": 300,
+  "internationalizationEnabled": false,
+  "defaultLocale": "en",
+  "attributes": {
+    "cibaBackchannelTokenDeliveryMode": "poll",
+    "cibaExpiresIn": "120",
+    "cibaAuthRequestedUserHint": "login_hint",
+    "cibaInterval": "5",
+    "parRequestUriLifespan": "60",
+    "oauth2DevicePollingInterval": "5",
+    "oauth2DeviceCodeLifespan": "600",
+    "userProfileEnabled": "true"
+  },
+  "browserSecurityHeaders": {
+    "contentSecurityPolicyReportOnly": "",
+    "xContentTypeOptions": "nosniff",
+    "xRobotsTag": "none",
+    "xFrameOptions": "SAMEORIGIN",
+    "contentSecurityPolicy": "frame-src 'self'; frame-ancestors 'self'; object-src 'none';",
+    "strictTransportSecurity": "max-age=31536000; includeSubDomains"
+  },
+  "smtpServer": {
+    "port": "1025",
+    "host": "mailhog",
+    "from": "noreply@cba.com",
+    "fromDisplayName": "CBA Banking Platform",
+    "ssl": "false",
+    "starttls": "false",
+    "auth": "false"
+  },
+  "eventsEnabled": true,
+  "eventsExpiration": 2592000,
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "ADMIN",
+        "description": "Full platform administration access — all modules",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "TELLER",
+        "description": "Bank teller — customer, account, loan, card, and cash operations",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "CUSTOMER",
+        "description": "Customer — own account and loan data via self-service endpoints",
+        "composite": false,
+        "clientRole": false
+      },
+      {
+        "name": "API_CLIENT",
+        "description": "Third-party TPP access via Open Banking FAPI 2.0 endpoints",
+        "composite": false,
+        "clientRole": false
+      }
+    ]
+  },
+  "groups": [],
+  "clients": [
+    {
+      "clientId": "cba-backend",
+      "name": "CBA Backend Resource Server",
+      "description": "Bearer-only client — validates JWTs issued to web and mobile clients",
+      "enabled": true,
+      "bearerOnly": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "protocol": "openid-connect",
+      "attributes": {}
+    },
+    {
+      "clientId": "cba-web",
+      "name": "CBA Backoffice Portal",
+      "description": "Confidential client for the Angular backoffice portal — PKCE required",
+      "enabled": true,
+      "bearerOnly": false,
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "protocol": "openid-connect",
+      "secret": "cba-web-dev-secret",
+      "redirectUris": [
+        "http://localhost:4200/*",
+        "https://localhost:4200/*",
+        "http://localhost/*"
+      ],
+      "webOrigins": [
+        "http://localhost:4200",
+        "https://localhost:4200",
+        "http://localhost"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:4200/*"
+      },
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    },
+    {
+      "clientId": "cba-mobile",
+      "name": "CBA Customer Mobile App",
+      "description": "Public client for the Flutter mobile app — PKCE required, no client secret",
+      "enabled": true,
+      "bearerOnly": false,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "protocol": "openid-connect",
+      "redirectUris": [
+        "com.cba.mobile://*",
+        "http://localhost:*"
+      ],
+      "webOrigins": ["+"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    }
+  ],
+  "defaultDefaultClientScopes": [
+    "web-origins",
+    "acr",
+    "profile",
+    "roles",
+    "email"
+  ],
+  "defaultOptionalClientScopes": [
+    "address",
+    "phone",
+    "offline_access",
+    "microprofile-jwt"
+  ],
+  "users": [
+    {
+      "username": "admin@cba.com",
+      "email": "admin@cba.com",
+      "firstName": "System",
+      "lastName": "Administrator",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Admin@123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["ADMIN"],
+      "clientRoles": {}
+    },
+    {
+      "username": "teller@cba.com",
+      "email": "teller@cba.com",
+      "firstName": "Bank",
+      "lastName": "Teller",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Teller@123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["TELLER"],
+      "clientRoles": {}
+    },
+    {
+      "username": "customer@cba.com",
+      "email": "customer@cba.com",
+      "firstName": "Demo",
+      "lastName": "Customer",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Customer@123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["CUSTOMER"],
+      "clientRoles": {}
+    }
+  ]
+}

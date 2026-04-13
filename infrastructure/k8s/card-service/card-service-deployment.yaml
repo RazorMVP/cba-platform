@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: card-service
+  namespace: cba-platform
+  labels:
+    app: card-service
+    app.kubernetes.io/part-of: cba-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: card-service
+  template:
+    metadata:
+      labels:
+        app: card-service
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: card-service
+          image: ghcr.io/razormvp/cba-platform/cba-card-service:latest
+          ports:
+            - name: http
+              containerPort: 8081
+          envFrom:
+            - configMapRef:
+                name: card-service-config
+          env:
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: card-service-secret
+                  key: SPRING_DATASOURCE_PASSWORD
+            - name: JASYPT_ENCRYPTOR_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: card-service-secret
+                  key: JASYPT_ENCRYPTOR_PASSWORD
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8081
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8081
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 5"]

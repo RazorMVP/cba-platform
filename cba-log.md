@@ -59,6 +59,66 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 42 — 2026-04-13
+**Build Order Steps 12 + 13 — complete infrastructure: Docker Compose (two profiles) + Keycloak pre-configured realm + full Kubernetes manifests for all 9 services. Deployment-agnostic: AWS / Azure / GCP / DigitalOcean / on-premises / Docker. Commit: pending.**
+
+#### New Files
+| File | Purpose |
+|------|---------|
+| `infrastructure/.env.example` | All environment variable definitions with documentation; copy to `.env` before running |
+| `infrastructure/docker-compose.yml` | Default profile: postgres-main, postgres-card, keycloak, redis, mailhog; `--profile app`: backend, card-service, fep-service, web |
+| `infrastructure/postgres/init-main.sh` | Runs on postgres-main first boot; creates `keycloak_db` + `keycloak_user` alongside `cba_db` |
+| `infrastructure/keycloak/cba-realm.json` | Pre-configured Keycloak 23 realm: `cba` realm, PKCE + PAR, 3 clients (cba-backend bearer-only / cba-web confidential / cba-mobile public), 4 roles (ADMIN/TELLER/CUSTOMER/API_CLIENT), 3 demo users, SMTP → MailHog |
+| `infrastructure/k8s/namespace.yaml` | `cba-platform` namespace |
+| `infrastructure/k8s/secrets/platform-secrets.yaml` | 5 Secrets (postgres-main, postgres-card, keycloak, backend, card-service, fep-service) with `<CHANGE_ME>` placeholders and external secrets operator guidance |
+| `infrastructure/k8s/configmaps/backend-config.yaml` | Non-secret backend env vars |
+| `infrastructure/k8s/configmaps/card-service-config.yaml` | Non-secret card-service env vars |
+| `infrastructure/k8s/configmaps/fep-service-config.yaml` | Non-secret fep-service env vars |
+| `infrastructure/k8s/postgres/postgres-main-init-configmap.yaml` | Init script ConfigMap mounted into postgres-main StatefulSet |
+| `infrastructure/k8s/postgres/postgres-main-statefulset.yaml` | StatefulSet + 20Gi PVC for monolith DB |
+| `infrastructure/k8s/postgres/postgres-main-service.yaml` | ClusterIP service for postgres-main |
+| `infrastructure/k8s/postgres/postgres-card-statefulset.yaml` | StatefulSet + 20Gi PVC for card-service DB (isolated) |
+| `infrastructure/k8s/postgres/postgres-card-service.yaml` | ClusterIP service for postgres-card |
+| `infrastructure/k8s/keycloak/keycloak-realm-configmap.yaml` | Realm JSON as ConfigMap mounted into Keycloak pod |
+| `infrastructure/k8s/keycloak/keycloak-deployment.yaml` | Keycloak 23 Deployment; `KC_PROXY=edge`; reads realm ConfigMap |
+| `infrastructure/k8s/keycloak/keycloak-service.yaml` | ClusterIP service on port 8180 |
+| `infrastructure/k8s/redis/redis-deployment.yaml` | Redis 7 Deployment |
+| `infrastructure/k8s/redis/redis-service.yaml` | ClusterIP service on port 6379 |
+| `infrastructure/k8s/backend/backend-deployment.yaml` | 2 replicas; `preStop sleep 5` for graceful drain; readiness/liveness on `/actuator/health` |
+| `infrastructure/k8s/backend/backend-service.yaml` | ClusterIP on port 8080 |
+| `infrastructure/k8s/backend/backend-hpa.yaml` | HPA min=2 max=5; CPU 70% + memory 80% |
+| `infrastructure/k8s/backend/backend-ingress.yaml` | nginx Ingress; `api.cba.example.com`; TLS section commented with cert-manager instructions |
+| `infrastructure/k8s/card-service/card-service-deployment.yaml` | 2 replicas; `preStop sleep 5`; readiness/liveness on `/actuator/health` |
+| `infrastructure/k8s/card-service/card-service-service.yaml` | ClusterIP on port 8081 |
+| `infrastructure/k8s/card-service/card-service-hpa.yaml` | HPA min=2 max=5; CPU 70% + memory 80% |
+| `infrastructure/k8s/card-service/card-service-ingress.yaml` | nginx Ingress; `card-api.cba.example.com` |
+| `infrastructure/k8s/fep-service/fep-service-deployment.yaml` | 2 fixed replicas (no HPA — TCP connection state); exposes ports 8082 (HTTP) + 8583 (TCP) |
+| `infrastructure/k8s/fep-service/fep-service-service.yaml` | ClusterIP for HTTP admin; **LoadBalancer for TCP 8583** — MetalLB on bare metal, cloud LB on managed K8s |
+| `infrastructure/k8s/web/web-deployment.yaml` | 2 replicas nginx serving Angular SPA |
+| `infrastructure/k8s/web/web-service.yaml` | ClusterIP on port 80 |
+| `infrastructure/k8s/web/web-ingress.yaml` | nginx Ingress; `app.cba.example.com` |
+
+#### Key Patterns / Decisions
+- **Two-profile Docker Compose**: infrastructure-only by default (lightweight daily dev); `--profile app` for full-stack integration testing or demo without needing Java/Node installed locally
+- **Separate PostgreSQL instances**: `postgres-main` (monolith + Keycloak) and `postgres-card` (card-service) — failure isolation and independent tuning for write-heavy authorization log workload
+- **Keycloak PKCE-only for dev**: mTLS client auth not enforced (requires certificate infrastructure); PKCE S256 enforced on both web and mobile clients; PAR `parRequestUriLifespan=60s` configured
+- **Vanilla K8s**: no cloud-provider annotations anywhere; works on EKS, AKS, GKE, DigitalOcean, K3s+MetalLB on-premises without modification — only hostnames in Ingress rules need updating
+- **LoadBalancer for FEP TCP 8583**: production-correct for scheme certification; `loadBalancerSourceRanges` commented with instructions for restricting to scheme network IP ranges
+- **No HPA on fep-service**: TCP connection affinity makes auto-scaling complex; scale by updating `replicas` manually — matches how production card processors are operated
+- **`preStop sleep 5`**: prevents in-flight HTTP requests hitting backend/card-service pods during rolling updates; Kubernetes removes pod from endpoints and the sleep gives the load balancer time to drain
+
+#### Build Verification
+All files written and directory structure verified. No compilation step — YAML/JSON infrastructure files.
+
+#### Compliance Checklist Update
+- ✅ Docker Compose covers CBA backend, card-service, and fep-service simultaneously (via `--profile app`)
+- ✅ Kubernetes manifests cover all 9 services: postgres-main, postgres-card, keycloak, redis, backend, card-service, fep-service (HTTP + TCP), web
+- ✅ Deployment-agnostic: AWS EKS / Azure AKS / GCP GKE / DigitalOcean / K3s on-premises — zero cloud-vendor-specific configuration
+- ✅ Keycloak realm pre-configured and version-controlled — no manual admin console setup required
+- ✅ PCI-DSS: secrets in K8s Secrets (not ConfigMaps); `<CHANGE_ME>` placeholders prevent accidental deployment with dev credentials
+
+---
+
 ### Session 41 — 2026-04-12
 **Build Order Step 11 — Angular `CardsModule`: all 12 screens built, environment dual-URL pattern, sidebar wired, lazy-loaded route registered. BUILD SUCCESS (0 errors, 0 type errors). Commit: pending.**
 

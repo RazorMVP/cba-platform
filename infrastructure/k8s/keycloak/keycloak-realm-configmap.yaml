@@ -1,0 +1,150 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm
+  namespace: cba-platform
+data:
+  cba-realm.json: |
+    {
+      "id": "cba",
+      "realm": "cba",
+      "displayName": "CBA Banking Platform",
+      "displayNameHtml": "<b>CBA</b> Banking Platform",
+      "enabled": true,
+      "sslRequired": "external",
+      "registrationAllowed": false,
+      "loginWithEmailAllowed": true,
+      "duplicateEmailsAllowed": false,
+      "resetPasswordAllowed": true,
+      "editUsernameAllowed": false,
+      "bruteForceProtected": true,
+      "permanentLockout": false,
+      "maxFailureWaitSeconds": 900,
+      "minimumQuickLoginWaitSeconds": 60,
+      "waitIncrementSeconds": 60,
+      "quickLoginCheckMilliSeconds": 1000,
+      "maxDeltaTimeSeconds": 43200,
+      "failureFactor": 5,
+      "accessTokenLifespan": 300,
+      "accessTokenLifespanForImplicitFlow": 900,
+      "ssoSessionIdleTimeout": 1800,
+      "ssoSessionMaxLifespan": 36000,
+      "offlineSessionIdleTimeout": 2592000,
+      "accessCodeLifespan": 60,
+      "accessCodeLifespanUserAction": 300,
+      "accessCodeLifespanLogin": 1800,
+      "actionTokenGeneratedByAdminLifespan": 43200,
+      "actionTokenGeneratedByUserLifespan": 300,
+      "attributes": {
+        "parRequestUriLifespan": "60",
+        "cibaAuthRequestedUserHint": "login_hint",
+        "userProfileEnabled": "true"
+      },
+      "browserSecurityHeaders": {
+        "xContentTypeOptions": "nosniff",
+        "xRobotsTag": "none",
+        "xFrameOptions": "SAMEORIGIN",
+        "contentSecurityPolicy": "frame-src 'self'; frame-ancestors 'self'; object-src 'none';",
+        "strictTransportSecurity": "max-age=31536000; includeSubDomains"
+      },
+      "smtpServer": {
+        "port": "1025",
+        "host": "mailhog",
+        "from": "noreply@cba.com",
+        "fromDisplayName": "CBA Banking Platform",
+        "ssl": "false",
+        "starttls": "false",
+        "auth": "false"
+      },
+      "eventsEnabled": true,
+      "eventsExpiration": 2592000,
+      "adminEventsEnabled": true,
+      "adminEventsDetailsEnabled": true,
+      "roles": {
+        "realm": [
+          {"name": "ADMIN", "description": "Full platform administration access", "composite": false, "clientRole": false},
+          {"name": "TELLER", "description": "Bank teller operations", "composite": false, "clientRole": false},
+          {"name": "CUSTOMER", "description": "Customer self-service access", "composite": false, "clientRole": false},
+          {"name": "API_CLIENT", "description": "Third-party TPP Open Banking access", "composite": false, "clientRole": false}
+        ]
+      },
+      "groups": [],
+      "clients": [
+        {
+          "clientId": "cba-backend",
+          "name": "CBA Backend Resource Server",
+          "enabled": true,
+          "bearerOnly": true,
+          "publicClient": false,
+          "standardFlowEnabled": false,
+          "implicitFlowEnabled": false,
+          "directAccessGrantsEnabled": false,
+          "serviceAccountsEnabled": false,
+          "protocol": "openid-connect",
+          "attributes": {}
+        },
+        {
+          "clientId": "cba-web",
+          "name": "CBA Backoffice Portal",
+          "enabled": true,
+          "bearerOnly": false,
+          "publicClient": false,
+          "standardFlowEnabled": true,
+          "implicitFlowEnabled": false,
+          "directAccessGrantsEnabled": false,
+          "serviceAccountsEnabled": false,
+          "protocol": "openid-connect",
+          "secret": "cba-web-dev-secret",
+          "redirectUris": ["http://localhost:4200/*", "https://localhost:4200/*"],
+          "webOrigins": ["http://localhost:4200", "https://localhost:4200"],
+          "attributes": {
+            "pkce.code.challenge.method": "S256",
+            "post.logout.redirect.uris": "http://localhost:4200/*"
+          },
+          "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email"],
+          "optionalClientScopes": ["address", "phone", "offline_access", "microprofile-jwt"]
+        },
+        {
+          "clientId": "cba-mobile",
+          "name": "CBA Customer Mobile App",
+          "enabled": true,
+          "bearerOnly": false,
+          "publicClient": true,
+          "standardFlowEnabled": true,
+          "implicitFlowEnabled": false,
+          "directAccessGrantsEnabled": false,
+          "serviceAccountsEnabled": false,
+          "protocol": "openid-connect",
+          "redirectUris": ["com.cba.mobile://*", "http://localhost:*"],
+          "webOrigins": ["+"],
+          "attributes": {"pkce.code.challenge.method": "S256"},
+          "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email"],
+          "optionalClientScopes": ["address", "phone", "offline_access", "microprofile-jwt"]
+        }
+      ],
+      "defaultDefaultClientScopes": ["web-origins", "acr", "profile", "roles", "email"],
+      "defaultOptionalClientScopes": ["address", "phone", "offline_access", "microprofile-jwt"],
+      "users": [
+        {
+          "username": "admin@cba.com", "email": "admin@cba.com",
+          "firstName": "System", "lastName": "Administrator",
+          "enabled": true, "emailVerified": true,
+          "credentials": [{"type": "password", "value": "Admin@123", "temporary": false}],
+          "realmRoles": ["ADMIN"], "clientRoles": {}
+        },
+        {
+          "username": "teller@cba.com", "email": "teller@cba.com",
+          "firstName": "Bank", "lastName": "Teller",
+          "enabled": true, "emailVerified": true,
+          "credentials": [{"type": "password", "value": "Teller@123", "temporary": false}],
+          "realmRoles": ["TELLER"], "clientRoles": {}
+        },
+        {
+          "username": "customer@cba.com", "email": "customer@cba.com",
+          "firstName": "Demo", "lastName": "Customer",
+          "enabled": true, "emailVerified": true,
+          "credentials": [{"type": "password", "value": "Customer@123", "temporary": false}],
+          "realmRoles": ["CUSTOMER"], "clientRoles": {}
+        }
+      ]
+    }

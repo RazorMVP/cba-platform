@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-card
+  namespace: cba-platform
+  labels:
+    app: postgres-card
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres-card
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432

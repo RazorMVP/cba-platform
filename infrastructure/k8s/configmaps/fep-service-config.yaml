@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fep-service-config
+  namespace: cba-platform
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+  CARD_SERVICE_URL: "http://card-service:8081"
+  FEP_TCP_PORT: "8583"

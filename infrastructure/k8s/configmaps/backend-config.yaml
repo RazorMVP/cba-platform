@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: cba-platform
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-main:5432/cba_db"
+  SPRING_DATASOURCE_USERNAME: "cba_user"
+  SPRING_DATA_REDIS_HOST: "redis"
+  SPRING_DATA_REDIS_PORT: "6379"
+  SPRING_MAIL_HOST: "mailhog"
+  SPRING_MAIL_PORT: "1025"
+  SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: "http://keycloak:8180/realms/cba"
+  CARD_SERVICE_BASE_URL: "http://card-service:8081"
+  # Replace with your actual domain in production
+  # SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: "https://auth.cba.example.com/realms/cba"

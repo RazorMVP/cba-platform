@@ -1,0 +1,277 @@
+# ============================================================
+# CBA Platform — Docker Compose
+#
+# DEFAULT (infrastructure dependencies only — for daily dev):
+#   docker-compose up
+#
+# FULL STACK (all services — for integration testing / demo):
+#   docker-compose --profile app up
+#
+# Prerequisites for --profile app:
+#   Images must exist in GHCR or be built locally first:
+#   docker-compose build   (if Dockerfiles are present locally)
+#   OR
+#   docker pull ghcr.io/${GITHUB_ORG}/cba-platform/cba-backend:${VERSION}
+#
+# Service URLs (default profile):
+#   PostgreSQL main : localhost:5432  (db: cba_db,    user: cba_user)
+#   PostgreSQL card : localhost:5433  (db: card_db,   user: card_user)
+#   Keycloak        : http://localhost:8180   (admin console)
+#   MailHog         : http://localhost:8025   (web UI)
+#   Redis           : localhost:6379
+#
+# Service URLs (--profile app):
+#   Backend API     : http://localhost:8080
+#   Card Service    : http://localhost:8081
+#   FEP HTTP        : http://localhost:8082
+#   FEP TCP (8583)  : localhost:8583
+#   Web Portal      : http://localhost:4200
+# ============================================================
+
+services:
+
+  # ─── PostgreSQL — Main (monolith + Keycloak) ─────────────
+
+  postgres-main:
+    image: postgres:16-alpine
+    container_name: cba-postgres-main
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cba_db
+      POSTGRES_USER: cba_user
+      POSTGRES_PASSWORD: ${POSTGRES_MAIN_PASSWORD:-cba_dev_password}
+    volumes:
+      - postgres-main-data:/var/lib/postgresql/data
+      - ./postgres/init-main.sh:/docker-entrypoint-initdb.d/init-main.sh:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cba_user -d cba_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - cba-network
+
+  # ─── PostgreSQL — Card Service ────────────────────────────
+
+  postgres-card:
+    image: postgres:16-alpine
+    container_name: cba-postgres-card
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: card_db
+      POSTGRES_USER: card_user
+      POSTGRES_PASSWORD: ${POSTGRES_CARD_PASSWORD:-card_dev_password}
+    volumes:
+      - postgres-card-data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U card_user -d card_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - cba-network
+
+  # ─── Keycloak ─────────────────────────────────────────────
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0
+    container_name: cba-keycloak
+    restart: unless-stopped
+    # start-dev + --import-realm: imports cba-realm.json on first boot
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres-main:5432/keycloak_db
+      KC_DB_USERNAME: keycloak_user
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak_dev_password}
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_PORT: "8180"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_LOG_LEVEL: "INFO"
+    volumes:
+      - ./keycloak/cba-realm.json:/opt/keycloak/data/import/cba-realm.json:ro
+    ports:
+      - "8180:8180"
+    depends_on:
+      postgres-main:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8180/health/ready || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+    networks:
+      - cba-network
+
+  # ─── Redis ────────────────────────────────────────────────
+
+  redis:
+    image: redis:7-alpine
+    container_name: cba-redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cba-network
+
+  # ─── MailHog ──────────────────────────────────────────────
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: cba-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP — application services send here
+      - "8025:8025"   # Web UI — open in browser to inspect emails
+    networks:
+      - cba-network
+
+  # ─── Application Services (--profile app) ─────────────────
+  # These services run pre-built Docker images.
+  # For local dev, run the applications from your IDE instead.
+
+  backend:
+    image: ghcr.io/${GITHUB_ORG:-razormvp}/cba-platform/cba-backend:${VERSION:-latest}
+    container_name: cba-backend
+    profiles: [app]
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-main:5432/cba_db
+      SPRING_DATASOURCE_USERNAME: cba_user
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_MAIN_PASSWORD:-cba_dev_password}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+      SPRING_MAIL_HOST: mailhog
+      SPRING_MAIL_PORT: "1025"
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8180/realms/cba
+      CARD_SERVICE_BASE_URL: http://card-service:8081
+      JASYPT_ENCRYPTOR_PASSWORD: ${ENCRYPTION_KEY:-dev_encryption_key_at_least_32_chars}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres-main:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+    networks:
+      - cba-network
+
+  card-service:
+    image: ghcr.io/${GITHUB_ORG:-razormvp}/cba-platform/cba-card-service:${VERSION:-latest}
+    container_name: cba-card-service
+    profiles: [app]
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-card:5432/card_db
+      SPRING_DATASOURCE_USERNAME: card_user
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_CARD_PASSWORD:-card_dev_password}
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8180/realms/cba
+      BACKEND_BASE_URL: http://backend:8080
+      FEP_TCP_HOST: fep-service
+      FEP_TCP_PORT: "8583"
+      JASYPT_ENCRYPTOR_PASSWORD: ${ENCRYPTION_KEY:-dev_encryption_key_at_least_32_chars}
+      CARD_BUREAU_NAME: CBA_BUREAU
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres-card:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8081/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+    networks:
+      - cba-network
+
+  fep-service:
+    image: ghcr.io/${GITHUB_ORG:-razormvp}/cba-platform/cba-fep-service:${VERSION:-latest}
+    container_name: cba-fep-service
+    profiles: [app]
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      CARD_SERVICE_URL: http://card-service:8081
+      FEP_TCP_PORT: "8583"
+      FEP_HSM_PROVIDER: ${FEP_HSM_PROVIDER:-SOFTWARE}
+    ports:
+      - "8082:8082"   # HTTP health + admin endpoints
+      - "8583:8583"   # ISO 8583 TCP socket (ATM/POS terminal connections)
+    depends_on:
+      card-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8082/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks:
+      - cba-network
+
+  web:
+    image: ghcr.io/${GITHUB_ORG:-razormvp}/cba-platform/cba-web:${VERSION:-latest}
+    container_name: cba-web
+    profiles: [app]
+    restart: unless-stopped
+    # nginx serves the pre-built Angular SPA; env vars injected at runtime
+    # via /usr/share/nginx/html/assets/env.js (see web/nginx.conf)
+    environment:
+      API_URL: http://localhost:8080
+      CARD_API_URL: http://localhost:8081
+      KEYCLOAK_URL: http://localhost:8180
+    ports:
+      - "4200:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - cba-network
+
+# ─── Volumes ──────────────────────────────────────────────────
+
+volumes:
+  postgres-main-data:
+    driver: local
+  postgres-card-data:
+    driver: local
+  redis-data:
+    driver: local
+
+# ─── Networks ─────────────────────────────────────────────────
+
+networks:
+  cba-network:
+    driver: bridge
+    name: cba-platform

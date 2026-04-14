@@ -51,10 +51,23 @@ ALTER TABLE loan_products
     ADD COLUMN IF NOT EXISTS write_off_account_id                    UUID REFERENCES gl_accounts(id),
     ADD COLUMN IF NOT EXISTS overpayment_liability_account_id        UUID REFERENCES gl_accounts(id);
 
--- Backfill short_name for any existing rows (generate from name)
-UPDATE loan_products
-SET short_name = UPPER(SUBSTRING(REGEXP_REPLACE(name, '[^A-Za-z0-9]', '', 'g'), 1, 4))
-WHERE short_name IS NULL;
+-- Backfill short_name for any existing rows (generate from name, deduplicate with row-number suffix)
+WITH ranked AS (
+    SELECT id,
+           UPPER(SUBSTRING(REGEXP_REPLACE(name, '[^A-Za-z0-9]', '', 'g'), 1, 4)) AS base_code,
+           ROW_NUMBER() OVER (
+               PARTITION BY UPPER(SUBSTRING(REGEXP_REPLACE(name, '[^A-Za-z0-9]', '', 'g'), 1, 4))
+               ORDER BY id
+           ) AS rn
+    FROM loan_products
+    WHERE short_name IS NULL
+)
+UPDATE loan_products lp
+SET short_name = CASE WHEN r.rn = 1 THEN r.base_code
+                      ELSE SUBSTRING(r.base_code, 1, 3) || CAST(r.rn AS VARCHAR)
+                 END
+FROM ranked r
+WHERE lp.id = r.id;
 
 ALTER TABLE loan_products
     ALTER COLUMN short_name SET NOT NULL;
@@ -86,10 +99,23 @@ ALTER TABLE deposit_products
     ADD COLUMN IF NOT EXISTS write_off_account_id                   UUID REFERENCES gl_accounts(id),
     ADD COLUMN IF NOT EXISTS overdraft_portfolio_control_account_id UUID REFERENCES gl_accounts(id);
 
--- Backfill short_name for existing deposit product rows
-UPDATE deposit_products
-SET short_name = UPPER(SUBSTRING(REGEXP_REPLACE(name, '[^A-Za-z0-9]', '', 'g'), 1, 4))
-WHERE short_name IS NULL;
+-- Backfill short_name for existing deposit product rows (deduplicate with row-number suffix)
+WITH ranked AS (
+    SELECT id,
+           UPPER(SUBSTRING(REGEXP_REPLACE(name, '[^A-Za-z0-9]', '', 'g'), 1, 4)) AS base_code,
+           ROW_NUMBER() OVER (
+               PARTITION BY UPPER(SUBSTRING(REGEXP_REPLACE(name, '[^A-Za-z0-9]', '', 'g'), 1, 4))
+               ORDER BY id
+           ) AS rn
+    FROM deposit_products
+    WHERE short_name IS NULL
+)
+UPDATE deposit_products dp
+SET short_name = CASE WHEN r.rn = 1 THEN r.base_code
+                      ELSE SUBSTRING(r.base_code, 1, 3) || CAST(r.rn AS VARCHAR)
+                 END
+FROM ranked r
+WHERE dp.id = r.id;
 
 ALTER TABLE deposit_products
     ALTER COLUMN short_name SET NOT NULL;

@@ -279,9 +279,11 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 - Endpoints: `GET /api/v1/reports`, `GET/DELETE /api/v1/reports/{id}`, `GET /api/v1/runreports/{reportName}?param=value`
 
 ### 16. CoB Scheduler Module (Close of Business)
-- Spring Batch jobs + Quartz triggers; both schemas managed by Flyway V10 (`initialize-schema: never`)
+- Spring Batch jobs + Quartz triggers; both schemas managed by Flyway V10 (`initialize-schema: never`); 5 missing Quartz tables added in V24
 - Nightly schedule: standing-orders (23:55) → interest-accrual (23:57) → arrears (23:59)
 - `QuartzJobBridge extends QuartzJobBean` bridges Quartz → Spring Batch; looks up bean by `jobBeanName` job data key
+- **`@Bean` naming**: Spring Batch auto-registers beans by the name passed to `JobBuilder`; the `@Bean` annotation must use a **different** name to avoid `NoUniqueBeanDefinitionException`. Convention: `@Bean("standingOrderExecutionBatchJob")`, `@Bean("interestAccrualBatchJob")`, `@Bean("arrearsClassificationBatchJob")` — the `BatchJob` suffix disambiguates from the internal Batch job name
+- `CobSchedulerConfig` uses explicit constructor with `@Qualifier("*BatchJob")` — do NOT use `@RequiredArgsConstructor` with `@Qualifier` on fields (Lombok ignores field annotations in constructor injection)
 - Entity: `CobJobHistory`; Package: `com.cba.cob`
 - Endpoints: `GET /api/v1/jobs`, `POST /api/v1/jobs/{jobName}/run`, `GET /api/v1/jobs/{jobName}/history`
 - Valid job names: `standingOrderExecutionJob`, `interestAccrualJob`, `arrearsClassificationJob`
@@ -1312,6 +1314,7 @@ RAISED → RETRIEVAL_REQUESTED → CHARGEBACK_INITIATED
 12. ✅ **Infrastructure — Docker Compose + Keycloak Realm** — infrastructure-only default profile (postgres-main, postgres-card, keycloak, redis, mailhog); `--profile app` full-stack profile (backend, card-service, fep-service, web); pre-configured `cba-realm.json` auto-imported on Keycloak first boot; PostgreSQL init script creates `keycloak_db` alongside `cba_db` _(Session 42)_
 13. ✅ **Infrastructure — Kubernetes** — generic/vanilla manifests for all 9 services: two PostgreSQL StatefulSets (isolated DBs), Keycloak Deployment + realm ConfigMap, Redis, backend + card-service (Deployment + ClusterIP + HPA + nginx Ingress), fep-service (Deployment + ClusterIP HTTP + LoadBalancer TCP 8583), web (Deployment + ClusterIP + nginx Ingress); namespace `cba-platform`; Secrets with `<CHANGE_ME>` placeholders; ConfigMaps per service _(Session 42)_
 14. ✅ **API Documentation Enforcement** — OpenAPI snapshot tests for backend + card-service, annotation-diff CI gate, `card-service-ci.yml` workflow, `docs/card-api-reference.html` _(Session 44)_
+15. ✅ **Infrastructure + Backend Runtime Fixes** — Quartz `JobStoreTX` → `LocalDataSourceJobStore` (entrypoint JVM flag); CoB `@Bean` name disambiguation (`*BatchJob` suffix); V24 migration (5 missing Quartz tables + `share_accounts.total_shares_held`); Keycloak healthcheck (TCP-based, `KC_HEALTH_ENABLED: "true"`); Dockerfile build stage + `flyway-database-postgresql` dep; `.gitignore` extended for card-service/fep-service targets _(Session 50)_
 
 ---
 
@@ -2773,6 +2776,66 @@ The token lives only in:
 - `.claude/skills/cba/credentials.json` (gitignored)
 
 Never paste the token into any file that is tracked by git.
+
+---
+
+## Infrastructure & Runtime Fixes — Session 50 (2026-04-14)
+
+### Quartz Configuration — Critical Gotchas
+
+| Issue | Fix |
+|-------|-----|
+| `org.quartz.jobStore.class: JobStoreTX` baked into Docker image | Remove this property entirely from `application.yml`. Spring Boot auto-configures `LocalDataSourceJobStore` when `spring.quartz.job-store-type: jdbc` and no explicit class is set. If the image is already built, override via docker-compose entrypoint: `-Dspring.quartz.properties.org.quartz.jobStore.class=org.springframework.scheduling.quartz.LocalDataSourceJobStore` |
+| Spring Boot external config file (`/app/config/application.yml`) does NOT load dotted Quartz keys | Bracket YAML notation `"[org.quartz.jobStore.class]"` is required in YAML for dotted map keys, but Spring Boot's external config file scanner does not reliably process this when the key is a `spring.quartz.properties` sub-key. Use JVM `-D` system property instead. |
+| `relation "qrtz_paused_trigger_grps" does not exist` at startup | V10 migration only created 6 of 11 Quartz tables. V24 adds the missing 5 (`qrtz_simple_triggers`, `qrtz_simprop_triggers`, `qrtz_blob_triggers`, `qrtz_calendars`, `qrtz_paused_trigger_grps`) with `IF NOT EXISTS`. |
+
+### CoB Scheduler — Bean Name Collision Pattern
+
+Spring Batch internally registers `Job` beans using the name passed to `JobBuilder("jobName", ...)`. If `@Bean("jobName")` uses the **same** string, Spring raises `NoUniqueBeanDefinitionException` when another class `@Qualifier("jobName")`-injects it.
+
+**Pattern to follow in all CoB jobs:**
+```java
+// @Bean name has "BatchJob" suffix — avoids collision with internal Batch registry
+@Bean("interestAccrualBatchJob")
+public Job interestAccrualJob(JobRepository jobRepository, Step step) {
+    return new JobBuilder("interestAccrualJob", jobRepository)  // ← internal name (unchanged)
+        ...
+}
+```
+
+**`CobSchedulerConfig` — always use explicit constructor, not `@RequiredArgsConstructor`:**
+```java
+public CobSchedulerConfig(
+    JobLauncher jobLauncher,
+    CobJobHistoryRepository historyRepository,
+    @Qualifier("standingOrderExecutionBatchJob") Job standingOrderJob,
+    @Qualifier("interestAccrualBatchJob")        Job interestAccrualJob,
+    @Qualifier("arrearsClassificationBatchJob")  Job arrearsJob) { ... }
+```
+`@RequiredArgsConstructor` does not propagate `@Qualifier` annotations from fields into the generated constructor — they are silently ignored.
+
+### Keycloak Healthcheck — Container-Compatible Approach
+
+Keycloak's container image does not include `curl`. The healthcheck must use shell TCP primitives:
+```yaml
+healthcheck:
+  test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8180 && echo -e 'GET /health/ready HTTP/1.0\\r\\n\\r\\n' >&3 && cat <&3 | grep -q 'UP'"]
+```
+Also requires `KC_HEALTH_ENABLED: "true"` environment variable.
+
+### `flyway-database-postgresql` Dependency
+
+Spring Boot 3.3+ (Flyway 10+) extracted PostgreSQL dialect support from `flyway-core` into a separate artifact. Without it, Flyway throws `No supported database found` at startup:
+```xml
+<dependency>
+    <groupId>org.flywaydb</groupId>
+    <artifactId>flyway-database-postgresql</artifactId>
+</dependency>
+```
+
+### Backend Dockerfile — Maven Not Available in JDK-Only Image
+
+The build stage must use `maven:3.9-eclipse-temurin-21-alpine`, not `eclipse-temurin:21-jdk-alpine`. The latter has no Maven binary, causing `./mvnw` to fail.
 
 ---
 

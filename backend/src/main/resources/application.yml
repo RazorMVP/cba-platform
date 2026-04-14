@@ -3,6 +3,125 @@ spring:
     name: cba-backend
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+  flyway:
+    placeholder-replacement: false   # V9 report SQL uses ${paramName} as data, not Flyway config
+  batch:
+    jdbc:
+      initialize-schema: never   # Flyway owns the schema (V10 migration)
+    job:
+      enabled: false             # Don't auto-run jobs on startup
+  quartz:
+    job-store-type: jdbc
+    jdbc:
+      initialize-schema: never   # Flyway owns the schema (V10 migration)
+    properties:
+      org.quartz.scheduler.instanceName: CbaScheduler
+      org.quartz.scheduler.instanceId: AUTO
+      org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
+      org.quartz.jobStore.isClustered: false
+      org.quartz.threadPool.threadCount: 3
+
+server:
+  port: 8080
+  servlet:
+    context-path: /
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    oauth:
+      client-id: cba-web
+      realm: cba
+    try-it-out-enabled: true
+    operations-sorter: alpha
+    tags-sorter: alpha
+
+cba:
+  encryption:
+    secret-key: ${ENCRYPTION_KEY:changeme-32-char-secret-key!!!!}
+  pagination:
+    default-page-size: 20
+    max-page-size: 100
+  banking:
+    base-currency: USD
+    default-branch-code: "001"
+
+card:
+  service:
+    base-url: ${CARD_SERVICE_BASE_URL:http://localhost:8081}
+
+keycloak:
+  auth-server-url: http://${KEYCLOAK_HOST:localhost}:${KEYCLOAK_PORT:8180}
+  realm: cba
+  admin:
+    client-id: admin-cli
+    username: ${KEYCLOAK_ADMIN_USERNAME:admin}
+    password: ${KEYCLOAK_ADMIN_PASSWORD:admin}
+
+logging:
+  level:
+    com.cba: INFO
+    org.springframework.security: INFO
+    org.hibernate.SQL: WARN
+
+---
+# ═══════════════════════════════════════════════════
+# DOCKER profile (Docker Compose local stack)
+# All datasource / security settings come from env
+# vars injected by docker-compose.yml
+# ═══════════════════════════════════════════════════
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+    validate-on-migrate: true
+    out-of-order: true   # allows re-applying dropped migrations (V19 was dropped during dev DB repair)
+
+  cache:
+    type: simple
+
+  mail:
+    properties:
+      mail.smtp.auth: false
+      mail.smtp.starttls.enable: false
+
+logging:
+  level:
+    com.cba: DEBUG
+    org.springframework.security: INFO
+    org.hibernate.SQL: WARN
 
 ---
 # ═══════════════════════════════════════════════════
@@ -40,6 +159,7 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: false
     validate-on-migrate: true
+    placeholder-replacement: false   # V9 report SQL contains ${paramName} — not Flyway placeholders
 
   security:
     oauth2:
@@ -70,7 +190,6 @@ spring:
     properties:
       org.quartz.scheduler.instanceName: CbaScheduler
       org.quartz.scheduler.instanceId: AUTO
-      org.quartz.jobStore.class: org.quartz.impl.jdbcjobstore.JobStoreTX
       org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.PostgreSQLDelegate
       org.quartz.jobStore.isClustered: false
       org.quartz.threadPool.threadCount: 3
@@ -156,6 +275,7 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    placeholder-replacement: false
 
   security:
     oauth2:

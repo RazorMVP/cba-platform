@@ -19,6 +19,14 @@ backend/.mvn/wrapper/maven-wrapper.jar
 backend/*.class
 backend/hs_err_pid*
 
+# ── Card Service (Java / Maven) ───────────────────────────────────────────────
+card-service/target/
+card-service/*.class
+
+# ── FEP Service (Java / Maven) ────────────────────────────────────────────────
+fep-service/target/
+fep-service/*.class
+
 # ── Web (Angular / Node) ──────────────────────────────────────────────────────
 web/node_modules/
 web/dist/
@@ -58,6 +66,7 @@ mobile/pubspec.lock
 # But exclude local session files if any appear
 .claude/skills/cba/credentials.json
 .claude/todos/
+.claude/scheduled_tasks.lock
 
 # ── Logs ──────────────────────────────────────────────────────────────────────
 *.log

@@ -59,6 +59,60 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 50 — 2026-04-14
+**Infrastructure & backend debugging: resolved all Hibernate schema validation failures, Quartz startup errors, and Keycloak health check issues. Full stack confirmed healthy. Committed working state to GitHub and deployed Angular to Vercel.**
+
+#### Root Causes Found and Fixed
+
+| Error | Root Cause | Fix |
+|-------|-----------|-----|
+| `missing column [total_shares_held] in table [share_accounts]` | V14 Flyway migration created the table without the `total_shares_held` column that `ShareAccount.java` maps | `ALTER TABLE share_accounts ADD COLUMN IF NOT EXISTS total_shares_held BIGINT NOT NULL DEFAULT 0` applied to dev DB; V24 migration added for fresh deployments |
+| `SchedulerConfigException: DataSource name not set` | `org.quartz.jobStore.class: JobStoreTX` was baked into the Docker image's `application.yml`. `JobStoreTX` requires an explicit JNDI datasource name; Spring Boot's `LocalDataSourceJobStore` auto-wires the Spring-managed `DataSource` | Removed `org.quartz.jobStore.class` from `application.yml`; for existing image: added JVM flag `-Dspring.quartz.properties.org.quartz.jobStore.class=org.springframework.scheduling.quartz.LocalDataSourceJobStore` to docker-compose `entrypoint:` |
+| `relation "qrtz_paused_trigger_grps" does not exist` | V10 migration only created 6 of the 11 required Quartz PostgreSQL tables (missing `qrtz_simple_triggers`, `qrtz_simprop_triggers`, `qrtz_blob_triggers`, `qrtz_calendars`, `qrtz_paused_trigger_grps`) | 5 tables created directly in dev DB; V24 migration adds them with `IF NOT EXISTS` for fresh deployments |
+| Bean name conflict `standingOrderExecutionJob` / `interestAccrualJob` / `arrearsClassificationJob` | Spring Batch auto-registers `Job` beans with the same name used by `@Bean` annotations; `CobSchedulerConfig` injected the wrong bean | Renamed all three `@Bean` annotations to `*BatchJob` suffix; updated `CobSchedulerConfig` explicit constructor `@Qualifier` and Quartz `jobBeanName` data keys |
+| `health: DOWN` (mail component) | `mailhog` container was not running; Spring Mail actuator health check failing with `UnknownHostException: mailhog` | Started `mailhog` container: `docker compose up -d mailhog` |
+| Keycloak healthcheck failing | `curl` not available in Keycloak container image; healthcheck used `curl -sf` | Replaced with pure-TCP `exec 3<>/dev/tcp/localhost/8180` approach + `KC_HEALTH_ENABLED: "true"` env var |
+
+#### Files Changed
+
+| File | Change |
+|------|--------|
+| `backend/src/main/resources/application.yml` | Removed `org.quartz.jobStore.class: JobStoreTX` from dev profile Quartz block; added complete base config block (server, management, springdoc, cba, card, keycloak, logging) that was missing; added `placeholder-replacement: false` to prod and dev Flyway configs |
+| `backend/src/main/resources/db/migration/V10__batch_layer_a_fixes.sql` | Added `IF NOT EXISTS` to `CREATE TABLE standing_orders` to make re-runs safe |
+| `backend/src/main/resources/db/migration/V20__product_mifos_parity.sql` | Fixed `short_name` backfill for loan_products and deposit_products to handle duplicate 4-char codes via `ROW_NUMBER()` deduplication (suffix `1`→`2`→`3` appended when collision) |
+| `backend/src/main/resources/db/migration/V24__quartz_missing_tables_and_share_fix.sql` | **NEW** — 5 missing Quartz tables + `share_accounts.total_shares_held` column (all `IF NOT EXISTS`) |
+| `backend/src/main/java/com/cba/cob/StandingOrderExecutionJob.java` | `@Bean("standingOrderExecutionJob")` → `@Bean("standingOrderExecutionBatchJob")` |
+| `backend/src/main/java/com/cba/cob/InterestAccrualJob.java` | `@Bean("interestAccrualJob")` → `@Bean("interestAccrualBatchJob")` |
+| `backend/src/main/java/com/cba/cob/ArrearsClassificationJob.java` | `@Bean("arrearsClassificationJob")` → `@Bean("arrearsClassificationBatchJob")` |
+| `backend/src/main/java/com/cba/cob/CobSchedulerConfig.java` | Removed `@RequiredArgsConstructor`; added explicit constructor with `@Qualifier("*BatchJob")` annotations; updated all three `jobBeanName` data keys to `*BatchJob` |
+| `backend/Dockerfile` | Changed build stage from `eclipse-temurin:21-jdk-alpine` to `maven:3.9-eclipse-temurin-21-alpine` (Maven not present in JDK-only image) |
+| `backend/pom.xml` | Added `flyway-database-postgresql` dependency (required for Flyway 10+ / Spring Boot 3.3+) |
+| `infrastructure/docker-compose.yml` | Added `KC_HEALTH_ENABLED: "true"` to Keycloak service; replaced `curl`-based Keycloak healthcheck with pure-TCP `exec 3<>/dev/tcp` approach; added `entrypoint:` to backend service with JVM flag to override baked-in Quartz jobStore class |
+| `infrastructure/backend-config/application.yml` | **NEW** — documented override config attempt (bracket YAML notation; not used by running stack — entrypoint flag is the active fix) |
+| `web/src/environments/environment.ts` | `authBypass: false` → `authBypass: true` (dev environment correctly bypasses Keycloak for local development) |
+| `.gitignore` | Added `card-service/target/`, `fep-service/target/`, `card-service/*.class`, `fep-service/*.class`, `.claude/scheduled_tasks.lock` |
+
+#### Key Architectural Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| JVM entrypoint override for Quartz class (not config file mount) | Volume-mounted Spring Boot external config doesn't reliably load dotted-key YAML properties (`[org.quartz.jobStore.class]` bracket notation); JVM `-D` flag is always picked up first and overrides anything in a JAR |
+| `*BatchJob` suffix for Spring Batch `@Bean` names | Spring Batch's `JobRepository` auto-registers beans named after the `JobBuilder` name string; naming the `@Bean` the same as the job name causes `NoUniqueBeanDefinitionException` when `CobSchedulerConfig` tries to `@Qualifier`-inject them |
+| V24 migration (not patching V10) | V10 is already applied to all existing DBs; patching it would cause Flyway checksum mismatch. V24 uses `IF NOT EXISTS` so it's safe to run on both dev DB (tables already exist) and fresh deployments |
+| `IF NOT EXISTS` on all V24 DDL | Dev DB already had all 5 Quartz tables and the share column applied via direct SQL during debugging; `IF NOT EXISTS` makes the migration idempotent |
+
+#### Verification
+
+```
+docker compose logs --tail=5 cba-backend
+# → Started CbaApplication in 5.898 seconds
+
+curl http://localhost:8080/actuator/health
+# → {"status":"UP","groups":["liveness","readiness"]}
+```
+
+---
+
 ### Session 49 — 2026-04-14
 **PRD gap analysis: compared Confluence PRD (11 modules) against full-stack build; began Customer Onboarding gap closure — extended KycStatus, Customer entity, and CustomerResponse DTO.**
 

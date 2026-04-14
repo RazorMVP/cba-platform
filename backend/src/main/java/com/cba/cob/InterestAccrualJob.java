@@ -36,7 +36,7 @@ public class InterestAccrualJob {
 
     private final AccountRepository accountRepository;
 
-    @Bean("interestAccrualJob")
+    @Bean("interestAccrualBatchJob")
     public Job interestAccrualJob(JobRepository jobRepository,
                                    Step interestAccrualStep) {
         return new JobBuilder("interestAccrualJob", jobRepository)

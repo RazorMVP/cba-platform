@@ -1,6 +1,5 @@
 package com.cba.cob;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.*;
 import org.springframework.batch.core.Job;
@@ -24,16 +23,27 @@ import java.time.LocalDate;
  *  3. arrears-classification (23:59) — classify after interest
  */
 @Configuration
-@RequiredArgsConstructor
 @Slf4j
 public class CobSchedulerConfig {
 
     private final JobLauncher jobLauncher;
     private final CobJobHistoryRepository historyRepository;
+    private final Job standingOrderJob;
+    private final Job interestAccrualJob;
+    private final Job arrearsJob;
 
-    @Qualifier("standingOrderExecutionJob")  private final Job standingOrderJob;
-    @Qualifier("interestAccrualJob")         private final Job interestAccrualJob;
-    @Qualifier("arrearsClassificationJob")   private final Job arrearsJob;
+    public CobSchedulerConfig(
+            JobLauncher jobLauncher,
+            CobJobHistoryRepository historyRepository,
+            @Qualifier("standingOrderExecutionBatchJob") Job standingOrderJob,
+            @Qualifier("interestAccrualBatchJob")        Job interestAccrualJob,
+            @Qualifier("arrearsClassificationBatchJob")  Job arrearsJob) {
+        this.jobLauncher      = jobLauncher;
+        this.historyRepository = historyRepository;
+        this.standingOrderJob  = standingOrderJob;
+        this.interestAccrualJob = interestAccrualJob;
+        this.arrearsJob        = arrearsJob;
+    }
 
     // ── Quartz job detail beans ───────────────────────────────────────────────
 
@@ -41,7 +51,7 @@ public class CobSchedulerConfig {
     public JobDetail standingOrderJobDetail() {
         return JobBuilder.newJob(QuartzJobBridge.class)
                 .withIdentity("standingOrderExecution", "cob")
-                .usingJobData("jobBeanName", "standingOrderExecutionJob")
+                .usingJobData("jobBeanName", "standingOrderExecutionBatchJob")
                 .storeDurably()
                 .build();
     }
@@ -50,7 +60,7 @@ public class CobSchedulerConfig {
     public JobDetail interestAccrualJobDetail() {
         return JobBuilder.newJob(QuartzJobBridge.class)
                 .withIdentity("interestAccrual", "cob")
-                .usingJobData("jobBeanName", "interestAccrualJob")
+                .usingJobData("jobBeanName", "interestAccrualBatchJob")
                 .storeDurably()
                 .build();
     }
@@ -59,7 +69,7 @@ public class CobSchedulerConfig {
     public JobDetail arrearsJobDetail() {
         return JobBuilder.newJob(QuartzJobBridge.class)
                 .withIdentity("arrearsClassification", "cob")
-                .usingJobData("jobBeanName", "arrearsClassificationJob")
+                .usingJobData("jobBeanName", "arrearsClassificationBatchJob")
                 .storeDurably()
                 .build();
     }

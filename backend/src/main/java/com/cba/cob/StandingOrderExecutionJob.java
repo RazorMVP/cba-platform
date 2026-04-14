@@ -35,7 +35,7 @@ public class StandingOrderExecutionJob {
     private final StandingOrderRepository standingOrderRepository;
     private final PaymentService paymentService;
 
-    @Bean("standingOrderExecutionJob")
+    @Bean("standingOrderExecutionBatchJob")
     public Job standingOrderExecutionJob(JobRepository jobRepository,
                                           Step standingOrderStep) {
         return new JobBuilder("standingOrderExecutionJob", jobRepository)

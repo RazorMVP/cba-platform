@@ -2,7 +2,7 @@
 --      payment reversal tracking, Spring Batch + Quartz schemas
 
 -- ── Standing Orders (missing from payments) ───────────────────────────────────
-CREATE TABLE standing_orders (
+CREATE TABLE IF NOT EXISTS standing_orders (
     id                      UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     source_account_id       UUID            NOT NULL REFERENCES accounts(id),
     destination_account_id  UUID            NOT NULL REFERENCES accounts(id),

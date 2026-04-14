@@ -34,7 +34,7 @@ public class ArrearsClassificationJob {
 
     private final LoanRepository loanRepository;
 
-    @Bean("arrearsClassificationJob")
+    @Bean("arrearsClassificationBatchJob")
     public Job arrearsClassificationJob(JobRepository jobRepository,
                                          Step arrearsClassificationStep) {
         return new JobBuilder("arrearsClassificationJob", jobRepository)

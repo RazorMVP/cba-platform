@@ -1,0 +1,9 @@
+# External config override — mounted into /app/config/application.yml
+# Spring Boot scans file:./config/ at higher priority than the packaged JAR config.
+# This overrides the Quartz jobStore.class to use Spring's LocalDataSourceJobStore,
+# which integrates with the Spring-managed DataSource rather than needing its own
+# JNDI-referenced connection pool (required by the plain JobStoreTX).
+spring:
+  quartz:
+    properties:
+      "[org.quartz.jobStore.class]": org.springframework.scheduling.quartz.LocalDataSourceJobStore

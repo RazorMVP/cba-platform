@@ -79,10 +79,12 @@
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
         </dependency>
-        <!-- flyway-database-postgresql is only needed for Flyway 10+.
-             Spring Boot 3.2.x manages Flyway 9.x where PostgreSQL support
-             is included in flyway-core. -->
-
+        <!-- Required for Flyway 10+ (Spring Boot 3.3+): PostgreSQL support
+             was extracted from flyway-core into this separate artifact. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
 
         <!-- ── Field-Level Encryption (PII) ─────────────────────── -->
         <dependency>

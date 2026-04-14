@@ -19,4 +19,35 @@
         <Bug pattern="UWF_UNWRITTEN_FIELD"/>
     </Match>
 
+    <!--
+        SecurityConfig.devAuthBypassFilter is injected by Spring via @Autowired(required=false).
+        It is null in production (the bean doesn't exist without app.auth-bypass=true).
+        SpotBugs sees the field as potentially unwritten because it cannot model Spring DI.
+    -->
+    <Match>
+        <Class name="com.cba.config.SecurityConfig"/>
+        <Bug pattern="UWF_UNWRITTEN_FIELD"/>
+    </Match>
+
+    <!--
+        DevAuthBypassFilter.DEV_AUTHORITIES is a private static final List.of() — immutable.
+        SpotBugs may flag MS_EXPOSE_REP on static collections even when they are
+        unmodifiable. This is dev-only code (ConditionalOnProperty guards it).
+    -->
+    <Match>
+        <Class name="com.cba.config.DevAuthBypassFilter"/>
+        <Bug pattern="MS_EXPOSE_REP,MS_SHOULD_BE_FINAL"/>
+    </Match>
+
+    <!--
+        AuditLogService.toJson() uses string concatenation to build a JSON-escaped fallback.
+        SpotBugs may warn about string building patterns; this is intentional defensive code
+        for the rare case where Jackson cannot serialize an audit value.
+    -->
+    <Match>
+        <Class name="com.cba.audit.AuditLogService"/>
+        <Method name="toJson"/>
+        <Bug pattern="DM_STRING_CTOR,SBSC_USE_STRINGBUFFER_CONCATENATION"/>
+    </Match>
+
 </FindBugsFilter>

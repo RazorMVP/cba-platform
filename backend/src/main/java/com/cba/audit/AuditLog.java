@@ -6,7 +6,6 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-import java.net.InetAddress;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -42,19 +41,23 @@ public class AuditLog {
     @Column(name = "changed_at", nullable = false)
     private Instant changedAt = Instant.now();
 
+    /**
+     * Pre-serialized JSON string. AuditLogService is responsible for ensuring
+     * this is always valid JSON (or null) before calling create().
+     */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "old_values", columnDefinition = "jsonb")
-    private Object oldValues;
+    private String oldValues;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "new_values", columnDefinition = "jsonb")
-    private Object newValues;
+    private String newValues;
 
     @Column(name = "session_id", length = 100)
     private String sessionId;
 
     static AuditLog create(String entityType, String entityId, String action,
-                           String changedBy, Object oldValues, Object newValues) {
+                           String changedBy, String oldValues, String newValues) {
         AuditLog log = new AuditLog();
         log.entityType = entityType;
         log.entityId = entityId;

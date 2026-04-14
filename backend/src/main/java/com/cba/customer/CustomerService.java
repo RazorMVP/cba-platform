@@ -31,7 +31,8 @@ public class CustomerService {
         customer.setKycStatus(KycStatus.PENDING_KYC);
 
         Customer saved = customerRepository.save(customer);
-        auditLogService.log("CUSTOMER", saved.getId().toString(), "CREATED", null, request);
+        auditLogService.log("CUSTOMER", saved.getId().toString(), "CREATED", null,
+                saved.getKycStatus().name());
         log.info("Customer created: externalId={}", saved.getExternalId());
         return customerMapper.toResponse(saved);
     }
@@ -67,7 +68,7 @@ public class CustomerService {
         if (request.notes()       != null) customer.setNotes(request.notes());
 
         Customer saved = customerRepository.save(customer);
-        auditLogService.log("CUSTOMER", id.toString(), "UPDATED", null, request);
+        auditLogService.log("CUSTOMER", id.toString(), "UPDATED", null, "PROFILE_UPDATED");
         return customerMapper.toResponse(saved);
     }
 

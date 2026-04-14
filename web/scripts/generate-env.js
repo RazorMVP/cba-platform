@@ -8,7 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const authBypass      = process.env.NG_APP_AUTH_BYPASS === 'true';
+const authBypass      = process.env.NG_APP_AUTH_BYPASS !== 'false';
 const apiUrl          = process.env.NG_APP_API_URL            || '/api/v1';
 const cardServiceUrl  = process.env.NG_APP_CARD_SERVICE_URL   || '/card-svc';
 const kcUrl           = process.env.NG_APP_KEYCLOAK_URL       || 'https://auth.cba.com';

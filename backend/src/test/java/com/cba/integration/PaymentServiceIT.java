@@ -35,7 +35,7 @@ class PaymentServiceIT extends AbstractIntegrationTest {
         BigDecimal dstBal  = dstBefore.getBalance();
         BigDecimal amount  = new BigDecimal("100.00");
 
-        TransferRequest req = new TransferRequest(JOHN_SAVINGS, JANE_SAVINGS, amount, "Test transfer");
+        TransferRequest req = new TransferRequest(JOHN_SAVINGS, JANE_SAVINGS, amount, "Test transfer", null);
         PaymentResponse payment = paymentService.transfer(req, "test-user");
 
         assertThat(payment.status()).isEqualTo(PaymentStatus.COMPLETED);
@@ -51,7 +51,7 @@ class PaymentServiceIT extends AbstractIntegrationTest {
     @DisplayName("transfer to same account throws SAME_ACCOUNT_TRANSFER")
     void transfer_sameAccount_throws() {
         assertThatThrownBy(() -> paymentService.transfer(
-            new TransferRequest(JOHN_SAVINGS, JOHN_SAVINGS, BigDecimal.TEN, "Self"),
+            new TransferRequest(JOHN_SAVINGS, JOHN_SAVINGS, BigDecimal.TEN, "Self", null),
             "test"
         ))
         .isInstanceOf(CbaException.class)
@@ -62,7 +62,7 @@ class PaymentServiceIT extends AbstractIntegrationTest {
     @DisplayName("transfer of amount exceeding balance throws INSUFFICIENT_BALANCE")
     void transfer_insufficientBalance_throws() {
         assertThatThrownBy(() -> paymentService.transfer(
-            new TransferRequest(JOHN_SAVINGS, JANE_SAVINGS, new BigDecimal("9999999.00"), "Overdraft"),
+            new TransferRequest(JOHN_SAVINGS, JANE_SAVINGS, new BigDecimal("9999999.00"), "Overdraft", null),
             "test"
         ))
         .isInstanceOf(CbaException.class)

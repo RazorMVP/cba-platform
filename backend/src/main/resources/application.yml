@@ -86,6 +86,9 @@ logging:
 # All datasource / security settings come from env
 # vars injected by docker-compose.yml
 # ═══════════════════════════════════════════════════
+app:
+  auth-bypass: true   # Bypass Keycloak for local docker-compose stack
+
 spring:
   config:
     activate:
@@ -127,6 +130,9 @@ logging:
 # ═══════════════════════════════════════════════════
 # DEV profile
 # ═══════════════════════════════════════════════════
+app:
+  auth-bypass: true   # Injects fake ADMIN auth so Angular works without Keycloak
+
 spring:
   config:
     activate:

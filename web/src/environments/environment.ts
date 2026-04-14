@@ -1,6 +1,6 @@
 export const environment = {
   production: false,
-  authBypass: true,
+  authBypass: false,
   apiBaseUrl: 'http://localhost:8080/api/v1',
   cardServiceUrl: 'http://localhost:8081',
   keycloak: {

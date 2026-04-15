@@ -3317,3 +3317,44 @@ During the transition, both apps have their own Vercel deployment:
 | Tailwind v4 config syntax changed | v4 uses CSS-first config (`@theme` in CSS) not `tailwind.config.ts`; verify which version is installed |
 | React Router v6 lazy routes | Use `lazy: () => import('./features/...')` in route config for code splitting — equivalent to Angular lazy modules |
 | No Angular `| async` pipe in React | Replace with TanStack Query `useQuery` hook; `isLoading` + `data` replace `*ngIf` + Observable |
+
+---
+
+## Design Context — CBA Backoffice React App (Nubeero / Impeccable)
+
+> Source of truth: `.impeccable.md` in project root. This section is a summary for session context.
+
+### Users
+Bank operations staff (tellers, loan officers, branch managers, admins) working at a desk during business hours. They live in this interface 6–8 hours/day. Speed and accuracy matter more than novelty.
+
+### Brand Personality
+**Trustworthy, clear, approachable.** The interface should make users feel *capable*, not overwhelmed.
+
+### Aesthetic Direction
+**Bold redesign** — same navy/dark-shell brand foundation, entirely new typographic system and layout patterns.
+
+**Theme:** Dark shell + white content cards (dark sidebar + topbar, white card surfaces).
+
+**Typography:**
+- Headings / labels: **Epilogue** (Google Fonts, variable) — weights 500–700
+- Body / UI / data: **Geist** (Vercel open source) — tabular numerals throughout
+- Scale: fixed `rem` (app UI, not marketing) — xs/12px → sm/14px → base/16px → lg/18px → xl/20px → 2xl/24px
+
+**Colours (OKLCH):**
+- App shell: `oklch(10% 0.018 250)` — near-black, navy-tinted
+- Sidebar: `oklch(15% 0.028 250)`
+- Cards: `oklch(99% 0.004 250)` — near-white
+- Primary CTA: `oklch(28% 0.045 250)` — deep navy
+- **Accent: `oklch(72% 0.13 68)`** — warm amber/gold; used ONLY for focus rings, active nav, key badges
+
+**Anti-references:** No generic SaaS (Stripe/Linear), no heavy enterprise (SAP/Oracle), no AI startup aesthetic (cyan/glow), no Material Design.
+
+### Design Principles
+1. **Data over decoration** — every element earns its place
+2. **Calm authority** — transitions convey state, not personality; always `ease-out-quint`
+3. **Density with breathing room** — 44px table rows, 24px card padding, 32–48px section gaps
+4. **Approachable structure** — visible affordances, no hover-only disclosure for critical actions
+5. **Amber as the single accent** — appears nowhere outside focus/active/key-status contexts
+
+### WCAG
+WCAG 2.1 AA minimum. `prefers-reduced-motion` respected on all transitions.

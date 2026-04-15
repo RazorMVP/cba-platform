@@ -59,6 +59,42 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 53 — 2026-04-15
+**React migration brainstorm complete (Sections 2 + 3 approved). `/impeccable teach` run — design context established. Design doc written. CLAUDE.md + cba-log.md updated. No code written yet.**
+
+#### Decisions Locked This Session
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Migration order | 9 phases (Operations first → Products → Accounting → Cards → Reports → Admin → Groups → System → Open Banking) | Daily-driver screens ship first; admin/system screens trail |
+| Parity trigger | 6 criteria (57 screens + auth + API integration + impeccable audit pass + smoke test + Angular still builds) | Clear, testable cutover gate |
+| CI/CD strategy | Two Vercel projects (`cba-platform-web` prod, `cba-platform-web-react` preview) + `react-deploy` job added to `web-ci.yml` | Additive — no Angular job touched during build |
+| Cutover mechanism | Single PR: rename `react-deploy` → `deploy`; change `--environment=preview` → `--environment=production`; set `VITE_AUTH_BYPASS=false`; delete `web/` | Fully reversible by PR revert |
+| Design direction | **Bold redesign** (not pixel-faithful port) | Team choice; React migration is opportunity to improve |
+| Brand personality | Trustworthy, clear, approachable | Reduces banking intimidation; makes staff feel capable |
+| Typography | **Epilogue** (headings, Google Fonts variable) + **Geist** (UI/data, Vercel open source) | Both pass impeccable font filter; Geist purpose-built for data-dense interfaces; tabular numerals |
+| Colour system | OKLCH throughout; amber accent `oklch(72% 0.13 68)` as single highlight colour | Perceptually uniform; amber is warm/approachable, rare enough to retain signal strength |
+| Anti-references | All four rejected: generic SaaS, heavy enterprise, AI startup aesthetic, Material Design | Explicit design constraints documented |
+| Impeccable plugin | Confirmed at `~/.claude/plugins/cache/impeccable/impeccable/2.1.1/` — 18 commands, 7 reference files | Use `/impeccable craft` before building each screen |
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `.impeccable.md` | **NEW** — full design context brief (users, personality, OKLCH tokens, typography system, anti-references, 5 design principles, technical constraints) |
+| `CLAUDE.md` | UPDATED: Added `## Design Context` section summarising OKLCH tokens, Epilogue + Geist fonts, 5 design principles — available every session |
+| `docs/superpowers/specs/2026-04-15-react-migration-design.md` | **NEW** — complete approved design doc: decision record, full tech stack, design direction (colours/typography/spacing), project structure, 9-phase migration order, CI/CD parallel deployment plan, parity definition, env vars, required secrets |
+
+#### Build Verification
+No code written this session — documentation and design decisions only.
+
+#### Next Steps
+1. Write implementation plan (writing-plans skill)
+2. Scaffold `web-react/` — Phase 0 foundation: Shell, Sidebar, Topbar, shared components, globals.css, apiClient, AuthContext
+3. Run `/impeccable craft` before each screen to establish visual direction
+4. Proceed through Phase 1 (Operations) screens in order
+
+---
+
 ### Session 52 — 2026-04-15
 **Architecture decision: full rewrite of Angular `web/` → React `web-react/`. Parallel-track strategy confirmed. Section 1 design (project structure + tech stack) recorded in CLAUDE.md. No code written yet.**
 
@@ -74,7 +110,7 @@ _None — all Phase 1 backend modules are now complete._
 | Data fetching | TanStack Query v5 | Replaces Angular `Observable` + `switchMap`; handles caching, loading, error states |
 | HTTP client | Axios | Interceptors for auth header + base URL |
 | State management | React Context + TanStack Query | No Zustand/Redux; server state via TanStack Query, UI state via Context |
-| UI companion plugin | Impeccable (to be confirmed — user mentioned; not yet identified in plugin list) | UI design companion for building screens |
+| UI companion plugin | Impeccable confirmed at `~/.claude/plugins/cache/impeccable/impeccable/2.1.1/` | 18 commands, 7 reference files — use `/impeccable craft` per screen |
 
 #### New/Updated Files
 | File | Change |
@@ -83,13 +119,6 @@ _None — all Phase 1 backend modules are now complete._
 
 #### Build Verification
 No code written this session — design/documentation only.
-
-#### Next Steps
-1. Confirm "impeccable plugin" identity
-2. Continue brainstorming: Section 2 (migration order + build plan), Section 3 (CI/CD detail)
-3. Write design doc to `docs/superpowers/specs/`
-4. Invoke writing-plans skill → implementation plan
-5. Scaffold `web-react/` (read shadcn + Vercel docs before any code)
 
 ---
 

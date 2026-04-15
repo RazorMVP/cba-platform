@@ -3241,16 +3241,16 @@ Every ✅ row in the Angular Component Map is a screen to rebuild in React. Stat
 | Teller detail | ✅ Angular | ✅ Built — Session 55 |
 | Loans list | ✅ Angular | ✅ Built — Session 55 |
 | Loan detail | ✅ Angular | ✅ Built — Session 55 |
-| Loan products list | ✅ Angular | 🔲 Queued |
-| Loan product detail | ✅ Angular | 🔲 Queued |
-| Deposit products list | ✅ Angular | 🔲 Queued |
-| Deposit product detail | ✅ Angular | 🔲 Queued |
-| Fixed deposit products list | ✅ Angular | 🔲 Queued |
-| Fixed deposit product detail | ✅ Angular | 🔲 Queued |
-| Recurring deposit products list | ✅ Angular | 🔲 Queued |
-| Recurring deposit product detail | ✅ Angular | 🔲 Queued |
-| Share products list | ✅ Angular | 🔲 Queued |
-| Share product detail | ✅ Angular | 🔲 Queued |
+| Loan products list | ✅ Angular | ✅ Built — Session 55 |
+| Loan product detail | ✅ Angular | ✅ Built — Session 55 |
+| Deposit products list | ✅ Angular | ✅ Built — Session 55 |
+| Deposit product detail | ✅ Angular | ✅ Built — Session 55 |
+| Fixed deposit products list | ✅ Angular | ✅ Built — Session 55 |
+| Fixed deposit product detail | ✅ Angular | ✅ Built — Session 55 |
+| Recurring deposit products list | ✅ Angular | ✅ Built — Session 55 |
+| Recurring deposit product detail | ✅ Angular | ✅ Built — Session 55 |
+| Share products list | ✅ Angular | ✅ Built — Session 55 |
+| Share product detail | ✅ Angular | ✅ Built — Session 55 |
 | GL accounts | ✅ Angular | 🔲 Queued |
 | Journal entries | ✅ Angular | 🔲 Queued |
 | Provisioning criteria | ✅ Angular | 🔲 Queued |

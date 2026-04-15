@@ -59,6 +59,46 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 55 (Phase 2 — Products) — 2026-04-15
+**React Phase 2 — Products complete. 10 product pages built (Loan products list+detail, Deposit products list+detail, Fixed Deposits list+detail, Recurring Deposits list+detail, Share products list+detail). Fixed apiClient named import bug in all 5 product hook files. Build: 0 errors. Tests: 22/22 passing.**
+
+#### New/Updated Files
+
+| File | Change |
+|------|--------|
+| `web-react/src/app/features/products/loan-products/LoanProductsListPage.tsx` | NEW — search + active filter, pagination, create modal |
+| `web-react/src/app/features/products/loan-products/LoanProductDetailPage.tsx` | NEW — 4 tabs (core/interest/gl/charges), isNew mode, view/edit toggle, delete modal |
+| `web-react/src/app/features/products/deposit-products/DepositProductsListPage.tsx` | NEW — status + type filter tabs, overdraft badge, create modal |
+| `web-react/src/app/features/products/deposit-products/DepositProductDetailPage.tsx` | NEW — 4 tabs (core/interest/overdraft/charges), isNew mode, delete modal |
+| `web-react/src/app/features/products/fixed-deposits/FixedDepositsListPage.tsx` | NEW — term range column, create modal |
+| `web-react/src/app/features/products/fixed-deposits/FixedDepositDetailPage.tsx` | NEW — 4 tabs (core/rates/term/penalty), isNew mode, delete modal |
+| `web-react/src/app/features/products/recurring-deposits/RecurringDepositsListPage.tsx` | NEW — deposit frequency column, create modal |
+| `web-react/src/app/features/products/recurring-deposits/RecurringDepositDetailPage.tsx` | NEW — 5 tabs (core/rates/frequency/term/penalty), isNew mode, delete modal |
+| `web-react/src/app/features/products/shares/SharesListPage.tsx` | NEW — unit price + shares issued columns, create modal |
+| `web-react/src/app/features/products/shares/ShareDetailPage.tsx` | NEW — 3 tabs (core/shares/lockin), dividend policy row, delete modal |
+| `web-react/src/app/features/products/api/useLoanProducts.ts` | FIXED — named import `{ apiClient }` (was default import) |
+| `web-react/src/app/features/products/api/useDepositProducts.ts` | FIXED — named import `{ apiClient }` |
+| `web-react/src/app/features/products/api/useFixedDeposits.ts` | FIXED — named import `{ apiClient }` |
+| `web-react/src/app/features/products/api/useRecurringDeposits.ts` | FIXED — named import `{ apiClient }` |
+| `web-react/src/app/features/products/api/useShares.ts` | FIXED — named import `{ apiClient }` |
+| `web-react/src/app/router.tsx` | UPDATED — lazy imports for all 10 Products pages; replaced Placeholder stubs |
+
+#### Key Patterns / Decisions
+- All detail pages share the same isNew/editMode pattern from Phase 1: `id === 'new'` renders create form; `enterEditMode()` copies product → form; `cancelEdit()` discards form; navigate to `../${newId}` with `{ relative: 'path' }` on create success
+- `PageHeader.subtitle` typed as `string | undefined` — must pass `product!.shortName` not a JSX span
+- TS2613 "has no default export" cascades into TS7006 on all `.then(r => r.data)` callbacks — fixing the import immediately clears both error classes
+- All helper components (Grid, Row, Btn, EditActions, ErrBox, Field, Select) are file-local — no cross-file shared UI for these product forms
+
+#### Build Verification
+- `npm run build`: 0 TypeScript errors, all 10 product pages emitted as individual lazy chunks
+- `npx vitest run`: 22/22 tests passing (6 test files)
+
+#### Compliance Checklist Update
+- React Migration Checklist: all 10 product screens marked ✅ Built — Session 55
+- Phase 2R Phase 2 marked ✅ Complete — Session 55
+
+---
+
 ### Session 55 — 2026-04-15
 **React Phase 1 — Operations complete. 11 real feature pages replace placeholder routes for Dashboard, Customers (list + detail), Accounts (list + detail), Loans (list + detail), Payments (list + detail), and Tellers (list + detail). Build: 148 modules, 0 errors. Tests: 22/22 passing.**
 

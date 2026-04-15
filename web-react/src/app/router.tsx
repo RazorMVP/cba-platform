@@ -17,7 +17,7 @@ function page(C: ReturnType<typeof lazy<ComponentType>>) {
   )
 }
 
-// ── Placeholder (non-Operations routes still pending) ──────────────────────
+// ── Placeholder (non-Products routes still pending) ───────────────────────
 const Placeholder       = lazy(() => import('@/app/features/placeholder/PlaceholderPage'))
 
 // ── Operations ─────────────────────────────────────────────────────────────
@@ -32,6 +32,18 @@ const LoansListPage     = lazy(() => import('@/app/features/operations/loans/Loa
 const LoanDetail        = lazy(() => import('@/app/features/operations/loans/LoanDetailPage'))
 const TellersListPage   = lazy(() => import('@/app/features/operations/tellers/TellersListPage'))
 const TellerDetail      = lazy(() => import('@/app/features/operations/tellers/TellerDetailPage'))
+
+// ── Products ────────────────────────────────────────────────────────────────
+const LoanProductsListPage        = lazy(() => import('@/app/features/products/loan-products/LoanProductsListPage'))
+const LoanProductDetailPage       = lazy(() => import('@/app/features/products/loan-products/LoanProductDetailPage'))
+const DepositProductsListPage     = lazy(() => import('@/app/features/products/deposit-products/DepositProductsListPage'))
+const DepositProductDetailPage    = lazy(() => import('@/app/features/products/deposit-products/DepositProductDetailPage'))
+const FixedDepositsListPage       = lazy(() => import('@/app/features/products/fixed-deposits/FixedDepositsListPage'))
+const FixedDepositDetailPage      = lazy(() => import('@/app/features/products/fixed-deposits/FixedDepositDetailPage'))
+const RecurringDepositsListPage   = lazy(() => import('@/app/features/products/recurring-deposits/RecurringDepositsListPage'))
+const RecurringDepositDetailPage  = lazy(() => import('@/app/features/products/recurring-deposits/RecurringDepositDetailPage'))
+const SharesListPage              = lazy(() => import('@/app/features/products/shares/SharesListPage'))
+const ShareDetailPage             = lazy(() => import('@/app/features/products/shares/ShareDetailPage'))
 
 export const router = createBrowserRouter([
   {
@@ -54,16 +66,16 @@ export const router = createBrowserRouter([
       { path: 'tellers/:id',  element: page(TellerDetail) },
 
       // Products
-      { path: 'products/loan-products',          element: page(Placeholder) },
-      { path: 'products/loan-products/:id',      element: page(Placeholder) },
-      { path: 'products/deposit-products',       element: page(Placeholder) },
-      { path: 'products/deposit-products/:id',   element: page(Placeholder) },
-      { path: 'products/fixed-deposits',         element: page(Placeholder) },
-      { path: 'products/fixed-deposits/:id',     element: page(Placeholder) },
-      { path: 'products/recurring-deposits',     element: page(Placeholder) },
-      { path: 'products/recurring-deposits/:id', element: page(Placeholder) },
-      { path: 'products/shares',                 element: page(Placeholder) },
-      { path: 'products/shares/:id',             element: page(Placeholder) },
+      { path: 'products/loan-products',          element: page(LoanProductsListPage) },
+      { path: 'products/loan-products/:id',      element: page(LoanProductDetailPage) },
+      { path: 'products/deposit-products',       element: page(DepositProductsListPage) },
+      { path: 'products/deposit-products/:id',   element: page(DepositProductDetailPage) },
+      { path: 'products/fixed-deposits',         element: page(FixedDepositsListPage) },
+      { path: 'products/fixed-deposits/:id',     element: page(FixedDepositDetailPage) },
+      { path: 'products/recurring-deposits',     element: page(RecurringDepositsListPage) },
+      { path: 'products/recurring-deposits/:id', element: page(RecurringDepositDetailPage) },
+      { path: 'products/shares',                 element: page(SharesListPage) },
+      { path: 'products/shares/:id',             element: page(ShareDetailPage) },
 
       // Accounting
       { path: 'accounting/gl-accounts',          element: page(Placeholder) },

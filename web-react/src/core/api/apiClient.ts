@@ -1,6 +1,11 @@
 // web-react/src/core/api/apiClient.ts
 import axios from 'axios'
 
+function getKeycloakToken(): string | null {
+  if (typeof window === 'undefined') return null
+  return (window as Window & { __keycloakToken?: string }).__keycloakToken ?? null
+}
+
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:8080/api/v1',
   headers: { 'Content-Type': 'application/json' },
@@ -13,7 +18,7 @@ apiClient.interceptors.request.use(config => {
   const isBypass = import.meta.env.VITE_AUTH_BYPASS === 'true'
   const token = isBypass
     ? 'dev-bypass-token'
-    : (window as Window & { __keycloakToken?: string }).__keycloakToken ?? null
+    : getKeycloakToken()
 
   if (token) {
     config.headers['Authorization'] = `Bearer ${token}`

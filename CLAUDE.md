@@ -222,6 +222,7 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 - Fields: entity_type, entity_id, action, changed_by, timestamp, old_values (JSONB), new_values (JSONB), IP, user agent
 - Retention: minimum 7 years
 - `AuditLogService` always uses `@Transactional(propagation = REQUIRES_NEW)`
+- **`old_values` / `new_values` are `String` columns** (not `Object`) — `AuditLogService.toJson(Object)` pre-serializes every value through Jackson before writing to the `jsonb` column. Never pass raw Java objects directly — PostgreSQL `jsonb` rejects bare strings like `PENDING_KYC` (no quotes); Jackson wraps them as `"\"PENDING_KYC\""`. Never log raw DTOs in audit values — pass only simple status strings to avoid PII leakage _(fixed Session 51, commit `16c380e`)_
 
 ### 9. Teller / Cash Management Module (from Mifos)
 - Teller creation and management (`INACTIVE → ACTIVE → CLOSED`)
@@ -1315,6 +1316,8 @@ RAISED → RETRIEVAL_REQUESTED → CHARGEBACK_INITIATED
 13. ✅ **Infrastructure — Kubernetes** — generic/vanilla manifests for all 9 services: two PostgreSQL StatefulSets (isolated DBs), Keycloak Deployment + realm ConfigMap, Redis, backend + card-service (Deployment + ClusterIP + HPA + nginx Ingress), fep-service (Deployment + ClusterIP HTTP + LoadBalancer TCP 8583), web (Deployment + ClusterIP + nginx Ingress); namespace `cba-platform`; Secrets with `<CHANGE_ME>` placeholders; ConfigMaps per service _(Session 42)_
 14. ✅ **API Documentation Enforcement** — OpenAPI snapshot tests for backend + card-service, annotation-diff CI gate, `card-service-ci.yml` workflow, `docs/card-api-reference.html` _(Session 44)_
 15. ✅ **Infrastructure + Backend Runtime Fixes** — Quartz `JobStoreTX` → `LocalDataSourceJobStore` (entrypoint JVM flag); CoB `@Bean` name disambiguation (`*BatchJob` suffix); V24 migration (5 missing Quartz tables + `share_accounts.total_shares_held`); Keycloak healthcheck (TCP-based, `KC_HEALTH_ENABLED: "true"`); Dockerfile build stage + `flyway-database-postgresql` dep; `.gitignore` extended for card-service/fep-service targets _(Session 50)_
+16. ✅ **Customer Onboarding — Full-Stack PRD Closure** — `KycStatus` extended (REJECTED/WITHDRAWN/TRANSFER_IN_PROGRESS); `Customer` entity +11 lifecycle fields; `CustomerCommandRequest` + `UpdateCustomerRequest` DTOs; `CustomerService` 14 command methods (`reject|withdraw|reactivate|undoRejection|undoWithdrawal|assignStaff|unassignStaff|proposeTransfer|acceptTransfer|rejectTransfer|withdrawTransfer|directTransfer|close|delete`); `CustomerController` command endpoint + `PUT /{id}` + `DELETE /{id}`; `V23__customer_lifecycle_extensions.sql`; Angular 7-tab `CustomerDetail` with 12 command modals; API docs updated _(Session 49, commit `b0f8695`)_
+17. ✅ **Post-Session-50 Fix Commits** — Spring Boot 3.5.0 + Keycloak 26.0.5 CI upgrade; `DevAuthBypassFilter` (`@ConditionalOnProperty(app.auth-bypass=true)`) for local dev without Keycloak; `AuditLogService.toJson()` jsonb serialization fix; Vercel authBypass default inverted (`!== 'false'`); `PaymentServiceIT` 5-arg `TransferRequest` fix; OWASP suppressions + SpotBugs exclusions _(commits `a78ada2`, `16c380e`, `da37f24`, `c77e3f8`, `2400a07`)_
 
 ---
 
@@ -2232,6 +2235,16 @@ PostgreSQL (encrypted at rest)
 - Algorithm: AES-256 (use `PBEWITHHMACSHA512ANDAES_256` not `PBEWithMD5AndDES` — upgrade from skill default)
 - Secret key from environment variable `ENCRYPTION_KEY` — never in code
 
+### Dev Auth Bypass (`DevAuthBypassFilter`) _(added Session 51)_
+
+For local development without a running Keycloak instance. Activated by `app.auth-bypass: true` in `application.yml` (dev + docker profiles only; `false` in prod).
+
+- Class: `com.cba.config.DevAuthBypassFilter extends OncePerRequestFilter`
+- Annotation: `@ConditionalOnProperty(name="app.auth-bypass", havingValue="true")` — bean does not exist in production
+- Effect: injects a fake `UsernamePasswordAuthenticationToken` with `ROLE_ADMIN`, `ROLE_TELLER`, `ROLE_CUSTOMER` authorities into the `SecurityContext` on every request
+- `SecurityConfig` wires it before `UsernamePasswordAuthenticationFilter` via `@Autowired(required=false)` — safe to deploy without the property
+- Angular side: `environment.ts` has `authBypass: true` in dev; `generate-env.js` defaults to bypass ON (`!== 'false'`) on Vercel since Keycloak is not publicly reachable
+
 ### PCI-DSS Checklist
 - No PAN stored unencrypted
 - All PII encrypted at field level
@@ -2382,7 +2395,7 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Status badge | `StatusBadgeComponent` | `SharedModule` | ✅ Built — inputs: `[label]` (string) + `[variant]` (success/warning/error/info/neutral/primary) — **never use `[status]`** |
 | Dashboard | `DashboardComponent` | `OperationsModule` | ✅ Built — KPIs, transaction table, portfolio bars, KYC queue |
 | Customers list | `CustomersListComponent` | `OperationsModule` | ✅ Built — debounced search, KYC filter tabs, pagination |
-| Customer detail | `CustomerDetailComponent` | `OperationsModule` | ✅ Built — 5 tabs, KYC state machine; `isNew` mode: `id === 'new'` skips API fetch and shows inline creation form (firstName/lastName/email required; phone/DOB/nationalId optional); on save navigates to new customer's detail page |
+| Customer detail | `CustomerDetailComponent` | `OperationsModule` | ✅ Built — 7 tabs (Overview/Accounts/Loans/Staff/Transfer + KYC state machine); `isNew` mode: `id === 'new'` shows inline creation form; Staff tab: assignStaff/unassignStaff commands; Transfer tab: propose/accept/reject/withdraw/direct transfer commands; 12 command modals total (reject, withdraw, reactivate, undoRejection, undoWithdrawal, close, assignStaff, proposeTransfer, acceptTransfer, rejectTransfer, withdrawTransfer, delete); `PUT /{id}` profile edit _(Session 49)_ |
 | Accounts list | `AccountsListComponent` | `OperationsModule` | ✅ Built — type filter, pagination |
 | Account detail | `AccountDetailComponent` | `OperationsModule` | ✅ Built — header card, overview/transactions tabs, freeze/unfreeze/close/deposit/withdraw modals, Statement modal (date range picker, summary KPIs, transaction table); `isNew` mode: shows Open Account form (customerId, productId, accountType select, currencyCode) |
 | Payments list | `PaymentsListComponent` | `OperationsModule` | ✅ Built — account context picker, paginated payment history, 3-step transfer wizard modal, standing order modal |
@@ -2849,7 +2862,7 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 
 | # | PRD Module | Backend | Angular UI | Overall |
 |---|-----------|---------|------------|---------|
-| 1 | Customer Onboarding | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
+| 1 | Customer Onboarding | ✅ Built | ✅ Built | ✅ Done |
 | 2 | Customer Account Management (Savings) | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
 | 3 | Loan Management | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
 | 4 | Fees & Charges | ✅ Built | ❌ Missing | ⚠️ Gap |
@@ -2871,26 +2884,29 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 |-------------|---------------|----------------|-----|
 | Create customer (name, email, phone, DOB, national ID) | ✅ `POST /api/v1/customers` | ✅ `isNew` creation form | — |
 | KYC status transitions (activate, suspend, close) | ✅ `PUT /kyc-status` | ✅ Dropdown in CustomerDetail | — |
-| Reject customer (`REJECTED` state) | ❌ No `?command=reject` endpoint | ❌ No button/modal | ❌ |
-| Withdraw customer (`WITHDRAWN` state) | ❌ No `?command=withdraw` endpoint | ❌ No button/modal | ❌ |
-| Reactivate customer (undo rejection/withdrawal) | ❌ No `?command=reactivate` endpoint | ❌ No button/modal | ❌ |
-| Undo rejection (`REJECTED → PENDING_KYC`) | ❌ No `?command=undoRejection` | ❌ No button | ❌ |
-| Undo withdrawal (`WITHDRAWN → PENDING_KYC`) | ❌ No `?command=undoWithdrawal` | ❌ No button | ❌ |
-| Assign staff to customer | ❌ No `?command=assignStaff` | ❌ No Staff tab | ❌ |
-| Unassign staff from customer | ❌ No `?command=unassignStaff` | ❌ No Staff tab | ❌ |
-| Propose inter-branch transfer | ❌ No transfer commands | ❌ No Transfer tab | ❌ |
-| Accept / Reject transfer proposal | ❌ Missing | ❌ Missing | ❌ |
-| Direct transfer (same as propose+accept) | ❌ Missing | ❌ Missing | ❌ |
-| Withdraw transfer proposal | ❌ Missing | ❌ Missing | ❌ |
-| Update customer profile (`PUT /{id}`) | ❌ No `PUT /customers/{id}` | ❌ No edit form in overview | ❌ |
-| Delete pending customer (`DELETE /{id}`) | ❌ No `DELETE /customers/{id}` | ❌ No delete action | ❌ |
+| Reject customer (`REJECTED` state) | ✅ `?command=reject` | ✅ Reject modal | — |
+| Withdraw customer (`WITHDRAWN` state) | ✅ `?command=withdraw` | ✅ Withdraw modal | — |
+| Reactivate customer (undo rejection/withdrawal) | ✅ `?command=reactivate` | ✅ Reactivate button | — |
+| Undo rejection (`REJECTED → PENDING_KYC`) | ✅ `?command=undoRejection` | ✅ Undo modal | — |
+| Undo withdrawal (`WITHDRAWN → PENDING_KYC`) | ✅ `?command=undoWithdrawal` | ✅ Undo modal | — |
+| Assign staff to customer | ✅ `?command=assignStaff` | ✅ Staff tab + modal | — |
+| Unassign staff from customer | ✅ `?command=unassignStaff` | ✅ Staff tab button | — |
+| Propose inter-branch transfer | ✅ `?command=proposeTransfer` | ✅ Transfer tab + modal | — |
+| Accept / Reject transfer proposal | ✅ `?command=acceptTransfer|rejectTransfer` | ✅ Transfer tab buttons | — |
+| Direct transfer (same as propose+accept) | ✅ `?command=directTransfer` | ✅ Transfer tab modal | — |
+| Withdraw transfer proposal | ✅ `?command=withdrawTransfer` | ✅ Transfer tab button | — |
+| Update customer profile (`PUT /{id}`) | ✅ `PUT /customers/{id}` | ✅ Edit form in Overview tab | — |
+| Delete pending customer (`DELETE /{id}`) | ✅ `DELETE /customers/{id}` | ✅ Delete confirm modal | — |
 | Client photo upload / resize | ❌ Binary handling stub only | ❌ No photo upload UI | ❌ |
 | Field configuration viewer (`/fieldconfiguration/ADDRESS`) | ❌ Not implemented | ❌ Not implemented | ❌ |
-| KycStatus: `REJECTED`, `WITHDRAWN`, `TRANSFER_IN_PROGRESS` | ✅ Extended in Session 49 | ⚠️ Not yet shown in transitions | ⚠️ |
-| Lifecycle fields on `Customer` entity (dates, reasons, staffId, officeId, transfer fields) | ✅ Extended in Session 49 | ❌ Not yet surfaced in UI | ⚠️ |
-| `CustomerResponse` DTO with all lifecycle fields | ✅ Extended in Session 49 | — | — |
+| KycStatus: `REJECTED`, `WITHDRAWN`, `TRANSFER_IN_PROGRESS` | ✅ Built Session 49 | ✅ Shown in transitions | — |
+| Lifecycle fields on `Customer` entity (dates, reasons, staffId, officeId, transfer fields) | ✅ Built Session 49 | ✅ Surfaced in Staff + Transfer tabs | — |
+| `CustomerResponse` DTO with all lifecycle fields | ✅ Built Session 49 | — | — |
+| `CustomerCommandRequest` DTO | ✅ Built Session 49 | — | — |
+| `UpdateCustomerRequest` DTO + `CustomerMapper` | ✅ Built Session 49 | — | — |
+| `V23__customer_lifecycle_extensions.sql` Flyway migration | ✅ Built Session 49 | — | — |
 
-**Closure order**: Backend commands → Flyway V23 migration → Angular CustomerDetail tabs + modals → then move to Module 2.
+**Status**: ✅ Fully closed in Session 49 (commit `b0f8695`). Remaining gaps: client photo upload (binary storage), field configuration viewer.
 
 ---
 
@@ -3077,7 +3093,7 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 
 | Module | Status | Session Closed |
 |--------|--------|---------------|
-| Customer Onboarding | 🔄 In Progress | Session 49 |
+| Customer Onboarding | ✅ Done | Session 49 |
 | Customer Account Management | 🔲 Queued | — |
 | Loan Management | 🔲 Queued | — |
 | Fees & Charges | 🔲 Queued | — |

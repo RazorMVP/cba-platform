@@ -38,3 +38,12 @@ describe('AuthContext — production mode', () => {
     expect(screen.getByTestId('isAdmin').textContent).toBe('false')
   })
 })
+
+describe('AuthContext — useAuth outside provider', () => {
+  it('throws if useAuth is called outside AuthProvider', () => {
+    // Suppress React's console.error output for the expected error boundary
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(() => render(<RoleDisplay />)).toThrow('useAuth must be used inside AuthProvider')
+    spy.mockRestore()
+  })
+})

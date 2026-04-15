@@ -129,7 +129,25 @@ fineract-cob            — Close of Business batch processing
 - **Lombok + MapStruct** — boilerplate reduction and DTO mapping
 - **Testcontainers** — real database in integration tests (never mock the DB)
 
-### Web Frontend — Angular 17+
+### Web Frontend — React (in progress, replacing Angular) _(decision: Session 52)_
+
+**Status**: Full rewrite in progress. `web-react/` is the new frontend. `web/` (Angular) remains live during transition and is removed after React reaches feature parity.
+
+| Concern | Choice |
+|---------|--------|
+| Build tool | Vite 6 |
+| Routing | React Router v6 |
+| Data fetching | TanStack Query v5 |
+| HTTP client | Axios (interceptors for auth header + base URL) |
+| UI components | shadcn/ui (copy-paste into `src/shared/components/` — owned code) |
+| Styling | Tailwind CSS v4 (Nubeero tokens mapped into `tailwind.config.ts`) |
+| State | React Context + TanStack Query (no Zustand/Redux) |
+| Auth | Auth bypass env flag (dev); Keycloak added at parity cutover |
+| Language | TypeScript strict mode |
+
+### Web Frontend — Angular 17+ _(legacy — being replaced by React)_
+- `web/` stays deployed until `web-react/` reaches feature parity
+- Do not add new features to `web/` — all new screen work goes into `web-react/`
 - Standalone components (`--standalone`)
 - Angular Material + PrimeNG for UI components
 - NGRx for state management
@@ -3104,3 +3122,198 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | Notification & Messaging | 🔲 Queued | — |
 | Fraud & Risk Management | 🔲 Queued | — |
 | Business Intelligence | 🔲 Queued | — |
+
+---
+
+## React Frontend Migration — Session 52 (2026-04-15)
+
+**Decision**: Full rewrite of Angular `web/` → React `web-react/`. Angular stays live during transition (parallel track). Cutover happens when React reaches feature parity by updating `web-ci.yml` to point Vercel at `web-react/`. Angular `web/` is then archived/deleted.
+
+**Drivers**: Team React skill-set alignment.
+
+---
+
+### Migration Strategy
+
+- `web-react/` is built in parallel alongside `web/` in the same monorepo
+- Both point at the same Spring Boot backend API (no backend changes)
+- React app deployed to a Vercel **preview URL** during build; Angular stays on **production URL**
+- Cutover = one-line change in `web-ci.yml` (`working-directory: web` → `web-react`)
+- After cutover: `web/` deleted, `web-ci.yml` simplified
+
+---
+
+### `web-react/` Project Structure
+
+```
+web-react/
+├── index.html
+├── vite.config.ts
+├── tailwind.config.ts
+├── tsconfig.json
+├── package.json
+├── components.json          ← shadcn/ui config
+└── src/
+    ├── main.tsx
+    ├── app/
+    │   ├── router.tsx        ← React Router v6 routes (mirrors Angular route structure)
+    │   ├── layout/
+    │   │   ├── Shell.tsx     ← App shell (sidebar + topbar + outlet)
+    │   │   ├── Sidebar.tsx   ← Left nav (same sections as Angular sidebar)
+    │   │   └── Topbar.tsx
+    │   ├── features/
+    │   │   ├── operations/   ← customers, accounts, loans, payments, tellers
+    │   │   ├── products/     ← loan products, deposit products, shares
+    │   │   ├── accounting/   ← GL, journals, provisioning
+    │   │   ├── cards/        ← full card management platform
+    │   │   ├── reports/      ← reports, CoB scheduler, mailing jobs
+    │   │   ├── admin/        ← users, roles, offices, hooks, maker-checker
+    │   │   ├── groups/       ← groups, centers
+    │   │   ├── system/       ← codes, config, floating rates, taxes
+    │   │   └── open-banking/ ← consents, TPP management
+    │   ├── core/
+    │   │   ├── api/
+    │   │   │   └── apiClient.ts   ← Axios instance; base URL from env; auth header
+    │   │   └── auth/
+    │   │       └── AuthContext.tsx ← bypass flag; Keycloak stub
+    │   └── shared/
+    │       └── components/
+    │           ├── StatusBadge.tsx
+    │           ├── DataTable.tsx
+    │           ├── KpiCard.tsx
+    │           ├── PageHeader.tsx
+    │           └── Modal.tsx
+    └── styles/
+        └── globals.css       ← Tailwind directives + Nubeero CSS variable overrides
+```
+
+---
+
+### Nubeero Design Token Migration
+
+Nubeero SCSS tokens (`web/src/assets/styles/_tokens.scss`) are mapped into two places:
+
+**`tailwind.config.ts`** — extends Tailwind with Nubeero semantic tokens:
+```ts
+theme: {
+  extend: {
+    colors: {
+      'bg-app':      '#040609',
+      'bg-sidebar':  '#0a1628',
+      'bg-card':     '#ffffff',
+      'primary':     '#1e2833',
+      'text':        '#000314',
+      'muted':       '#888888',
+    },
+    fontFamily: {
+      sans: ['Instrument Sans', 'sans-serif'],
+    },
+  }
+}
+```
+
+**`globals.css`** — CSS custom properties for runtime theming:
+```css
+:root {
+  --bg-app:     #040609;
+  --bg-sidebar: #0a1628;
+  --bg-card:    #ffffff;
+  --primary:    #1e2833;
+}
+```
+
+---
+
+### Angular Component Map → React Migration Checklist
+
+Every ✅ row in the Angular Component Map is a screen to rebuild in React. Status column tracks React progress.
+
+| Screen | Angular Status | React Status |
+|--------|---------------|--------------|
+| Dashboard | ✅ Angular | 🔲 Queued |
+| Customers list | ✅ Angular | 🔲 Queued |
+| Customer detail (7 tabs + 12 modals) | ✅ Angular | 🔲 Queued |
+| Accounts list | ✅ Angular | 🔲 Queued |
+| Account detail | ✅ Angular | 🔲 Queued |
+| Payments list | ✅ Angular | 🔲 Queued |
+| Payment detail | ✅ Angular | 🔲 Queued |
+| Teller list | ✅ Angular | 🔲 Queued |
+| Teller detail | ✅ Angular | 🔲 Queued |
+| Loans list | ✅ Angular | 🔲 Queued |
+| Loan detail | ✅ Angular | 🔲 Queued |
+| Loan products list | ✅ Angular | 🔲 Queued |
+| Loan product detail | ✅ Angular | 🔲 Queued |
+| Deposit products list | ✅ Angular | 🔲 Queued |
+| Deposit product detail | ✅ Angular | 🔲 Queued |
+| Fixed deposit products list | ✅ Angular | 🔲 Queued |
+| Fixed deposit product detail | ✅ Angular | 🔲 Queued |
+| Recurring deposit products list | ✅ Angular | 🔲 Queued |
+| Recurring deposit product detail | ✅ Angular | 🔲 Queued |
+| Share products list | ✅ Angular | 🔲 Queued |
+| Share product detail | ✅ Angular | 🔲 Queued |
+| GL accounts | ✅ Angular | 🔲 Queued |
+| Journal entries | ✅ Angular | 🔲 Queued |
+| Provisioning criteria | ✅ Angular | 🔲 Queued |
+| Financial Activity Accounts | ✅ Angular | 🔲 Queued |
+| Reports list | ✅ Angular | 🔲 Queued |
+| CoB Scheduler | ✅ Angular | 🔲 Queued |
+| Report Mailing Jobs | ✅ Angular | 🔲 Queued |
+| Users | ✅ Angular | 🔲 Queued |
+| Roles | ✅ Angular | 🔲 Queued |
+| Offices | ✅ Angular | 🔲 Queued |
+| Hooks | ✅ Angular | 🔲 Queued |
+| Maker-Checker | ✅ Angular | 🔲 Queued |
+| Notifications Admin | ✅ Angular | 🔲 Queued |
+| TPP Management | ✅ Angular | 🔲 Queued |
+| Groups list | ✅ Angular | 🔲 Queued |
+| Group detail | ✅ Angular | 🔲 Queued |
+| Centers list | ✅ Angular | 🔲 Queued |
+| Center detail | ✅ Angular | 🔲 Queued |
+| Consents list | ✅ Angular | 🔲 Queued |
+| Consent detail | ✅ Angular | 🔲 Queued |
+| Codes & Values | ✅ Angular | 🔲 Queued |
+| Global Config | ✅ Angular | 🔲 Queued |
+| Floating Rates | ✅ Angular | 🔲 Queued |
+| Taxes | ✅ Angular | 🔲 Queued |
+| Account Algorithms | ✅ Angular | 🔲 Queued |
+| Card List | ✅ Angular | 🔲 Queued |
+| Card Detail | ✅ Angular | 🔲 Queued |
+| Card Products | ✅ Angular | 🔲 Queued |
+| Fraud Rules | ✅ Angular | 🔲 Queued |
+| Settlement | ✅ Angular | 🔲 Queued |
+| Disputes | ✅ Angular | 🔲 Queued |
+| Terminal Simulator | ✅ Angular | 🔲 Queued |
+| API Keys | ✅ Angular | 🔲 Queued |
+| Webhooks | ✅ Angular | 🔲 Queued |
+| BIN Management | ✅ Angular | 🔲 Queued |
+| Scheme Config | ✅ Angular | 🔲 Queued |
+| Interchange | ✅ Angular | 🔲 Queued |
+
+**Build order**: Operations (customers → accounts → loans → payments → tellers) → Products → Accounting → Cards → Reports → Admin → Groups → System → Open Banking
+
+---
+
+### CI/CD — Parallel Vercel Deployments
+
+During the transition, both apps have their own Vercel deployment:
+
+| App | Vercel project | URL | Status |
+|-----|---------------|-----|--------|
+| `web/` (Angular) | `cba-platform-web` | Production URL | Live — do not break |
+| `web-react/` (React) | `cba-platform-web-react` | Preview URL | In development |
+
+`web-ci.yml` gains a second job (`react-deploy`) that runs on `web-react/**` path changes. At cutover: `react-deploy` is promoted to production, `angular-deploy` job is removed.
+
+---
+
+### Critical Gotchas for Future Sessions
+
+| Issue | Fix |
+|-------|-----|
+| TanStack Query keys must be consistent | Use array keys: `['customers', id]`, `['accounts', customerId]` — mismatch causes cache misses and double fetches |
+| Axios base URL from env | `import.meta.env.VITE_API_URL` — must be set in `.env.local` and Vercel env vars; never hardcode `localhost:8080` |
+| shadcn/ui requires `components.json` | Run `npx shadcn@latest init` to generate; sets the import alias and Tailwind config automatically |
+| `cn()` utility required for shadcn | Install `clsx` + `tailwind-merge`; shadcn components use `cn()` to merge class names |
+| Tailwind v4 config syntax changed | v4 uses CSS-first config (`@theme` in CSS) not `tailwind.config.ts`; verify which version is installed |
+| React Router v6 lazy routes | Use `lazy: () => import('./features/...')` in route config for code splitting — equivalent to Angular lazy modules |
+| No Angular `| async` pipe in React | Replace with TanStack Query `useQuery` hook; `isLoading` + `data` replace `*ngIf` + Observable |

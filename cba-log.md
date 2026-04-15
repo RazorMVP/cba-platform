@@ -59,6 +59,40 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 52 — 2026-04-15
+**Architecture decision: full rewrite of Angular `web/` → React `web-react/`. Parallel-track strategy confirmed. Section 1 design (project structure + tech stack) recorded in CLAUDE.md. No code written yet.**
+
+#### Decision Log
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Replace Angular with | React + Vite SPA | Team React skill-set alignment |
+| Framework flavour | Vite SPA (not Next.js App Router) | Backoffice is 100% authenticated + dynamic — SSR adds complexity with no benefit |
+| UI component library | shadcn/ui | Copy-paste components (owned code), no version lock-in, cleanest design token migration |
+| Styling | Tailwind CSS v4 | Nubeero SCSS tokens map into `tailwind.config.ts`; replaces `_design-system.scss` |
+| Migration strategy | Parallel track (`web-react/` alongside `web/`) | Angular stays live on production; React built to parity on preview URL; one-line cutover |
+| Data fetching | TanStack Query v5 | Replaces Angular `Observable` + `switchMap`; handles caching, loading, error states |
+| HTTP client | Axios | Interceptors for auth header + base URL |
+| State management | React Context + TanStack Query | No Zustand/Redux; server state via TanStack Query, UI state via Context |
+| UI companion plugin | Impeccable (to be confirmed — user mentioned; not yet identified in plugin list) | UI design companion for building screens |
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `CLAUDE.md` | UPDATED: Tech Stack section — Angular marked legacy, React stack documented; ADDED: "React Frontend Migration — Session 52" section with project structure, token migration, Angular→React checklist (57 screens), CI/CD parallel deployment plan, critical gotchas |
+
+#### Build Verification
+No code written this session — design/documentation only.
+
+#### Next Steps
+1. Confirm "impeccable plugin" identity
+2. Continue brainstorming: Section 2 (migration order + build plan), Section 3 (CI/CD detail)
+3. Write design doc to `docs/superpowers/specs/`
+4. Invoke writing-plans skill → implementation plan
+5. Scaffold `web-react/` (read shadcn + Vercel docs before any code)
+
+---
+
 ### Session 51 (Post-Session-50 Fix Commits) — 2026-04-14
 **Four follow-up fix commits after Session 50: CI upgrade (Spring Boot 3.5 / Keycloak 26), AuditLog jsonb serialization fix, DevAuthBypassFilter for local dev, authBypass default inversion for Vercel.**
 

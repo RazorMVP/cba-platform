@@ -108,7 +108,8 @@ const NAV: NavSection[] = [
 export default function Sidebar() {
   return (
     <nav
-      className="fixed left-0 top-0 bottom-0 flex flex-col overflow-y-auto"
+      aria-label="Main navigation"
+      className="fixed left-0 top-0 bottom-0 flex flex-col overflow-hidden"
       style={{ width: 'var(--sidebar-width)', background: 'var(--bg-sidebar)' }}
     >
       {/* Logo */}
@@ -137,6 +138,7 @@ export default function Sidebar() {
         {NAV.map(section => (
           <div key={section.heading} className="mb-6">
             <p
+              aria-hidden="true"
               className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest"
               style={{ color: 'rgba(255,255,255,0.3)' }}
             >
@@ -152,7 +154,7 @@ export default function Sidebar() {
                     'flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors',
                     'duration-150',
                     isActive
-                      ? 'text-[var(--color-accent)] bg-white/8'
+                      ? 'text-[var(--color-accent)] bg-white/[0.08]'
                       : 'text-white/60 hover:text-white/90 hover:bg-white/5',
                   )
                 }

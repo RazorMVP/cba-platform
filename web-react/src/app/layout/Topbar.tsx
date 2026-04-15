@@ -46,7 +46,7 @@ const SECTION_LABELS: [string, string][] = [
   ['/open-banking',           'Open Banking'],
 ]
 
-function getSectionLabel(pathname: string): string {
+export function getSectionLabel(pathname: string): string {
   for (const [prefix, label] of SECTION_LABELS) {
     if (pathname.startsWith(prefix)) return label
   }
@@ -67,9 +67,9 @@ export default function Topbar() {
         borderBottom: '1px solid var(--color-border)',
       }}
     >
-      <h1 className="font-display font-semibold text-lg" style={{ color: 'var(--color-text)' }}>
+      <p className="font-display font-semibold text-lg" style={{ color: 'var(--color-text)' }}>
         {label}
-      </h1>
+      </p>
       <div
         className="flex items-center justify-center rounded-full font-semibold text-sm shrink-0"
         style={{

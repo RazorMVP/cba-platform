@@ -3317,6 +3317,53 @@ During the transition, both apps have their own Vercel deployment:
 | Tailwind v4 config syntax changed | v4 uses CSS-first config (`@theme` in CSS) not `tailwind.config.ts`; verify which version is installed |
 | React Router v6 lazy routes | Use `lazy: () => import('./features/...')` in route config for code splitting — equivalent to Angular lazy modules |
 | No Angular `| async` pipe in React | Replace with TanStack Query `useQuery` hook; `isLoading` + `data` replace `*ngIf` + Observable |
+| `bg-white/8` is invalid in Tailwind v4 | Opacity scale is 5, 10, 15… — use `bg-white/[0.08]` for arbitrary values _(Phase 0)_ |
+| `tabular-nums` is for numeric data only | Status labels, names, IDs must NOT have `tabular-nums`; use `col.numeric = true` in `DataTable` to opt in per-column _(Phase 0)_ |
+| Native `<dialog>` backdrop detection | `e.target === dialogRef.current` — not `getBoundingClientRect`; drag-release-outside must not close the dialog _(Phase 0)_ |
+| `onClose` in `useEffect` deps | Use `onCloseRef` pattern — ref synced on every render, effect registered once (empty dep array) _(Phase 0)_ |
+| Topbar `<p>` not `<h1>` | Feature pages render their own `<h1>` via `PageHeader`; Topbar section label must be `<p>` to avoid duplicate headings _(Phase 0)_ |
+| `KpiCard` delta three-state | `deltaPositive: true` = Increase (green), `false` = Decrease (red), `undefined` = neutral (muted) — never binary _(Phase 0)_ |
+| Semantic bg tokens in `@theme` | `--color-success-bg` / `warning-bg` / `error-bg` / `info-bg` are forwarded into `@theme` → use `bg-success-bg` etc. as Tailwind utilities _(Phase 0)_ |
+| React Router v6 scoring | Uses best-match scoring (static > dynamic), not first-match order for siblings; `end` prop replaces v5's `exact` _(Phase 0)_ |
+
+---
+
+### Phase 0 — Foundation (✅ Complete — Session 54)
+
+**Status**: `web-react/` scaffold complete. All 57 routes navigable. Feature pages say "Coming soon." Angular `web/` untouched.
+
+**Build**: `npm run build` passes. `npx vitest run` → 22/22 passing (6 test files).
+
+**Committed files:**
+```
+web-react/
+├── index.html                            ← Epilogue Google Fonts + app mount
+├── vite.config.ts                        ← @tailwindcss/vite + @/ alias + Vitest inline
+├── tsconfig.json / tsconfig.node.json    ← strict mode + @/ alias
+├── package.json                          ← all deps
+├── components.json                       ← shadcn/ui config
+├── vercel.json                           ← SPA rewrite + security headers + asset cache
+└── src/
+    ├── main.tsx                          ← QueryClientProvider > AuthProvider > RouterProvider
+    ├── styles/globals.css                ← @theme OKLCH tokens, Epilogue + Geist, resets
+    ├── app/
+    │   ├── router.tsx                    ← all 57 routes, lazy PlaceholderPage
+    │   ├── layout/Shell.tsx              ← fixed sidebar + topbar + scrollable Outlet
+    │   ├── layout/Sidebar.tsx            ← 9 sections, 44 items, amber active state
+    │   └── layout/Topbar.tsx             ← 40-entry prefix → section label map
+    ├── core/
+    │   ├── api/apiClient.ts              ← Axios + VITE_API_URL + auth interceptor
+    │   └── auth/AuthContext.tsx          ← dev bypass (VITE_AUTH_BYPASS) + role helpers
+    └── shared/components/
+        ├── StatusBadge.tsx               ← 6 variants, no tabular-nums on text
+        ├── DataTable.tsx                 ← generic typed table, col.numeric opt-in
+        ├── KpiCard.tsx                   ← value + three-state delta + aria-label
+        ├── PageHeader.tsx                ← <h1> + optional actions slot
+        ├── Modal.tsx                     ← native <dialog>, correct backdrop detection
+        └── cn.ts                         ← clsx + tailwind-merge
+```
+
+**CI**: `react-deploy` job in `web-ci.yml`; fires on `web-react/**` pushes; deploys to Vercel preview using `VERCEL_TOKEN_REACT` / `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID_REACT`.
 
 ---
 

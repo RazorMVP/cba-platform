@@ -59,6 +59,62 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 54 — 2026-04-15
+**React Phase 0 foundation complete. `web-react/` is a fully navigable Vite SPA — all 57 routes active, dark shell rendered, all shared components built and tested. Angular `web/` untouched.**
+
+#### What Was Built
+
+| File | Description |
+|------|-------------|
+| `web-react/` (scaffold) | Vite 6 + React 19 + TypeScript strict + Tailwind CSS v4 + Vitest |
+| `src/styles/globals.css` | OKLCH design tokens (`@theme`), Epilogue + Geist font loading, `prefers-reduced-motion`, tabular numerals on tables |
+| `src/core/auth/AuthContext.tsx` | Dev bypass (`VITE_AUTH_BYPASS=true`) injects ADMIN + TELLER + CUSTOMER roles; Keycloak stub placeholder |
+| `src/core/api/apiClient.ts` | Axios instance: `VITE_API_URL` base, `Authorization: Bearer` interceptor, CBA error envelope normaliser |
+| `src/app/router.tsx` | All 57 routes via `createBrowserRouter`; lazy `PlaceholderPage`; card sub-routes before `:id`; catch-all redirect |
+| `src/app/layout/Shell.tsx` | Fixed sidebar + fixed topbar + scrollable `<Outlet />`; CSS var layout (no magic numbers) |
+| `src/app/layout/Sidebar.tsx` | 9 nav sections, 44 items, amber active state (`oklch(72% 0.13 68)`), `aria-label`, `aria-hidden` section dividers |
+| `src/app/layout/Topbar.tsx` | 40-entry prefix map → section label; `<p>` (not `<h1>`) to avoid duplicate headings |
+| `src/shared/components/StatusBadge.tsx` | 6 variants (success/warning/error/info/neutral/primary); no `tabular-nums` on text |
+| `src/shared/components/DataTable.tsx` | Generic `DataTable<T>`; `ColumnDef.numeric` opt-in for `tabular-nums`; `scope="col"` on headers |
+| `src/shared/components/KpiCard.tsx` | Value + delta; three-state delta direction (`true`/`false`/`undefined`); `aria-label` for direction |
+| `src/shared/components/PageHeader.tsx` | `<h1>` page title + optional actions slot |
+| `src/shared/components/Modal.tsx` | Native `<dialog>`; `e.target === dialogRef.current` backdrop detection; `onCloseRef` pattern (single listener) |
+| `web-react/vercel.json` | SPA rewrite (`/((?!api/)(.*))` → `index.html`), asset cache headers, security headers (CSP, HSTS, X-Frame-Options) |
+| `.github/workflows/web-ci.yml` | `react-deploy` job added (additive); `web-react/**` added to both push + PR path triggers; Angular jobs untouched |
+
+#### Tests
+6 test files, 22 tests — all passing:
+- `AuthContext.test.tsx` — bypass mode roles, outside-provider guard
+- `apiClient.test.ts` — base URL, auth header, error normalisation
+- `StatusBadge.test.tsx` — variants, no `tabular-nums` regression guard
+- `DataTable.test.tsx` — renders, empty state, `scope="col"` accessibility guard
+- `Topbar.test.tsx` — 22 assertions: exact paths, cards sub-route ordering, reports ordering, prefix matching, fallback
+- `AuthContext` (integration) — provider nesting
+
+#### Critical Gotchas for Future Sessions
+
+| Issue | Fix |
+|-------|-----|
+| `bg-white/8` is invalid in Tailwind v4 | Opacity scale is 5, 10, 15… — use `bg-white/[0.08]` for arbitrary values |
+| `tabular-nums` is for numeric data only | Status labels, names, IDs must NOT have `tabular-nums`; use `col.numeric = true` in `DataTable` to opt in per-column |
+| Native `<dialog>` backdrop detection | `e.target === dialogRef.current` — not `getBoundingClientRect`; drag-release-outside must not close the dialog |
+| `onClose` in `useEffect` deps | Use `onCloseRef` pattern — ref synced on every render, effect registered once (empty dep array) |
+| Topbar `<p>` not `<h1>` | Feature pages render their own `<h1>` via `PageHeader`; Topbar section label must be `<p>` to avoid duplicate headings |
+| React Router v6 scoring | Uses best-match scoring (static > dynamic), not first-match order; `end` prop replaces v5's `exact` |
+| `KpiCard` delta three-state | `deltaPositive: true` = Increase (green), `false` = Decrease (red), `undefined` = neutral (muted) |
+| Semantic bg tokens in `@theme` | `--color-success-bg` etc. are now forwarded into `@theme` → usable as `bg-success-bg` Tailwind utilities |
+
+#### React Migration Checklist Update
+
+All 57 screens remain at `🔲 Queued` — Phase 0 built the shell, not any feature screens.
+
+#### Build Verification
+- `npm run build` — passes (TypeScript clean, Vite bundle succeeds)
+- `npx vitest run` — 22/22 passing
+- `web/` Angular build — untouched, not run this session
+
+---
+
 ### Session 53 — 2026-04-15
 **React migration brainstorm complete (Sections 2 + 3 approved). `/impeccable teach` run — design context established. Design doc written. CLAUDE.md + cba-log.md updated. No code written yet.**
 

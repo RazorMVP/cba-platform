@@ -20,4 +20,10 @@ describe('StatusBadge', () => {
     const badge = screen.getByText('FAILED')
     expect(badge.className).toContain('error')
   })
+
+  it('does not apply tabular-nums to status text', () => {
+    render(<StatusBadge label="ACTIVE" variant="success" />)
+    const badge = screen.getByText('ACTIVE')
+    expect(badge.className).not.toContain('tabular-nums')
+  })
 })

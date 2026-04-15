@@ -25,4 +25,10 @@ describe('DataTable', () => {
     render(<DataTable columns={columns} data={[]} emptyMessage="No users found" />)
     expect(screen.getByText('No users found')).toBeInTheDocument()
   })
+
+  it('column headers have scope="col" for accessibility', () => {
+    render(<DataTable columns={columns} data={[]} />)
+    const th = screen.getByRole('columnheader', { name: 'Name' })
+    expect(th).toHaveAttribute('scope', 'col')
+  })
 })

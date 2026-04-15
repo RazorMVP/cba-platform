@@ -53,7 +53,7 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: M
         boxShadow: '0 8px 32px rgba(0,0,0,0.16)',
       }}
       onClick={e => {
-        if (e.target === dialogRef.current) { onClose() }
+        if (e.target === dialogRef.current) { onCloseRef.current() }
       }}
     >
       <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--color-border)' }}>

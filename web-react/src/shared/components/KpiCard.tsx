@@ -27,8 +27,21 @@ export function KpiCard({ label, value, delta, deltaPositive, className }: KpiCa
       {delta !== undefined ? (
         <p
           className="mt-1 text-xs font-medium tabular-nums"
-          style={{ color: deltaPositive ? 'var(--color-success)' : 'var(--color-error)' }}
-          aria-label={`${deltaPositive ? 'Increase' : 'Decrease'}: ${delta}`}
+          style={{
+            color:
+              deltaPositive === true
+                ? 'var(--color-success)'
+                : deltaPositive === false
+                ? 'var(--color-error)'
+                : 'var(--color-muted)',
+          }}
+          aria-label={
+            deltaPositive === true
+              ? `Increase: ${delta}`
+              : deltaPositive === false
+              ? `Decrease: ${delta}`
+              : delta
+          }
         >
           {delta}
         </p>

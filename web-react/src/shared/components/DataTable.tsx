@@ -6,6 +6,7 @@ export interface ColumnDef<T> {
   key: string
   header: string
   cell: (row: T) => ReactNode
+  numeric?: boolean
   className?: string
 }
 
@@ -72,7 +73,7 @@ export function DataTable<T>({
                 {columns.map(col => (
                   <td
                     key={col.key}
-                    className={cn('px-4 py-2 tabular-nums', col.className)}
+                    className={cn('px-4 py-2', col.numeric && 'tabular-nums', col.className)}
                     style={{ color: 'var(--color-text)' }}
                   >
                     {col.cell(row)}

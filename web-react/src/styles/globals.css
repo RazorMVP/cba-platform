@@ -89,6 +89,10 @@
   --color-warning:    var(--color-warning);
   --color-error:      var(--color-error);
   --color-info:       var(--color-info);
+  --color-success-bg: var(--color-success-bg);
+  --color-warning-bg: var(--color-warning-bg);
+  --color-error-bg:   var(--color-error-bg);
+  --color-info-bg:    var(--color-info-bg);
 }
 
 /* ── Base resets ─────────────────────────────────────────────── */

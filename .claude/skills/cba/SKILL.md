@@ -8,7 +8,8 @@ description: Core Banking Application (CBA) builder for Java. Use this skill whe
 You are building a **production-grade Core Banking Application** from scratch. This skill guides you through scaffolding and explaining every layer of a full-stack banking system:
 
 - **Backend**: Java 21 + Spring Boot 3 + PostgreSQL + Keycloak (FAPI 2.0)
-- **Web Frontend**: Angular 17+ (enterprise banking portal)
+- **Web Frontend**: React 19 + Vite 6 + Tailwind CSS v4 (replacing Angular 17+ — see Phase 2R)
+- **Web Frontend (legacy)**: Angular 17+ (enterprise banking portal — live during React transition)
 - **Mobile Frontend**: Flutter 3+ (customer mobile banking app)
 - **Infrastructure**: Docker Compose (dev) + Kubernetes (prod)
 - **Reference**: Apache Fineract / Mifos architecture patterns
@@ -22,7 +23,8 @@ A **monorepo** with three independently deployable applications:
 ```
 cba-platform/
 ├── backend/          # Spring Boot 3 API (Java 21)
-├── web/              # Angular 17 banking portal
+├── web/              # Angular 17 banking portal (legacy — live during React transition)
+├── web-react/        # React 19 + Vite 6 + Tailwind v4 (new frontend — see Phase 2R)
 ├── mobile/           # Flutter 3 mobile app
 ├── infrastructure/   # Docker Compose + Kubernetes + Keycloak
 ├── docs/             # OpenAPI specs, architecture diagrams
@@ -121,6 +123,33 @@ Read `references/stack.md` (Angular section) before starting.
 5. Keycloak-Angular for OIDC login, route guards per RBAC role
 6. Responsive layout: sidebar nav, data tables, form wizards
 
+### Phase 2R — React Frontend Rewrite (active — replacing Angular)
+
+> **Status**: In progress. `web-react/` is the new frontend. Phase 0 complete (commit `9b1e9ca`). Features are being ported one phase at a time. Angular `web/` stays live during transition and is removed after React reaches feature parity.
+
+**Tech stack:** React 19 + Vite 6 + React Router v6 + TanStack Query v5 + Axios + shadcn/ui + Tailwind CSS v4 + TypeScript strict
+
+**Build order for React screens** (mirror the Angular Component Map in CLAUDE.md):
+1. ✅ **Phase 0 — Foundation** (commit `9b1e9ca`) — Shell, Sidebar, Topbar, shared components (StatusBadge, DataTable, KpiCard, Modal, PageHeader), apiClient, AuthContext, globals.css, vercel.json, CI job
+2. 🔲 **Phase 1 — Operations** — Dashboard, Customers, Accounts, Loans, Payments, Tellers
+3. 🔲 **Phase 2 — Products** — Loan products, Deposit products, Fixed/Recurring deposits, Shares
+4. 🔲 **Phase 3 — Accounting** — GL accounts, Journal entries, Provisioning, Financial Activity Accounts
+5. 🔲 **Phase 4 — Cards** — Full card management platform (12 screens)
+6. 🔲 **Phase 5 — Reports** — Reports list, CoB Scheduler, Report Mailing Jobs
+7. 🔲 **Phase 6 — Admin** — Users, Roles, Offices, Hooks, Maker-Checker, Notifications, TPP Management
+8. 🔲 **Phase 7 — Groups & System** — Groups, Centers, Codes, Global Config, Floating Rates, Taxes, Account Algorithms
+9. 🔲 **Phase 8 — Open Banking** — Consents list, Consent detail
+10. 🔲 **Cutover** — Update `web-ci.yml` to point Vercel at `web-react/`, archive `web/`
+
+**Key patterns** (for consistency across all React screens):
+- All routes defined in `web-react/src/app/router.tsx` — add new routes here before building screens
+- Axios instance at `web-react/src/app/core/api/apiClient.ts` — use for all API calls
+- TanStack Query for server state — use `useQuery` / `useMutation` with consistent key format: `['resource', id]`
+- shadcn/ui copied into `web-react/src/shared/components/` — owned code, not a runtime dependency
+- Tailwind v4 CSS-first config: tokens defined in `web-react/src/styles/globals.css` `@theme` block
+- Opacity utilities: `bg-white/[0.08]` (not `bg-white/8`) — v4 opacity scale is 5, 10, 15 (no 8)
+- `tabular-nums` on numeric `<td>` only — use `ColumnDef.numeric: true` in DataTable, never on status text
+
 ### Phase 3 — Mobile Frontend (Flutter)
 Read `references/stack.md` (Flutter section) before starting.
 
@@ -184,11 +213,14 @@ Read `references/deployment.md` before starting.
 - Mark the "Not Yet Built" and "Partially Built" tables in the Backend Audit section to reflect completed work.
 
 ### Step 2 — Update `CLAUDE.md` (Body of Knowledge)
-- Update the **Angular Component Map** table with newly built components — change `🔲 Stub` → `✅ Built` and add a brief description.
+- Update the **Angular Component Map** table with newly built Angular components — change `🔲 Stub` → `✅ Built` and add a brief description.
+- Update the **React Migration Checklist** table (in the "React Frontend Migration — Session 52" section) with newly built React screens — change `🔲 Queued` → `✅ Built` for each completed screen.
+- Update the **Phase 2R build order** list in this skill (see below) when a React phase completes — add `✅ Complete — Session N, commit SHA`.
 - Update any module catalogue entries, coding standards, or patterns that changed.
 - Update the stub count in "All other feature pages" row.
 - For new services/packages: add an implementation notes subsection with the verified package structure, resource file list, and any critical gotchas discovered during the build.
-- For completed build order steps: mark them `✅` with the commit SHA.
+- For completed backend build order steps: mark them `✅` with the commit SHA.
+- For completed React phases: mark the Phase 2R phase entry `✅ Complete — Session N, commit SHA`.
 
 ### Step 3 — Check and update API documentation (if applicable)
 After any backend change, ask: **did this session add, remove, or modify any REST endpoints?**
@@ -224,7 +256,9 @@ git push origin main
 This is **not optional** — all updated doc files must be committed and pushed to GitHub as part of every session. The push is the final act of every build session.
 
 ### When to update
-- After completing any feature (backend or frontend)
+- After completing any feature (backend, Angular, or React)
+- After completing a React phase (Phase 0–8) — mark the phase `✅` in `CLAUDE.md` and in this skill's Phase 2R build order
+- After completing any React screen — update the React Migration Checklist table in `CLAUDE.md`
 - After any refactor that changes patterns described in CLAUDE.md
 - After any build fix or architectural decision
 - After any compile error is diagnosed and fixed (add to gotchas)

@@ -214,3 +214,34 @@ jobs:
         with:
           name: playwright-report
           path: web/playwright-report/
+
+  # ─── React App — Vercel Preview ───────────────────────────────────────────────
+  react-deploy:
+    name: React → Vercel Preview
+    runs-on: ubuntu-latest
+    if: >
+      github.ref == 'refs/heads/main' ||
+      github.event_name == 'pull_request'
+    defaults:
+      run:
+        working-directory: web-react
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: web-react/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npx vitest run
+      - name: Deploy to Vercel (preview)
+        run: |
+          npm i -g vercel@latest
+          vercel pull --yes --environment=preview --token=$VERCEL_TOKEN
+          vercel build --token=$VERCEL_TOKEN
+          vercel deploy --prebuilt --token=$VERCEL_TOKEN
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN_REACT }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_REACT }}

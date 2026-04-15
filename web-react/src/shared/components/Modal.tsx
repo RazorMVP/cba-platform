@@ -19,6 +19,11 @@ const sizeClasses = {
 
 export function Modal({ open, onClose, title, children, footer, size = 'md' }: ModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     const el = dialogRef.current
@@ -31,12 +36,12 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: M
   }, [open])
 
   useEffect(() => {
-    const el = dialogRef.current
-    if (!el) return
-    const handler = () => onClose()
-    el.addEventListener('close', handler)
-    return () => el.removeEventListener('close', handler)
-  }, [onClose])
+    const dialog = dialogRef.current
+    if (!dialog) return
+    const handleClose = () => onCloseRef.current()
+    dialog.addEventListener('close', handleClose)
+    return () => dialog.removeEventListener('close', handleClose)
+  }, []) // empty — registers once; always calls current onClose via ref
 
   return (
     <dialog
@@ -48,10 +53,7 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: M
         boxShadow: '0 8px 32px rgba(0,0,0,0.16)',
       }}
       onClick={e => {
-        const rect = dialogRef.current?.getBoundingClientRect()
-        if (rect && (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom)) {
-          onClose()
-        }
+        if (e.target === dialogRef.current) { onClose() }
       }}
     >
       <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--color-border)' }}>

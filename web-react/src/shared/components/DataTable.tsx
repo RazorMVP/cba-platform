@@ -37,6 +37,7 @@ export function DataTable<T>({
             {columns.map(col => (
               <th
                 key={col.key}
+                scope="col"
                 className={cn(
                   'px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider',
                   col.className,

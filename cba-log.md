@@ -59,6 +59,50 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 55 — 2026-04-15
+**React Phase 1 — Operations complete. 11 real feature pages replace placeholder routes for Dashboard, Customers (list + detail), Accounts (list + detail), Loans (list + detail), Payments (list + detail), and Tellers (list + detail). Build: 148 modules, 0 errors. Tests: 22/22 passing.**
+
+#### New/Updated Files
+
+| File | Change |
+|------|--------|
+| `web-react/src/app/features/operations/api/types.ts` | NEW — all Operations domain DTOs and enums |
+| `web-react/src/app/features/operations/api/useCustomers.ts` | NEW — TanStack Query hooks for customers + commands |
+| `web-react/src/app/features/operations/api/useAccounts.ts` | NEW — accounts, transactions, commands |
+| `web-react/src/app/features/operations/api/useLoans.ts` | NEW — loans, schedule, commands |
+| `web-react/src/app/features/operations/api/usePayments.ts` | NEW — payments, transfer, reversal |
+| `web-react/src/app/features/operations/api/useTellers.ts` | NEW — tellers, cashiers, sessions, transactions, settle |
+| `web-react/src/app/features/operations/api/useDashboard.ts` | NEW — `Promise.allSettled` for KPI aggregation |
+| `web-react/src/app/features/operations/dashboard/DashboardPage.tsx` | NEW — 4 KPIs, KYC queue, recent loans, portfolio bars |
+| `web-react/src/app/features/operations/customers/CustomersListPage.tsx` | NEW — debounced search, KYC filter tabs, pagination, create modal |
+| `web-react/src/app/features/operations/customers/CustomerDetailPage.tsx` | NEW — 5 tabs, view/edit toggle, 12 command modals |
+| `web-react/src/app/features/operations/accounts/AccountsListPage.tsx` | NEW — type filter, pagination, open account modal |
+| `web-react/src/app/features/operations/accounts/AccountDetailPage.tsx` | NEW — balance hero, deposit/withdraw/freeze/close/statement modals |
+| `web-react/src/app/features/operations/loans/LoansListPage.tsx` | NEW — 7-status filter tabs, pagination |
+| `web-react/src/app/features/operations/loans/LoanDetailPage.tsx` | NEW — new loan form, 5 tabs, approve/reject/disburse/repay |
+| `web-react/src/app/features/operations/payments/PaymentsListPage.tsx` | NEW — FX badge, 3-step transfer wizard modal |
+| `web-react/src/app/features/operations/payments/PaymentDetailPage.tsx` | NEW — status band, transfer route card, reversal modal |
+| `web-react/src/app/features/operations/tellers/TellersListPage.tsx` | NEW — search + status filter, create teller modal |
+| `web-react/src/app/features/operations/tellers/TellerDetailPage.tsx` | NEW — session accordion (`Set<string>`), cash-in/out/settle modals |
+| `web-react/src/app/router.tsx` | UPDATED — lazy imports for all 11 Operations pages; `page()` factory |
+
+#### Key Patterns / Decisions
+- `page(C)` factory in router.tsx — returns `<Suspense fallback={<Loading />}><C /></Suspense>` inline; avoids `JSX` namespace type issue
+- `Set<string>` for session expand/collapse in TellerDetail — O(1) membership, immutable `new Set(prev)` update
+- `Promise.allSettled` in useDashboard — dashboard loads even if one API is down
+- Debounce via `useRef<ReturnType<typeof setTimeout>>` + `useEffect` cleanup (250 ms)
+- `StatementModal` takes `transactions[]` only — no `account` prop (unused was causing TS6133)
+
+#### Build Verification
+- `npm run build`: 148 modules, 0 TypeScript errors, 0 Vite warnings
+- `npx vitest run`: 22/22 tests passing (6 test files)
+
+#### Compliance Checklist Update
+- React Migration Checklist: Dashboard, Customers (list+detail), Accounts (list+detail), Loans (list+detail), Payments (list+detail), Tellers (list+detail) all marked ✅ Built — Session 55
+- Phase 2R Phase 1 marked ✅ Complete — Session 55
+
+---
+
 ### Session 54 — 2026-04-15
 **React Phase 0 foundation complete. `web-react/` is a fully navigable Vite SPA — all 57 routes active, dark shell rendered, all shared components built and tested. Angular `web/` untouched.**
 

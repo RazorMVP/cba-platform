@@ -1,0 +1,121 @@
+/* web-react/src/styles/globals.css */
+
+/* ── Tailwind CSS v4 (CSS-first config) ─────────────────────── */
+@import "tailwindcss";
+
+/* ── Geist font (npm package) ───────────────────────────────── */
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/Geist-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/Geist-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
+
+/* ── OKLCH Design Tokens ────────────────────────────────────── */
+:root {
+  /* Surfaces */
+  --bg-app:     oklch(10% 0.018 250);
+  --bg-sidebar: oklch(15% 0.028 250);
+  --bg-card:    oklch(99% 0.004 250);
+  --bg-subtle:  oklch(96% 0.006 250);
+
+  /* Brand */
+  --color-primary: oklch(28% 0.045 250);
+  --color-accent:  oklch(72% 0.13 68);   /* warm amber — focus, active, key status ONLY */
+
+  /* Text */
+  --color-text:    oklch(8% 0.020 250);
+  --color-muted:   oklch(55% 0.010 250);
+
+  /* Border */
+  --color-border:  oklch(88% 0.008 250);
+
+  /* Semantic */
+  --color-success: oklch(48% 0.15 145);
+  --color-warning: oklch(65% 0.14 70);
+  --color-error:   oklch(50% 0.18 25);
+  --color-info:    oklch(55% 0.14 250);
+
+  --color-success-bg: oklch(96% 0.04 145);
+  --color-warning-bg: oklch(97% 0.04 70);
+  --color-error-bg:   oklch(97% 0.04 25);
+  --color-info-bg:    oklch(96% 0.04 250);
+
+  /* Spacing (4pt scale) */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Layout */
+  --sidebar-width: 256px;
+  --topbar-height: 60px;
+
+  /* Radius */
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   14px;
+  --radius-full: 9999px;
+
+  /* Easing */
+  --ease-out-quint: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Tailwind theme extension ───────────────────────────────── */
+@theme {
+  --font-display: "Epilogue", system-ui, sans-serif;
+  --font-sans:    "Geist", system-ui, sans-serif;
+
+  --color-bg-app:     var(--bg-app);
+  --color-bg-sidebar: var(--bg-sidebar);
+  --color-bg-card:    var(--bg-card);
+  --color-bg-subtle:  var(--bg-subtle);
+  --color-primary:    var(--color-primary);
+  --color-accent:     var(--color-accent);
+  --color-text:       var(--color-text);
+  --color-muted:      var(--color-muted);
+  --color-border:     var(--color-border);
+  --color-success:    var(--color-success);
+  --color-warning:    var(--color-warning);
+  --color-error:      var(--color-error);
+  --color-info:       var(--color-info);
+}
+
+/* ── Base resets ─────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-app);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Tabular numerals everywhere financial data appears */
+table, .tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

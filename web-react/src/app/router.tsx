@@ -7,7 +7,7 @@ const Placeholder = lazy(() => import('@/app/features/placeholder/PlaceholderPag
 
 function Page() {
   return (
-    <Suspense fallback={<div className="p-8 text-sm" style={{ color: 'var(--color-muted)' }}>Loading…</div>}>
+    <Suspense fallback={<div className="p-8 text-sm text-[var(--color-muted)]">Loading…</div>}>
       <Placeholder />
     </Suspense>
   )
@@ -51,7 +51,8 @@ export const router = createBrowserRouter([
       { path: 'accounting/provisioning',         element: <Page /> },
       { path: 'accounting/financial-activities', element: <Page /> },
 
-      // Cards — specific routes BEFORE the :id catch (React Router v6 matches in order)
+      // Cards — static sub-routes listed before :id (RR v6 scores static > dynamic,
+      // but explicit ordering keeps intent clear)
       { path: 'cards',                           element: <Page /> },
       { path: 'cards/products',                  element: <Page /> },
       { path: 'cards/fraud',                     element: <Page /> },

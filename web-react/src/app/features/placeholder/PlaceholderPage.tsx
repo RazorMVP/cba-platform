@@ -5,10 +5,10 @@ export default function PlaceholderPage() {
   const { pathname } = useLocation()
   return (
     <div className="flex flex-col gap-3 p-8">
-      <p className="font-display text-xl font-semibold" style={{ color: 'var(--color-text)' }}>
+      <p className="font-display text-xl font-semibold text-[var(--color-text)]">
         Coming soon
       </p>
-      <p className="text-sm" style={{ color: 'var(--color-muted)' }}>{pathname}</p>
+      <p className="text-sm text-[var(--color-muted)]">{pathname}</p>
     </div>
   )
 }

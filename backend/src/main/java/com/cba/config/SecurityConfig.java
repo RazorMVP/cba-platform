@@ -40,6 +40,9 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                // CORS preflight — must be permitted before any auth check
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
                 // Public endpoints — health, docs
                 .requestMatchers(
                     "/actuator/health",
@@ -103,7 +106,8 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOriginPatterns(List.of(
-            "http://localhost:4200",    // Angular dev server
+            "http://localhost:4200",    // Angular dev server (legacy)
+            "http://localhost:5173",    // React dev server (Vite)
             "https://*.cba.com",       // Production domains
             "https://*.vercel.app"     // Vercel preview deployments
         ));

@@ -1,5 +1,6 @@
 # ============================================================
 # CBA Platform — Docker Compose
+name: cba-platform
 #
 # DEFAULT (infrastructure dependencies only — for daily dev):
 #   docker-compose up

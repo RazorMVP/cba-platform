@@ -39,6 +39,11 @@ const JournalEntriesPage      = lazy(() => import('@/app/features/accounting/Jou
 const ProvisioningPage        = lazy(() => import('@/app/features/accounting/ProvisioningPage'))
 const FinancialActivitiesPage = lazy(() => import('@/app/features/accounting/FinancialActivitiesPage'))
 
+// ── Reports ─────────────────────────────────────────────────────────────────
+const ReportsListPage   = lazy(() => import('@/app/features/reports/ReportsListPage'))
+const CobSchedulerPage  = lazy(() => import('@/app/features/reports/CobSchedulerPage'))
+const ReportMailingPage = lazy(() => import('@/app/features/reports/ReportMailingPage'))
+
 // ── Cards ───────────────────────────────────────────────────────────────────
 const CardListPage           = lazy(() => import('@/app/features/cards/CardListPage'))
 const CardDetailPage         = lazy(() => import('@/app/features/cards/CardDetailPage'))
@@ -118,9 +123,9 @@ export const router = createBrowserRouter([
       { path: 'cards/:id',                       element: page(CardDetailPage) },
 
       // Reports
-      { path: 'reports',                         element: page(Placeholder) },
-      { path: 'reports/scheduler',               element: page(Placeholder) },
-      { path: 'reports/mailing',                 element: page(Placeholder) },
+      { path: 'reports',                         element: page(ReportsListPage) },
+      { path: 'reports/scheduler',               element: page(CobSchedulerPage) },
+      { path: 'reports/mailing',                 element: page(ReportMailingPage) },
 
       // Admin
       { path: 'admin/users',                     element: page(Placeholder) },

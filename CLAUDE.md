@@ -3255,9 +3255,9 @@ Every ✅ row in the Angular Component Map is a screen to rebuild in React. Stat
 | Journal entries | ✅ Angular | ✅ Built — Session 55 |
 | Provisioning criteria | ✅ Angular | ✅ Built — Session 55 |
 | Financial Activity Accounts | ✅ Angular | ✅ Built — Session 55 |
-| Reports list | ✅ Angular | 🔲 Queued |
-| CoB Scheduler | ✅ Angular | 🔲 Queued |
-| Report Mailing Jobs | ✅ Angular | 🔲 Queued |
+| Reports list | ✅ Angular | ✅ Built — Session 56 |
+| CoB Scheduler | ✅ Angular | ✅ Built — Session 56 |
+| Report Mailing Jobs | ✅ Angular | ✅ Built — Session 56 |
 | Users | ✅ Angular | 🔲 Queued |
 | Roles | ✅ Angular | 🔲 Queued |
 | Offices | ✅ Angular | 🔲 Queued |

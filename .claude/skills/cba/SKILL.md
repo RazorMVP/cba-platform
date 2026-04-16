@@ -135,7 +135,7 @@ Read `references/stack.md` (Angular section) before starting.
 3. ✅ **Phase 2 — Products** — Loan products, Deposit products, Fixed/Recurring deposits, Shares ✅ Complete — Session 55
 4. ✅ **Phase 3 — Accounting** — GL accounts, Journal entries, Provisioning, Financial Activity Accounts ✅ Complete — Session 55
 5. ✅ **Phase 4 — Cards** — Full card management platform (12 screens) ✅ Complete — Session 55
-6. 🔲 **Phase 5 — Reports** — Reports list, CoB Scheduler, Report Mailing Jobs
+6. ✅ **Phase 5 — Reports** — Reports list, CoB Scheduler, Report Mailing Jobs ✅ Complete — Session 56
 7. 🔲 **Phase 6 — Admin** — Users, Roles, Offices, Hooks, Maker-Checker, Notifications, TPP Management
 8. 🔲 **Phase 7 — Groups & System** — Groups, Centers, Codes, Global Config, Floating Rates, Taxes, Account Algorithms
 9. 🔲 **Phase 8 — Open Banking** — Consents list, Consent detail

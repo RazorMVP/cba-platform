@@ -59,6 +59,37 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 56 (Phase 5 — Reports) — 2026-04-16
+**React Phase 5 — Reports complete. 3 pages built: Reports List (dynamic SQL reports with schema-on-read results table), CoB Scheduler (3 hardcoded batch jobs with expandable history panels), Report Mailing Jobs (RRULE scheduling, create/edit modal, send-now trigger). Build: 0 errors. Tests: 22/22 passing.**
+
+#### New/Updated Files
+
+| File | Change |
+|------|--------|
+| `web-react/src/app/features/reports/api/types.ts` | Already existed — OutputType, JobStatus, ReportParameter, Report, ReportRequest, ReportRow, CobJob, CobJobHistory, ReportMailingJob, MailingJobRequest |
+| `web-react/src/app/features/reports/api/useReports.ts` | NEW — All TanStack Query hooks: useReports, useReport, useCreateReport, useDeleteReport, useRunReport (mutation), useCobJobs, useCobJobHistory, useRunCobJob, useMailingJobs, useCreateMailingJob, useUpdateMailingJob, useDeleteMailingJob, useRunMailingJob |
+| `web-react/src/app/features/reports/ReportsListPage.tsx` | NEW — Category filter (All/Core/Self Service/User), dynamic param form, schema-on-read results table (Object.keys(rows[0])), CSV export, create report modal, sub-components: DeleteRow, DeleteAction, RunReportPanel |
+| `web-react/src/app/features/reports/CobSchedulerPage.tsx` | NEW — 3 hardcoded CoB job names, RunJobButton + HistoryPanel sub-components, JobCard with stats grid + expandable history, PlaceholderJobCard for unregistered jobs, formatDuration helper |
+| `web-react/src/app/features/reports/ReportMailingPage.tsx` | NEW — RRULE presets (Daily/Weekly/Monthly/Custom), output type chips, DeleteMailingRow + RunNowButton sub-components, shared create/edit MailingJobModal |
+| `web-react/src/app/router.tsx` | UPDATED — 3 lazy report page imports; reports/scheduler/mailing routes wired to real components |
+
+#### Key Patterns / Decisions
+- `useRunReport` is a `useMutation` not `useQuery` — report execution must be user-triggered, not auto-fetched on mount
+- Schema-on-read results table: `Object.keys(rows[0])` derives column headers at runtime since report SQL is dynamic; `String(row[col] ?? '—')` handles all value types safely
+- Sub-component extraction for hooks-in-map: `RunJobButton` and `HistoryPanel` in CobSchedulerPage, `DeleteMailingRow` and `RunNowButton` in ReportMailingPage — each hook lives at its own component top level
+- Shared `MailingJobModal` for create/edit: detects mode via `isEdit = !!initial`; both `useCreateMailingJob` and `useUpdateMailingJob` called at top level; `save()` routes to the correct mutation based on `isEdit`
+- RRULE custom fallback: when "Custom" preset selected, a free-text input appears; `save()` substitutes `customRrule` for `form.recurrence` in the payload
+
+#### Build Verification
+- `npm run build` — ✅ 186 modules, 0 TypeScript errors
+- `npx vitest run` — ✅ 22/22 passing
+
+#### Compliance Checklist Update
+- Phase 5 (Reports) marked ✅ in SKILL.md Phase 2R build order
+- React Migration Checklist: Reports list, CoB Scheduler, Report Mailing Jobs → ✅ Built — Session 56
+
+---
+
 ### Session 55 (Phase 4 — Cards) — 2026-04-16
 **React Phase 4 — Cards complete. 12 card management pages built. Dual Axios client (cardApiClient on :8081). TypeScript errors eliminated (dead hook call in FraudRulesPage, unused constants, hooks-in-map violation in InterchangePage fixed with RateRow/FeeRow sub-components). Build: 0 errors. Tests: 22/22 passing.**
 

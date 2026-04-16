@@ -59,6 +59,30 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 60 — 2026-04-16
+**Reverted to Angular `web/` as production frontend; backend schema fully validated; Angular deployed to Vercel production.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/` | RESTORED — Angular app moved back from `web-archived/` |
+| `web-archived/` | REMOVED — no longer exists in git |
+| `.github/workflows/web-ci.yml` | REWRITTEN — Angular CI: lint + Karma tests → npm audit → Angular build + Vercel deploy → Playwright E2E. Path trigger: `web/**`. |
+| `web/.vercel/project.json` | NEW — links `web/` to Vercel project `cba-web` (projectId `prj_dnqKm4JHCpVAc9ID3jHYgLGy5yUg`) |
+| `web/vercel.json` | NEW — Angular SPA config: `dist/cba-web/browser` output, SPA rewrite (`/index.html` fallback), security headers, asset cache headers |
+| `backend/src/main/resources/db/migration/V30-V33` | NEW — renamed from uncommitted V25-V28; patch migrations covering `@Version` columns, column name mismatches, CHAR→VARCHAR conversions, missing AuditableEntity columns |
+
+#### Key Patterns / Decisions
+- **Angular reverted by user request**: Session 58 cutover to React reversed; Angular `web/` is now the production frontend
+- **Flyway V25-V28 renaming**: These files were created in Session 59 but never committed; V29 was already committed and run; renamed to V30-V33 to avoid Flyway out-of-order rejection
+- **Vercel `--prebuilt` pattern**: Angular built locally with `ng build --configuration=production`, then deployed via `vercel deploy --prebuilt --prod`
+
+#### Build Verification
+- `ng build --configuration=production` — warnings only, no errors; `dist/cba-web/browser/` produced
+- `vercel deploy --prebuilt --prod` — deployment `dpl_5U67X9GZzUBUD8AHxp5ciwpN7vMt` ready; aliased to `cba-web-nine.vercel.app`
+
+---
+
 ### Session 59 — 2026-04-16
 **Schema validation fix: aligned all Flyway base migrations (V1–V22) with JPA entity @Column mappings so a fresh Docker volume produces a schema that passes Hibernate `validate` on startup. (commit `8d8d631`)**
 

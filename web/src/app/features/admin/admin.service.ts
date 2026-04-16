@@ -182,139 +182,139 @@ export class AdminService {
 
   // ── Users ──────────────────────────────────────────────────────────────────
   listUsers(): Observable<PlatformUser[]> {
-    return this.api.get<PlatformUser[]>('/api/v1/users');
+    return this.api.get<PlatformUser[]>('/users');
   }
 
   createUser(req: CreateUserRequest): Observable<PlatformUser> {
-    return this.api.post<PlatformUser>('/api/v1/users', req);
+    return this.api.post<PlatformUser>('/users', req);
   }
 
   enableUser(id: string): Observable<PlatformUser> {
-    return this.api.command<PlatformUser>(`/api/v1/users/${id}`, 'enable');
+    return this.api.command<PlatformUser>(`/users/${id}`, 'enable');
   }
 
   disableUser(id: string): Observable<PlatformUser> {
-    return this.api.command<PlatformUser>(`/api/v1/users/${id}`, 'disable');
+    return this.api.command<PlatformUser>(`/users/${id}`, 'disable');
   }
 
   deleteUser(id: string): Observable<void> {
-    return this.api.delete<void>(`/api/v1/users/${id}`);
+    return this.api.delete<void>(`/users/${id}`);
   }
 
   // ── Roles ──────────────────────────────────────────────────────────────────
   listRoles(): Observable<Role[]> {
-    return this.api.get<Role[]>('/api/v1/roles');
+    return this.api.get<Role[]>('/roles');
   }
 
   createRole(req: CreateRoleRequest): Observable<Role> {
-    return this.api.post<Role>('/api/v1/roles', req);
+    return this.api.post<Role>('/roles', req);
   }
 
   updateRole(id: string, req: CreateRoleRequest): Observable<Role> {
-    return this.api.put<Role>(`/api/v1/roles/${id}`, req);
+    return this.api.put<Role>(`/roles/${id}`, req);
   }
 
   listPermissions(): Observable<Permission[]> {
-    return this.api.get<Permission[]>('/api/v1/roles/permissions');
+    return this.api.get<Permission[]>('/roles/permissions');
   }
 
   updateRolePermissions(roleId: string, req: UpdatePermissionsRequest): Observable<Role> {
-    return this.api.put<Role>(`/api/v1/roles/${roleId}/permissions`, req);
+    return this.api.put<Role>(`/roles/${roleId}/permissions`, req);
   }
 
   deleteRole(id: string): Observable<void> {
-    return this.api.delete<void>(`/api/v1/roles/${id}`);
+    return this.api.delete<void>(`/roles/${id}`);
   }
 
   // ── Offices ────────────────────────────────────────────────────────────────
   listOffices(): Observable<Office[]> {
-    return this.api.get<Office[]>('/api/v1/offices');
+    return this.api.get<Office[]>('/offices');
   }
 
   createOffice(req: CreateOfficeRequest): Observable<Office> {
-    return this.api.post<Office>('/api/v1/offices', req);
+    return this.api.post<Office>('/offices', req);
   }
 
   updateOffice(id: string, req: CreateOfficeRequest): Observable<Office> {
-    return this.api.put<Office>(`/api/v1/offices/${id}`, req);
+    return this.api.put<Office>(`/offices/${id}`, req);
   }
 
   // ── Hooks ──────────────────────────────────────────────────────────────────
   listHooks(): Observable<Hook[]> {
-    return this.api.get<Hook[]>('/api/v1/hooks');
+    return this.api.get<Hook[]>('/hooks');
   }
 
   createHook(req: CreateHookRequest): Observable<Hook> {
-    return this.api.post<Hook>('/api/v1/hooks', req);
+    return this.api.post<Hook>('/hooks', req);
   }
 
   updateHook(id: string, req: CreateHookRequest): Observable<Hook> {
-    return this.api.put<Hook>(`/api/v1/hooks/${id}`, req);
+    return this.api.put<Hook>(`/hooks/${id}`, req);
   }
 
   deleteHook(id: string): Observable<void> {
-    return this.api.delete<void>(`/api/v1/hooks/${id}`);
+    return this.api.delete<void>(`/hooks/${id}`);
   }
 
   // ── Maker-Checker ──────────────────────────────────────────────────────────
   listMakerChecker(status?: MakerCheckerStatus): Observable<MakerCheckerEntry[]> {
     const params = status ? { status } : undefined;
-    return this.api.get<MakerCheckerEntry[]>('/api/v1/makercheckers', params);
+    return this.api.get<MakerCheckerEntry[]>('/makercheckers', params);
   }
 
   approveMakerChecker(id: string): Observable<MakerCheckerEntry> {
-    return this.api.command<MakerCheckerEntry>(`/api/v1/makercheckers/${id}`, 'approve');
+    return this.api.command<MakerCheckerEntry>(`/makercheckers/${id}`, 'approve');
   }
 
   rejectMakerChecker(id: string): Observable<MakerCheckerEntry> {
-    return this.api.command<MakerCheckerEntry>(`/api/v1/makercheckers/${id}`, 'reject');
+    return this.api.command<MakerCheckerEntry>(`/makercheckers/${id}`, 'reject');
   }
 
   // ── Tenants ────────────────────────────────────────────────────────────────
   listTenants(): Observable<Tenant[]> {
-    return this.api.get<Tenant[]>('/api/v1/tenants');
+    return this.api.get<Tenant[]>('/tenants');
   }
 
   // ── Notifications ──────────────────────────────────────────────────────────
   listNotificationTemplates(activeOnly = false): Observable<NotificationTemplate[]> {
     const params = activeOnly ? { active: 'true' } : undefined;
-    return this.api.get<NotificationTemplate[]>('/api/v1/notifications/templates', params);
+    return this.api.get<NotificationTemplate[]>('/notifications/templates', params);
   }
 
   createNotificationTemplate(req: CreateTemplateRequest): Observable<NotificationTemplate> {
-    return this.api.post<NotificationTemplate>('/api/v1/notifications/templates', req);
+    return this.api.post<NotificationTemplate>('/notifications/templates', req);
   }
 
   updateNotificationTemplate(id: string, req: CreateTemplateRequest): Observable<NotificationTemplate> {
-    return this.api.put<NotificationTemplate>(`/api/v1/notifications/templates/${id}`, req);
+    return this.api.put<NotificationTemplate>(`/notifications/templates/${id}`, req);
   }
 
   deactivateNotificationTemplate(id: string): Observable<void> {
-    return this.api.delete<void>(`/api/v1/notifications/templates/${id}`);
+    return this.api.delete<void>(`/notifications/templates/${id}`);
   }
 
   sendTestNotification(templateId: string, recipientRef: string): Observable<NotificationLog> {
-    return this.api.post<NotificationLog>('/api/v1/notifications/test', { templateId, recipientRef });
+    return this.api.post<NotificationLog>('/notifications/test', { templateId, recipientRef });
   }
 
   listNotificationHistory(params?: Record<string, string>): Observable<NotificationLog[]> {
-    return this.api.get<NotificationLog[]>('/api/v1/notifications/history', params);
+    return this.api.get<NotificationLog[]>('/notifications/history', params);
   }
 
   // ── TPP ────────────────────────────────────────────────────────────────────
   listTpps(): Observable<TppRegistration[]> {
-    return this.api.get<TppRegistration[]>('/api/v1/openbanking/tpp');
+    return this.api.get<TppRegistration[]>('/openbanking/tpp');
   }
 
   registerTpp(req: RegisterTppRequest): Observable<TppRegistration> {
-    return this.api.post<TppRegistration>('/api/v1/openbanking/tpp', req);
+    return this.api.post<TppRegistration>('/openbanking/tpp', req);
   }
 
   activateTpp(id: string): Observable<TppRegistration> {
-    return this.api.command<TppRegistration>(`/api/v1/openbanking/tpp/${id}`, 'activate');
+    return this.api.command<TppRegistration>(`/openbanking/tpp/${id}`, 'activate');
   }
 
   revokeTpp(id: string): Observable<TppRegistration> {
-    return this.api.command<TppRegistration>(`/api/v1/openbanking/tpp/${id}`, 'revoke');
+    return this.api.command<TppRegistration>(`/openbanking/tpp/${id}`, 'revoke');
   }
 }

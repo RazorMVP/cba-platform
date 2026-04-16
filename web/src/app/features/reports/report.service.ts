@@ -99,48 +99,48 @@ export class ReportService {
 
   // Reports CRUD
   listReports(): Observable<Report[]> {
-    return this.api.get<Report[]>('/api/v1/reports');
+    return this.api.get<Report[]>('/reports');
   }
   getReport(id: string): Observable<Report> {
-    return this.api.get<Report>(`/api/v1/reports/${id}`);
+    return this.api.get<Report>(`/reports/${id}`);
   }
   createReport(req: ReportRequest): Observable<Report> {
-    return this.api.post<Report>('/api/v1/reports', req);
+    return this.api.post<Report>('/reports', req);
   }
   deleteReport(id: string): Observable<void> {
-    return this.api.delete<void>(`/api/v1/reports/${id}`);
+    return this.api.delete<void>(`/reports/${id}`);
   }
 
   // Run report — returns array of arbitrary row objects
   runReport(reportName: string, params: Record<string, string>): Observable<Record<string, unknown>[]> {
-    return this.api.get<Record<string, unknown>[]>(`/api/v1/runreports/${encodeURIComponent(reportName)}`, params);
+    return this.api.get<Record<string, unknown>[]>(`/runreports/${encodeURIComponent(reportName)}`, params);
   }
 
   // CoB Scheduler
   listJobs(): Observable<CobJob[]> {
-    return this.api.get<CobJob[]>('/api/v1/jobs');
+    return this.api.get<CobJob[]>('/jobs');
   }
   runJob(jobName: string): Observable<void> {
-    return this.api.post<void>(`/api/v1/jobs/${encodeURIComponent(jobName)}/run`, {});
+    return this.api.post<void>(`/jobs/${encodeURIComponent(jobName)}/run`, {});
   }
   getJobHistory(jobName: string): Observable<CobJobHistory[]> {
-    return this.api.get<CobJobHistory[]>(`/api/v1/jobs/${encodeURIComponent(jobName)}/history`);
+    return this.api.get<CobJobHistory[]>(`/jobs/${encodeURIComponent(jobName)}/history`);
   }
 
   // Report Mailing Jobs
   listMailingJobs(): Observable<ReportMailingJob[]> {
-    return this.api.get<ReportMailingJob[]>('/api/v1/reportmailingjobs');
+    return this.api.get<ReportMailingJob[]>('/reportmailingjobs');
   }
   createMailingJob(req: ReportMailingRequest): Observable<ReportMailingJob> {
-    return this.api.post<ReportMailingJob>('/api/v1/reportmailingjobs', req);
+    return this.api.post<ReportMailingJob>('/reportmailingjobs', req);
   }
   updateMailingJob(id: string, req: ReportMailingRequest): Observable<ReportMailingJob> {
-    return this.api.put<ReportMailingJob>(`/api/v1/reportmailingjobs/${id}`, req);
+    return this.api.put<ReportMailingJob>(`/reportmailingjobs/${id}`, req);
   }
   deleteMailingJob(id: string): Observable<void> {
-    return this.api.delete<void>(`/api/v1/reportmailingjobs/${id}`);
+    return this.api.delete<void>(`/reportmailingjobs/${id}`);
   }
   runMailingJob(id: string): Observable<void> {
-    return this.api.command<void>(`/api/v1/reportmailingjobs/${id}`, 'run');
+    return this.api.command<void>(`/reportmailingjobs/${id}`, 'run');
   }
 }

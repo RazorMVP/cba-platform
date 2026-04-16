@@ -124,90 +124,90 @@ export class SystemService {
 
   // ── Codes ──────────────────────────────────────────────────────────────────
   listCodes(): Observable<Code[]> {
-    return this.api.get<Code[]>('/api/v1/codes');
+    return this.api.get<Code[]>('/codes');
   }
 
   createCode(req: CreateCodeRequest): Observable<Code> {
-    return this.api.post<Code>('/api/v1/codes', req);
+    return this.api.post<Code>('/codes', req);
   }
 
   deleteCode(id: string): Observable<void> {
-    return this.api.delete<void>(`/api/v1/codes/${id}`);
+    return this.api.delete<void>(`/codes/${id}`);
   }
 
   listCodeValues(codeId: string): Observable<CodeValue[]> {
-    return this.api.get<CodeValue[]>(`/api/v1/codes/${codeId}/codevalues`);
+    return this.api.get<CodeValue[]>(`/codes/${codeId}/codevalues`);
   }
 
   createCodeValue(codeId: string, req: CreateCodeValueRequest): Observable<CodeValue> {
-    return this.api.post<CodeValue>(`/api/v1/codes/${codeId}/codevalues`, req);
+    return this.api.post<CodeValue>(`/codes/${codeId}/codevalues`, req);
   }
 
   updateCodeValue(codeId: string, valueId: string, req: CreateCodeValueRequest): Observable<CodeValue> {
-    return this.api.put<CodeValue>(`/api/v1/codes/${codeId}/codevalues/${valueId}`, req);
+    return this.api.put<CodeValue>(`/codes/${codeId}/codevalues/${valueId}`, req);
   }
 
   deleteCodeValue(codeId: string, valueId: string): Observable<void> {
-    return this.api.delete<void>(`/api/v1/codes/${codeId}/codevalues/${valueId}`);
+    return this.api.delete<void>(`/codes/${codeId}/codevalues/${valueId}`);
   }
 
   // ── Global Configuration ───────────────────────────────────────────────────
   listConfigurations(): Observable<GlobalConfig[]> {
-    return this.api.get<GlobalConfig[]>('/api/v1/configurations');
+    return this.api.get<GlobalConfig[]>('/configurations');
   }
 
   updateConfiguration(id: string, req: UpdateConfigRequest): Observable<GlobalConfig> {
-    return this.api.put<GlobalConfig>(`/api/v1/configurations/${id}`, req);
+    return this.api.put<GlobalConfig>(`/configurations/${id}`, req);
   }
 
   // ── Floating Rates ─────────────────────────────────────────────────────────
   listFloatingRates(): Observable<FloatingRate[]> {
-    return this.api.get<FloatingRate[]>('/api/v1/floatingrates');
+    return this.api.get<FloatingRate[]>('/floatingrates');
   }
 
   createFloatingRate(req: CreateFloatingRateRequest): Observable<FloatingRate> {
-    return this.api.post<FloatingRate>('/api/v1/floatingrates', req);
+    return this.api.post<FloatingRate>('/floatingrates', req);
   }
 
   updateFloatingRate(id: string, req: CreateFloatingRateRequest): Observable<FloatingRate> {
-    return this.api.put<FloatingRate>(`/api/v1/floatingrates/${id}`, req);
+    return this.api.put<FloatingRate>(`/floatingrates/${id}`, req);
   }
 
   deleteFloatingRate(id: string): Observable<void> {
-    return this.api.delete<void>(`/api/v1/floatingrates/${id}`);
+    return this.api.delete<void>(`/floatingrates/${id}`);
   }
 
   // ── Taxes ──────────────────────────────────────────────────────────────────
   listTaxComponents(): Observable<TaxComponent[]> {
-    return this.api.get<TaxComponent[]>('/api/v1/taxes/components');
+    return this.api.get<TaxComponent[]>('/taxes/components');
   }
 
   createTaxComponent(req: CreateTaxComponentRequest): Observable<TaxComponent> {
-    return this.api.post<TaxComponent>('/api/v1/taxes/components', req);
+    return this.api.post<TaxComponent>('/taxes/components', req);
   }
 
   updateTaxComponent(id: string, req: CreateTaxComponentRequest): Observable<TaxComponent> {
-    return this.api.put<TaxComponent>(`/api/v1/taxes/components/${id}`, req);
+    return this.api.put<TaxComponent>(`/taxes/components/${id}`, req);
   }
 
   listTaxGroups(): Observable<TaxGroup[]> {
-    return this.api.get<TaxGroup[]>('/api/v1/taxes/groups');
+    return this.api.get<TaxGroup[]>('/taxes/groups');
   }
 
   createTaxGroup(req: CreateTaxGroupRequest): Observable<TaxGroup> {
-    return this.api.post<TaxGroup>('/api/v1/taxes/groups', req);
+    return this.api.post<TaxGroup>('/taxes/groups', req);
   }
 
   updateTaxGroup(id: string, req: CreateTaxGroupRequest): Observable<TaxGroup> {
-    return this.api.put<TaxGroup>(`/api/v1/taxes/groups/${id}`, req);
+    return this.api.put<TaxGroup>(`/taxes/groups/${id}`, req);
   }
 
   // ── Account Number Algorithms ─────────────────────────────────────────────
   getAlgorithmConfig(tenantId: string): Observable<TenantAlgorithmConfig> {
-    return this.api.get<TenantAlgorithmConfig>(`/api/v1/tenants/${tenantId}/account-algorithm`);
+    return this.api.get<TenantAlgorithmConfig>(`/tenants/${tenantId}/account-algorithm`);
   }
 
   updateAlgorithmConfig(tenantId: string, req: UpdateAlgorithmConfigRequest): Observable<TenantAlgorithmConfig> {
-    return this.api.put<TenantAlgorithmConfig>(`/api/v1/tenants/${tenantId}/account-algorithm`, req);
+    return this.api.put<TenantAlgorithmConfig>(`/tenants/${tenantId}/account-algorithm`, req);
   }
 }

@@ -59,6 +59,57 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 63 — 2026-04-17
+**Bug fix: remove doubled `/api/v1` path prefix from 5 Angular service files — fixes perpetual spinner on Account Algorithms page and silently broken Admin/System/Accounting/Reports/Groups pages.**
+
+#### Root Cause
+`environment.apiBaseUrl = 'http://localhost:8080/api/v1'` already includes `/api/v1`. Five services (`admin`, `system`, `accounting`, `reports`, `groups`) were incorrectly passing paths like `'/api/v1/tenants'` to `ApiService.get()`, producing doubled URLs (`http://localhost:8080/api/v1/api/v1/tenants`) that returned 404. Services built earlier (`customers`, `loans`, `accounts`) used short paths (`'/customers'`) and were unaffected.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/src/app/features/admin/admin.service.ts` | Fixed — removed `/api/v1` prefix from all 20+ method paths |
+| `web/src/app/features/system/system.service.ts` | Fixed — removed `/api/v1` prefix from all method paths |
+| `web/src/app/features/accounting/accounting.service.ts` | Fixed — removed `/api/v1` prefix from all method paths |
+| `web/src/app/features/reports/report.service.ts` | Fixed — removed `/api/v1` prefix from all method paths |
+| `web/src/app/features/groups/groups.service.ts` | Fixed — removed `/api/v1` prefix from all method paths |
+| `web/src/environments/environment.ts` | `authBypass: true` (set previous session) |
+
+#### Key Patterns / Decisions
+- `ApiService` concatenates `environment.apiBaseUrl + path` verbatim — no deduplication
+- Convention going forward: service paths must NOT include `/api/v1/` — use short paths like `'/tenants'`, `'/users'`, `'/roles'`
+- No backend changes; no new REST endpoints; API docs unchanged
+
+#### Build Verification
+- Angular dev server hot-reloaded; Account Algorithms page loads tenants correctly
+- All Admin, System, Accounting, Reports, Groups pages now resolve correctly
+
+#### Confirmed Platform Versions
+
+**Backend (`backend/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `f018ee2` |
+| Java | 21 | `f018ee2` |
+| Application artifact | `cba-backend 0.1.0-SNAPSHOT` | `f018ee2` |
+| Keycloak admin client | 26.0.5 | `f018ee2` |
+| springdoc-openapi | 2.8.6 | `f018ee2` |
+| Lombok | 1.18.38 | `f018ee2` |
+| PostgreSQL | 16 (Docker) | `f018ee2` |
+
+**Angular Web App (`web/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular (`@angular/core` + material) | 21.2.x | `pending` |
+| Angular CLI | 21.2.7 | `pending` |
+| PrimeNG | 21.0.x | `pending` |
+| RxJS | 7.8.x | `pending` |
+| TypeScript | 5.9.x | `pending` |
+
+---
+
 ### Session 62 — 2026-04-16
 **Bug fix: add missing `GET /api/v1/tenants` endpoint — fixes perpetual spinner on Account Algorithms page. (commit `f018ee2`)**
 

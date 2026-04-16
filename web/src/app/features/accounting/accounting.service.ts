@@ -151,74 +151,74 @@ export class AccountingService {
 
   // Financial Activity Accounts
   listFinancialActivityAccounts(): Observable<FinancialActivityAccount[]> {
-    return this.api.get<FinancialActivityAccount[]>('/api/v1/financialactivityaccounts');
+    return this.api.get<FinancialActivityAccount[]>('/financialactivityaccounts');
   }
   createFinancialActivityAccount(req: FinancialActivityRequest): Observable<FinancialActivityAccount> {
-    return this.api.post<FinancialActivityAccount>('/api/v1/financialactivityaccounts', req);
+    return this.api.post<FinancialActivityAccount>('/financialactivityaccounts', req);
   }
   updateFinancialActivityAccount(id: string, req: FinancialActivityRequest): Observable<FinancialActivityAccount> {
-    return this.api.put<FinancialActivityAccount>(`/api/v1/financialactivityaccounts/${id}`, req);
+    return this.api.put<FinancialActivityAccount>(`/financialactivityaccounts/${id}`, req);
   }
   deleteFinancialActivityAccount(id: string): Observable<void> {
-    return this.api.delete<void>(`/api/v1/financialactivityaccounts/${id}`);
+    return this.api.delete<void>(`/financialactivityaccounts/${id}`);
   }
 
   // GL Accounts
   listGlAccounts(params?: Record<string, string>): Observable<GlAccount[]> {
-    return this.api.get<GlAccount[]>('/api/v1/glaccounts', params);
+    return this.api.get<GlAccount[]>('/glaccounts', params);
   }
   getGlAccount(id: string): Observable<GlAccount> {
-    return this.api.get<GlAccount>(`/api/v1/glaccounts/${id}`);
+    return this.api.get<GlAccount>(`/glaccounts/${id}`);
   }
   createGlAccount(req: GlAccountRequest): Observable<GlAccount> {
-    return this.api.post<GlAccount>('/api/v1/glaccounts', req);
+    return this.api.post<GlAccount>('/glaccounts', req);
   }
   updateGlAccount(id: string, req: GlAccountRequest): Observable<GlAccount> {
-    return this.api.put<GlAccount>(`/api/v1/glaccounts/${id}`, req);
+    return this.api.put<GlAccount>(`/glaccounts/${id}`, req);
   }
   disableGlAccount(id: string): Observable<GlAccount> {
-    return this.api.command<GlAccount>(`/api/v1/glaccounts/${id}`, 'disable');
+    return this.api.command<GlAccount>(`/glaccounts/${id}`, 'disable');
   }
   enableGlAccount(id: string): Observable<GlAccount> {
-    return this.api.command<GlAccount>(`/api/v1/glaccounts/${id}`, 'enable');
+    return this.api.command<GlAccount>(`/glaccounts/${id}`, 'enable');
   }
 
   // Journal Entries
   listJournalEntries(params?: Record<string, string>): Observable<PageResponse<JournalEntry>> {
-    return this.api.getPage<JournalEntry>('/api/v1/journalentries', 0, 50, params);
+    return this.api.getPage<JournalEntry>('/journalentries', 0, 50, params);
   }
   createManualJournalEntry(req: ManualJournalRequest): Observable<{ transactionId: string }> {
-    return this.api.post<{ transactionId: string }>('/api/v1/journalentries', req);
+    return this.api.post<{ transactionId: string }>('/journalentries', req);
   }
   reverseJournalEntry(id: string): Observable<{ transactionId: string }> {
-    return this.api.post<{ transactionId: string }>(`/api/v1/journalentries/${id}/reverse`, {});
+    return this.api.post<{ transactionId: string }>(`/journalentries/${id}/reverse`, {});
   }
 
   // GL Closures
   listClosures(): Observable<GlClosure[]> {
-    return this.api.get<GlClosure[]>('/api/v1/glclosures');
+    return this.api.get<GlClosure[]>('/glclosures');
   }
   createClosure(req: GlClosureRequest): Observable<GlClosure> {
-    return this.api.post<GlClosure>('/api/v1/glclosures', req);
+    return this.api.post<GlClosure>('/glclosures', req);
   }
   deleteClosure(id: string): Observable<void> {
-    return this.api.delete<void>(`/api/v1/glclosures/${id}`);
+    return this.api.delete<void>(`/glclosures/${id}`);
   }
 
   // Provisioning
   listProvisioningCriteria(): Observable<ProvisioningCriteria[]> {
-    return this.api.get<ProvisioningCriteria[]>('/api/v1/provisioningcriteria');
+    return this.api.get<ProvisioningCriteria[]>('/provisioningcriteria');
   }
   getProvisioningCriteria(id: string): Observable<ProvisioningCriteria> {
-    return this.api.get<ProvisioningCriteria>(`/api/v1/provisioningcriteria/${id}`);
+    return this.api.get<ProvisioningCriteria>(`/provisioningcriteria/${id}`);
   }
   createProvisioningCriteria(req: ProvisioningCriteriaRequest): Observable<ProvisioningCriteria> {
-    return this.api.post<ProvisioningCriteria>('/api/v1/provisioningcriteria', req);
+    return this.api.post<ProvisioningCriteria>('/provisioningcriteria', req);
   }
   updateProvisioningCriteria(id: string, req: ProvisioningCriteriaRequest): Observable<ProvisioningCriteria> {
-    return this.api.put<ProvisioningCriteria>(`/api/v1/provisioningcriteria/${id}`, req);
+    return this.api.put<ProvisioningCriteria>(`/provisioningcriteria/${id}`, req);
   }
   deleteProvisioningCriteria(id: string): Observable<void> {
-    return this.api.delete<void>(`/api/v1/provisioningcriteria/${id}`);
+    return this.api.delete<void>(`/provisioningcriteria/${id}`);
   }
 }

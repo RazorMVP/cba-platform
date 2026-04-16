@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 62 — 2026-04-16)
+## Confirmed Platform Versions (Session 63 — 2026-04-17)
 
 These are the verified-working versions for both production components. Update this table whenever a dependency is upgraded.
 
@@ -31,7 +31,9 @@ These are the verified-working versions for both production components. Update t
 | **RxJS** | 7.8.x | Reactive extensions; `~7.8.0` pinned |
 | **TypeScript** | 5.9.x | `~5.9.2` pinned |
 | **Vercel deployment** | `dpl_5U67X9GZzUBUD8AHxp5ciwpN7vMt` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `36cec09` | `revert(web): restore Angular web/ as production frontend (undo Session 58 cutover)` |
+| **Last git commit** | `pending` | `fix(web): remove doubled /api/v1 prefix from service paths` |
+
+> **Session 63 fix**: Removed duplicate `/api/v1` path prefix from `admin`, `system`, `accounting`, `reports`, `groups` service files. All Angular pages in those modules (Users, Roles, Offices, Codes, Config, GL, Reports, Groups, etc.) were silently returning 404 due to URL doubling against `apiBaseUrl`.
 
 ---
 

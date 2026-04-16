@@ -100,80 +100,80 @@ export class GroupsService {
   // ── Groups ─────────────────────────────────────────────────────────────────
   listGroups(status?: GroupStatus): Observable<Group[]> {
     const params = status ? { status } : undefined;
-    return this.api.get<Group[]>('/api/v1/groups', params);
+    return this.api.get<Group[]>('/groups', params);
   }
 
   getGroup(id: string): Observable<Group> {
-    return this.api.get<Group>(`/api/v1/groups/${id}`);
+    return this.api.get<Group>(`/groups/${id}`);
   }
 
   createGroup(req: CreateGroupRequest): Observable<Group> {
-    return this.api.post<Group>('/api/v1/groups', req);
+    return this.api.post<Group>('/groups', req);
   }
 
   updateGroup(id: string, req: CreateGroupRequest): Observable<Group> {
-    return this.api.put<Group>(`/api/v1/groups/${id}`, req);
+    return this.api.put<Group>(`/groups/${id}`, req);
   }
 
   activateGroup(id: string): Observable<Group> {
-    return this.api.command<Group>(`/api/v1/groups/${id}`, 'activate');
+    return this.api.command<Group>(`/groups/${id}`, 'activate');
   }
 
   getGroupMembers(id: string): Observable<GroupMember[]> {
-    return this.api.get<GroupMember[]>(`/api/v1/groups/${id}/members`);
+    return this.api.get<GroupMember[]>(`/groups/${id}/members`);
   }
 
   addMember(groupId: string, customerId: string): Observable<void> {
-    return this.api.post<void>(`/api/v1/groups/${groupId}/members/${customerId}`, {});
+    return this.api.post<void>(`/groups/${groupId}/members/${customerId}`, {});
   }
 
   removeMember(groupId: string, customerId: string): Observable<void> {
-    return this.api.delete<void>(`/api/v1/groups/${groupId}/members/${customerId}`);
+    return this.api.delete<void>(`/groups/${groupId}/members/${customerId}`);
   }
 
   generateCollectionSheet(groupId: string, meetingDate: string): Observable<CollectionSheet> {
-    return this.api.post<CollectionSheet>('/api/v1/collectionsheets', { groupId, meetingDate });
+    return this.api.post<CollectionSheet>('/collectionsheets', { groupId, meetingDate });
   }
 
   getGlimAccounts(groupId: string): Observable<GlimAccount[]> {
-    return this.api.get<GlimAccount[]>(`/api/v1/groups/${groupId}/glimaccounts`);
+    return this.api.get<GlimAccount[]>(`/groups/${groupId}/glimaccounts`);
   }
 
   assignStaff(groupId: string, staffId: string): Observable<Group> {
-    return this.api.post<Group>(`/api/v1/groups/${groupId}/assignstaff?staffId=${staffId}`, {});
+    return this.api.post<Group>(`/groups/${groupId}/assignstaff?staffId=${staffId}`, {});
   }
 
   unassignStaff(groupId: string): Observable<Group> {
-    return this.api.delete<Group>(`/api/v1/groups/${groupId}/assignstaff`);
+    return this.api.delete<Group>(`/groups/${groupId}/assignstaff`);
   }
 
   // ── Centers ────────────────────────────────────────────────────────────────
   listCenters(status?: GroupStatus): Observable<Center[]> {
     const params = status ? { status } : undefined;
-    return this.api.get<Center[]>('/api/v1/centers', params);
+    return this.api.get<Center[]>('/centers', params);
   }
 
   getCenter(id: string): Observable<Center> {
-    return this.api.get<Center>(`/api/v1/centers/${id}`);
+    return this.api.get<Center>(`/centers/${id}`);
   }
 
   createCenter(req: CreateCenterRequest): Observable<Center> {
-    return this.api.post<Center>('/api/v1/centers', req);
+    return this.api.post<Center>('/centers', req);
   }
 
   updateCenter(id: string, req: CreateCenterRequest): Observable<Center> {
-    return this.api.put<Center>(`/api/v1/centers/${id}`, req);
+    return this.api.put<Center>(`/centers/${id}`, req);
   }
 
   activateCenter(id: string): Observable<Center> {
-    return this.api.command<Center>(`/api/v1/centers/${id}`, 'activate');
+    return this.api.command<Center>(`/centers/${id}`, 'activate');
   }
 
   getCenterGroups(centerId: string): Observable<Group[]> {
-    return this.api.get<Group[]>(`/api/v1/centers/${centerId}/groups`);
+    return this.api.get<Group[]>(`/centers/${centerId}/groups`);
   }
 
   getCenterMembers(centerId: string): Observable<GroupMember[]> {
-    return this.api.get<GroupMember[]>(`/api/v1/centers/${centerId}/members`);
+    return this.api.get<GroupMember[]>(`/centers/${centerId}/members`);
   }
 }

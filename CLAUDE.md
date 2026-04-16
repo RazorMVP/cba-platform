@@ -3269,8 +3269,8 @@ Every ✅ row in the Angular Component Map is a screen to rebuild in React. Stat
 | Group detail | ✅ Angular | ✅ Built — Session 57 |
 | Centers list | ✅ Angular | ✅ Built — Session 57 |
 | Center detail | ✅ Angular | ✅ Built — Session 57 |
-| Consents list | ✅ Angular | 🔲 Queued |
-| Consent detail | ✅ Angular | 🔲 Queued |
+| Consents list | ✅ Angular | ✅ Built — Session 57 |
+| Consent detail | ✅ Angular | ✅ Built — Session 57 |
 | Codes & Values | ✅ Angular | ✅ Built — Session 57 |
 | Global Config | ✅ Angular | ✅ Built — Session 57 |
 | Floating Rates | ✅ Angular | ✅ Built — Session 57 |
@@ -3364,6 +3364,18 @@ web-react/
 ```
 
 **CI**: `react-deploy` job in `web-ci.yml`; fires on `web-react/**` pushes; deploys to Vercel preview using `VERCEL_TOKEN_REACT` / `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID_REACT`.
+
+---
+
+### Phase 8 — Open Banking (✅ Complete — Session 57)
+
+**Screens built**: Consents list, Consent detail.
+
+**Consents list** — type filter tabs (All / AISP / PISP / CBPII), status dropdown, scope chip overflow (+N), `Link` to detail page.
+
+**Consent detail** — status + type badge banner, conditional Authorise/Revoke action buttons (Authorise only for AWAITING_AUTHORISATION; Revoke for any non-REVOKED), two-column `<dl>` grid with PISP-specific fields (amount, reference, debtor/creditor accounts) and CBPII funds-available badge, scope chips panel, confirm modal for each action (navigate back to list after revoke).
+
+**React migration: feature parity reached.** All 57 routes in `router.tsx` resolve to real page components — `PlaceholderPage` import removed. Next step: Cutover (update `web-ci.yml` `working-directory: web` → `web-react`, archive `web/`).
 
 ---
 

@@ -59,6 +59,35 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 57 — Phase 8 (Open Banking) — 2026-04-16
+**React Phase 8 complete: Consents list + Consent detail. Feature parity reached — all 57 routes are real page components. Build: 0 errors, 22/22 tests. Commit: pending push.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web-react/src/app/features/open-banking/api/types.ts` | NEW — `Consent`, `ConsentType`, `ConsentStatus`, `CreateConsentRequest` |
+| `web-react/src/app/features/open-banking/api/useOpenBanking.ts` | NEW — `useConsents`, `useConsent`, `useCreateConsent`, `useAuthoriseConsent`, `useRevokeConsent` |
+| `web-react/src/app/features/open-banking/ConsentsListPage.tsx` | NEW — type filter tabs + status dropdown + scope chip overflow; `Link` to detail |
+| `web-react/src/app/features/open-banking/ConsentDetailPage.tsx` | NEW — status/type banner; conditional Authorise/Revoke buttons; two-column `<dl>` with PISP/CBPII fields; scope chips; confirm modal |
+| `web-react/src/app/router.tsx` | UPDATED — Open Banking routes wired; `Placeholder` import removed (all routes resolved) |
+| `CLAUDE.md` | UPDATED — 2 checklist rows → ✅ Session 57; Phase 8 completion section added |
+
+#### Key Patterns / Decisions
+- **Conditional action buttons by status**: Authorise only shown for `AWAITING_AUTHORISATION`; Revoke shown for any non-`REVOKED` status — same guard logic as Angular `ConsentDetailComponent`
+- **Navigate after revoke**: `useNavigate()` called post-revoke to redirect to `/open-banking/consents` — consent is terminal once revoked
+- **PISP/CBPII conditional fields**: `consent.type === 'PISP'` gate renders amount/reference/debtor/creditor; `CBPII` gate renders `fundsAvailable` StatusBadge — avoids null display for AISP consents
+- **`Placeholder` fully retired**: All 57 router entries now point to real components; import removed; zero placeholder routes remain
+
+#### Build Verification
+- `npm run build` → ✅ 0 errors
+- `npx vitest run` → ✅ 22/22 tests passing (6 test files)
+
+#### Compliance Checklist Update
+- React Migration Checklist: **all rows ✅** — feature parity with Angular `web/` achieved
+- Cutover (Phase 9): update `web-ci.yml` working-directory, archive `web/`
+
+---
+
 ### Session 57 (Phase 7 — Groups & System) — 2026-04-16
 **React Phase 7 complete: 9 screens built (Groups list/detail, Centers list/detail, Codes & Values, Global Config, Floating Rates, Taxes, Account Algorithms). Build: 0 errors, 22/22 tests.**
 

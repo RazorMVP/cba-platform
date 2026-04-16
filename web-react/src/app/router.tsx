@@ -17,8 +17,9 @@ function page(C: ReturnType<typeof lazy<ComponentType>>) {
   )
 }
 
-// ── Placeholder (Open Banking routes still pending) ───────────────────────
-const Placeholder       = lazy(() => import('@/app/features/placeholder/PlaceholderPage'))
+// ── Open Banking ────────────────────────────────────────────────────────────
+const ConsentsListPage   = lazy(() => import('@/app/features/open-banking/ConsentsListPage'))
+const ConsentDetailPage  = lazy(() => import('@/app/features/open-banking/ConsentDetailPage'))
 
 // ── Groups ──────────────────────────────────────────────────────────────────
 const GroupsListPage    = lazy(() => import('@/app/features/groups/GroupsListPage'))
@@ -172,8 +173,8 @@ export const router = createBrowserRouter([
       { path: 'system/account-algorithms',       element: page(AccountAlgorithmsPage) },
 
       // Open Banking
-      { path: 'open-banking/consents',           element: page(Placeholder) },
-      { path: 'open-banking/consents/:id',       element: page(Placeholder) },
+      { path: 'open-banking/consents',           element: page(ConsentsListPage) },
+      { path: 'open-banking/consents/:id',       element: page(ConsentDetailPage) },
 
       // Catch-all
       { path: '*', element: <Navigate to="/dashboard" replace /> },

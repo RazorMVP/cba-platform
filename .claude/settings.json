@@ -31,5 +31,18 @@
       "Bash(git diff:*)",
       "Bash(git log:*)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/razormvp/CoreBanking/.claude/hooks/check-versions-before-push.sh"
+          }
+        ]
+      }
+    ]
   }
 }

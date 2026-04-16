@@ -208,11 +208,39 @@ Read `references/deployment.md` before starting.
   #### Key Patterns / Decisions (if any)
 
   #### Build Verification
+
+  #### Confirmed Platform Versions
+  **Backend (`backend/`):**
+  | Component | Version | Git ref |
+  |-----------|---------|---------|
+  | Spring Boot | x.x.x | `<sha>` |
+  | Java | xx | `<sha>` |
+  | Application artifact | cba-backend x.x.x-SNAPSHOT | `<sha>` |
+  | Keycloak admin client | x.x.x | `<sha>` |
+  | springdoc-openapi | x.x.x | `<sha>` |
+  | Lombok | x.x.xx | `<sha>` |
+  | PostgreSQL | xx (Docker) | `<sha>` |
+
+  **Angular Web App (`web/`):**
+  | Component | Version | Git ref |
+  |-----------|---------|---------|
+  | Angular | xx.x.x | `<sha>` |
+  | Angular CLI | xx.x.x | `<sha>` |
+  | PrimeNG | xx.x.x | `<sha>` |
+  | RxJS | x.x.x | `<sha>` |
+  | TypeScript | x.x.x | `<sha>` |
+  | Vercel deployment ID | dpl_... | `<sha>` |
+  | Production URL | xxx.vercel.app | `<sha>` |
+
   #### Compliance Checklist Update
   ```
+- **Git refs**: use `git log --oneline -1 -- backend/` and `git log --oneline -1 -- web/` to get the correct per-directory SHA.
+- **Version sources**: read from `backend/pom.xml` (`<java.version>`, `<lombok.version>`, `<springdoc.version>`, `<keycloak.version>`, Spring Boot parent `<version>`) and `web/package.json` (`@angular/core`, `@angular/cli`, `primeng`, `rxjs`, `typescript`).
+- **Omit rows that have not changed** — only include the rows relevant to work done this session if the full table was already recorded in a prior session and nothing changed. Include the full table after every push regardless.
 - Mark the "Not Yet Built" and "Partially Built" tables in the Backend Audit section to reflect completed work.
 
 ### Step 2 — Update `CLAUDE.md` (Body of Knowledge)
+- Update the **Confirmed Platform Versions** table (near the top of `CLAUDE.md`, under `## Confirmed Platform Versions`) with the current component versions and git SHAs. This table must always reflect the last known-working state of both `backend/` and `web/`.
 - Update the **Angular Component Map** table with newly built Angular components — change `🔲 Stub` → `✅ Built` and add a brief description.
 - Update the **React Migration Checklist** table (in the "React Frontend Migration — Session 52" section) with newly built React screens — change `🔲 Queued` → `✅ Built` for each completed screen.
 - Update the **Phase 2R build order** list in this skill (see below) when a React phase completes — add `✅ Complete — Session N, commit SHA`.
@@ -242,8 +270,26 @@ If **yes**, update both of these files before committing:
 
 If **no new endpoints** were added (e.g. build fixes, Flyway migrations only, Angular-only changes), skip this step — do not update the API docs unnecessarily.
 
-### Step 4 — Commit and push all updated docs to GitHub
-After completing Steps 1–3, stage and commit everything together:
+### Step 4 — Record platform versions in both `cba-log.md` and `CLAUDE.md`
+
+**This step is mandatory before any `git push`. A pre-push hook will block the push if it is missing.**
+
+1. Run the following to get current git refs:
+   ```bash
+   git log --oneline -1 -- backend/   # backend SHA
+   git log --oneline -1 -- web/       # Angular web SHA
+   ```
+2. Read current versions from:
+   - `backend/pom.xml` — `<java.version>`, `<lombok.version>`, `<springdoc.version>`, `<keycloak.version>`, and Spring Boot parent `<version>`
+   - `web/package.json` — `@angular/core`, `@angular/cli`, `primeng`, `rxjs`, `typescript`
+   - If a Vercel deploy was made — note the `dpl_...` deployment ID and production URL from the CLI output
+3. Add a **"Confirmed Platform Versions"** subsection inside the current session's entry in `cba-log.md` (see Step 1 template above).
+4. Update the **"## Confirmed Platform Versions"** table near the top of `CLAUDE.md` with the same data.
+
+The hook checks for the literal string `Confirmed Platform Versions` in both files. If either file is missing it, `git push` will be blocked with an explanatory error.
+
+### Step 5 — Commit and push all updated docs to GitHub
+After completing Steps 1–4, stage and commit everything together:
 ```bash
 git add cba-log.md CLAUDE.md
 # If API docs were updated, also add:
@@ -264,6 +310,7 @@ This is **not optional** — all updated doc files must be committed and pushed 
 - After any compile error is diagnosed and fixed (add to gotchas)
 - After every session — even if only one file changed
 - API docs: only when REST endpoints are added, changed, or removed
+- **Platform versions: always — every push, no exceptions**
 
 ---
 

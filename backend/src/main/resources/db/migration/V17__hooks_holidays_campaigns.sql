@@ -6,11 +6,14 @@
 
 -- ── hooks ─────────────────────────────────────────────────────────────
 -- Outbound webhook callbacks triggered by business events
-CREATE TABLE hooks (
+CREATE TABLE IF NOT EXISTS hooks (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     name            VARCHAR(100)    UNIQUE NOT NULL,
-    template_name   VARCHAR(100)    NOT NULL DEFAULT 'Web',
-    -- Web | SMS
+    hook_type       VARCHAR(20)     NOT NULL DEFAULT 'WEB',
+    -- WEB | SMS
+    payload_url     VARCHAR(512),
+    content_type    VARCHAR(50)     DEFAULT 'application/json',
+    secret_key      VARCHAR(255),
     is_active       BOOLEAN         NOT NULL DEFAULT TRUE,
     events          JSONB           NOT NULL DEFAULT '[]',
     -- Array of event names: ["LOAN_APPROVED","LOAN_DISBURSED",...]
@@ -19,7 +22,7 @@ CREATE TABLE hooks (
     version         BIGINT          NOT NULL DEFAULT 0
 );
 
-CREATE TABLE hook_configurations (
+CREATE TABLE IF NOT EXISTS hook_configurations (
     id          UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     hook_id     UUID            NOT NULL REFERENCES hooks(id),
     field_name  VARCHAR(100)    NOT NULL,
@@ -28,7 +31,7 @@ CREATE TABLE hook_configurations (
 );
 
 -- ── holidays ──────────────────────────────────────────────────────────
-CREATE TABLE holidays (
+CREATE TABLE IF NOT EXISTS holidays (
     id                      UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id               UUID            REFERENCES tenants(id),
     name                    VARCHAR(100)    NOT NULL,
@@ -49,14 +52,14 @@ CREATE TABLE holidays (
 CREATE INDEX idx_holidays_dates  ON holidays(from_date, to_date);
 CREATE INDEX idx_holidays_tenant ON holidays(tenant_id);
 
-CREATE TABLE holiday_office_mappings (
+CREATE TABLE IF NOT EXISTS holiday_office_mappings (
     holiday_id  UUID    NOT NULL REFERENCES holidays(id),
     office_id   UUID    NOT NULL REFERENCES offices(id),
     PRIMARY KEY (holiday_id, office_id)
 );
 
 -- ── sms_campaigns ─────────────────────────────────────────────────────
-CREATE TABLE sms_campaigns (
+CREATE TABLE IF NOT EXISTS sms_campaigns (
     id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id           UUID            REFERENCES tenants(id),
     campaign_name       VARCHAR(200)    NOT NULL,
@@ -85,7 +88,7 @@ CREATE TABLE sms_campaigns (
 CREATE INDEX idx_sms_campaigns_status ON sms_campaigns(status);
 CREATE INDEX idx_sms_campaigns_tenant ON sms_campaigns(tenant_id);
 
-CREATE TABLE sms_messages (
+CREATE TABLE IF NOT EXISTS sms_messages (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     campaign_id     UUID            REFERENCES sms_campaigns(id),
     customer_id     UUID            REFERENCES customers(id),
@@ -101,7 +104,7 @@ CREATE INDEX idx_sms_messages_campaign  ON sms_messages(campaign_id);
 CREATE INDEX idx_sms_messages_status    ON sms_messages(delivery_status);
 
 -- ── report_mailing_jobs ───────────────────────────────────────────────
-CREATE TABLE report_mailing_jobs (
+CREATE TABLE IF NOT EXISTS report_mailing_jobs (
     id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     name                VARCHAR(200)    UNIQUE NOT NULL,
     description         TEXT,
@@ -129,7 +132,7 @@ CREATE TABLE report_mailing_jobs (
 -- ── standing_instructions ─────────────────────────────────────────────
 -- Mifos standinginstructions — different from payment standing orders (recurring transfers)
 -- This is the Mifos model: periodic account-to-account transfer instructions
-CREATE TABLE standing_instructions (
+CREATE TABLE IF NOT EXISTS standing_instructions (
     id                      UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id               UUID            REFERENCES tenants(id),
     name                    VARCHAR(200)    NOT NULL,
@@ -169,7 +172,7 @@ CREATE INDEX idx_standing_inst_tenant  ON standing_instructions(tenant_id);
 
 -- ── notes ─────────────────────────────────────────────────────────────
 -- Polymorphic notes on any entity (client, loan, account, group, etc.)
-CREATE TABLE notes (
+CREATE TABLE IF NOT EXISTS notes (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id       UUID            REFERENCES tenants(id),
     entity_type     VARCHAR(30)     NOT NULL,
@@ -187,25 +190,26 @@ CREATE INDEX idx_notes_tenant ON notes(tenant_id);
 
 -- ── documents ─────────────────────────────────────────────────────────
 -- Polymorphic document attachments
-CREATE TABLE documents (
+CREATE TABLE IF NOT EXISTS documents (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id       UUID            REFERENCES tenants(id),
-    parent_entity_type  VARCHAR(30) NOT NULL,
+    entity_type     VARCHAR(30)     NOT NULL,
     -- CLIENT | LOAN | SAVINGS | GROUP | CENTER | STAFF | SHARE
-    parent_entity_id    UUID        NOT NULL,
+    entity_id       UUID            NOT NULL,
     name            VARCHAR(250)    NOT NULL,
     file_name       VARCHAR(250),
-    size            BIGINT,
-    type            VARCHAR(500),
+    file_size       BIGINT,
+    content_type    VARCHAR(500),
     -- MIME type
     description     VARCHAR(1000),
-    location        VARCHAR(500),
+    storage_path    VARCHAR(500),
     -- S3 key or local path
     storage_type    VARCHAR(20)     NOT NULL DEFAULT 'FILE_SYSTEM',
     -- FILE_SYSTEM | S3 | DATABASE
+    version         BIGINT          NOT NULL DEFAULT 0,
     created_at      TIMESTAMPTZ     NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_documents_entity ON documents(parent_entity_type, parent_entity_id);
+CREATE INDEX idx_documents_entity ON documents(entity_type, entity_id);
 CREATE INDEX idx_documents_tenant ON documents(tenant_id);

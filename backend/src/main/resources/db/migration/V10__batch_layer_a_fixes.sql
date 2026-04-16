@@ -1,30 +1,22 @@
 -- V10: Layer A fixes — standing orders, loan write-off tracking,
 --      payment reversal tracking, Spring Batch + Quartz schemas
 
--- ── Standing Orders (missing from payments) ───────────────────────────────────
-CREATE TABLE IF NOT EXISTS standing_orders (
-    id                      UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
-    source_account_id       UUID            NOT NULL REFERENCES accounts(id),
-    destination_account_id  UUID            NOT NULL REFERENCES accounts(id),
-    amount                  NUMERIC(19,4)   NOT NULL,
-    currency_code           VARCHAR(3)      NOT NULL DEFAULT 'USD',
-    frequency               VARCHAR(20)     NOT NULL
-                                CHECK (frequency IN ('DAILY','WEEKLY','MONTHLY','QUARTERLY','ANNUALLY')),
-    start_date              DATE            NOT NULL,
-    end_date                DATE,
-    next_execution_date     DATE            NOT NULL,
-    description             VARCHAR(500),
-    status                  VARCHAR(20)     NOT NULL DEFAULT 'ACTIVE'
-                                CHECK (status IN ('ACTIVE','PAUSED','CANCELLED','COMPLETED')),
-    last_executed_at        TIMESTAMPTZ,
-    tenant_id               UUID,
-    version                 BIGINT          NOT NULL DEFAULT 0,
-    created_at              TIMESTAMPTZ     NOT NULL DEFAULT now(),
-    updated_at              TIMESTAMPTZ     NOT NULL DEFAULT now()
-);
+-- ── Standing Orders — schema evolution ───────────────────────────────────────
+-- standing_orders was created in V1 with active BOOLEAN.
+-- V10 adds the status / start_date / last_executed_at columns that the
+-- CoB standing-order job and Module 35 expect.
+ALTER TABLE standing_orders
+    ADD COLUMN IF NOT EXISTS status           VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE'
+                                                  CHECK (status IN ('ACTIVE','PAUSED','CANCELLED','COMPLETED')),
+    ADD COLUMN IF NOT EXISTS start_date       DATE,
+    ADD COLUMN IF NOT EXISTS last_executed_at TIMESTAMPTZ;
 
-CREATE INDEX idx_so_source      ON standing_orders(source_account_id);
-CREATE INDEX idx_so_next_exec   ON standing_orders(next_execution_date) WHERE status = 'ACTIVE';
+-- Back-fill status from the legacy active boolean so existing rows are consistent.
+UPDATE standing_orders SET status = CASE WHEN active THEN 'ACTIVE' ELSE 'CANCELLED' END
+ WHERE status = 'ACTIVE';   -- only rows not already updated (idempotent re-run guard)
+
+CREATE INDEX IF NOT EXISTS idx_so_source    ON standing_orders(source_account_id);
+CREATE INDEX IF NOT EXISTS idx_so_next_exec ON standing_orders(next_execution_date) WHERE status = 'ACTIVE';
 
 -- ── Payment reversals tracking column ─────────────────────────────────────────
 ALTER TABLE payments
@@ -38,7 +30,7 @@ ALTER TABLE loans
     ADD COLUMN IF NOT EXISTS write_off_reason TEXT;
 
 -- ── Loan repayment tracking (link repayment to payment) ───────────────────────
-CREATE TABLE loan_repayments (
+CREATE TABLE IF NOT EXISTS loan_repayments (
     id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     loan_id             UUID            NOT NULL REFERENCES loans(id),
     payment_id          UUID            REFERENCES payments(id),
@@ -202,7 +194,7 @@ CREATE TABLE IF NOT EXISTS qrtz_locks (
 );
 
 -- ── CoB Job Execution History ─────────────────────────────────────────────────
-CREATE TABLE cob_job_history (
+CREATE TABLE IF NOT EXISTS cob_job_history (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     job_name        VARCHAR(100)    NOT NULL,
     business_date   DATE            NOT NULL,

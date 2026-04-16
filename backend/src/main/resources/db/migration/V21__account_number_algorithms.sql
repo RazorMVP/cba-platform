@@ -24,7 +24,7 @@ COMMENT ON COLUMN tenants.country_params IS
     '"algorithms":{"SAVINGS":"NUBAN","CHECKING":"NUBAN","FIXED_DEPOSIT":"MIFOS"}}';
 
 -- ── 2. NUBAN serial number sequences ───────────────────────────────────
-CREATE TABLE nuban_sequences (
+CREATE TABLE IF NOT EXISTS nuban_sequences (
     tenant_id    UUID         NOT NULL REFERENCES tenants(id),
     account_type VARCHAR(50)  NOT NULL,
     last_sequence BIGINT      NOT NULL DEFAULT 0,

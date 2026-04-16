@@ -4,7 +4,7 @@
 -- ═══════════════════════════════════════════════════════════════════
 
 -- ── share_products ───────────────────────────────────────────────────
-CREATE TABLE share_products (
+CREATE TABLE IF NOT EXISTS share_products (
     id                          UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id                   UUID            REFERENCES tenants(id),
     name                        VARCHAR(100)    NOT NULL,
@@ -36,7 +36,7 @@ CREATE TABLE share_products (
 CREATE INDEX idx_share_products_tenant ON share_products(tenant_id);
 
 -- ── share_accounts ───────────────────────────────────────────────────
-CREATE TABLE share_accounts (
+CREATE TABLE IF NOT EXISTS share_accounts (
     id                          UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id                   UUID            REFERENCES tenants(id),
     account_number              VARCHAR(50)     UNIQUE NOT NULL,
@@ -75,7 +75,7 @@ CREATE INDEX idx_share_accounts_status   ON share_accounts(status);
 CREATE INDEX idx_share_accounts_tenant   ON share_accounts(tenant_id);
 
 -- ── share_account_transactions ───────────────────────────────────────
-CREATE TABLE share_account_transactions (
+CREATE TABLE IF NOT EXISTS share_account_transactions (
     id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id           UUID            REFERENCES tenants(id),
     share_account_id    UUID            NOT NULL REFERENCES share_accounts(id),
@@ -93,7 +93,7 @@ CREATE INDEX idx_share_txn_account ON share_account_transactions(share_account_i
 
 -- ── gsim_accounts ────────────────────────────────────────────────────
 -- Group Savings Individual Monitoring — links a group to shared savings accounts
-CREATE TABLE gsim_accounts (
+CREATE TABLE IF NOT EXISTS gsim_accounts (
     id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id           UUID            REFERENCES tenants(id),
     group_id            UUID            NOT NULL REFERENCES groups(id),
@@ -112,7 +112,7 @@ CREATE INDEX idx_gsim_group  ON gsim_accounts(group_id);
 CREATE INDEX idx_gsim_tenant ON gsim_accounts(tenant_id);
 
 -- ── gsim_members ─────────────────────────────────────────────────────
-CREATE TABLE gsim_members (
+CREATE TABLE IF NOT EXISTS gsim_members (
     id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     gsim_account_id     UUID            NOT NULL REFERENCES gsim_accounts(id),
     customer_id         UUID            NOT NULL REFERENCES customers(id),

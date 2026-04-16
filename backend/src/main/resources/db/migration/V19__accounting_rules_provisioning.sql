@@ -4,7 +4,7 @@
 -- ═══════════════════════════════════════════════════════════════════
 
 -- ── accounting_rules ─────────────────────────────────────────────
-CREATE TABLE accounting_rules (
+CREATE TABLE IF NOT EXISTS accounting_rules (
     id                      UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     name                    VARCHAR(200)    UNIQUE NOT NULL,
     description             TEXT,
@@ -21,7 +21,7 @@ CREATE TABLE accounting_rules (
 CREATE INDEX idx_accounting_rules_active ON accounting_rules(active);
 
 -- ── provisioning_criteria ─────────────────────────────────────────
-CREATE TABLE provisioning_criteria (
+CREATE TABLE IF NOT EXISTS provisioning_criteria (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     criteria_name   VARCHAR(200)    UNIQUE NOT NULL,
     is_active       BOOLEAN         NOT NULL DEFAULT TRUE,
@@ -30,7 +30,7 @@ CREATE TABLE provisioning_criteria (
     version         BIGINT          NOT NULL DEFAULT 0
 );
 
-CREATE TABLE provisioning_criteria_definitions (
+CREATE TABLE IF NOT EXISTS provisioning_criteria_definitions (
     id                      UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     criteria_id             UUID            NOT NULL REFERENCES provisioning_criteria(id),
     category_name           VARCHAR(100)    NOT NULL,

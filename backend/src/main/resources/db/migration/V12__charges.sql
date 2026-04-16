@@ -5,7 +5,7 @@
 
 -- ── charge_definitions ───────────────────────────────────────────────
 -- Global charge catalogue (templates) managed by ADMIN
-CREATE TABLE charge_definitions (
+CREATE TABLE IF NOT EXISTS charge_definitions (
     id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id           UUID            REFERENCES tenants(id),
     name                VARCHAR(100)    NOT NULL,
@@ -34,7 +34,7 @@ CREATE INDEX idx_charge_defs_tenant  ON charge_definitions(tenant_id);
 
 -- ── loan_charges ──────────────────────────────────────────────────────
 -- Charges applied to a specific loan (derived from a charge_definition)
-CREATE TABLE loan_charges (
+CREATE TABLE IF NOT EXISTS loan_charges (
     id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id           UUID            REFERENCES tenants(id),
     loan_id             UUID            NOT NULL REFERENCES loans(id),
@@ -63,7 +63,7 @@ CREATE INDEX idx_loan_charges_loan   ON loan_charges(loan_id);
 CREATE INDEX idx_loan_charges_tenant ON loan_charges(tenant_id);
 
 -- ── client_charges ────────────────────────────────────────────────────
-CREATE TABLE client_charges (
+CREATE TABLE IF NOT EXISTS client_charges (
     id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id           UUID            REFERENCES tenants(id),
     customer_id         UUID            NOT NULL REFERENCES customers(id),
@@ -90,7 +90,7 @@ CREATE INDEX idx_client_charges_tenant   ON client_charges(tenant_id);
 
 -- ── charge_transactions ───────────────────────────────────────────────
 -- Payment records for both loan and client charges
-CREATE TABLE charge_transactions (
+CREATE TABLE IF NOT EXISTS charge_transactions (
     id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id           UUID            REFERENCES tenants(id),
     loan_charge_id      UUID            REFERENCES loan_charges(id),

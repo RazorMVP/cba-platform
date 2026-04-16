@@ -4,7 +4,7 @@
 -- ═══════════════════════════════════════════════════════════════════
 
 -- ── fixed_deposit_products ───────────────────────────────────────────
-CREATE TABLE fixed_deposit_products (
+CREATE TABLE IF NOT EXISTS fixed_deposit_products (
     id                          UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id                   UUID            REFERENCES tenants(id),
     name                        VARCHAR(100)    NOT NULL,
@@ -37,7 +37,7 @@ CREATE TABLE fixed_deposit_products (
 CREATE INDEX idx_fd_products_tenant ON fixed_deposit_products(tenant_id);
 
 -- ── fixed_deposit_accounts ───────────────────────────────────────────
-CREATE TABLE fixed_deposit_accounts (
+CREATE TABLE IF NOT EXISTS fixed_deposit_accounts (
     id                          UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id                   UUID            REFERENCES tenants(id),
     account_number              VARCHAR(50)     UNIQUE NOT NULL,
@@ -82,7 +82,7 @@ CREATE INDEX idx_fd_accounts_status   ON fixed_deposit_accounts(status);
 CREATE INDEX idx_fd_accounts_tenant   ON fixed_deposit_accounts(tenant_id);
 
 -- ── recurring_deposit_products ───────────────────────────────────────
-CREATE TABLE recurring_deposit_products (
+CREATE TABLE IF NOT EXISTS recurring_deposit_products (
     id                              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id                       UUID            REFERENCES tenants(id),
     name                            VARCHAR(100)    NOT NULL,
@@ -116,7 +116,7 @@ CREATE TABLE recurring_deposit_products (
 CREATE INDEX idx_rd_products_tenant ON recurring_deposit_products(tenant_id);
 
 -- ── recurring_deposit_accounts ───────────────────────────────────────
-CREATE TABLE recurring_deposit_accounts (
+CREATE TABLE IF NOT EXISTS recurring_deposit_accounts (
     id                              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id                       UUID            REFERENCES tenants(id),
     account_number                  VARCHAR(50)     UNIQUE NOT NULL,
@@ -160,7 +160,7 @@ CREATE INDEX idx_rd_accounts_tenant   ON recurring_deposit_accounts(tenant_id);
 
 -- ── deposit_account_transactions ─────────────────────────────────────
 -- Shared for both FD and RD; exactly one of fd_account_id / rd_account_id is set
-CREATE TABLE deposit_account_transactions (
+CREATE TABLE IF NOT EXISTS deposit_account_transactions (
     id                          UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id                   UUID            REFERENCES tenants(id),
     fd_account_id               UUID            REFERENCES fixed_deposit_accounts(id),
@@ -168,13 +168,17 @@ CREATE TABLE deposit_account_transactions (
     transaction_type            VARCHAR(30)     NOT NULL,
     -- DEPOSIT | WITHDRAWAL | INTEREST_POSTING | OVERHEAD_FEE | WITHHOLDING_TAX |
     -- WAIVE_CHARGES | PRE_CLOSURE | CLOSURE | MATURITY | REINSTATE
-    currency_code               CHAR(3)         NOT NULL DEFAULT 'USD',
+    currency_code               VARCHAR(3)      NOT NULL DEFAULT 'USD',
     amount                      NUMERIC(19,4)   NOT NULL,
     running_balance             NUMERIC(19,4)   NOT NULL DEFAULT 0,
     transaction_date            DATE            NOT NULL DEFAULT CURRENT_DATE,
     submitted_on_date           DATE            NOT NULL DEFAULT CURRENT_DATE,
     reversed                    BOOLEAN         NOT NULL DEFAULT FALSE,
-    created_at                  TIMESTAMPTZ     NOT NULL DEFAULT now()
+    reference_number            VARCHAR(50),
+    note                        TEXT,
+    version                     BIGINT          NOT NULL DEFAULT 0,
+    created_at                  TIMESTAMPTZ     NOT NULL DEFAULT now(),
+    updated_at                  TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_dep_txn_fd  ON deposit_account_transactions(fd_account_id);

@@ -7,31 +7,33 @@
 
 -- ── codes & code_values ───────────────────────────────────────────────
 -- Mifos-style configurable lookup lists
-CREATE TABLE codes (
+CREATE TABLE IF NOT EXISTS codes (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
-    code_name       VARCHAR(100)    UNIQUE NOT NULL,
-    system_defined  BOOLEAN         NOT NULL DEFAULT FALSE,
+    name            VARCHAR(100)    UNIQUE NOT NULL,
+    is_system_defined BOOLEAN       NOT NULL DEFAULT FALSE,
+    version         BIGINT          NOT NULL DEFAULT 0,
     created_at      TIMESTAMPTZ     NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
 
-CREATE TABLE code_values (
+CREATE TABLE IF NOT EXISTS code_values (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     code_id         UUID            NOT NULL REFERENCES codes(id),
-    code_value      VARCHAR(200)    NOT NULL,
-    code_description TEXT,
+    label           VARCHAR(100)    NOT NULL,
+    description     TEXT,
     code_score      INT             NOT NULL DEFAULT 0,
-    order_position  INT             NOT NULL DEFAULT 0,
-    active          BOOLEAN         NOT NULL DEFAULT TRUE,
+    code_value_order INT            NOT NULL DEFAULT 0,
+    is_active       BOOLEAN         NOT NULL DEFAULT TRUE,
     mandatory       BOOLEAN         NOT NULL DEFAULT FALSE,
+    version         BIGINT          NOT NULL DEFAULT 0,
     created_at      TIMESTAMPTZ     NOT NULL DEFAULT now(),
-    UNIQUE (code_id, code_value)
+    UNIQUE (code_id, label)
 );
 
 CREATE INDEX idx_code_values_code ON code_values(code_id);
 
 -- Seed system-defined codes
-INSERT INTO codes (code_name, system_defined) VALUES
+INSERT INTO codes (name, is_system_defined) VALUES
     ('Gender', TRUE),
     ('ClientClassification', TRUE),
     ('ClientType', TRUE),
@@ -43,19 +45,22 @@ INSERT INTO codes (code_name, system_defined) VALUES
     ('YesNo', TRUE);
 
 -- ── global_configurations ─────────────────────────────────────────────
-CREATE TABLE global_configurations (
+CREATE TABLE IF NOT EXISTS global_configurations (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     name            VARCHAR(100)    UNIQUE NOT NULL,
     value           BIGINT          NOT NULL DEFAULT 0,
     string_value    VARCHAR(500),
-    enabled         BOOLEAN         NOT NULL DEFAULT FALSE,
+    numeric_value   BIGINT,
+    boolean_value   BOOLEAN,
+    is_enabled      BOOLEAN         NOT NULL DEFAULT FALSE,
     trap_door       BOOLEAN         NOT NULL DEFAULT FALSE,
     description     TEXT,
+    version         BIGINT          NOT NULL DEFAULT 0,
     created_at      TIMESTAMPTZ     NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
 
-INSERT INTO global_configurations (name, value, enabled, description) VALUES
+INSERT INTO global_configurations (name, value, is_enabled, description) VALUES
     ('maker-checker', 0, FALSE, 'Enable maker-checker for state-changing operations'),
     ('amazon-S3', 0, FALSE, 'Use Amazon S3 for document storage'),
     ('rounding-mode', 6, TRUE, 'Rounding mode for financial calculations'),
@@ -75,7 +80,7 @@ INSERT INTO global_configurations (name, value, enabled, description) VALUES
     ('is-principal-compounding-disabled-for-overdue-loans', 0, FALSE, 'Disable principal compounding on overdue loans');
 
 -- ── funds ─────────────────────────────────────────────────────────────
-CREATE TABLE funds (
+CREATE TABLE IF NOT EXISTS funds (
     id          UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     name        VARCHAR(100)    UNIQUE NOT NULL,
     external_id VARCHAR(100),
@@ -85,26 +90,28 @@ CREATE TABLE funds (
 );
 
 -- ── payment_types ─────────────────────────────────────────────────────
-CREATE TABLE payment_types (
+CREATE TABLE IF NOT EXISTS payment_types (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     name            VARCHAR(100)    UNIQUE NOT NULL,
     description     VARCHAR(500),
     is_cash_payment BOOLEAN         NOT NULL DEFAULT FALSE,
-    order_position  INT             NOT NULL DEFAULT 0,
+    is_system_defined BOOLEAN       NOT NULL DEFAULT FALSE,
+    code_value_position INT         NOT NULL DEFAULT 0,
+    version         BIGINT          NOT NULL DEFAULT 0,
     created_at      TIMESTAMPTZ     NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
 
-INSERT INTO payment_types (name, description, is_cash_payment, order_position) VALUES
-    ('Cash', 'Physical cash payment', TRUE, 1),
-    ('Mobile Money', 'Mobile money transfer (M-Pesa, Airtel Money, etc.)', FALSE, 2),
-    ('Bank Transfer', 'Direct bank transfer / SWIFT / SEPA', FALSE, 3),
-    ('Cheque', 'Paper cheque payment', FALSE, 4),
-    ('Card', 'Debit or credit card payment', FALSE, 5),
-    ('Direct Debit', 'Automated direct debit / standing order', FALSE, 6);
+INSERT INTO payment_types (name, description, is_cash_payment, is_system_defined, code_value_position) VALUES
+    ('Cash', 'Physical cash payment', TRUE, TRUE, 1),
+    ('Mobile Money', 'Mobile money transfer (M-Pesa, Airtel Money, etc.)', FALSE, TRUE, 2),
+    ('Bank Transfer', 'Direct bank transfer / SWIFT / SEPA', FALSE, TRUE, 3),
+    ('Cheque', 'Paper cheque payment', FALSE, TRUE, 4),
+    ('Card', 'Debit or credit card payment', FALSE, TRUE, 5),
+    ('Direct Debit', 'Automated direct debit / standing order', FALSE, TRUE, 6);
 
 -- ── floating_rates ────────────────────────────────────────────────────
-CREATE TABLE floating_rates (
+CREATE TABLE IF NOT EXISTS floating_rates (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     name            VARCHAR(200)    UNIQUE NOT NULL,
     is_base_lending_rate BOOLEAN    NOT NULL DEFAULT FALSE,
@@ -115,7 +122,7 @@ CREATE TABLE floating_rates (
     version         BIGINT          NOT NULL DEFAULT 0
 );
 
-CREATE TABLE floating_rate_periods (
+CREATE TABLE IF NOT EXISTS floating_rate_periods (
     id                      UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     floating_rate_id        UUID            NOT NULL REFERENCES floating_rates(id),
     from_date               DATE            NOT NULL,
@@ -127,7 +134,7 @@ CREATE TABLE floating_rate_periods (
 CREATE INDEX idx_floating_rate_periods_rate ON floating_rate_periods(floating_rate_id);
 
 -- ── tax_components ────────────────────────────────────────────────────
-CREATE TABLE tax_components (
+CREATE TABLE IF NOT EXISTS tax_components (
     id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     name                VARCHAR(100)    NOT NULL,
     percentage          NUMERIC(8,4)    NOT NULL,
@@ -142,7 +149,7 @@ CREATE TABLE tax_components (
 );
 
 -- ── tax_groups ────────────────────────────────────────────────────────
-CREATE TABLE tax_groups (
+CREATE TABLE IF NOT EXISTS tax_groups (
     id          UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     name        VARCHAR(100)    NOT NULL,
     created_at  TIMESTAMPTZ     NOT NULL DEFAULT now(),
@@ -150,7 +157,7 @@ CREATE TABLE tax_groups (
     version     BIGINT          NOT NULL DEFAULT 0
 );
 
-CREATE TABLE tax_group_mappings (
+CREATE TABLE IF NOT EXISTS tax_group_mappings (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     tax_group_id    UUID            NOT NULL REFERENCES tax_groups(id),
     tax_component_id UUID           NOT NULL REFERENCES tax_components(id),
@@ -161,7 +168,7 @@ CREATE TABLE tax_group_mappings (
 
 -- ── rates ─────────────────────────────────────────────────────────────
 -- Fineract rates — interest rate overrides for specific loan conditions
-CREATE TABLE rates (
+CREATE TABLE IF NOT EXISTS rates (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     name            VARCHAR(200)    UNIQUE NOT NULL,
     percentage      NUMERIC(8,4)    NOT NULL,
@@ -175,12 +182,12 @@ CREATE TABLE rates (
 );
 
 -- ── accounting_rules ──────────────────────────────────────────────────
-CREATE TABLE accounting_rules (
+CREATE TABLE IF NOT EXISTS accounting_rules (
     id                      UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id               UUID            REFERENCES tenants(id),
     office_id               UUID            REFERENCES offices(id),
-    account_to_debit        UUID            REFERENCES gl_accounts(id),
-    account_to_credit       UUID            REFERENCES gl_accounts(id),
+    debit_account_id        UUID            REFERENCES gl_accounts(id),
+    credit_account_id       UUID            REFERENCES gl_accounts(id),
     name                    VARCHAR(200)    NOT NULL,
     description             TEXT,
     system_defined          BOOLEAN         NOT NULL DEFAULT FALSE,
@@ -196,22 +203,23 @@ CREATE INDEX idx_accounting_rules_office ON accounting_rules(office_id);
 CREATE INDEX idx_accounting_rules_tenant ON accounting_rules(tenant_id);
 
 -- ── provisioning_criteria ─────────────────────────────────────────────
-CREATE TABLE provisioning_criteria (
+CREATE TABLE IF NOT EXISTS provisioning_criteria (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     criteria_name   VARCHAR(200)    UNIQUE NOT NULL,
+    is_active       BOOLEAN         NOT NULL DEFAULT TRUE,
     created_by      VARCHAR(100),
     created_at      TIMESTAMPTZ     NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ     NOT NULL DEFAULT now(),
     version         BIGINT          NOT NULL DEFAULT 0
 );
 
-CREATE TABLE provisioning_criteria_definitions (
+CREATE TABLE IF NOT EXISTS provisioning_criteria_definitions (
     id                      UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     criteria_id             UUID            NOT NULL REFERENCES provisioning_criteria(id),
     category_name           VARCHAR(100)    NOT NULL,
     min_age                 INT             NOT NULL DEFAULT 0,
     max_age                 INT             NOT NULL,
-    provision_percentage    NUMERIC(8,4)    NOT NULL,
+    provision_percentage    NUMERIC(5,2)    NOT NULL,
     liability_account_id    UUID            REFERENCES gl_accounts(id),
     expense_account_id      UUID            REFERENCES gl_accounts(id),
     created_at              TIMESTAMPTZ     NOT NULL DEFAULT now()
@@ -220,7 +228,7 @@ CREATE TABLE provisioning_criteria_definitions (
 CREATE INDEX idx_prov_criteria_def ON provisioning_criteria_definitions(criteria_id);
 
 -- ── provisioning_entries ──────────────────────────────────────────────
-CREATE TABLE provisioning_entries (
+CREATE TABLE IF NOT EXISTS provisioning_entries (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     criteria_id     UUID            REFERENCES provisioning_criteria(id),
     created_by      VARCHAR(100),
@@ -230,7 +238,7 @@ CREATE TABLE provisioning_entries (
     version         BIGINT          NOT NULL DEFAULT 0
 );
 
-CREATE TABLE provisioning_entry_details (
+CREATE TABLE IF NOT EXISTS provisioning_entry_details (
     id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     entry_id            UUID            NOT NULL REFERENCES provisioning_entries(id),
     criteria_id         UUID            REFERENCES provisioning_criteria(id),
@@ -247,13 +255,14 @@ CREATE TABLE provisioning_entry_details (
 CREATE INDEX idx_prov_entry_details ON provisioning_entry_details(entry_id);
 
 -- ── account_number_formats ────────────────────────────────────────────
-CREATE TABLE account_number_formats (
+CREATE TABLE IF NOT EXISTS account_number_formats (
     id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     account_type        VARCHAR(30)     UNIQUE NOT NULL,
     -- LOAN | SAVINGS | CLIENT | SHARE
     prefix_type         VARCHAR(30)     NOT NULL DEFAULT 'ID',
     -- ID | OFFICE_NAME | LOAN_PRODUCT_SHORT_NAME | SAVINGS_PRODUCT_SHORT_NAME | SHARE_PRODUCT_SHORT_NAME
     prefix_character    VARCHAR(10),
+    version             BIGINT          NOT NULL DEFAULT 0,
     created_at          TIMESTAMPTZ     NOT NULL DEFAULT now(),
     updated_at          TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
@@ -266,16 +275,17 @@ INSERT INTO account_number_formats (account_type, prefix_type) VALUES
 
 -- ── roles & permissions ───────────────────────────────────────────────
 -- REST-managed roles/permissions (mirrors Keycloak roles but also stored locally)
-CREATE TABLE roles (
+CREATE TABLE IF NOT EXISTS roles (
     id          UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     name        VARCHAR(100)    UNIQUE NOT NULL,
     description VARCHAR(500),
-    disabled    BOOLEAN         NOT NULL DEFAULT FALSE,
+    is_disabled BOOLEAN         NOT NULL DEFAULT FALSE,
+    version     BIGINT          NOT NULL DEFAULT 0,
     created_at  TIMESTAMPTZ     NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
 
-CREATE TABLE permissions (
+CREATE TABLE IF NOT EXISTS permissions (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     grouping        VARCHAR(100)    NOT NULL,
     code            VARCHAR(200)    UNIQUE NOT NULL,
@@ -285,7 +295,7 @@ CREATE TABLE permissions (
     created_at      TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
 
-CREATE TABLE role_permissions (
+CREATE TABLE IF NOT EXISTS role_permissions (
     role_id         UUID    NOT NULL REFERENCES roles(id),
     permission_id   UUID    NOT NULL REFERENCES permissions(id),
     PRIMARY KEY (role_id, permission_id)

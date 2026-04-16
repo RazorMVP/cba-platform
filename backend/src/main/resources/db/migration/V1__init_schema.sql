@@ -245,8 +245,6 @@ CREATE TABLE open_banking_consents (
     consent_id      VARCHAR(50) UNIQUE NOT NULL,
     customer_id     UUID        NOT NULL REFERENCES customers(id),
     tpp_client_id   VARCHAR(100) NOT NULL,
-    scopes          TEXT[]      NOT NULL,
-    -- e.g. ARRAY['accounts', 'transactions', 'payments']
     status          VARCHAR(30) NOT NULL DEFAULT 'AWAITING_AUTHORISATION',
     -- AWAITING_AUTHORISATION | AUTHORISED | REVOKED | EXPIRED
     expiry_date     TIMESTAMPTZ,
@@ -254,8 +252,14 @@ CREATE TABLE open_banking_consents (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE consent_scopes (
+    consent_id  UUID        NOT NULL REFERENCES open_banking_consents(id),
+    scope       VARCHAR(100) NOT NULL
+);
+
 CREATE INDEX idx_consents_customer ON open_banking_consents(customer_id);
 CREATE INDEX idx_consents_status   ON open_banking_consents(status);
+CREATE INDEX idx_consent_scopes    ON consent_scopes(consent_id);
 
 -- ── audit_log (append-only — NEVER UPDATE OR DELETE) ─────────────────
 CREATE TABLE audit_log (

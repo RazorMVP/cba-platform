@@ -7,51 +7,55 @@
 
 -- ── maker_checkers ────────────────────────────────────────────────────
 -- Command-source pattern — every write can require 2-person approval
-CREATE TABLE maker_checkers (
+CREATE TABLE IF NOT EXISTS maker_checkers (
     id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id           UUID            REFERENCES tenants(id),
     action_name         VARCHAR(100)    NOT NULL,
     entity_name         VARCHAR(100)    NOT NULL,
-    maker_id            VARCHAR(100)    NOT NULL,
+    made_by_user_id     UUID            NOT NULL,
     made_on_date        TIMESTAMPTZ     NOT NULL DEFAULT now(),
-    checker_id          VARCHAR(100),
+    checked_by_user_id  UUID,
     checked_on_date     TIMESTAMPTZ,
-    processing_result   VARCHAR(20)     NOT NULL DEFAULT 'PENDING',
+    status              VARCHAR(20)     NOT NULL DEFAULT 'PENDING',
     -- PENDING | APPROVED | REJECTED
     command_as_json     TEXT            NOT NULL,
     -- Full request payload stored for re-execution after approval
     url                 VARCHAR(500),
     api_get_url         VARCHAR(500),
-    resource_id         UUID,
+    entity_id           UUID,
     sub_resource_id     UUID,
-    error               TEXT,
+    processing_result   TEXT,
+    version             BIGINT          NOT NULL DEFAULT 0,
     created_at          TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_maker_checkers_status ON maker_checkers(processing_result);
-CREATE INDEX idx_maker_checkers_maker  ON maker_checkers(maker_id);
+CREATE INDEX idx_maker_checkers_status ON maker_checkers(status);
+CREATE INDEX idx_maker_checkers_maker  ON maker_checkers(made_by_user_id);
 CREATE INDEX idx_maker_checkers_tenant ON maker_checkers(tenant_id);
 
 -- ── datatables ────────────────────────────────────────────────────────
 -- Dynamic schema — admins register extra columns against core entities
-CREATE TABLE datatables (
+CREATE TABLE IF NOT EXISTS datatables (
     id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     registered_table_name VARCHAR(100)  UNIQUE NOT NULL,
     application_table_name VARCHAR(100) NOT NULL,
     -- m_client | m_loan | m_savings_account | m_group etc. (Mifos naming)
     system_defined      BOOLEAN         NOT NULL DEFAULT FALSE,
     allow_multiple_rows BOOLEAN         NOT NULL DEFAULT FALSE,
-    created_at          TIMESTAMPTZ     NOT NULL DEFAULT now()
+    version             BIGINT          NOT NULL DEFAULT 0,
+    created_at          TIMESTAMPTZ     NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
 
-CREATE TABLE datatable_column_definitions (
+CREATE TABLE IF NOT EXISTS datatable_column_definitions (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     datatable_id    UUID            NOT NULL REFERENCES datatables(id),
     column_name     VARCHAR(100)    NOT NULL,
     column_type     VARCHAR(30)     NOT NULL,
     -- STRING | NUMBER | DECIMAL | DATE | DATETIME | TEXT | DROPDOWN | CHECKBOX | CODELOOKUP
-    nullable        BOOLEAN         NOT NULL DEFAULT TRUE,
-    unique_column   BOOLEAN         NOT NULL DEFAULT FALSE,
+    column_length   INT,
+    is_nullable     BOOLEAN         NOT NULL DEFAULT TRUE,
+    is_unique       BOOLEAN         NOT NULL DEFAULT FALSE,
     indexed         BOOLEAN         NOT NULL DEFAULT FALSE,
     code_id         UUID            REFERENCES codes(id),
     -- Only for DROPDOWN/CODELOOKUP types
@@ -63,7 +67,7 @@ CREATE TABLE datatable_column_definitions (
 CREATE INDEX idx_datatable_cols_table ON datatable_column_definitions(datatable_id);
 
 -- ── two_factor_auth ───────────────────────────────────────────────────
-CREATE TABLE two_factor_auth_tokens (
+CREATE TABLE IF NOT EXISTS two_factor_auth_tokens (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id         UUID            REFERENCES platform_users(id),
     token           VARCHAR(20)     NOT NULL,
@@ -79,7 +83,7 @@ CREATE INDEX idx_2fa_token   ON two_factor_auth_tokens(token);
 
 -- ── beneficiaries ─────────────────────────────────────────────────────
 -- Third-party transfer beneficiaries (self-service)
-CREATE TABLE beneficiaries (
+CREATE TABLE IF NOT EXISTS beneficiaries (
     id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     customer_id         UUID            NOT NULL REFERENCES customers(id),
     name                VARCHAR(200)    NOT NULL,
@@ -95,7 +99,7 @@ CREATE TABLE beneficiaries (
 CREATE INDEX idx_beneficiaries_customer ON beneficiaries(customer_id);
 
 -- ── credit_bureau_configuration ───────────────────────────────────────
-CREATE TABLE credit_bureau_integrations (
+CREATE TABLE IF NOT EXISTS credit_bureau_integrations (
     id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     name                VARCHAR(100)    NOT NULL,
     impl_class          VARCHAR(300)    NOT NULL,
@@ -106,7 +110,7 @@ CREATE TABLE credit_bureau_integrations (
     updated_at          TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
 
-CREATE TABLE credit_bureau_product_mappings (
+CREATE TABLE IF NOT EXISTS credit_bureau_product_mappings (
     id                      UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     loan_product_id         UUID            NOT NULL REFERENCES loan_products(id),
     credit_bureau_id        UUID            NOT NULL REFERENCES credit_bureau_integrations(id),
@@ -116,7 +120,7 @@ CREATE TABLE credit_bureau_product_mappings (
 );
 
 -- ── surveys ───────────────────────────────────────────────────────────
-CREATE TABLE surveys (
+CREATE TABLE IF NOT EXISTS surveys (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     key             VARCHAR(100)    UNIQUE NOT NULL,
     name            VARCHAR(200)    NOT NULL,
@@ -128,7 +132,7 @@ CREATE TABLE surveys (
     created_at      TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
 
-CREATE TABLE survey_questions (
+CREATE TABLE IF NOT EXISTS survey_questions (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     survey_id       UUID            NOT NULL REFERENCES surveys(id),
     key             VARCHAR(100)    NOT NULL,
@@ -137,7 +141,7 @@ CREATE TABLE survey_questions (
     sequence_no     INT             NOT NULL DEFAULT 0
 );
 
-CREATE TABLE survey_responses (
+CREATE TABLE IF NOT EXISTS survey_responses (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     question_id     UUID            NOT NULL REFERENCES survey_questions(id),
     text            TEXT            NOT NULL,
@@ -145,7 +149,7 @@ CREATE TABLE survey_responses (
     sequence_no     INT             NOT NULL DEFAULT 0
 );
 
-CREATE TABLE survey_scorecards (
+CREATE TABLE IF NOT EXISTS survey_scorecards (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     survey_id       UUID            NOT NULL REFERENCES surveys(id),
     customer_id     UUID            NOT NULL REFERENCES customers(id),
@@ -157,7 +161,7 @@ CREATE TABLE survey_scorecards (
     created_at      TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
 
-CREATE TABLE survey_scorecard_scores (
+CREATE TABLE IF NOT EXISTS survey_scorecard_scores (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     scorecard_id    UUID            NOT NULL REFERENCES survey_scorecards(id),
     question_id     UUID            NOT NULL REFERENCES survey_questions(id),
@@ -170,33 +174,35 @@ CREATE INDEX idx_scorecards_customer ON survey_scorecards(customer_id);
 
 -- ── client_extensions ────────────────────────────────────────────────
 -- Client identifiers, addresses, images (previously on customer entity only)
-CREATE TABLE client_identifiers (
-    id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
-    customer_id         UUID            NOT NULL REFERENCES customers(id),
-    document_type_id    UUID            REFERENCES code_values(id),
+CREATE TABLE IF NOT EXISTS client_identifiers (
+    id                              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_id                     UUID            NOT NULL REFERENCES customers(id),
+    document_type_code_value_id     UUID            REFERENCES code_values(id),
     -- Code 'IdentifierDocumentType'
-    document_key        VARCHAR(200)    NOT NULL,
-    description         VARCHAR(500),
-    status              VARCHAR(20)     NOT NULL DEFAULT 'ACTIVE',
-    created_at          TIMESTAMPTZ     NOT NULL DEFAULT now(),
-    updated_at          TIMESTAMPTZ     NOT NULL DEFAULT now(),
-    version             BIGINT          NOT NULL DEFAULT 0
+    document_key                    VARCHAR(200)    NOT NULL,
+    description                     VARCHAR(500),
+    expiry_date                     DATE,
+    is_active                       BOOLEAN         NOT NULL DEFAULT TRUE,
+    status                          VARCHAR(20)     NOT NULL DEFAULT 'ACTIVE',
+    created_at                      TIMESTAMPTZ     NOT NULL DEFAULT now(),
+    updated_at                      TIMESTAMPTZ     NOT NULL DEFAULT now(),
+    version                         BIGINT          NOT NULL DEFAULT 0
 );
 
 CREATE INDEX idx_client_ids_customer ON client_identifiers(customer_id);
 
-CREATE TABLE client_addresses (
+CREATE TABLE IF NOT EXISTS client_addresses (
     id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     customer_id         UUID            NOT NULL REFERENCES customers(id),
-    address_type_id     UUID            REFERENCES code_values(id),
+    address_type        VARCHAR(20),
     is_active           BOOLEAN         NOT NULL DEFAULT TRUE,
-    line_1              VARCHAR(200),
-    line_2              VARCHAR(200),
-    line_3              VARCHAR(200),
+    address_line_1      VARCHAR(255),
+    address_line_2      VARCHAR(255),
+    address_line_3      VARCHAR(255),
     city                VARCHAR(100),
     county_district     VARCHAR(100),
-    state_province_id   UUID            REFERENCES code_values(id),
-    country_id          UUID            REFERENCES code_values(id),
+    state_province      VARCHAR(100),
+    country_code        VARCHAR(3),
     postal_code         VARCHAR(20),
     latitude            NUMERIC(10,6),
     longitude           NUMERIC(10,6),
@@ -207,7 +213,7 @@ CREATE TABLE client_addresses (
 
 CREATE INDEX idx_client_addresses_customer ON client_addresses(customer_id);
 
-CREATE TABLE client_images (
+CREATE TABLE IF NOT EXISTS client_images (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     customer_id     UUID            NOT NULL UNIQUE REFERENCES customers(id),
     location        VARCHAR(500),

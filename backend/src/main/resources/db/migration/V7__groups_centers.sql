@@ -45,10 +45,12 @@ CREATE INDEX idx_groups_staff  ON groups(staff_id);
 
 -- ── Group Members (customers in groups) ──────────────────────────────────────
 CREATE TABLE group_members (
-    group_id    UUID    NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-    customer_id UUID    NOT NULL REFERENCES customers(id),
-    joined_date DATE    NOT NULL DEFAULT CURRENT_DATE,
-    PRIMARY KEY (group_id, customer_id)
+    id          UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
+    group_id    UUID            NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    customer_id UUID            NOT NULL REFERENCES customers(id),
+    joining_date DATE           NOT NULL DEFAULT CURRENT_DATE,
+    is_active   BOOLEAN         NOT NULL DEFAULT TRUE,
+    UNIQUE (group_id, customer_id)
 );
 
 -- ── GLIM — Group Loan (one loan account shared by group members) ──────────────
@@ -97,12 +99,9 @@ CREATE TABLE collection_sheet_items (
     collection_sheet_id UUID            NOT NULL REFERENCES collection_sheets(id) ON DELETE CASCADE,
     customer_id         UUID            NOT NULL REFERENCES customers(id),
     loan_id             UUID            REFERENCES loans(id),
-    account_id          UUID            REFERENCES accounts(id),
-    amount_due          NUMERIC(19,4)   NOT NULL DEFAULT 0,
-    amount_paid         NUMERIC(19,4),
-    charge_amount       NUMERIC(19,4)   NOT NULL DEFAULT 0,
-    currency_code       VARCHAR(3)      NOT NULL DEFAULT 'USD',
-    item_type           VARCHAR(20)     NOT NULL CHECK (item_type IN ('LOAN_REPAYMENT','SAVINGS_DEPOSIT')),
+    due_amount          NUMERIC(19,4)   NOT NULL DEFAULT 0,
+    collected_amount    NUMERIC(19,4),
+    is_collected        BOOLEAN         NOT NULL DEFAULT FALSE,
     created_at          TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
 

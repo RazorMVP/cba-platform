@@ -2,7 +2,7 @@
 -- Templates define the content for email/SMS events.
 -- Logs track every delivery attempt.
 
-CREATE TABLE notification_templates (
+CREATE TABLE IF NOT EXISTS notification_templates (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name             VARCHAR(120)  NOT NULL UNIQUE,
     event_type       VARCHAR(80)   NOT NULL,
@@ -15,7 +15,7 @@ CREATE TABLE notification_templates (
     updated_at       TIMESTAMPTZ   NOT NULL DEFAULT now()
 );
 
-CREATE TABLE notification_logs (
+CREATE TABLE IF NOT EXISTS notification_logs (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     template_id      UUID REFERENCES notification_templates(id),
     event_type       VARCHAR(80)   NOT NULL,

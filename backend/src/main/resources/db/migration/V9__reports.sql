@@ -5,11 +5,11 @@ CREATE TABLE reports (
     report_name     VARCHAR(200)    NOT NULL UNIQUE,
     report_type     VARCHAR(20)     NOT NULL DEFAULT 'TABLE'
                         CHECK (report_type IN ('TABLE','CHART','SMS','PENTAHO')),
-    report_category VARCHAR(100)    NOT NULL DEFAULT 'General',
+    category        VARCHAR(100)    NOT NULL DEFAULT 'General',
     description     TEXT,
     report_sql      TEXT            NOT NULL,   -- parameterised SQL; params as ${paramName}
     core_report     BOOLEAN         NOT NULL DEFAULT FALSE,  -- built-in; cannot be deleted
-    use_report      BOOLEAN         NOT NULL DEFAULT TRUE,
+    enabled         BOOLEAN         NOT NULL DEFAULT TRUE,
     tenant_id       UUID,
     version         BIGINT          NOT NULL DEFAULT 0,
     created_at      TIMESTAMPTZ     NOT NULL DEFAULT now(),
@@ -20,18 +20,18 @@ CREATE TABLE report_parameters (
     id              UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     report_id       UUID            NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
     parameter_name  VARCHAR(100)    NOT NULL,
-    parameter_label VARCHAR(200),
-    parameter_type  VARCHAR(20)     NOT NULL DEFAULT 'STRING'
-                        CHECK (parameter_type IN ('STRING','DATE','INTEGER','DECIMAL','BOOLEAN')),
-    is_optional     BOOLEAN         NOT NULL DEFAULT FALSE,
-    default_value   VARCHAR(200),
+    parameter_label VARCHAR(100),
+    parameter_type  VARCHAR(20)     NOT NULL DEFAULT 'STRING',
+    default_value   VARCHAR(255),
+    required        BOOLEAN         NOT NULL DEFAULT FALSE,
+    sort_order      INT             NOT NULL DEFAULT 0,
     created_at      TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_report_params_report ON report_parameters(report_id);
 
 -- ── Seed built-in reports ─────────────────────────────────────────────────────
-INSERT INTO reports (id, report_name, report_type, report_category, description, report_sql, core_report) VALUES
+INSERT INTO reports (id, report_name, report_type, category, description, report_sql, core_report) VALUES
 
 ('40000000-0000-0000-0000-000000000001',
  'ActiveLoans',
@@ -125,7 +125,7 @@ INSERT INTO reports (id, report_name, report_type, report_category, description,
          SUM(CASE WHEN je.entry_type=''DEBIT''  THEN je.amount ELSE 0 END)
            - SUM(CASE WHEN je.entry_type=''CREDIT'' THEN je.amount ELSE 0 END) as net_balance
   FROM gl_accounts ga
-  LEFT JOIN journal_entries je ON je.gl_account_id = ga.id AND je.reversed = FALSE
+  LEFT JOIN journal_entries je ON je.gl_account_id = ga.id AND je.is_reversed = FALSE
   WHERE ga.usage = ''DETAIL''
   GROUP BY ga.id, ga.gl_code, ga.name, ga.account_type
   ORDER BY ga.gl_code',
@@ -147,6 +147,6 @@ INSERT INTO reports (id, report_name, report_type, report_category, description,
  TRUE);
 
 -- ── Report parameters for date-range reports ──────────────────────────────────
-INSERT INTO report_parameters (report_id, parameter_name, parameter_label, parameter_type, is_optional, default_value) VALUES
-('40000000-0000-0000-0000-000000000005', 'R_startDate', 'Start Date', 'DATE', TRUE, NULL),
-('40000000-0000-0000-0000-000000000005', 'R_endDate',   'End Date',   'DATE', TRUE, NULL);
+INSERT INTO report_parameters (report_id, parameter_name, parameter_label, parameter_type, required, sort_order) VALUES
+('40000000-0000-0000-0000-000000000005', 'R_startDate', 'Start Date', 'DATE', FALSE, 1),
+('40000000-0000-0000-0000-000000000005', 'R_endDate',   'End Date',   'DATE', FALSE, 2);

@@ -1437,8 +1437,36 @@ difference = actual_cash - closing_balance</pre>
 
 <!-- EXCHANGE RATES ──────────────────────────────────────────────────────── -->
 <section id="exchange-rates">
-<h2>Exchange Rates &amp; Multi-Currency</h2>
-<p>Admin-managed exchange rates for cross-currency transfers. Rates are stored to 8 decimal places.</p>
+<h2>Tenants &amp; Exchange Rates</h2>
+<p>Tenant management and admin-managed exchange rates for cross-currency transfers. Rates are stored to 8 decimal places.</p>
+
+<h3>Tenants</h3>
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/tenants</span>
+    <span class="endpoint-summary">List all tenants</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Returns all tenant records. Used by the Account Algorithms UI to load per-tenant algorithm configuration. Requires ADMIN role.</p>
+    <pre>Response 200:
+{
+  "data": [
+    {
+      "id": "11111111-...",
+      "code": "DEFAULT",
+      "name": "CBA United States",
+      "currencyCode": "USD",
+      "countryCode": "US",
+      "localeCode": "en-US",
+      "active": true
+    }
+  ],
+  "meta": {},
+  "errors": []
+}</pre>
+  </div>
+</details>
 
 <div class="callout info">When you set the USD→KES rate, the inverse KES→USD rate is automatically calculated and stored. You never need to set both directions.</div>
 
@@ -2527,6 +2555,8 @@ Content-Type: application/json
 <tr><td>DELETE</td><td>/open-banking/v3.1/consents/{id}</td><td>Revoke consent</td><td>API_CLIENT</td></tr>
 <tr><td>POST</td><td>/open-banking/v3.1/domestic-payments</td><td>PISP payment</td><td>API_CLIENT</td></tr>
 <tr><td>POST</td><td>/open-banking/v3.1/funds-confirmation</td><td>CBPII check</td><td>API_CLIENT</td></tr>
+<!-- Tenants -->
+<tr><td>GET</td><td>/api/v1/tenants</td><td>List tenants</td><td>ADMIN</td></tr>
 <!-- Exchange Rates -->
 <tr><td>GET</td><td>/api/v1/exchange-rates</td><td>List rates</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/exchange-rates</td><td>Set rate</td><td>ADMIN</td></tr>

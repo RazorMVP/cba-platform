@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "CBA Platform API \u2014 Complete Reference (v2)",
-    "description": "# Core Banking Application (CBA) API Reference\n\n## Platform Overview\nThe CBA platform is a production-grade, multi-tenanted core banking system modelled on Apache Fineract / Mifos X conventions. It provides a secure, RESTful API for building banking applications including backoffice portals, customer mobile apps, and third-party integrations via Open Banking (FAPI 2.0).\n\n## Base URL\n- **Development**: http://localhost:8080\n- **Staging**: https://api-staging.cba.com\n- **Production**: https://api.cba.com\n\n## Authentication\nAll API requests require authentication. The CBA platform uses OAuth2 / OpenID Connect via Keycloak.\n\n### Obtaining a Token\n```\nPOST http://localhost:8180/realms/cba/protocol/openid-connect/token\nContent-Type: application/x-www-form-urlencoded\n\nclient_id=cba-web&grant_type=password&username=admin@cba.com&password=Admin@123\n```\n\nInclude the returned `access_token` in every request:\n```\nAuthorization: Bearer <access_token>\n```\n\n### Demo Credentials\n| Role | Username | Password |\n|------|----------|---------|\n| Admin | admin@cba.com | Admin@123 |\n| Teller | teller@cba.com | Teller@123 |\n| Customer | customer@cba.com | Customer@123 |\n\n## Multi-Tenancy\nEvery request must include the tenant header:\n```\nX-Tenant-ID: default\n```\nAvailable tenants: `default` (USD), `cba-kenya` (KES), `cba-ghana` (GHS)\n\n## Response Envelope\nAll responses use the standard CBA envelope:\n```json\n{\n  \"data\": { ... },\n  \"meta\": { \"page\": 0, \"size\": 20, \"total\": 150 },\n  \"errors\": []\n}\n```\n\n## Error Format\n```json\n{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{ \"code\": \"ACCOUNT_NOT_FOUND\", \"message\": \"Account 123 not found\", \"field\": null }]\n}\n```\n\n## General Options\n- `?page=0&size=20` \u2014 Pagination\n- `?sort=createdAt,desc` \u2014 Sorting\n- `?fields=id,name` \u2014 Field restriction (where supported)\n\n## HTTP Status Codes\n| Code | Meaning |\n|------|---------|\n| 200 | Success |\n| 201 | Created |\n| 400 | Validation error / bad request |\n| 401 | Unauthenticated |\n| 403 | Unauthorized (insufficient role) |\n| 404 | Resource not found |\n| 409 | Conflict (duplicate resource) |\n| 500 | Server error |\n\n## Code Samples\nEvery request includes samples in: **cURL, JavaScript (fetch), Python (requests), Java (OkHttp), C# (HttpClient), PHP (cURL), Go (net/http), Ruby (Net::HTTP)**\n\n## Collection Variables\nSet these in Postman before making requests:\n| Variable | Default | Description |\n|----------|---------|-------------|\n| base_url | http://localhost:8080 | API base URL |\n| access_token | (paste JWT) | Keycloak access token |\n| tenant_id | default | Active tenant |",
+    "name": "CBA Platform API — Complete Reference (v2)",
+    "description": "# Core Banking Application (CBA) API Reference\n\n## Platform Overview\nThe CBA platform is a production-grade, multi-tenanted core banking system modelled on Apache Fineract / Mifos X conventions. It provides a secure, RESTful API for building banking applications including backoffice portals, customer mobile apps, and third-party integrations via Open Banking (FAPI 2.0).\n\n## Base URL\n- **Development**: http://localhost:8080\n- **Staging**: https://api-staging.cba.com\n- **Production**: https://api.cba.com\n\n## Authentication\nAll API requests require authentication. The CBA platform uses OAuth2 / OpenID Connect via Keycloak.\n\n### Obtaining a Token\n```\nPOST http://localhost:8180/realms/cba/protocol/openid-connect/token\nContent-Type: application/x-www-form-urlencoded\n\nclient_id=cba-web&grant_type=password&username=admin@cba.com&password=Admin@123\n```\n\nInclude the returned `access_token` in every request:\n```\nAuthorization: Bearer <access_token>\n```\n\n### Demo Credentials\n| Role | Username | Password |\n|------|----------|---------|\n| Admin | admin@cba.com | Admin@123 |\n| Teller | teller@cba.com | Teller@123 |\n| Customer | customer@cba.com | Customer@123 |\n\n## Multi-Tenancy\nEvery request must include the tenant header:\n```\nX-Tenant-ID: default\n```\nAvailable tenants: `default` (USD), `cba-kenya` (KES), `cba-ghana` (GHS)\n\n## Response Envelope\nAll responses use the standard CBA envelope:\n```json\n{\n  \"data\": { ... },\n  \"meta\": { \"page\": 0, \"size\": 20, \"total\": 150 },\n  \"errors\": []\n}\n```\n\n## Error Format\n```json\n{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{ \"code\": \"ACCOUNT_NOT_FOUND\", \"message\": \"Account 123 not found\", \"field\": null }]\n}\n```\n\n## General Options\n- `?page=0&size=20` — Pagination\n- `?sort=createdAt,desc` — Sorting\n- `?fields=id,name` — Field restriction (where supported)\n\n## HTTP Status Codes\n| Code | Meaning |\n|------|---------|\n| 200 | Success |\n| 201 | Created |\n| 400 | Validation error / bad request |\n| 401 | Unauthenticated |\n| 403 | Unauthorized (insufficient role) |\n| 404 | Resource not found |\n| 409 | Conflict (duplicate resource) |\n| 500 | Server error |\n\n## Code Samples\nEvery request includes samples in: **cURL, JavaScript (fetch), Python (requests), Java (OkHttp), C# (HttpClient), PHP (cURL), Go (net/http), Ruby (Net::HTTP)**\n\n## Collection Variables\nSet these in Postman before making requests:\n| Variable | Default | Description |\n|----------|---------|-------------|\n| base_url | http://localhost:8080 | API base URL |\n| access_token | (paste JWT) | Keycloak access token |\n| tenant_id | default | Active tenant |",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_postman_id": "cba-platform-v2"
   },
@@ -34,7 +34,7 @@
   },
   "item": [
     {
-      "name": "00 \u00b7 Authentication",
+      "name": "00 · Authentication",
       "description": "## Authentication Overview\n\nThe CBA platform supports OAuth2 Resource Owner Password Credentials Grant via **Keycloak 23+**.\n\n### How It Works\n1. POST credentials to Keycloak token endpoint\n2. Receive `access_token` (JWT, valid 300s) and `refresh_token`\n3. Include `Authorization: Bearer <access_token>` on every API request\n4. Refresh before expiry using the refresh token\n\n### FAPI 2.0 (Open Banking)\nFor Open Banking (AISP/PISP/CBPII) endpoints, the platform supports FAPI 2.0 with PAR + DPoP + PKCE. Standard backoffice endpoints use regular Bearer tokens.\n\n### RBAC Roles\n| Role | Description |\n|------|-------------|\n| ADMIN | Full platform access |\n| TELLER | Customer/account/cash operations |\n| CUSTOMER | Own accounts only (self-service) |\n| API_CLIENT | Third-party TPP Open Banking access |",
       "item": [
         {
@@ -222,8 +222,8 @@
       ]
     },
     {
-      "name": "01 \u00b7 Customers",
-      "description": "## Customer Module\n\nManages customer KYC onboarding, profile management, lifecycle commands, staff assignment, and inter-branch transfer. Full Mifos parity added in Session 49.\n\n### Status Flow (7 States)\n```\nPENDING_KYC \u2192 ACTIVE \u2192 SUSPENDED \u2192 CLOSED\nPENDING_KYC \u2192 REJECTED  (undoable via undoRejection)\nPENDING_KYC \u2192 WITHDRAWN  (undoable via undoWithdrawal)\nACTIVE \u2192 TRANSFER_IN_PROGRESS \u2192 ACTIVE (accepted/rejected/withdrawn)\n```\n\n### Key Rules\n- All PII (name, email, phone, national ID) is encrypted at field level (AES-256)\n- Lifecycle fields (dates, reasons, staffId, officeId, transfer) are set by service commands only\n- Only PENDING_KYC customers can be deleted; others must be closed first\n- KYC status changes are immutably logged in the audit trail\n- `?command=` pattern (Mifos convention): single POST endpoint dispatches 14 lifecycle transitions\n\n### Required Role\n- Read: ADMIN, TELLER\n- Write (profile): ADMIN\n- Commands: ADMIN (lifecycle), ADMIN/TELLER (staff assignment)",
+      "name": "01 · Customers",
+      "description": "## Customer Module\n\nManages customer KYC onboarding, profile management, lifecycle commands, staff assignment, and inter-branch transfer. Full Mifos parity added in Session 49.\n\n### Status Flow (7 States)\n```\nPENDING_KYC → ACTIVE → SUSPENDED → CLOSED\nPENDING_KYC → REJECTED  (undoable via undoRejection)\nPENDING_KYC → WITHDRAWN  (undoable via undoWithdrawal)\nACTIVE → TRANSFER_IN_PROGRESS → ACTIVE (accepted/rejected/withdrawn)\n```\n\n### Key Rules\n- All PII (name, email, phone, national ID) is encrypted at field level (AES-256)\n- Lifecycle fields (dates, reasons, staffId, officeId, transfer) are set by service commands only\n- Only PENDING_KYC customers can be deleted; others must be closed first\n- KYC status changes are immutably logged in the audit trail\n- `?command=` pattern (Mifos convention): single POST endpoint dispatches 14 lifecycle transitions\n\n### Required Role\n- Read: ADMIN, TELLER\n- Write (profile): ADMIN\n- Commands: ADMIN (lifecycle), ADMIN/TELLER (staff assignment)",
       "item": [
         {
           "name": "List Customers",
@@ -530,7 +530,7 @@
                 "kyc-status"
               ]
             },
-            "description": "Transition customer KYC status. Valid transitions: PENDING_KYC\u2192ACTIVE, ACTIVE\u2192SUSPENDED, ACTIVE\u2192CLOSED.",
+            "description": "Transition customer KYC status. Valid transitions: PENDING_KYC→ACTIVE, ACTIVE→SUSPENDED, ACTIVE→CLOSED.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"kycStatus\": \"ACTIVE\",\n  \"note\": \"Identity documents verified\"\n}",
@@ -581,20 +581,42 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/api/v1/customers/{{customerId}}?command=activate",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "customers", "{{customerId}}"],
-              "query": [{ "key": "command", "value": "activate" }]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customers",
+                "{{customerId}}"
+              ],
+              "query": [
+                {
+                  "key": "command",
+                  "value": "activate"
+                }
+              ]
             },
             "description": "Mifos command pattern — dispatches lifecycle transitions via `?command=` query parameter. Returns the updated Customer object.\n\n### Available Commands\n\n| Command | From State | To State | Payload |\n|---------|-----------|----------|---------|\n| `activate` | PENDING_KYC | ACTIVE | — |\n| `reject` | PENDING_KYC | REJECTED | `reason` (opt) |\n| `withdraw` | PENDING_KYC, ACTIVE | WITHDRAWN | `reason` (opt) |\n| `reactivate` | SUSPENDED | ACTIVE | — |\n| `undoRejection` | REJECTED | PENDING_KYC | — |\n| `undoWithdrawal` | WITHDRAWN | PENDING_KYC | — |\n| `suspend` | ACTIVE | SUSPENDED | `reason` (opt) |\n| `close` | ACTIVE, SUSPENDED | CLOSED | `reason` (opt) |\n| `assignStaff` | any non-CLOSED | (unchanged) | `staffId` (UUID, required) |\n| `unassignStaff` | any non-CLOSED | (unchanged) | — |\n| `proposeTransfer` | ACTIVE | TRANSFER_IN_PROGRESS | `destinationOfficeId` (required), `transferDate` (opt), `transferNote` (opt) |\n| `acceptTransfer` | TRANSFER_IN_PROGRESS | ACTIVE | — |\n| `rejectTransfer` | TRANSFER_IN_PROGRESS | ACTIVE | — |\n| `withdrawTransfer` | TRANSFER_IN_PROGRESS | ACTIVE | — |",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"reason\": \"Identity documents fully verified and approved\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "x-code-samples": [
@@ -633,13 +655,26 @@
           "request": {
             "method": "DELETE",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "X-Tenant-ID", "value": "{{tenant_id}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/api/v1/customers/{{customerId}}",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "customers", "{{customerId}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customers",
+                "{{customerId}}"
+              ]
             },
             "description": "Permanently deletes a customer record. Only allowed when the customer is in `PENDING_KYC` status. Customers that have been activated must be closed (via `?command=close`) instead. Returns `204 No Content` on success.\n\n**Required Role**: ADMIN\n\n**Error cases**:\n- `400` — Customer is not in PENDING_KYC status\n- `404` — Customer not found"
           },
@@ -677,8 +712,8 @@
       ]
     },
     {
-      "name": "02 \u00b7 Accounts",
-      "description": "## Account Module\n\nManages savings, checking, and fixed deposit accounts. Every debit/credit produces an immutable Transaction record.\n\n### Account Number Format\n`{branch_code}-{type_code}-{sequence}` \u2014 e.g., `001-SAV-0001234`\n\n### Status Flow\n```\nACTIVE \u2192 DORMANT \u2192 CLOSED\n```\n\n### Key Rules\n- Balance never falls below `minimum_balance` (product-configured)\n- Closed accounts are read-only; balance must be zero before closing\n- All transactions produce immutable ledger entries\n- Interest accrued via nightly Close-of-Business job\n\n### Account Types\n| Code | Type |\n|------|------|\n| SAV | Savings |\n| CHK | Checking |\n| FXD | Fixed Deposit |",
+      "name": "02 · Accounts",
+      "description": "## Account Module\n\nManages savings, checking, and fixed deposit accounts. Every debit/credit produces an immutable Transaction record.\n\n### Account Number Format\n`{branch_code}-{type_code}-{sequence}` — e.g., `001-SAV-0001234`\n\n### Status Flow\n```\nACTIVE → DORMANT → CLOSED\n```\n\n### Key Rules\n- Balance never falls below `minimum_balance` (product-configured)\n- Closed accounts are read-only; balance must be zero before closing\n- All transactions produce immutable ledger entries\n- Interest accrued via nightly Close-of-Business job\n\n### Account Types\n| Code | Type |\n|------|------|\n| SAV | Savings |\n| CHK | Checking |\n| FXD | Fixed Deposit |",
       "item": [
         {
           "name": "List Accounts",
@@ -1045,7 +1080,7 @@
                 }
               ]
             },
-            "description": "Withdraw funds from an account (teller operation). Enforces minimum balance rule \u2014 fails with 400 if balance would fall below product minimum. Creates an immutable Transaction ledger record. Roles: ADMIN, TELLER."
+            "description": "Withdraw funds from an account (teller operation). Enforces minimum balance rule — fails with 400 if balance would fall below product minimum. Creates an immutable Transaction ledger record. Roles: ADMIN, TELLER."
           },
           "response": [
             {
@@ -1306,8 +1341,8 @@
       ]
     },
     {
-      "name": "03 \u00b7 Loans",
-      "description": "## Loan Module\n\nFull loan lifecycle management: origination \u2192 disbursement \u2192 repayment \u2192 collections \u2192 closure.\n\n### Status Flow\n```\nSUBMITTED \u2192 UNDER_REVIEW \u2192 APPROVED \u2192 DISBURSED \u2192 ACTIVE \u2192 CLOSED_OBLIGATIONS_MET\n```\nSub-states: `IN_ARREARS`\nTerminal states: `WRITTEN_OFF`, `CLOSED_OBLIGATIONS_MET`\n\n### EMI Formula\n```\nEMI = P \u00d7 r \u00d7 (1+r)^n / ((1+r)^n - 1)\nWhere: P = principal, r = monthly rate, n = term months\n```\n\n### Repayment Types\n| Type | Description |\n|------|-------------|\n| ANNUITY | Equal installments (default) |\n| FLAT | Fixed principal + declining interest |\n| DECLINING_BALANCE | Interest on outstanding balance |\n\n### Key Rules\n- Loan products define the allowed ranges; individual loans must be within those ranges\n- Repayment schedule generated on approval, locked on disbursement\n- Arrears classification runs nightly (CoB job)",
+      "name": "03 · Loans",
+      "description": "## Loan Module\n\nFull loan lifecycle management: origination → disbursement → repayment → collections → closure.\n\n### Status Flow\n```\nSUBMITTED → UNDER_REVIEW → APPROVED → DISBURSED → ACTIVE → CLOSED_OBLIGATIONS_MET\n```\nSub-states: `IN_ARREARS`\nTerminal states: `WRITTEN_OFF`, `CLOSED_OBLIGATIONS_MET`\n\n### EMI Formula\n```\nEMI = P × r × (1+r)^n / ((1+r)^n - 1)\nWhere: P = principal, r = monthly rate, n = term months\n```\n\n### Repayment Types\n| Type | Description |\n|------|-------------|\n| ANNUITY | Equal installments (default) |\n| FLAT | Fixed principal + declining interest |\n| DECLINING_BALANCE | Interest on outstanding balance |\n\n### Key Rules\n- Loan products define the allowed ranges; individual loans must be within those ranges\n- Repayment schedule generated on approval, locked on disbursement\n- Arrears classification runs nightly (CoB job)",
       "item": [
         {
           "name": "List Loans",
@@ -1942,8 +1977,8 @@
       ]
     },
     {
-      "name": "04 \u00b7 Payments & Transfers",
-      "description": "## Payment Module\n\nInternal account-to-account transfers, external payments (SWIFT/SEPA stubs), standing orders, and bill payments.\n\n### Payment States\n```\nPENDING \u2192 PROCESSING \u2192 COMPLETED\n                    \u2192 FAILED \u2192 REVERSED\n```\n\n### Double-Entry Ledger\nEvery transfer atomically debits the source and credits the destination. Both accounts must be locked (`SELECT FOR UPDATE`) before any balance modification.\n\n### Cross-Currency Transfers\nWhen source and destination accounts hold different currencies, the `ExchangeRateService` is invoked automatically. Both accounts are updated in their own currency. The payment record stores `sourceCurrency`, `destinationCurrency`, `exchangeRateUsed`, and `isCrossCurrency=true`.\n\n### Payment Application Logic (Fineract Convention)\nLoan repayments are applied in this order:\n1. Outstanding fees and penalties\n2. Interest due\n3. Principal due",
+      "name": "04 · Payments & Transfers",
+      "description": "## Payment Module\n\nInternal account-to-account transfers, external payments (SWIFT/SEPA stubs), standing orders, and bill payments.\n\n### Payment States\n```\nPENDING → PROCESSING → COMPLETED\n                    → FAILED → REVERSED\n```\n\n### Double-Entry Ledger\nEvery transfer atomically debits the source and credits the destination. Both accounts must be locked (`SELECT FOR UPDATE`) before any balance modification.\n\n### Cross-Currency Transfers\nWhen source and destination accounts hold different currencies, the `ExchangeRateService` is invoked automatically. Both accounts are updated in their own currency. The payment record stores `sourceCurrency`, `destinationCurrency`, `exchangeRateUsed`, and `isCrossCurrency=true`.\n\n### Payment Application Logic (Fineract Convention)\nLoan repayments are applied in this order:\n1. Outstanding fees and penalties\n2. Interest due\n3. Principal due",
       "item": [
         {
           "name": "List Payments",
@@ -2106,7 +2141,7 @@
                 "transfer"
               ]
             },
-            "description": "Transfer funds between two accounts within the CBA platform. Supports same-currency and cross-currency transfers. Atomic double-entry \u2014 both debit and credit succeed or both fail.",
+            "description": "Transfer funds between two accounts within the CBA platform. Supports same-currency and cross-currency transfers. Atomic double-entry — both debit and credit succeed or both fail.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"sourceAccountId\": \"{{sourceAccountId}}\",\n  \"destinationAccountId\": \"{{destinationAccountId}}\",\n  \"amount\": \"500.00\",\n  \"currencyCode\": \"USD\",\n  \"description\": \"Rent payment\",\n  \"referenceNumber\": \"TXN-2026040700001\"\n}",
@@ -2427,8 +2462,8 @@
       ]
     },
     {
-      "name": "05 \u00b7 Products",
-      "description": "## Product Module\n\nLoan products and deposit products define the configuration templates that individual loans and accounts are created from.\n\n### Loan Products\nConfigure: principal range, interest rate range, term range, repayment type, fees, and compounding frequency.\n\n### Deposit Products\nConfigure: account type (SAVINGS/CHECKING/FIXED_DEPOSIT), minimum balance, interest rate, and compounding frequency.\n\n### Validation Rules\n- `minPrincipal \u2264 maxPrincipal`\n- `minInterestRate \u2264 defaultInterestRate \u2264 maxInterestRate`\n- `minTermMonths \u2264 maxTermMonths`\n\n### Required Role\n- Read: All authenticated roles\n- Write: ADMIN only",
+      "name": "05 · Products",
+      "description": "## Product Module\n\nLoan products and deposit products define the configuration templates that individual loans and accounts are created from.\n\n### Loan Products\nConfigure: principal range, interest rate range, term range, repayment type, fees, and compounding frequency.\n\n### Deposit Products\nConfigure: account type (SAVINGS/CHECKING/FIXED_DEPOSIT), minimum balance, interest rate, and compounding frequency.\n\n### Validation Rules\n- `minPrincipal ≤ maxPrincipal`\n- `minInterestRate ≤ defaultInterestRate ≤ maxInterestRate`\n- `minTermMonths ≤ maxTermMonths`\n\n### Required Role\n- Read: All authenticated roles\n- Write: ADMIN only",
       "item": [
         {
           "name": "List Loan Products",
@@ -2632,7 +2667,7 @@
                 "{{loanProductId}}"
               ]
             },
-            "description": "Update a loan product. Changes only affect future loans \u2014 existing loans retain their original product snapshot.",
+            "description": "Update a loan product. Changes only affect future loans — existing loans retain their original product snapshot.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"SME Working Capital Loan\",\n  \"shortName\": \"SMEW\",\n  \"description\": \"Short-term loan for small business working capital needs\",\n  \"currencyCode\": \"USD\",\n  \"fundId\": null,\n  \"minPrincipal\": \"1000.00\",\n  \"maxPrincipal\": \"100000.00\",\n  \"defaultPrincipal\": \"10000.00\",\n  \"installmentAmountInMultiplesOf\": null,\n  \"minInterestRate\": \"8.00\",\n  \"maxInterestRate\": \"24.00\",\n  \"defaultInterestRate\": \"15.00\",\n  \"interestRateFrequencyType\": \"PER_YEAR\",\n  \"interestType\": \"DECLINING_BALANCE\",\n  \"amortizationType\": \"EQUAL_INSTALLMENTS\",\n  \"interestCalculationPeriodType\": \"SAME_AS_REPAYMENT_PERIOD\",\n  \"daysInYearType\": \"ACTUAL\",\n  \"daysInMonthType\": \"ACTUAL\",\n  \"minTermMonths\": 3,\n  \"maxTermMonths\": 60,\n  \"numberOfRepayments\": 12,\n  \"repaymentEvery\": 1,\n  \"repaymentFrequencyType\": \"MONTHS\",\n  \"repaymentType\": \"ANNUITY\",\n  \"graceOnPrincipalPayment\": null,\n  \"graceOnInterestPayment\": null,\n  \"graceOnInterestCharged\": null,\n  \"graceOnArrearsAgeing\": 14,\n  \"inArrearsTolerance\": \"0.00\",\n  \"originationFee\": \"0.00\",\n  \"latePaymentFee\": \"50.00\",\n  \"allowAttributeOverrides\": {\n    \"amortizationType\": true,\n    \"interestType\": true,\n    \"repaymentEvery\": true,\n    \"repaymentFrequency\": true,\n    \"repaymentStrategy\": true,\n    \"graceOnPrincipalAndInterestPayment\": true,\n    \"graceOnInterestCharged\": true,\n    \"interestRatePerPeriod\": true\n  },\n  \"fundSourceAccountId\": null,\n  \"loanPortfolioAccountId\": null,\n  \"transfersInSuspenseAccountId\": null,\n  \"interestOnLoanAccountId\": null,\n  \"incomeFromFeesAccountId\": null,\n  \"incomeFromPenaltiesAccountId\": null,\n  \"writeOffAccountId\": null,\n  \"overpaymentLiabilityAccountId\": null,\n  \"chargeIds\": []\n}",
@@ -3015,8 +3050,8 @@
       ]
     },
     {
-      "name": "06 \u00b7 Teller / Cash Management",
-      "description": "## Teller / Cash Management Module\n\nFull Mifos-style teller desk, cashier allocation, and session-based cash operations.\n\n### Status Flow\n**Teller Desk**: `INACTIVE \u2192 ACTIVE \u2192 CLOSED`\n**Session**: `OPEN \u2192 CLOSED`\n\n### Session Lifecycle\n1. Admin creates teller desk (`POST /tellers`)\n2. Admin activates desk (`POST /tellers/{id}/activate`)\n3. Admin assigns cashier to desk (`POST /tellers/{id}/cashiers`)\n4. Cashier opens daily session with opening float (`POST /tellers/{id}/cashiers/{cId}/sessions`)\n5. Cashier records cash-in / cash-out transactions throughout the day\n6. End of day: cashier closes session with physical cash count\n\n### Settlement Formula\n```\nclosing_balance = opening_balance + \u03a3(CASH_IN) - \u03a3(CASH_OUT)\ndifference = actual_cash - closing_balance\n```\nA positive `difference` means cash surplus; negative means shortage.\n\n### Constraint\nOnly one open session per cashier per calendar day (enforced at DB level with UNIQUE constraint).\n\n### Account Linking\nCash transactions can optionally link to a customer account. When `accountId` is provided, the account balance is updated atomically and an immutable transaction ledger entry is created.",
+      "name": "06 · Teller / Cash Management",
+      "description": "## Teller / Cash Management Module\n\nFull Mifos-style teller desk, cashier allocation, and session-based cash operations.\n\n### Status Flow\n**Teller Desk**: `INACTIVE → ACTIVE → CLOSED`\n**Session**: `OPEN → CLOSED`\n\n### Session Lifecycle\n1. Admin creates teller desk (`POST /tellers`)\n2. Admin activates desk (`POST /tellers/{id}/activate`)\n3. Admin assigns cashier to desk (`POST /tellers/{id}/cashiers`)\n4. Cashier opens daily session with opening float (`POST /tellers/{id}/cashiers/{cId}/sessions`)\n5. Cashier records cash-in / cash-out transactions throughout the day\n6. End of day: cashier closes session with physical cash count\n\n### Settlement Formula\n```\nclosing_balance = opening_balance + Σ(CASH_IN) - Σ(CASH_OUT)\ndifference = actual_cash - closing_balance\n```\nA positive `difference` means cash surplus; negative means shortage.\n\n### Constraint\nOnly one open session per cashier per calendar day (enforced at DB level with UNIQUE constraint).\n\n### Account Linking\nCash transactions can optionally link to a customer account. When `accountId` is provided, the account balance is updated atomically and an immutable transaction ledger entry is created.",
       "item": [
         {
           "name": "List Tellers",
@@ -3168,7 +3203,7 @@
                 "tellers"
               ]
             },
-            "description": "Create a new teller desk. Starts in INACTIVE status \u2014 must be activated before cashiers can be assigned.",
+            "description": "Create a new teller desk. Starts in INACTIVE status — must be activated before cashiers can be assigned.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Main Branch Teller 01\",\n  \"description\": \"Front office cash desk \\u2014 Main Branch\",\n  \"branchCode\": \"001\",\n  \"officeId\": \"{{officeId}}\",\n  \"startDate\": \"2026-04-07\"\n}",
@@ -3313,7 +3348,7 @@
                 "activate"
               ]
             },
-            "description": "Activate a teller desk (INACTIVE \u2192 ACTIVE). Required before assigning cashiers or opening sessions."
+            "description": "Activate a teller desk (INACTIVE → ACTIVE). Required before assigning cashiers or opening sessions."
           },
           "x-code-samples": [
             {
@@ -3377,7 +3412,7 @@
                 "close"
               ]
             },
-            "description": "Permanently close a teller desk (ACTIVE \u2192 CLOSED). All open sessions must be closed first."
+            "description": "Permanently close a teller desk (ACTIVE → CLOSED). All open sessions must be closed first."
           },
           "x-code-samples": [
             {
@@ -3974,8 +4009,8 @@
       ]
     },
     {
-      "name": "07 \u00b7 Open Banking (FAPI 2.0)",
-      "description": "## Open Banking Module \u2014 FAPI 2.0\n\nUK Open Banking v3.1 compliant endpoints for Third-Party Providers (TPPs).\n\n### Base Path\nAll Open Banking endpoints use `/open-banking/v3.1/` prefix.\n\n### Roles\n| Role | Description |\n|------|-------------|\n| AISP | Account Information Service Provider \u2014 read account/transaction data |\n| PISP | Payment Initiation Service Provider \u2014 initiate domestic payments |\n| CBPII | Card-Based Payment Instrument Issuer \u2014 funds confirmation |\n\n### Consent Flow\n```\nPOST /consents \u2192 AWAITING_AUTHORISATION\nPUT /consents/{id}/authorise \u2192 AUTHORISED\n(use for AISP/PISP/CBPII operations)\nDELETE /consents/{id} \u2192 REVOKED\n```\n\n### Required Scopes\n| Scope | Operations Allowed |\n|-------|-------------------|\n| `accounts` | AISP: read accounts, balances, transactions |\n| `payments` | PISP: initiate domestic payments |\n| `fundsconfirmation` | CBPII: check available funds |\n\n### Consent Validation\nBefore every PISP or CBPII call, the platform validates:\n1. Consent status = AUTHORISED\n2. Required scope is present\n3. Consent has not expired",
+      "name": "07 · Open Banking (FAPI 2.0)",
+      "description": "## Open Banking Module — FAPI 2.0\n\nUK Open Banking v3.1 compliant endpoints for Third-Party Providers (TPPs).\n\n### Base Path\nAll Open Banking endpoints use `/open-banking/v3.1/` prefix.\n\n### Roles\n| Role | Description |\n|------|-------------|\n| AISP | Account Information Service Provider — read account/transaction data |\n| PISP | Payment Initiation Service Provider — initiate domestic payments |\n| CBPII | Card-Based Payment Instrument Issuer — funds confirmation |\n\n### Consent Flow\n```\nPOST /consents → AWAITING_AUTHORISATION\nPUT /consents/{id}/authorise → AUTHORISED\n(use for AISP/PISP/CBPII operations)\nDELETE /consents/{id} → REVOKED\n```\n\n### Required Scopes\n| Scope | Operations Allowed |\n|-------|-------------------|\n| `accounts` | AISP: read accounts, balances, transactions |\n| `payments` | PISP: initiate domestic payments |\n| `fundsconfirmation` | CBPII: check available funds |\n\n### Consent Validation\nBefore every PISP or CBPII call, the platform validates:\n1. Consent status = AUTHORISED\n2. Required scope is present\n3. Consent has not expired",
       "item": [
         {
           "name": "Create Consent",
@@ -4138,7 +4173,7 @@
                 "authorise"
               ]
             },
-            "description": "Authorise a consent (AWAITING_AUTHORISATION \u2192 AUTHORISED). In a production system this is triggered by the customer confirming in the bank's authentication UI. In CBA API-only mode, this endpoint is called directly."
+            "description": "Authorise a consent (AWAITING_AUTHORISATION → AUTHORISED). In a production system this is triggered by the customer confirming in the bank's authentication UI. In CBA API-only mode, this endpoint is called directly."
           },
           "x-code-samples": [
             {
@@ -4383,9 +4418,51 @@
       ]
     },
     {
-      "name": "08 \u00b7 Exchange Rates & Multi-Currency",
-      "description": "## Exchange Rate Module\n\nThe CBA platform supports multi-currency deployment. Each tenant has a configured base currency (ISO 4217).\n\n### Available Tenants\n| Tenant | Base Currency |\n|--------|--------------|\n| default | USD |\n| cba-kenya | KES |\n| cba-ghana | GHS |\n\n### Exchange Rate Convention\n`1 fromCurrency = rate toCurrency` \u2014 e.g., USD/KES = 135.50 means 1 USD buys 135.50 KES.\n\n### Auto-Inverse\nWhen you set the USD\u2192KES rate, the KES\u2192USD rate is automatically calculated and stored. You never need to set both directions.\n\n### Rate Precision\nRates are stored to 8 decimal places (`NUMERIC(19,8)`) for accuracy on exotic currency pairs.\n\n### Pre-configured Rates (Demo)\nUSD\u2194KES, USD\u2194GHS, KES\u2194GHS, USD\u2194EUR, USD\u2194GBP",
+      "name": "08 · Tenants & Exchange Rates",
+      "description": "Tenant management and multi-currency exchange rates.\n\n## Exchange Rate Module\n\nThe CBA platform supports multi-currency deployment. Each tenant has a configured base currency (ISO 4217).\n\n### Available Tenants\n| Tenant | Base Currency |\n|--------|--------------|\n| default | USD |\n| cba-kenya | KES |\n| cba-ghana | GHS |\n\n### Exchange Rate Convention\n`1 fromCurrency = rate toCurrency` — e.g., USD/KES = 135.50 means 1 USD buys 135.50 KES.\n\n### Auto-Inverse\nWhen you set the USD→KES rate, the KES→USD rate is automatically calculated and stored. You never need to set both directions.\n\n### Rate Precision\nRates are stored to 8 decimal places (`NUMERIC(19,8)`) for accuracy on exotic currency pairs.\n\n### Pre-configured Rates (Demo)\nUSD↔KES, USD↔GHS, KES↔GHS, USD↔EUR, USD↔GBP",
       "item": [
+        {
+          "name": "List Tenants",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tenants",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tenants"
+              ]
+            },
+            "description": "Returns all active tenants. Used by the Account Algorithms page to load per-tenant algorithm configuration. Requires ADMIN role."
+          },
+          "response": [
+            {
+              "name": "200 OK — Tenant list",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"11111111-1111-1111-1111-111111111111\",\n      \"code\": \"DEFAULT\",\n      \"name\": \"CBA United States\",\n      \"currencyCode\": \"USD\",\n      \"countryCode\": \"US\",\n      \"localeCode\": \"en-US\",\n      \"active\": true\n    },\n    {\n      \"id\": \"22222222-2222-2222-2222-222222222222\",\n      \"code\": \"CBA_NG\",\n      \"name\": \"CBA Nigeria\",\n      \"currencyCode\": \"NGN\",\n      \"countryCode\": \"NG\",\n      \"localeCode\": \"en-NG\",\n      \"active\": true\n    }\n  ],\n  \"meta\": {},\n  \"errors\": []\n}"
+            }
+          ]
+        },
         {
           "name": "List Exchange Rates",
           "request": {
@@ -4473,7 +4550,7 @@
                 "exchange-rates"
               ]
             },
-            "description": "Set or update an exchange rate. The inverse rate (KES\u2192USD) is automatically generated. Admins only.",
+            "description": "Set or update an exchange rate. The inverse rate (KES→USD) is automatically generated. Admins only.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"fromCurrency\": \"USD\",\n  \"toCurrency\": \"KES\",\n  \"rate\": \"135.5000\",\n  \"effectiveDate\": \"2026-04-07\"\n}",
@@ -4650,8 +4727,8 @@
       ]
     },
     {
-      "name": "09 \u00b7 Batch API",
-      "description": "## Batch API\n\nExecute multiple API operations in a single HTTP request. Supports dependent requests and atomic transactions.\n\n### Key Features\n- **Dependent requests**: Reference output from a prior request using JSON Path (`$.id`)\n- **Atomic execution**: Add `?enclosingTransaction=true` to roll back all on any failure\n- **Ordering**: Requests are executed in `requestId` order\n\n### Common Use Cases\n- Create customer \u2192 open account \u2192 apply for loan (onboarding workflow)\n- Bulk account queries for a customer\n- Batch repayment recording\n\n### Request Object Fields\n| Field | Required | Description |\n|-------|----------|-------------|\n| requestId | Yes | Sequence identifier |\n| method | Yes | HTTP verb |\n| relativeUrl | Yes | API path (relative to base URL) |\n| body | No | JSON request body |\n| reference | No | requestId this depends on |\n| headers | No | Additional headers |",
+      "name": "09 · Batch API",
+      "description": "## Batch API\n\nExecute multiple API operations in a single HTTP request. Supports dependent requests and atomic transactions.\n\n### Key Features\n- **Dependent requests**: Reference output from a prior request using JSON Path (`$.id`)\n- **Atomic execution**: Add `?enclosingTransaction=true` to roll back all on any failure\n- **Ordering**: Requests are executed in `requestId` order\n\n### Common Use Cases\n- Create customer → open account → apply for loan (onboarding workflow)\n- Bulk account queries for a customer\n- Batch repayment recording\n\n### Request Object Fields\n| Field | Required | Description |\n|-------|----------|-------------|\n| requestId | Yes | Sequence identifier |\n| method | Yes | HTTP verb |\n| relativeUrl | Yes | API path (relative to base URL) |\n| body | No | JSON request body |\n| reference | No | requestId this depends on |\n| headers | No | Additional headers |",
       "item": [
         {
           "name": "Batch: Onboard Customer + Open Account",
@@ -4733,8 +4810,8 @@
       ]
     },
     {
-      "name": "10 \u00b7 Audit Log",
-      "description": "## Audit Log Module\n\nAn immutable, append-only log of every state-changing operation in the platform.\n\n### Key Rules\n- **Never updated or deleted** \u2014 audit records are permanent\n- **REQUIRES_NEW transaction** \u2014 audit is persisted even if the main transaction rolls back\n- **Minimum retention**: 7 years (compliance requirement)\n- **PII masked** in log entries \u2014 account numbers shown as `****1234`\n\n### Fields\n| Field | Description |\n|-------|-------------|\n| entityType | e.g., Customer, Account, Loan |\n| entityId | UUID of the affected record |\n| action | e.g., CREATE, UPDATE, APPROVE, DISBURSE |\n| changedBy | User/system that triggered the change |\n| oldValues | JSONB snapshot before change |\n| newValues | JSONB snapshot after change |\n| changedAt | Timestamp (TIMESTAMPTZ) |\n| ipAddress | Request origin IP |",
+      "name": "10 · Audit Log",
+      "description": "## Audit Log Module\n\nAn immutable, append-only log of every state-changing operation in the platform.\n\n### Key Rules\n- **Never updated or deleted** — audit records are permanent\n- **REQUIRES_NEW transaction** — audit is persisted even if the main transaction rolls back\n- **Minimum retention**: 7 years (compliance requirement)\n- **PII masked** in log entries — account numbers shown as `****1234`\n\n### Fields\n| Field | Description |\n|-------|-------------|\n| entityType | e.g., Customer, Account, Loan |\n| entityId | UUID of the affected record |\n| action | e.g., CREATE, UPDATE, APPROVE, DISBURSE |\n| changedBy | User/system that triggered the change |\n| oldValues | JSONB snapshot before change |\n| newValues | JSONB snapshot after change |\n| changedAt | Timestamp (TIMESTAMPTZ) |\n| ipAddress | Request origin IP |",
       "item": [
         {
           "name": "List Audit Logs",
@@ -4874,8 +4951,8 @@
       ]
     },
     {
-      "name": "11 \u00b7 System & Health",
-      "description": "## System & Health\n\nSpring Boot Actuator endpoints for platform monitoring and health checking.\n\n### Actuator Endpoints\nThese endpoints are secured \u2014 require ADMIN role or network-level restriction in production.\n\n### Health Check\nThe `/actuator/health` endpoint returns platform health including:\n- Database connectivity (PostgreSQL)\n- Disk space\n- JVM memory\n- Keycloak connectivity",
+      "name": "11 · System & Health",
+      "description": "## System & Health\n\nSpring Boot Actuator endpoints for platform monitoring and health checking.\n\n### Actuator Endpoints\nThese endpoints are secured — require ADMIN role or network-level restriction in production.\n\n### Health Check\nThe `/actuator/health` endpoint returns platform health including:\n- Database connectivity (PostgreSQL)\n- Disk space\n- JVM memory\n- Keycloak connectivity",
       "item": [
         {
           "name": "Health Check",
@@ -5036,7 +5113,7 @@
       ]
     },
     {
-      "name": "12 \u00b7 Charges",
+      "name": "12 · Charges",
       "description": "",
       "item": [
         {
@@ -5367,7 +5444,7 @@
       ]
     },
     {
-      "name": "13 \u00b7 Fixed Deposit Accounts",
+      "name": "13 · Fixed Deposit Accounts",
       "description": "",
       "item": [
         {
@@ -5816,7 +5893,7 @@
       ]
     },
     {
-      "name": "14 \u00b7 Recurring Deposit Accounts",
+      "name": "14 · Recurring Deposit Accounts",
       "description": "",
       "item": [
         {
@@ -6220,7 +6297,7 @@
       ]
     },
     {
-      "name": "15 \u00b7 Share Products & Accounts",
+      "name": "15 · Share Products & Accounts",
       "description": "",
       "item": [
         {
@@ -6714,7 +6791,7 @@
       ]
     },
     {
-      "name": "16 \u00b7 Loan Guarantors & Collateral",
+      "name": "16 · Loan Guarantors & Collateral",
       "description": "",
       "item": [
         {
@@ -7055,7 +7132,7 @@
       ]
     },
     {
-      "name": "17 \u00b7 Loan Reschedule / Re-aging / Re-amortization",
+      "name": "17 · Loan Reschedule / Re-aging / Re-amortization",
       "description": "",
       "item": [
         {
@@ -7460,7 +7537,7 @@
       ]
     },
     {
-      "name": "18 \u00b7 Groups & Centers",
+      "name": "18 · Groups & Centers",
       "description": "",
       "item": [
         {
@@ -8042,7 +8119,7 @@
       ]
     },
     {
-      "name": "19 \u00b7 Offices & Staff",
+      "name": "19 · Offices & Staff",
       "description": "",
       "item": [
         {
@@ -8332,7 +8409,7 @@
       ]
     },
     {
-      "name": "20 \u00b7 Users & Roles",
+      "name": "20 · Users & Roles",
       "description": "",
       "item": [
         {
@@ -8806,7 +8883,7 @@
       ]
     },
     {
-      "name": "21 \u00b7 GL / Accounting",
+      "name": "21 · GL / Accounting",
       "description": "",
       "item": [
         {
@@ -9352,7 +9429,7 @@
       ]
     },
     {
-      "name": "22 \u00b7 Reports & CoB Scheduler",
+      "name": "22 · Reports & CoB Scheduler",
       "description": "",
       "item": [
         {
@@ -9756,7 +9833,7 @@
       ]
     },
     {
-      "name": "23 \u00b7 Self Service (Customer)",
+      "name": "23 · Self Service (Customer)",
       "description": "",
       "item": [
         {
@@ -10126,7 +10203,7 @@
       ]
     },
     {
-      "name": "24 \u00b7 Floating Rates & Taxes",
+      "name": "24 · Floating Rates & Taxes",
       "description": "",
       "item": [
         {
@@ -10546,8 +10623,8 @@
       ]
     },
     {
-      "name": "24b \u00b7 Account Number Algorithms",
-      "description": "Per-tenant, per-account-type account number algorithm configuration. Supports MIFOS (default Fineract-style) and NUBAN (Nigerian CBN 10-digit standard). Framework is pluggable \u2014 new country algorithms require only a new AccountNumberAlgorithm implementation.",
+      "name": "24b · Account Number Algorithms",
+      "description": "Per-tenant, per-account-type account number algorithm configuration. Supports MIFOS (default Fineract-style) and NUBAN (Nigerian CBN 10-digit standard). Framework is pluggable — new country algorithms require only a new AccountNumberAlgorithm implementation.",
       "item": [
         {
           "name": "Get Tenant Algorithm Config",
@@ -10576,11 +10653,11 @@
                 "account-algorithm"
               ]
             },
-            "description": "Returns the algorithm configuration for a tenant: bankCode (3-digit CBN sort code when NUBAN selected), validationMode (STRICT or PARANOID), and a map of account type \u2192 algorithm name."
+            "description": "Returns the algorithm configuration for a tenant: bankCode (3-digit CBN sort code when NUBAN selected), validationMode (STRICT or PARANOID), and a map of account type → algorithm name."
           },
           "response": [
             {
-              "name": "200 OK \u2014 NUBAN on SAVINGS+CHECKING",
+              "name": "200 OK — NUBAN on SAVINGS+CHECKING",
               "status": "OK",
               "code": 200,
               "header": [
@@ -10592,7 +10669,7 @@
               "body": "{\n  \"bankCode\": \"058\",\n  \"validationMode\": \"STRICT\",\n  \"algorithms\": {\n    \"SAVINGS\":       \"NUBAN\",\n    \"CHECKING\":      \"NUBAN\",\n    \"FIXED_DEPOSIT\": \"MIFOS\",\n    \"LOAN\":          \"MIFOS\",\n    \"SHARE\":         \"MIFOS\"\n  }\n}"
             },
             {
-              "name": "200 OK \u2014 MIFOS only (new tenant, no config yet)",
+              "name": "200 OK — MIFOS only (new tenant, no config yet)",
               "status": "OK",
               "code": 200,
               "header": [
@@ -10649,7 +10726,7 @@
           },
           "response": [
             {
-              "name": "200 OK \u2014 Updated",
+              "name": "200 OK — Updated",
               "status": "OK",
               "code": 200,
               "header": [
@@ -10661,7 +10738,7 @@
               "body": "{\n  \"bankCode\": \"058\",\n  \"validationMode\": \"STRICT\",\n  \"algorithms\": {\n    \"SAVINGS\":       \"NUBAN\",\n    \"CHECKING\":      \"NUBAN\",\n    \"FIXED_DEPOSIT\": \"MIFOS\",\n    \"LOAN\":          \"MIFOS\",\n    \"SHARE\":         \"MIFOS\"\n  }\n}"
             },
             {
-              "name": "400 Bad Request \u2014 NUBAN selected but bankCode missing",
+              "name": "400 Bad Request — NUBAN selected but bankCode missing",
               "status": "Bad Request",
               "code": 400,
               "header": [
@@ -10677,7 +10754,7 @@
       ]
     },
     {
-      "name": "25 \u00b7 System Config (Codes, Funds, Payment Types)",
+      "name": "25 · System Config (Codes, Funds, Payment Types)",
       "description": "",
       "item": [
         {
@@ -11490,7 +11567,7 @@
       ]
     },
     {
-      "name": "26 \u00b7 Notes & Documents",
+      "name": "26 · Notes & Documents",
       "description": "",
       "item": [
         {
@@ -11951,7 +12028,7 @@
       ]
     },
     {
-      "name": "27 \u00b7 Hooks & Holidays",
+      "name": "27 · Hooks & Holidays",
       "description": "",
       "item": [
         {
@@ -12274,7 +12351,7 @@
       ]
     },
     {
-      "name": "28 \u00b7 Maker-Checker & DataTables",
+      "name": "28 · Maker-Checker & DataTables",
       "description": "",
       "item": [
         {
@@ -12630,7 +12707,7 @@
       ]
     },
     {
-      "name": "29 \u00b7 Client Identifiers & Addresses",
+      "name": "29 · Client Identifiers & Addresses",
       "description": "",
       "item": [
         {
@@ -12925,7 +13002,7 @@
       ]
     },
     {
-      "name": "30 \u00b7 SMS Campaigns",
+      "name": "30 · SMS Campaigns",
       "description": "Bulk SMS campaign management (Mifos-compatible)",
       "item": [
         {
@@ -13206,7 +13283,7 @@
       ]
     },
     {
-      "name": "31 \u00b7 Report Mailing Jobs",
+      "name": "31 · Report Mailing Jobs",
       "description": "Scheduled report delivery via email",
       "item": [
         {
@@ -13450,7 +13527,7 @@
       ]
     },
     {
-      "name": "32 \u00b7 Standing Instructions",
+      "name": "32 · Standing Instructions",
       "description": "Periodic account-to-account transfer instructions (Mifos-compatible)",
       "item": [
         {
@@ -13736,7 +13813,7 @@
       ]
     },
     {
-      "name": "33 \u00b7 Global Search",
+      "name": "33 · Global Search",
       "description": "Cross-entity search: clients, loans, savings, groups",
       "item": [
         {
@@ -13918,7 +13995,7 @@
       ]
     },
     {
-      "name": "34 \u00b7 Two-Factor Authentication",
+      "name": "34 · Two-Factor Authentication",
       "description": "OTP token generation and verification for platform users",
       "item": [
         {
@@ -14051,7 +14128,7 @@
       ]
     },
     {
-      "name": "35 \u00b7 Beneficiaries",
+      "name": "35 · Beneficiaries",
       "description": "Third-party transfer beneficiaries (self-service sub-resource of customers)",
       "item": [
         {
@@ -14263,7 +14340,7 @@
       ]
     },
     {
-      "name": "36 \u00b7 Client Images",
+      "name": "36 · Client Images",
       "description": "Customer profile image management (one image per customer)",
       "item": [
         {
@@ -14389,7 +14466,7 @@
       ]
     },
     {
-      "name": "37 \u00b7 Credit Bureau",
+      "name": "37 · Credit Bureau",
       "description": "Credit bureau integration and loan-product mappings",
       "item": [
         {
@@ -14796,7 +14873,7 @@
       ]
     },
     {
-      "name": "38 \u00b7 Surveys",
+      "name": "38 · Surveys",
       "description": "Progress out of poverty / welfare survey engine (Mifos-compatible)",
       "item": [
         {
@@ -15118,7 +15195,7 @@
       ]
     },
     {
-      "name": "39 \u00b7 Accounting Rules",
+      "name": "39 · Accounting Rules",
       "description": "Configurable debit/credit account mappings for common journal entries",
       "item": [
         {
@@ -15320,7 +15397,7 @@
       ]
     },
     {
-      "name": "40 \u00b7 Provisioning Criteria",
+      "name": "40 · Provisioning Criteria",
       "description": "Loan loss provisioning criteria (IFRS 9 / Basel II categories)",
       "item": [
         {
@@ -15522,7 +15599,7 @@
       ]
     },
     {
-      "name": "41 \u00b7 Notifications Admin",
+      "name": "41 · Notifications Admin",
       "item": [
         {
           "name": "List Templates",
@@ -15837,7 +15914,7 @@
               ]
             },
             {
-              "name": "BIN\u2192Scheme Export (FEP Cache)",
+              "name": "BIN→Scheme Export (FEP Cache)",
               "request": {
                 "method": "GET",
                 "header": [],
@@ -15917,17 +15994,17 @@
                     "scheme"
                   ]
                 },
-                "description": "Machine-to-machine endpoint called by fep-service CardServiceClient.lookupBinScheme(). Returns raw {\"scheme\":\"VISA\"} \u2014 no ApiResponse envelope."
+                "description": "Machine-to-machine endpoint called by fep-service CardServiceClient.lookupBinScheme(). Returns raw {\"scheme\":\"VISA\"} — no ApiResponse envelope."
               },
               "response": [
                 {
-                  "name": "200 OK \u2014 Visa BIN",
+                  "name": "200 OK — Visa BIN",
                   "status": "OK",
                   "code": 200,
                   "body": "{\n  \"scheme\": \"VISA\"\n}"
                 },
                 {
-                  "name": "200 OK \u2014 Unknown BIN",
+                  "name": "200 OK — Unknown BIN",
                   "status": "OK",
                   "code": 200,
                   "body": "{\n  \"scheme\": \"UNKNOWN\"\n}"
@@ -16037,7 +16114,7 @@
                     "{{bin_id}}"
                   ]
                 },
-                "description": "Update an existing BIN range. Full replacement \u2014 all fields required. ADMIN role required."
+                "description": "Update an existing BIN range. Full replacement — all fields required. ADMIN role required."
               },
               "response": [
                 {
@@ -16232,7 +16309,7 @@
                         ":productId"
                       ]
                     },
-                    "description": "Update card product \u2014 full replacement.",
+                    "description": "Update card product — full replacement.",
                     "body": {
                       "mode": "raw",
                       "raw": "{\n  \"name\": \"Premium Debit\",\n  \"cardType\": \"DEBIT\",\n  \"binRangeStart\": \"51000000\",\n  \"binRangeEnd\": \"51009999\",\n  \"defaultDailyLimit\": 1000000,\n  \"features\": {\n    \"contactless\": true\n  }\n}",
@@ -16377,7 +16454,7 @@
                         "cards"
                       ]
                     },
-                    "description": "Issue a card. virtual=true \u2192 card immediately ACTIVE; virtual=false \u2192 ISSUED + physical order created.",
+                    "description": "Issue a card. virtual=true → card immediately ACTIVE; virtual=false → ISSUED + physical order created.",
                     "body": {
                       "mode": "raw",
                       "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"productId\": \"{{productId}}\",\n  \"linkedEntityId\": \"{{accountId}}\",\n  \"virtualFlag\": true\n}",
@@ -16418,7 +16495,7 @@
                         ":cardId?command=block"
                       ]
                     },
-                    "description": "Block card (status \u2192 BLOCKED). Can be unblocked."
+                    "description": "Block card (status → BLOCKED). Can be unblocked."
                   },
                   "response": []
                 },
@@ -16450,7 +16527,7 @@
                         ":cardId?command=unblock"
                       ]
                     },
-                    "description": "Unblock card (status \u2192 ACTIVE)."
+                    "description": "Unblock card (status → ACTIVE)."
                   },
                   "response": []
                 },
@@ -16482,7 +16559,7 @@
                         ":cardId?command=cancel"
                       ]
                     },
-                    "description": "Cancel card permanently (terminal state \u2014 cannot be undone)."
+                    "description": "Cancel card permanently (terminal state — cannot be undone)."
                   },
                   "response": []
                 },
@@ -16546,7 +16623,7 @@
                         ":cardId?command=replace"
                       ]
                     },
-                    "description": "Replace card \u2014 cancels current card and issues a new one against the same linked entity."
+                    "description": "Replace card — cancels current card and issues a new one against the same linked entity."
                   },
                   "response": []
                 },
@@ -16579,7 +16656,7 @@
                         "balance"
                       ]
                     },
-                    "description": "Available balance routed by card type: DEBIT \u2192 linked account in monolith; PREPAID \u2192 internal wallet; CREDIT \u2192 revolving credit line. Returns null balance on graceful degradation."
+                    "description": "Available balance routed by card type: DEBIT → linked account in monolith; PREPAID → internal wallet; CREDIT → revolving credit line. Returns null balance on graceful degradation."
                   },
                   "response": []
                 },
@@ -16649,7 +16726,7 @@
                         "limits"
                       ]
                     },
-                    "description": "Update all spending limits. Validates: all \u2265 0, perTxn \u2264 dailyPurchaseLimit.",
+                    "description": "Update all spending limits. Validates: all ≥ 0, perTxn ≤ dailyPurchaseLimit.",
                     "body": {
                       "mode": "raw",
                       "raw": "{\n  \"dailyPurchaseLimit\": 500000,\n  \"dailyWithdrawalLimit\": 300000,\n  \"perTransactionLimit\": 200000,\n  \"monthlyLimit\": 5000000,\n  \"currencyCode\": \"840\"\n}",
@@ -16799,7 +16876,7 @@
                     "representments"
                   ]
                 },
-                "description": "List representments for a dispute. Status: PENDING / ACCEPTED / REJECTED / ESCALATED. Lapsed PENDING \u2192 ACCEPTED by nightly enforcer (favor ACQUIRER)."
+                "description": "List representments for a dispute. Status: PENDING / ACCEPTED / REJECTED / ESCALATED. Lapsed PENDING → ACCEPTED by nightly enforcer (favor ACQUIRER)."
               },
               "response": []
             },
@@ -16832,7 +16909,7 @@
                     "reason-codes"
                   ]
                 },
-                "description": "Scheme reason code catalogue. Optional ?scheme=VISA|MASTERCARD|VERVE|AFRIGO|UNION_PAY. Seeds 17 reason codes across 5 schemes. Reason codes are reference data \u2014 changes require Flyway migration."
+                "description": "Scheme reason code catalogue. Optional ?scheme=VISA|MASTERCARD|VERVE|AFRIGO|UNION_PAY. Seeds 17 reason codes across 5 schemes. Reason codes are reference data — changes require Flyway migration."
               },
               "response": []
             },
@@ -17367,7 +17444,7 @@
                     ":transmissionId"
                   ]
                 },
-                "description": "Single transmission record \u2014 includes endpoint audited, attempt count, error message if FAILED."
+                "description": "Single transmission record — includes endpoint audited, attempt count, error message if FAILED."
               },
               "response": []
             },
@@ -17574,7 +17651,7 @@
                     "signon"
                   ]
                 },
-                "description": "MTI 0800 DE70=0001 \u2014 terminal sign-on to FEP"
+                "description": "MTI 0800 DE70=0001 — terminal sign-on to FEP"
               },
               "response": []
             },
@@ -17601,7 +17678,7 @@
                     "echo"
                   ]
                 },
-                "description": "MTI 0800 DE70=0301 \u2014 heartbeat/echo test to verify FEP connectivity"
+                "description": "MTI 0800 DE70=0301 — heartbeat/echo test to verify FEP connectivity"
               },
               "response": []
             }
@@ -17976,7 +18053,7 @@
               },
               "response": [
                 {
-                  "name": "200 OK \u2014 Visa debit CARD_PRESENT purchase",
+                  "name": "200 OK — Visa debit CARD_PRESENT purchase",
                   "status": "OK",
                   "code": 200,
                   "body": "{\n  \"data\": {\n    \"interchangeAmount\": 9.5,\n    \"schemeFeeAmount\": 1.1195,\n    \"netSettlementAmount\": 989.3805,\n    \"rateApplied\": \"VISA/DEBIT/PURCHASE/CARD_PRESENT 0.9000% + 0.0500\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
@@ -18145,7 +18222,7 @@
               "response": []
             },
             {
-              "name": "Detokenize (Resolve DPAN \u2192 PAN)",
+              "name": "Detokenize (Resolve DPAN → PAN)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -18218,7 +18295,7 @@
                     "suspend"
                   ]
                 },
-                "description": "Suspend token \u2014 called on card block event. DPAN no longer accepted by FEP until unsuspended."
+                "description": "Suspend token — called on card block event. DPAN no longer accepted by FEP until unsuspended."
               },
               "response": []
             },
@@ -18250,7 +18327,7 @@
                     ":tokenRef"
                   ]
                 },
-                "description": "Delete token permanently \u2014 called on card cancel. DPAN removed from vault lookup."
+                "description": "Delete token permanently — called on card cancel. DPAN removed from vault lookup."
               },
               "response": []
             }
@@ -18424,7 +18501,7 @@
                     "confirm"
                   ]
                 },
-                "description": "Bureau confirmation \u2014 cards move to PRODUCED; physical orders updated with chipSerialNo and bureauRef.",
+                "description": "Bureau confirmation — cards move to PRODUCED; physical orders updated with chipSerialNo and bureauRef.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"confirmedItems\": [\n    {\n      \"cardId\": \"{{cardId}}\",\n      \"chipSerialNo\": \"SN-00123456\",\n      \"bureauRef\": \"BREF-2026-0001\"\n    }\n  ]\n}",
@@ -18467,7 +18544,7 @@
                     "dispatch"
                   ]
                 },
-                "description": "Mark all confirmed items as DISPATCHED; updates dispatchDate on physical orders. Cards \u2192 DISPATCHED status."
+                "description": "Mark all confirmed items as DISPATCHED; updates dispatchDate on physical orders. Cards → DISPATCHED status."
               },
               "response": []
             },
@@ -18549,7 +18626,7 @@
                     ":cardId"
                   ]
                 },
-                "description": "CDP preview for a single card (dev/ops tool). PAN is NEVER included in response \u2014 only panHash (SHA-256 hex) for verification."
+                "description": "CDP preview for a single card (dev/ops tool). PAN is NEVER included in response — only panHash (SHA-256 hex) for verification."
               },
               "response": []
             }
@@ -18559,7 +18636,7 @@
           "name": "3D Secure ACS",
           "item": [
             {
-              "name": "ACS \u2014 Receive AReq (Directory Server)",
+              "name": "ACS — Receive AReq (Directory Server)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -18588,17 +18665,17 @@
                     }
                   }
                 },
-                "description": "Receive a 3DS 2.x Authentication Request (AReq) from the Directory Server. Returns ARes with transStatus Y (frictionless) or C (challenge required). No JWT \u2014 called by scheme Directory Server with mTLS in production."
+                "description": "Receive a 3DS 2.x Authentication Request (AReq) from the Directory Server. Returns ARes with transStatus Y (frictionless) or C (challenge required). No JWT — called by scheme Directory Server with mTLS in production."
               },
               "response": [
                 {
-                  "name": "200 OK \u2014 Frictionless (transStatus=Y)",
+                  "name": "200 OK — Frictionless (transStatus=Y)",
                   "status": "OK",
                   "code": 200,
                   "body": "{\n  \"threeDSServerTransID\": \"a291b490-e0c8-4f59-9bc0-000000000001\",\n  \"dsTransID\": \"a291b490-e0c8-4f59-9bc0-000000000002\",\n  \"acsTransID\": \"b3c4d5e6-f7a8-9012-bcde-000000000003\",\n  \"transStatus\": \"Y\",\n  \"eci\": \"05\",\n  \"authenticationValue\": \"AAAAAAAAAAAAAAAAAAAAAAAAAAM=\",\n  \"acsURL\": null,\n  \"messageVersion\": \"2.3.1\"\n}"
                 },
                 {
-                  "name": "200 OK \u2014 Challenge Required (transStatus=C)",
+                  "name": "200 OK — Challenge Required (transStatus=C)",
                   "status": "OK",
                   "code": 200,
                   "body": "{\n  \"threeDSServerTransID\": \"a291b490-e0c8-4f59-9bc0-000000000001\",\n  \"dsTransID\": \"a291b490-e0c8-4f59-9bc0-000000000002\",\n  \"acsTransID\": \"b3c4d5e6-f7a8-9012-bcde-000000000003\",\n  \"transStatus\": \"C\",\n  \"eci\": null,\n  \"authenticationValue\": null,\n  \"acsURL\": \"http://localhost:8081/3ds/acs/challenge/b3c4d5e6-f7a8-9012-bcde-000000000003\",\n  \"messageVersion\": \"2.3.1\"\n}"
@@ -18606,7 +18683,7 @@
               ]
             },
             {
-              "name": "ACS \u2014 Challenge Page (browser HTML)",
+              "name": "ACS — Challenge Page (browser HTML)",
               "request": {
                 "method": "GET",
                 "header": [
@@ -18632,7 +18709,7 @@
               "response": []
             },
             {
-              "name": "ACS \u2014 Verify OTP (challenge submit)",
+              "name": "ACS — Verify OTP (challenge submit)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -18667,19 +18744,19 @@
               },
               "response": [
                 {
-                  "name": "200 OK \u2014 Authenticated",
+                  "name": "200 OK — Authenticated",
                   "status": "OK",
                   "code": 200,
                   "body": "{\n  \"status\": \"AUTHENTICATED\",\n  \"eci\": \"05\",\n  \"authenticationValue\": \"AAAAAAAAAAAAAAAAAAAAAAAAAAM=\",\n  \"message\": \"Authentication successful\"\n}"
                 },
                 {
-                  "name": "200 OK \u2014 Failed (attempts remaining)",
+                  "name": "200 OK — Failed (attempts remaining)",
                   "status": "OK",
                   "code": 200,
                   "body": "{\n  \"status\": \"FAILED\",\n  \"eci\": null,\n  \"authenticationValue\": null,\n  \"message\": \"Incorrect OTP. Attempts remaining: 2\"\n}"
                 },
                 {
-                  "name": "200 OK \u2014 Locked (max attempts)",
+                  "name": "200 OK — Locked (max attempts)",
                   "status": "OK",
                   "code": 200,
                   "body": "{\n  \"status\": \"LOCKED\",\n  \"eci\": null,\n  \"authenticationValue\": null,\n  \"message\": \"Maximum OTP attempts exceeded. Session locked.\"\n}"
@@ -18687,7 +18764,7 @@
               ]
             }
           ],
-          "description": "3D Secure 2.x Access Control Server (ACS) endpoints. Not JWT-protected \u2014 called by the scheme Directory Server (mTLS) and cardholder browser. Implements frictionless (amount \u2264 $50) and OTP challenge flows."
+          "description": "3D Secure 2.x Access Control Server (ACS) endpoints. Not JWT-protected — called by the scheme Directory Server (mTLS) and cardholder browser. Implements frictionless (amount ≤ $50) and OTP challenge flows."
         },
         {
           "name": "Card Open Banking API",
@@ -18724,7 +18801,7 @@
                         "api-keys"
                       ]
                     },
-                    "description": "Issue a new API key for M2M / BaaS integration. The raw key (cba_... prefix) is returned exactly once \u2014 store it immediately, it cannot be retrieved again. Key is stored as SHA-256 hash. ADMIN role required.\n\nCode samples (cURL):\ncurl -X POST {{cardServiceHost}}/card-api/v1/api-keys -H 'Authorization: Bearer TOKEN' -H 'Content-Type: application/json' -d '{\"name\":\"My BaaS Integration\",\"scopes\":[\"cards:read\"]}'\n\nJava (HttpClient):\nHttpRequest.newBuilder().uri(URI.create(base+\"/card-api/v1/api-keys\")).header(\"Authorization\",\"Bearer \"+token).POST(BodyPublishers.ofString(body)).build();\n\nJavaScript (fetch):\nfetch(base+'/card-api/v1/api-keys',{method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({name:'My BaaS Integration',scopes:[]})})\n\nPython (requests):\nrequests.post(base+'/card-api/v1/api-keys',headers={'Authorization':'Bearer '+token},json={'name':'My BaaS Integration','scopes':[]})\n\nGo (net/http):\nbodyJson,_:=json.Marshal(map[string]interface{}{\"name\":\"My BaaS Integration\",\"scopes\":[]string{}}); req,_:=http.NewRequest(\"POST\",base+\"/card-api/v1/api-keys\",bytes.NewBuffer(bodyJson)); req.Header.Set(\"Authorization\",\"Bearer \"+token)\n\nPHP (curl):\n$ch=curl_init(); curl_setopt($ch,CURLOPT_URL,$base.'/card-api/v1/api-keys'); curl_setopt($ch,CURLOPT_POST,true); curl_setopt($ch,CURLOPT_POSTFIELDS,json_encode(['name'=>'My BaaS Integration','scopes'=>[]])); curl_setopt($ch,CURLOPT_HTTPHEADER,['Authorization: Bearer '.$token,'Content-Type: application/json']);\n\nRuby (net/http):\nNet::HTTP.post(URI(base+'/card-api/v1/api-keys'),{name:'My BaaS Integration',scopes:[]}.to_json,{'Authorization'=>'Bearer '+token,'Content-Type'=>'application/json'})\n\nC# (HttpClient):\nawait client.PostAsJsonAsync(base+\"/card-api/v1/api-keys\",new{name=\"My BaaS Integration\",scopes=new string[]{}});"
+                    "description": "Issue a new API key for M2M / BaaS integration. The raw key (cba_... prefix) is returned exactly once — store it immediately, it cannot be retrieved again. Key is stored as SHA-256 hash. ADMIN role required.\n\nCode samples (cURL):\ncurl -X POST {{cardServiceHost}}/card-api/v1/api-keys -H 'Authorization: Bearer TOKEN' -H 'Content-Type: application/json' -d '{\"name\":\"My BaaS Integration\",\"scopes\":[\"cards:read\"]}'\n\nJava (HttpClient):\nHttpRequest.newBuilder().uri(URI.create(base+\"/card-api/v1/api-keys\")).header(\"Authorization\",\"Bearer \"+token).POST(BodyPublishers.ofString(body)).build();\n\nJavaScript (fetch):\nfetch(base+'/card-api/v1/api-keys',{method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({name:'My BaaS Integration',scopes:[]})})\n\nPython (requests):\nrequests.post(base+'/card-api/v1/api-keys',headers={'Authorization':'Bearer '+token},json={'name':'My BaaS Integration','scopes':[]})\n\nGo (net/http):\nbodyJson,_:=json.Marshal(map[string]interface{}{\"name\":\"My BaaS Integration\",\"scopes\":[]string{}}); req,_:=http.NewRequest(\"POST\",base+\"/card-api/v1/api-keys\",bytes.NewBuffer(bodyJson)); req.Header.Set(\"Authorization\",\"Bearer \"+token)\n\nPHP (curl):\n$ch=curl_init(); curl_setopt($ch,CURLOPT_URL,$base.'/card-api/v1/api-keys'); curl_setopt($ch,CURLOPT_POST,true); curl_setopt($ch,CURLOPT_POSTFIELDS,json_encode(['name'=>'My BaaS Integration','scopes'=>[]])); curl_setopt($ch,CURLOPT_HTTPHEADER,['Authorization: Bearer '.$token,'Content-Type: application/json']);\n\nRuby (net/http):\nNet::HTTP.post(URI(base+'/card-api/v1/api-keys'),{name:'My BaaS Integration',scopes:[]}.to_json,{'Authorization'=>'Bearer '+token,'Content-Type'=>'application/json'})\n\nC# (HttpClient):\nawait client.PostAsJsonAsync(base+\"/card-api/v1/api-keys\",new{name=\"My BaaS Integration\",scopes=new string[]{}});"
                   },
                   "response": [
                     {
@@ -18756,7 +18833,7 @@
                         "api-keys"
                       ]
                     },
-                    "description": "List all active API keys. Key values are never returned after creation \u2014 metadata only. ADMIN role required."
+                    "description": "List all active API keys. Key values are never returned after creation — metadata only. ADMIN role required."
                   },
                   "response": [
                     {
@@ -18841,17 +18918,17 @@
                         "cards"
                       ]
                     },
-                    "description": "Issue a virtual or physical card. PAN/expiry/CVV auto-generated from product BIN in dev (bureau-provided in production). virtual=true \u2192 ACTIVE immediately. virtual=false \u2192 ISSUED + physical order created. API_KEY or ADMIN/TELLER required.\n\ncURL: curl -X POST {{cardServiceHost}}/card-api/v1/cards -H 'Authorization: ApiKey YOUR_KEY' -H 'Content-Type: application/json' -d '{\"productId\":\"uuid\",\"customerId\":\"uuid\",\"linkedEntityId\":\"uuid\",\"virtual\":false}'\n\nJavaScript: fetch(base+'/card-api/v1/cards',{method:'POST',headers:{'Authorization':'ApiKey '+key,'Content-Type':'application/json'},body:JSON.stringify({productId,customerId,linkedEntityId,virtual:false})})\n\nPython: requests.post(base+'/card-api/v1/cards',headers={'Authorization':'ApiKey '+api_key},json={'productId':product_id,'customerId':customer_id,'linkedEntityId':account_id,'virtual':False})\n\nGo: body,_:=json.Marshal(map[string]interface{}{\"productId\":productId,\"customerId\":customerId,\"linkedEntityId\":accountId,\"virtual\":false}); req,_:=http.NewRequest(\"POST\",base+\"/card-api/v1/cards\",bytes.NewBuffer(body)); req.Header.Set(\"Authorization\",\"ApiKey \"+key)\n\nJava: HttpRequest.newBuilder().uri(URI.create(base+\"/card-api/v1/cards\")).header(\"Authorization\",\"ApiKey \"+key).POST(BodyPublishers.ofString(body)).build();\n\nRuby: Net::HTTP.post(URI(base+'/card-api/v1/cards'),payload.to_json,{'Authorization'=>'ApiKey '+key,'Content-Type'=>'application/json'})\n\nC#: client.DefaultRequestHeaders.Authorization=new AuthenticationHeaderValue(\"ApiKey\",key); await client.PostAsJsonAsync(base+\"/card-api/v1/cards\",new{productId,customerId,linkedEntityId,virtual=false});"
+                    "description": "Issue a virtual or physical card. PAN/expiry/CVV auto-generated from product BIN in dev (bureau-provided in production). virtual=true → ACTIVE immediately. virtual=false → ISSUED + physical order created. API_KEY or ADMIN/TELLER required.\n\ncURL: curl -X POST {{cardServiceHost}}/card-api/v1/cards -H 'Authorization: ApiKey YOUR_KEY' -H 'Content-Type: application/json' -d '{\"productId\":\"uuid\",\"customerId\":\"uuid\",\"linkedEntityId\":\"uuid\",\"virtual\":false}'\n\nJavaScript: fetch(base+'/card-api/v1/cards',{method:'POST',headers:{'Authorization':'ApiKey '+key,'Content-Type':'application/json'},body:JSON.stringify({productId,customerId,linkedEntityId,virtual:false})})\n\nPython: requests.post(base+'/card-api/v1/cards',headers={'Authorization':'ApiKey '+api_key},json={'productId':product_id,'customerId':customer_id,'linkedEntityId':account_id,'virtual':False})\n\nGo: body,_:=json.Marshal(map[string]interface{}{\"productId\":productId,\"customerId\":customerId,\"linkedEntityId\":accountId,\"virtual\":false}); req,_:=http.NewRequest(\"POST\",base+\"/card-api/v1/cards\",bytes.NewBuffer(body)); req.Header.Set(\"Authorization\",\"ApiKey \"+key)\n\nJava: HttpRequest.newBuilder().uri(URI.create(base+\"/card-api/v1/cards\")).header(\"Authorization\",\"ApiKey \"+key).POST(BodyPublishers.ofString(body)).build();\n\nRuby: Net::HTTP.post(URI(base+'/card-api/v1/cards'),payload.to_json,{'Authorization'=>'ApiKey '+key,'Content-Type'=>'application/json'})\n\nC#: client.DefaultRequestHeaders.Authorization=new AuthenticationHeaderValue(\"ApiKey\",key); await client.PostAsJsonAsync(base+\"/card-api/v1/cards\",new{productId,customerId,linkedEntityId,virtual=false});"
                   },
                   "response": [
                     {
-                      "name": "201 Created \u2014 Virtual Card",
+                      "name": "201 Created — Virtual Card",
                       "status": "Created",
                       "code": 201,
                       "body": "{\n  \"data\": {\n    \"id\": \"card-uuid\",\n    \"cardType\": \"DEBIT\",\n    \"status\": \"ACTIVE\",\n    \"virtualFlag\": true,\n    \"panPrefix\": \"40000000\",\n    \"panSuffix\": \"1234\",\n    \"expiryDate\": \"2904\",\n    \"customerId\": \"customer-uuid\",\n    \"linkedEntityId\": \"account-uuid\",\n    \"pinSet\": false,\n    \"pinRetryCount\": 0,\n    \"createdAt\": \"2026-04-11T12:00:00Z\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
                     },
                     {
-                      "name": "201 Created \u2014 Physical Card",
+                      "name": "201 Created — Physical Card",
                       "status": "Created",
                       "code": 201,
                       "body": "{\n  \"data\": {\n    \"id\": \"card-uuid\",\n    \"cardType\": \"DEBIT\",\n    \"status\": \"ISSUED\",\n    \"virtualFlag\": false,\n    \"panPrefix\": \"40000000\",\n    \"panSuffix\": \"5678\",\n    \"expiryDate\": \"2904\",\n    \"createdAt\": \"2026-04-11T12:00:00Z\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
@@ -18882,7 +18959,7 @@
                         {
                           "key": "customerId",
                           "value": "{{customerId}}",
-                          "description": "Optional \u2014 filter cards for one customer"
+                          "description": "Optional — filter cards for one customer"
                         }
                       ]
                     },
@@ -18985,17 +19062,17 @@
                         }
                       ]
                     },
-                    "description": "freeze=true maps to BLOCK command (card \u2192 BLOCKED status). freeze=false maps to UNBLOCK command (card \u2192 ACTIVE). contactless/CNP/international are advisory flags not yet wired to product config. API_KEY or ADMIN/TELLER/CUSTOMER required."
+                    "description": "freeze=true maps to BLOCK command (card → BLOCKED status). freeze=false maps to UNBLOCK command (card → ACTIVE). contactless/CNP/international are advisory flags not yet wired to product config. API_KEY or ADMIN/TELLER/CUSTOMER required."
                   },
                   "response": [
                     {
-                      "name": "200 OK \u2014 Frozen",
+                      "name": "200 OK — Frozen",
                       "status": "OK",
                       "code": 200,
                       "body": "{\n  \"data\": {\"id\":\"card-uuid\",\"status\":\"BLOCKED\",\"virtualFlag\":false},\n  \"meta\": {},\n  \"errors\": []\n}"
                     },
                     {
-                      "name": "400 \u2014 Wrong State",
+                      "name": "400 — Wrong State",
                       "status": "Bad Request",
                       "code": 400,
                       "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{\"code\":\"INVALID_STATE\",\"message\":\"Only ACTIVE cards can be blocked\"}]\n}"
@@ -19098,7 +19175,7 @@
                       "body": "{\n  \"data\": {\"status\":\"PIN_CHANGED\"},\n  \"meta\": {},\n  \"errors\": []\n}"
                     },
                     {
-                      "name": "400 \u2014 PIN Verification Failed",
+                      "name": "400 — PIN Verification Failed",
                       "status": "Bad Request",
                       "code": 400,
                       "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{\"code\":\"PIN_CHANGE_FAILED\",\"message\":\"PIN verification failed\"}]\n}"
@@ -19180,7 +19257,7 @@
                         }
                       ]
                     },
-                    "description": "Settled transactions only \u2014 authorization log filtered to response_code=00 (approved and cleared). API_KEY or ADMIN/TELLER/CUSTOMER required."
+                    "description": "Settled transactions only — authorization log filtered to response_code=00 (approved and cleared). API_KEY or ADMIN/TELLER/CUSTOMER required."
                   },
                   "response": [
                     {
@@ -19397,7 +19474,7 @@
                         "webhooks"
                       ]
                     },
-                    "description": "Register a webhook endpoint. Secret returned exactly once \u2014 use it to verify X-CBA-Signature on incoming deliveries. Empty events array subscribes to all event types.\n\nSignature verification: compute HMAC-SHA256(payload, secret) and compare with X-CBA-Signature header value (format: sha256={hex}). Use constant-time comparison to prevent timing attacks.\n\nSupported events: AUTHORIZATION.APPROVED, AUTHORIZATION.DECLINED, AUTHORIZATION.REVERSED, CARD.ISSUED, CARD.ACTIVATED, CARD.BLOCKED, CARD.UNBLOCKED, CARD.EXPIRED, CARD.PIN_CHANGED, CARD.LIMIT_CHANGED, FRAUD.RULE_TRIGGERED, FRAUD.CARD_STEP_UP, FRAUD.CARD_DECLINED_HIGH_RISK, DISPUTE.RAISED, DISPUTE.RESOLVED\n\nAPI_KEY or ADMIN required."
+                    "description": "Register a webhook endpoint. Secret returned exactly once — use it to verify X-CBA-Signature on incoming deliveries. Empty events array subscribes to all event types.\n\nSignature verification: compute HMAC-SHA256(payload, secret) and compare with X-CBA-Signature header value (format: sha256={hex}). Use constant-time comparison to prevent timing attacks.\n\nSupported events: AUTHORIZATION.APPROVED, AUTHORIZATION.DECLINED, AUTHORIZATION.REVERSED, CARD.ISSUED, CARD.ACTIVATED, CARD.BLOCKED, CARD.UNBLOCKED, CARD.EXPIRED, CARD.PIN_CHANGED, CARD.LIMIT_CHANGED, FRAUD.RULE_TRIGGERED, FRAUD.CARD_STEP_UP, FRAUD.CARD_DECLINED_HIGH_RISK, DISPUTE.RAISED, DISPUTE.RESOLVED\n\nAPI_KEY or ADMIN required."
                   },
                   "response": [
                     {
@@ -19523,10 +19600,10 @@
               "description": "Webhook registration and delivery tracking. Delivery headers: X-CBA-Signature (sha256=HMAC), X-CBA-Event (event type), X-CBA-Delivery (idempotency UUID). Exponential backoff retries: 15s, 60s, 5m, 30m, 2h. API_KEY or ADMIN required."
             }
           ],
-          "description": "Card Open Banking API \u2014 /card-api/v1/ hosted on card-service (port 8081). Dual auth: Authorization: ApiKey cba_{key} for M2M integrators, or Authorization: Bearer {jwt} for FAPI 2.0 customer consent. Variable: {{cardServiceHost}} = localhost:8081, {{api_key}} = key from POST /card-api/v1/api-keys."
+          "description": "Card Open Banking API — /card-api/v1/ hosted on card-service (port 8081). Dual auth: Authorization: ApiKey cba_{key} for M2M integrators, or Authorization: Bearer {jwt} for FAPI 2.0 customer consent. Variable: {{cardServiceHost}} = localhost:8081, {{api_key}} = key from POST /card-api/v1/api-keys."
         }
       ],
-      "description": "Card Management Service (port 8081) \u2014 disputes, settlement batches, terminal simulator, interchange management, and 3D Secure ACS. Variable: {{cardServiceHost}} = localhost:8081",
+      "description": "Card Management Service (port 8081) — disputes, settlement batches, terminal simulator, interchange management, and 3D Secure ACS. Variable: {{cardServiceHost}} = localhost:8081",
       "auth": {
         "type": "bearer",
         "bearer": [

@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 60 — 2026-04-16)
+## Confirmed Platform Versions (Session 62 — 2026-04-16)
 
 These are the verified-working versions for both production components. Update this table whenever a dependency is upgraded.
 
@@ -19,7 +19,7 @@ These are the verified-working versions for both production components. Update t
 | **springdoc-openapi** | 2.8.6 | OpenAPI 3.1 at `/swagger-ui.html` and `/api-docs` |
 | **Lombok** | 1.18.38 | Minimum for Java 25 `TypeTag` fix; also works on Java 21 |
 | **PostgreSQL** | 16 | Via Docker; schema managed by Flyway |
-| **Last git commit** | `8f9a57b` | `fix(schema): add V30-V33 patch migrations for old Docker sessions` |
+| **Last git commit** | `f018ee2` | `fix(tenant): add GET /api/v1/tenants endpoint for Account Algorithms page` |
 
 ### Angular Web App (`web/`)
 

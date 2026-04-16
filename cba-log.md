@@ -59,6 +59,51 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 62 — 2026-04-16
+**Bug fix: add missing `GET /api/v1/tenants` endpoint — fixes perpetual spinner on Account Algorithms page. (commit `f018ee2`)**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/src/main/java/com/cba/tenant/TenantController.java` | NEW — `GET /api/v1/tenants` (ADMIN); calls `tenantRepository.findAll()`, wraps in `ApiResponse.ok()` |
+
+#### Key Patterns / Decisions
+- `AccountAlgorithmsComponent` calls `AdminService.listTenants()` → `GET /api/v1/tenants` on page load; the endpoint was absent causing a perpetual loading spinner
+- `TenantRepository` already extends `JpaRepository` — `findAll()` was available without any repository changes
+- ADMIN role required consistent with all other admin-facing list endpoints
+
+#### Build Verification
+- `./mvnw compile` — BUILD SUCCESS (0 errors)
+- Commit `f018ee2`, pushed to `origin/main`
+
+#### Confirmed Platform Versions
+
+**Backend (`backend/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `f018ee2` |
+| Java | 21 | `f018ee2` |
+| Application artifact | `cba-backend 0.1.0-SNAPSHOT` | `f018ee2` |
+| Keycloak admin client | 26.0.5 | `f018ee2` |
+| springdoc-openapi | 2.8.6 | `f018ee2` |
+| Lombok | 1.18.38 | `f018ee2` |
+| PostgreSQL | 16 (Docker) | `f018ee2` |
+
+**Angular Web App (`web/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular (`@angular/core` + material) | 21.2.x | `36cec09` |
+| Angular CLI | 21.2.7 | `36cec09` |
+| PrimeNG | 21.0.x | `36cec09` |
+| RxJS | 7.8.x | `36cec09` |
+| TypeScript | 5.9.x | `36cec09` |
+| Vercel deployment ID | `dpl_5U67X9GZzUBUD8AHxp5ciwpN7vMt` | `36cec09` |
+| Production URL | `cba-web-nine.vercel.app` | `36cec09` |
+
+---
+
 ### Session 61 — 2026-04-16
 **Local dev infrastructure: Dockerfile.local for backend + root docker-compose.yml convenience entry point. Three local dev guides written to desktop. (commit `ba6c6e7`)**
 

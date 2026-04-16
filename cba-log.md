@@ -102,11 +102,11 @@ _None — all Phase 1 backend modules are now complete._
 
 | Component | Version | Git ref |
 |-----------|---------|---------|
-| Angular (`@angular/core` + material) | 21.2.x | `pending` |
-| Angular CLI | 21.2.7 | `pending` |
-| PrimeNG | 21.0.x | `pending` |
-| RxJS | 7.8.x | `pending` |
-| TypeScript | 5.9.x | `pending` |
+| Angular (`@angular/core` + material) | 21.2.x | `0c6cb55` |
+| Angular CLI | 21.2.7 | `0c6cb55` |
+| PrimeNG | 21.0.x | `0c6cb55` |
+| RxJS | 7.8.x | `0c6cb55` |
+| TypeScript | 5.9.x | `0c6cb55` |
 
 ---
 

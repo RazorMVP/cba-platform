@@ -1,0 +1,6 @@
+# Root-level convenience entry point — delegates to infrastructure/docker-compose.yml
+# Run from the repo root: docker-compose up -d
+# Full stack (backend + card-service + fep-service + web): docker-compose --profile app up -d
+name: cba-platform
+include:
+  - infrastructure/docker-compose.yml

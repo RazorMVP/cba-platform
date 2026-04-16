@@ -33,6 +33,12 @@ const LoanDetail        = lazy(() => import('@/app/features/operations/loans/Loa
 const TellersListPage   = lazy(() => import('@/app/features/operations/tellers/TellersListPage'))
 const TellerDetail      = lazy(() => import('@/app/features/operations/tellers/TellerDetailPage'))
 
+// ── Accounting ──────────────────────────────────────────────────────────────
+const GlAccountsPage          = lazy(() => import('@/app/features/accounting/GlAccountsPage'))
+const JournalEntriesPage      = lazy(() => import('@/app/features/accounting/JournalEntriesPage'))
+const ProvisioningPage        = lazy(() => import('@/app/features/accounting/ProvisioningPage'))
+const FinancialActivitiesPage = lazy(() => import('@/app/features/accounting/FinancialActivitiesPage'))
+
 // ── Products ────────────────────────────────────────────────────────────────
 const LoanProductsListPage        = lazy(() => import('@/app/features/products/loan-products/LoanProductsListPage'))
 const LoanProductDetailPage       = lazy(() => import('@/app/features/products/loan-products/LoanProductDetailPage'))
@@ -78,10 +84,10 @@ export const router = createBrowserRouter([
       { path: 'products/shares/:id',             element: page(ShareDetailPage) },
 
       // Accounting
-      { path: 'accounting/gl-accounts',          element: page(Placeholder) },
-      { path: 'accounting/journal-entries',      element: page(Placeholder) },
-      { path: 'accounting/provisioning',         element: page(Placeholder) },
-      { path: 'accounting/financial-activities', element: page(Placeholder) },
+      { path: 'accounting/gl-accounts',          element: page(GlAccountsPage) },
+      { path: 'accounting/journal-entries',      element: page(JournalEntriesPage) },
+      { path: 'accounting/provisioning',         element: page(ProvisioningPage) },
+      { path: 'accounting/financial-activities', element: page(FinancialActivitiesPage) },
 
       // Cards — static sub-routes before :id
       { path: 'cards',                           element: page(Placeholder) },

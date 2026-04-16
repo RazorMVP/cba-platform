@@ -59,6 +59,37 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 55 (Phase 3 — Accounting) — 2026-04-16
+**React Phase 3 — Accounting complete. 4 accounting pages built (GL Accounts, Journal Entries, Provisioning Criteria, Financial Activity Accounts). API layer (types + hooks) added. Build: 0 errors. Tests: 22/22 passing.**
+
+#### New/Updated Files
+
+| File | Change |
+|------|--------|
+| `web-react/src/app/features/accounting/api/types.ts` | NEW — GlAccount, JournalEntry, ProvisioningCriteria, FinancialActivityAccount types + enums |
+| `web-react/src/app/features/accounting/api/useAccounting.ts` | NEW — all 12 TanStack Query hooks for GL, journals, provisioning, financial activities |
+| `web-react/src/app/features/accounting/GlAccountsPage.tsx` | NEW — type filter tabs, search, enable/disable toggle, create/edit modal with type/usage selects |
+| `web-react/src/app/features/accounting/JournalEntriesPage.tsx` | NEW — T-ledger grouped view, date range filter, manual entry modal (balance validation), reversal |
+| `web-react/src/app/features/accounting/ProvisioningPage.tsx` | NEW — IFRS 9 age bands, 5 band panels with GL selects per band, create/edit/delete |
+| `web-react/src/app/features/accounting/FinancialActivitiesPage.tsx` | NEW — maps abstract activities to GL codes; activity-type selector; GL account picker filtered by expected type |
+| `web-react/src/app/router.tsx` | UPDATED — lazy imports for all 4 Accounting pages; replaced Placeholder stubs |
+
+#### Key Patterns / Decisions
+- Journal entries grouped by `transactionId` using `reduce<Record<string, JournalEntry[]>>` with `??=` nullish coalescing assignment
+- Balance validation: `Math.abs(debitTotal - creditTotal) < 0.001 && debitTotal > 0`
+- Financial Activities page filters GL accounts by the `glType` expected for the selected activity (e.g. ASSET_LOAN_PORTFOLIO → only ASSET DETAIL accounts offered)
+- `useGlAccountCommand('')` at component level (for no-op); `useGlAccountCommand(editing?.id ?? '')` for actual enable/disable calls — same pattern as product pages
+
+#### Build Verification
+- `npm run build` → ✓ built in 137ms (0 TypeScript errors)
+- `npx vitest run` → 22/22 tests passing
+
+#### Compliance Checklist Update
+- React Migration Checklist: GL accounts, Journal entries, Provisioning criteria, Financial Activity Accounts → ✅ Built — Session 55
+- Phase 2R build order: Phase 3 → ✅ Complete — Session 55
+
+---
+
 ### Session 55 (Phase 2 — Products) — 2026-04-15
 **React Phase 2 — Products complete. 10 product pages built (Loan products list+detail, Deposit products list+detail, Fixed Deposits list+detail, Recurring Deposits list+detail, Share products list+detail). Fixed apiClient named import bug in all 5 product hook files. Build: 0 errors. Tests: 22/22 passing.**
 

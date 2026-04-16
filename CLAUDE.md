@@ -3251,10 +3251,10 @@ Every ✅ row in the Angular Component Map is a screen to rebuild in React. Stat
 | Recurring deposit product detail | ✅ Angular | ✅ Built — Session 55 |
 | Share products list | ✅ Angular | ✅ Built — Session 55 |
 | Share product detail | ✅ Angular | ✅ Built — Session 55 |
-| GL accounts | ✅ Angular | 🔲 Queued |
-| Journal entries | ✅ Angular | 🔲 Queued |
-| Provisioning criteria | ✅ Angular | 🔲 Queued |
-| Financial Activity Accounts | ✅ Angular | 🔲 Queued |
+| GL accounts | ✅ Angular | ✅ Built — Session 55 |
+| Journal entries | ✅ Angular | ✅ Built — Session 55 |
+| Provisioning criteria | ✅ Angular | ✅ Built — Session 55 |
+| Financial Activity Accounts | ✅ Angular | ✅ Built — Session 55 |
 | Reports list | ✅ Angular | 🔲 Queued |
 | CoB Scheduler | ✅ Angular | 🔲 Queued |
 | Report Mailing Jobs | ✅ Angular | 🔲 Queued |

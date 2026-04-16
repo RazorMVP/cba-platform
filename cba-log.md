@@ -59,6 +59,29 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 59 — 2026-04-16
+**Schema validation fix: aligned all Flyway base migrations (V1–V22) with JPA entity @Column mappings so a fresh Docker volume produces a schema that passes Hibernate `validate` on startup. (commit `8d8d631`)**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `V6__offices_staff_users.sql` | Added `active BOOLEAN`, `description VARCHAR(500)`, `created_by VARCHAR(100)`, `updated_by VARCHAR(100)` to offices; corrected staff `first_name`/`last_name`/`active`; added `enabled`, `first_name`, `last_name`, `role_name`, `last_login_at` to platform_users |
+| `V7__groups_centers.sql` | Rewrote `group_members` from composite-PK junction table to entity table with `id UUID PRIMARY KEY`, `joining_date DATE`, `is_active BOOLEAN`; rewrote `collection_sheet_items` (renamed `amount_due` → `due_amount`; added `collected_amount`, `is_collected`) |
+| `V9__reports.sql` | Rewrote `report_parameters`: renamed `is_optional` → `required`; added `sort_order INT NOT NULL DEFAULT 0` |
+| `V15__loan_extensions.sql` | Fixed guarantors column names (`firstname`→`first_name`, `mobile_no`→`mobile_number`); added `email`, `city`, `country`; renamed `collateral_type_id`→`collateral_type_code_value_id`; fixed camelCase SQL in reschedule/reaging/reamortization requests; added `status`, `is_preview`, `comment`, `updated_at`; removed 4 orphaned tenant_id indexes |
+| `V29__fix_remaining_column_mismatches.sql` | NEW — `ADD COLUMN IF NOT EXISTS` patches for all above fixes (protects old Docker sessions) |
+| Various V1–V22 | Minor column name corrections across charges, deposits, shares, system config, hooks, maker-checker, datatables, accounting rules, provisioning, account algorithms, notification admin |
+
+#### Key Patterns / Decisions
+- **camelCase SQL pitfall**: PostgreSQL lowercases unquoted identifiers. `graceOnPrincipal` in SQL → column `graceonprincipal`, not `grace_on_principal`. Always use snake_case in SQL DDL.
+- **Dual-target strategy**: Base migrations fixed for fresh volumes; V29 patch migration guards old sessions with `IF NOT EXISTS`.
+- **AuditableEntity columns**: Every entity extending `AuditableEntity` needs `created_at`, `updated_at`, `created_by VARCHAR(100)`, `updated_by VARCHAR(100)`, `version BIGINT` in its table.
+
+#### Build Verification
+- `Flyway: "Schema 'public' is up to date. No migration necessary."` — fresh Docker volume
+- `Hibernate validate` — no schema-validation errors
+- `/actuator/health/liveness` → `{"status":"UP"}` — confirmed clean startup
+
 ### Session 58 — Cutover: React → Production — 2026-04-16
 **React frontend promoted to production. Angular `web/` archived to `web-archived/`. `web-ci.yml` rewritten to deploy `web-react/` on `VERCEL_PROJECT_ID_WEB`.**
 

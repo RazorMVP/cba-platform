@@ -2285,6 +2285,10 @@ For local development without a running Keycloak instance. Activated by `app.aut
 - Indexes: all foreign keys indexed; audit_log indexed on `(entity_type, entity_id)` and `changed_at`
 - Flyway conventions: `V{n}__{description}.sql`; `V1__init_schema.sql`, `V2__demo_data.sql`
 - Never use `ddl-auto: create` in any non-test profile — Flyway owns the schema
+- **camelCase SQL pitfall**: PostgreSQL lowercases unquoted identifiers — `graceOnPrincipal` in DDL becomes column `graceonprincipal`, not `grace_on_principal`. Always use explicit snake_case in all SQL DDL.
+- **`AuditableEntity` columns**: Every table for an entity that extends `AuditableEntity` must include `created_at TIMESTAMPTZ`, `updated_at TIMESTAMPTZ`, `created_by VARCHAR(100)`, `updated_by VARCHAR(100)`, `version BIGINT`.
+- **Dual-target migration strategy**: When fixing a column mismatch, fix the base migration (VN) for fresh volumes AND add an `ADD COLUMN IF NOT EXISTS` guard in V29 for old Docker sessions with stale schemas.
+- **Orphaned indexes after column removal**: If you remove a column from a table (e.g. `tenant_id`), also remove any `CREATE INDEX … ON table(column)` that references it — Flyway will fail at execution time on the index creation.
 
 ### Core Tables Summary
 | Table | Key Columns |

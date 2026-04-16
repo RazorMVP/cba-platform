@@ -59,6 +59,42 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 56 (Phase 6 — Admin) — 2026-04-16
+**React Phase 6 — Admin complete. 7 admin management screens built: Users (create with role chips, enable/disable toggle, delete confirm), Roles (permissions matrix modal with group select-all, `useMemo` grouping), Offices (parent office hierarchy dropdown), Hooks (WEB/SMS type toggle, event chip selection), Maker-Checker (status filter tabs, approve/reject sub-components), Notifications Admin (two-tab layout, template CRUD, test-send modal), TPP Management (register/activate/revoke lifecycle, scope chip selection). Build: 0 errors. Tests: 22/22 passing.**
+
+#### New/Updated Files
+
+| File | Change |
+|------|--------|
+| `web-react/src/app/features/admin/api/types.ts` | NEW — TypeScript interfaces for 7 admin modules: PlatformUser, Role, Permission, Office, Hook, MakerCheckerEntry, NotificationTemplate, NotificationLog, TppRegistration + all request types |
+| `web-react/src/app/features/admin/api/useAdmin.ts` | NEW — 25+ TanStack Query hooks covering all 7 admin modules |
+| `web-react/src/app/features/admin/UsersPage.tsx` | NEW — ToggleUserRow + DeleteUserRow sub-components, CreateUserModal with role chip toggles + office dropdown |
+| `web-react/src/app/features/admin/RolesPage.tsx` | NEW — PermissionsModal with useMemo grouping by `grouping` field, Set<string> selection state, toggleGroup select-all-in-group, DeleteRoleRow sub-component |
+| `web-react/src/app/features/admin/OfficesPage.tsx` | NEW — OfficeModal with parent dropdown (filtered to exclude self), hierarchy column, search filter |
+| `web-react/src/app/features/admin/HooksPage.tsx` | NEW — WEB/SMS type toggle, AVAILABLE_EVENTS chip selection, overflow badge (+N more), DeleteHookRow sub-component |
+| `web-react/src/app/features/admin/MakerCheckerPage.tsx` | NEW — ActionRow sub-component (approve + reject hooks), status filter tabs (All/PENDING/APPROVED/REJECTED), refetch as onDone |
+| `web-react/src/app/features/admin/NotificationsPage.tsx` | NEW — Two-tab layout (templates/history), DeactivateRow sub-component, TestSendModal with sent-confirmation state, HistoryTab sub-component, EMAIL/SMS subject field toggle |
+| `web-react/src/app/features/admin/TppPage.tsx` | NEW — TppActions sub-component (activate + revoke), RegisterTppModal with scope chip selection, status + text search filter |
+| `web-react/src/app/router.tsx` | UPDATED — 7 lazy admin page imports; all admin routes wired to real components |
+
+#### Key Patterns / Decisions
+- Sub-component extraction for hooks-in-map: ToggleUserRow, DeleteUserRow, DeleteRoleRow, ActionRow, DeactivateRow, TppActions — each wraps 1-2 mutation hooks at its own top level
+- `useMemo` for permissions grouping: `Map<string, Permission[]>` built from `allPerms` array; only recomputed when `allPerms` reference changes
+- `Set<string>` for permission selection state: O(1) has/add/delete; initialized from `role.permissions.map(p => p.id)`
+- `MakerCheckerStatus | undefined` drives query key: `['maker-checker', status]` — undefined means "All" and omits the status query param
+- NotificationsPage two-tab: `useState<'templates' | 'history'>('templates')` — HistoryTab extracted so its `useNotificationHistory()` call only fires when the tab is active
+- TppPage status filter: local `useState<TppStatus | ''>` client-side filter; no API param — dataset is small
+
+#### Build Verification
+- `npm run build` — ✅ clean build, 0 TypeScript errors
+- `npx vitest run` — ✅ 22/22 passing
+
+#### Compliance Checklist Update
+- Phase 6 (Admin) marked ✅ in SKILL.md Phase 2R build order
+- React Migration Checklist: Users, Roles, Offices, Hooks, Maker-Checker, Notifications Admin, TPP Management → ✅ Built — Session 56
+
+---
+
 ### Session 56 (Phase 5 — Reports) — 2026-04-16
 **React Phase 5 — Reports complete. 3 pages built: Reports List (dynamic SQL reports with schema-on-read results table), CoB Scheduler (3 hardcoded batch jobs with expandable history panels), Report Mailing Jobs (RRULE scheduling, create/edit modal, send-now trigger). Build: 0 errors. Tests: 22/22 passing.**
 

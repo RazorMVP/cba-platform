@@ -3258,13 +3258,13 @@ Every ✅ row in the Angular Component Map is a screen to rebuild in React. Stat
 | Reports list | ✅ Angular | ✅ Built — Session 56 |
 | CoB Scheduler | ✅ Angular | ✅ Built — Session 56 |
 | Report Mailing Jobs | ✅ Angular | ✅ Built — Session 56 |
-| Users | ✅ Angular | 🔲 Queued |
-| Roles | ✅ Angular | 🔲 Queued |
-| Offices | ✅ Angular | 🔲 Queued |
-| Hooks | ✅ Angular | 🔲 Queued |
-| Maker-Checker | ✅ Angular | 🔲 Queued |
-| Notifications Admin | ✅ Angular | 🔲 Queued |
-| TPP Management | ✅ Angular | 🔲 Queued |
+| Users | ✅ Angular | ✅ Built — Session 56 |
+| Roles | ✅ Angular | ✅ Built — Session 56 |
+| Offices | ✅ Angular | ✅ Built — Session 56 |
+| Hooks | ✅ Angular | ✅ Built — Session 56 |
+| Maker-Checker | ✅ Angular | ✅ Built — Session 56 |
+| Notifications Admin | ✅ Angular | ✅ Built — Session 56 |
+| TPP Management | ✅ Angular | ✅ Built — Session 56 |
 | Groups list | ✅ Angular | 🔲 Queued |
 | Group detail | ✅ Angular | 🔲 Queued |
 | Centers list | ✅ Angular | 🔲 Queued |

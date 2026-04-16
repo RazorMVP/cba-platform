@@ -44,6 +44,15 @@ const ReportsListPage   = lazy(() => import('@/app/features/reports/ReportsListP
 const CobSchedulerPage  = lazy(() => import('@/app/features/reports/CobSchedulerPage'))
 const ReportMailingPage = lazy(() => import('@/app/features/reports/ReportMailingPage'))
 
+// ── Admin ───────────────────────────────────────────────────────────────────
+const UsersPage        = lazy(() => import('@/app/features/admin/UsersPage'))
+const RolesPage        = lazy(() => import('@/app/features/admin/RolesPage'))
+const OfficesPage      = lazy(() => import('@/app/features/admin/OfficesPage'))
+const HooksPage        = lazy(() => import('@/app/features/admin/HooksPage'))
+const MakerCheckerPage = lazy(() => import('@/app/features/admin/MakerCheckerPage'))
+const NotificationsPage = lazy(() => import('@/app/features/admin/NotificationsPage'))
+const TppPage          = lazy(() => import('@/app/features/admin/TppPage'))
+
 // ── Cards ───────────────────────────────────────────────────────────────────
 const CardListPage           = lazy(() => import('@/app/features/cards/CardListPage'))
 const CardDetailPage         = lazy(() => import('@/app/features/cards/CardDetailPage'))
@@ -128,13 +137,13 @@ export const router = createBrowserRouter([
       { path: 'reports/mailing',                 element: page(ReportMailingPage) },
 
       // Admin
-      { path: 'admin/users',                     element: page(Placeholder) },
-      { path: 'admin/roles',                     element: page(Placeholder) },
-      { path: 'admin/offices',                   element: page(Placeholder) },
-      { path: 'admin/hooks',                     element: page(Placeholder) },
-      { path: 'admin/maker-checker',             element: page(Placeholder) },
-      { path: 'admin/notifications',             element: page(Placeholder) },
-      { path: 'admin/tpp',                       element: page(Placeholder) },
+      { path: 'admin/users',                     element: page(UsersPage) },
+      { path: 'admin/roles',                     element: page(RolesPage) },
+      { path: 'admin/offices',                   element: page(OfficesPage) },
+      { path: 'admin/hooks',                     element: page(HooksPage) },
+      { path: 'admin/maker-checker',             element: page(MakerCheckerPage) },
+      { path: 'admin/notifications',             element: page(NotificationsPage) },
+      { path: 'admin/tpp',                       element: page(TppPage) },
 
       // Groups
       { path: 'groups',                          element: page(Placeholder) },

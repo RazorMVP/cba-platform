@@ -39,6 +39,20 @@ const JournalEntriesPage      = lazy(() => import('@/app/features/accounting/Jou
 const ProvisioningPage        = lazy(() => import('@/app/features/accounting/ProvisioningPage'))
 const FinancialActivitiesPage = lazy(() => import('@/app/features/accounting/FinancialActivitiesPage'))
 
+// ── Cards ───────────────────────────────────────────────────────────────────
+const CardListPage           = lazy(() => import('@/app/features/cards/CardListPage'))
+const CardDetailPage         = lazy(() => import('@/app/features/cards/CardDetailPage'))
+const CardProductsPage       = lazy(() => import('@/app/features/cards/CardProductsPage'))
+const FraudRulesPage         = lazy(() => import('@/app/features/cards/FraudRulesPage'))
+const SettlementPage         = lazy(() => import('@/app/features/cards/SettlementPage'))
+const DisputesPage           = lazy(() => import('@/app/features/cards/DisputesPage'))
+const TerminalSimulatorPage  = lazy(() => import('@/app/features/cards/TerminalSimulatorPage'))
+const ApiKeysPage            = lazy(() => import('@/app/features/cards/ApiKeysPage'))
+const WebhooksPage           = lazy(() => import('@/app/features/cards/WebhooksPage'))
+const BinManagementPage      = lazy(() => import('@/app/features/cards/BinManagementPage'))
+const SchemeConfigPage       = lazy(() => import('@/app/features/cards/SchemeConfigPage'))
+const InterchangePage        = lazy(() => import('@/app/features/cards/InterchangePage'))
+
 // ── Products ────────────────────────────────────────────────────────────────
 const LoanProductsListPage        = lazy(() => import('@/app/features/products/loan-products/LoanProductsListPage'))
 const LoanProductDetailPage       = lazy(() => import('@/app/features/products/loan-products/LoanProductDetailPage'))
@@ -90,18 +104,18 @@ export const router = createBrowserRouter([
       { path: 'accounting/financial-activities', element: page(FinancialActivitiesPage) },
 
       // Cards — static sub-routes before :id
-      { path: 'cards',                           element: page(Placeholder) },
-      { path: 'cards/products',                  element: page(Placeholder) },
-      { path: 'cards/fraud',                     element: page(Placeholder) },
-      { path: 'cards/settlement',                element: page(Placeholder) },
-      { path: 'cards/disputes',                  element: page(Placeholder) },
-      { path: 'cards/terminal',                  element: page(Placeholder) },
-      { path: 'cards/api-keys',                  element: page(Placeholder) },
-      { path: 'cards/webhooks',                  element: page(Placeholder) },
-      { path: 'cards/bins',                      element: page(Placeholder) },
-      { path: 'cards/schemes',                   element: page(Placeholder) },
-      { path: 'cards/interchange',               element: page(Placeholder) },
-      { path: 'cards/:id',                       element: page(Placeholder) },
+      { path: 'cards',                           element: page(CardListPage) },
+      { path: 'cards/products',                  element: page(CardProductsPage) },
+      { path: 'cards/fraud',                     element: page(FraudRulesPage) },
+      { path: 'cards/settlement',                element: page(SettlementPage) },
+      { path: 'cards/disputes',                  element: page(DisputesPage) },
+      { path: 'cards/terminal',                  element: page(TerminalSimulatorPage) },
+      { path: 'cards/api-keys',                  element: page(ApiKeysPage) },
+      { path: 'cards/webhooks',                  element: page(WebhooksPage) },
+      { path: 'cards/bins',                      element: page(BinManagementPage) },
+      { path: 'cards/schemes',                   element: page(SchemeConfigPage) },
+      { path: 'cards/interchange',               element: page(InterchangePage) },
+      { path: 'cards/:id',                       element: page(CardDetailPage) },
 
       // Reports
       { path: 'reports',                         element: page(Placeholder) },

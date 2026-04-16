@@ -59,6 +59,47 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 55 (Phase 4 — Cards) — 2026-04-16
+**React Phase 4 — Cards complete. 12 card management pages built. Dual Axios client (cardApiClient on :8081). TypeScript errors eliminated (dead hook call in FraudRulesPage, unused constants, hooks-in-map violation in InterchangePage fixed with RateRow/FeeRow sub-components). Build: 0 errors. Tests: 22/22 passing.**
+
+#### New/Updated Files
+
+| File | Change |
+|------|--------|
+| `web-react/src/core/api/cardApiClient.ts` | NEW — Axios instance for card-service (:8081); `VITE_CARD_API_URL` env var |
+| `web-react/src/app/features/cards/api/types.ts` | NEW — Card, CardProduct, FraudRule, SettlementBatch, CardDispute, ApiKey, Webhook, BinRange, InterchangeRate, SchemeFee + all enums |
+| `web-react/src/app/features/cards/api/useCards.ts` | NEW — 40+ TanStack Query hooks across all 12 card screens |
+| `web-react/src/app/features/cards/CardListPage.tsx` | NEW — PAN display (prefix••••last4), type+status filters, issue card modal with product dropdown |
+| `web-react/src/app/features/cards/CardDetailPage.tsx` | NEW — 3 tabs (overview/authorizations/limits), block/unblock/cancel/activate commands, edit limits modal |
+| `web-react/src/app/features/cards/CardProductsPage.tsx` | NEW — product list with BIN range display, create product modal |
+| `web-react/src/app/features/cards/FraudRulesPage.tsx` | NEW — score legend, inline weight edit (blur/Enter), toggle switch, JSON params editor; dead toggleEnabled function removed |
+| `web-react/src/app/features/cards/SettlementPage.tsx` | NEW — BatchRow sub-component for per-row hooks; expand/collapse with nested transmissions; close/export per status |
+| `web-react/src/app/features/cards/DisputesPage.tsx` | NEW — sliding detail panel, 7-state chargeback workflow actions, raise + resolve modals |
+| `web-react/src/app/features/cards/TerminalSimulatorPage.tsx` | NEW — txn type pills, entry mode toggle, RC_LABEL map, approve/decline banner, collapsible hex dump |
+| `web-react/src/app/features/cards/ApiKeysPage.tsx` | NEW — RevealedKey + RevokeRow sub-components, one-time key reveal, 8 scope checkboxes |
+| `web-react/src/app/features/cards/WebhooksPage.tsx` | NEW — DeliveryPanel + DeleteRow sub-components, event selection grouped by category |
+| `web-react/src/app/features/cards/BinManagementPage.tsx` | NEW — DeleteRow sub-component, scheme colour badges, edit modal pre-populate, soft-delete |
+| `web-react/src/app/features/cards/SchemeConfigPage.tsx` | NEW — static accordion per scheme, YAML snippet copy button, STUB mode warning banner |
+| `web-react/src/app/features/cards/InterchangePage.tsx` | NEW — RateRow + FeeRow sub-components (hooks-in-map fix), shared scheme filter, add rate/fee modals |
+| `web-react/src/app/router.tsx` | UPDATED — 12 lazy card page imports; all card routes wired to real components |
+
+#### Key Patterns / Decisions
+- `cardApiClient` is a separate Axios instance (port 8081) — dual base path: `/card-api/v1/` (BaaS) + `/api/v1/` (admin endpoints both on card-service)
+- Hooks-in-map violation: fixed by extracting `RateRow`/`FeeRow` in InterchangePage, `BatchRow` in SettlementPage, `DeleteRow`/`RevokeRow`/`RevealedKey` in other pages — same pattern throughout
+- `SchemeConfigPage` has zero API calls — purely static reference data with YAML snippet generator
+- One-time key reveal: `ApiKeysPage` captures `mutation.data?.keyValue` immediately into local state; never retrievable after page re-render
+- Fraud rule toggle uses outer-scope `update` mutation (keyed to `editing?.id`) — dead `toggleEnabled` function removed
+
+#### Build Verification
+- `npm run build` → ✓ 182 modules, built in 150ms (0 TypeScript errors)
+- `npx vitest run` → 22/22 tests passing
+
+#### Compliance Checklist Update
+- React Migration Checklist: all 12 card screens → ✅ Built — Session 55
+- Phase 2R build order: Phase 4 → ✅ Complete — Session 55
+
+---
+
 ### Session 55 (Phase 3 — Accounting) — 2026-04-16
 **React Phase 3 — Accounting complete. 4 accounting pages built (GL Accounts, Journal Entries, Provisioning Criteria, Financial Activity Accounts). API layer (types + hooks) added. Build: 0 errors. Tests: 22/22 passing.**
 

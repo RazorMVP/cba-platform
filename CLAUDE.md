@@ -3276,18 +3276,18 @@ Every ✅ row in the Angular Component Map is a screen to rebuild in React. Stat
 | Floating Rates | ✅ Angular | 🔲 Queued |
 | Taxes | ✅ Angular | 🔲 Queued |
 | Account Algorithms | ✅ Angular | 🔲 Queued |
-| Card List | ✅ Angular | 🔲 Queued |
-| Card Detail | ✅ Angular | 🔲 Queued |
-| Card Products | ✅ Angular | 🔲 Queued |
-| Fraud Rules | ✅ Angular | 🔲 Queued |
-| Settlement | ✅ Angular | 🔲 Queued |
-| Disputes | ✅ Angular | 🔲 Queued |
-| Terminal Simulator | ✅ Angular | 🔲 Queued |
-| API Keys | ✅ Angular | 🔲 Queued |
-| Webhooks | ✅ Angular | 🔲 Queued |
-| BIN Management | ✅ Angular | 🔲 Queued |
-| Scheme Config | ✅ Angular | 🔲 Queued |
-| Interchange | ✅ Angular | 🔲 Queued |
+| Card List | ✅ Angular | ✅ Built — Session 55 |
+| Card Detail | ✅ Angular | ✅ Built — Session 55 |
+| Card Products | ✅ Angular | ✅ Built — Session 55 |
+| Fraud Rules | ✅ Angular | ✅ Built — Session 55 |
+| Settlement | ✅ Angular | ✅ Built — Session 55 |
+| Disputes | ✅ Angular | ✅ Built — Session 55 |
+| Terminal Simulator | ✅ Angular | ✅ Built — Session 55 |
+| API Keys | ✅ Angular | ✅ Built — Session 55 |
+| Webhooks | ✅ Angular | ✅ Built — Session 55 |
+| BIN Management | ✅ Angular | ✅ Built — Session 55 |
+| Scheme Config | ✅ Angular | ✅ Built — Session 55 |
+| Interchange | ✅ Angular | ✅ Built — Session 55 |
 
 **Build order**: Operations (customers → accounts → loans → payments → tellers) → Products → Accounting → Cards → Reports → Admin → Groups → System → Open Banking
 

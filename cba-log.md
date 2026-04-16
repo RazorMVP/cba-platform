@@ -59,6 +59,55 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 61 — 2026-04-16
+**Local dev infrastructure: Dockerfile.local for backend + root docker-compose.yml convenience entry point. Three local dev guides written to desktop. (commit `ba6c6e7`)**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/Dockerfile.local` | NEW — JRE-only image built from pre-compiled fat JAR; faster iteration than multi-stage production Dockerfile |
+| `docker-compose.yml` | NEW — root-level convenience entry point; `include: infrastructure/docker-compose.yml` so `docker compose up` works from repo root |
+| `~/Desktop/cba-startup-guide.md` | NEW (desktop) — prerequisites, Option A (infra only + IDE), Option B (full Docker stack), service URLs, credentials, common issues |
+| `~/Desktop/cba-backend-local-dev-guide.md` | NEW (desktop) — project structure, Spring profiles, DevAuthBypassFilter, DB setup, Flyway, Quartz gotchas, Dockerfile.local usage, common errors |
+| `~/Desktop/cba-testing-guide.md` | NEW (desktop) — backend unit/integration/snapshot tests, Angular Karma + Playwright, Postman flows, CI gates, key business rule scenarios |
+
+#### Key Patterns / Decisions
+- `Dockerfile.local` deliberately uses `eclipse-temurin:21-jre-alpine` (JRE only) — Maven runs outside the container; the fat JAR is `COPY`'d in
+- Root `docker-compose.yml` uses `include:` (Compose v2.20+) rather than duplicating service definitions
+- `DevAuthBypassFilter` is active in both `dev` and `docker` profiles (`app.auth-bypass: true`) — documented explicitly in backend guide
+
+#### Build Verification
+- `git add backend/Dockerfile.local docker-compose.yml && git commit` — clean commit `ba6c6e7`
+- web-react files reverted (`git checkout -- web-react/src/core/api/apiClient.ts web-react/vite.config.ts`) — Angular is production frontend
+
+#### Confirmed Platform Versions
+
+**Backend (`backend/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `ba6c6e7` |
+| Java | 21 | `ba6c6e7` |
+| Application artifact | `cba-backend 0.1.0-SNAPSHOT` | `ba6c6e7` |
+| Keycloak admin client | 26.0.5 | `ba6c6e7` |
+| springdoc-openapi | 2.8.6 | `ba6c6e7` |
+| Lombok | 1.18.38 | `ba6c6e7` |
+| PostgreSQL | 16 (Docker) | `ba6c6e7` |
+
+**Angular Web App (`web/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular (`@angular/core` + material) | 21.2.x | `36cec09` |
+| Angular CLI | 21.2.7 | `36cec09` |
+| PrimeNG | 21.0.x | `36cec09` |
+| RxJS | 7.8.x | `36cec09` |
+| TypeScript | 5.9.x | `36cec09` |
+| Vercel deployment ID | `dpl_5U67X9GZzUBUD8AHxp5ciwpN7vMt` | `36cec09` |
+| Production URL | `cba-web-nine.vercel.app` | `36cec09` |
+
+---
+
 ### Session 60 — 2026-04-16
 **Reverted to Angular `web/` as production frontend; backend schema fully validated; Angular deployed to Vercel production.**
 

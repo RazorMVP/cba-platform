@@ -81,6 +81,32 @@ _None — all Phase 1 backend modules are now complete._
 - `ng build --configuration=production` — warnings only, no errors; `dist/cba-web/browser/` produced
 - `vercel deploy --prebuilt --prod` — deployment `dpl_5U67X9GZzUBUD8AHxp5ciwpN7vMt` ready; aliased to `cba-web-nine.vercel.app`
 
+#### Confirmed Platform Versions
+
+**Backend (`backend/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `8f9a57b` |
+| Java | 21 | `8f9a57b` |
+| Application artifact | `cba-backend 0.1.0-SNAPSHOT` | `8f9a57b` |
+| Keycloak admin client | 26.0.5 | `8f9a57b` |
+| springdoc-openapi | 2.8.6 | `8f9a57b` |
+| Lombok | 1.18.38 | `8f9a57b` |
+| PostgreSQL | 16 (Docker) | `8f9a57b` |
+
+**Angular Web App (`web/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular (`@angular/core` + material) | 21.2.x | `36cec09` |
+| Angular CLI | 21.2.7 | `36cec09` |
+| PrimeNG | 21.0.x | `36cec09` |
+| RxJS | 7.8.x | `36cec09` |
+| TypeScript | 5.9.x | `36cec09` |
+| Vercel deployment ID | `dpl_5U67X9GZzUBUD8AHxp5ciwpN7vMt` | `36cec09` |
+| Production URL | `cba-web-nine.vercel.app` | `36cec09` |
+
 ---
 
 ### Session 59 — 2026-04-16

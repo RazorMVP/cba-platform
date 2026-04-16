@@ -4,6 +4,37 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
+## Confirmed Platform Versions (Session 60 — 2026-04-16)
+
+These are the verified-working versions for both production components. Update this table whenever a dependency is upgraded.
+
+### Backend (`backend/`)
+
+| Component | Version | Notes |
+|-----------|---------|-------|
+| **Spring Boot** | 3.5.0 | Parent BOM; governs Flyway, Hibernate, security versions |
+| **Java** | 21 | LTS; records, sealed classes, pattern matching used throughout |
+| **Application artifact** | `cba-backend 0.1.0-SNAPSHOT` | `pom.xml` groupId: `com.cba` |
+| **Keycloak admin client** | 26.0.5 | `keycloak-admin-client` |
+| **springdoc-openapi** | 2.8.6 | OpenAPI 3.1 at `/swagger-ui.html` and `/api-docs` |
+| **Lombok** | 1.18.38 | Minimum for Java 25 `TypeTag` fix; also works on Java 21 |
+| **PostgreSQL** | 16 | Via Docker; schema managed by Flyway |
+| **Last git commit** | `8f9a57b` | `fix(schema): add V30-V33 patch migrations for old Docker sessions` |
+
+### Angular Web App (`web/`)
+
+| Component | Version | Notes |
+|-----------|---------|-------|
+| **Angular** | 21.2.x | `@angular/core`, `@angular/material`, all `@angular/*` packages |
+| **Angular CLI** | 21.2.7 | Used for `ng build --configuration=production` |
+| **PrimeNG** | 21.0.x | UI component library |
+| **RxJS** | 7.8.x | Reactive extensions; `~7.8.0` pinned |
+| **TypeScript** | 5.9.x | `~5.9.2` pinned |
+| **Vercel deployment** | `dpl_5U67X9GZzUBUD8AHxp5ciwpN7vMt` | Production alias: `cba-web-nine.vercel.app` |
+| **Last git commit** | `36cec09` | `revert(web): restore Angular web/ as production frontend (undo Session 58 cutover)` |
+
+---
+
 ## Project Overview
 
 A production-grade, full-stack Core Banking Application modelled on Apache Fineract / Mifos X conventions.

@@ -59,6 +59,31 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 58 — Cutover: React → Production — 2026-04-16
+**React frontend promoted to production. Angular `web/` archived to `web-archived/`. `web-ci.yml` rewritten to deploy `web-react/` on `VERCEL_PROJECT_ID_WEB`.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `.github/workflows/web-ci.yml` | REWRITTEN — React CI/CD: test (tsc + vitest) + security (npm audit + snyk) + deploy (Vercel prod via `VERCEL_PROJECT_ID_WEB`) + e2e (Playwright). Angular jobs removed. Path trigger: `web-react/**` only. |
+| `web-archived/` | ARCHIVED — `git mv web web-archived`; Angular app preserved with full history |
+| `CLAUDE.md` | UPDATED — monorepo structure, CI table, Vercel section, migration strategy, Phase 8 note all updated to reflect cutover |
+
+#### Key Patterns / Decisions
+- **`git mv` preserves history**: `web-archived/` retains all Angular commit history; `git log -- web-archived/` works; Angular can be recovered at any point
+- **`VERCEL_PROJECT_ID_WEB` unchanged**: React app inherits the canonical production project ID; no Vercel project reconfiguration needed — just point `web-react/` at it
+- **`VERCEL_TOKEN_REACT` / `VERCEL_PROJECT_ID_REACT` retired**: No longer needed; React uses the same token/project as the old Angular app
+
+#### Build Verification
+- React build and tests verified in Session 57 (0 errors, 22/22 tests)
+- CI pipeline rewritten; no Angular build to verify (archived)
+
+#### Compliance Checklist Update
+- React Migration Checklist: **all rows ✅** — cutover complete
+- Phase 2R build order: **Cutover ✅ Session 58**
+
+---
+
 ### Session 57 — Phase 8 (Open Banking) — 2026-04-16
 **React Phase 8 complete: Consents list + Consent detail. Feature parity reached — all 57 routes are real page components. Build: 0 errors, 22/22 tests. Commit: pending push.**
 

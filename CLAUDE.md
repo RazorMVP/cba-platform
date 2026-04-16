@@ -2596,7 +2596,8 @@ CoreBanking/                          ← monorepo root (this repo)
 ├── backend/                          → Docker → Kubernetes (GHCR images)
 ├── card-service/                     → Docker → Kubernetes (GHCR images)
 ├── fep-service/                      → Docker → Kubernetes (GHCR images)
-├── web/                              → Vercel (Angular static site)
+├── web-archived/                     → Angular app (archived Session 58; no longer deployed)
+├── web-react/                        → Vercel (React — production frontend)
 ├── mobile/                           → GitHub Artifacts (APK / IPA)
 ├── infrastructure/                   → k8s manifests applied via kubectl
 ├── .github/
@@ -2617,43 +2618,32 @@ CoreBanking/                          ← monorepo root (this repo)
 |----------|---------|-------------|----------|
 | `backend-ci.yml` | push/PR to main/develop | `backend/**` | **api-doc-check** → test → sonar → owasp → spotbugs → docker → deploy-k8s |
 | `card-service-ci.yml` | push/PR to main/develop | `card-service/**` | **api-doc-check** → test → owasp → spotbugs → docker → deploy-k8s |
-| `web-ci.yml` | push/PR to main/develop | `web/**` | test → security → build → vercel-deploy → e2e |
+| `web-ci.yml` | push/PR to main/develop | `web-react/**` | test → security → deploy (Vercel prod) → e2e |
 | `mobile-ci.yml` | push/PR to main/develop | `mobile/**` | test → dart-audit → build-android → build-ios |
 | `security-scan.yml` | push/PR + cron (Mon 03:00) | all | codeql → trivy-fs → gitleaks → dependency-review → snyk → zap |
 
-### Vercel Deployment (Angular Web App)
+### Vercel Deployment (React Web App — production since Session 58)
 
-**Config**: `web/vercel.json`
-**Pattern**: `--prebuilt` — CI builds the Angular app, tests it, then deploys the artifact (Vercel never rebuilds)
+**Config**: `web-react/vercel.json`
+**Pattern**: `--prebuilt` — CI builds the React app, tests it, then deploys the artifact (Vercel never rebuilds)
+**Angular app**: archived to `web-archived/` (full git history preserved); no longer deployed.
 
 ```
-PR opened      → vercel build → vercel deploy --prebuilt     → Preview URL auto-commented on PR
-Push to develop → vercel build --prod → vercel deploy --prebuilt     → Staging alias
-Push to main   → vercel build --prod → vercel deploy --prebuilt --prod → Production
+PR opened       → vercel build → vercel deploy --prebuilt        → Preview URL auto-commented on PR
+Push to develop → vercel build --prod → vercel deploy --prebuilt → Staging alias
+Push to main    → vercel build --prod → vercel deploy --prebuilt --prod → Production
 ```
 
 **Required GitHub Secrets for Vercel**:
 ```
 VERCEL_TOKEN          — Personal Access Token from vercel.com/account/tokens
-```
-**Required after `vercel link --repo`** (from `web/.vercel/project.json`):
-```
-VERCEL_ORG_ID         — Add to GitHub Secrets
-VERCEL_PROJECT_ID_WEB — Add to GitHub Secrets
-```
-
-**Vercel CLI Setup** (one-time, run locally in `web/` directory):
-```bash
-npm install -g vercel
-vercel login
-cd web
-vercel link --repo      # Links the monorepo; creates .vercel/repo.json
-vercel pull             # Pulls project settings and env vars
+VERCEL_ORG_ID         — From web-react/.vercel/project.json after vercel link
+VERCEL_PROJECT_ID_WEB — Canonical Vercel project ID (now pointing at React app)
 ```
 
 **vercel.json features**:
-- Framework: `angular` (static SPA)
-- SPA rewrites: all non-API routes → `index.html`
+- Framework: `vite` (React SPA)
+- SPA rewrites: all non-asset routes → `index.html`
 - Security headers: CSP, HSTS, X-Frame-Options, Referrer-Policy, Permissions-Policy
 - Static asset caching: `max-age=31536000, immutable` for JS/CSS/assets
 
@@ -3127,7 +3117,7 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 
 ## React Frontend Migration — Session 52 (2026-04-15)
 
-**Decision**: Full rewrite of Angular `web/` → React `web-react/`. Angular stays live during transition (parallel track). Cutover happens when React reaches feature parity by updating `web-ci.yml` to point Vercel at `web-react/`. Angular `web/` is then archived/deleted.
+**Decision**: Full rewrite of Angular `web/` → React `web-react/`. ✅ **Cutover complete — Session 58 (2026-04-16).**
 
 **Drivers**: Team React skill-set alignment.
 
@@ -3135,11 +3125,11 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 
 ### Migration Strategy
 
-- `web-react/` is built in parallel alongside `web/` in the same monorepo
-- Both point at the same Spring Boot backend API (no backend changes)
-- React app deployed to a Vercel **preview URL** during build; Angular stays on **production URL**
-- Cutover = one-line change in `web-ci.yml` (`working-directory: web` → `web-react`)
-- After cutover: `web/` deleted, `web-ci.yml` simplified
+- ✅ `web-react/` built in parallel alongside `web/` — Phases 0–8 complete (Sessions 52–57)
+- ✅ Cutover performed in Session 58: `web-ci.yml` updated to deploy `web-react/` to production
+- ✅ Angular `web/` archived to `web-archived/` (git history fully preserved, not deleted)
+- Both apps always shared the same Spring Boot backend API (no backend changes)
+- `VERCEL_PROJECT_ID_WEB` now points at the React app in Vercel
 
 ---
 
@@ -3375,7 +3365,7 @@ web-react/
 
 **Consent detail** — status + type badge banner, conditional Authorise/Revoke action buttons (Authorise only for AWAITING_AUTHORISATION; Revoke for any non-REVOKED), two-column `<dl>` grid with PISP-specific fields (amount, reference, debtor/creditor accounts) and CBPII funds-available badge, scope chips panel, confirm modal for each action (navigate back to list after revoke).
 
-**React migration: feature parity reached.** All 57 routes in `router.tsx` resolve to real page components — `PlaceholderPage` import removed. Next step: Cutover (update `web-ci.yml` `working-directory: web` → `web-react`, archive `web/`).
+**React migration: feature parity reached.** All 57 routes in `router.tsx` resolve to real page components — `PlaceholderPage` import removed. ✅ **Cutover complete — Session 58 (2026-04-16).** `web-ci.yml` now deploys `web-react/` to production. Angular `web/` archived to `web-archived/`.
 
 ---
 

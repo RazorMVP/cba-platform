@@ -1,66 +1,71 @@
-name: Web CI/CD (Angular → Vercel)
+name: Web CI/CD (React → Vercel)
 
 on:
   push:
     branches: [main, develop]
     paths:
-      - 'web/**'
       - 'web-react/**'
       - '.github/workflows/web-ci.yml'
   pull_request:
     branches: [main, develop]
     paths:
-      - 'web/**'
       - 'web-react/**'
       - '.github/workflows/web-ci.yml'
+
+# ── NOTE ──────────────────────────────────────────────────────────────────────
+# Angular web/ has been archived to web-archived/ (Session 58, 2026-04-16).
+# The Angular jobs (test, security, build, e2e) are no longer triggered.
+# React is now the production frontend.
+# ──────────────────────────────────────────────────────────────────────────────
 
 jobs:
   # ─── Lint + Unit Tests ────────────────────────────────────────────────────────
   test:
-    name: Lint & Test (Angular)
+    name: Lint & Test (React)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web-react
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: web-react/package-lock.json
 
       - name: Install dependencies
-        working-directory: web
         run: npm ci
 
-      - name: Lint (angular-eslint)
-        working-directory: web
-        run: npx ng lint
+      - name: Type check
+        run: npx tsc --noEmit
 
-      - name: Unit tests (ng test / Vitest)
-        working-directory: web
-        run: npx ng test --watch=false
+      - name: Unit tests (Vitest)
+        run: npx vitest run
 
-  # ─── Security — npm audit + ESLint Security ───────────────────────────────────
+  # ─── Security — npm audit ─────────────────────────────────────────────────────
   security:
-    name: Security Audit (npm + ESLint)
+    name: Security Audit (npm)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web-react
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: web-react/package-lock.json
 
       - name: Install dependencies
-        working-directory: web
         run: npm ci
 
       - name: npm audit (fail on high/critical)
-        working-directory: web
         run: npm audit --audit-level=high
 
       - name: Snyk dependency scan
@@ -69,15 +74,18 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          args: --file=web/package.json --severity-threshold=high
+          args: --file=web-react/package.json --severity-threshold=high
 
-  # ─── Production Build ─────────────────────────────────────────────────────────
-  build:
-    name: Production Build (Angular)
+  # ─── Production Build + Vercel Deploy ─────────────────────────────────────────
+  deploy:
+    name: Build & Deploy → Vercel
     runs-on: ubuntu-latest
     needs: [test, security]
     outputs:
       vercel-url: ${{ steps.deploy-preview.outputs.url }}
+    defaults:
+      run:
+        working-directory: web-react
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -88,54 +96,35 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: web-react/package-lock.json
 
-      - name: Install Angular app dependencies
-        working-directory: web
+      - name: Install dependencies
         run: npm ci
 
-      - name: Install Vercel CLI (pinned version)
+      - name: Install Vercel CLI
         run: npm install -g vercel@latest
 
-      # Pull Vercel project settings and env vars into .vercel/ + .env.local
       - name: Pull Vercel environment (preview)
         if: github.event_name == 'pull_request'
-        working-directory: web
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: vercel pull --yes --environment=preview --token="${VERCEL_TOKEN}"
 
       - name: Pull Vercel environment (production)
         if: github.event_name == 'push'
-        working-directory: web
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: vercel pull --yes --environment=production --token="${VERCEL_TOKEN}"
 
-      # Vercel builds using its own build pipeline (respects vercel.json)
       - name: Build (preview)
         if: github.event_name == 'pull_request'
-        working-directory: web
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: vercel build --token="${VERCEL_TOKEN}"
 
       - name: Build (production)
         if: github.event_name == 'push'
-        working-directory: web
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: vercel build --prod --token="${VERCEL_TOKEN}"
 
-      # Deploy the pre-built artifact — no remote rebuild
       - name: Deploy preview to Vercel
         if: github.event_name == 'pull_request'
         id: deploy-preview
-        working-directory: web
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           URL=$(vercel deploy --prebuilt --token="${VERCEL_TOKEN}")
           echo "url=${URL}" >> "$GITHUB_OUTPUT"
@@ -154,27 +143,21 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: [
-                '## CBA Web Portal — Preview Deployment',
+                '## CBA Web Portal — Preview Deployment (React)',
                 '',
                 `**URL**: ${previewUrl}`,
                 '',
-                '> Auto-deployed by the Web CI pipeline. This preview reflects the latest commit on this PR.',
+                '> Auto-deployed by the Web CI pipeline.',
               ].join('\n')
             });
 
-      - name: Deploy to production (develop → staging alias)
+      - name: Deploy to Vercel (develop → staging)
         if: github.ref == 'refs/heads/develop'
-        working-directory: web
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: vercel deploy --prebuilt --token="${VERCEL_TOKEN}"
 
-      - name: Deploy to production (main → production)
+      - name: Deploy to Vercel (main → production)
         if: github.ref == 'refs/heads/main'
         id: deploy-prod
-        working-directory: web
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           URL=$(vercel deploy --prebuilt --prod --token="${VERCEL_TOKEN}")
           echo "url=${URL}" >> "$GITHUB_OUTPUT"
@@ -184,30 +167,30 @@ jobs:
   e2e:
     name: E2E Tests (Playwright)
     runs-on: ubuntu-latest
-    needs: build
+    needs: deploy
     if: github.event_name == 'pull_request'
+    defaults:
+      run:
+        working-directory: web-react
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: web-react/package-lock.json
 
       - name: Install dependencies
-        working-directory: web
         run: npm ci
 
       - name: Install Playwright browsers
-        working-directory: web
         run: npx playwright install --with-deps chromium
 
       - name: Run Playwright E2E tests
-        working-directory: web
         env:
-          BASE_URL: ${{ needs.build.outputs.vercel-url }}
+          BASE_URL: ${{ needs.deploy.outputs.vercel-url }}
         run: npx playwright test --reporter=html
 
       - name: Upload Playwright report
@@ -215,35 +198,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: web/playwright-report/
-
-  # ─── React App — Vercel Preview ───────────────────────────────────────────────
-  react-deploy:
-    name: React → Vercel Preview
-    runs-on: ubuntu-latest
-    if: >
-      github.ref == 'refs/heads/main' ||
-      github.event_name == 'pull_request'
-    defaults:
-      run:
-        working-directory: web-react
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: web-react/package-lock.json
-      - run: npm ci
-      - run: npm run build
-      - run: npx vitest run
-      - name: Deploy to Vercel (preview)
-        run: |
-          npm i -g vercel@latest
-          vercel pull --yes --environment=preview --token=$VERCEL_TOKEN
-          vercel build --token=$VERCEL_TOKEN
-          vercel deploy --prebuilt --token=$VERCEL_TOKEN
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN_REACT }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_REACT }}
+          path: web-react/playwright-report/

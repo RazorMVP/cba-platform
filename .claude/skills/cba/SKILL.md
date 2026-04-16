@@ -136,10 +136,10 @@ Read `references/stack.md` (Angular section) before starting.
 4. ✅ **Phase 3 — Accounting** — GL accounts, Journal entries, Provisioning, Financial Activity Accounts ✅ Complete — Session 55
 5. ✅ **Phase 4 — Cards** — Full card management platform (12 screens) ✅ Complete — Session 55
 6. ✅ **Phase 5 — Reports** — Reports list, CoB Scheduler, Report Mailing Jobs ✅ Complete — Session 56
-7. 🔲 **Phase 6 — Admin** — Users, Roles, Offices, Hooks, Maker-Checker, Notifications, TPP Management
-8. 🔲 **Phase 7 — Groups & System** — Groups, Centers, Codes, Global Config, Floating Rates, Taxes, Account Algorithms
-9. 🔲 **Phase 8 — Open Banking** — Consents list, Consent detail
-10. 🔲 **Cutover** — Update `web-ci.yml` to point Vercel at `web-react/`, archive `web/`
+7. ✅ **Phase 6 — Admin** — Users, Roles, Offices, Hooks, Maker-Checker, Notifications, TPP Management — Complete Session 56
+8. ✅ **Phase 7 — Groups & System** — Groups, Centers, Codes, Global Config, Floating Rates, Taxes, Account Algorithms — Complete Session 57
+9. ✅ **Phase 8 — Open Banking** — Consents list, Consent detail — Complete Session 57
+10. ✅ **Cutover** — `web-ci.yml` updated; `web-react/` now on production; Angular archived to `web-archived/` — Complete Session 58 (2026-04-16)
 
 **Key patterns** (for consistency across all React screens):
 - All routes defined in `web-react/src/app/router.tsx` — add new routes here before building screens

@@ -51,6 +51,28 @@
         <label class="form-label">National ID</label>
         <input class="form-input" type="text" [(ngModel)]="newForm.nationalId" placeholder="NIN / Passport number" />
       </div>
+
+      <!-- Photo upload (optional at creation) -->
+      <div class="form-field">
+        <label class="form-label">
+          Customer Photo
+          <span class="form-hint">&nbsp;optional — JPEG or PNG, max 5 MB</span>
+        </label>
+        @if (photoPreviewUrl) {
+          <div class="photo-preview-wrap">
+            <img [src]="photoPreviewUrl" class="photo-preview" alt="Customer photo preview" />
+            <button type="button" class="btn-ghost-sm" (click)="clearPhoto()">
+              <span class="material-icons">close</span> Remove
+            </button>
+          </div>
+        } @else {
+          <label class="file-upload-label">
+            <span class="material-icons">upload_file</span> Choose photo
+            <input type="file" accept="image/jpeg,image/png" (change)="onPhotoSelected($event)" hidden />
+          </label>
+        }
+      </div>
+
       @if (saveError) {
         <div class="modal__error">{{ saveError }}</div>
       }
@@ -66,7 +88,11 @@
     <!-- Profile header card -->
     <div class="profile-card">
       <div class="profile-card__left">
-        <div class="profile-avatar" [style.background]="avatarColor">{{ initials }}</div>
+        @if (photoDataUrl) {
+          <img [src]="photoDataUrl" class="profile-avatar profile-avatar--photo" alt="Customer photo" />
+        } @else {
+          <div class="profile-avatar" [style.background]="avatarColor">{{ initials }}</div>
+        }
         <div class="profile-info">
           <h1 class="profile-name">{{ customer.firstName }} {{ customer.lastName }}</h1>
           <p class="profile-id">ID: {{ customer.externalId ?? customer.id }}</p>

@@ -20,6 +20,9 @@ public class ClientImage {
     @Column(name = "customer_id", nullable = false, unique = true)
     private UUID customerId;
 
+    @Column(name = "file_name", length = 255)
+    private String fileName;
+
     @Column(length = 500)
     private String location;
 
@@ -31,6 +34,10 @@ public class ClientImage {
     private String contentType;
 
     private Long size;
+
+    // Only populated when storageType = DATABASE
+    @Column(name = "data", columnDefinition = "BYTEA")
+    private byte[] data;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now();

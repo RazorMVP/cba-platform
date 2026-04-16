@@ -59,6 +59,67 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 64 — 2026-04-17
+**Customer image storage — full implementation: pluggable StorageProvider (FILE_SYSTEM/DATABASE/S3), multipart API, optional photo at customer creation, mandatory photo at account opening.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/src/main/resources/db/migration/V34__client_image_binary.sql` | NEW — adds `file_name VARCHAR(255)` and `data BYTEA` columns to `client_images` |
+| `backend/src/main/java/com/cba/customer/storage/StorageProvider.java` | NEW — pluggable interface with `store/retrieve/delete/getType` + `StorageResult` record |
+| `backend/src/main/java/com/cba/customer/storage/FileSystemStorageProvider.java` | NEW — `@ConditionalOnProperty(matchIfMissing=true)`, writes to `./uploads/customer-images/` |
+| `backend/src/main/java/com/cba/customer/storage/DatabaseStorageProvider.java` | NEW — stores bytes in `client_images.data BYTEA` column |
+| `backend/src/main/java/com/cba/customer/storage/S3StorageProvider.java` | NEW — AWS SDK v2 S3 client; `endpointOverride` for MinIO/GCS/Localstack |
+| `backend/src/main/java/com/cba/customer/ClientImage.java` | Updated — added `fileName String`, `data byte[]` (`@Column(columnDefinition="BYTEA")`) |
+| `backend/src/main/java/com/cba/customer/ClientImageService.java` | Rewritten — accepts `MultipartFile`; validates 5MB + JPEG/PNG; `getMeta()`, `getImageData()`, `hasImage()`, `deleteImage()` |
+| `backend/src/main/java/com/cba/customer/ClientImageController.java` | Rewritten — `GET /images` → `ImageMeta` (always 200); `GET /images/data` → raw bytes with Content-Type; `PUT /images` → multipart |
+| `backend/pom.xml` | Added `software.amazon.awssdk:s3:2.26.12` (optional) |
+| `backend/src/main/resources/application.yml` | Added `spring.servlet.multipart` limits (5MB/6MB) and `app.image.*` config block |
+| `web/src/app/features/operations/customers/customer.service.ts` | Added `ImageMeta` interface; `getImageMeta()`, `getImageDataUrl()` (blob), `uploadImage()` (FormData), `deleteImage()` |
+| `web/src/app/features/operations/customers/customer-detail/customer-detail.ts` | Added photo state (`photoFile`, `photoPreviewUrl`, `photoMeta`, `photoDataUrl`); `onPhotoSelected()`, `clearPhoto()`; post-create upload in `submitCreate()`; photo load in `ngOnInit` for existing customers |
+| `web/src/app/features/operations/customers/customer-detail/customer-detail.html` | Added optional photo upload section in creation form; photo shown in profile avatar for existing customers |
+| `web/src/app/features/operations/accounts/account-detail/account-detail.ts` | Added mandatory photo state; `onCustomerIdChange()` auto-checks existing image; `photoReady` getter; blocks `submitCreate()` without photo; uploads before account creation if new file |
+| `web/src/app/features/operations/accounts/account-detail/account-detail.html` | Added photo section with green "existing photo" confirmation or file upload prompt; Submit button disabled until `photoReady` |
+| `web/src/assets/styles/_design-system.scss` | Added `.file-upload-label`, `.photo-preview-wrap`, `.photo-preview`, `.photo-status`, `.btn-ghost-sm`, `.form-hint--error`, `.profile-avatar--photo` CSS classes |
+
+#### Key Patterns / Decisions
+- **Pluggable strategy pattern**: `StorageProvider` interface; `@ConditionalOnProperty` selects implementation at startup — zero code changes to switch from FILE_SYSTEM to S3 in production
+- **`GET /images` always returns 200** with `{ hasImage: false }` when no image exists — Angular does not need to handle 404 as a "normal" state
+- **Auth on blob requests**: Angular uses `HttpClient` with `responseType: 'blob'` and explicit `Authorization` header — not direct `<img src>` which bypasses interceptors
+- **Account opening flow**: (1) blur on `customerId` field → calls `getImageMeta()` → shows green "existing photo" banner or upload prompt; (2) if new file selected, upload first then create account; if existing photo, create account directly; (3) Submit button disabled until `photoReady === true`
+- **Upload failure at creation is non-blocking**: if photo upload succeeds but downstream create fails, the user is not left stranded — the reverse (create succeeds, photo fails) navigates to the new customer where they can re-upload
+
+#### Build Verification
+- `cd backend && ./mvnw compile` → `BUILD SUCCESS (0 errors)`
+- `cd web && npx ng build --configuration=development` → success (pre-existing warnings only in `CodesComponent`)
+
+#### Confirmed Platform Versions
+
+**Backend (`backend/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `f018ee2` |
+| Java | 21 | `f018ee2` |
+| Application artifact | `cba-backend 0.1.0-SNAPSHOT` | `f018ee2` |
+| Keycloak admin client | 26.0.5 | `f018ee2` |
+| springdoc-openapi | 2.8.6 | `f018ee2` |
+| Lombok | 1.18.38 | `f018ee2` |
+| PostgreSQL | 16 (Docker) | `f018ee2` |
+| AWS SDK v2 S3 | 2.26.12 | (new this session) |
+
+**Angular Web App (`web/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `0c6cb55` |
+| Angular CLI | 21.2.7 | `0c6cb55` |
+| PrimeNG | 21.0.x | `0c6cb55` |
+| RxJS | 7.8.x | `0c6cb55` |
+| TypeScript | 5.9.x | `0c6cb55` |
+
+---
+
 ### Session 63 — 2026-04-17
 **Bug fix: remove doubled `/api/v1` path prefix from 5 Angular service files — fixes perpetual spinner on Account Algorithms page and silently broken Admin/System/Accounting/Reports/Groups pages.**
 

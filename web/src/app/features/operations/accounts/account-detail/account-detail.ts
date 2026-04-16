@@ -4,6 +4,7 @@ import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge';
 import { AccountService, Account, Transaction, AccountCreateRequest } from '../account.service';
+import { CustomerService, ImageMeta } from '../../customers/customer.service';
 import { PageResponse } from '../../../../core/models/api-response.model';
 
 type ActiveTab = 'overview' | 'transactions';
@@ -17,9 +18,10 @@ type ModalType = 'freeze' | 'unfreeze' | 'close' | 'deposit' | 'withdraw' | 'sta
   styleUrl: './account-detail.scss',
 })
 export class AccountDetailComponent implements OnInit {
-  private readonly route  = inject(ActivatedRoute);
-  private readonly router = inject(Router);
-  private readonly svc    = inject(AccountService);
+  private readonly route      = inject(ActivatedRoute);
+  private readonly router     = inject(Router);
+  private readonly svc        = inject(AccountService);
+  private readonly custSvc    = inject(CustomerService);
 
   account: Account | null = null;
   loading = true;
@@ -30,6 +32,12 @@ export class AccountDetailComponent implements OnInit {
   saving = false;
   saveError = '';
   newForm: AccountCreateRequest = { customerId: '', productId: '', accountType: 'SAVINGS' };
+
+  // ── Photo (mandatory at account opening) ──────────────────────────────────
+  photoMeta: ImageMeta | null = null;
+  photoChecking = false;
+  photoFile: File | null = null;
+  photoPreviewUrl: string | null = null;
 
   activeTab: ActiveTab = 'overview';
 
@@ -77,14 +85,62 @@ export class AccountDetailComponent implements OnInit {
     });
   }
 
+  onCustomerIdChange(): void {
+    const id = this.newForm.customerId?.trim();
+    this.photoMeta = null;
+    this.photoFile = null;
+    this.photoPreviewUrl = null;
+    if (!id) return;
+    this.photoChecking = true;
+    this.custSvc.getImageMeta(id).subscribe({
+      next:  meta => { this.photoMeta = meta; this.photoChecking = false; },
+      error: ()   => { this.photoMeta = { hasImage: false }; this.photoChecking = false; },
+    });
+  }
+
+  get photoReady(): boolean {
+    // Passes if the customer already has an image OR a new file has been selected
+    return (this.photoMeta?.hasImage === true) || this.photoFile !== null;
+  }
+
+  onPhotoSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    this.photoFile = file;
+    const reader = new FileReader();
+    reader.onload = () => this.photoPreviewUrl = reader.result as string;
+    reader.readAsDataURL(file);
+  }
+
+  clearPhoto(): void {
+    this.photoFile = null;
+    this.photoPreviewUrl = null;
+  }
+
   submitCreate(): void {
     if (!this.newForm.customerId || !this.newForm.productId) return;
+    if (!this.photoReady) {
+      this.saveError = 'A customer photo is required before opening an account.';
+      return;
+    }
     this.saving = true;
     this.saveError = '';
-    this.svc.create(this.newForm).subscribe({
+
+    const doCreate = () => this.svc.create(this.newForm).subscribe({
       next:  a  => this.router.navigate(['..', a.id], { relativeTo: this.route }),
       error: () => { this.saveError = 'Failed to open account. Please try again.'; this.saving = false; },
     });
+
+    if (this.photoFile && !this.photoMeta?.hasImage) {
+      // Upload first, then create account
+      this.custSvc.uploadImage(this.newForm.customerId, this.photoFile).subscribe({
+        next:  () => doCreate(),
+        error: () => { this.saveError = 'Photo upload failed. Please try again.'; this.saving = false; },
+      });
+    } else {
+      doCreate();
+    }
   }
 
   // ── Tab navigation ──────────────────────────────────────────────────────────

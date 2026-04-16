@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 63 — 2026-04-17)
+## Confirmed Platform Versions (Session 64 — 2026-04-17)
 
 These are the verified-working versions for both production components. Update this table whenever a dependency is upgraded.
 
@@ -19,6 +19,7 @@ These are the verified-working versions for both production components. Update t
 | **springdoc-openapi** | 2.8.6 | OpenAPI 3.1 at `/swagger-ui.html` and `/api-docs` |
 | **Lombok** | 1.18.38 | Minimum for Java 25 `TypeTag` fix; also works on Java 21 |
 | **PostgreSQL** | 16 | Via Docker; schema managed by Flyway |
+| **AWS SDK v2 S3** | 2.26.12 | Optional — for S3/MinIO/GCS image storage |
 | **Last git commit** | `f018ee2` | `fix(tenant): add GET /api/v1/tenants endpoint for Account Algorithms page` |
 
 ### Angular Web App (`web/`)
@@ -525,11 +526,15 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 
 ### 39. Client Images Module
 - Profile image management; one image per customer (`UNIQUE` constraint on `customer_id`)
-- `StorageType` enum: `FILE_SYSTEM | S3 | DATABASE`. Stores metadata only — binary handled by external storage
-- `saveImage()` performs an upsert: finds existing record or creates new; single `PUT` endpoint handles both cases
-- No `version` column in DB table
-- Package: `com.cba.customer`; Flyway: `V18__maker_checker_datatables.sql`
-- Endpoints: `GET /api/v1/clients/{customerId}/images`, `PUT /api/v1/clients/{customerId}/images`, `DELETE /api/v1/clients/{customerId}/images`
+- **Pluggable `StorageProvider` strategy** — `@ConditionalOnProperty(app.image.storage)`: `FileSystemStorageProvider` (default, `matchIfMissing=true`), `DatabaseStorageProvider`, `S3StorageProvider` (AWS SDK v2, supports MinIO/GCS via `endpointOverride`)
+- `V34__client_image_binary.sql` adds `file_name VARCHAR(255)` and `data BYTEA` (nullable) to `client_images`
+- Controller accepts `multipart/form-data` (`@RequestPart("file") MultipartFile`); validates 5 MB max, JPEG/PNG only
+- `GET /images` always returns 200 with `ImageMeta { hasImage, contentType, size, fileName }` — never 404 for missing
+- `GET /images/data` returns raw bytes with correct `Content-Type` and `Content-Disposition` headers
+- `saveImage()` upsert: cleans up old external file before replacing; stores bytes in `data BYTEA` for DATABASE type only
+- Package: `com.cba.customer` + `com.cba.customer.storage`; Flyway: `V18__maker_checker_datatables.sql` + `V34__client_image_binary.sql`
+- Endpoints: `GET /api/v1/clients/{customerId}/images`, `GET /api/v1/clients/{customerId}/images/data`, `PUT /api/v1/clients/{customerId}/images` (multipart), `DELETE /api/v1/clients/{customerId}/images`
+- **Angular**: optional upload at customer creation; mandatory (blocks submit) at account opening; blob loaded via `HttpClient responseType: 'blob'` + `URL.createObjectURL()` — never direct `<img src>` _(Session 64)_
 
 ### 40. Credit Bureau Module
 - Credit bureau integration config and loan-product mappings. Supports multiple bureau adapters (TransUnion, Metropol, etc.)

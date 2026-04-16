@@ -129,6 +129,14 @@
             <version>${keycloak.version}</version>
         </dependency>
 
+        <!-- ── AWS SDK v2 (S3-compatible image storage — optional) ── -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <version>2.26.12</version>
+            <optional>true</optional>
+        </dependency>
+
         <!-- ── HTTP Client (for Keycloak Admin API calls) ─────────── -->
         <dependency>
             <groupId>org.apache.httpcomponents.client5</groupId>

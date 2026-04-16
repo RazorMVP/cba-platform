@@ -20,7 +20,8 @@
       <h2 class="create-title">Open New Account</h2>
       <div class="form-field">
         <label class="form-label">Customer ID <span class="required">*</span></label>
-        <input class="form-input" type="text" [(ngModel)]="newForm.customerId" placeholder="Paste customer UUID" />
+        <input class="form-input" type="text" [(ngModel)]="newForm.customerId"
+               placeholder="Paste customer UUID" (blur)="onCustomerIdChange()" />
         <span class="form-hint">Find the customer ID on the Customers page.</span>
       </div>
       <div class="form-field">
@@ -42,11 +43,45 @@
           <input class="form-input" type="text" [(ngModel)]="newForm.currencyCode" placeholder="USD" maxlength="3" />
         </div>
       </div>
+      <!-- Photo section (mandatory) — appears once a customerId is entered -->
+      @if (newForm.customerId) {
+        <div class="form-field">
+          <label class="form-label">
+            Customer Photo <span class="required">*</span>
+            <span class="form-hint">&nbsp;required to open an account — JPEG or PNG, max 5 MB</span>
+          </label>
+
+          @if (photoChecking) {
+            <p class="form-hint">Checking existing photo…</p>
+          } @else if (photoMeta?.hasImage && !photoFile) {
+            <div class="photo-status photo-status--ok">
+              <span class="material-icons">check_circle</span>
+              Existing customer photo will be used.
+            </div>
+          } @else if (photoPreviewUrl) {
+            <div class="photo-preview-wrap">
+              <img [src]="photoPreviewUrl" class="photo-preview" alt="Customer photo preview" />
+              <button type="button" class="btn-ghost-sm" (click)="clearPhoto()">
+                <span class="material-icons">close</span> Remove
+              </button>
+            </div>
+          } @else {
+            <label class="file-upload-label" [class.file-upload-label--required]="!photoReady">
+              <span class="material-icons">upload_file</span> Upload photo
+              <input type="file" accept="image/jpeg,image/png" (change)="onPhotoSelected($event)" hidden />
+            </label>
+            <span class="form-hint form-hint--error">A photo is required to open an account.</span>
+          }
+        </div>
+      }
+
       @if (saveError) {
         <div class="modal__error">{{ saveError }}</div>
       }
       <div class="create-actions">
-        <button class="btn-primary" [disabled]="saving || !newForm.customerId || !newForm.productId" (click)="submitCreate()">
+        <button class="btn-primary"
+                [disabled]="saving || !newForm.customerId || !newForm.productId || !photoReady"
+                (click)="submitCreate()">
           @if (saving) { <span class="spinner"></span> Saving… } @else { Open Account }
         </button>
         <a routerLink=".." class="btn-secondary">Cancel</a>

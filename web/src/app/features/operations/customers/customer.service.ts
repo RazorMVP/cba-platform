@@ -1,7 +1,9 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { Observable, map } from 'rxjs';
 import { ApiService } from '../../../core/api/api.service';
 import { PageResponse } from '../../../core/models/api-response.model';
+import { environment } from '../../../../environments/environment';
 
 export interface Customer {
   id: string;
@@ -97,9 +99,18 @@ export interface Beneficiary {
   active: boolean;
 }
 
+export interface ImageMeta {
+  hasImage: boolean;
+  contentType?: string;
+  size?: number;
+  fileName?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class CustomerService {
   private readonly api = inject(ApiService);
+  private readonly http = inject(HttpClient);
+  private readonly base = environment.apiBaseUrl;
 
   list(page = 0, size = 20, search?: string, kycStatus?: KycStatus): Observable<PageResponse<Customer>> {
     const params: Record<string, string> = {};
@@ -144,5 +155,45 @@ export class CustomerService {
 
   getBeneficiaries(id: string): Observable<Beneficiary[]> {
     return this.api.get<Beneficiary[]>(`/clients/${id}/beneficiaries`);
+  }
+
+  // ── Customer Image ─────────────────────────────────────────────────────────
+
+  getImageMeta(customerId: string): Observable<ImageMeta> {
+    return this.http
+      .get<{ data: ImageMeta }>(`${this.base}/clients/${customerId}/images`, {
+        headers: new HttpHeaders({ Authorization: `Bearer ${this.getToken()}` }),
+      })
+      .pipe(map(r => r.data));
+  }
+
+  /** Returns a pre-signed data URL (blob) for display in <img> tags */
+  getImageDataUrl(customerId: string): Observable<string> {
+    return this.http
+      .get(`${this.base}/clients/${customerId}/images/data`, {
+        headers: new HttpHeaders({ Authorization: `Bearer ${this.getToken()}` }),
+        responseType: 'blob',
+      })
+      .pipe(map(blob => URL.createObjectURL(blob)));
+  }
+
+  uploadImage(customerId: string, file: File): Observable<ImageMeta> {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    return this.http
+      .put<{ data: ImageMeta }>(`${this.base}/clients/${customerId}/images`, form, {
+        headers: new HttpHeaders({ Authorization: `Bearer ${this.getToken()}` }),
+      })
+      .pipe(map(r => r.data));
+  }
+
+  deleteImage(customerId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/clients/${customerId}/images`, {
+      headers: new HttpHeaders({ Authorization: `Bearer ${this.getToken()}` }),
+    });
+  }
+
+  private getToken(): string {
+    return localStorage.getItem('access_token') ?? 'dev-bypass-token';
   }
 }

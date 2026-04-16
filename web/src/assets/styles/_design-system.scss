@@ -326,8 +326,74 @@
 }
 
 .form-hint { font-size: 0.75rem; color: var(--color-muted); margin-top: 4px; }
+.form-hint--error { color: #dc2626; }
 .required  { color: #dc2626; }
 .hint      { font-size: 0.75rem; color: var(--color-muted); font-weight: 400; }
+
+// ── Photo / file upload ───────────────────────────────────────────────────────
+.file-upload-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px dashed var(--color-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--color-text);
+  transition: border-color 0.15s;
+  &:hover { border-color: var(--color-primary); }
+  &--required { border-color: #dc2626; }
+}
+
+.photo-preview-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.photo-preview {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 2px solid #e5e7eb;
+}
+
+.profile-avatar--photo {
+  object-fit: cover;
+  border: 2px solid #e5e7eb;
+}
+
+.photo-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.875rem;
+  padding: 6px 12px;
+  border-radius: 6px;
+  &--ok {
+    background: #f0fdf4;
+    color: #16a34a;
+    .material-icons { font-size: 18px; }
+  }
+}
+
+.btn-ghost-sm {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  background: transparent;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--color-muted);
+  &:hover { border-color: #dc2626; color: #dc2626; }
+  .material-icons { font-size: 14px; }
+}
 
 // ── Spinner ───────────────────────────────────────────────────────────────────
 .spinner {

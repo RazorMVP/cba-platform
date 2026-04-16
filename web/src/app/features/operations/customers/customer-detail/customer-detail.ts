@@ -7,6 +7,7 @@ import {
   CustomerService, Customer, KycStatus,
   ClientIdentifier, ClientAddress, Beneficiary,
   CustomerCreateRequest, CustomerCommandRequest,
+  ImageMeta,
 } from '../customer.service';
 import { AccountService, Account } from '../../accounts/account.service';
 import { LoanService, Loan } from '../../loans/loan.service';
@@ -45,6 +46,12 @@ export class CustomerDetailComponent implements OnInit {
   saving = false;
   saveError = '';
   newForm: CustomerCreateRequest = { firstName: '', lastName: '', email: '' };
+
+  // ── Photo upload (optional at creation) ─────────────────────────────────
+  photoFile: File | null = null;
+  photoPreviewUrl: string | null = null;
+  photoMeta: ImageMeta | null = null;
+  photoDataUrl: string | null = null;
 
   // ── Tab state ────────────────────────────────────────────────────────────
   activeTab: DetailTab = 'overview';
@@ -145,7 +152,16 @@ export class CustomerDetailComponent implements OnInit {
       return;
     }
     this.custSvc.get(id).subscribe({
-      next:  c  => { this.customer = c; this.loading = false; },
+      next: c => {
+        this.customer = c;
+        this.loading = false;
+        this.custSvc.getImageMeta(c.id).subscribe(meta => {
+          this.photoMeta = meta;
+          if (meta.hasImage) {
+            this.custSvc.getImageDataUrl(c.id).subscribe(url => this.photoDataUrl = url);
+          }
+        });
+      },
       error: () => { this.error = 'Customer not found.'; this.loading = false; },
     });
   }
@@ -157,9 +173,35 @@ export class CustomerDetailComponent implements OnInit {
     this.saving = true;
     this.saveError = '';
     this.custSvc.create(this.newForm).subscribe({
-      next:  c  => this.router.navigate(['..', c.id], { relativeTo: this.route }),
+      next: c => {
+        if (this.photoFile) {
+          // Upload photo then navigate — failure is non-blocking
+          this.custSvc.uploadImage(c.id, this.photoFile).subscribe({
+            next:  () => this.router.navigate(['..', c.id], { relativeTo: this.route }),
+            error: () => this.router.navigate(['..', c.id], { relativeTo: this.route }),
+          });
+        } else {
+          this.router.navigate(['..', c.id], { relativeTo: this.route });
+        }
+      },
       error: () => { this.saveError = 'Failed to create customer. Please try again.'; this.saving = false; },
     });
+  }
+
+  onPhotoSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    this.photoFile = file;
+    // Local preview before upload
+    const reader = new FileReader();
+    reader.onload = () => this.photoPreviewUrl = reader.result as string;
+    reader.readAsDataURL(file);
+  }
+
+  clearPhoto(): void {
+    this.photoFile = null;
+    this.photoPreviewUrl = null;
   }
 
   // ── Tab navigation ────────────────────────────────────────────────────────

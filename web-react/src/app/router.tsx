@@ -17,8 +17,21 @@ function page(C: ReturnType<typeof lazy<ComponentType>>) {
   )
 }
 
-// ── Placeholder (non-Products routes still pending) ───────────────────────
+// ── Placeholder (Open Banking routes still pending) ───────────────────────
 const Placeholder       = lazy(() => import('@/app/features/placeholder/PlaceholderPage'))
+
+// ── Groups ──────────────────────────────────────────────────────────────────
+const GroupsListPage    = lazy(() => import('@/app/features/groups/GroupsListPage'))
+const GroupDetailPage   = lazy(() => import('@/app/features/groups/GroupDetailPage'))
+const CentersListPage   = lazy(() => import('@/app/features/groups/CentersListPage'))
+const CenterDetailPage  = lazy(() => import('@/app/features/groups/CenterDetailPage'))
+
+// ── System ──────────────────────────────────────────────────────────────────
+const CodesPage              = lazy(() => import('@/app/features/system/CodesPage'))
+const GlobalConfigPage       = lazy(() => import('@/app/features/system/GlobalConfigPage'))
+const FloatingRatesPage      = lazy(() => import('@/app/features/system/FloatingRatesPage'))
+const TaxesPage              = lazy(() => import('@/app/features/system/TaxesPage'))
+const AccountAlgorithmsPage  = lazy(() => import('@/app/features/system/AccountAlgorithmsPage'))
 
 // ── Operations ─────────────────────────────────────────────────────────────
 const DashboardPage     = lazy(() => import('@/app/features/operations/dashboard/DashboardPage'))
@@ -146,17 +159,17 @@ export const router = createBrowserRouter([
       { path: 'admin/tpp',                       element: page(TppPage) },
 
       // Groups
-      { path: 'groups',                          element: page(Placeholder) },
-      { path: 'groups/:id',                      element: page(Placeholder) },
-      { path: 'centers',                         element: page(Placeholder) },
-      { path: 'centers/:id',                     element: page(Placeholder) },
+      { path: 'groups',                          element: page(GroupsListPage) },
+      { path: 'groups/:id',                      element: page(GroupDetailPage) },
+      { path: 'centers',                         element: page(CentersListPage) },
+      { path: 'centers/:id',                     element: page(CenterDetailPage) },
 
       // System
-      { path: 'system/codes',                    element: page(Placeholder) },
-      { path: 'system/config',                   element: page(Placeholder) },
-      { path: 'system/floating-rates',           element: page(Placeholder) },
-      { path: 'system/taxes',                    element: page(Placeholder) },
-      { path: 'system/account-algorithms',       element: page(Placeholder) },
+      { path: 'system/codes',                    element: page(CodesPage) },
+      { path: 'system/config',                   element: page(GlobalConfigPage) },
+      { path: 'system/floating-rates',           element: page(FloatingRatesPage) },
+      { path: 'system/taxes',                    element: page(TaxesPage) },
+      { path: 'system/account-algorithms',       element: page(AccountAlgorithmsPage) },
 
       // Open Banking
       { path: 'open-banking/consents',           element: page(Placeholder) },

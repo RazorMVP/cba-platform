@@ -3265,17 +3265,17 @@ Every ✅ row in the Angular Component Map is a screen to rebuild in React. Stat
 | Maker-Checker | ✅ Angular | ✅ Built — Session 56 |
 | Notifications Admin | ✅ Angular | ✅ Built — Session 56 |
 | TPP Management | ✅ Angular | ✅ Built — Session 56 |
-| Groups list | ✅ Angular | 🔲 Queued |
-| Group detail | ✅ Angular | 🔲 Queued |
-| Centers list | ✅ Angular | 🔲 Queued |
-| Center detail | ✅ Angular | 🔲 Queued |
+| Groups list | ✅ Angular | ✅ Built — Session 57 |
+| Group detail | ✅ Angular | ✅ Built — Session 57 |
+| Centers list | ✅ Angular | ✅ Built — Session 57 |
+| Center detail | ✅ Angular | ✅ Built — Session 57 |
 | Consents list | ✅ Angular | 🔲 Queued |
 | Consent detail | ✅ Angular | 🔲 Queued |
-| Codes & Values | ✅ Angular | 🔲 Queued |
-| Global Config | ✅ Angular | 🔲 Queued |
-| Floating Rates | ✅ Angular | 🔲 Queued |
-| Taxes | ✅ Angular | 🔲 Queued |
-| Account Algorithms | ✅ Angular | 🔲 Queued |
+| Codes & Values | ✅ Angular | ✅ Built — Session 57 |
+| Global Config | ✅ Angular | ✅ Built — Session 57 |
+| Floating Rates | ✅ Angular | ✅ Built — Session 57 |
+| Taxes | ✅ Angular | ✅ Built — Session 57 |
+| Account Algorithms | ✅ Angular | ✅ Built — Session 57 |
 | Card List | ✅ Angular | ✅ Built — Session 55 |
 | Card Detail | ✅ Angular | ✅ Built — Session 55 |
 | Card Products | ✅ Angular | ✅ Built — Session 55 |

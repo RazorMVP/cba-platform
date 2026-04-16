@@ -59,6 +59,46 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 57 (Phase 7 — Groups & System) — 2026-04-16
+**React Phase 7 complete: 9 screens built (Groups list/detail, Centers list/detail, Codes & Values, Global Config, Floating Rates, Taxes, Account Algorithms). Build: 0 errors, 22/22 tests.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web-react/src/app/features/groups/api/types.ts` | NEW — Group, Center, collection sheet, GLIM types |
+| `web-react/src/app/features/groups/api/useGroups.ts` | NEW — 16 hooks (groups + centers) |
+| `web-react/src/app/features/groups/GroupsListPage.tsx` | NEW — status filter + search, create modal |
+| `web-react/src/app/features/groups/GroupDetailPage.tsx` | NEW — 4 tabs: Members, Collection Sheet, GLIM, Staff |
+| `web-react/src/app/features/groups/CentersListPage.tsx` | NEW — status filter + search, create modal |
+| `web-react/src/app/features/groups/CenterDetailPage.tsx` | NEW — 2 tabs: Groups, All Members |
+| `web-react/src/app/features/system/api/types.ts` | NEW — Codes, GlobalConfig, FloatingRate, Tax, Algorithm types |
+| `web-react/src/app/features/system/api/useSystem.ts` | NEW — 20+ hooks covering all system modules |
+| `web-react/src/app/features/system/CodesPage.tsx` | NEW — load-on-expand accordion; inline add/edit value; system badge |
+| `web-react/src/app/features/system/GlobalConfigPage.tsx` | NEW — ConfigRow sub-component; type-aware edit (bool/num/str); enabled toggle |
+| `web-react/src/app/features/system/FloatingRatesPage.tsx` | NEW — accordion with period rows; create/edit modal with dynamic periods |
+| `web-react/src/app/features/system/TaxesPage.tsx` | NEW — two tabs: Tax Components table + Tax Groups with mapping display |
+| `web-react/src/app/features/system/AccountAlgorithmsPage.tsx` | NEW — per-account-type MIFOS/NUBAN toggle; bank code input; STRICT/PARANOID mode; unsaved-changes banner |
+| `web-react/src/app/router.tsx` | UPDATED — all 9 Phase 7 routes wired (replaced Placeholder) |
+| `CLAUDE.md` | UPDATED — React Migration Checklist: 9 rows → ✅ Built — Session 57 |
+
+#### Key Patterns / Decisions
+- **Load-on-expand**: `CodeValuesSection` mounts only when accordion opens → `useCodeValues(codeId)` fires lazily (avoids N+1 on page load)
+- **Sub-components for hooks-in-map**: `ConfigRow`, `EditValueRow`, `DeleteCodeButton`, `DeleteRateButton` each own their mutation hooks at component level — required because hooks cannot be called inside `.map()`
+- **`Set<string>` accordion state**: `useState<Set<string>>(new Set())` + immutable toggle via `new Set(prev)` — used in both CodesPage and FloatingRatesPage
+- **`modal === 'new' ? null : modal` discriminant**: single `useState<Entity | null | 'new'>` drives both create and edit without separate flags
+- **Import path fix**: `@/app/core/api/apiClient` → `@/core/api/apiClient` (correct alias for this Vite project)
+- **Unused type imports**: Only request types (`CreateGroupRequest` etc.) need to be in hook files; entity types live in consuming components
+
+#### Build Verification
+- `npm run build` → ✅ 0 errors, 0 warnings
+- `npx vitest run` → ✅ 22/22 tests passing (6 test files)
+
+#### Compliance Checklist Update
+- React Migration Checklist: 9 new rows ✅ (Groups list, Group detail, Centers list, Center detail, Codes & Values, Global Config, Floating Rates, Taxes, Account Algorithms)
+- Open Banking screens (Consents list, Consent detail) remain 🔲 Queued — Phase 8
+
+---
+
 ### Session 56 (Phase 6 — Admin) — 2026-04-16
 **React Phase 6 — Admin complete. 7 admin management screens built: Users (create with role chips, enable/disable toggle, delete confirm), Roles (permissions matrix modal with group select-all, `useMemo` grouping), Offices (parent office hierarchy dropdown), Hooks (WEB/SMS type toggle, event chip selection), Maker-Checker (status filter tabs, approve/reject sub-components), Notifications Admin (two-tab layout, template CRUD, test-send modal), TPP Management (register/activate/revoke lifecycle, scope chip selection). Build: 0 errors. Tests: 22/22 passing.**
 

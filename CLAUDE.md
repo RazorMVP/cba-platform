@@ -2510,6 +2510,7 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Floating Rates | `FloatingRatesComponent` | `SystemModule` | ✅ Built — accordion with rate periods, create/edit modal with dynamic period rows, delete confirm |
 | Taxes | `TaxesComponent` | `SystemModule` | ✅ Built — two tabs: Tax Components (CRUD) + Tax Groups (component bundles with effective dates) |
 | Account Algorithms | `AccountAlgorithmsComponent` | `SystemModule` | ✅ Built — per-tenant, per-account-type algorithm config; MIFOS/NUBAN toggle per type; bank code input; STRICT/PARANOID validation mode toggle |
+| Holidays | `HolidaysComponent` | `SystemModule` | ✅ Built — paginated list with from/to dates + repayment scheduling rule; activate (PENDING only) + delete; create modal with conditional rescheduled-date field _(Session 74)_ |
 | Card List | `CardListComponent` | `CardsModule` | ✅ Built — search by PAN suffix/customer, type + status filters, issue card modal |
 | Card Detail | `CardDetailComponent` | `CardsModule` | ✅ Built — 3 tabs (overview/authorizations/limits), block/unblock/cancel/activate commands, edit limits modal |
 | Card Products | `CardProductsComponent` | `CardsModule` | ✅ Built — product list with BIN range display, create product modal |
@@ -3096,7 +3097,7 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | Payment Types | ✅ Module 26 | ❌ No Angular component | ❌ |
 | Account Number Formats | ✅ Module 26 | ❌ No Angular component | ❌ |
 | Funds management | ✅ Module 26 | ❌ No Angular component | ❌ |
-| Holidays management | ✅ Module 28 | ❌ No Angular component | ❌ |
+| Holidays management | ✅ Module 28 | ✅ `HolidaysComponent` _(Session 74)_ | — |
 | Bulk import (customers / loans) | ❌ Not implemented | ❌ Missing | ❌ |
 | Password / security policy | ❌ Delegated to Keycloak | ❌ No admin UI for Keycloak policies | ⚠️ |
 

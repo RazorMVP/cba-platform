@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ApiService } from '../../core/api/api.service';
+import { PageResponse } from '../../core/models/api-response.model';
 
 // ── Codes ─────────────────────────────────────────────────────────────────────
 export interface Code {
@@ -103,6 +104,31 @@ export interface CreateTaxComponentRequest {
 export interface CreateTaxGroupRequest {
   name: string;
   components: { taxComponentId: string; startDate: string }[];
+}
+
+// ── Holidays ──────────────────────────────────────────────────────────────
+
+export type RepaymentSchedulingType =
+  'SAME_DAY' | 'NEXT_WORKING_DAY' | 'PREVIOUS_WORKING_DAY' | 'NEXT_REPAYMENT_MEETING_DATE';
+
+export interface Holiday {
+  id: string;
+  name: string;
+  fromDate: string;
+  toDate: string;
+  repaymentSchedulingType: RepaymentSchedulingType;
+  rescheduledRepaymentDate?: string;
+  status: 'PENDING' | 'ACTIVE';
+  processed: boolean;
+  createdAt: string;
+}
+
+export interface CreateHolidayRequest {
+  name: string;
+  fromDate: string;
+  toDate: string;
+  repaymentSchedulingType: RepaymentSchedulingType;
+  rescheduledRepaymentDate?: string;
 }
 
 // ── Account Number Algorithms ─────────────────────────────────────────────
@@ -209,5 +235,22 @@ export class SystemService {
 
   updateAlgorithmConfig(tenantId: string, req: UpdateAlgorithmConfigRequest): Observable<TenantAlgorithmConfig> {
     return this.api.put<TenantAlgorithmConfig>(`/tenants/${tenantId}/account-algorithm`, req);
+  }
+
+  // ── Holidays ──────────────────────────────────────────────────────────────
+  listHolidays(page = 0): Observable<PageResponse<Holiday>> {
+    return this.api.getPage<Holiday>('/holidays', page, 20);
+  }
+
+  createHoliday(req: CreateHolidayRequest): Observable<Holiday> {
+    return this.api.post<Holiday>('/holidays', req);
+  }
+
+  activateHoliday(id: string): Observable<Holiday> {
+    return this.api.post<Holiday>(`/holidays/${id}/activate`, {});
+  }
+
+  deleteHoliday(id: string): Observable<void> {
+    return this.api.delete<void>(`/holidays/${id}`);
   }
 }

@@ -4,6 +4,7 @@ import { GlobalConfigComponent } from './global-config';
 import { FloatingRatesComponent } from './floating-rates';
 import { TaxesComponent } from './taxes';
 import { AccountAlgorithmsComponent } from './account-algorithms';
+import { HolidaysComponent } from './holidays';
 
 export const SYSTEM_ROUTES: Routes = [
   { path: 'codes', component: CodesComponent },
@@ -11,4 +12,5 @@ export const SYSTEM_ROUTES: Routes = [
   { path: 'floating-rates', component: FloatingRatesComponent },
   { path: 'taxes', component: TaxesComponent },
   { path: 'account-algorithms', component: AccountAlgorithmsComponent },
+  { path: 'holidays', component: HolidaysComponent },
 ];

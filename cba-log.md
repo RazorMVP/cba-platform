@@ -59,6 +59,33 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 74 — 2026-04-17
+**Holidays management Angular UI — CRUD + activate + repayment scheduling rule.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/.../system/holidays.ts` | New `HolidaysComponent` — paginated list, create/activate/delete modals |
+| `web/.../system/holidays.html` | Table with from/to dates, repayment rule, status badge; 3 modals |
+| `web/.../system/holidays.scss` | Minimal utility classes |
+| `web/.../system/system.service.ts` | Added `Holiday`, `CreateHolidayRequest`, `RepaymentSchedulingType`; 4 service methods; `PageResponse` import |
+| `web/.../system/system.routes.ts` | Added `{ path: 'holidays', component: HolidaysComponent }` |
+| `web/.../layout/sidebar/sidebar.ts` | Added Holidays to System nav section |
+
+#### Key Patterns / Decisions
+- Activate button shown only on `PENDING` holidays; hidden once `ACTIVE`
+- `rescheduledRepaymentDate` field shown only when scheduling type is not `SAME_DAY`
+- `POST /holidays/{id}/activate` — dedicated activate endpoint (not `?command=` pattern)
+- `RepaymentSchedulingType` defined as a union type in `system.service.ts` for reuse across component and service
+
+#### Build Verification
+- `npx ng build --configuration=production` → clean (0 errors)
+
+#### Confirmed Platform Versions
+(unchanged from Session 72 — no backend or dependency changes)
+
+---
+
 ### Session 73 — 2026-04-17
 **SMS Campaigns Angular UI — full CRUD + activate command + messages delivery log panel.**
 

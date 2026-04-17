@@ -1,0 +1,11 @@
+@use 'assets/styles/design-system' as *;
+
+.tabular { font-variant-numeric: tabular-nums; }
+.muted   { color: var(--color-muted); }
+.small   { font-size: 12px; }
+
+.optional {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--color-muted);
+}

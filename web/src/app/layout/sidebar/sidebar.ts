@@ -83,6 +83,7 @@ export class SidebarComponent {
         { label: 'Floating Rates',     icon: 'trending_up',       route: '/system/floating-rates' },
         { label: 'Taxes',              icon: 'account_balance_wallet', route: '/system/taxes' },
         { label: 'Account Algorithms', icon: 'pin',               route: '/system/account-algorithms' },
+        { label: 'Holidays',           icon: 'event_busy',        route: '/system/holidays' },
       ],
     },
     {

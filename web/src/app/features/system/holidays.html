@@ -1,0 +1,175 @@
+<div class="page">
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">event_busy</span>
+      Holidays
+    </div>
+    <button class="btn-primary" (click)="openCreate()">
+      <span class="material-icons">add</span> New Holiday
+    </button>
+  </div>
+
+  <div class="card">
+    @if (loading) {
+      <div class="skeleton-card">
+        @for (i of [1,2,3]; track i) { <div class="skeleton skeleton--row"></div> }
+      </div>
+    } @else if (error) {
+      <div class="empty-state">
+        <span class="material-icons">error_outline</span><p>{{ error }}</p>
+      </div>
+    } @else if (holidays.length === 0) {
+      <div class="empty-state">
+        <span class="material-icons">event_busy</span>
+        <p>No holidays defined yet.</p>
+      </div>
+    } @else {
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>From</th>
+            <th>To</th>
+            <th>Repayment Rule</th>
+            <th>Rescheduled Date</th>
+            <th>Status</th>
+            <th class="action-cell">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (h of holidays; track h.id) {
+            <tr class="table-row">
+              <td><strong>{{ h.name }}</strong></td>
+              <td class="tabular">{{ h.fromDate }}</td>
+              <td class="tabular">{{ h.toDate }}</td>
+              <td class="muted small">{{ schedulingLabel(h.repaymentSchedulingType) }}</td>
+              <td class="tabular muted small">{{ h.rescheduledRepaymentDate ?? '—' }}</td>
+              <td>
+                <app-status-badge [label]="h.status" [variant]="statusVariant(h.status)"></app-status-badge>
+              </td>
+              <td class="action-cell">
+                @if (h.status === 'PENDING') {
+                  <button class="btn-icon" (click)="openActivate(h)" title="Activate">
+                    <span class="material-icons">check_circle</span>
+                  </button>
+                }
+                <button class="btn-icon btn-icon--danger" (click)="openDelete(h)" title="Delete">
+                  <span class="material-icons">delete</span>
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      <div class="table-footer">
+        <span class="muted small">{{ startRow }}–{{ endRow }} of {{ total }}</span>
+        <div class="pagination">
+          <button class="btn-icon" [disabled]="page === 0" (click)="prevPage()">
+            <span class="material-icons">chevron_left</span>
+          </button>
+          <span class="muted small">Page {{ page + 1 }} / {{ totalPages }}</span>
+          <button class="btn-icon" [disabled]="(page + 1) * pageSize >= total" (click)="nextPage()">
+            <span class="material-icons">chevron_right</span>
+          </button>
+        </div>
+      </div>
+    }
+  </div>
+</div>
+
+<!-- ── Create Modal ──────────────────────────────────────────────────────────── -->
+@if (activeModal === 'create') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">event_busy</span>
+        New Holiday
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Name <span class="required">*</span></label>
+          <input class="form-input" [(ngModel)]="formName" placeholder="e.g. New Year's Day">
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label class="form-label">From Date <span class="required">*</span></label>
+            <input class="form-input" type="date" [(ngModel)]="formFrom">
+          </div>
+          <div class="form-field">
+            <label class="form-label">To Date <span class="required">*</span></label>
+            <input class="form-input" type="date" [(ngModel)]="formTo">
+          </div>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Repayment Scheduling Rule</label>
+          <select class="form-input" [(ngModel)]="formScheduling">
+            @for (s of schedulingTypes; track s.value) {
+              <option [value]="s.value">{{ s.label }}</option>
+            }
+          </select>
+          <span class="form-hint">Determines how loan repayments falling on this holiday are handled.</span>
+        </div>
+        @if (formScheduling !== 'SAME_DAY') {
+          <div class="form-field">
+            <label class="form-label">Manual Rescheduled Date <span class="optional">(optional)</span></label>
+            <input class="form-input" type="date" [(ngModel)]="formRescheduled">
+            <span class="form-hint">Override the auto-calculated repayment date if needed.</span>
+          </div>
+        }
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitCreate()"
+                [disabled]="modalWorking || !formName.trim() || !formFrom || !formTo">
+          @if (modalWorking) { <span class="spinner"></span> } Create
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── Activate Confirm Modal ──────────────────────────────────────────────── -->
+@if (activeModal === 'activate') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">check_circle</span>
+        Activate Holiday
+      </div>
+      <div class="modal__body">
+        <p>Activate <strong>{{ targetName() }}</strong>? Once active, the holiday will be applied to repayment scheduling.</p>
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitActivate()" [disabled]="modalWorking">
+          @if (modalWorking) { <span class="spinner"></span> } Activate
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── Delete Confirm Modal ───────────────────────────────────────────────── -->
+@if (activeModal === 'delete') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon modal__icon--danger">delete</span>
+        Delete Holiday
+      </div>
+      <div class="modal__body">
+        <p>Delete <strong>{{ targetName() }}</strong>? This cannot be undone.</p>
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-danger" (click)="submitDelete()" [disabled]="modalWorking">
+          @if (modalWorking) { <span class="spinner spinner--dark"></span> } Delete
+        </button>
+      </div>
+    </div>
+  </div>
+}

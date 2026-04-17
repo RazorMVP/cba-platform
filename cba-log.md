@@ -59,6 +59,56 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 70 — 2026-04-17
+**Audit Log viewer built — server-paginated list with 5-filter bar, action/entity-type badges, slide-in detail panel with JSON old/new values display.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/src/app/features/admin/audit-log.ts` | NEW — `AuditLogComponent`; 5-filter bar (entityType, entityId, changedBy, from, to); server-paginated list; slide-in detail panel with JSON pretty-print |
+| `web/src/app/features/admin/audit-log.html` | NEW — filter card, paginated table (ts/entityType/entityId/action/changedBy), pagination controls, detail panel overlay |
+| `web/src/app/features/admin/audit-log.scss` | NEW — filter grid, badge variants, JSON sections (green new / red old), slide-in panel animation |
+| `web/src/app/features/admin/admin.service.ts` | Added `AuditLog` + `AuditFilter` interfaces; `listAuditLogs(page, filter)` + `getAuditLog(id)` service methods |
+| `web/src/app/features/admin/admin.routes.ts` | Added `{ path: 'audit-log', component: AuditLogComponent }` |
+| `web/src/app/layout/sidebar/sidebar.ts` | Added "Audit Log" nav item (`manage_search` icon) to Admin group |
+
+#### Key Patterns / Decisions
+- Routes to `/audits/search` when any filter is set; bare `/audits` when no filters — backend search has conditional branching logic per param combination
+- `PageResponse<AuditLog>` via `getPage()` with `sort: 'changedAt,desc'` passed as extra param — Spring Pageable picks it up
+- `prettyJson()` safely parses raw JSON string from `old_values`/`new_values` columns; falls back to raw string on parse error
+- Action badge variant determined by regex prefix matching (CREATE→info, APPROVE→success, REJECT/DELETE→error, UPDATE→warning)
+- Detail panel slides in from right with `translateX` animation; clicking overlay dismisses it
+
+#### Build Verification
+- `npx tsc --noEmit` → 0 errors
+
+#### Confirmed Platform Versions
+
+**Backend (`backend/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `44b9940` |
+| Java | 21 | `44b9940` |
+| Application artifact | `cba-backend 0.1.0-SNAPSHOT` | `44b9940` |
+| Keycloak admin client | 26.0.5 | `44b9940` |
+| springdoc-openapi | 2.8.6 | `44b9940` |
+| Lombok | 1.18.38 | `44b9940` |
+| PostgreSQL | 16 (Docker) | `44b9940` |
+
+**Angular Web App (`web/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `a791f8b` |
+| Angular CLI | 21.2.7 | `a791f8b` |
+| PrimeNG | 21.0.x | `a791f8b` |
+| RxJS | 7.8.x | `a791f8b` |
+| TypeScript | 5.9.x | `a791f8b` |
+| Vercel deployment | `cba-web-nine.vercel.app` | `a791f8b` |
+
+---
+
 ### Session 69 — 2026-04-17
 **GL Closures Angular page built — office picker, closures list, Create modal; service interface corrected to match backend.**
 

@@ -1,0 +1,192 @@
+<div class="page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Audit Log</h1>
+      <p class="page-subtitle">Immutable record of every state-changing operation on the platform</p>
+    </div>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="filter-card">
+    <div class="filter-grid">
+      <div class="field">
+        <label class="field-label">Entity Type</label>
+        <select class="field-input" [(ngModel)]="pendingFilter.entityType">
+          <option value="">— All types —</option>
+          @for (t of entityTypes; track t) {
+            <option [value]="t">{{ t }}</option>
+          }
+        </select>
+      </div>
+      <div class="field">
+        <label class="field-label">Entity ID</label>
+        <input class="field-input" type="text" [(ngModel)]="pendingFilter.entityId"
+               placeholder="UUID or identifier" />
+      </div>
+      <div class="field">
+        <label class="field-label">Changed By</label>
+        <input class="field-input" type="text" [(ngModel)]="pendingFilter.changedBy"
+               placeholder="Username" />
+      </div>
+      <div class="field">
+        <label class="field-label">From</label>
+        <input class="field-input" type="date" [(ngModel)]="pendingFilter.from" />
+      </div>
+      <div class="field">
+        <label class="field-label">To</label>
+        <input class="field-input" type="date" [(ngModel)]="pendingFilter.to" />
+      </div>
+    </div>
+    <div class="filter-actions">
+      <button class="btn-ghost" (click)="clearFilter()">Clear</button>
+      <button class="btn-primary" (click)="applyFilter()">
+        <span class="material-icons">search</span> Apply
+      </button>
+    </div>
+  </div>
+
+  @if (error) {
+    <div class="error-banner">
+      <span class="material-icons">error_outline</span> {{ error }}
+    </div>
+  }
+
+  <!-- Table card -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">
+        <span class="material-icons">history</span> Audit Records
+      </span>
+      @if (!loading && totalElements > 0) {
+        <span class="count-chip">{{ fromIndex() }}–{{ toIndex() }} of {{ totalElements | number }}</span>
+      }
+    </div>
+
+    @if (loading) {
+      <div class="skeleton-rows">
+        @for (i of [1,2,3,4,5]; track i) {
+          <div class="skeleton-row">
+            <div class="skeleton sk-ts"></div>
+            <div class="skeleton sk-badge"></div>
+            <div class="skeleton sk-id"></div>
+            <div class="skeleton sk-action"></div>
+            <div class="skeleton sk-user"></div>
+          </div>
+        }
+      </div>
+    } @else if (rows.length === 0) {
+      <div class="empty-state">
+        <span class="material-icons">manage_search</span>
+        <p>No audit records match the current filters.</p>
+      </div>
+    } @else {
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Entity Type</th>
+            <th>Entity ID</th>
+            <th>Action</th>
+            <th>Changed By</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows; track row.id) {
+            <tr [class.row-active]="selected?.id === row.id" (click)="openDetail(row)">
+              <td class="ts-cell">{{ row.changedAt | date:'dd MMM yyyy, HH:mm:ss' }}</td>
+              <td>
+                <span class="badge badge-{{ entityVariant(row.entityType) }}">{{ row.entityType }}</span>
+              </td>
+              <td class="id-cell">{{ row.entityId }}</td>
+              <td>
+                <span class="badge badge-{{ actionVariant(row.action) }}">{{ row.action }}</span>
+              </td>
+              <td class="user-cell">{{ row.changedBy }}</td>
+              <td class="action-cell">
+                <button class="btn-icon" (click)="openDetail(row); $event.stopPropagation()"
+                        title="View details">
+                  <span class="material-icons">chevron_right</span>
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      <!-- Pagination -->
+      <div class="pagination">
+        <button class="btn-ghost btn-sm" [disabled]="page === 0" (click)="prevPage()">
+          <span class="material-icons">chevron_left</span> Prev
+        </button>
+        <span class="page-info">Page {{ page + 1 }} of {{ totalPages }}</span>
+        <button class="btn-ghost btn-sm" [disabled]="page >= totalPages - 1" (click)="nextPage()">
+          Next <span class="material-icons">chevron_right</span>
+        </button>
+      </div>
+    }
+  </div>
+
+</div>
+
+<!-- ══ DETAIL PANEL ══ -->
+@if (selected) {
+  <div class="panel-overlay" (click)="closeDetail()">
+    <div class="detail-panel" (click)="$event.stopPropagation()">
+      <div class="panel-header">
+        <div class="panel-title">
+          <span class="badge badge-{{ entityVariant(selected.entityType) }}">{{ selected.entityType }}</span>
+          <span class="badge badge-{{ actionVariant(selected.action) }}">{{ selected.action }}</span>
+        </div>
+        <button class="modal-close" (click)="closeDetail()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+
+      <div class="panel-body">
+        <dl class="detail-grid">
+          <dt>Timestamp</dt>
+          <dd class="mono">{{ selected.changedAt | date:'dd MMM yyyy, HH:mm:ss' }}</dd>
+
+          <dt>Changed By</dt>
+          <dd>{{ selected.changedBy }}</dd>
+
+          <dt>Entity ID</dt>
+          <dd class="mono">{{ selected.entityId }}</dd>
+
+          @if (selected.sessionId) {
+            <dt>Session</dt>
+            <dd class="mono">{{ selected.sessionId }}</dd>
+          }
+
+          @if (selected.tenantId) {
+            <dt>Tenant</dt>
+            <dd class="mono">{{ selected.tenantId }}</dd>
+          }
+
+          <dt>Record ID</dt>
+          <dd class="mono muted">{{ selected.id }}</dd>
+        </dl>
+
+        @if (selected.newValues) {
+          <div class="json-section">
+            <div class="json-label">
+              <span class="material-icons">add_circle_outline</span> New Values
+            </div>
+            <pre class="json-block">{{ prettyJson(selected.newValues) }}</pre>
+          </div>
+        }
+
+        @if (selected.oldValues) {
+          <div class="json-section">
+            <div class="json-label json-label-old">
+              <span class="material-icons">remove_circle_outline</span> Old Values
+            </div>
+            <pre class="json-block json-block-old">{{ prettyJson(selected.oldValues) }}</pre>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+}

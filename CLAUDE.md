@@ -2493,6 +2493,7 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Hooks | `HooksComponent` | `AdminModule` | ✅ Built — WEB/SMS type chips, create/edit modal with event selection chips |
 | Maker-Checker | `MakerCheckerComponent` | `AdminModule` | ✅ Built — status filter tabs (All/PENDING/APPROVED/REJECTED), metadata table, approve/reject for PENDING entries |
 | Notifications Admin | `NotificationsComponent` | `AdminModule` | ✅ Built — templates CRUD (two-column form modal, event type + delivery method + body), test send modal, delivery history tab with event filter |
+| Audit Log | `AuditLogComponent` | `AdminModule` | ✅ Built — 5-filter bar (entityType/entityId/changedBy/from/to), server-paginated list, action + entity-type badges, slide-in detail panel with JSON old/new values _(Session 70)_ |
 | TPP Management | `OpenBankingComponent` | `AdminModule` | ✅ Built — TPP registry: clientId, country, scope chips, cert expiry; register/activate/revoke |
 | Groups list | `GroupsListComponent` | `GroupsModule` | ✅ Built — status filter + search, create modal, routerLink to detail |
 | Group detail | `GroupDetailComponent` | `GroupsModule` | ✅ Built — 4 tabs: Members (add/remove), Collection Sheet (generate + table), GLIM Accounts (accordion), Staff (assign/remove loan officer) |
@@ -3068,8 +3069,8 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 
 | PRD Feature | Backend Status | Angular Status | Gap |
 |-------------|---------------|----------------|-----|
-| Audit log (append-only, 7-year retention) | ✅ Module 8 | ❌ No Angular Audit Log viewer | ❌ |
-| Audit search (`GET /api/v1/audits`) | ✅ `AuditController` | ❌ No Angular component | ❌ |
+| Audit log (append-only, 7-year retention) | ✅ Module 8 | ✅ `AuditLogComponent` _(Session 70)_ | ✅ |
+| Audit search (`GET /api/v1/audits`) | ✅ `AuditController` | ✅ 5-filter search bar _(Session 70)_ | ✅ |
 | Maker-Checker workflow | ✅ Module 29 | ✅ MakerCheckerComponent | — |
 | System access logs / login history | ❌ No login history tracking | ❌ Missing | ❌ |
 | Compliance / audit report | ⚠️ Reports module with TrialBalance seed | ❌ No dedicated compliance report UI | ⚠️ |

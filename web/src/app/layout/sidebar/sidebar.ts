@@ -111,6 +111,7 @@ export class SidebarComponent {
         { label: 'Hooks',              icon: 'webhook',           route: '/admin/hooks' },
         { label: 'Maker-Checker',      icon: 'verified',          route: '/admin/maker-checker' },
         { label: 'Notifications',      icon: 'notifications',     route: '/admin/notifications' },
+        { label: 'Audit Log',          icon: 'manage_search',     route: '/admin/audit-log' },
       ],
     },
   ];

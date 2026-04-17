@@ -6,6 +6,7 @@ import { OpenBankingComponent } from './open-banking';
 import { HooksComponent } from './hooks';
 import { MakerCheckerComponent } from './maker-checker';
 import { NotificationsComponent } from './notifications';
+import { AuditLogComponent } from './audit-log';
 
 export const ADMIN_ROUTES: Routes = [
   { path: 'users', component: UsersComponent },
@@ -15,4 +16,5 @@ export const ADMIN_ROUTES: Routes = [
   { path: 'hooks', component: HooksComponent },
   { path: 'maker-checker', component: MakerCheckerComponent },
   { path: 'notifications', component: NotificationsComponent },
+  { path: 'audit-log', component: AuditLogComponent },
 ];

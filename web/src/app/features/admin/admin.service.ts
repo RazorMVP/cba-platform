@@ -1,6 +1,29 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ApiService } from '../../core/api/api.service';
+import { PageResponse } from '../../core/models/api-response.model';
+
+// ── Audit Log ─────────────────────────────────────────────────────────────────
+export interface AuditLog {
+  id: string;
+  tenantId?: string;
+  entityType: string;
+  entityId: string;
+  action: string;
+  changedBy: string;
+  changedAt: string;
+  oldValues?: string;
+  newValues?: string;
+  sessionId?: string;
+}
+
+export interface AuditFilter {
+  entityType?: string;
+  entityId?: string;
+  changedBy?: string;
+  from?: string;
+  to?: string;
+}
 
 // ── Users ─────────────────────────────────────────────────────────────────────
 export interface PlatformUser {
@@ -316,5 +339,21 @@ export class AdminService {
 
   revokeTpp(id: string): Observable<TppRegistration> {
     return this.api.command<TppRegistration>(`/openbanking/tpp/${id}`, 'revoke');
+  }
+
+  // ── Audit Log ──────────────────────────────────────────────────────────────
+  listAuditLogs(page: number, filters: AuditFilter): Observable<PageResponse<AuditLog>> {
+    const params: Record<string, string> = { sort: 'changedAt,desc' };
+    if (filters.entityType) params['entityType'] = filters.entityType;
+    if (filters.entityId)   params['entityId']   = filters.entityId;
+    if (filters.changedBy)  params['changedBy']  = filters.changedBy;
+    if (filters.from)       params['from']       = filters.from;
+    if (filters.to)         params['to']         = filters.to;
+    const hasFilter = !!(filters.entityType || filters.changedBy || filters.from || filters.to);
+    return this.api.getPage<AuditLog>(hasFilter ? '/audits/search' : '/audits', page, 20, params);
+  }
+
+  getAuditLog(id: string): Observable<AuditLog> {
+    return this.api.get<AuditLog>(`/audits/${id}`);
   }
 }

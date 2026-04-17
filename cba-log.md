@@ -59,6 +59,56 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 78 — 2026-04-17
+**Fix dev-mode CSS bugs in 5 Session-77 system SCSS files: remove `@keyframes` global leaks and duplicate global class definitions (commit `2e608e0`).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/src/app/features/system/credit-bureau.scss` | REWRITTEN — removed all `@keyframes`, `.btn-primary/secondary/danger`, `.modal-backdrop`, `.form-input/label`, `.required`, `.spinner`; keeps only component-specific styles + minimal extensions |
+| `web/src/app/features/system/funds.scss` | REWRITTEN — ~155 → 22 lines; only `.page-sub`, cell helpers, modal extensions |
+| `web/src/app/features/system/account-number-formats.scss` | REWRITTEN — ~175 → 50 lines; only `.page-sub`, `.btn-icon` (danger modifier), `.type-chip` variants, cell helpers, modal extensions |
+| `web/src/app/features/system/datatables.scss` | REWRITTEN — ~200 → 100 lines; removes globals; keeps accordion, col-table, type-pill, bool-chip, form extensions, col-row layout |
+| `web/src/app/features/system/surveys.scss` | REWRITTEN — ~160 → 100 lines; removes globals; keeps accordion, question-card, responses-grid, r-score |
+
+#### Key Patterns / Decisions
+
+- **`@keyframes` escape ViewEncapsulation.Emulated** — Angular never scopes `@keyframes` declarations; they are injected into the global stylesheet regardless of component encapsulation. Declaring `shimmer`/`fade-in`/`slide-up`/`spin` in component SCSS overwrites the global definitions and corrupts animations site-wide (sidebar click freeze). Fix: remove all `@keyframes` from component SCSS; rely entirely on the global `_design-system.scss` declarations.
+- **`@if` blocks and `[_ngcontent-xxx]` scope attribute** — in Angular dev mode (`ng serve`), elements inside new-syntax `@if` / `@for` control-flow blocks may not receive the `[_ngcontent-xxx]` attribute. Component-scoped rules like `.btn-primary[_ngcontent-xxx]` therefore don't match, but the global `.btn-primary` (no attribute) does. Redeclaring global classes in component SCSS produces a fallback-to-global effect in dev mode but correct scoped resolution in production AOT. Fix: remove all global class duplicates from component SCSS.
+- **Extension-only pattern** — component SCSS files now only declare: (1) classes not defined in global (`accordion`, `col-table`, `type-chip`, etc.), (2) extension properties added on top of global classes (`.modal { max-height: 90vh; display: flex; flex-direction: column; }`), and (3) BEM modifiers not covered by global (`.btn-icon.danger:hover`, `.form-field { flex: 1; }`).
+- **`vercel build --prod` passes** — all 5 rewrites AOT-compile without error.
+
+#### Build Verification
+`vercel build --prod` → **BUILD SUCCESS** (0 errors, pre-existing NG8102 warnings only)
+
+#### Confirmed Platform Versions
+
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `bde3a64` |
+| Java | 21 | `bde3a64` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `bde3a64` |
+| Keycloak admin client | 26.0.5 | `bde3a64` |
+| springdoc-openapi | 2.8.6 | `bde3a64` |
+| Lombok | 1.18.38 | `bde3a64` |
+| PostgreSQL | 16 (Docker) | `bde3a64` |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `2e608e0` |
+| Angular CLI | 21.2.7 | `2e608e0` |
+| PrimeNG | 21.0.x | `2e608e0` |
+| RxJS | 7.8.x | `2e608e0` |
+| TypeScript | 5.9.x | `2e608e0` |
+| Production URL | `cba-web-nine.vercel.app` | `2e608e0` |
+
+#### Compliance Checklist Update
+No new REST endpoints. Angular-only CSS fix. API docs not updated.
+
+---
+
 ### Session 77 — 2026-04-17
 **5 new System UI pages: Funds, Account Number Formats, DataTables, Surveys, Credit Bureau (commit `46f2e0a`, Vercel `dpl_H5kLCTcd8ZMLFSoh25hx459EFLVP`).**
 

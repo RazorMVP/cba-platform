@@ -33,7 +33,7 @@ These are the verified-working versions for both production components. Update t
 | **TypeScript** | 5.9.x | `~5.9.2` pinned |
 | **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma) |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `e113185` | `fix(loans): add saving state + error handler to waive-charge confirm modal` |
+| **Last git commit** | `2e608e0` | `fix(scss): remove duplicate global class definitions and @keyframes from 5 system module components` |
 
 > **Session 66 CI fixes**: Angular 21 uses Vitest (not Karma) — `--browsers=ChromeHeadless` and `--code-coverage` are invalid flags. `vercel deploy --prebuilt` requires `.vercel/output/` from `vercel build`, not `dist/` from `ng build`. All three issues fixed; CI pipeline and Vercel production deployment now fully green.
 
@@ -2390,6 +2390,9 @@ This ensures each component gets its own scoped copy of shared CSS classes, immu
 - Never use `@use` for a shared module if consumers need the module's imported variables — use `@forward` to re-export
 - `disputeCommand()` in `cards.service.ts` must use path-segment routing (`/disputes/{id}/{command}`), NOT `?command=` query params — Java `DisputeController` has specific POST endpoints
 - `listCards()` must use `cardApi` base (`/card-api/v1/cards`), NOT `base` (`/api/v1/cards`) — the internal endpoint requires `customerId`
+- **`@keyframes` ALWAYS escape `ViewEncapsulation.Emulated`** — Angular never adds `[_ngcontent-xxx]` to `@keyframes` declarations, so any `@keyframes` in a component SCSS file is injected into the global stylesheet and overwrites global definitions with unpredictable ordering. This causes site-wide side-effects (e.g. sidebar click freeze). Fix: never declare `@keyframes` in component SCSS files; use global `_design-system.scss` definitions exclusively. _(Session 78)_
+- **`@if` blocks and `[_ngcontent-xxx]` in dev mode** — in Angular dev mode (`ng serve`), elements inside new-syntax `@if` / `@for` blocks may not receive the component scope attribute. Component-scoped copies of global classes (e.g. `.btn-primary[_ngcontent-xxx]`) don't match these elements; the global `.btn-primary` applies instead, causing dev/prod rendering divergence (missing modal titles, collapsed buttons). Fix: never redefine global CSS classes inside component SCSS files — delegate to global only. _(Session 78)_
+- **Extension-only pattern** — component SCSS should only contain: (1) classes not in global, (2) extension properties on top of global classes (e.g. `.modal { max-height: 90vh; display: flex; flex-direction: column; }`), and (3) BEM modifiers not covered by global. _(Session 78)_
 
 ### Available Screen Prototypes
 Located in `.claude/skills/cba/designs/screens/backoffice/`:

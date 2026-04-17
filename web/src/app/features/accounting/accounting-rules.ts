@@ -1,6 +1,7 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { StatusBadgeComponent } from '../../shared/components/status-badge/status-badge';
 import {
   AccountingService, AccountingRule, CreateAccountingRuleRequest, GlAccount,
 } from './accounting.service';
@@ -8,7 +9,7 @@ import {
 @Component({
   selector: 'app-accounting-rules',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, StatusBadgeComponent],
   templateUrl: './accounting-rules.html',
   styleUrl: './accounting-rules.scss',
 })

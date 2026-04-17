@@ -2,11 +2,12 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AdminService, Staff, CreateStaffRequest, Office } from './admin.service';
+import { StatusBadgeComponent } from '../../shared/components/status-badge/status-badge';
 
 @Component({
   selector: 'app-staff',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, StatusBadgeComponent],
   templateUrl: './staff.html',
   styleUrl: './staff.scss',
 })

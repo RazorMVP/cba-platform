@@ -59,6 +59,53 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 67 — 2026-04-17
+**Dashboard recent transactions 404 fixed — new `GET /api/v1/transactions` endpoint with account JOIN FETCH; CI pipeline fully green; production deployed.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/src/main/java/com/cba/account/TransactionController.java` | NEW — `GET /api/v1/transactions` endpoint; `RecentTransactionResponse` inner record with `accountNumber`, `transactionType`, `amount`, `runningBalance`, `currencyCode`, `description`, `referenceNumber`, `createdAt` |
+| `backend/src/main/java/com/cba/account/TransactionRepository.java` | Added `findAllWithAccount(Pageable)` JPQL query with `JOIN FETCH t.account` and explicit `countQuery` |
+| `web/src/app/features/operations/dashboard/dashboard.service.ts` | Added `catchError(() => of([]))` to `getRecentTransactions()` so dashboard shows empty state on error |
+
+#### Key Patterns / Decisions
+- `/api/v1/transactions` is a read-only dashboard endpoint — ADMIN/TELLER only; no customer-facing access
+- `JOIN FETCH` on encrypted `Customer` PII fields fails when loaded via `TransactionRepository` because the `EncryptedStringConverter` `@Autowired` injection context differs from `CustomerRepository`. Solution: remove `JOIN FETCH a.customer`; `customerName` returns `null` and the template renders `'—'`
+- Explicit `countQuery` required for all `JOIN FETCH` paginated queries in Spring Data JPA — Hibernate cannot auto-derive the count query when `JOIN FETCH` is present
+
+#### Build Verification
+- Backend: `./mvnw compile` → clean; `GET /api/v1/transactions?page=0&size=5` → 200 with transaction data
+- Angular: `npx ng build --configuration=development` → clean
+
+#### Confirmed Platform Versions
+
+**Backend (`backend/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `2d8a1ea` |
+| Java | 21 | `2d8a1ea` |
+| Application artifact | `cba-backend 0.1.0-SNAPSHOT` | `2d8a1ea` |
+| Keycloak admin client | 26.0.5 | `2d8a1ea` |
+| springdoc-openapi | 2.8.6 | `2d8a1ea` |
+| Lombok | 1.18.38 | `2d8a1ea` |
+| PostgreSQL | 16 (Docker) | `2d8a1ea` |
+
+**Angular Web App (`web/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `e906db2` |
+| Angular CLI | 21.2.7 | `e906db2` |
+| PrimeNG | 21.0.x | `e906db2` |
+| RxJS | 7.8.x | `e906db2` |
+| TypeScript | 5.9.x | `e906db2` |
+| Vitest / @vitest/coverage-v8 | 4.0.8 | `e906db2` |
+| Production URL | `cba-web-nine.vercel.app` | `e906db2` |
+
+---
+
 ### Session 66 — 2026-04-17
 **CI pipeline fixed end-to-end: Angular 21 / Vitest test runner wired correctly, Vercel `--prebuilt` deploy corrected; production deployment confirmed at `cba-web-nine.vercel.app`.**
 

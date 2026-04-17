@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 66 — 2026-04-17)
+## Confirmed Platform Versions (Session 67 — 2026-04-17)
 
 These are the verified-working versions for both production components. Update this table whenever a dependency is upgraded.
 
@@ -20,7 +20,7 @@ These are the verified-working versions for both production components. Update t
 | **Lombok** | 1.18.38 | Minimum for Java 25 `TypeTag` fix; also works on Java 21 |
 | **PostgreSQL** | 16 | Via Docker; schema managed by Flyway |
 | **AWS SDK v2 S3** | 2.26.12 | Optional — for S3/MinIO/GCS image storage |
-| **Last git commit** | `73edb4d` | `feat(images): customer image storage — pluggable provider + mandatory at account opening` |
+| **Last git commit** | `2d8a1ea` | `fix(transactions): add countQuery + remove customer JOIN FETCH to fix AttributeConverter error` |
 
 ### Angular Web App (`web/`)
 
@@ -33,7 +33,7 @@ These are the verified-working versions for both production components. Update t
 | **TypeScript** | 5.9.x | `~5.9.2` pinned |
 | **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma) |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `909139a` | `fix(ci): replace ng build with vercel build for --prebuilt deploy` |
+| **Last git commit** | `e906db2` | `fix(dashboard): add GET /api/v1/transactions endpoint + fix 404 on recent transactions` |
 
 > **Session 66 CI fixes**: Angular 21 uses Vitest (not Karma) — `--browsers=ChromeHeadless` and `--code-coverage` are invalid flags. `vercel deploy --prebuilt` requires `.vercel/output/` from `vercel build`, not `dist/` from `ng build`. All three issues fixed; CI pipeline and Vercel production deployment now fully green.
 
@@ -275,6 +275,9 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 - Fields: entity_type, entity_id, action, changed_by, timestamp, old_values (JSONB), new_values (JSONB), IP, user agent
 - Retention: minimum 7 years
 - `AuditLogService` always uses `@Transactional(propagation = REQUIRES_NEW)`
+- **`JOIN FETCH` + `Page` requires explicit `countQuery`** — when a Spring Data `@Query` uses `JOIN FETCH`, Hibernate cannot auto-derive the count query; always add `countQuery = "SELECT COUNT(t) FROM ..."` to avoid `InvalidDataAccessApiUsageException` _(Session 67)_
+- **`EncryptedStringConverter` fails across repository boundaries** — loading `Customer` via a `JOIN FETCH` from `TransactionRepository` (instead of `CustomerRepository`) causes `Error attempting to apply AttributeConverter` because the `@Autowired FieldEncryptor` injection context differs. Solution: load only the non-encrypted entity (Account) via JOIN FETCH; fetch Customer PII separately through `CustomerRepository` if needed _(Session 67)_
+- **`GET /api/v1/transactions`** — global paginated transaction list at `TransactionController`; ADMIN/TELLER only; returns `accountNumber` but `customerName=null` (template handles with `?? '—'`) _(Session 67)_
 - **`old_values` / `new_values` are `String` columns** (not `Object`) — `AuditLogService.toJson(Object)` pre-serializes every value through Jackson before writing to the `jsonb` column. Never pass raw Java objects directly — PostgreSQL `jsonb` rejects bare strings like `PENDING_KYC` (no quotes); Jackson wraps them as `"\"PENDING_KYC\""`. Never log raw DTOs in audit values — pass only simple status strings to avoid PII leakage _(fixed Session 51, commit `16c380e`)_
 
 ### 9. Teller / Cash Management Module (from Mifos)

@@ -1,33 +1,44 @@
 <div class="page">
+
+  <!-- ── Header ── -->
   <div class="page-header">
-    <div>
-      <h1 class="page-title">Staff</h1>
-      <p class="page-sub">Manage bank staff and loan officer assignments by office.</p>
+    <div class="page-header__title">
+      <span class="material-icons">badge</span>
+      Staff
     </div>
+    <p class="page-sub">Manage bank staff and loan officer assignments by office.</p>
     <button class="btn-primary" (click)="openCreate()">
       <span class="material-icons">person_add</span> New Staff Member
     </button>
   </div>
 
-  <div class="filters">
-    <select class="form-input filter-select" [(ngModel)]="filterOfficeId" (ngModelChange)="onOfficeFilter()">
+  <!-- ── Filter bar ── -->
+  <div class="filter-bar">
+    <select class="form-select" [(ngModel)]="filterOfficeId" (ngModelChange)="onOfficeFilter()">
       <option value="">All Offices</option>
       @for (o of offices; track o.id) {
         <option [value]="o.id">{{ o.name }}</option>
       }
     </select>
-    <label class="checkbox-label">
+    <label class="checkbox-filter">
       <input type="checkbox" [(ngModel)]="loanOfficerOnly" />
       Loan Officers only
     </label>
   </div>
 
-  <div class="card">
-    @if (loading) {
-      <div class="loading">Loading staff…</div>
-    } @else if (error) {
-      <div class="error-msg">{{ error }}</div>
-    } @else {
+  <!-- ── Loading / Error / Table ── -->
+  @if (loading) {
+    <div class="card skeleton-card">
+      @for (i of [1,2,3,4,5]; track i) { <div class="skeleton skeleton--row"></div> }
+    </div>
+  } @else if (error) {
+    <div class="card empty-state">
+      <span class="material-icons">error_outline</span>
+      <p>{{ error }}</p>
+      <button class="btn-primary" (click)="load()">Retry</button>
+    </div>
+  } @else {
+    <div class="card">
       <table class="data-table">
         <thead>
           <tr>
@@ -35,7 +46,7 @@
             <th>Email</th>
             <th>Mobile</th>
             <th>Office</th>
-            <th>Loan Officer</th>
+            <th>Role</th>
             <th>Status</th>
             <th></th>
           </tr>
@@ -53,9 +64,9 @@
                 }
               </td>
               <td>
-                <span class="status-dot" [class.active]="s.active">
-                  {{ s.active ? 'Active' : 'Inactive' }}
-                </span>
+                <app-status-badge
+                  [label]="s.active ? 'Active' : 'Inactive'"
+                  [variant]="s.active ? 'success' : 'neutral'" />
               </td>
               <td class="actions">
                 <button class="btn-icon" title="Edit" (click)="openEdit(s)">
@@ -64,50 +75,51 @@
               </td>
             </tr>
           } @empty {
-            <tr><td colspan="7" class="empty">No staff found.</td></tr>
+            <tr>
+              <td colspan="7" class="empty-cell">No staff found.</td>
+            </tr>
           }
         </tbody>
       </table>
-    }
-  </div>
+    </div>
+  }
+
 </div>
 
-<!-- Create / Edit Modal -->
+<!-- ── Create / Edit Modal ── -->
 @if (activeModal === 'create' || activeModal === 'edit') {
   <div class="modal-backdrop" (click)="closeModal()">
-    <div class="modal" (click)="$event.stopPropagation()">
-      <div class="modal-header">
-        <h2>{{ activeModal === 'edit' ? 'Edit' : 'New' }} Staff Member</h2>
-        <button class="btn-icon" (click)="closeModal()">
-          <span class="material-icons">close</span>
-        </button>
+    <div class="modal modal--lg" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">badge</span>
+        {{ activeModal === 'edit' ? 'Edit' : 'New' }} Staff Member
       </div>
-      <div class="modal-body">
-        @if (modalError) { <div class="error-msg">{{ modalError }}</div> }
+      <div class="modal__body">
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
 
         <div class="form-row">
-          <div class="form-group">
-            <label>First Name *</label>
+          <div class="form-field">
+            <label class="form-label">First Name <span class="required">*</span></label>
             <input class="form-input" [(ngModel)]="form.firstName" placeholder="First name" />
           </div>
-          <div class="form-group">
-            <label>Last Name *</label>
+          <div class="form-field">
+            <label class="form-label">Last Name <span class="required">*</span></label>
             <input class="form-input" [(ngModel)]="form.lastName" placeholder="Last name" />
           </div>
         </div>
         <div class="form-row">
-          <div class="form-group">
-            <label>Email</label>
+          <div class="form-field">
+            <label class="form-label">Email <span class="form-hint">(optional)</span></label>
             <input class="form-input" type="email" [(ngModel)]="form.email" placeholder="staff@bank.com" />
           </div>
-          <div class="form-group">
-            <label>Mobile</label>
+          <div class="form-field">
+            <label class="form-label">Mobile <span class="form-hint">(optional)</span></label>
             <input class="form-input" [(ngModel)]="form.mobileNo" placeholder="+1 555 000 0000" />
           </div>
         </div>
         <div class="form-row">
-          <div class="form-group">
-            <label>Office *</label>
+          <div class="form-field">
+            <label class="form-label">Office <span class="required">*</span></label>
             <select class="form-input" [(ngModel)]="form.officeId">
               <option value="">— Select office —</option>
               @for (o of offices; track o.id) {
@@ -115,24 +127,25 @@
               }
             </select>
           </div>
-          <div class="form-group">
-            <label>Joining Date</label>
+          <div class="form-field">
+            <label class="form-label">Joining Date <span class="form-hint">(optional)</span></label>
             <input class="form-input" type="date" [(ngModel)]="form.joiningDate" />
           </div>
         </div>
-        <div class="form-group">
+        <div class="form-field">
           <label class="checkbox-label">
             <input type="checkbox" [(ngModel)]="form.loanOfficer" />
             Loan Officer
           </label>
         </div>
       </div>
-      <div class="modal-footer">
-        <button class="btn-secondary" (click)="closeModal()">Cancel</button>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="working">Cancel</button>
         <button class="btn-primary"
           [disabled]="working || !form.firstName.trim() || !form.lastName.trim() || !form.officeId"
           (click)="save()">
-          {{ working ? 'Saving…' : 'Save' }}
+          @if (working) { <span class="spinner"></span> }
+          {{ activeModal === 'edit' ? 'Save Changes' : 'Create Staff' }}
         </button>
       </div>
     </div>

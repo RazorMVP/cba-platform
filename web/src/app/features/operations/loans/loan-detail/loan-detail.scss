@@ -213,3 +213,64 @@
 .modal__warning { display: flex; align-items: flex-start; gap: $space-3; font-size: $text-sm; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: $radius-sm; padding: $space-3 $space-4; .material-icons { font-size: 18px; flex-shrink: 0; margin-top: 1px; } }
 .action-cell { display: flex; align-items: center; gap: $space-1; justify-content: flex-end; white-space: nowrap; }
 .btn-ghost.btn-sm.btn-danger { color: $color-error-600; border-color: rgba(220,38,38,0.3); &:hover { background: #fef2f2; border-color: #fca5a5; } }
+
+// ── Tab panel sub-components (reschedule / re-aging tabs) ────────────────────
+.tab-card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: $space-4 $space-5; border-bottom: 1px solid $color-border-default;
+}
+.tab-card-title {
+  font-size: $text-sm; font-weight: $font-weight-semibold; color: $color-text-primary;
+}
+.tab-card-actions { display: flex; align-items: center; gap: $space-2; }
+
+.tab-skeleton { padding: $space-4 $space-5; display: flex; flex-direction: column; gap: $space-3; }
+.tab-skeleton__row {
+  height: 44px; border-radius: $radius-sm;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%; animation: shimmer 1.4s infinite;
+}
+
+.tab-empty-state {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 3.5rem 2rem; gap: $space-3; color: $color-text-muted; text-align: center;
+  .material-icons { font-size: 3rem; opacity: 0.3; }
+  p { margin: 0; font-size: $text-sm; }
+}
+
+// ── Updated modal backdrop + icon styles ─────────────────────────────────────
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000; animation: fade-in 0.15s ease;
+}
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slide-up { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+.modal--lg { max-width: 680px !important; }
+
+.modal {
+  &__icon { font-size: 1.4rem; color: $color-primary-800; }
+  &__error {
+    margin-bottom: $space-3; padding: $space-2 $space-3;
+    background: #fee2e2; border-radius: $radius-sm; color: #991b1b; font-size: $text-sm;
+  }
+}
+
+// ── Form field pattern (used in updated modals) ───────────────────────────────
+.form-row   { display: flex; gap: $space-4; flex-wrap: wrap; margin-bottom: $space-4; }
+.form-field { flex: 1; min-width: 180px; margin-bottom: $space-4; &:last-child { margin-bottom: 0; } }
+.required   { color: #dc2626; }
+.checkbox-label {
+  display: inline-flex; align-items: center; gap: $space-2;
+  font-size: $text-sm; cursor: pointer; color: $color-text-primary;
+  input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: $color-primary-800; }
+}
+
+// ── Inline spinner ────────────────────────────────────────────────────────────
+.spinner {
+  display: inline-block; width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,.4); border-top-color: #fff;
+  border-radius: 50%; animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }

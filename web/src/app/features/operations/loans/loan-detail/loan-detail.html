@@ -391,16 +391,18 @@
     <!-- ── RESCHEDULE TAB ── -->
     @if (activeTab === 'reschedule') {
       <div class="card">
-        <div class="card__header">
-          <div class="card__title">Reschedule Requests</div>
+        <div class="tab-card-header">
+          <span class="tab-card-title">Reschedule Requests</span>
           <button class="btn-sm btn-primary" (click)="openRescheduleModal()">
             <span class="material-icons">add</span> New Request
           </button>
         </div>
         @if (rescheduleLoading) {
-          <div class="tab-loading">Loading reschedule requests…</div>
+          <div class="tab-skeleton">
+            @for (i of [1,2]; track i) { <div class="tab-skeleton__row"></div> }
+          </div>
         } @else if (rescheduleRequests.length === 0) {
-          <div class="tab-empty">
+          <div class="tab-empty-state">
             <span class="material-icons">event_repeat</span>
             <p>No reschedule requests yet.</p>
           </div>
@@ -447,11 +449,11 @@
     <!-- ── RE-AGING TAB ── -->
     @if (activeTab === 'reaging') {
       <div class="card">
-        <div class="card__header">
-          <div class="card__title">Re-aging History</div>
-          <div class="header-actions">
+        <div class="tab-card-header">
+          <span class="tab-card-title">Re-aging History</span>
+          <div class="tab-card-actions">
             <button class="btn-sm btn-secondary" (click)="triggerReamortization()" title="Recalculate loan schedule">
-              Re-amortize
+              <span class="material-icons">sync</span> Re-amortize
             </button>
             <button class="btn-sm btn-primary" (click)="openReagingModal()">
               <span class="material-icons">add</span> New Re-aging
@@ -459,9 +461,11 @@
           </div>
         </div>
         @if (reagingLoading) {
-          <div class="tab-loading">Loading re-aging history…</div>
+          <div class="tab-skeleton">
+            @for (i of [1,2]; track i) { <div class="tab-skeleton__row"></div> }
+          </div>
         } @else if (reagingRequests.length === 0) {
-          <div class="tab-empty">
+          <div class="tab-empty-state">
             <span class="material-icons">restore</span>
             <p>No re-aging requests yet.</p>
           </div>
@@ -495,39 +499,39 @@
 
 <!-- ══ RESCHEDULE MODAL ══ -->
 @if (showRescheduleModal) {
-  <div class="modal-overlay" (click)="showRescheduleModal = false">
-    <div class="modal" (click)="$event.stopPropagation()">
+  <div class="modal-backdrop" (click)="showRescheduleModal = false">
+    <div class="modal modal--lg" (click)="$event.stopPropagation()">
       <div class="modal__header">
-        <h2 class="modal__title">New Reschedule Request</h2>
-        <button class="modal__close" (click)="showRescheduleModal = false">✕</button>
+        <span class="material-icons modal__icon">event_repeat</span>
+        New Reschedule Request
       </div>
       <div class="modal__body">
-        @if (rescheduleError) { <div class="form-error">{{ rescheduleError }}</div> }
-        <div class="form-group">
-          <label class="form-label">Reason *</label>
+        @if (rescheduleError) { <div class="modal__error">{{ rescheduleError }}</div> }
+        <div class="form-field">
+          <label class="form-label">Reason <span class="required">*</span></label>
           <input class="form-input" [(ngModel)]="rescheduleForm.rescheduleReason" placeholder="Reason for rescheduling" />
         </div>
-        <div class="form-row-2">
-          <div class="form-group">
-            <label class="form-label">New Interest Rate (%)</label>
+        <div class="form-row">
+          <div class="form-field">
+            <label class="form-label">New Interest Rate (%) <span class="form-hint">(optional)</span></label>
             <input class="form-input" type="number" step="0.01" [(ngModel)]="rescheduleForm.newInterestRate" placeholder="Leave blank to keep current" />
           </div>
-          <div class="form-group">
-            <label class="form-label">Extra Terms (months)</label>
+          <div class="form-field">
+            <label class="form-label">Extra Terms (months) <span class="form-hint">(optional)</span></label>
             <input class="form-input" type="number" [(ngModel)]="rescheduleForm.extraTerms" placeholder="e.g. 3" />
           </div>
         </div>
-        <div class="form-row-2">
-          <div class="form-group">
-            <label class="form-label">Grace on Principal (months)</label>
+        <div class="form-row">
+          <div class="form-field">
+            <label class="form-label">Grace on Principal (months) <span class="form-hint">(optional)</span></label>
             <input class="form-input" type="number" [(ngModel)]="rescheduleForm.graceOnPrincipal" />
           </div>
-          <div class="form-group">
-            <label class="form-label">Grace on Interest (months)</label>
+          <div class="form-field">
+            <label class="form-label">Grace on Interest (months) <span class="form-hint">(optional)</span></label>
             <input class="form-input" type="number" [(ngModel)]="rescheduleForm.graceOnInterest" />
           </div>
         </div>
-        <div class="form-group">
+        <div class="form-field">
           <label class="checkbox-label">
             <input type="checkbox" [(ngModel)]="rescheduleForm.recalculateInterest" />
             Recalculate Interest
@@ -535,11 +539,12 @@
         </div>
       </div>
       <div class="modal__footer">
-        <button class="btn-ghost" (click)="showRescheduleModal = false">Cancel</button>
+        <button class="btn-secondary" (click)="showRescheduleModal = false" [disabled]="rescheduleSaving">Cancel</button>
         <button class="btn-primary"
           [disabled]="rescheduleSaving || !rescheduleForm.rescheduleReason?.trim()"
           (click)="submitReschedule()">
-          {{ rescheduleSaving ? 'Submitting…' : 'Submit Request' }}
+          @if (rescheduleSaving) { <span class="spinner"></span> }
+          Submit Request
         </button>
       </div>
     </div>
@@ -548,33 +553,33 @@
 
 <!-- ══ RE-AGING MODAL ══ -->
 @if (showReagingModal) {
-  <div class="modal-overlay" (click)="showReagingModal = false">
-    <div class="modal" (click)="$event.stopPropagation()">
+  <div class="modal-backdrop" (click)="showReagingModal = false">
+    <div class="modal modal--lg" (click)="$event.stopPropagation()">
       <div class="modal__header">
-        <h2 class="modal__title">New Re-aging Request</h2>
-        <button class="modal__close" (click)="showReagingModal = false">✕</button>
+        <span class="material-icons modal__icon">restore</span>
+        New Re-aging Request
       </div>
       <div class="modal__body">
-        @if (reagingError) { <div class="form-error">{{ reagingError }}</div> }
-        <div class="form-row-2">
-          <div class="form-group">
-            <label class="form-label">Frequency Type *</label>
+        @if (reagingError) { <div class="modal__error">{{ reagingError }}</div> }
+        <div class="form-row">
+          <div class="form-field">
+            <label class="form-label">Frequency Type <span class="required">*</span></label>
             <select class="form-input" [(ngModel)]="reagingForm.frequencyType">
               @for (t of frequencyTypes; track t) {
                 <option [value]="t">{{ t }}</option>
               }
             </select>
           </div>
-          <div class="form-group">
-            <label class="form-label">Interval *</label>
+          <div class="form-field">
+            <label class="form-label">Interval <span class="required">*</span></label>
             <input class="form-input" type="number" min="1" [(ngModel)]="reagingForm.frequency" />
           </div>
         </div>
-        <div class="form-group">
-          <label class="form-label">Start Date *</label>
+        <div class="form-field">
+          <label class="form-label">Start Date <span class="required">*</span></label>
           <input class="form-input" type="date" [(ngModel)]="reagingForm.startDate" />
         </div>
-        <div class="form-group">
+        <div class="form-field">
           <label class="checkbox-label">
             <input type="checkbox" [(ngModel)]="reagingForm.isPreview" />
             Preview Only (dry-run, no changes applied)
@@ -582,11 +587,12 @@
         </div>
       </div>
       <div class="modal__footer">
-        <button class="btn-ghost" (click)="showReagingModal = false">Cancel</button>
+        <button class="btn-secondary" [disabled]="reagingSaving" (click)="showReagingModal = false">Cancel</button>
         <button class="btn-primary"
           [disabled]="reagingSaving || !reagingForm.startDate || reagingForm.frequency < 1"
           (click)="submitReaging()">
-          {{ reagingSaving ? 'Submitting…' : 'Submit' }}
+          @if (reagingSaving) { <span class="spinner"></span> }
+          Submit Request
         </button>
       </div>
     </div>

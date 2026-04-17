@@ -1,21 +1,30 @@
 <div class="page">
+
+  <!-- ── Header ── -->
   <div class="page-header">
-    <div>
-      <h1 class="page-title">Exchange Rates</h1>
-      <p class="page-sub">Configure currency conversion rates. Inverse rates are auto-generated.</p>
+    <div class="page-header__title">
+      <span class="material-icons">currency_exchange</span>
+      Exchange Rates
     </div>
+    <p class="page-sub">Configure currency conversion rates. Inverse rates are auto-generated.</p>
     <button class="btn-primary" (click)="openUpsert()">
       <span class="material-icons">add</span> Set Rate
     </button>
   </div>
 
+  <!-- ── Loading / Error / Table ── -->
   @if (loading) {
-    <div class="loading">Loading exchange rates…</div>
+    <div class="card skeleton-card">
+      @for (i of [1,2,3,4]; track i) { <div class="skeleton skeleton--row"></div> }
+    </div>
   } @else if (error) {
-    <div class="error-msg">{{ error }}</div>
+    <div class="card empty-state">
+      <span class="material-icons">error_outline</span>
+      <p>{{ error }}</p>
+      <button class="btn-primary" (click)="load()">Retry</button>
+    </div>
   } @else {
     <div class="card">
-      <div class="card-section-title">Active Rates</div>
       <table class="data-table">
         <thead>
           <tr>
@@ -24,121 +33,109 @@
             <th>Rate</th>
             <th>Inverse Rate</th>
             <th>Last Updated</th>
+            <th>Status</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
-          @for (r of activeRates(); track r.id) {
-            <tr>
-              <td><span class="currency-tag">{{ r.fromCurrency }}</span></td>
-              <td><span class="currency-tag">{{ r.toCurrency }}</span></td>
+          @for (r of rates; track r.id) {
+            <tr [class.row-inactive]="!r.active">
+              <td><span class="currency-tag" [class.inactive]="!r.active">{{ r.fromCurrency }}</span></td>
+              <td><span class="currency-tag" [class.inactive]="!r.active">{{ r.toCurrency }}</span></td>
               <td class="tabular">{{ r.rate | number:'1.2-6' }}</td>
               <td class="tabular muted">{{ r.inverseRate | number:'1.2-6' }}</td>
               <td class="muted small">{{ r.updatedAt | date:'dd MMM yyyy HH:mm' }}</td>
+              <td>
+                <app-status-badge
+                  [label]="r.active ? 'Active' : 'Inactive'"
+                  [variant]="r.active ? 'success' : 'neutral'" />
+              </td>
               <td class="actions">
-                <button class="btn-icon" title="Edit" (click)="openUpsert(r)">
+                <button class="btn-icon" title="Edit / Re-activate" (click)="openUpsert(r)">
                   <span class="material-icons">edit</span>
                 </button>
-                <button class="btn-icon danger" title="Deactivate" (click)="openDeactivate(r)">
-                  <span class="material-icons">block</span>
-                </button>
+                @if (r.active) {
+                  <button class="btn-icon danger" title="Deactivate" (click)="openDeactivate(r)">
+                    <span class="material-icons">block</span>
+                  </button>
+                }
               </td>
             </tr>
           } @empty {
-            <tr><td colspan="6" class="empty">No active exchange rates.</td></tr>
+            <tr>
+              <td colspan="7" class="empty-cell">No exchange rates configured.</td>
+            </tr>
           }
         </tbody>
       </table>
     </div>
-
-    @if (inactiveRates().length > 0) {
-      <div class="card" style="margin-top: 16px;">
-        <div class="card-section-title muted">Inactive Rates</div>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>From</th><th>To</th><th>Rate</th><th>Inverse Rate</th><th></th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (r of inactiveRates(); track r.id) {
-              <tr class="inactive-row">
-                <td><span class="currency-tag inactive">{{ r.fromCurrency }}</span></td>
-                <td><span class="currency-tag inactive">{{ r.toCurrency }}</span></td>
-                <td class="tabular muted">{{ r.rate | number:'1.2-6' }}</td>
-                <td class="tabular muted">{{ r.inverseRate | number:'1.2-6' }}</td>
-                <td class="actions">
-                  <button class="btn-icon" title="Re-activate" (click)="openUpsert(r)">
-                    <span class="material-icons">refresh</span>
-                  </button>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-    }
   }
+
 </div>
 
-<!-- Upsert Modal -->
+<!-- ── Set Rate Modal ── -->
 @if (activeModal === 'upsert') {
   <div class="modal-backdrop" (click)="closeModal()">
-    <div class="modal" (click)="$event.stopPropagation()">
-      <div class="modal-header">
-        <h2>Set Exchange Rate</h2>
-        <button class="btn-icon" (click)="closeModal()">
-          <span class="material-icons">close</span>
-        </button>
+    <div class="modal modal--lg" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">currency_exchange</span>
+        Set Exchange Rate
       </div>
-      <div class="modal-body">
-        @if (modalError) { <div class="error-msg">{{ modalError }}</div> }
-        <div class="rate-row">
-          <div class="form-group">
-            <label>From Currency *</label>
-            <input class="form-input" [(ngModel)]="form.fromCurrency" placeholder="e.g. USD" maxlength="3" />
+      <div class="modal__body">
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+
+        <div class="form-row">
+          <div class="form-field">
+            <label class="form-label">From Currency <span class="required">*</span></label>
+            <input class="form-input" [(ngModel)]="form.fromCurrency" placeholder="e.g. USD" maxlength="3"
+                   style="text-transform: uppercase;" />
           </div>
-          <div class="form-group">
-            <label>To Currency *</label>
-            <input class="form-input" [(ngModel)]="form.toCurrency" placeholder="e.g. KES" maxlength="3" />
+          <div class="form-field">
+            <label class="form-label">To Currency <span class="required">*</span></label>
+            <input class="form-input" [(ngModel)]="form.toCurrency" placeholder="e.g. KES" maxlength="3"
+                   style="text-transform: uppercase;" />
           </div>
         </div>
-        <div class="form-group">
-          <label>Rate *</label>
-          <input class="form-input" type="number" step="0.000001" [(ngModel)]="form.rate" placeholder="e.g. 135.5" />
-          <p class="field-hint">Inverse rate is auto-calculated and saved.</p>
+        <div class="form-field">
+          <label class="form-label">Rate <span class="required">*</span></label>
+          <input class="form-input" type="number" step="0.000001" min="0"
+                 [(ngModel)]="form.rate" placeholder="e.g. 135.500000" />
+          <span class="form-hint-text">Inverse rate is auto-calculated and saved alongside this rate.</span>
         </div>
       </div>
-      <div class="modal-footer">
-        <button class="btn-secondary" (click)="closeModal()">Cancel</button>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="working">Cancel</button>
         <button class="btn-primary"
           [disabled]="working || !form.fromCurrency.trim() || !form.toCurrency.trim() || form.rate <= 0"
           (click)="save()">
-          {{ working ? 'Saving…' : 'Save' }}
+          @if (working) { <span class="spinner"></span> }
+          Save Rate
         </button>
       </div>
     </div>
   </div>
 }
 
-<!-- Deactivate Modal -->
+<!-- ── Deactivate Confirm Modal ── -->
 @if (activeModal === 'deactivate' && deactivateTarget) {
   <div class="modal-backdrop" (click)="closeModal()">
     <div class="modal modal--sm" (click)="$event.stopPropagation()">
-      <div class="modal-header">
-        <h2>Deactivate Rate</h2>
-        <button class="btn-icon" (click)="closeModal()">
-          <span class="material-icons">close</span>
-        </button>
+      <div class="modal__header">
+        <span class="material-icons modal__icon">block</span>
+        Deactivate Rate
       </div>
-      <div class="modal-body">
-        <p>Deactivate <strong>{{ deactivateTarget.fromCurrency }} → {{ deactivateTarget.toCurrency }}</strong>?
-          Cross-currency transfers using this pair will fail until the rate is restored.</p>
+      <div class="modal__body">
+        <p class="confirm-text">
+          Deactivate <strong>{{ deactivateTarget.fromCurrency }} → {{ deactivateTarget.toCurrency }}</strong>?
+          Cross-currency transfers using this pair will fail until the rate is restored.
+        </p>
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
       </div>
-      <div class="modal-footer">
-        <button class="btn-secondary" (click)="closeModal()">Cancel</button>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="working">Cancel</button>
         <button class="btn-danger" [disabled]="working" (click)="confirmDeactivate()">
-          {{ working ? 'Deactivating…' : 'Deactivate' }}
+          @if (working) { <span class="spinner"></span> }
+          Deactivate
         </button>
       </div>
     </div>

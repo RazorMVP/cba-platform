@@ -59,6 +59,39 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 76 — 2026-04-17
+**UI polish: rewrote HTML/SCSS for 5 Session-75 pages + Loan Detail re-aging modal to match journal-entries reference design.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/.../system/payment-types.html` | Full rewrite — correct `.page-header__title`, skeleton shimmer, `modal--lg` + `modal__icon`, `form-row`/`form-field` grid |
+| `web/.../system/payment-types.scss` | Full self-contained rewrite (~160 lines) — all base styles + `.bool-chip`, `.sys-badge`, `.checkbox-label` |
+| `web/.../system/exchange-rates.html` | Full rewrite — single flat table with Status column (`app-status-badge`); `.row-inactive` on inactive rows; upsert modal with `form-row` pair |
+| `web/.../system/exchange-rates.scss` | Full self-contained rewrite (~165 lines) — `.currency-tag`, `.row-inactive`, `.form-hint-text` |
+| `web/.../accounting/accounting-rules.html` | Full rewrite — `app-status-badge` status column; `modal--lg` create/edit with 2-col `form-row`; delete confirm `modal--sm` |
+| `web/.../accounting/accounting-rules.scss` | Full self-contained rewrite (~175 lines) — `.acc-cell`, `.gl-code`, `.gl-name`, `.bool-chip`, `.check-row` |
+| `web/.../admin/staff.html` | Full rewrite — `.filter-bar`/`.form-select`/`.checkbox-filter` pattern; `app-status-badge` for status; `modal--lg` create/edit |
+| `web/.../admin/staff.scss` | Full self-contained rewrite (~175 lines) — `.filter-bar`, `.form-select`, `.checkbox-filter`, `.loan-officer-badge` |
+| `web/.../admin/standing-instructions.html` | Full rewrite — all three modals fixed (create/edit `modal--lg`, toggle `modal--sm`, delete `modal--sm`); all conditional fields preserved |
+| `web/.../admin/standing-instructions.scss` | Full self-contained rewrite (~190 lines) — all chip variants preserved: type, priority (urgent/high/medium/low), status (active/disabled) |
+| `web/.../loans/loan-detail/loan-detail.html` | Re-aging modal: `modal-overlay`→`modal-backdrop`, remove `modal__close`, add `modal__icon` + `modal--lg`, `form-row-2`/`form-group`→`form-row`/`form-field`, `form-error`→`modal__error`, `btn-ghost`→`btn-secondary`, add spinner |
+| `web/.../loans/loan-detail/loan-detail.scss` | Appended: `.tab-card-header/title/actions`, `.tab-skeleton`/`__row` (shimmer), `.tab-empty-state`, `.modal-backdrop`, `modal--lg`, `.modal__icon/.modal__error`, `.form-row`/`.form-field`, `.required`, `.checkbox-label`, `.spinner` |
+
+#### Key Patterns / Decisions
+- Root cause of all "bad" pages: SCSS files were 37–61 lines, assuming `design-system` exported CSS classes. It only `@forward`s SCSS variables — every component must be fully self-contained (~160–190 lines)
+- Reference design is `journal-entries.html/.scss` — all pages now match its exact BEM class names (`modal__header` not `modal-header`, `form-field` not `form-group`, `modal-backdrop` not `modal-overlay`)
+- Exchange rates simplified from two grouped sections (active/inactive) to a single flat table with a Status column — `rates` array iterated directly, `.row-inactive` class fades inactive rows
+- Old `modal-overlay`/`modal__close`/`btn-ghost` styles kept in `loan-detail.scss` for backward compatibility with the remaining non-migrated modals (repayment, approve, write-off, reject, charge modals)
+
+#### Build Verification
+- Angular HTML/SCSS only — no TypeScript changes; component logic unchanged
+
+#### Confirmed Platform Versions
+(unchanged from Session 72 — no backend or dependency changes this session)
+
+---
+
 ### Session 75 — 2026-04-17
 **Six new Angular UI pages: Payment Types, Exchange Rates, Accounting Rules, Staff, Standing Instructions + Reschedule/Re-aging tabs on Loan Detail.**
 

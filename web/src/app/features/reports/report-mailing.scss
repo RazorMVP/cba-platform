@@ -157,3 +157,12 @@
   border: 2px solid rgba(255,255,255,.4); border-top-color: #fff;
   border-radius: 50%; animation: spin 0.7s linear infinite;
 }
+
+// ── Modal layout extensions for @if embedded views (dev mode scoping fix) ──────
+:host ::ng-deep {
+  .modal--lg      { max-width: 640px; }
+  .modal          { max-height: 90vh; display: flex; flex-direction: column; }
+  .modal__header  { flex-shrink: 0; }
+  .modal__body    { overflow-y: auto; flex: 1; }
+  .modal__footer  { flex-shrink: 0; }
+}

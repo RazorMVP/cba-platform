@@ -2483,6 +2483,7 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Journal entries | `JournalEntriesComponent` | `AccountingModule` | ✅ Built — T-ledger grouped view, date filter, manual entry modal with balance validation, reversal |
 | Provisioning criteria | `ProvisioningComponent` | `AccountingModule` | ✅ Built — IFRS 9 age bands, create/edit/delete, GL account dropdowns by type |
 | Financial Activity Accounts | `FinancialActivityAccountsComponent` | `AccountingModule` | ✅ Built — maps abstract activities to GL account codes; create/edit/delete; activity-type selector; GL account picker |
+| GL Closures | `GlClosuresComponent` | `AccountingModule` | ✅ Built — office picker, closures list (date/closedBy/comments), Create modal; POST uses query params not JSON body _(Session 69)_ |
 | Reports list | `ReportsListComponent` | `ReportsModule` | ✅ Built — search/category filter, dynamic param form, schema-on-read results table, CSV export, create/delete |
 | CoB Scheduler | `CobSchedulerComponent` | `ReportsModule` | ✅ Built — job cards with stats, Run Now trigger, inline history panel, duration helper |
 | Report Mailing Jobs | `ReportMailingComponent` | `ReportsModule` | ✅ Built — mailing job CRUD, RRULE schedule presets, output type chips, send-now trigger |
@@ -3041,7 +3042,7 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 |-------------|---------------|----------------|-----|
 | GL accounts CRUD | ✅ | ✅ GlAccountsComponent | — |
 | Journal entries (view + manual post + reverse) | ✅ | ✅ JournalEntriesComponent | — |
-| GL closures | ✅ | ❌ No Angular UI for GL closures | ⚠️ |
+| GL closures | ✅ | ✅ `GlClosuresComponent` _(Session 69)_ | ✅ |
 | Financial Activity Accounts CRUD | ✅ | ✅ FinancialActivityAccountsComponent | — |
 | Accounting Rules CRUD | ✅ Module 42 | ❌ No Angular component | ❌ |
 | Provisioning Criteria CRUD | ✅ | ✅ ProvisioningComponent | — |

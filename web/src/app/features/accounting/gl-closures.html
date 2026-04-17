@@ -1,0 +1,140 @@
+<div class="page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">GL Closures</h1>
+      <p class="page-subtitle">Close accounting periods to prevent backdated journal entries</p>
+    </div>
+    <button class="btn-primary" (click)="openCreate()" [disabled]="!selectedOfficeId">
+      <span class="material-icons">lock</span> Close Period
+    </button>
+  </div>
+
+  <!-- Office picker -->
+  <div class="office-bar">
+    <label class="office-label">
+      <span class="material-icons">corporate_fare</span> Office
+    </label>
+    <select class="office-select" [(ngModel)]="selectedOfficeId" (change)="onOfficeChange()">
+      <option value="">— Select office —</option>
+      @for (o of offices; track o.id) {
+        <option [value]="o.id">{{ o.name }}</option>
+      }
+    </select>
+  </div>
+
+  @if (error) {
+    <div class="error-banner">
+      <span class="material-icons">error_outline</span> {{ error }}
+    </div>
+  }
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        Closed Periods
+        @if (selectedOfficeName()) {
+          <span class="office-chip">{{ selectedOfficeName() }}</span>
+        }
+      </div>
+    </div>
+
+    @if (loading) {
+      <div class="skeleton-rows">
+        @for (i of [1,2,3]; track i) {
+          <div class="skeleton-row">
+            <div class="skeleton sk-date"></div>
+            <div class="skeleton sk-name"></div>
+            <div class="skeleton sk-muted"></div>
+          </div>
+        }
+      </div>
+    } @else if (!selectedOfficeId) {
+      <div class="empty-state">
+        <span class="material-icons">corporate_fare</span>
+        <p>Select an office above to view its GL closures.</p>
+      </div>
+    } @else if (closures.length === 0) {
+      <div class="empty-state">
+        <span class="material-icons">lock_open</span>
+        <p>No periods have been closed for this office yet.</p>
+      </div>
+    } @else {
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Closing Date</th>
+            <th>Closed By</th>
+            <th>Comments</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (c of closures; track c.id) {
+            <tr>
+              <td class="date-cell">
+                <span class="material-icons lock-icon">lock</span>
+                {{ c.closingDate | date:'mediumDate' }}
+              </td>
+              <td class="muted">{{ c.closedBy ?? '—' }}</td>
+              <td class="muted">{{ c.comments ?? '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </div>
+
+  <!-- Info callout -->
+  <div class="info-callout">
+    <span class="material-icons">info_outline</span>
+    <div>
+      <strong>What does closing a period do?</strong>
+      Once a date is closed for an office, no manual journal entries with an entry date on or before the closing date can be posted. This protects finalized financial statements from accidental modification.
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ CREATE CLOSURE MODAL ══ -->
+@if (showCreateModal) {
+  <div class="modal-overlay" (click)="showCreateModal = false">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2 class="modal-title">Close Accounting Period</h2>
+        <button class="modal-close" (click)="showCreateModal = false">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label class="field-label">Office <span class="req">*</span></label>
+          <select class="field-input" [(ngModel)]="form.officeId">
+            @for (o of offices; track o.id) {
+              <option [value]="o.id">{{ o.name }}</option>
+            }
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-label">Closing Date <span class="req">*</span></label>
+          <input class="field-input" type="date" [(ngModel)]="form.closingDate" />
+          <span class="field-hint">Journal entries on or before this date will be locked for this office.</span>
+        </div>
+        <div class="field">
+          <label class="field-label">Comments</label>
+          <textarea class="field-input field-textarea" rows="3"
+            placeholder="e.g. End of Q1 2026 close…"
+            [(ngModel)]="form.comments"></textarea>
+        </div>
+        @if (saveError) {
+          <p class="field-error">{{ saveError }}</p>
+        }
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost" [disabled]="saving" (click)="showCreateModal = false">Cancel</button>
+        <button class="btn-primary" [disabled]="!form.officeId || !form.closingDate || saving" (click)="submitCreate()">
+          @if (saving) { <span class="spinner"></span> Closing… } @else { Close Period }
+        </button>
+      </div>
+    </div>
+  </div>
+}

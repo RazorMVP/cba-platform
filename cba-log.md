@@ -59,6 +59,56 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 69 — 2026-04-17
+**GL Closures Angular page built — office picker, closures list, Create modal; service interface corrected to match backend.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/src/app/features/accounting/gl-closures.ts` | NEW — standalone component; loads offices on init; office-scoped list; Create modal with officeId/closingDate/comments |
+| `web/src/app/features/accounting/gl-closures.html` | NEW — office picker bar, card table, skeleton, empty states, info callout, Create modal |
+| `web/src/app/features/accounting/gl-closures.scss` | NEW — office bar, data table with lock icon date cells, info callout, modal/form styles |
+| `web/src/app/features/accounting/accounting.routes.ts` | Added `{ path: 'gl-closures', component: GlClosuresComponent }` |
+| `web/src/app/layout/sidebar/sidebar.ts` | Added "GL Closures" nav item to Accounting group |
+| `web/src/app/features/accounting/accounting.service.ts` | Fixed `GlClosure` interface fields (removed non-existent `openingDate/createdDate/deletedDate`; added `closedBy`); fixed `listClosures(officeId)` to pass query param; changed `createClosure()` from `post()` body to `postParams()` query params; removed stub `deleteClosure()` (no backend endpoint) |
+
+#### Key Patterns / Decisions
+- Backend `POST /api/v1/glclosures` takes query params (not body) — uses `ApiService.postParams()` which sends `POST` with empty body + `HttpParams`
+- Backend `GET /api/v1/glclosures` requires `officeId` — office picker loads first, then triggers list load; `onOfficeChange()` clears and reloads
+- Unique constraint `(office_id, closing_date)` on backend — duplicate close attempts return 4xx; UI shows "date may already be closed" error
+- No DELETE endpoint on backend — remove `deleteClosure()` from service to avoid dead code
+- Info callout explains the business effect of GL closures to operations staff
+
+#### Build Verification
+- Angular: `npx ng build --configuration production` → BUILD SUCCESS, 0 errors
+
+#### Confirmed Platform Versions
+
+**Backend (`backend/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `2d8a1ea` |
+| Java | 21 | `2d8a1ea` |
+| Application artifact | `cba-backend 0.1.0-SNAPSHOT` | `2d8a1ea` |
+| Keycloak admin client | 26.0.5 | `2d8a1ea` |
+| springdoc-openapi | 2.8.6 | `2d8a1ea` |
+| Lombok | 1.18.38 | `2d8a1ea` |
+| PostgreSQL | 16 (Docker) | `2d8a1ea` |
+
+**Angular Web App (`web/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | (this session) |
+| Angular CLI | 21.2.7 | (this session) |
+| PrimeNG | 21.0.x | (this session) |
+| RxJS | 7.8.x | (this session) |
+| TypeScript | 5.9.x | (this session) |
+| Vercel deployment | `cba-web-nine.vercel.app` | (this session) |
+
+---
+
 ### Session 68 — 2026-04-17
 **Fees & Charges PRD gaps closed — global Charges page + full LoanDetail charges tab (add/pay/waive/delete) + backend `payLoanCharge` endpoint.**
 

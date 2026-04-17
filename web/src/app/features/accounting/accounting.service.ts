@@ -98,20 +98,16 @@ export interface ManualJournalRequest {
 
 export interface GlClosure {
   id: string;
-  officeId?: string;
-  officeName?: string;
-  openingDate: string;
+  officeId: string;
+  officeName: string;
   closingDate: string;
+  closedBy?: string;
   comments?: string;
-  createdDate: string;
-  deletedDate?: string;
 }
 
 export interface GlClosureRequest {
-  openingDate: string;
+  officeId: string;
   closingDate: string;
-  locale: string;
-  dateFormat: string;
   comments?: string;
 }
 
@@ -195,14 +191,13 @@ export class AccountingService {
   }
 
   // GL Closures
-  listClosures(): Observable<GlClosure[]> {
-    return this.api.get<GlClosure[]>('/glclosures');
+  listClosures(officeId: string): Observable<GlClosure[]> {
+    return this.api.get<GlClosure[]>('/glclosures', { officeId });
   }
   createClosure(req: GlClosureRequest): Observable<GlClosure> {
-    return this.api.post<GlClosure>('/glclosures', req);
-  }
-  deleteClosure(id: string): Observable<void> {
-    return this.api.delete<void>(`/glclosures/${id}`);
+    const params: Record<string, string> = { officeId: req.officeId, closingDate: req.closingDate };
+    if (req.comments) params['comments'] = req.comments;
+    return this.api.postParams<GlClosure>('/glclosures', params);
   }
 
   // Provisioning

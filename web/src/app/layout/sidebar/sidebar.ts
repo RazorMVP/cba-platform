@@ -64,6 +64,7 @@ export class SidebarComponent {
         { label: 'Journal Entries',    icon: 'receipt_long',      route: '/accounting/journal-entries' },
         { label: 'Provisioning',       icon: 'shield',            route: '/accounting/provisioning' },
         { label: 'Financial Activity', icon: 'account_tree',      route: '/accounting/financial-activity' },
+        { label: 'GL Closures',        icon: 'lock_clock',        route: '/accounting/gl-closures' },
       ],
     },
     {

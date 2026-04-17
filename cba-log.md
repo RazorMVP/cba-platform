@@ -59,6 +59,72 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 77 — 2026-04-17
+**5 new System UI pages: Funds, Account Number Formats, DataTables, Surveys, Credit Bureau (commit `46f2e0a`, Vercel `dpl_H5kLCTcd8ZMLFSoh25hx459EFLVP`).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/src/app/features/system/system.service.ts` | Added interfaces + service methods for Funds, AccountNumberFormats, DataTables, Surveys, CreditBureau modules |
+| `web/src/app/features/system/funds.ts` | NEW — CRUD component; create/edit modals; no delete |
+| `web/src/app/features/system/funds.html` | NEW — table with name + externalId columns; create/edit modal |
+| `web/src/app/features/system/funds.scss` | NEW — self-contained ~155 lines |
+| `web/src/app/features/system/account-number-formats.ts` | NEW — `prefixLabel()` helper; create/edit/delete modals; AccountType + PrefixType dropdowns |
+| `web/src/app/features/system/account-number-formats.html` | NEW — type-chip colour badges (loan/savings/client/share); select dropdowns |
+| `web/src/app/features/system/account-number-formats.scss` | NEW — self-contained ~175 lines; `.type-chip` colour variants |
+| `web/src/app/features/system/datatables.ts` | NEW — accordion; dynamic column builder; `canSave` getter; `addColumn()`/`removeColumn()` |
+| `web/src/app/features/system/datatables.html` | NEW — accordion rows; column table in expanded body; create modal with `.col-row` grid |
+| `web/src/app/features/system/datatables.scss` | NEW — self-contained ~200 lines; `.col-row` grid; dashed `.btn-add-col` |
+| `web/src/app/features/system/surveys.ts` | NEW — accordion with expand; create/edit/delete modals for survey metadata |
+| `web/src/app/features/system/surveys.html` | NEW — questions + responses in expanded body; `form-textarea` for description |
+| `web/src/app/features/system/surveys.scss` | NEW — self-contained ~200 lines; `.question-card`, `.responses-grid`, `.r-score` |
+| `web/src/app/features/system/credit-bureau.ts` | NEW — lazy-loaded mappings per bureau; `StatusBadgeComponent` imported; 5-modal type union |
+| `web/src/app/features/system/credit-bureau.html` | NEW — accordion; StatusBadge; mappings sub-table; Add Mapping modal; `(mappings[b.id]?.length ?? 0) > 0` AOT fix |
+| `web/src/app/features/system/credit-bureau.scss` | NEW — self-contained ~200 lines; `.bool-chip.mandatory`, `.mini-skeleton` |
+| `web/src/app/features/system/system.routes.ts` | Added 5 new routes + imports |
+| `web/src/app/layout/sidebar/sidebar.ts` | Added 5 nav items to System group |
+
+#### Key Patterns / Decisions
+
+- **AOT strict mode null-safety** — `(mappings[b.id]?.length ?? 0) > 0` is required; TypeScript rejects `?.length > 0` when the result could be `undefined`
+- **Lazy-load pattern** — Credit Bureau mappings loaded only on first expand (`if (!this.mappings[id])`), matching the Loan Detail tab pattern; avoids N+1 API calls at list load
+- **Self-contained SCSS** — all 5 new components declare their full CSS locally; `@use 'assets/styles/design-system' as *` forwards SCSS variables only, not CSS classes
+- **Dynamic column builder** — DataTables uses a plain `columns` array on the form object with `addColumn()`/`removeColumn()` methods; no Reactive Forms needed
+- **`canSave` getter pattern** — validates all column names non-empty before enabling submit; same approach used in AccountAlgorithms
+
+#### Build Verification
+`vercel build --prod` → **BUILD SUCCESS** (0 errors, 0 warnings)
+`vercel deploy --prebuilt --prod` → `https://cba-web-nine.vercel.app` (deployment `dpl_H5kLCTcd8ZMLFSoh25hx459EFLVP`)
+
+#### Confirmed Platform Versions
+
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `bde3a64` |
+| Java | 21 | `bde3a64` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `bde3a64` |
+| Keycloak admin client | 26.0.5 | `bde3a64` |
+| springdoc-openapi | 2.8.6 | `bde3a64` |
+| Lombok | 1.18.38 | `bde3a64` |
+| PostgreSQL | 16 (Docker) | `bde3a64` |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `46f2e0a` |
+| Angular CLI | 21.2.7 | `46f2e0a` |
+| PrimeNG | 21.0.x | `46f2e0a` |
+| RxJS | 7.8.x | `46f2e0a` |
+| TypeScript | 5.9.x | `46f2e0a` |
+| Vercel deployment ID | `dpl_H5kLCTcd8ZMLFSoh25hx459EFLVP` | `46f2e0a` |
+| Production URL | `cba-web-nine.vercel.app` | `46f2e0a` |
+
+#### Compliance Checklist Update
+No new REST endpoints added this session (Angular-only changes). API docs not updated.
+
+---
+
 ### Session 76 — 2026-04-17
 **UI polish: rewrote HTML/SCSS for 5 Session-75 pages + Loan Detail re-aging modal to match journal-entries reference design.**
 

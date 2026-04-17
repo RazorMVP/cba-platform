@@ -2,30 +2,12 @@
 
 :host { display: block; }
 
-.page { padding: 2rem; max-width: 1200px; margin: 0 auto; }
-
-.page-header {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 1.5rem; flex-wrap: wrap; gap: 0.5rem;
-}
-.page-header__title {
-  display: flex; align-items: center; gap: 0.6rem;
-  font-size: 1.35rem; font-weight: 700; color: var(--color-text); flex: 1 0 100%;
-  .material-icons { font-size: 1.6rem; color: var(--color-primary); }
-}
+// ── Page chrome (extension over global) ───────────────────────────────────────
 .page-sub { flex: 1; margin: 0; font-size: 0.85rem; color: var(--color-muted); align-self: center; }
 
-.btn-primary, .btn-secondary, .btn-danger {
-  display: inline-flex; align-items: center; gap: 0.4rem;
-  padding: 0.55rem 1.1rem; border-radius: 6px; font-size: 0.875rem;
-  font-weight: 500; cursor: pointer; border: none; transition: filter 0.15s; font-family: inherit;
-  .material-icons { font-size: 1rem; }
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
-  &:not(:disabled):hover { filter: brightness(0.9); }
-}
-.btn-primary   { background: var(--color-primary); color: #fff; }
-.btn-secondary { background: #f1f5f9; color: var(--color-text); }
-.btn-danger    { background: #dc2626; color: #fff; }
+// ── Buttons (component-specific) ──────────────────────────────────────────────
+// btn-primary, btn-secondary, btn-danger come from global
+// btn-icon override: adds danger modifier
 .btn-icon {
   display: inline-flex; align-items: center; justify-content: center;
   width: 32px; height: 32px; border-radius: 6px; border: none; background: transparent;
@@ -57,16 +39,14 @@
   border-radius: 4px; background: #dbeafe; color: #1d4ed8; font-size: 0.72rem; font-weight: 600;
 }
 .accordion__meta { display: flex; align-items: center; gap: 0.75rem; }
-.q-count  { font-size: 0.8rem; color: var(--color-muted); }
-.chevron  { font-size: 1.2rem; color: var(--color-muted); }
+.q-count { font-size: 0.8rem; color: var(--color-muted); }
+.chevron { font-size: 1.2rem; color: var(--color-muted); }
 .accordion__body { border-top: 1px solid #f1f5f9; padding: 1rem 1.25rem 1.25rem; }
 .survey-desc { margin: 0 0 1rem; font-size: 0.875rem; color: var(--color-muted); }
 
 // ── Questions ─────────────────────────────────────────────────────────────────
 .questions-list { display: flex; flex-direction: column; gap: 0.75rem; }
-.question-card {
-  border: 1px solid #f1f5f9; border-radius: 8px; overflow: hidden;
-}
+.question-card { border: 1px solid #f1f5f9; border-radius: 8px; overflow: hidden; }
 .question-header {
   display: flex; align-items: baseline; gap: 0.75rem; padding: 0.75rem 1rem;
   background: #f9fafb;
@@ -87,7 +67,7 @@
 .r-score { font-size: 0.75rem; font-weight: 600; color: var(--color-primary); font-variant-numeric: tabular-nums; }
 .no-questions { margin: 0; font-size: 0.875rem; color: var(--color-muted); text-align: center; padding: 1rem 0; }
 
-// ── Empty / Skeleton ──────────────────────────────────────────────────────────
+// ── Empty state (combined selector — global .card + .empty-state are separate) ──
 .card.empty-state {
   background: var(--bg-card); border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.08);
   display: flex; flex-direction: column; align-items: center;
@@ -95,64 +75,24 @@
   .material-icons { font-size: 3rem; opacity: 0.3; }
   p { margin: 0; font-size: 0.9rem; }
 }
-.skeleton-card {
-  background: var(--bg-card); border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.08);
-  padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem;
-}
-.skeleton {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-  background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 8px;
-  &--row { height: 44px; }
-}
-@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-// ── Modal ─────────────────────────────────────────────────────────────────────
-.modal-backdrop {
-  position: fixed; inset: 0; background: rgba(0,0,0,.45);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 1000; animation: fade-in 0.15s ease;
-}
-@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-.modal {
-  background: var(--bg-card); border-radius: 14px; width: 100%; max-width: 520px;
-  box-shadow: 0 8px 32px rgba(0,0,0,.18); overflow: hidden; animation: slide-up 0.2s ease;
-  max-height: 90vh; display: flex; flex-direction: column;
-  &--sm { max-width: 420px; }
-}
-@keyframes slide-up { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-.modal__header {
-  display: flex; align-items: center; gap: 0.75rem;
-  padding: 1.25rem 1.5rem; font-size: 1rem; font-weight: 600;
-  color: var(--color-text); border-bottom: 1px solid #f1f5f9; flex-shrink: 0;
-}
-.modal__icon  { font-size: 1.4rem; color: var(--color-primary); }
-.modal__body  { padding: 1.25rem 1.5rem; overflow-y: auto; flex: 1; }
-.modal__footer {
-  display: flex; justify-content: flex-end; gap: 0.75rem;
-  padding: 1rem 1.5rem; border-top: 1px solid #f1f5f9; flex-shrink: 0;
-}
+// ── Modal extensions (global handles base) ────────────────────────────────────
+// modal-backdrop, @keyframes fade-in/slide-up/spin all come from global
+.modal         { max-height: 90vh; display: flex; flex-direction: column; }
+.modal__header { flex-shrink: 0; }
+.modal__body   { overflow-y: auto; flex: 1; }
+.modal__footer { flex-shrink: 0; }
+
 .modal__error {
   margin-bottom: 1rem; padding: 0.6rem 0.875rem;
   background: #fee2e2; border-radius: 6px; color: #991b1b; font-size: 0.8rem;
 }
 .confirm-text { margin: 0; font-size: 0.9rem; line-height: 1.6; color: var(--color-text); }
 
-// ── Form ──────────────────────────────────────────────────────────────────────
-.form-field { margin-bottom: 1rem; flex: 1; &:last-child { margin-bottom: 0; } }
-.form-row   { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
-.form-label { display: block; font-size: 0.8rem; font-weight: 500; color: var(--color-text); margin-bottom: 0.4rem; }
-.form-input {
-  width: 100%; padding: 0.55rem 0.875rem; border: 1.5px solid #e5e7eb; border-radius: 6px;
-  font-size: 0.875rem; color: var(--color-text); background: #fff; box-sizing: border-box; font-family: inherit;
-  &:focus { outline: none; border-color: var(--color-primary); }
-}
+// ── Form extensions (global handles base) ─────────────────────────────────────
+// form-label, form-input, required come from global
+// form-row uses flex-wrap for side-by-side fields (not grid)
+.form-row      { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.form-field    { flex: 1; }
 .form-textarea { resize: vertical; min-height: 72px; }
-.col-narrow { flex: 0 0 90px; min-width: 0; }
-.required { color: #dc2626; }
-
-.spinner {
-  display: inline-block; width: 14px; height: 14px;
-  border: 2px solid rgba(255,255,255,.4); border-top-color: #fff;
-  border-radius: 50%; animation: spin 0.7s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
+.col-narrow    { flex: 0 0 90px; min-width: 0; }

@@ -59,6 +59,37 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 82 — 2026-04-18
+**Fix: sidebar freeze + report-mailing modal dev/prod divergence (commit `2c8bc1f`).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/src/assets/styles/_design-system.scss` | ADD `@keyframes expand` — single global source after `@keyframes spin` |
+| `web/src/app/features/system/codes.scss` | REMOVE duplicate `@keyframes expand` (was on line 33) |
+| `web/src/app/features/system/floating-rates.scss` | REMOVE duplicate `@keyframes expand` (was on line 34) |
+| `web/src/app/features/reports/report-mailing.scss` | ADD `:host ::ng-deep` modal layout extensions block |
+
+#### Key Patterns / Decisions
+- `@keyframes` always escape `ViewEncapsulation.Emulated` and land in the global stylesheet. Two components declaring the same keyframe name overwrite each other with non-deterministic ordering — whichever module loaded last wins. This caused `codes.scss` or `floating-rates.scss` (both with `@keyframes expand`) to silently clobber each other's animation, and navigating from system routes to `/reports/mailing` left the sidebar in a broken state because the expand animation was no longer defined correctly.
+- The modal dev/prod discrepancy (missing title, unstyled button, empty dropdowns on localhost) was caused by Angular dev mode's `@if` block scoping bug: elements inside `@if` blocks may not receive `[_ngcontent-xxx]` scope attributes, so component-scoped CSS doesn't apply. `::ng-deep` penetrates this boundary and gives identical behaviour on localhost and Vercel.
+- Fix is purely additive: no existing class definitions were removed (lesson from Session 81 revert).
+
+#### Build Verification
+`npm run build -- --configuration production` → BUILD SUCCESS (no new errors; pre-existing NG8107 + budget warnings unchanged)
+
+#### Confirmed Platform Versions
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `2c8bc1f` |
+| Angular CLI | 21.2.7 | `2c8bc1f` |
+| PrimeNG | 21.0.x | `2c8bc1f` |
+| RxJS | 7.8.x | `2c8bc1f` |
+| TypeScript | 5.9.x | `2c8bc1f` |
+| Vercel deployment | `cba-web-nine.vercel.app` | `2c8bc1f` |
+| Last git commit | `2c8bc1f` | fix(scss): @keyframes expand + report-mailing modal |
+
 ### Session 80 — 2026-04-17
 **Account hold funds + dormancy detection: full backend + Angular UI (backend: `./mvnw compile` clean; Angular: `npm run build --prod` clean).**
 

@@ -1,0 +1,125 @@
+<div class="page">
+
+  <!-- ── Header ── -->
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">pin</span>
+      Account Number Formats
+    </div>
+    <p class="page-sub">Configure how account numbers are generated for each account type.</p>
+    <button class="btn-primary" (click)="openCreate()">
+      <span class="material-icons">add</span> New Format
+    </button>
+  </div>
+
+  <!-- ── Loading / Error / Table ── -->
+  @if (loading) {
+    <div class="card skeleton-card">
+      @for (i of [1,2,3,4]; track i) { <div class="skeleton skeleton--row"></div> }
+    </div>
+  } @else if (error) {
+    <div class="card empty-state">
+      <span class="material-icons">error_outline</span>
+      <p>{{ error }}</p>
+      <button class="btn-primary" (click)="load()">Retry</button>
+    </div>
+  } @else {
+    <div class="card">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Account Type</th>
+            <th>Prefix Type</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (f of formats; track f.id) {
+            <tr>
+              <td>
+                <span class="type-chip type-chip--{{ f.accountType.toLowerCase() }}">
+                  {{ f.accountType }}
+                </span>
+              </td>
+              <td class="muted-cell">{{ prefixLabel(f.prefixType) }}</td>
+              <td class="actions">
+                <button class="btn-icon" title="Edit" (click)="openEdit(f)">
+                  <span class="material-icons">edit</span>
+                </button>
+                <button class="btn-icon danger" title="Delete" (click)="openDelete(f)">
+                  <span class="material-icons">delete</span>
+                </button>
+              </td>
+            </tr>
+          } @empty {
+            <tr><td colspan="3" class="empty-cell">No formats configured.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+</div>
+
+<!-- ── Create / Edit Modal ── -->
+@if (activeModal === 'create' || activeModal === 'edit') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">pin</span>
+        {{ activeModal === 'edit' ? 'Edit Format' : 'New Format' }}
+      </div>
+      <div class="modal__body">
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+
+        <div class="form-field">
+          <label class="form-label">Account Type <span class="required">*</span></label>
+          <select class="form-input" [(ngModel)]="form.accountType">
+            @for (t of accountTypes; track t) {
+              <option [value]="t">{{ t }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Prefix Type <span class="required">*</span></label>
+          <select class="form-input" [(ngModel)]="form.prefixType">
+            @for (p of prefixTypes; track p) {
+              <option [value]="p">{{ prefixLabel(p) }}</option>
+            }
+          </select>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="working">Cancel</button>
+        <button class="btn-primary" [disabled]="working" (click)="save()">
+          @if (working) { <span class="spinner"></span> }
+          {{ activeModal === 'edit' ? 'Save Changes' : 'Create Format' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── Delete Confirm ── -->
+@if (activeModal === 'delete' && deleteTarget) {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">delete</span>
+        Delete Format
+      </div>
+      <div class="modal__body">
+        <p class="confirm-text">
+          Delete the <strong>{{ deleteTarget.accountType }}</strong> account number format? This cannot be undone.
+        </p>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="working">Cancel</button>
+        <button class="btn-danger" [disabled]="working" (click)="confirmDelete()">
+          @if (working) { <span class="spinner"></span> }
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+}

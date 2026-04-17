@@ -87,6 +87,11 @@ export class SidebarComponent {
         { label: 'Holidays',           icon: 'event_busy',        route: '/system/holidays' },
         { label: 'Payment Types',      icon: 'payments',          route: '/system/payment-types' },
         { label: 'Exchange Rates',     icon: 'currency_exchange', route: '/system/exchange-rates' },
+        { label: 'Funds',              icon: 'savings',           route: '/system/funds' },
+        { label: 'Acct No. Formats',   icon: 'pin',               route: '/system/account-number-formats' },
+        { label: 'DataTables',         icon: 'table_chart',       route: '/system/datatables' },
+        { label: 'Surveys',            icon: 'quiz',              route: '/system/surveys' },
+        { label: 'Credit Bureau',      icon: 'verified_user',     route: '/system/credit-bureau' },
       ],
     },
     {

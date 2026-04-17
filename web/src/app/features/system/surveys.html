@@ -1,0 +1,167 @@
+<div class="page">
+
+  <!-- ── Header ── -->
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">quiz</span>
+      Surveys
+    </div>
+    <p class="page-sub">PPI and welfare survey definitions used to score client poverty levels.</p>
+    <button class="btn-primary" (click)="openCreate()">
+      <span class="material-icons">add</span> New Survey
+    </button>
+  </div>
+
+  <!-- ── Loading / Error / List ── -->
+  @if (loading) {
+    <div class="card skeleton-card">
+      @for (i of [1,2,3]; track i) { <div class="skeleton skeleton--row"></div> }
+    </div>
+  } @else if (error) {
+    <div class="card empty-state">
+      <span class="material-icons">error_outline</span>
+      <p>{{ error }}</p>
+      <button class="btn-primary" (click)="load()">Retry</button>
+    </div>
+  } @else {
+    <div class="accordion">
+      @for (s of surveys; track s.id) {
+        <div class="accordion__item" [class.accordion__item--open]="expandedSurvey === s.id">
+
+          <div class="accordion__header" (click)="toggleExpand(s.id)">
+            <div class="accordion__title">
+              <span class="material-icons">quiz</span>
+              <div>
+                <span class="acc-name">{{ s.name }}</span>
+                <span class="acc-key">{{ s.key }}</span>
+                @if (s.countryCode) {
+                  <span class="country-badge">{{ s.countryCode }}</span>
+                }
+              </div>
+            </div>
+            <div class="accordion__meta">
+              <span class="q-count">{{ s.questions.length }} question{{ s.questions.length !== 1 ? 's' : '' }}</span>
+              <button class="btn-icon" title="Edit" (click)="openEdit(s); $event.stopPropagation()">
+                <span class="material-icons">edit</span>
+              </button>
+              <button class="btn-icon danger" title="Delete" (click)="openDelete(s); $event.stopPropagation()">
+                <span class="material-icons">delete</span>
+              </button>
+              <span class="material-icons chevron">
+                {{ expandedSurvey === s.id ? 'expand_less' : 'expand_more' }}
+              </span>
+            </div>
+          </div>
+
+          @if (expandedSurvey === s.id) {
+            <div class="accordion__body">
+              @if (s.description) {
+                <p class="survey-desc">{{ s.description }}</p>
+              }
+              @if (s.questions.length > 0) {
+                <div class="questions-list">
+                  @for (q of s.questions; track q.id) {
+                    <div class="question-card">
+                      <div class="question-header">
+                        <span class="q-seq">Q{{ q.sequenceNo }}</span>
+                        <span class="q-text">{{ q.text }}</span>
+                        <span class="q-key muted">{{ q.key }}</span>
+                      </div>
+                      @if (q.responses.length > 0) {
+                        <div class="responses-grid">
+                          @for (r of q.responses; track r.id) {
+                            <div class="response-item">
+                              <span class="r-value">{{ r.value }}</span>
+                              <span class="r-score">{{ r.score }}</span>
+                            </div>
+                          }
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+              } @else {
+                <p class="no-questions">No questions defined yet.</p>
+              }
+            </div>
+          }
+
+        </div>
+      } @empty {
+        <div class="card empty-state">
+          <span class="material-icons">quiz</span>
+          <p>No surveys defined yet.</p>
+        </div>
+      }
+    </div>
+  }
+
+</div>
+
+<!-- ── Create / Edit Modal ── -->
+@if (activeModal === 'create' || activeModal === 'edit') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">quiz</span>
+        {{ activeModal === 'edit' ? 'Edit Survey' : 'New Survey' }}
+      </div>
+      <div class="modal__body">
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+
+        <div class="form-field">
+          <label class="form-label">Name <span class="required">*</span></label>
+          <input class="form-input" [(ngModel)]="form.name" placeholder="e.g. PPI Kenya 2023" />
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label class="form-label">Key <span class="required">*</span></label>
+            <input class="form-input" [(ngModel)]="form.key" placeholder="e.g. PPI_KE_2023 (unique)" />
+          </div>
+          <div class="form-field col-narrow">
+            <label class="form-label">Country Code</label>
+            <input class="form-input" [(ngModel)]="form.countryCode" placeholder="KE" maxlength="2" style="text-transform:uppercase" />
+          </div>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Description</label>
+          <textarea class="form-input form-textarea" [(ngModel)]="form.description" rows="3"
+            placeholder="Brief description of the survey purpose…"></textarea>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="working">Cancel</button>
+        <button class="btn-primary"
+          [disabled]="working || !form.name.trim() || !form.key.trim()"
+          (click)="save()">
+          @if (working) { <span class="spinner"></span> }
+          {{ activeModal === 'edit' ? 'Save Changes' : 'Create Survey' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── Delete Confirm ── -->
+@if (activeModal === 'delete' && deleteTarget) {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">delete</span>
+        Delete Survey
+      </div>
+      <div class="modal__body">
+        <p class="confirm-text">
+          Delete <strong>{{ deleteTarget.name }}</strong>? This cannot be undone.
+        </p>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="working">Cancel</button>
+        <button class="btn-danger" [disabled]="working" (click)="confirmDelete()">
+          @if (working) { <span class="spinner"></span> }
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+}

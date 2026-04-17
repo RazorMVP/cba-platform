@@ -161,6 +161,119 @@ export interface CreatePaymentTypeRequest {
   position: number;
 }
 
+// ── Funds ─────────────────────────────────────────────────────────────────
+export interface Fund {
+  id: string;
+  name: string;
+  externalId: string | null;
+}
+
+export interface CreateFundRequest {
+  name: string;
+  externalId: string;
+}
+
+// ── Account Number Formats ────────────────────────────────────────────────
+export type AccountType = 'LOAN' | 'SAVINGS' | 'CLIENT' | 'SHARE';
+export type PrefixType  = 'NONE' | 'ACCOUNT_TYPE' | 'OFFICE_NAME' | 'LOAN_PRODUCT_SHORT_NAME' | 'CLIENT_NAME';
+
+export interface AccountNumberFormat {
+  id: string;
+  accountType: AccountType;
+  prefixType:  PrefixType;
+}
+
+export interface CreateAccountNumberFormatRequest {
+  accountType: AccountType;
+  prefixType:  PrefixType;
+}
+
+// ── DataTables ────────────────────────────────────────────────────────────
+export interface DataTableColumn {
+  columnName:   string;
+  columnType:   string;
+  columnLength: number | null;
+  nullable:     boolean;
+  unique:       boolean;
+  codeId:       string | null;
+}
+
+export interface DataTable {
+  registeredTableName:  string;
+  applicationTableName: string;
+  allowMultipleRows:    boolean;
+  columns:              DataTableColumn[];
+}
+
+export interface CreateDataTableRequest {
+  registeredTableName:  string;
+  applicationTableName: string;
+  allowMultipleRows:    boolean;
+  columns: { columnName: string; columnType: string; columnLength: number | null; nullable: boolean; unique: boolean }[];
+}
+
+// ── Surveys ────────────────────────────────────────────────────────────────
+export interface SurveyResponseOption {
+  id: string;
+  value: string;
+  score: number;
+  sequenceNo: number;
+}
+
+export interface SurveyQuestion {
+  id: string;
+  key: string;
+  text: string;
+  sequenceNo: number;
+  responses: SurveyResponseOption[];
+}
+
+export interface Survey {
+  id: string;
+  name: string;
+  key: string;
+  countryCode: string;
+  description: string | null;
+  questions: SurveyQuestion[];
+}
+
+export interface CreateSurveyRequest {
+  name: string;
+  key: string;
+  countryCode: string;
+  description: string;
+}
+
+// ── Credit Bureau ─────────────────────────────────────────────────────────
+export interface CreditBureau {
+  id: string;
+  name: string;
+  country: string;
+  implClass: string;
+  active: boolean;
+  description: string | null;
+}
+
+export interface CreditBureauMapping {
+  id: string;
+  creditBureauId: string;
+  loanProductId: string;
+  loanProductName: string;
+  creditCheckMandatory: boolean;
+}
+
+export interface CreateCreditBureauRequest {
+  name: string;
+  country: string;
+  implClass: string;
+  description: string;
+}
+
+export interface CreateCreditBureauMappingRequest {
+  loanProductId: string;
+  creditCheckMandatory: boolean;
+}
+
 // ── Exchange Rates ────────────────────────────────────────────────────────
 export interface ExchangeRateResponse {
   id: string;
@@ -303,6 +416,107 @@ export class SystemService {
 
   deletePaymentType(id: string): Observable<void> {
     return this.api.delete<void>(`/paymenttypes/${id}`);
+  }
+
+  // ── Funds ──────────────────────────────────────────────────────────────────
+  listFunds(): Observable<Fund[]> {
+    return this.api.get<Fund[]>('/funds');
+  }
+
+  createFund(req: CreateFundRequest): Observable<Fund> {
+    return this.api.post<Fund>('/funds', req);
+  }
+
+  updateFund(id: string, req: CreateFundRequest): Observable<Fund> {
+    return this.api.put<Fund>(`/funds/${id}`, req);
+  }
+
+  // ── Account Number Formats ─────────────────────────────────────────────────
+  listAccountNumberFormats(): Observable<AccountNumberFormat[]> {
+    return this.api.get<AccountNumberFormat[]>('/accountnumberformats');
+  }
+
+  createAccountNumberFormat(req: CreateAccountNumberFormatRequest): Observable<AccountNumberFormat> {
+    return this.api.post<AccountNumberFormat>('/accountnumberformats', req);
+  }
+
+  updateAccountNumberFormat(id: string, req: CreateAccountNumberFormatRequest): Observable<AccountNumberFormat> {
+    return this.api.put<AccountNumberFormat>(`/accountnumberformats/${id}`, req);
+  }
+
+  deleteAccountNumberFormat(id: string): Observable<void> {
+    return this.api.delete<void>(`/accountnumberformats/${id}`);
+  }
+
+  // ── DataTables ─────────────────────────────────────────────────────────────
+  listDataTables(): Observable<DataTable[]> {
+    return this.api.get<DataTable[]>('/datatables');
+  }
+
+  createDataTable(req: CreateDataTableRequest): Observable<DataTable> {
+    return this.api.post<DataTable>('/datatables', req);
+  }
+
+  deleteDataTable(name: string): Observable<void> {
+    return this.api.delete<void>(`/datatables/${name}`);
+  }
+
+  // ── Surveys ────────────────────────────────────────────────────────────────
+  listSurveys(): Observable<Survey[]> {
+    return this.api.get<Survey[]>('/surveys');
+  }
+
+  getSurvey(id: string): Observable<Survey> {
+    return this.api.get<Survey>(`/surveys/${id}`);
+  }
+
+  createSurvey(req: CreateSurveyRequest): Observable<Survey> {
+    return this.api.post<Survey>('/surveys', req);
+  }
+
+  updateSurvey(id: string, req: CreateSurveyRequest): Observable<Survey> {
+    return this.api.put<Survey>(`/surveys/${id}`, req);
+  }
+
+  deleteSurvey(id: string): Observable<void> {
+    return this.api.delete<void>(`/surveys/${id}`);
+  }
+
+  // ── Credit Bureau ──────────────────────────────────────────────────────────
+  listCreditBureaus(): Observable<CreditBureau[]> {
+    return this.api.get<CreditBureau[]>('/creditbureaus');
+  }
+
+  createCreditBureau(req: CreateCreditBureauRequest): Observable<CreditBureau> {
+    return this.api.post<CreditBureau>('/creditbureaus', req);
+  }
+
+  updateCreditBureau(id: string, req: CreateCreditBureauRequest): Observable<CreditBureau> {
+    return this.api.put<CreditBureau>(`/creditbureaus/${id}`, req);
+  }
+
+  deleteCreditBureau(id: string): Observable<void> {
+    return this.api.delete<void>(`/creditbureaus/${id}`);
+  }
+
+  activateCreditBureau(id: string): Observable<CreditBureau> {
+    return this.api.post<CreditBureau>(`/creditbureaus/${id}?command=activate`, {});
+  }
+
+  deactivateCreditBureau(id: string): Observable<CreditBureau> {
+    return this.api.post<CreditBureau>(`/creditbureaus/${id}?command=deactivate`, {});
+  }
+
+  listCreditBureauMappings(bureauId: string): Observable<CreditBureauMapping[]> {
+    return this.api.get<CreditBureauMapping[]>(`/creditbureaus/${bureauId}/mappings`);
+  }
+
+  createCreditBureauMapping(bureauId: string, req: CreateCreditBureauMappingRequest): Observable<CreditBureauMapping> {
+    return this.api.post<CreditBureauMapping>(`/creditbureaus/${bureauId}/mappings`, req);
+  }
+
+  deleteCreditBureauMapping(bureauId: string, mappingId: string): Observable<void> {
+    return this.api.delete<void>(`/creditbureaus/${bureauId}/mappings/${mappingId}`);
   }
 
   // ── Exchange Rates ─────────────────────────────────────────────────────────

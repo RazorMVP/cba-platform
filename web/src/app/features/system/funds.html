@@ -1,0 +1,86 @@
+<div class="page">
+
+  <!-- ── Header ── -->
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">savings</span>
+      Funds
+    </div>
+    <p class="page-sub">Track and manage fund sources used in loan product configurations.</p>
+    <button class="btn-primary" (click)="openCreate()">
+      <span class="material-icons">add</span> New Fund
+    </button>
+  </div>
+
+  <!-- ── Loading / Error / Table ── -->
+  @if (loading) {
+    <div class="card skeleton-card">
+      @for (i of [1,2,3]; track i) { <div class="skeleton skeleton--row"></div> }
+    </div>
+  } @else if (error) {
+    <div class="card empty-state">
+      <span class="material-icons">error_outline</span>
+      <p>{{ error }}</p>
+      <button class="btn-primary" (click)="load()">Retry</button>
+    </div>
+  } @else {
+    <div class="card">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>External ID</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (f of funds; track f.id) {
+            <tr>
+              <td class="name-cell">{{ f.name }}</td>
+              <td class="muted-cell">{{ f.externalId ?? '—' }}</td>
+              <td class="actions">
+                <button class="btn-icon" title="Edit" (click)="openEdit(f)">
+                  <span class="material-icons">edit</span>
+                </button>
+              </td>
+            </tr>
+          } @empty {
+            <tr><td colspan="3" class="empty-cell">No funds found.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+</div>
+
+<!-- ── Create / Edit Modal ── -->
+@if (activeModal === 'create' || activeModal === 'edit') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">savings</span>
+        {{ activeModal === 'edit' ? 'Edit Fund' : 'New Fund' }}
+      </div>
+      <div class="modal__body">
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+
+        <div class="form-field">
+          <label class="form-label">Name <span class="required">*</span></label>
+          <input class="form-input" [(ngModel)]="form.name" placeholder="e.g. Social Impact Fund" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">External ID</label>
+          <input class="form-input" [(ngModel)]="form.externalId" placeholder="Optional external reference" />
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="working">Cancel</button>
+        <button class="btn-primary" [disabled]="working || !form.name.trim()" (click)="save()">
+          @if (working) { <span class="spinner"></span> }
+          {{ activeModal === 'edit' ? 'Save Changes' : 'Create Fund' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

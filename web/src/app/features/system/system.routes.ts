@@ -7,6 +7,11 @@ import { AccountAlgorithmsComponent } from './account-algorithms';
 import { HolidaysComponent } from './holidays';
 import { PaymentTypesComponent } from './payment-types';
 import { ExchangeRatesComponent } from './exchange-rates';
+import { FundsComponent } from './funds';
+import { AccountNumberFormatsComponent } from './account-number-formats';
+import { DataTablesComponent } from './datatables';
+import { SurveysComponent } from './surveys';
+import { CreditBureauComponent } from './credit-bureau';
 
 export const SYSTEM_ROUTES: Routes = [
   { path: 'codes', component: CodesComponent },
@@ -17,4 +22,9 @@ export const SYSTEM_ROUTES: Routes = [
   { path: 'holidays', component: HolidaysComponent },
   { path: 'payment-types', component: PaymentTypesComponent },
   { path: 'exchange-rates', component: ExchangeRatesComponent },
+  { path: 'funds', component: FundsComponent },
+  { path: 'account-number-formats', component: AccountNumberFormatsComponent },
+  { path: 'datatables', component: DataTablesComponent },
+  { path: 'surveys', component: SurveysComponent },
+  { path: 'credit-bureau', component: CreditBureauComponent },
 ];

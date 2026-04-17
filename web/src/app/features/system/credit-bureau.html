@@ -1,0 +1,249 @@
+<div class="page">
+
+  <!-- ── Header ── -->
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">verified_user</span>
+      Credit Bureau
+    </div>
+    <p class="page-sub">Credit bureau integrations and loan product credit-check mappings.</p>
+    <button class="btn-primary" (click)="openCreate()">
+      <span class="material-icons">add</span> New Bureau
+    </button>
+  </div>
+
+  <!-- ── Loading / Error / List ── -->
+  @if (loading) {
+    <div class="card skeleton-card">
+      @for (i of [1,2,3]; track i) { <div class="skeleton skeleton--row"></div> }
+    </div>
+  } @else if (error) {
+    <div class="card empty-state">
+      <span class="material-icons">error_outline</span>
+      <p>{{ error }}</p>
+      <button class="btn-primary" (click)="load()">Retry</button>
+    </div>
+  } @else {
+    <div class="accordion">
+      @for (b of bureaus; track b.id) {
+        <div class="accordion__item" [class.accordion__item--open]="expandedBureau === b.id">
+
+          <div class="accordion__header" (click)="toggleExpand(b.id)">
+            <div class="accordion__title">
+              <span class="material-icons">verified_user</span>
+              <div>
+                <span class="acc-name">{{ b.name }}</span>
+                <span class="country-badge">{{ b.country }}</span>
+              </div>
+            </div>
+            <div class="accordion__meta">
+              <app-status-badge [label]="b.active ? 'Active' : 'Inactive'"
+                [variant]="b.active ? 'success' : 'neutral'" />
+              <button class="btn-icon" title="Edit" (click)="openEdit(b); $event.stopPropagation()">
+                <span class="material-icons">edit</span>
+              </button>
+              <button class="btn-icon" [title]="b.active ? 'Deactivate' : 'Activate'"
+                (click)="openToggle(b); $event.stopPropagation()">
+                <span class="material-icons">{{ b.active ? 'pause_circle' : 'play_circle' }}</span>
+              </button>
+              <button class="btn-icon danger" title="Delete" (click)="openDelete(b); $event.stopPropagation()">
+                <span class="material-icons">delete</span>
+              </button>
+              <span class="material-icons chevron">
+                {{ expandedBureau === b.id ? 'expand_less' : 'expand_more' }}
+              </span>
+            </div>
+          </div>
+
+          @if (expandedBureau === b.id) {
+            <div class="accordion__body">
+              <div class="bureau-meta">
+                <span class="meta-pill"><strong>Impl:</strong> {{ b.implClass }}</span>
+                @if (b.description) {
+                  <span class="meta-pill">{{ b.description }}</span>
+                }
+              </div>
+
+              <div class="mappings-header">
+                <span class="mappings-title">Loan Product Mappings</span>
+                <button class="btn-sm-primary" (click)="openAddMapping(b.id)">
+                  <span class="material-icons">add</span> Add Mapping
+                </button>
+              </div>
+
+              @if (mappingsLoading[b.id]) {
+                <div class="mini-skeleton"></div>
+              } @else if ((mappings[b.id]?.length ?? 0) > 0) {
+                <table class="map-table">
+                  <thead>
+                    <tr>
+                      <th>Loan Product</th>
+                      <th>Credit Check</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (m of mappings[b.id]; track m.id) {
+                      <tr>
+                        <td class="name-cell">{{ m.loanProductName }}</td>
+                        <td>
+                          <span class="bool-chip" [class.mandatory]="m.creditCheckMandatory">
+                            {{ m.creditCheckMandatory ? 'Mandatory' : 'Optional' }}
+                          </span>
+                        </td>
+                        <td class="actions">
+                          <button class="btn-icon danger" title="Remove" (click)="deleteMapping(b.id, m.id)">
+                            <span class="material-icons">delete</span>
+                          </button>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              } @else {
+                <p class="no-mappings">No loan product mappings configured.</p>
+              }
+            </div>
+          }
+
+        </div>
+      } @empty {
+        <div class="card empty-state">
+          <span class="material-icons">verified_user</span>
+          <p>No credit bureaus configured yet.</p>
+        </div>
+      }
+    </div>
+  }
+
+</div>
+
+<!-- ── Create / Edit Modal ── -->
+@if (activeModal === 'create' || activeModal === 'edit') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">verified_user</span>
+        {{ activeModal === 'edit' ? 'Edit Bureau' : 'New Credit Bureau' }}
+      </div>
+      <div class="modal__body">
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+
+        <div class="form-field">
+          <label class="form-label">Name <span class="required">*</span></label>
+          <input class="form-input" [(ngModel)]="form.name" placeholder="e.g. Metropol Kenya" />
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label class="form-label">Country Code <span class="required">*</span></label>
+            <input class="form-input" [(ngModel)]="form.country" placeholder="KE" maxlength="2" />
+          </div>
+          <div class="form-field flex-2">
+            <label class="form-label">Implementation Class <span class="required">*</span></label>
+            <input class="form-input" [(ngModel)]="form.implClass"
+              placeholder="com.cba.integrations.MetropolKenyaAdapter" />
+          </div>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Description</label>
+          <input class="form-input" [(ngModel)]="form.description" placeholder="Optional notes" />
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="working">Cancel</button>
+        <button class="btn-primary"
+          [disabled]="working || !form.name.trim() || !form.country.trim() || !form.implClass.trim()"
+          (click)="save()">
+          @if (working) { <span class="spinner"></span> }
+          {{ activeModal === 'edit' ? 'Save Changes' : 'Create Bureau' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── Toggle Confirm ── -->
+@if (activeModal === 'toggle' && toggleTarget) {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">{{ toggleTarget.active ? 'pause_circle' : 'play_circle' }}</span>
+        {{ toggleTarget.active ? 'Deactivate' : 'Activate' }} Bureau
+      </div>
+      <div class="modal__body">
+        <p class="confirm-text">
+          {{ toggleTarget.active ? 'Deactivate' : 'Activate' }}
+          <strong>{{ toggleTarget.name }}</strong>?
+        </p>
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="working">Cancel</button>
+        <button class="btn-primary" [disabled]="working" (click)="confirmToggle()">
+          @if (working) { <span class="spinner"></span> }
+          {{ toggleTarget.active ? 'Deactivate' : 'Activate' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── Delete Confirm ── -->
+@if (activeModal === 'delete' && deleteTarget) {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">delete</span>
+        Delete Bureau
+      </div>
+      <div class="modal__body">
+        <p class="confirm-text">
+          Delete <strong>{{ deleteTarget.name }}</strong>? This cannot be undone.
+        </p>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="working">Cancel</button>
+        <button class="btn-danger" [disabled]="working" (click)="confirmDelete()">
+          @if (working) { <span class="spinner"></span> }
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── Add Mapping Modal ── -->
+@if (activeModal === 'add-mapping') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">link</span>
+        Add Loan Product Mapping
+      </div>
+      <div class="modal__body">
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+
+        <div class="form-field">
+          <label class="form-label">Loan Product ID <span class="required">*</span></label>
+          <input class="form-input" [(ngModel)]="mappingForm.loanProductId"
+            placeholder="Loan product UUID" />
+        </div>
+        <div class="form-field">
+          <label class="checkbox-label">
+            <input type="checkbox" [(ngModel)]="mappingForm.creditCheckMandatory" />
+            Credit check is mandatory (blocks disbursement if check fails)
+          </label>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="working">Cancel</button>
+        <button class="btn-primary"
+          [disabled]="working || !mappingForm.loanProductId.trim()"
+          (click)="saveMapping()">
+          @if (working) { <span class="spinner"></span> }
+          Add Mapping
+        </button>
+      </div>
+    </div>
+  </div>
+}

@@ -1,5 +1,7 @@
 package com.cba.account;
 
+import com.cba.account.dto.AccountHoldRequest;
+import com.cba.account.dto.AccountHoldResponse;
 import com.cba.account.dto.AccountResponse;
 import com.cba.account.dto.OpenAccountRequest;
 import com.cba.account.dto.TransactionResponse;
@@ -62,16 +64,17 @@ public class AccountController {
 
     @PostMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
-    @Operation(summary = "Execute account lifecycle command (approve, activate, reject)")
+    @Operation(summary = "Execute account lifecycle command (approve, activate, reject, reactivate)")
     public ResponseEntity<ApiResponse<AccountResponse>> executeCommand(
             @PathVariable UUID id,
             @RequestParam String command) {
         AccountResponse response = switch (command.toLowerCase()) {
-            case "approve"  -> accountService.approveAccount(id);
-            case "activate" -> accountService.activateAccount(id);
-            case "reject"   -> accountService.rejectAccount(id);
-            default         -> throw com.cba.common.exception.CbaException.badRequest(
-                                   "UNKNOWN_COMMAND", "Unknown command: " + command);
+            case "approve"    -> accountService.approveAccount(id);
+            case "activate"   -> accountService.activateAccount(id);
+            case "reject"     -> accountService.rejectAccount(id);
+            case "reactivate" -> accountService.reactivateAccount(id);
+            default           -> throw com.cba.common.exception.CbaException.badRequest(
+                                     "UNKNOWN_COMMAND", "Unknown command: " + command);
         };
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
@@ -160,5 +163,38 @@ public class AccountController {
     @Operation(summary = "Get the product configuration (interest rates, limits) applied to this account")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getAccountTemplate(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(accountService.getAccountTemplate(id)));
+    }
+
+    // ── Hold endpoints ────────────────────────────────────────────────────────
+
+    @GetMapping("/{id}/holds")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
+    @Operation(summary = "List all holds on an account")
+    public ResponseEntity<ApiResponse<java.util.List<AccountHoldResponse>>> getHolds(
+            @PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(accountService.getHolds(id)));
+    }
+
+    @PostMapping("/{id}/holds")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
+    @Operation(summary = "Place a funds hold on an account")
+    public ResponseEntity<ApiResponse<AccountHoldResponse>> placeHold(
+            @PathVariable UUID id,
+            @Valid @RequestBody AccountHoldRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        String actor = jwt != null ? jwt.getClaimAsString("preferred_username") : "system";
+        return ResponseEntity.status(HttpStatus.CREATED)
+            .body(ApiResponse.ok(accountService.placeHold(id, request, actor)));
+    }
+
+    @DeleteMapping("/{id}/holds/{holdId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
+    @Operation(summary = "Release a specific hold on an account")
+    public ResponseEntity<ApiResponse<AccountHoldResponse>> releaseHold(
+            @PathVariable UUID id,
+            @PathVariable UUID holdId,
+            @AuthenticationPrincipal Jwt jwt) {
+        String actor = jwt != null ? jwt.getClaimAsString("preferred_username") : "system";
+        return ResponseEntity.ok(ApiResponse.ok(accountService.releaseHold(id, holdId, actor)));
     }
 }

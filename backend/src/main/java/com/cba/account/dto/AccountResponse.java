@@ -17,8 +17,13 @@ public record AccountResponse(
         AccountType accountType,
         AccountStatus status,
         BigDecimal balance,
+        /** balance minus sum of all active holds — the amount the account holder can actually spend. */
+        BigDecimal availableBalance,
+        /** sum of all active holds on this account. */
+        BigDecimal onHoldAmount,
         String currencyCode,
         LocalDate openedDate,
         LocalDate closedDate,
+        LocalDate lastTransactionDate,
         Instant createdAt
 ) {}

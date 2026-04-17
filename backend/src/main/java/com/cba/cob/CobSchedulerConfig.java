@@ -30,19 +30,22 @@ public class CobSchedulerConfig {
     private final CobJobHistoryRepository historyRepository;
     private final Job standingOrderJob;
     private final Job interestAccrualJob;
+    private final Job dormancyJob;
     private final Job arrearsJob;
 
     public CobSchedulerConfig(
             JobLauncher jobLauncher,
             CobJobHistoryRepository historyRepository,
-            @Qualifier("standingOrderExecutionBatchJob") Job standingOrderJob,
-            @Qualifier("interestAccrualBatchJob")        Job interestAccrualJob,
-            @Qualifier("arrearsClassificationBatchJob")  Job arrearsJob) {
-        this.jobLauncher      = jobLauncher;
-        this.historyRepository = historyRepository;
-        this.standingOrderJob  = standingOrderJob;
+            @Qualifier("standingOrderExecutionBatchJob")  Job standingOrderJob,
+            @Qualifier("interestAccrualBatchJob")         Job interestAccrualJob,
+            @Qualifier("dormancyClassificationBatchJob")  Job dormancyJob,
+            @Qualifier("arrearsClassificationBatchJob")   Job arrearsJob) {
+        this.jobLauncher        = jobLauncher;
+        this.historyRepository  = historyRepository;
+        this.standingOrderJob   = standingOrderJob;
         this.interestAccrualJob = interestAccrualJob;
-        this.arrearsJob        = arrearsJob;
+        this.dormancyJob        = dormancyJob;
+        this.arrearsJob         = arrearsJob;
     }
 
     // ── Quartz job detail beans ───────────────────────────────────────────────
@@ -61,6 +64,15 @@ public class CobSchedulerConfig {
         return JobBuilder.newJob(QuartzJobBridge.class)
                 .withIdentity("interestAccrual", "cob")
                 .usingJobData("jobBeanName", "interestAccrualBatchJob")
+                .storeDurably()
+                .build();
+    }
+
+    @Bean
+    public JobDetail dormancyJobDetail() {
+        return JobBuilder.newJob(QuartzJobBridge.class)
+                .withIdentity("dormancyClassification", "cob")
+                .usingJobData("jobBeanName", "dormancyClassificationBatchJob")
                 .storeDurably()
                 .build();
     }
@@ -95,6 +107,15 @@ public class CobSchedulerConfig {
     }
 
     @Bean
+    public Trigger dormancyTrigger(JobDetail dormancyJobDetail) {
+        return TriggerBuilder.newTrigger()
+                .forJob(dormancyJobDetail)
+                .withIdentity("dormancyTrigger", "cob")
+                .withSchedule(CronScheduleBuilder.cronSchedule("0 56 23 * * ?")) // 23:56 daily
+                .build();
+    }
+
+    @Bean
     public Trigger arrearsTrigger(JobDetail arrearsJobDetail) {
         return TriggerBuilder.newTrigger()
                 .forJob(arrearsJobDetail)
@@ -109,6 +130,7 @@ public class CobSchedulerConfig {
         Job job = switch (jobName) {
             case "standingOrderExecutionJob"  -> standingOrderJob;
             case "interestAccrualJob"         -> interestAccrualJob;
+            case "dormancyClassificationJob"  -> dormancyJob;
             case "arrearsClassificationJob"   -> arrearsJob;
             default -> throw new IllegalArgumentException("Unknown job: " + jobName);
         };

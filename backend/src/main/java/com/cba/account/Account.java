@@ -57,18 +57,25 @@ public class Account extends AuditableEntity {
     @Column(name = "closed_date")
     private LocalDate closedDate;
 
+    @Column(name = "last_transaction_date")
+    private LocalDate lastTransactionDate;
+
     public void credit(BigDecimal amount) {
         this.balance = this.balance.add(amount);
+        this.lastTransactionDate = LocalDate.now();
     }
 
-    public void debit(BigDecimal amount) {
-        if (this.balance.subtract(amount).compareTo(BigDecimal.ZERO) < 0) {
+    /** Debit validates against availableBalance (total - active holds). */
+    public void debit(BigDecimal amount, BigDecimal availableBalance) {
+        if (availableBalance.subtract(amount).compareTo(BigDecimal.ZERO) < 0) {
             throw new com.cba.common.exception.CbaException(
                 "INSUFFICIENT_BALANCE",
-                "Insufficient balance in account " + accountNumber,
+                "Insufficient available balance in account " + accountNumber +
+                " (available: " + availableBalance + ")",
                 org.springframework.http.HttpStatus.BAD_REQUEST
             );
         }
         this.balance = this.balance.subtract(amount);
+        this.lastTransactionDate = LocalDate.now();
     }
 }

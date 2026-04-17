@@ -136,6 +136,43 @@
   letter-spacing: 0.1em;
 }
 
+.balance-hold {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--color-warning, #f59e0b);
+  margin-top: 0.25rem;
+
+  .material-icons { font-size: 0.85rem; }
+}
+
+.balance-available {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: var(--color-warning, #f59e0b);
+  color: #fff;
+  border-radius: 9px;
+  margin-left: 0.35rem;
+}
+
+.btn--sm {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  margin-left: auto;
+}
+
 .acct-header__status {
   display: flex;
   align-items: center;

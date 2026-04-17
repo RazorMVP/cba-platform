@@ -59,6 +59,73 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 80 — 2026-04-17
+**Account hold funds + dormancy detection: full backend + Angular UI (backend: `./mvnw compile` clean; Angular: `npm run build --prod` clean).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/…/db/migration/V36__account_holds_and_dormancy.sql` | NEW — `account_holds` table + `last_transaction_date` column on `accounts` |
+| `backend/…/account/AccountHoldStatus.java` | NEW — `ACTIVE`, `RELEASED`, `EXPIRED` enum |
+| `backend/…/account/AccountHold.java` | NEW — JPA entity with amount, reason, status, expiryDate, releasedAt/By |
+| `backend/…/account/AccountHoldRepository.java` | NEW — JPQL `sumActiveHoldsByAccount`, status+expiry finders |
+| `backend/…/account/dto/AccountHoldRequest.java` | NEW — `amount`, `reason`, `expiryDate` |
+| `backend/…/account/dto/AccountHoldResponse.java` | NEW — full hold response record |
+| `backend/…/account/dto/AccountResponse.java` | MODIFIED — added `availableBalance`, `onHoldAmount`, `lastTransactionDate` |
+| `backend/…/account/Account.java` | MODIFIED — `lastTransactionDate` field; `debit(amount, availableBalance)` 2-arg signature; `credit()` updates `lastTransactionDate` |
+| `backend/…/account/AccountRepository.java` | MODIFIED — `findCandidatesForDormancy(LocalDate cutoff, Pageable)` JPQL query |
+| `backend/…/account/AccountService.java` | MODIFIED — hold-aware debit; `placeHold`, `releaseHold`, `getHolds`, `reactivateAccount`; `deposit()` allows DORMANT; `updateStatus()` blocks close when holds active |
+| `backend/…/account/AccountController.java` | MODIFIED — `reactivate` command; `GET/POST /{id}/holds`, `DELETE /{id}/holds/{holdId}` |
+| `backend/…/cob/DormancyClassificationJob.java` | NEW — Spring Batch job at `@Bean("dormancyClassificationBatchJob")`; reads `findCandidatesForDormancy(90d)`; expires ACTIVE holds before marking DORMANT |
+| `backend/…/cob/CobSchedulerConfig.java` | MODIFIED — dormancy job + Quartz trigger at `0 56 23 * * ?` |
+| `backend/…/cob/CobController.java` | MODIFIED — `dormancyClassificationJob` added to valid job names description |
+| `backend/…/payment/PaymentService.java` | MODIFIED — hold-aware debit at both transfer and reversal call sites |
+| `web/…/accounts/account.service.ts` | MODIFIED — `AccountHold`, `AccountHoldRequest` interfaces; `reactivate`, `getHolds`, `placeHold`, `releaseHold` methods |
+| `web/…/accounts/account-detail/account-detail.ts` | MODIFIED — Holds tab; `holds`, `holdToRelease`, `holdForm` state; `loadHolds`, `doPlaceHold`, `doReleaseHold`, `doReactivate`, `holdStatusVariant` methods |
+| `web/…/accounts/account-detail/account-detail.html` | MODIFIED — balance hold/available lines in header; Reactivate button for DORMANT; Holds tab button with badge count; full holds table with Release button; Place Hold modal; Release Hold confirm modal; Reactivate confirm modal |
+| `web/…/accounts/account-detail/account-detail.scss` | MODIFIED — `.balance-hold`, `.balance-available`, `.tab-badge`, `.btn--sm` styles |
+
+#### Key Patterns / Decisions
+- **Hold-aware balance**: `availableBalance = balance - Σ(ACTIVE holds)`. Debits validate against `availableBalance`, not `balance` — both in `Account.debit()` and passed from `AccountService`.
+- **Dormancy reactivation is manual**: `?command=reactivate` is the only way out of `DORMANT`; nightly CoB job only marks accounts dormant, never reactivates.
+- **Holds expired on dormancy**: `DormancyClassificationJob` processor calls `accountHoldRepository.findByAccountIdAndStatus(ACTIVE)` and marks all holds `EXPIRED` + `releasedBy = "dormancy-cob-job"` before setting `status = DORMANT`.
+- **`debit()` signature change**: `Account.debit(amount)` → `Account.debit(amount, availableBalance)` — `PaymentService` (transfer + reversal) was the only other caller and was updated accordingly.
+- **DORMANT accounts accept deposits**: `AccountService.deposit()` checks `ACTIVE || DORMANT`; withdrawals still require `ACTIVE` only.
+- **Spring Batch `@Bean` naming**: `@Bean("dormancyClassificationBatchJob")` with `JobBuilder("dormancyClassificationJob", ...)` — `BatchJob` suffix follows established CobScheduler convention.
+
+#### Build Verification
+- Backend: `./mvnw compile -q` → **BUILD SUCCESS** (0 errors, 0 warnings)
+- Angular: `npm run build -- --configuration=production` → **BUILD SUCCESS** (0 errors; budget warning on `loan-detail.scss` only, pre-existing)
+
+#### Confirmed Platform Versions
+
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `e299164` |
+| Java | 21 | `e299164` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `e299164` |
+| Keycloak admin client | 26.0.5 | `e299164` |
+| springdoc-openapi | 2.8.6 | `e299164` |
+| Lombok | 1.18.38 | `e299164` |
+| PostgreSQL | 16 (Docker) | `e299164` |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `94640f1` |
+| Angular CLI | 21.2.7 | `94640f1` |
+| PrimeNG | 21.0.x | `94640f1` |
+| RxJS | 7.8.x | `94640f1` |
+| TypeScript | 5.9.x | `94640f1` |
+| Vercel deployment | `cba-2lq213thc-razormvps-projects.vercel.app` | `94640f1` |
+
+#### Compliance Checklist Update
+- Module 2 (Customer Account Management) — Hold Funds: ✅ backend + UI built
+- Module 2 (Customer Account Management) — Dormancy Detection (CoB): ✅ backend + UI (reactivate) built
+
+---
+
 ### Session 79 — 2026-04-17
 **Bulk-remove duplicate `@keyframes` from all 51 remaining feature SCSS files to eliminate app-wide sidebar freeze and animation corruption on localhost.**
 

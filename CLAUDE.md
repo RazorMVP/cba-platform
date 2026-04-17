@@ -20,7 +20,7 @@ These are the verified-working versions for both production components. Update t
 | **Lombok** | 1.18.38 | Minimum for Java 25 `TypeTag` fix; also works on Java 21 |
 | **PostgreSQL** | 16 | Via Docker; schema managed by Flyway |
 | **AWS SDK v2 S3** | 2.26.12 | Optional — for S3/MinIO/GCS image storage |
-| **Last git commit** | `bde3a64` | `chore(audit): update retention policy from 7 years to 10 years across entire build` |
+| **Last git commit** | `e299164` | `feat(accounts): add account holds, dormancy CoB job, reactivate command` |
 
 ### Angular Web App (`web/`)
 
@@ -2995,11 +2995,11 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | Approve / Activate account | ✅ `?command=approve\|activate\|reject` _(Session 72)_ | ✅ Buttons + modals in AccountDetail _(Session 72)_ | ✅ |
 | Deposit / Credit | ✅ Via payment/transaction | ✅ Deposit modal | — |
 | Withdrawal / Debit | ✅ Via payment/transaction | ✅ Withdraw modal | — |
-| Hold funds (`HOLD` transaction type) | ❌ No hold mechanism | ❌ Missing | ❌ |
+| Hold funds (reservation table) | ✅ `account_holds` table; `placeHold`/`releaseHold`; `availableBalance = balance - Σ(ACTIVE holds)` | ✅ Holds tab with Place Hold / Release modals; balance-hold line in header _(Session 80)_ | — |
 | Block account | ✅ Freeze modal → `?command=freeze` | ✅ Freeze button | — |
 | Unblock account | ✅ Unfreeze modal | ✅ Unfreeze button | — |
 | Close account | ✅ Close modal | ✅ Close button | — |
-| Dormancy detection (nightly CoB job) | ❌ No dormancy status / CoB job | ❌ Missing | ❌ |
+| Dormancy detection (nightly CoB job) | ✅ `DormancyClassificationJob` at 23:56; 90-day cutoff; expires holds on dormancy | ✅ Reactivate button for DORMANT accounts _(Session 80)_ | — |
 | Interest posting (daily accrual, periodic posting) | ⚠️ `interestAccrualJob` exists (CoB) | ❌ No interest posting UI | ⚠️ |
 | Account transfers (internal) | ✅ Via payment service | ✅ Transfer wizard modal | — |
 | Statement download | ✅ Statement modal with date filter | ✅ Statement modal | — |

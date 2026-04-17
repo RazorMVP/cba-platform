@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -22,14 +23,19 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
 
     Page<Account> findByCustomerIdAndStatus(UUID customerId, AccountStatus status, Pageable pageable);
 
-    /**
-     * Acquires a pessimistic write lock (SELECT FOR UPDATE) to prevent
-     * concurrent balance modifications — essential for the double-entry ledger.
-     */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT a FROM Account a WHERE a.id = :id")
     Optional<Account> findByIdWithLock(UUID id);
 
     @Query("SELECT COALESCE(SUM(a.balance), 0) FROM Account a WHERE a.customer.id = :customerId AND a.status = 'ACTIVE'")
     java.math.BigDecimal sumActiveBalanceByCustomer(UUID customerId);
+
+    /**
+     * Finds ACTIVE accounts with no transactions since the cutoff date.
+     * Used by the nightly dormancy classification CoB job.
+     */
+    @Query("SELECT a FROM Account a WHERE a.status = com.cba.account.AccountStatus.ACTIVE " +
+           "AND (a.lastTransactionDate IS NULL OR a.lastTransactionDate < :cutoffDate) " +
+           "AND a.openedDate < :cutoffDate")
+    Page<Account> findCandidatesForDormancy(LocalDate cutoffDate, Pageable pageable);
 }

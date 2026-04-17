@@ -104,6 +104,15 @@
       <div class="acct-header__balance">
         <div class="balance-amount">{{ account.balance | number:'1.2-2' }}</div>
         <div class="balance-currency">{{ account.currencyCode }}</div>
+        @if ((account.onHoldAmount ?? 0) > 0) {
+          <div class="balance-hold">
+            <span class="material-icons">lock</span>
+            {{ account.onHoldAmount | number:'1.2-2' }} on hold
+          </div>
+          <div class="balance-available">
+            Available: {{ account.availableBalance | number:'1.2-2' }}
+          </div>
+        }
       </div>
 
       <div class="acct-header__status">
@@ -146,6 +155,11 @@
             <span class="material-icons">lock_open</span> Unfreeze
           </button>
         }
+        @if (account.status === 'DORMANT') {
+          <button class="btn-success" (click)="openModal('reactivate')">
+            <span class="material-icons">refresh</span> Reactivate
+          </button>
+        }
       </div>
     </div>
 
@@ -156,6 +170,12 @@
       </button>
       <button class="tab-item" [class.tab-item--active]="activeTab === 'transactions'" (click)="setTab('transactions')">
         <span class="material-icons">receipt_long</span> Transactions
+      </button>
+      <button class="tab-item" [class.tab-item--active]="activeTab === 'holds'" (click)="setTab('holds')">
+        <span class="material-icons">lock</span> Holds
+        @if (holds.length > 0) {
+          <span class="tab-badge">{{ holds.length }}</span>
+        }
       </button>
     </div>
 
@@ -269,6 +289,70 @@
           }
         </div>
 
+      }
+    }
+
+    <!-- ── HOLDS TAB ── -->
+    @if (activeTab === 'holds') {
+      @if (holdsLoading) {
+        <div class="txn-loading">
+          <div class="skeleton skeleton--table-row"></div>
+          <div class="skeleton skeleton--table-row"></div>
+        </div>
+      } @else {
+        <div class="card">
+          <div class="card__header">
+            Funds Holds
+            <span class="card__count">{{ holds.length }} total</span>
+            @if (account!.status === 'ACTIVE') {
+              <button class="btn-outline btn--sm" (click)="openPlaceHold()">
+                <span class="material-icons">add</span> Place Hold
+              </button>
+            }
+          </div>
+
+          @if (holds.length === 0) {
+            <div class="empty-state">
+              <span class="material-icons">lock_open</span>
+              <p>No holds on this account.</p>
+            </div>
+          } @else {
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th class="col-amount">Amount</th>
+                  <th>Reason</th>
+                  <th>Reference</th>
+                  <th>Expiry</th>
+                  <th>Placed</th>
+                  <th>Released By</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (h of holds; track h.id) {
+                  <tr>
+                    <td>
+                      <app-status-badge [variant]="holdStatusVariant(h.status)" [label]="h.status" />
+                    </td>
+                    <td class="col-amount tabular-nums">{{ h.amount | number:'1.2-2' }}</td>
+                    <td>{{ h.reason }}</td>
+                    <td class="muted">{{ h.referenceNumber ?? '—' }}</td>
+                    <td class="muted">{{ h.expiryDate ? (h.expiryDate | date:'mediumDate') : '—' }}</td>
+                    <td class="muted">{{ h.createdAt | date:'mediumDate' }}</td>
+                    <td class="muted">{{ h.releasedBy ?? '—' }}</td>
+                    <td>
+                      @if (h.status === 'ACTIVE') {
+                        <button class="btn-ghost-sm" (click)="openReleaseHold(h)">Release</button>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </div>
       }
     }
 
@@ -580,6 +664,101 @@
       </div>
       <div class="modal__footer">
         <button class="btn-secondary" (click)="closeModal()">Close</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Place Hold modal -->
+@if (activeModal === 'placeHold') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon modal__icon--warning">lock</span>
+        Place Funds Hold
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Amount <span class="required">*</span></label>
+          <div class="input-prefix-group">
+            <span class="input-prefix">{{ account?.currencyCode }}</span>
+            <input type="number" class="form-input form-input--prefixed" min="0.01" step="0.01"
+                   [(ngModel)]="holdForm.amount" placeholder="0.00" />
+          </div>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Reason <span class="required">*</span></label>
+          <input type="text" class="form-input" [(ngModel)]="holdForm.reason"
+                 placeholder="e.g. Pending court order" maxlength="255" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Expiry Date <span class="form-hint">(optional)</span></label>
+          <input type="date" class="form-input" [(ngModel)]="holdForm.expiryDate" />
+          <span class="form-hint">Leave blank for an indefinite hold.</span>
+        </div>
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-warning" (click)="doPlaceHold()"
+                [disabled]="modalWorking || holdForm.amount <= 0 || !holdForm.reason">
+          @if (modalWorking) { <span class="spinner"></span> }
+          Place Hold
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Release Hold confirm -->
+@if (activeModal === 'releaseHold') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h2 class="modal__title">Release Hold</h2>
+        <button class="modal__close" (click)="closeModal()">✕</button>
+      </div>
+      <div class="modal__body">
+        <p class="confirm-text">
+          Release the hold of
+          <strong>{{ holdToRelease?.amount | number:'1.2-2' }} {{ account?.currencyCode }}</strong>
+          for <em>"{{ holdToRelease?.reason }}"</em>?
+          Funds will be returned to the available balance immediately.
+        </p>
+        @if (modalError) { <p class="modal__error">{{ modalError }}</p> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-ghost" [disabled]="modalWorking" (click)="closeModal()">Cancel</button>
+        <button class="btn-success" [disabled]="modalWorking" (click)="doReleaseHold()">
+          @if (modalWorking) { <span class="spinner"></span> }
+          Release Hold
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Reactivate confirm -->
+@if (activeModal === 'reactivate') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h2 class="modal__title">Reactivate Account</h2>
+        <button class="modal__close" (click)="closeModal()">✕</button>
+      </div>
+      <div class="modal__body">
+        <p class="confirm-text">
+          Reactivate dormant account <strong>{{ account?.accountNumber }}</strong>?
+          The account will return to <strong>Active</strong> status and accept transactions again.
+        </p>
+        @if (modalError) { <p class="modal__error">{{ modalError }}</p> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-ghost" [disabled]="modalWorking" (click)="closeModal()">Cancel</button>
+        <button class="btn-success" [disabled]="modalWorking" (click)="doReactivate()">
+          @if (modalWorking) { <span class="spinner"></span> }
+          Reactivate
+        </button>
       </div>
     </div>
   </div>

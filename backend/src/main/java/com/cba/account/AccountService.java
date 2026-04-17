@@ -1,12 +1,10 @@
 package com.cba.account;
 
 import com.cba.account.algorithm.AccountNumberAlgorithmService;
+import com.cba.account.dto.*;
 import com.cba.audit.AuditLogService;
 import com.cba.common.exception.CbaException;
 import com.cba.common.tenant.TenantContext;
-import com.cba.account.dto.AccountResponse;
-import com.cba.account.dto.OpenAccountRequest;
-import com.cba.account.dto.TransactionResponse;
 import com.cba.customer.Customer;
 import com.cba.customer.CustomerRepository;
 import com.cba.customer.KycStatus;
@@ -27,6 +25,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -39,6 +38,7 @@ public class AccountService {
     private final TransactionRepository transactionRepository;
     private final CustomerRepository customerRepository;
     private final DepositProductRepository depositProductRepository;
+    private final AccountHoldRepository accountHoldRepository;
     private final AccountNumberAlgorithmService accountNumberAlgorithmService;
     private final AuditLogService auditLogService;
     private final ApplicationEventPublisher eventPublisher;
@@ -96,6 +96,11 @@ public class AccountService {
                 throw CbaException.badRequest("ACCOUNT_NOT_ZERO_BALANCE",
                     "Account balance must be zero before closing");
             }
+            BigDecimal activeHolds = accountHoldRepository.sumActiveHoldsByAccount(id);
+            if (activeHolds.compareTo(BigDecimal.ZERO) > 0) {
+                throw CbaException.badRequest("ACCOUNT_HAS_ACTIVE_HOLDS",
+                    "Release all holds before closing the account");
+            }
             account.setClosedDate(LocalDate.now());
         }
 
@@ -151,11 +156,32 @@ public class AccountService {
     }
 
     @Transactional
+    public AccountResponse reactivateAccount(UUID id) {
+        Account account = findById(id);
+        if (account.getStatus() != AccountStatus.DORMANT) {
+            throw CbaException.badRequest("INVALID_TRANSITION",
+                "Only DORMANT accounts can be reactivated (current: " + account.getStatus() + ")");
+        }
+        account.setStatus(AccountStatus.ACTIVE);
+        Account saved = accountRepository.save(account);
+        auditLogService.log("ACCOUNT", id.toString(), "REACTIVATED",
+            AccountStatus.DORMANT.name(), AccountStatus.ACTIVE.name());
+        return toResponse(saved);
+    }
+
+    // ── Teller operations ─────────────────────────────────────────────────────
+
+    @Transactional
     public TransactionResponse deposit(UUID accountId, BigDecimal amount, String description, String createdBy) {
         Account account = accountRepository.findByIdWithLock(accountId)
             .orElseThrow(() -> CbaException.notFound("Account", accountId));
 
-        validateAccountActive(account);
+        // Allow deposits on DORMANT accounts (credits can always come in)
+        if (account.getStatus() != AccountStatus.ACTIVE && account.getStatus() != AccountStatus.DORMANT) {
+            throw CbaException.badRequest("ACCOUNT_NOT_ACTIVE",
+                "Account " + account.getAccountNumber() + " is " + account.getStatus());
+        }
+
         account.credit(amount);
         accountRepository.save(account);
 
@@ -170,13 +196,83 @@ public class AccountService {
             .orElseThrow(() -> CbaException.notFound("Account", accountId));
 
         validateAccountActive(account);
-        account.debit(amount); // throws if insufficient balance
+
+        BigDecimal onHold = accountHoldRepository.sumActiveHoldsByAccount(accountId);
+        BigDecimal available = account.getBalance().subtract(onHold);
+        account.debit(amount, available);
         accountRepository.save(account);
 
         Transaction tx = Transaction.of(account, TransactionType.WITHDRAWAL, amount,
             account.getBalance(), description, generateReference(), createdBy);
         return toTransactionResponse(transactionRepository.save(tx));
     }
+
+    // ── Holds ─────────────────────────────────────────────────────────────────
+
+    @Transactional
+    public AccountHoldResponse placeHold(UUID accountId, AccountHoldRequest request, String createdBy) {
+        Account account = accountRepository.findByIdWithLock(accountId)
+            .orElseThrow(() -> CbaException.notFound("Account", accountId));
+
+        validateAccountActive(account);
+
+        BigDecimal onHold = accountHoldRepository.sumActiveHoldsByAccount(accountId);
+        BigDecimal available = account.getBalance().subtract(onHold);
+        if (available.compareTo(request.amount()) < 0) {
+            throw CbaException.badRequest("INSUFFICIENT_AVAILABLE_BALANCE",
+                "Cannot place hold of " + request.amount() + "; available balance is " + available);
+        }
+
+        AccountHold hold = new AccountHold();
+        hold.setAccount(account);
+        hold.setAmount(request.amount());
+        hold.setReason(request.reason());
+        hold.setExpiryDate(request.expiryDate());
+        hold.setReferenceNumber("HLD-" + System.currentTimeMillis());
+        hold.setCreatedBy(createdBy);
+
+        AccountHold saved = accountHoldRepository.save(hold);
+        auditLogService.log("ACCOUNT_HOLD", saved.getId().toString(), "HOLD_PLACED", null,
+            "amount=" + request.amount() + " reason=" + request.reason());
+
+        log.info("Hold placed on account {}: {} ({})", account.getAccountNumber(), request.amount(), request.reason());
+        return toHoldResponse(saved);
+    }
+
+    @Transactional
+    public AccountHoldResponse releaseHold(UUID accountId, UUID holdId, String releasedBy) {
+        Account account = findById(accountId);
+        AccountHold hold = accountHoldRepository.findById(holdId)
+            .orElseThrow(() -> CbaException.notFound("AccountHold", holdId));
+
+        if (!hold.getAccount().getId().equals(accountId)) {
+            throw CbaException.notFound("AccountHold", holdId);
+        }
+        if (hold.getStatus() != AccountHoldStatus.ACTIVE) {
+            throw CbaException.badRequest("HOLD_NOT_ACTIVE",
+                "Hold " + holdId + " is already " + hold.getStatus());
+        }
+
+        hold.setStatus(AccountHoldStatus.RELEASED);
+        hold.setReleasedAt(Instant.now());
+        hold.setReleasedBy(releasedBy);
+
+        AccountHold saved = accountHoldRepository.save(hold);
+        auditLogService.log("ACCOUNT_HOLD", holdId.toString(), "HOLD_RELEASED",
+            AccountHoldStatus.ACTIVE.name(), AccountHoldStatus.RELEASED.name());
+
+        log.info("Hold released on account {}: {} ({})", account.getAccountNumber(), hold.getAmount(), hold.getReason());
+        return toHoldResponse(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AccountHoldResponse> getHolds(UUID accountId) {
+        findById(accountId); // existence check
+        return accountHoldRepository.findByAccountIdOrderByCreatedAtDesc(accountId)
+            .stream().map(this::toHoldResponse).toList();
+    }
+
+    // ── Reads ─────────────────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public Page<TransactionResponse> getTransactions(UUID accountId, Pageable pageable) {
@@ -213,6 +309,8 @@ public class AccountService {
         return template;
     }
 
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
     private void validateAccountActive(Account account) {
         if (account.getStatus() != AccountStatus.ACTIVE) {
             throw CbaException.badRequest("ACCOUNT_NOT_ACTIVE",
@@ -230,12 +328,26 @@ public class AccountService {
     }
 
     AccountResponse toResponse(Account a) {
+        BigDecimal onHold = accountHoldRepository.sumActiveHoldsByAccount(a.getId());
+        BigDecimal available = a.getBalance().subtract(onHold);
         String customerName = a.getCustomer().getFirstName() + " " + a.getCustomer().getLastName();
         return new AccountResponse(
             a.getId(), a.getAccountNumber(), a.getCustomer().getId(),
             customerName, a.getProduct().getName(),
             a.getAccountType(), a.getStatus(), a.getBalance(),
-            a.getCurrencyCode(), a.getOpenedDate(), a.getClosedDate(), a.getCreatedAt()
+            available, onHold,
+            a.getCurrencyCode(), a.getOpenedDate(), a.getClosedDate(),
+            a.getLastTransactionDate(), a.getCreatedAt()
+        );
+    }
+
+    private AccountHoldResponse toHoldResponse(AccountHold h) {
+        return new AccountHoldResponse(
+            h.getId(), h.getAccount().getId(),
+            h.getAmount(), h.getReason(), h.getReferenceNumber(),
+            h.getStatus(), h.getExpiryDate(),
+            h.getReleasedAt(), h.getReleasedBy(),
+            h.getCreatedAt(), h.getCreatedBy()
         );
     }
 

@@ -1,6 +1,7 @@
 package com.cba.payment;
 
 import com.cba.account.Account;
+import com.cba.account.AccountHoldRepository;
 import com.cba.account.AccountRepository;
 import com.cba.account.AccountStatus;
 import com.cba.account.Transaction;
@@ -34,6 +35,7 @@ public class PaymentService {
 
     private final PaymentRepository             paymentRepository;
     private final AccountRepository             accountRepository;
+    private final AccountHoldRepository         accountHoldRepository;
     private final TransactionRepository         transactionRepository;
     private final AccountNumberAlgorithmService accountNumberAlgorithmService;
     private final AuditLogService               auditLogService;
@@ -116,7 +118,8 @@ public class PaymentService {
         payment = paymentRepository.save(payment);
 
         // Apply double-entry: debit source in source currency, credit destination in its currency
-        source.debit(request.amount());
+        BigDecimal srcOnHold = accountHoldRepository.sumActiveHoldsByAccount(source.getId());
+        source.debit(request.amount(), source.getBalance().subtract(srcOnHold));
         destination.credit(creditAmount);
         accountRepository.save(source);
         accountRepository.save(destination);
@@ -225,7 +228,8 @@ public class PaymentService {
 
         // Swap: credit back source, debit destination
         src.credit(original.getAmount());
-        dst.debit(original.getAmount());
+        BigDecimal dstOnHold = accountHoldRepository.sumActiveHoldsByAccount(dst.getId());
+        dst.debit(original.getAmount(), dst.getBalance().subtract(dstOnHold));
         accountRepository.save(src);
         accountRepository.save(dst);
 

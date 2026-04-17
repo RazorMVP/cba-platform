@@ -11,11 +11,34 @@ export interface Account {
   accountType: 'SAVINGS' | 'CHECKING' | 'FIXED_DEPOSIT';
   status: 'SUBMITTED' | 'APPROVED' | 'ACTIVE' | 'FROZEN' | 'DORMANT' | 'REJECTED' | 'CLOSED';
   balance: number;
+  availableBalance?: number;
+  onHoldAmount?: number;
   currencyCode: string;
   productId: string;
   productName?: string;
   openedDate: string;
+  lastTransactionDate?: string;
   updatedAt?: string;
+}
+
+export interface AccountHold {
+  id: string;
+  accountId: string;
+  amount: number;
+  reason: string;
+  referenceNumber?: string;
+  status: 'ACTIVE' | 'RELEASED' | 'EXPIRED';
+  expiryDate?: string;
+  releasedAt?: string;
+  releasedBy?: string;
+  createdAt: string;
+  createdBy?: string;
+}
+
+export interface AccountHoldRequest {
+  amount: number;
+  reason: string;
+  expiryDate?: string;
 }
 
 export interface Transaction {
@@ -92,6 +115,22 @@ export class AccountService {
     const params: Record<string, string> = { amount: String(amount) };
     if (description) params['description'] = description;
     return this.api.postParams<Transaction>(`/accounts/${id}/withdraw`, params);
+  }
+
+  reactivate(id: string): Observable<Account> {
+    return this.api.post<Account>(`/accounts/${id}?command=reactivate`, {});
+  }
+
+  getHolds(id: string): Observable<AccountHold[]> {
+    return this.api.get<AccountHold[]>(`/accounts/${id}/holds`);
+  }
+
+  placeHold(id: string, req: AccountHoldRequest): Observable<AccountHold> {
+    return this.api.post<AccountHold>(`/accounts/${id}/holds`, req);
+  }
+
+  releaseHold(accountId: string, holdId: string): Observable<AccountHold> {
+    return this.api.delete<AccountHold>(`/accounts/${accountId}/holds/${holdId}`);
   }
 
   getStatement(id: string, from: string, to: string): Observable<Record<string, unknown>> {

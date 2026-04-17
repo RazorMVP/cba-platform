@@ -30,7 +30,7 @@ public class CobController {
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(
         summary = "Manually trigger a CoB job",
-        description = "Valid job names: standingOrderExecutionJob, interestAccrualJob, arrearsClassificationJob"
+        description = "Valid job names: standingOrderExecutionJob, interestAccrualJob, dormancyClassificationJob, arrearsClassificationJob"
     )
     public ResponseEntity<ApiResponse<Void>> runJob(@PathVariable String jobName) {
         cobSchedulerConfig.triggerJobNow(jobName);

@@ -3,12 +3,12 @@ import { CommonModule } from '@angular/common';
 import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge';
-import { AccountService, Account, Transaction, AccountCreateRequest } from '../account.service';
+import { AccountService, Account, Transaction, AccountCreateRequest, AccountHold, AccountHoldRequest } from '../account.service';
 import { CustomerService, ImageMeta } from '../../customers/customer.service';
 import { PageResponse } from '../../../../core/models/api-response.model';
 
-type ActiveTab = 'overview' | 'transactions';
-type ModalType = 'approve' | 'activate' | 'reject' | 'freeze' | 'unfreeze' | 'close' | 'deposit' | 'withdraw' | 'statement' | null;
+type ActiveTab = 'overview' | 'transactions' | 'holds';
+type ModalType = 'approve' | 'activate' | 'reject' | 'freeze' | 'unfreeze' | 'close' | 'deposit' | 'withdraw' | 'statement' | 'placeHold' | 'releaseHold' | 'reactivate' | null;
 
 @Component({
   selector: 'app-account-detail',
@@ -48,6 +48,13 @@ export class AccountDetailComponent implements OnInit {
   txnLoading    = false;
   txnLoaded     = false;
   readonly txnPageSize = 20;
+
+  // Holds tab (lazy-loaded)
+  holds: AccountHold[]    = [];
+  holdsLoading            = false;
+  holdsLoaded             = false;
+  holdToRelease: AccountHold | null = null;
+  holdForm: AccountHoldRequest = { amount: 0, reason: '' };
 
   // Modal state
   activeModal: ModalType = null;
@@ -147,9 +154,8 @@ export class AccountDetailComponent implements OnInit {
 
   setTab(tab: ActiveTab): void {
     this.activeTab = tab;
-    if (tab === 'transactions' && !this.txnLoaded) {
-      this.loadTxns();
-    }
+    if (tab === 'transactions' && !this.txnLoaded) this.loadTxns();
+    if (tab === 'holds' && !this.holdsLoaded)       this.loadHolds();
   }
 
   // ── Transactions ────────────────────────────────────────────────────────────
@@ -181,6 +187,73 @@ export class AccountDetailComponent implements OnInit {
   get txnTotalPages(): number { return Math.max(1, Math.ceil(this.txnTotal / this.txnPageSize)); }
   get txnStartRow():   number { return this.txnTotal === 0 ? 0 : this.txnPage * this.txnPageSize + 1; }
   get txnEndRow():     number { return Math.min((this.txnPage + 1) * this.txnPageSize, this.txnTotal); }
+
+  // ── Holds ──────────────────────────────────────────────────────────────────
+
+  loadHolds(): void {
+    if (!this.account) return;
+    this.holdsLoading = true;
+    this.svc.getHolds(this.account.id).subscribe({
+      next: h  => { this.holds = h; this.holdsLoaded = true; this.holdsLoading = false; },
+      error: () => { this.holdsLoading = false; },
+    });
+  }
+
+  openPlaceHold(): void {
+    this.holdForm = { amount: 0, reason: '' };
+    this.openModal('placeHold');
+  }
+
+  openReleaseHold(hold: AccountHold): void {
+    this.holdToRelease = hold;
+    this.openModal('releaseHold');
+  }
+
+  doPlaceHold(): void {
+    if (!this.account || this.holdForm.amount <= 0 || !this.holdForm.reason) return;
+    this.modalWorking = true;
+    this.svc.placeHold(this.account.id, this.holdForm).subscribe({
+      next: () => {
+        this.modalWorking = false;
+        this.activeModal  = null;
+        this.holdsLoaded  = false;
+        this.loadHolds();
+        this.svc.get(this.account!.id).subscribe({ next: a => { this.account = a; } });
+      },
+      error: () => { this.modalError = 'Failed to place hold.'; this.modalWorking = false; },
+    });
+  }
+
+  doReleaseHold(): void {
+    if (!this.account || !this.holdToRelease) return;
+    this.modalWorking = true;
+    this.svc.releaseHold(this.account.id, this.holdToRelease.id).subscribe({
+      next: () => {
+        this.modalWorking  = false;
+        this.activeModal   = null;
+        this.holdToRelease = null;
+        this.holdsLoaded   = false;
+        this.loadHolds();
+        this.svc.get(this.account!.id).subscribe({ next: a => { this.account = a; } });
+      },
+      error: () => { this.modalError = 'Failed to release hold.'; this.modalWorking = false; },
+    });
+  }
+
+  doReactivate(): void {
+    if (!this.account) return;
+    this.modalWorking = true;
+    this.svc.reactivate(this.account.id).subscribe({
+      next: a  => { this.account = a; this.modalWorking = false; this.activeModal = null; },
+      error: () => { this.modalError = 'Reactivation failed.'; this.modalWorking = false; },
+    });
+  }
+
+  holdStatusVariant(s: AccountHold['status']): 'success' | 'warning' | 'neutral' {
+    if (s === 'ACTIVE')   return 'warning';
+    if (s === 'RELEASED') return 'success';
+    return 'neutral';
+  }
 
   // ── Modal helpers ──────────────────────────────────────────────────────────
 

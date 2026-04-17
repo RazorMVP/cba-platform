@@ -59,6 +59,38 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 81 — 2026-04-17
+**Comprehensive SCSS audit: moved `@keyframes expand` to global, stripped verbatim global-class redefinitions from 60 component files, deleted web-react/ (commit `c8c963a`).**
+
+#### Root Causes Fixed
+1. **Sidebar freeze on `/reports/mailing`, `/system/codes`, `/system/floating-rates`**: `codes.scss` and `floating-rates.scss` both declared `@keyframes expand` locally. Angular `ViewEncapsulation.Emulated` never adds `[_ngcontent-xxx]` to `@keyframes`, so both declarations injected globally. The later-loaded definition silently overwrote the earlier one, corrupting the sidebar's expand animation.
+2. **Dev/prod modal discrepancy in Report Mailing Jobs**: `report-mailing.scss` redefined ~15 global CSS classes verbatim (`.btn-primary`, `.modal`, `.modal__header`, `.form-input`, etc.). In dev mode, elements inside `@if` blocks don't receive the `[_ngcontent-xxx]` scope attribute, so component-scoped overrides never matched — the global versions applied, causing missing titles, unstyled buttons, and empty dropdowns. Production applied correctly.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/src/assets/styles/_design-system.scss` | `@keyframes expand` added — global home for the accordion animation |
+| `web/src/app/features/reports/report-mailing.scss` | Full rewrite: ~160 lines → ~70 lines; stripped 15+ global class redefinitions; kept only component-specific extensions |
+| `web/src/app/features/system/codes.scss` | `@keyframes expand` removed; all verbatim global class blocks removed |
+| `web/src/app/features/system/floating-rates.scss` | `@keyframes expand` removed; all verbatim global class blocks removed |
+| 57 additional feature SCSS files | Batch-cleaned via Python script: removed all blocks matching global classes from `_design-system.scss` across accounting, admin, groups, open-banking, operations, products, reports, system feature modules |
+| `web-react/` | Deleted from disk (was never committed to git — `git ls-files web-react/` returned nothing) |
+| `web/src/environments/environment.prod.ts` | `authBypass: true` (Keycloak not publicly reachable on Vercel) |
+
+#### Key Patterns / Decisions
+- **Extension-only rule** (now enforced): Component SCSS may extend global classes with additional properties (e.g., `.modal { max-height: 90vh; display: flex; }`) but must NEVER redefine global classes verbatim. Redefinitions are redundant in production and actively harmful in dev mode.
+- **`@keyframes` are always global**: Angular `ViewEncapsulation.Emulated` never adds scope attributes to `@keyframes` — they always inject into the global stylesheet. Any `@keyframes` a component needs must live in `_design-system.scss`.
+- **`@if`/`@for` block scoping in dev mode**: Angular dev mode may not apply `[_ngcontent-xxx]` to elements inside `@if`/`@for` blocks, causing component-scoped class overrides to be ignored. Extension-only pattern avoids this entirely.
+
+#### Build Verification
+- `npm run build -- --configuration=production` → "Application bundle generation complete" ✅
+- Only pre-existing NG8107 warnings (optional chain narrowing); no errors introduced.
+
+#### Confirmed Platform Versions
+_(No dependency changes this session — see Session 80 for current versions.)_
+
+---
+
 ### Session 80 — 2026-04-17
 **Account hold funds + dormancy detection: full backend + Angular UI (backend: `./mvnw compile` clean; Angular: `npm run build --prod` clean).**
 

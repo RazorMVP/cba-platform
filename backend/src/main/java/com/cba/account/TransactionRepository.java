@@ -3,6 +3,7 @@ package com.cba.account;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -15,4 +16,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
 
     Page<Transaction> findByAccountIdAndTransactionDateBetween(
         UUID accountId, Instant from, Instant to, Pageable pageable);
+
+    @Query("SELECT t FROM Transaction t JOIN FETCH t.account ORDER BY t.transactionDate DESC")
+    Page<Transaction> findAllWithAccount(Pageable pageable);
 }

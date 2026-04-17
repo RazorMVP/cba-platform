@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, forkJoin, map } from 'rxjs';
+import { Observable, forkJoin, map, catchError, of } from 'rxjs';
 import { ApiService } from '../../../core/api/api.service';
 export interface DashboardKpi {
   totalCustomers: number;
@@ -58,7 +58,7 @@ export class DashboardService {
 
   getRecentTransactions(): Observable<RecentTransaction[]> {
     return this.api.getPage<RecentTransaction>('/transactions', 0, 10)
-      .pipe(map(p => p.content));
+      .pipe(map(p => p.content), catchError(() => of([])));
   }
 
   getKycPendingCustomers(): Observable<KycPendingCustomer[]> {

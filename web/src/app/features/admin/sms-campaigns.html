@@ -1,0 +1,261 @@
+<div class="page">
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">sms</span>
+      SMS Campaigns
+    </div>
+    <button class="btn-primary" (click)="openCreate()">
+      <span class="material-icons">add</span> New Campaign
+    </button>
+  </div>
+
+  <div class="split-layout" [class.split-layout--open]="selected">
+    <!-- ── Campaign List ───────────────────────────────────────────────── -->
+    <div class="card">
+      @if (loading) {
+        <div class="skeleton-card">
+          @for (i of [1,2,3,4]; track i) { <div class="skeleton skeleton--row"></div> }
+        </div>
+      } @else if (error) {
+        <div class="empty-state">
+          <span class="material-icons">error_outline</span><p>{{ error }}</p>
+        </div>
+      } @else if (campaigns.length === 0) {
+        <div class="empty-state">
+          <span class="material-icons">sms</span>
+          <p>No SMS campaigns yet. Create one to get started.</p>
+        </div>
+      } @else {
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Campaign Name</th>
+              <th>Type</th>
+              <th>Trigger</th>
+              <th>Status</th>
+              <th>Next Run</th>
+              <th class="action-cell">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (c of campaigns; track c.id) {
+              <tr class="table-row" [class.table-row--selected]="selected?.id === c.id"
+                  (click)="selectCampaign(c)">
+                <td><strong>{{ c.campaignName }}</strong></td>
+                <td><span class="type-chip type-chip--{{ c.campaignType.toLowerCase() }}">{{ c.campaignType }}</span></td>
+                <td class="muted small">{{ c.triggerType }}</td>
+                <td>
+                  <app-status-badge [label]="c.status" [variant]="statusVariant(c.status)"></app-status-badge>
+                </td>
+                <td class="muted small tabular">{{ c.nextTriggerDate ?? '—' }}</td>
+                <td class="action-cell" (click)="$event.stopPropagation()">
+                  @if (canActivate(c)) {
+                    <button class="btn-icon" (click)="openActivate(c)" title="Activate">
+                      <span class="material-icons">play_arrow</span>
+                    </button>
+                  }
+                  <button class="btn-icon" (click)="openEdit(c)" title="Edit">
+                    <span class="material-icons">edit</span>
+                  </button>
+                  <button class="btn-icon btn-icon--danger" (click)="openDelete(c)" title="Delete">
+                    <span class="material-icons">delete</span>
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+
+        <div class="table-footer">
+          <span class="muted small">{{ startRow }}–{{ endRow }} of {{ total }}</span>
+          <div class="pagination">
+            <button class="btn-icon" [disabled]="page === 0" (click)="prevPage()">
+              <span class="material-icons">chevron_left</span>
+            </button>
+            <span class="muted small">Page {{ page + 1 }} / {{ totalPages }}</span>
+            <button class="btn-icon" [disabled]="(page + 1) * pageSize >= total" (click)="nextPage()">
+              <span class="material-icons">chevron_right</span>
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- ── Messages Panel ─────────────────────────────────────────────── -->
+    @if (selected) {
+      <div class="detail-panel">
+        <div class="detail-panel__header">
+          <span class="material-icons small">sms</span>
+          <strong class="panel-title">{{ selected.campaignName }}</strong>
+          <button class="btn-icon btn-icon--sm" (click)="selected = null" title="Close">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
+
+        <div class="detail-panel__meta">
+          <div class="meta-grid">
+            <span class="meta-label">Message</span>
+            <span class="meta-value">{{ selected.message }}</span>
+            @if (selected.recurrence) {
+              <span class="meta-label">Recurrence</span>
+              <span class="meta-value mono small">{{ selected.recurrence }}</span>
+            }
+            @if (selected.runDate) {
+              <span class="meta-label">Run Date</span>
+              <span class="meta-value">{{ selected.runDate }}</span>
+            }
+            @if (selected.lastTriggerDate) {
+              <span class="meta-label">Last Run</span>
+              <span class="meta-value muted">{{ selected.lastTriggerDate }}</span>
+            }
+          </div>
+        </div>
+
+        <div class="detail-panel__section-header">Delivery Log</div>
+
+        @if (messagesLoading) {
+          <div class="skeleton-card">
+            @for (i of [1,2,3]; track i) { <div class="skeleton skeleton--row"></div> }
+          </div>
+        } @else if (messages.length === 0) {
+          <div class="empty-state empty-state--sm">
+            <span class="material-icons">inbox</span>
+            <p>No messages sent yet.</p>
+          </div>
+        } @else {
+          <table class="data-table data-table--sm">
+            <thead>
+              <tr>
+                <th>Recipient</th>
+                <th>Status</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (m of messages; track m.id) {
+                <tr>
+                  <td class="mono small">{{ m.mobileNumber ?? m.recipientRef }}</td>
+                  <td>
+                    <app-status-badge [label]="m.deliveryStatus" [variant]="deliveryVariant(m.deliveryStatus)"></app-status-badge>
+                  </td>
+                  <td class="muted small">{{ m.submittedOnDate ?? '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          <div class="table-footer">{{ messages.length }} message(s)</div>
+        }
+      </div>
+    }
+  </div>
+</div>
+
+<!-- ── Create / Edit Modal ─────────────────────────────────────────────────── -->
+@if (activeModal === 'create' || activeModal === 'edit') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--lg" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">sms</span>
+        {{ activeModal === 'create' ? 'New SMS Campaign' : 'Edit Campaign' }}
+      </div>
+      <div class="modal__body">
+        <div class="form-row">
+          <div class="form-field">
+            <label class="form-label">Campaign Name <span class="required">*</span></label>
+            <input class="form-input" [(ngModel)]="formName" placeholder="e.g. Welcome SMS">
+          </div>
+          <div class="form-field">
+            <label class="form-label">Campaign Type</label>
+            <select class="form-input" [(ngModel)]="formType">
+              @for (t of campaignTypes; track t) { <option [value]="t">{{ t }}</option> }
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label class="form-label">Trigger Type</label>
+            <select class="form-input" [(ngModel)]="formTrigger">
+              @for (t of triggerTypes; track t) { <option [value]="t">{{ t }}</option> }
+            </select>
+          </div>
+          @if (formTrigger === 'SCHEDULED') {
+            <div class="form-field">
+              <label class="form-label">Run Date</label>
+              <input class="form-input" type="datetime-local" [(ngModel)]="formRunDate">
+            </div>
+          }
+        </div>
+        @if (formTrigger === 'SCHEDULED') {
+          <div class="form-field">
+            <label class="form-label">Recurrence (iCal RRULE)</label>
+            <div class="recurrence-row">
+              @for (p of rrulePresets; track p.value) {
+                <button class="preset-chip" [class.preset-chip--active]="formRecurrence === p.value"
+                        (click)="formRecurrence = p.value" type="button">{{ p.label }}</button>
+              }
+            </div>
+            <input class="form-input" [(ngModel)]="formRecurrence" placeholder="FREQ=WEEKLY;BYDAY=MO">
+          </div>
+        }
+        <div class="form-field">
+          <label class="form-label">Message <span class="required">*</span></label>
+          <textarea class="form-input form-textarea" rows="4" [(ngModel)]="formMessage"
+                    placeholder="Dear {customer.firstName}, your account balance is {account.balance}…"></textarea>
+          <span class="form-hint">Use <code>&#123;field&#125;</code> placeholders from Mifos message templates.</span>
+        </div>
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitSave()" [disabled]="modalWorking || !formName.trim() || !formMessage.trim()">
+          @if (modalWorking) { <span class="spinner"></span> }
+          {{ activeModal === 'create' ? 'Create' : 'Save' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── Activate Confirm Modal ──────────────────────────────────────────────── -->
+@if (activeModal === 'activate') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">play_arrow</span>
+        Activate Campaign
+      </div>
+      <div class="modal__body">
+        <p>Activate <strong>{{ activatingName() }}</strong>? The campaign will be scheduled for delivery.</p>
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitActivate()" [disabled]="modalWorking">
+          @if (modalWorking) { <span class="spinner"></span> } Activate
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── Delete Confirm Modal ────────────────────────────────────────────────── -->
+@if (activeModal === 'delete') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon modal__icon--danger">delete</span>
+        Delete Campaign
+      </div>
+      <div class="modal__body">
+        <p>Delete <strong>{{ deletingName() }}</strong>? This action cannot be undone.</p>
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-danger" (click)="submitDelete()" [disabled]="modalWorking">
+          @if (modalWorking) { <span class="spinner spinner--dark"></span> } Delete
+        </button>
+      </div>
+    </div>
+  </div>
+}

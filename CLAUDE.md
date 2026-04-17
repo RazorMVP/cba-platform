@@ -2498,6 +2498,7 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Notifications Admin | `NotificationsComponent` | `AdminModule` | ✅ Built — templates CRUD (two-column form modal, event type + delivery method + body), test send modal, delivery history tab with event filter |
 | Audit Log | `AuditLogComponent` | `AdminModule` | ✅ Built — 5-filter bar (entityType/entityId/changedBy/from/to), server-paginated list, action + entity-type badges, slide-in detail panel with JSON old/new values _(Session 70)_ |
 | TPP Management | `OpenBankingComponent` | `AdminModule` | ✅ Built — TPP registry: clientId, country, scope chips, cert expiry; register/activate/revoke |
+| SMS Campaigns | `SmsCampaignsComponent` | `AdminModule` | ✅ Built — paginated list, campaign type chips, RRULE recurrence presets, activate command (PENDING/WAITING_FOR_ACTIVATION only), slide-in messages delivery log panel _(Session 73)_ |
 | Groups list | `GroupsListComponent` | `GroupsModule` | ✅ Built — status filter + search, create modal, routerLink to detail |
 | Group detail | `GroupDetailComponent` | `GroupsModule` | ✅ Built — 4 tabs: Members (add/remove), Collection Sheet (generate + table), GLIM Accounts (accordion), Staff (assign/remove loan officer) |
 | Centers list | `CentersListComponent` | `GroupsModule` | ✅ Built — status filter + search, create modal, routerLink to detail |
@@ -3108,7 +3109,7 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | PRD Feature | Backend Status | Angular Status | Gap |
 |-------------|---------------|----------------|-----|
 | Notification event listeners (email/SMS) | ✅ Module 7 (AccountEvent, LoanEvent) | ✅ NotificationsComponent (templates + test send) | — |
-| SMS Campaigns | ✅ Module 33 | ❌ No Angular SMS Campaigns component | ❌ |
+| SMS Campaigns | ✅ Module 33 | ✅ `SmsCampaignsComponent` _(Session 73)_ | — |
 | Report Mailing Jobs | ✅ Module 34 | ✅ ReportMailingComponent | — |
 | Hooks (web / SMS webhook) | ✅ Module 28 | ✅ HooksComponent | — |
 | In-app notification center | ❌ Not implemented | ❌ Missing | ❌ |

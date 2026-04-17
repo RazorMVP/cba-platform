@@ -177,6 +177,45 @@ export interface CreateTemplateRequest {
   body: string;
 }
 
+// ── SMS Campaigns ─────────────────────────────────────────────────────────
+
+export type CampaignType  = 'INDIVIDUAL' | 'ALL' | 'QUERY';
+export type TriggerType   = 'DIRECT' | 'SCHEDULED' | 'TRIGGERED';
+export type CampaignStatus = 'PENDING' | 'WAITING_FOR_ACTIVATION' | 'ACTIVE' | 'CLOSED' | 'DELETED';
+export type SmsDeliveryStatus = 'PENDING' | 'SENT' | 'FAILED' | 'INVALID';
+
+export interface SmsCampaign {
+  id: string;
+  campaignName: string;
+  campaignType: CampaignType;
+  triggerType: TriggerType;
+  message: string;
+  status: CampaignStatus;
+  recurrence?: string;
+  runDate?: string;
+  nextTriggerDate?: string;
+  lastTriggerDate?: string;
+  submittedOnDate?: string;
+}
+
+export interface SmsMessage {
+  id: string;
+  campaignId: string;
+  mobileNumber?: string;
+  recipientRef?: string;
+  deliveryStatus: SmsDeliveryStatus;
+  submittedOnDate?: string;
+}
+
+export interface CreateSmsCampaignRequest {
+  campaignName: string;
+  campaignType: CampaignType;
+  triggerType: TriggerType;
+  message: string;
+  recurrence?: string;
+  runDate?: string;
+}
+
 // ── TPP (Open Banking admin) ──────────────────────────────────────────────────
 export type TppStatus = 'ACTIVE' | 'REVOKED' | 'PENDING';
 
@@ -355,5 +394,30 @@ export class AdminService {
 
   getAuditLog(id: string): Observable<AuditLog> {
     return this.api.get<AuditLog>(`/audits/${id}`);
+  }
+
+  // ── SMS Campaigns ──────────────────────────────────────────────────────────
+  listSmsCampaigns(page = 0): Observable<PageResponse<SmsCampaign>> {
+    return this.api.getPage<SmsCampaign>('/smscampaigns', page, 20);
+  }
+
+  createSmsCampaign(req: CreateSmsCampaignRequest): Observable<SmsCampaign> {
+    return this.api.post<SmsCampaign>('/smscampaigns', req);
+  }
+
+  updateSmsCampaign(id: string, req: CreateSmsCampaignRequest): Observable<SmsCampaign> {
+    return this.api.put<SmsCampaign>(`/smscampaigns/${id}`, req);
+  }
+
+  deleteSmsCampaign(id: string): Observable<void> {
+    return this.api.delete<void>(`/smscampaigns/${id}`);
+  }
+
+  activateSmsCampaign(id: string): Observable<SmsCampaign> {
+    return this.api.command<SmsCampaign>(`/smscampaigns/${id}`, 'activate');
+  }
+
+  listSmsMessages(campaignId: string): Observable<SmsMessage[]> {
+    return this.api.get<SmsMessage[]>(`/smscampaigns/${campaignId}/messages`);
   }
 }

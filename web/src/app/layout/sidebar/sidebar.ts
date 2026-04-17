@@ -112,6 +112,7 @@ export class SidebarComponent {
         { label: 'Maker-Checker',      icon: 'verified',          route: '/admin/maker-checker' },
         { label: 'Notifications',      icon: 'notifications',     route: '/admin/notifications' },
         { label: 'Audit Log',          icon: 'manage_search',     route: '/admin/audit-log' },
+        { label: 'SMS Campaigns',      icon: 'sms',               route: '/admin/sms-campaigns' },
       ],
     },
   ];

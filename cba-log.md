@@ -59,6 +59,34 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 73 — 2026-04-17
+**SMS Campaigns Angular UI — full CRUD + activate command + messages delivery log panel.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/.../admin/sms-campaigns.ts` | New `SmsCampaignsComponent` — paginated list, messages side panel, 4 modals |
+| `web/.../admin/sms-campaigns.html` | Split-layout: campaign table + slide-in delivery log panel; create/edit/activate/delete modals |
+| `web/.../admin/sms-campaigns.scss` | Split-layout grid, type-chip variants, detail-panel, preset-chip for RRULE, form-textarea |
+| `web/.../admin/admin.service.ts` | Added `SmsCampaign`, `SmsMessage`, `CreateSmsCampaignRequest` interfaces; 6 new service methods |
+| `web/.../admin/admin.routes.ts` | Added `{ path: 'sms-campaigns', component: SmsCampaignsComponent }` |
+| `web/.../layout/sidebar/sidebar.ts` | Added SMS Campaigns to Admin nav section |
+
+#### Key Patterns / Decisions
+- Split-layout grid (`1fr → 1fr 380px`) animates open when a campaign row is clicked — same pattern as AuditLog detail panel
+- Activate button shown only for `PENDING` and `WAITING_FOR_ACTIVATION` campaigns; hidden otherwise
+- RRULE presets (Daily / Weekly Mon / Monthly 1st) allow one-click fill; custom input field remains editable
+- `listSmsMessages()` calls `GET /smscampaigns/{id}/messages` (returns array, not page) — mapped to `SmsMessage[]`
+- Status variants: ACTIVE=success, WAITING_FOR_ACTIVATION=info, PENDING=warning, CLOSED/DELETED=neutral
+
+#### Build Verification
+- `npx ng build --configuration=production` → clean (0 errors, pre-existing warnings only)
+
+#### Confirmed Platform Versions
+(unchanged from Session 72 — no backend or dependency changes)
+
+---
+
 ### Session 72 — 2026-04-17
 **Account approve/activate lifecycle — backend state machine + Angular UI.**
 

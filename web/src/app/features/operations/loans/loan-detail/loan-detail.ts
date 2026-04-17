@@ -57,6 +57,8 @@ export class LoanDetailComponent implements OnInit {
   // Waive charge confirm
   showWaiveChargeModal = false;
   waiveChargeTarget: LoanCharge | null = null;
+  waiveSaving = false;
+  waiveError = '';
 
   // Delete charge confirm
   showDeleteChargeModal = false;
@@ -260,12 +262,27 @@ export class LoanDetailComponent implements OnInit {
     });
   }
 
-  openWaiveCharge(c: LoanCharge): void { this.waiveChargeTarget = c; this.showWaiveChargeModal = true; }
+  openWaiveCharge(c: LoanCharge): void {
+    this.waiveChargeTarget = c;
+    this.waiveError = '';
+    this.showWaiveChargeModal = true;
+  }
 
   confirmWaiveCharge(): void {
-    if (!this.loan || !this.waiveChargeTarget) return;
+    if (!this.loan || !this.waiveChargeTarget || this.waiveSaving) return;
+    this.waiveSaving = true;
+    this.waiveError = '';
     this.svc.waiveCharge(this.loan.id, this.waiveChargeTarget.id).subscribe({
-      next: updated => { this.replaceCharge(updated); this.showWaiveChargeModal = false; this.waiveChargeTarget = null; },
+      next: updated => {
+        this.replaceCharge(updated);
+        this.showWaiveChargeModal = false;
+        this.waiveChargeTarget = null;
+        this.waiveSaving = false;
+      },
+      error: () => {
+        this.waiveError = 'Failed to waive charge. Please try again.';
+        this.waiveSaving = false;
+      },
     });
   }
 

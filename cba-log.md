@@ -59,6 +59,40 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 71 — 2026-04-17
+**Fix loan waive-charge: add saving state, error handler, and disabled button to confirm modal.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/src/app/features/operations/loans/loan-detail/loan-detail.ts` | Added `waiveSaving` + `waiveError` state; `confirmWaiveCharge()` guard against double-submit; proper error handler |
+| `web/src/app/features/operations/loans/loan-detail/loan-detail.html` | Waive confirm modal: error message block, disabled buttons while saving, "Waiving…" label |
+
+#### Key Patterns / Decisions
+- `confirmWaiveCharge()` previously had no error handler — backend failures were silently swallowed with the modal staying frozen
+- Pattern now matches all other save operations in loan-detail (repaymentSaving, writeOffSaving, addChargeSaving)
+- `openWaiveCharge()` resets `waiveError = ''` on open so stale errors don't persist between opens
+
+#### Build Verification
+- `npx tsc --noEmit` → clean (no output)
+
+#### Confirmed Platform Versions
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `bde3a64` |
+| Java | 21 | `bde3a64` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `bde3a64` |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `2276101` |
+| Angular CLI | 21.2.7 | `2276101` |
+| PrimeNG | 21.0.x | `2276101` |
+
+---
+
 ### Session 70 — 2026-04-17
 **Audit Log viewer built + retention policy updated from 7 years to 10 years across entire build.**
 

@@ -566,10 +566,15 @@
           <strong>{{ waiveChargeTarget.amountOutstanding | currency:'USD':'symbol':'1.2-2' }}</strong>?
           This will write off the remaining balance and cannot be undone.
         </p>
+        @if (waiveError) {
+          <p class="form-error">{{ waiveError }}</p>
+        }
       </div>
       <div class="modal__footer">
-        <button class="btn-ghost" (click)="showWaiveChargeModal = false">Cancel</button>
-        <button class="btn-danger" (click)="confirmWaiveCharge()">Confirm Waive</button>
+        <button class="btn-ghost" [disabled]="waiveSaving" (click)="showWaiveChargeModal = false">Cancel</button>
+        <button class="btn-danger" [disabled]="waiveSaving" (click)="confirmWaiveCharge()">
+          {{ waiveSaving ? 'Waiving…' : 'Confirm Waive' }}
+        </button>
       </div>
     </div>
   </div>

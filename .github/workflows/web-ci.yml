@@ -42,7 +42,7 @@ jobs:
         run: npx ng lint --max-warnings=0 || true
 
       - name: Unit tests (Karma)
-        run: npx ng test --watch=false --browsers=ChromeHeadless --coverage
+        run: npx ng test --watch=false --coverage
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4

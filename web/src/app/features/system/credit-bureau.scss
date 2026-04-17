@@ -6,6 +6,7 @@
 .page-sub { flex: 1; margin: 0; font-size: 0.85rem; color: var(--color-muted); align-self: center; }
 
 // page-header__title adds flex-wrap behaviour not in global
+.page-header__title { flex: 1 0 100%; }
 
 // ── Buttons (component-specific) ──────────────────────────────────────────────
 // btn-primary, btn-secondary, btn-danger, btn-icon, spinner all come from global
@@ -115,12 +116,17 @@
 .modal__footer { flex-shrink: 0; }
 
 // modal__error uses margin-bottom here (error sits above form, not below header)
+.modal__error {
+  margin-bottom: 1rem; padding: 0.6rem 0.875rem;
+  background: #fee2e2; border-radius: 6px; color: #991b1b; font-size: 0.8rem;
+}
 .confirm-text { margin: 0; font-size: 0.9rem; line-height: 1.6; color: var(--color-text); }
 
 // ── Form extensions (global handles base) ─────────────────────────────────────
 // form-label, form-input, required, checkbox-label all come from global
 
 // form-field in modals needs flex: 1 for side-by-side rows
+.form-field { flex: 1; }
 
 // form-row here uses flex-wrap for the country + implClass pair (not grid)
 .form-row   { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }

@@ -2,10 +2,27 @@
 
 :host { display: block; }
 
+.page { padding: $space-6; }
 
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: $space-6;
+}
 .page-title   { font-size: $text-2xl; font-weight: $font-weight-semibold; color: $color-text-primary; }
 .page-subtitle { font-size: $text-sm; color: $color-text-muted; margin-top: 2px; }
 
+.btn-primary {
+  display: inline-flex; align-items: center; gap: $space-2;
+  height: 40px; padding: 0 $space-4;
+  border-radius: $radius-full;
+  background: $color-primary-800; color: white;
+  border: none; font-size: $text-sm; font-weight: $font-weight-medium;
+  text-decoration: none; cursor: pointer;
+  .material-icons { font-size: 18px; }
+  &:hover { opacity: .9; }
+}
 
 .stats-row {
   display: grid;
@@ -61,7 +78,30 @@
   &:hover:not(.tab--active) { background: $color-grey-50; }
 }
 
+.card {
+  background: $color-bg-card;
+  border-radius: $radius-md;
+  box-shadow: $shadow-card;
+  border: 1px solid $color-border-default;
+  overflow: hidden;
+}
 .table-wrap { overflow-x: auto; }
+.data-table {
+  width: 100%; border-collapse: collapse;
+  th {
+    text-align: left; font-size: 11px; font-weight: $font-weight-semibold;
+    color: $color-text-muted; text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 10px $space-5; background: $color-grey-50;
+    border-bottom: 1px solid $color-border-default; white-space: nowrap;
+  }
+  td {
+    padding: 14px $space-5; font-size: $text-sm; color: $color-text-primary;
+    border-bottom: 1px solid rgba(0,0,0,0.04); vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: $color-grey-50; }
+}
+.muted { color: $color-text-muted; }
 .empty-row { text-align: center; color: $color-text-muted; padding: $space-10 !important; }
 
 .customer-cell { display: flex; align-items: center; gap: $space-3; }
@@ -101,3 +141,4 @@
 
 // Skeleton loader
 .skeleton-row td { padding: 10px $space-5; }
+.skeleton { height: 20px; border-radius: $radius-sm; background: linear-gradient(90deg, $color-grey-100 25%, $color-grey-50 50%, $color-grey-100 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; }

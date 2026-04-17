@@ -2,10 +2,30 @@
 
 :host { display: block; }
 
+.page { padding: 2rem; max-width: 1100px; margin: 0 auto; }
 
+.page-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 0.5rem; flex-wrap: wrap; gap: 1rem;
+}
+.page-header__title {
+  display: flex; align-items: center; gap: 0.6rem;
+  font-size: 1.35rem; font-weight: 700; color: var(--color-text);
+  .material-icons { font-size: 1.6rem; color: var(--color-primary); }
+}
 .page-subtitle { margin: 0 0 1.5rem; font-size: 0.85rem; color: var(--color-muted); max-width: 700px; }
 
 // ── Buttons ─────────────────────────────────────────────────────────────────
+.btn-primary, .btn-secondary {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.55rem 1.1rem; border-radius: 6px; font-size: 0.875rem;
+  font-weight: 500; cursor: pointer; border: none; transition: filter 0.15s;
+  .material-icons { font-size: 1rem; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+  &:not(:disabled):hover { filter: brightness(0.9); }
+}
+.btn-primary   { background: var(--color-primary); color: #fff; }
+.btn-secondary { background: #f1f5f9; color: var(--color-text); }
 .btn-run-job {
   display: inline-flex; align-items: center; gap: 0.3rem;
   padding: 0.4rem 0.875rem; border-radius: 6px; font-size: 0.82rem; font-weight: 500;
@@ -17,6 +37,19 @@
 }
 
 // ── Skeleton ─────────────────────────────────────────────────────────────────
+.card { background: var(--bg-card); border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.08); overflow: hidden; }
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 12px;
+  &--job { height: 140px; }
+}
+.empty-state {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 3.5rem 2rem; gap: 1rem; color: var(--color-muted); text-align: center;
+  .material-icons { font-size: 3rem; opacity: 0.3; }
+  p { margin: 0; font-size: 0.9rem; }
+}
+.muted { color: var(--color-muted); }
 .mono  { font-family: monospace; }
 
 // ── Jobs grid ────────────────────────────────────────────────────────────────
@@ -92,3 +125,9 @@
 
 // ── Spinners ─────────────────────────────────────────────────────────────────
 .spin-icon { animation: spin 1s linear infinite; font-size: 1rem !important; }
+.spinner {
+  display: inline-block; width: 12px; height: 12px;
+  border: 2px solid rgba(0,0,0,.15); border-top-color: var(--color-primary);
+  border-radius: 50%; animation: spin 0.7s linear infinite;
+  &--dark { border-top-color: #fff; border-color: rgba(255,255,255,.3); }
+}

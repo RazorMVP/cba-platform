@@ -38,4 +38,8 @@
 .modal__body   { overflow-y: auto; flex: 1; }
 .modal__footer { flex-shrink: 0; }
 
+.modal__error {
+  margin-bottom: 1rem; padding: 0.6rem 0.875rem;
+  background: #fee2e2; border-radius: 6px; color: #991b1b; font-size: 0.8rem;
+}
 .confirm-text { margin: 0; font-size: 0.9rem; line-height: 1.6; color: var(--color-text); }

@@ -90,11 +90,16 @@
 .modal__body   { overflow-y: auto; flex: 1; }
 .modal__footer { flex-shrink: 0; }
 
+.modal__error {
+  margin-bottom: 1rem; padding: 0.6rem 0.875rem;
+  background: #fee2e2; border-radius: 6px; color: #991b1b; font-size: 0.8rem;
+}
 .confirm-text { margin: 0; font-size: 0.9rem; line-height: 1.6; color: var(--color-text); }
 
 // ── Form extensions (global handles base) ─────────────────────────────────────
 // form-label, form-input, required, checkbox-label, spinner come from global
 // form-field with flex + min-width for column builder grid
+.form-field { flex: 1; min-width: 140px; }
 // form-row uses flex-wrap for side-by-side column inputs (not grid)
 .form-row   { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
 // checkbox-label with margin-top modifier for inline alignment in column rows

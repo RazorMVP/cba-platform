@@ -47,10 +47,59 @@
 .side-col { display: flex; flex-direction: column; gap: $space-4; }
 
 // Card
+.card {
+  background: $color-bg-card;
+  border-radius: $radius-md;
+  box-shadow: $shadow-card;
+  border: 1px solid $color-border-default;
+  overflow: hidden;
+
+  &__header {
+    padding: $space-4 $space-5;
+    border-bottom: 1px solid $color-border-default;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  &__title { font-size: $text-sm; font-weight: $font-weight-semibold; color: $color-text-primary; }
+  &__subtitle { font-size: $text-xs; color: $color-text-muted; margin-top: 2px; }
+  &__action { font-size: $text-xs; font-weight: $font-weight-medium; color: $color-info-600; text-decoration: none; }
+  &__body {
+    padding: $space-4 $space-5;
+    &--list { padding: $space-2 $space-5; }
+  }
+}
 
 // Table
 .table-wrap { overflow-x: auto; }
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+
+  th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: $font-weight-semibold;
+    color: $color-text-muted;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 10px $space-5;
+    background: $color-grey-50;
+    border-bottom: 1px solid $color-border-default;
+    white-space: nowrap;
+  }
+  td {
+    padding: 14px $space-5;
+    font-size: $text-sm;
+    color: $color-text-primary;
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+    vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: $color-grey-50; }
+}
 .mono    { font-family: monospace; font-size: 12px; }
+.muted   { color: $color-text-muted; }
 .amount  { font-weight: $font-weight-semibold; }
 .amount--credit { color: $color-success-600; }
 .amount--debit  { color: $color-error-600; }

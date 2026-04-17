@@ -2,8 +2,13 @@
 
 :host { display: block; }
 
+.page { padding: $space-6; }
 
 // ── Page header ──────────────────────────────────────────────────────────────
+.page-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  margin-bottom: $space-5; gap: $space-4; flex-wrap: wrap;
+}
 .page-title    { font-size: $text-2xl; font-weight: $font-weight-semibold; color: $color-text-primary; margin: 0; }
 .page-subtitle { font-size: $text-sm; color: $color-text-muted; margin: 2px 0 0; }
 
@@ -31,6 +36,14 @@
 }
 
 // ── Buttons ──────────────────────────────────────────────────────────────────
+.btn-primary {
+  display: inline-flex; align-items: center; gap: $space-1; height: 36px; padding: 0 $space-4;
+  border-radius: $radius-full; background: $color-primary-800; color: white; border: none;
+  font-size: $text-sm; font-weight: $font-weight-medium; cursor: pointer; text-decoration: none;
+  .material-icons { font-size: 18px; }
+  &:hover { opacity: .9; }
+  &.btn-sm { height: 30px; padding: 0 $space-3; font-size: $text-xs; }
+}
 .btn-ghost {
   display: inline-flex; align-items: center; gap: $space-1; height: 30px; padding: 0 $space-2;
   border-radius: $radius-sm; background: transparent; border: 1px solid $color-border-default;
@@ -41,11 +54,31 @@
 }
 
 // ── Card ─────────────────────────────────────────────────────────────────────
+.card {
+  background: $color-bg-card; border-radius: $radius-md;
+  box-shadow: $shadow-card; border: 1px solid $color-border-default; overflow: hidden;
+}
 
 // ── Table ────────────────────────────────────────────────────────────────────
+.data-table {
+  width: 100%; border-collapse: collapse;
+  th {
+    text-align: left; font-size: 11px; font-weight: $font-weight-semibold;
+    color: $color-text-muted; text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 10px $space-5; background: $color-grey-50;
+    border-bottom: 1px solid $color-border-default; white-space: nowrap;
+  }
+  td {
+    padding: 13px $space-5; font-size: $text-sm; color: $color-text-primary;
+    border-bottom: 1px solid rgba(0,0,0,0.04); vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr.clickable-row { cursor: pointer; &:hover td { background: $color-grey-50; } }
+}
 .product-name { font-weight: $font-weight-medium; }
 .product-desc { font-size: $text-xs; color: $color-text-muted; margin-top: 2px; max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mono         { font-family: monospace; font-size: $text-xs; }
+.action-cell  { width: 48px; text-align: right; }
 .type-chip {
   display: inline-block; font-size: $text-xs; background: $color-grey-100;
   border-radius: $radius-full; padding: 3px $space-3; color: $color-text-muted;
@@ -54,12 +87,22 @@
 // ── Skeleton ─────────────────────────────────────────────────────────────────
 .skeleton-rows { padding: $space-2 0; }
 .skeleton-row  { display: flex; align-items: center; gap: $space-4; padding: 14px $space-5; border-bottom: 1px solid rgba(0,0,0,0.04); }
+.skeleton {
+  background: linear-gradient(90deg, $color-grey-100 25%, $color-grey-50 50%, $color-grey-100 75%);
+  background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: $radius-sm;
+}
 .sk-name  { height: 16px; width: 200px; }
 .sk-code  { height: 14px; width: 60px; }
 .sk-num   { height: 14px; width: 100px; }
 .sk-badge { height: 22px; width: 70px; border-radius: $radius-full; }
 
 // ── Empty state ───────────────────────────────────────────────────────────────
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; gap: $space-3;
+  padding: $space-12; color: $color-text-muted;
+  .material-icons { font-size: 48px; opacity: .3; }
+  p { font-size: $text-sm; margin: 0; }
+}
 
 // ── Pagination ────────────────────────────────────────────────────────────────
 .pagination {

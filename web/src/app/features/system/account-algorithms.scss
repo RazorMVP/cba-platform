@@ -3,6 +3,12 @@
   max-width: 960px;
 }
 
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
 
 .page-title   { font-size: 1.5rem; font-weight: 600; color: var(--color-text); margin: 0 0 .25rem; }
 .page-subtitle { font-size: .875rem; color: var(--color-muted); margin: 0; }
@@ -68,6 +74,15 @@
 }
 
 // ── Badges ─────────────────────────────────────────────────────────────────
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: .2rem .65rem;
+  border-radius: 999px;
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .03em;
+}
 
 .badge-nuban  { background: #dcfce7; color: #15803d; }
 .badge-mifos  { background: #f1f5f9; color: #475569; }
@@ -165,5 +180,6 @@
   &:disabled { opacity: .5; cursor: not-allowed; }
 }
 
+.btn-primary { background: var(--color-primary); color: #fff; }
 .btn-outline { background: #fff; border: 1px solid #d1d5db; color: var(--color-text); }
 .btn-ghost   { background: transparent; color: var(--color-muted); }

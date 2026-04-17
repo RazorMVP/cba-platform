@@ -144,6 +144,40 @@ export interface UpdateAlgorithmConfigRequest {
   algorithms:     Record<string, string>;
 }
 
+// ── Payment Types ─────────────────────────────────────────────────────────
+export interface SystemPaymentType {
+  id: string;
+  name: string;
+  description: string | null;
+  cashPayment: boolean;
+  position: number | null;
+  systemDefined: boolean;
+}
+
+export interface CreatePaymentTypeRequest {
+  name: string;
+  description: string;
+  cashPayment: boolean;
+  position: number;
+}
+
+// ── Exchange Rates ────────────────────────────────────────────────────────
+export interface ExchangeRateResponse {
+  id: string;
+  fromCurrency: string;
+  toCurrency: string;
+  rate: number;
+  inverseRate: number;
+  active: boolean;
+  updatedAt: string;
+}
+
+export interface ExchangeRateRequest {
+  fromCurrency: string;
+  toCurrency: string;
+  rate: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SystemService {
   private readonly api = inject(ApiService);
@@ -252,5 +286,35 @@ export class SystemService {
 
   deleteHoliday(id: string): Observable<void> {
     return this.api.delete<void>(`/holidays/${id}`);
+  }
+
+  // ── Payment Types ──────────────────────────────────────────────────────────
+  listPaymentTypes(page = 0): Observable<PageResponse<SystemPaymentType>> {
+    return this.api.getPage<SystemPaymentType>('/paymenttypes', page, 20);
+  }
+
+  createPaymentType(req: CreatePaymentTypeRequest): Observable<SystemPaymentType> {
+    return this.api.post<SystemPaymentType>('/paymenttypes', req);
+  }
+
+  updatePaymentType(id: string, req: CreatePaymentTypeRequest): Observable<SystemPaymentType> {
+    return this.api.put<SystemPaymentType>(`/paymenttypes/${id}`, req);
+  }
+
+  deletePaymentType(id: string): Observable<void> {
+    return this.api.delete<void>(`/paymenttypes/${id}`);
+  }
+
+  // ── Exchange Rates ─────────────────────────────────────────────────────────
+  listExchangeRates(): Observable<ExchangeRateResponse[]> {
+    return this.api.get<ExchangeRateResponse[]>('/exchange-rates');
+  }
+
+  upsertExchangeRate(req: ExchangeRateRequest): Observable<ExchangeRateResponse> {
+    return this.api.post<ExchangeRateResponse>('/exchange-rates', req);
+  }
+
+  deactivateExchangeRate(from: string, to: string): Observable<void> {
+    return this.api.delete<void>(`/exchange-rates/${from}/${to}`);
   }
 }

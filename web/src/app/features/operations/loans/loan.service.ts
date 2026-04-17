@@ -95,6 +95,53 @@ export interface AuditEntry {
   newValues?: Record<string, unknown>;
 }
 
+// ── Reschedule ────────────────────────────────────────────────────────────────
+export type RescheduleStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface LoanRescheduleRequest {
+  id: string;
+  loanId: string;
+  rescheduleReason: string;
+  newInterestRate: number | null;
+  graceOnPrincipal: number | null;
+  graceOnInterest: number | null;
+  extraTerms: number | null;
+  recalculateInterest: boolean;
+  status: RescheduleStatus;
+  submittedOnDate: string;
+  approvedOnDate: string | null;
+  rejectedOnDate: string | null;
+}
+
+export interface CreateRescheduleRequest {
+  loanId: string;
+  rescheduleReason: string;
+  newInterestRate?: number;
+  graceOnPrincipal?: number;
+  graceOnInterest?: number;
+  extraTerms?: number;
+  recalculateInterest: boolean;
+}
+
+// ── Re-aging / Re-amortization ────────────────────────────────────────────────
+export type FrequencyType = 'DAYS' | 'WEEKS' | 'MONTHS';
+
+export interface ReagingRequest {
+  id: string;
+  loanId: string;
+  frequencyType: FrequencyType;
+  frequency: number;
+  startDate: string;
+  isPreview: boolean;
+}
+
+export interface CreateReagingRequest {
+  frequencyType: FrequencyType;
+  frequency: number;
+  startDate: string;
+  isPreview: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class LoanService {
   private readonly api = inject(ApiService);
@@ -174,5 +221,35 @@ export class LoanService {
   // Audit log for this loan
   getAuditLog(id: string): Observable<AuditEntry[]> {
     return this.api.get<AuditEntry[]>(`/audits`, { entityType: 'LOAN', entityId: id });
+  }
+
+  // Reschedule
+  listRescheduleRequests(loanId: string): Observable<LoanRescheduleRequest[]> {
+    return this.api.get<LoanRescheduleRequest[]>('/loanreschedule', { loanId });
+  }
+
+  createRescheduleRequest(req: CreateRescheduleRequest): Observable<LoanRescheduleRequest> {
+    return this.api.post<LoanRescheduleRequest>('/loanreschedule', req);
+  }
+
+  approveReschedule(id: string): Observable<LoanRescheduleRequest> {
+    return this.api.command<LoanRescheduleRequest>(`/loanreschedule/${id}`, 'approve');
+  }
+
+  rejectReschedule(id: string): Observable<LoanRescheduleRequest> {
+    return this.api.command<LoanRescheduleRequest>(`/loanreschedule/${id}`, 'reject');
+  }
+
+  // Re-aging
+  listReaging(loanId: string): Observable<ReagingRequest[]> {
+    return this.api.get<ReagingRequest[]>(`/loans/${loanId}/reaging`);
+  }
+
+  createReaging(loanId: string, req: CreateReagingRequest): Observable<ReagingRequest> {
+    return this.api.post<ReagingRequest>(`/loans/${loanId}/reaging`, req);
+  }
+
+  triggerReamortization(loanId: string): Observable<void> {
+    return this.api.post<void>(`/loans/${loanId}/reamortization`, {});
   }
 }

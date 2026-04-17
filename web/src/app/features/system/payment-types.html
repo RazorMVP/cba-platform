@@ -1,0 +1,140 @@
+<div class="page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Payment Types</h1>
+      <p class="page-sub">Manage cash and non-cash payment method definitions.</p>
+    </div>
+    <button class="btn-primary" (click)="openCreate()">
+      <span class="material-icons">add</span> New Payment Type
+    </button>
+  </div>
+
+  <div class="card">
+    @if (loading) {
+      <div class="loading">Loading payment types…</div>
+    } @else if (error) {
+      <div class="error-msg">{{ error }}</div>
+    } @else {
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Description</th>
+            <th>Cash Payment</th>
+            <th>Position</th>
+            <th>System Defined</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (t of types; track t.id) {
+            <tr>
+              <td class="name-cell">{{ t.name }}</td>
+              <td class="desc-cell">{{ t.description || '—' }}</td>
+              <td>
+                <span class="bool-chip" [class.yes]="t.cashPayment">
+                  {{ t.cashPayment ? 'Yes' : 'No' }}
+                </span>
+              </td>
+              <td class="tabular">{{ t.position ?? '—' }}</td>
+              <td>
+                @if (t.systemDefined) {
+                  <span class="sys-badge">System</span>
+                }
+              </td>
+              <td class="actions">
+                <button class="btn-icon" title="Edit" (click)="openEdit(t)">
+                  <span class="material-icons">edit</span>
+                </button>
+                <button class="btn-icon danger" title="Delete"
+                  [disabled]="t.systemDefined"
+                  (click)="!t.systemDefined && openDelete(t)">
+                  <span class="material-icons">delete</span>
+                </button>
+              </td>
+            </tr>
+          } @empty {
+            <tr><td colspan="6" class="empty">No payment types found.</td></tr>
+          }
+        </tbody>
+      </table>
+
+      @if (totalPages > 1) {
+        <div class="pagination">
+          <button class="btn-icon" [disabled]="page === 0" (click)="prev()">
+            <span class="material-icons">chevron_left</span>
+          </button>
+          <span class="page-info">Page {{ page + 1 }} of {{ totalPages }}</span>
+          <button class="btn-icon" [disabled]="page >= totalPages - 1" (click)="next()">
+            <span class="material-icons">chevron_right</span>
+          </button>
+        </div>
+      }
+    }
+  </div>
+</div>
+
+<!-- Create / Edit Modal -->
+@if (activeModal === 'create' || activeModal === 'edit') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>{{ activeModal === 'edit' ? 'Edit' : 'New' }} Payment Type</h2>
+        <button class="btn-icon" (click)="closeModal()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        @if (modalError) { <div class="error-msg">{{ modalError }}</div> }
+
+        <div class="form-group">
+          <label>Name *</label>
+          <input class="form-input" [(ngModel)]="form.name" placeholder="e.g. Bank Transfer" />
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <input class="form-input" [(ngModel)]="form.description" placeholder="Optional description" />
+        </div>
+        <div class="form-group">
+          <label>Position</label>
+          <input class="form-input" type="number" [(ngModel)]="form.position" placeholder="Sort order" />
+        </div>
+        <div class="form-group checkbox-group">
+          <label>
+            <input type="checkbox" [(ngModel)]="form.cashPayment" />
+            Cash Payment
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeModal()">Cancel</button>
+        <button class="btn-primary" [disabled]="working || !form.name.trim()" (click)="save()">
+          {{ working ? 'Saving…' : 'Save' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Delete Modal -->
+@if (activeModal === 'delete' && deleteTarget) {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>Delete Payment Type</h2>
+        <button class="btn-icon" (click)="closeModal()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p>Delete <strong>{{ deleteTarget.name }}</strong>? This action cannot be undone.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeModal()">Cancel</button>
+        <button class="btn-danger" [disabled]="working" (click)="confirmDelete()">
+          {{ working ? 'Deleting…' : 'Delete' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

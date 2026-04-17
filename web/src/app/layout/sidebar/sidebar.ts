@@ -65,6 +65,7 @@ export class SidebarComponent {
         { label: 'Provisioning',       icon: 'shield',            route: '/accounting/provisioning' },
         { label: 'Financial Activity', icon: 'account_tree',      route: '/accounting/financial-activity' },
         { label: 'GL Closures',        icon: 'lock_clock',        route: '/accounting/gl-closures' },
+        { label: 'Accounting Rules',   icon: 'rule',              route: '/accounting/accounting-rules' },
       ],
     },
     {
@@ -84,6 +85,8 @@ export class SidebarComponent {
         { label: 'Taxes',              icon: 'account_balance_wallet', route: '/system/taxes' },
         { label: 'Account Algorithms', icon: 'pin',               route: '/system/account-algorithms' },
         { label: 'Holidays',           icon: 'event_busy',        route: '/system/holidays' },
+        { label: 'Payment Types',      icon: 'payments',          route: '/system/payment-types' },
+        { label: 'Exchange Rates',     icon: 'currency_exchange', route: '/system/exchange-rates' },
       ],
     },
     {
@@ -108,12 +111,14 @@ export class SidebarComponent {
         { label: 'Users',              icon: 'manage_accounts',   route: '/admin/users' },
         { label: 'Roles',              icon: 'admin_panel_settings', route: '/admin/roles' },
         { label: 'Offices & Staff',    icon: 'corporate_fare',    route: '/admin/offices' },
+        { label: 'Staff',              icon: 'badge',             route: '/admin/staff' },
         { label: 'Open Banking',       icon: 'open_in_new',       route: '/admin/open-banking' },
         { label: 'Hooks',              icon: 'webhook',           route: '/admin/hooks' },
         { label: 'Maker-Checker',      icon: 'verified',          route: '/admin/maker-checker' },
         { label: 'Notifications',      icon: 'notifications',     route: '/admin/notifications' },
         { label: 'Audit Log',          icon: 'manage_search',     route: '/admin/audit-log' },
         { label: 'SMS Campaigns',      icon: 'sms',               route: '/admin/sms-campaigns' },
+        { label: 'Standing Instructions', icon: 'repeat',         route: '/admin/standing-instructions' },
       ],
     },
   ];

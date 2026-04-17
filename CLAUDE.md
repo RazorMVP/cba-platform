@@ -2470,7 +2470,7 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Teller list | `TellerListComponent` | `OperationsModule` | ✅ Built — search + status filter, create teller modal |
 | Teller detail | `TellerDetailComponent` | `OperationsModule` | ✅ Built — overview/cashiers/sessions tabs, session expand/collapse, cash-in/out/settle modals, lifecycle buttons |
 | Loans list | `LoansListComponent` | `OperationsModule` | ✅ Built — pipeline view, sliding detail panel |
-| Loan detail | `LoanDetailComponent` | `OperationsModule` | ✅ Built — 5 tabs, approve/disburse/repayment/reject/**write-off**; `isNew` mode: shows New Loan Application form (customerId, productId, principalAmount, termMonths required; interestRate, disbursementDate optional); write-off button visible on ACTIVE/IN_ARREARS loans; requires reason (Session 65) |
+| Loan detail | `LoanDetailComponent` | `OperationsModule` | ✅ Built — 7 tabs (summary/schedule/charges/collateral/reschedule/reaging/audit); approve/disburse/repayment/reject/write-off; Reschedule tab: create/approve/reject requests; Re-aging tab: history + re-amortize trigger; both tabs lazy-load on first selection _(Session 75)_ |
 | Loan products list | `LoanProductsListComponent` | `ProductsModule` | ✅ Built — search, active filter, pagination |
 | Loan product detail | `LoanProductDetailComponent` | `ProductsModule` | ✅ Built — view/edit toggle, 5 section tabs, GL linkages, charges |
 | Deposit products list | `DepositProductsListComponent` | `ProductsModule` | ✅ Built — search, type filter, pagination |
@@ -2486,6 +2486,7 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Journal entries | `JournalEntriesComponent` | `AccountingModule` | ✅ Built — T-ledger grouped view, date filter, manual entry modal with balance validation, reversal |
 | Provisioning criteria | `ProvisioningComponent` | `AccountingModule` | ✅ Built — IFRS 9 age bands, create/edit/delete, GL account dropdowns by type |
 | Financial Activity Accounts | `FinancialActivityAccountsComponent` | `AccountingModule` | ✅ Built — maps abstract activities to GL account codes; create/edit/delete; activity-type selector; GL account picker |
+| Accounting Rules | `AccountingRulesComponent` | `AccountingModule` | ✅ Built — GL account dropdown pickers (not raw UUIDs); `glLabel()` helper shows `glCode — name`; allowMultipleDebits/Credits checkboxes _(Session 75)_ |
 | GL Closures | `GlClosuresComponent` | `AccountingModule` | ✅ Built — office picker, closures list (date/closedBy/comments), Create modal; POST uses query params not JSON body _(Session 69)_ |
 | Reports list | `ReportsListComponent` | `ReportsModule` | ✅ Built — search/category filter, dynamic param form, schema-on-read results table, CSV export, create/delete |
 | CoB Scheduler | `CobSchedulerComponent` | `ReportsModule` | ✅ Built — job cards with stats, Run Now trigger, inline history panel, duration helper |
@@ -2493,12 +2494,14 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Users | `UsersComponent` | `AdminModule` | ✅ Built — search filter, create modal (firstname/lastname/username/email/password/office/roles), enable/disable toggle, delete confirm |
 | Roles | `RolesComponent` | `AdminModule` | ✅ Built — list with permission count badge, create/edit modal, permissions matrix modal grouped by grouping with select-all-in-group |
 | Offices | `OfficesComponent` | `AdminModule` | ✅ Built — search, create/edit modal with parent office dropdown, hierarchy column |
+| Staff | `StaffComponent` | `AdminModule` | ✅ Built — office dropdown filter (server-side) + loan officer checkbox (client-side); create/edit/delete modals; loan-officer-badge chip _(Session 75)_ |
 | Hooks | `HooksComponent` | `AdminModule` | ✅ Built — WEB/SMS type chips, create/edit modal with event selection chips |
 | Maker-Checker | `MakerCheckerComponent` | `AdminModule` | ✅ Built — status filter tabs (All/PENDING/APPROVED/REJECTED), metadata table, approve/reject for PENDING entries |
 | Notifications Admin | `NotificationsComponent` | `AdminModule` | ✅ Built — templates CRUD (two-column form modal, event type + delivery method + body), test send modal, delivery history tab with event filter |
 | Audit Log | `AuditLogComponent` | `AdminModule` | ✅ Built — 5-filter bar (entityType/entityId/changedBy/from/to), server-paginated list, action + entity-type badges, slide-in detail panel with JSON old/new values _(Session 70)_ |
 | TPP Management | `OpenBankingComponent` | `AdminModule` | ✅ Built — TPP registry: clientId, country, scope chips, cert expiry; register/activate/revoke |
 | SMS Campaigns | `SmsCampaignsComponent` | `AdminModule` | ✅ Built — paginated list, campaign type chips, RRULE recurrence presets, activate command (PENDING/WAITING_FOR_ACTIVATION only), slide-in messages delivery log panel _(Session 73)_ |
+| Standing Instructions | `StandingInstructionsComponent` | `AdminModule` | ✅ Built — priority/type/status chips; FIXED/OUTSTANDING_BALANCE conditional amount field; PERIODIC_RECURRENCE conditional frequency field; disable/enable toggle _(Session 75)_ |
 | Groups list | `GroupsListComponent` | `GroupsModule` | ✅ Built — status filter + search, create modal, routerLink to detail |
 | Group detail | `GroupDetailComponent` | `GroupsModule` | ✅ Built — 4 tabs: Members (add/remove), Collection Sheet (generate + table), GLIM Accounts (accordion), Staff (assign/remove loan officer) |
 | Centers list | `CentersListComponent` | `GroupsModule` | ✅ Built — status filter + search, create modal, routerLink to detail |
@@ -2511,6 +2514,8 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Taxes | `TaxesComponent` | `SystemModule` | ✅ Built — two tabs: Tax Components (CRUD) + Tax Groups (component bundles with effective dates) |
 | Account Algorithms | `AccountAlgorithmsComponent` | `SystemModule` | ✅ Built — per-tenant, per-account-type algorithm config; MIFOS/NUBAN toggle per type; bank code input; STRICT/PARANOID validation mode toggle |
 | Holidays | `HolidaysComponent` | `SystemModule` | ✅ Built — paginated list with from/to dates + repayment scheduling rule; activate (PENDING only) + delete; create modal with conditional rescheduled-date field _(Session 74)_ |
+| Payment Types | `PaymentTypesComponent` | `SystemModule` | ✅ Built — paginated CRUD; systemDefined protection (delete disabled, not hidden); cashPayment bool chip _(Session 75)_ |
+| Exchange Rates | `ExchangeRatesComponent` | `SystemModule` | ✅ Built — upsert pattern (POST creates or updates); active/inactive grouping; inverse rate auto-generated by backend _(Session 75)_ |
 | Card List | `CardListComponent` | `CardsModule` | ✅ Built — search by PAN suffix/customer, type + status filters, issue card modal |
 | Card Detail | `CardDetailComponent` | `CardsModule` | ✅ Built — 3 tabs (overview/authorizations/limits), block/unblock/cancel/activate commands, edit limits modal |
 | Card Products | `CardProductsComponent` | `CardsModule` | ✅ Built — product list with BIN range display, create product modal |
@@ -3017,8 +3022,8 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | Collateral tab | ✅ Collateral module (Module 22) | ❌ No Collateral tab on LoanDetail | ⚠️ |
 | Loan documents tab | ✅ Notes & Documents module | ❌ No Documents tab on LoanDetail | ⚠️ |
 | Loan notes tab | ✅ Notes module | ❌ No Notes tab on LoanDetail | ⚠️ |
-| Loan reschedule | ✅ Reschedule module (Module 23) | ❌ No Reschedule UI | ⚠️ |
-| Loan re-aging | ✅ Re-aging module (Module 23) | ❌ No Re-aging UI | ⚠️ |
+| Loan reschedule | ✅ Reschedule module (Module 23) | ✅ Reschedule tab on LoanDetail _(Session 75)_ | — |
+| Loan re-aging | ✅ Re-aging module (Module 23) | ✅ Re-aging tab + re-amortize trigger on LoanDetail _(Session 75)_ | — |
 | Foreclose loan | ❌ No `?command=foreclose` | ❌ Missing | ❌ |
 | Recover from NPA | ❌ Missing | ❌ Missing | ❌ |
 | In-arrears classification (CoB) | ✅ `arrearsClassificationJob` | ❌ No arrears indicator in UI | ⚠️ |
@@ -3050,7 +3055,7 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | Journal entries (view + manual post + reverse) | ✅ | ✅ JournalEntriesComponent | — |
 | GL closures | ✅ | ✅ `GlClosuresComponent` _(Session 69)_ | ✅ |
 | Financial Activity Accounts CRUD | ✅ | ✅ FinancialActivityAccountsComponent | — |
-| Accounting Rules CRUD | ✅ Module 42 | ❌ No Angular component | ❌ |
+| Accounting Rules CRUD | ✅ Module 42 | ✅ `AccountingRulesComponent` _(Session 75)_ | — |
 | Provisioning Criteria CRUD | ✅ | ✅ ProvisioningComponent | — |
 
 ---
@@ -3091,10 +3096,10 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | User management | ✅ Module 12 | ✅ UsersComponent | — |
 | Roles & Permissions | ✅ Module 32 | ✅ RolesComponent | — |
 | Office hierarchy | ✅ Module 11 | ✅ OfficesComponent | — |
-| Staff management | ✅ Module 11 | ❌ No StaffComponent (staff listed in OfficesComponent only) | ⚠️ |
+| Staff management | ✅ Module 11 | ✅ `StaffComponent` _(Session 75)_ | — |
 | Codes & Code Values | ✅ Module 26 | ✅ CodesComponent | — |
 | Global Configuration | ✅ Module 26 | ✅ GlobalConfigComponent | — |
-| Payment Types | ✅ Module 26 | ❌ No Angular component | ❌ |
+| Payment Types | ✅ Module 26 | ✅ `PaymentTypesComponent` _(Session 75)_ | — |
 | Account Number Formats | ✅ Module 26 | ❌ No Angular component | ❌ |
 | Funds management | ✅ Module 26 | ❌ No Angular component | ❌ |
 | Holidays management | ✅ Module 28 | ✅ `HolidaysComponent` _(Session 74)_ | — |

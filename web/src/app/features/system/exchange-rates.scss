@@ -1,0 +1,44 @@
+@use 'assets/styles/design-system' as *;
+
+.card-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  padding: 12px 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+
+  &.muted { color: var(--color-muted); }
+}
+
+.currency-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #eef4f8;
+  color: #1e3a5f;
+  letter-spacing: 0.05em;
+
+  &.inactive {
+    background: #f0f0f0;
+    color: var(--color-muted);
+  }
+}
+
+.muted  { color: var(--color-muted); }
+.small  { font-size: 12px; }
+.inactive-row td { opacity: 0.6; }
+
+.rate-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.field-hint {
+  font-size: 12px;
+  color: var(--color-muted);
+  margin-top: 4px;
+}

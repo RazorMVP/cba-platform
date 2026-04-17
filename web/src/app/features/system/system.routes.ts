@@ -5,6 +5,8 @@ import { FloatingRatesComponent } from './floating-rates';
 import { TaxesComponent } from './taxes';
 import { AccountAlgorithmsComponent } from './account-algorithms';
 import { HolidaysComponent } from './holidays';
+import { PaymentTypesComponent } from './payment-types';
+import { ExchangeRatesComponent } from './exchange-rates';
 
 export const SYSTEM_ROUTES: Routes = [
   { path: 'codes', component: CodesComponent },
@@ -13,4 +15,6 @@ export const SYSTEM_ROUTES: Routes = [
   { path: 'taxes', component: TaxesComponent },
   { path: 'account-algorithms', component: AccountAlgorithmsComponent },
   { path: 'holidays', component: HolidaysComponent },
+  { path: 'payment-types', component: PaymentTypesComponent },
+  { path: 'exchange-rates', component: ExchangeRatesComponent },
 ];

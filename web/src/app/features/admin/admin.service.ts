@@ -216,6 +216,66 @@ export interface CreateSmsCampaignRequest {
   runDate?: string;
 }
 
+// ── Staff ─────────────────────────────────────────────────────────────────────
+export interface Staff {
+  id: string;
+  firstName: string;
+  lastName: string;
+  displayName: string;
+  email: string | null;
+  mobileNo: string | null;
+  joiningDate: string | null;
+  loanOfficer: boolean;
+  active: boolean;
+  officeId: string;
+  officeName: string | null;
+}
+
+export interface CreateStaffRequest {
+  firstName: string;
+  lastName: string;
+  email: string;
+  mobileNo: string;
+  joiningDate: string;
+  loanOfficer: boolean;
+  officeId: string;
+}
+
+// ── Standing Instructions ─────────────────────────────────────────────────────
+export type InstructionType = 'FIXED' | 'OUTSTANDING_BALANCE';
+export type InstructionPriority = 'HIGH' | 'MEDIUM' | 'LOW' | 'URGENT';
+export type InstructionStatus = 'ACTIVE' | 'DISABLED' | 'DELETED';
+export type RecurrenceType = 'PERIODIC_RECURRENCE' | 'AS_PER_DUES';
+
+export interface StandingInstruction {
+  id: string;
+  name: string;
+  fromAccountId: string;
+  toAccountId: string;
+  instructionType: InstructionType;
+  priority: InstructionPriority;
+  status: InstructionStatus;
+  recurrenceType: RecurrenceType;
+  recurrenceFrequency: number | null;
+  amount: number | null;
+  validFrom: string | null;
+  validTill: string | null;
+  createdAt: string;
+}
+
+export interface CreateStandingInstructionRequest {
+  name: string;
+  fromAccountId: string;
+  toAccountId: string;
+  instructionType: InstructionType;
+  priority: InstructionPriority;
+  recurrenceType: RecurrenceType;
+  recurrenceFrequency: number;
+  amount: number;
+  validFrom: string;
+  validTill: string;
+}
+
 // ── TPP (Open Banking admin) ──────────────────────────────────────────────────
 export type TppStatus = 'ACTIVE' | 'REVOKED' | 'PENDING';
 
@@ -419,5 +479,48 @@ export class AdminService {
 
   listSmsMessages(campaignId: string): Observable<SmsMessage[]> {
     return this.api.get<SmsMessage[]>(`/smscampaigns/${campaignId}/messages`);
+  }
+
+  // ── Staff ──────────────────────────────────────────────────────────────────
+  listStaff(officeId?: string): Observable<Staff[]> {
+    const params = officeId ? { officeId } : undefined;
+    return this.api.get<Staff[]>('/staff', params);
+  }
+
+  getStaff(id: string): Observable<Staff> {
+    return this.api.get<Staff>(`/staff/${id}`);
+  }
+
+  createStaff(req: CreateStaffRequest): Observable<Staff> {
+    return this.api.post<Staff>('/staff', req);
+  }
+
+  updateStaff(id: string, req: CreateStaffRequest): Observable<Staff> {
+    return this.api.put<Staff>(`/staff/${id}`, req);
+  }
+
+  // ── Standing Instructions ──────────────────────────────────────────────────
+  listStandingInstructions(page = 0): Observable<PageResponse<StandingInstruction>> {
+    return this.api.getPage<StandingInstruction>('/standinginstructions', page, 20);
+  }
+
+  createStandingInstruction(req: CreateStandingInstructionRequest): Observable<StandingInstruction> {
+    return this.api.post<StandingInstruction>('/standinginstructions', req);
+  }
+
+  updateStandingInstruction(id: string, req: CreateStandingInstructionRequest): Observable<StandingInstruction> {
+    return this.api.put<StandingInstruction>(`/standinginstructions/${id}`, req);
+  }
+
+  deleteStandingInstruction(id: string): Observable<void> {
+    return this.api.delete<void>(`/standinginstructions/${id}`);
+  }
+
+  disableStandingInstruction(id: string): Observable<StandingInstruction> {
+    return this.api.command<StandingInstruction>(`/standinginstructions/${id}`, 'disable');
+  }
+
+  enableStandingInstruction(id: string): Observable<StandingInstruction> {
+    return this.api.command<StandingInstruction>(`/standinginstructions/${id}`, 'enable');
   }
 }

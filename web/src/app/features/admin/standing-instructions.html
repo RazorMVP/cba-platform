@@ -1,0 +1,230 @@
+<div class="page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Standing Instructions</h1>
+      <p class="page-sub">Recurring account-to-account transfer instructions executed automatically.</p>
+    </div>
+    <button class="btn-primary" (click)="openCreate()">
+      <span class="material-icons">add</span> New Instruction
+    </button>
+  </div>
+
+  <div class="card">
+    @if (loading) {
+      <div class="loading">Loading standing instructions…</div>
+    } @else if (error) {
+      <div class="error-msg">{{ error }}</div>
+    } @else {
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>From → To</th>
+            <th>Type</th>
+            <th>Amount</th>
+            <th>Priority</th>
+            <th>Recurrence</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (i of instructions; track i.id) {
+            <tr>
+              <td class="name-cell">{{ i.name }}</td>
+              <td class="account-cell">
+                <span class="acc-id">{{ i.fromAccountId | slice:0:8 }}…</span>
+                <span class="arrow material-icons">arrow_forward</span>
+                <span class="acc-id">{{ i.toAccountId | slice:0:8 }}…</span>
+              </td>
+              <td>
+                <span class="type-chip" [class.outstanding]="i.instructionType === 'OUTSTANDING_BALANCE'">
+                  {{ i.instructionType === 'FIXED' ? 'Fixed' : 'Outstanding Bal.' }}
+                </span>
+              </td>
+              <td class="tabular">
+                {{ i.amount != null ? (i.amount | number:'1.2-2') : '—' }}
+              </td>
+              <td>
+                <span class="priority-chip {{ priorityClass(i.priority) }}">{{ i.priority }}</span>
+              </td>
+              <td class="muted small">
+                {{ i.recurrenceType === 'PERIODIC_RECURRENCE' ? 'Every ' + (i.recurrenceFrequency ?? '?') + ' days' : 'As Per Dues' }}
+              </td>
+              <td>
+                <span class="status-chip" [class.active]="i.status === 'ACTIVE'" [class.disabled]="i.status === 'DISABLED'">
+                  {{ i.status }}
+                </span>
+              </td>
+              <td class="actions">
+                @if (i.status !== 'DELETED') {
+                  <button class="btn-icon" title="Edit" (click)="openEdit(i)">
+                    <span class="material-icons">edit</span>
+                  </button>
+                  <button class="btn-icon" [title]="i.status === 'ACTIVE' ? 'Disable' : 'Enable'"
+                    (click)="openToggle(i)">
+                    <span class="material-icons">{{ i.status === 'ACTIVE' ? 'pause_circle' : 'play_circle' }}</span>
+                  </button>
+                  <button class="btn-icon danger" title="Delete" (click)="openDelete(i)">
+                    <span class="material-icons">delete</span>
+                  </button>
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr><td colspan="8" class="empty">No standing instructions found.</td></tr>
+          }
+        </tbody>
+      </table>
+
+      @if (totalPages > 1) {
+        <div class="pagination">
+          <button class="btn-icon" [disabled]="page === 0" (click)="prev()">
+            <span class="material-icons">chevron_left</span>
+          </button>
+          <span class="page-info">Page {{ page + 1 }} of {{ totalPages }}</span>
+          <button class="btn-icon" [disabled]="page >= totalPages - 1" (click)="next()">
+            <span class="material-icons">chevron_right</span>
+          </button>
+        </div>
+      }
+    }
+  </div>
+</div>
+
+<!-- Create / Edit Modal -->
+@if (activeModal === 'create' || activeModal === 'edit') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>{{ activeModal === 'edit' ? 'Edit' : 'New' }} Standing Instruction</h2>
+        <button class="btn-icon" (click)="closeModal()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        @if (modalError) { <div class="error-msg">{{ modalError }}</div> }
+
+        <div class="form-group">
+          <label>Name *</label>
+          <input class="form-input" [(ngModel)]="form.name" placeholder="e.g. Monthly savings transfer" />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>From Account ID *</label>
+            <input class="form-input" [(ngModel)]="form.fromAccountId" placeholder="Source account UUID" />
+          </div>
+          <div class="form-group">
+            <label>To Account ID *</label>
+            <input class="form-input" [(ngModel)]="form.toAccountId" placeholder="Destination account UUID" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Type *</label>
+            <select class="form-input" [(ngModel)]="form.instructionType">
+              @for (t of instructionTypes; track t) {
+                <option [value]="t">{{ t === 'FIXED' ? 'Fixed Amount' : 'Outstanding Balance' }}</option>
+              }
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Priority *</label>
+            <select class="form-input" [(ngModel)]="form.priority">
+              @for (p of priorities; track p) {
+                <option [value]="p">{{ p }}</option>
+              }
+            </select>
+          </div>
+        </div>
+        @if (form.instructionType === 'FIXED') {
+          <div class="form-group">
+            <label>Amount *</label>
+            <input class="form-input" type="number" step="0.01" [(ngModel)]="form.amount" placeholder="0.00" />
+          </div>
+        }
+        <div class="form-row">
+          <div class="form-group">
+            <label>Recurrence</label>
+            <select class="form-input" [(ngModel)]="form.recurrenceType">
+              @for (r of recurrenceTypes; track r) {
+                <option [value]="r">{{ r === 'PERIODIC_RECURRENCE' ? 'Periodic' : 'As Per Dues' }}</option>
+              }
+            </select>
+          </div>
+          @if (form.recurrenceType === 'PERIODIC_RECURRENCE') {
+            <div class="form-group">
+              <label>Frequency (days)</label>
+              <input class="form-input" type="number" [(ngModel)]="form.recurrenceFrequency" min="1" />
+            </div>
+          }
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Valid From</label>
+            <input class="form-input" type="date" [(ngModel)]="form.validFrom" />
+          </div>
+          <div class="form-group">
+            <label>Valid Till</label>
+            <input class="form-input" type="date" [(ngModel)]="form.validTill" />
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeModal()">Cancel</button>
+        <button class="btn-primary"
+          [disabled]="working || !form.name.trim() || !form.fromAccountId.trim() || !form.toAccountId.trim()"
+          (click)="save()">
+          {{ working ? 'Saving…' : 'Save' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Toggle Confirm -->
+@if (activeModal === 'toggle' && actionTarget) {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>{{ actionTarget.status === 'ACTIVE' ? 'Disable' : 'Enable' }} Instruction</h2>
+        <button class="btn-icon" (click)="closeModal()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p>{{ actionTarget.status === 'ACTIVE' ? 'Disable' : 'Re-enable' }}
+          <strong>{{ actionTarget.name }}</strong>?</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeModal()">Cancel</button>
+        <button class="btn-primary" [disabled]="working" (click)="confirmToggle()">
+          {{ working ? 'Updating…' : (actionTarget.status === 'ACTIVE' ? 'Disable' : 'Enable') }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Delete Confirm -->
+@if (activeModal === 'delete' && actionTarget) {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2>Delete Instruction</h2>
+        <button class="btn-icon" (click)="closeModal()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p>Delete <strong>{{ actionTarget.name }}</strong>? This cannot be undone.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeModal()">Cancel</button>
+        <button class="btn-danger" [disabled]="working" (click)="confirmDelete()">
+          {{ working ? 'Deleting…' : 'Delete' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

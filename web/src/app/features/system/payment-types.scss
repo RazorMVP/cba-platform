@@ -1,0 +1,36 @@
+@use 'assets/styles/design-system' as *;
+
+.desc-cell { color: var(--color-muted); font-size: 13px; max-width: 240px; }
+.name-cell  { font-weight: 500; }
+
+.bool-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  background: #f0f0f0;
+  color: var(--color-muted);
+
+  &.yes {
+    background: #e6f4ea;
+    color: #1e7e34;
+  }
+}
+
+.sys-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  background: #eef0f8;
+  color: #3a4a8a;
+  font-weight: 500;
+}
+
+.checkbox-group label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}

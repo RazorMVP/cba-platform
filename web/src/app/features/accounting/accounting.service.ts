@@ -139,6 +139,32 @@ export interface ProvisioningCriteriaRequest {
   definitions: ProvisioningDefinition[];
 }
 
+// ── Accounting Rules ──────────────────────────────────────────────────────────
+export interface AccountingRule {
+  id: string;
+  name: string;
+  description: string | null;
+  debitAccountId: string;
+  debitAccountCode?: string;
+  debitAccountName?: string;
+  creditAccountId: string;
+  creditAccountCode?: string;
+  creditAccountName?: string;
+  allowMultipleDebits: boolean;
+  allowMultipleCredits: boolean;
+  active: boolean;
+}
+
+export interface CreateAccountingRuleRequest {
+  name: string;
+  description: string;
+  debitAccountId: string;
+  creditAccountId: string;
+  allowMultipleDebits: boolean;
+  allowMultipleCredits: boolean;
+  active: boolean;
+}
+
 // ── Service ────────────────────────────────────────────────────────────────────
 
 @Injectable({ providedIn: 'root' })
@@ -215,5 +241,19 @@ export class AccountingService {
   }
   deleteProvisioningCriteria(id: string): Observable<void> {
     return this.api.delete<void>(`/provisioningcriteria/${id}`);
+  }
+
+  // Accounting Rules
+  listAccountingRules(page = 0): Observable<PageResponse<AccountingRule>> {
+    return this.api.getPage<AccountingRule>('/accountingrules', page, 20);
+  }
+  createAccountingRule(req: CreateAccountingRuleRequest): Observable<AccountingRule> {
+    return this.api.post<AccountingRule>('/accountingrules', req);
+  }
+  updateAccountingRule(id: string, req: CreateAccountingRuleRequest): Observable<AccountingRule> {
+    return this.api.put<AccountingRule>(`/accountingrules/${id}`, req);
+  }
+  deleteAccountingRule(id: string): Observable<void> {
+    return this.api.delete<void>(`/accountingrules/${id}`);
   }
 }

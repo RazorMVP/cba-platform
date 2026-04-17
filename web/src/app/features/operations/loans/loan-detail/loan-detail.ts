@@ -6,10 +6,11 @@ import { StatusBadgeComponent } from '../../../../shared/components/status-badge
 import {
   LoanService, Loan, RepaymentInstallment,
   LoanCharge, AvailableCharge, Guarantor, Collateral, AuditEntry,
-  LoanCreateRequest,
+  LoanCreateRequest, LoanRescheduleRequest, CreateRescheduleRequest,
+  ReagingRequest, CreateReagingRequest, FrequencyType,
 } from '../loan.service';
 
-export type LoanTab = 'summary' | 'schedule' | 'charges' | 'collateral' | 'audit';
+export type LoanTab = 'summary' | 'schedule' | 'charges' | 'collateral' | 'audit' | 'reschedule' | 'reaging';
 
 @Component({
   selector: 'app-loan-detail',
@@ -99,12 +100,33 @@ export class LoanDetailComponent implements OnInit {
   writeOffSaving = false;
   writeOffError = '';
 
+  // Reschedule tab
+  rescheduleRequests: LoanRescheduleRequest[] = [];
+  rescheduleLoaded  = false;
+  rescheduleLoading = false;
+  showRescheduleModal = false;
+  rescheduleForm: CreateRescheduleRequest = this.blankReschedule();
+  rescheduleSaving  = false;
+  rescheduleError   = '';
+
+  // Re-aging tab
+  reagingRequests: ReagingRequest[] = [];
+  reagingLoaded   = false;
+  reagingLoading  = false;
+  showReagingModal  = false;
+  reagingForm: CreateReagingRequest = this.blankReaging();
+  reagingSaving   = false;
+  reagingError    = '';
+  readonly frequencyTypes: FrequencyType[] = ['DAYS', 'WEEKS', 'MONTHS'];
+
   readonly tabs: Array<{ id: LoanTab; label: string; icon: string }> = [
-    { id: 'summary',    label: 'Summary',    icon: 'summarize' },
-    { id: 'schedule',   label: 'Repayment Schedule', icon: 'event_note' },
-    { id: 'charges',    label: 'Charges',    icon: 'receipt' },
-    { id: 'collateral', label: 'Guarantors & Collateral', icon: 'security' },
-    { id: 'audit',      label: 'Audit Trail', icon: 'history' },
+    { id: 'summary',     label: 'Summary',                   icon: 'summarize' },
+    { id: 'schedule',    label: 'Repayment Schedule',        icon: 'event_note' },
+    { id: 'charges',     label: 'Charges',                   icon: 'receipt' },
+    { id: 'collateral',  label: 'Guarantors & Collateral',   icon: 'security' },
+    { id: 'reschedule',  label: 'Reschedule',                icon: 'event_repeat' },
+    { id: 'reaging',     label: 'Re-aging',                  icon: 'restore' },
+    { id: 'audit',       label: 'Audit Trail',               icon: 'history' },
   ];
 
   ngOnInit(): void {
@@ -162,6 +184,20 @@ export class LoanDetailComponent implements OnInit {
       this.svc.getAuditLog(id).subscribe({
         next:  a  => { this.auditLog = a; this.auditLoaded = true; this.auditLoading = false; },
         error: () => { this.auditLoading = false; },
+      });
+    }
+    if (tab === 'reschedule' && !this.rescheduleLoaded) {
+      this.rescheduleLoading = true;
+      this.svc.listRescheduleRequests(id).subscribe({
+        next: r => { this.rescheduleRequests = r; this.rescheduleLoaded = true; this.rescheduleLoading = false; },
+        error: () => { this.rescheduleLoading = false; },
+      });
+    }
+    if (tab === 'reaging' && !this.reagingLoaded) {
+      this.reagingLoading = true;
+      this.svc.listReaging(id).subscribe({
+        next: r => { this.reagingRequests = r; this.reagingLoaded = true; this.reagingLoading = false; },
+        error: () => { this.reagingLoading = false; },
       });
     }
   }
@@ -346,8 +382,94 @@ export class LoanDetailComponent implements OnInit {
     return c.amountOutstanding === 0 ? 'Paid' : c.amountOutstanding < c.amount ? 'Partial' : 'Outstanding';
   }
 
-  // Schedule totals
+  // ── Reschedule ──────────────────────────────────────────────
+
+  openRescheduleModal(): void {
+    this.rescheduleForm = this.blankReschedule();
+    this.rescheduleError = '';
+    this.rescheduleSaving = false;
+    this.showRescheduleModal = true;
+  }
+
+  submitReschedule(): void {
+    if (!this.loan) return;
+    this.rescheduleSaving = true;
+    this.rescheduleError = '';
+    const req = { ...this.rescheduleForm, loanId: this.loan.id };
+    this.svc.createRescheduleRequest(req).subscribe({
+      next: r => {
+        this.rescheduleRequests = [...this.rescheduleRequests, r];
+        this.showRescheduleModal = false;
+        this.rescheduleSaving = false;
+      },
+      error: () => { this.rescheduleError = 'Failed to submit reschedule request.'; this.rescheduleSaving = false; },
+    });
+  }
+
+  approveReschedule(r: LoanRescheduleRequest): void {
+    this.svc.approveReschedule(r.id).subscribe({
+      next: updated => this.replaceReschedule(updated),
+    });
+  }
+
+  rejectReschedule(r: LoanRescheduleRequest): void {
+    this.svc.rejectReschedule(r.id).subscribe({
+      next: updated => this.replaceReschedule(updated),
+    });
+  }
+
+  private replaceReschedule(updated: LoanRescheduleRequest): void {
+    const idx = this.rescheduleRequests.findIndex(r => r.id === updated.id);
+    if (idx >= 0) this.rescheduleRequests = [...this.rescheduleRequests.slice(0, idx), updated, ...this.rescheduleRequests.slice(idx + 1)];
+  }
+
+  rescheduleStatusVariant(s: LoanRescheduleRequest['status']): 'success'|'warning'|'error'|'neutral' {
+    return s === 'APPROVED' ? 'success' : s === 'REJECTED' ? 'error' : 'warning';
+  }
+
+  // ── Re-aging ─────────────────────────────────────────────────
+
+  openReagingModal(): void {
+    this.reagingForm = this.blankReaging();
+    this.reagingError = '';
+    this.reagingSaving = false;
+    this.showReagingModal = true;
+  }
+
+  submitReaging(): void {
+    if (!this.loan) return;
+    this.reagingSaving = true;
+    this.reagingError = '';
+    this.svc.createReaging(this.loan.id, this.reagingForm).subscribe({
+      next: r => {
+        this.reagingRequests = [...this.reagingRequests, r];
+        this.showReagingModal = false;
+        this.reagingSaving = false;
+        // Invalidate schedule cache — re-aging changes the schedule
+        if (!this.reagingForm.isPreview) { this.scheduleLoaded = false; this.schedule = []; }
+      },
+      error: () => { this.reagingError = 'Failed to submit re-aging request.'; this.reagingSaving = false; },
+    });
+  }
+
+  triggerReamortization(): void {
+    if (!this.loan) return;
+    this.svc.triggerReamortization(this.loan.id).subscribe({
+      next: () => { this.scheduleLoaded = false; this.schedule = []; },
+    });
+  }
+
+  // ── Schedule totals ──────────────────────────────────────────
+
   sum(field: keyof RepaymentInstallment): number {
     return this.schedule.reduce((acc, inst) => acc + (Number(inst[field]) || 0), 0);
+  }
+
+  private blankReschedule(): CreateRescheduleRequest {
+    return { loanId: '', rescheduleReason: '', recalculateInterest: true };
+  }
+
+  private blankReaging(): CreateReagingRequest {
+    return { frequencyType: 'MONTHS', frequency: 1, startDate: '', isPreview: false };
   }
 }

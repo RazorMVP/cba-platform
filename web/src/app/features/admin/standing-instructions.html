@@ -53,7 +53,7 @@
                 </span>
               </td>
               <td class="tabular">
-                {{ i.amount != null ? (i.amount | number:'1.2-2') : '—' }}
+                {{ i.amount !== null ? (i.amount | number:'1.2-2') : '—' }}
               </td>
               <td>
                 <span class="priority-chip {{ priorityClass(i.priority) }}">{{ i.priority }}</span>

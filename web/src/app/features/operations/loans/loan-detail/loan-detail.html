@@ -422,7 +422,7 @@
               @for (r of rescheduleRequests; track r.id) {
                 <tr>
                   <td>{{ r.rescheduleReason }}</td>
-                  <td class="tabular">{{ r.newInterestRate != null ? (r.newInterestRate + '%') : '—' }}</td>
+                  <td class="tabular">{{ r.newInterestRate !== null ? (r.newInterestRate + '%') : '—' }}</td>
                   <td class="tabular">{{ r.extraTerms ?? '—' }}</td>
                   <td class="muted small">{{ r.submittedOnDate | date:'dd MMM yyyy' }}</td>
                   <td>

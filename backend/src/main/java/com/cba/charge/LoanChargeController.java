@@ -30,6 +30,12 @@ public class LoanChargeController {
         return ApiResponse.ok(chargeService.addLoanCharge(loanId, req));
     }
 
+    @PostMapping("/{chargeId}/pay")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
+    public ApiResponse<LoanCharge> pay(@PathVariable UUID loanId, @PathVariable UUID chargeId) {
+        return ApiResponse.ok(chargeService.payLoanCharge(loanId, chargeId));
+    }
+
     @PostMapping("/{chargeId}/waive")
     @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<LoanCharge> waive(@PathVariable UUID loanId, @PathVariable UUID chargeId) {

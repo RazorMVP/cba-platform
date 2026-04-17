@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { ApiService } from '../../../core/api/api.service';
 import { PageResponse } from '../../../core/models/api-response.model';
 
@@ -43,15 +44,25 @@ export interface LoanCreateRequest {
 
 export interface LoanCharge {
   id: string;
-  loanId: string;
-  chargeName: string;
-  chargeTimeType: 'DISBURSEMENT' | 'SPECIFIED_DUE_DATE' | 'INSTALLMENT_FEE' | 'OVERDUE_INSTALLMENT';
-  chargeCalculationType: 'FLAT' | 'PERCENT_OF_AMOUNT' | 'PERCENT_OF_AMOUNT_AND_INTEREST';
+  name: string;
+  chargeTimeType: string;
+  chargeCalculation: string;
+  currencyCode: string;
   amount: number;
   amountPaid: number;
   amountWaived: number;
   amountOutstanding: number;
-  dueDate?: string;
+  paid: boolean;
+  waived: boolean;
+  dueForCollectionAsOfDate?: string;
+}
+
+export interface AvailableCharge {
+  id: string;
+  name: string;
+  amount: number;
+  chargeCalculation: string;
+  chargeTimeType: string;
 }
 
 export interface Guarantor {
@@ -129,13 +140,25 @@ export class LoanService {
 
   // Charges
   getCharges(id: string): Observable<LoanCharge[]> {
-    return this.api.get<LoanCharge[]>(`/loans/${id}/charges`);
+    return this.api.getPage<LoanCharge>(`/loans/${id}/charges`, 0, 100)
+      .pipe(map(p => p.content));
+  }
+  addCharge(loanId: string, chargeDefinitionId: string, amount: number, dueDate?: string): Observable<LoanCharge> {
+    return this.api.post<LoanCharge>(`/loans/${loanId}/charges`,
+      { chargeDefinitionId, amount, dueDate: dueDate || null });
   }
   payCharge(loanId: string, chargeId: string): Observable<LoanCharge> {
-    return this.api.command<LoanCharge>(`/loans/${loanId}/charges/${chargeId}`, 'pay');
+    return this.api.post<LoanCharge>(`/loans/${loanId}/charges/${chargeId}/pay`, {});
+  }
+  waiveCharge(loanId: string, chargeId: string): Observable<LoanCharge> {
+    return this.api.post<LoanCharge>(`/loans/${loanId}/charges/${chargeId}/waive`, {});
   }
   deleteCharge(loanId: string, chargeId: string): Observable<void> {
     return this.api.delete<void>(`/loans/${loanId}/charges/${chargeId}`);
+  }
+  listAvailableCharges(): Observable<AvailableCharge[]> {
+    return this.api.getPage<AvailableCharge>('/charges', 0, 100, { appliesTo: 'LOAN' })
+      .pipe(map(p => p.content));
   }
 
   // Guarantors

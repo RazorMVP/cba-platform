@@ -247,6 +247,9 @@
       <div class="card">
         <div class="card__header">
           <div class="card__title">Loan Charges</div>
+          <button class="btn-primary btn-sm" (click)="openAddCharge()">
+            <span class="material-icons">add</span> Add Charge
+          </button>
         </div>
         @if (chargesLoading) {
           <div class="tab-loading">Loading charges…</div>
@@ -270,17 +273,23 @@
             <tbody>
               @for (c of charges; track c.id) {
                 <tr>
-                  <td class="bold">{{ c.chargeName }}</td>
+                  <td class="bold">{{ c.name }}</td>
                   <td class="muted">{{ c.chargeTimeType | titlecase }}</td>
                   <td>{{ c.amount | currency:'USD':'symbol':'1.2-2' }}</td>
                   <td class="amount--paid">{{ c.amountPaid | currency:'USD':'symbol':'1.2-2' }}</td>
                   <td class="muted">{{ c.amountWaived | currency:'USD':'symbol':'1.2-2' }}</td>
                   <td class="bold">{{ c.amountOutstanding | currency:'USD':'symbol':'1.2-2' }}</td>
-                  <td class="muted">{{ c.dueDate ? (c.dueDate | date:'mediumDate') : '—' }}</td>
+                  <td class="muted">{{ c.dueForCollectionAsOfDate ? (c.dueForCollectionAsOfDate | date:'mediumDate') : '—' }}</td>
                   <td><app-status-badge [variant]="chargeVariant(c)" [label]="chargeLabel(c)" /></td>
-                  <td>
-                    @if (c.amountOutstanding > 0) {
-                      <button class="btn-ghost btn-sm" (click)="payCharge(c)">Pay</button>
+                  <td class="action-cell">
+                    @if (!c.paid && !c.waived) {
+                      <button class="btn-ghost btn-sm" (click)="payCharge(c)" title="Pay">Pay</button>
+                      <button class="btn-ghost btn-sm" (click)="openWaiveCharge(c)" title="Waive">Waive</button>
+                    }
+                    @if (!c.paid && !c.waived) {
+                      <button class="btn-ghost btn-sm btn-danger" (click)="openDeleteCharge(c)" title="Delete">
+                        <span class="material-icons" style="font-size:14px">delete</span>
+                      </button>
                     }
                   </td>
                 </tr>
@@ -495,6 +504,95 @@
         <button class="btn-danger" [disabled]="!rejectReason.trim() || rejectSaving" (click)="submitReject()">
           {{ rejectSaving ? 'Rejecting…' : 'Confirm Rejection' }}
         </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ══ ADD CHARGE MODAL ══ -->
+@if (showAddChargeModal) {
+  <div class="modal-overlay" (click)="showAddChargeModal = false">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h2 class="modal__title">Add Charge</h2>
+        <button class="modal__close" (click)="showAddChargeModal = false">✕</button>
+      </div>
+      <div class="modal__body">
+        <div class="form-group">
+          <label class="form-label">Charge Definition <span class="required">*</span></label>
+          <select class="form-input" [(ngModel)]="addChargeDefinitionId" (change)="onAddChargeDefChange()">
+            <option value="">— Select a charge —</option>
+            @for (def of availableCharges; track def.id) {
+              <option [value]="def.id">{{ def.name }} ({{ def.chargeCalculation | titlecase }})</option>
+            }
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Amount (USD) <span class="required">*</span></label>
+          <input type="number" class="form-input" step="0.01" min="0.01"
+                 [(ngModel)]="addChargeAmount" placeholder="0.00" />
+          <p class="form-hint">Pre-filled from definition. Adjust if needed.</p>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Due Date</label>
+          <input type="date" class="form-input" [(ngModel)]="addChargeDueDate" />
+          <p class="form-hint">Optional. Used for SPECIFIED_DUE_DATE charges.</p>
+        </div>
+        @if (addChargeError) {
+          <div class="form-error">{{ addChargeError }}</div>
+        }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-ghost" [disabled]="addChargeSaving" (click)="showAddChargeModal = false">Cancel</button>
+        <button class="btn-primary" [disabled]="!addChargeDefinitionId || !addChargeAmount || addChargeSaving" (click)="submitAddCharge()">
+          {{ addChargeSaving ? 'Adding…' : 'Add Charge' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ══ WAIVE CHARGE CONFIRM MODAL ══ -->
+@if (showWaiveChargeModal && waiveChargeTarget) {
+  <div class="modal-overlay" (click)="showWaiveChargeModal = false">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h2 class="modal__title">Waive Charge</h2>
+        <button class="modal__close" (click)="showWaiveChargeModal = false">✕</button>
+      </div>
+      <div class="modal__body">
+        <p class="confirm-text">
+          Waive <strong>{{ waiveChargeTarget.name }}</strong> with outstanding amount of
+          <strong>{{ waiveChargeTarget.amountOutstanding | currency:'USD':'symbol':'1.2-2' }}</strong>?
+          This will write off the remaining balance and cannot be undone.
+        </p>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-ghost" (click)="showWaiveChargeModal = false">Cancel</button>
+        <button class="btn-danger" (click)="confirmWaiveCharge()">Confirm Waive</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ══ DELETE CHARGE CONFIRM MODAL ══ -->
+@if (showDeleteChargeModal && deleteChargeTarget) {
+  <div class="modal-overlay" (click)="showDeleteChargeModal = false">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h2 class="modal__title">Delete Charge</h2>
+        <button class="modal__close" (click)="showDeleteChargeModal = false">✕</button>
+      </div>
+      <div class="modal__body">
+        <p class="confirm-text">
+          Delete the charge <strong>{{ deleteChargeTarget.name }}</strong>
+          ({{ deleteChargeTarget.amount | currency:'USD':'symbol':'1.2-2' }}) from this loan?
+          This action cannot be undone.
+        </p>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-ghost" (click)="showDeleteChargeModal = false">Cancel</button>
+        <button class="btn-danger" (click)="confirmDeleteCharge()">Delete Charge</button>
       </div>
     </div>
   </div>

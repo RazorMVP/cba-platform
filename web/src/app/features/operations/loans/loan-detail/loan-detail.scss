@@ -207,3 +207,9 @@
 .form-textarea { resize: vertical; }
 .form-hint  { font-size: $text-xs; color: $color-text-muted; margin-top: 2px; }
 .form-error { font-size: $text-sm; color: $color-error-600; background: #fff5f5; border: 1px solid $color-error-100; border-radius: $radius-sm; padding: $space-3; }
+
+.modal--sm { max-width: 380px; }
+.confirm-text { font-size: $text-sm; color: $color-text-primary; line-height: 1.6; margin: 0; }
+.modal__warning { display: flex; align-items: flex-start; gap: $space-3; font-size: $text-sm; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: $radius-sm; padding: $space-3 $space-4; .material-icons { font-size: 18px; flex-shrink: 0; margin-top: 1px; } }
+.action-cell { display: flex; align-items: center; gap: $space-1; justify-content: flex-end; white-space: nowrap; }
+.btn-ghost.btn-sm.btn-danger { color: $color-error-600; border-color: rgba(220,38,38,0.3); &:hover { background: #fef2f2; border-color: #fca5a5; } }

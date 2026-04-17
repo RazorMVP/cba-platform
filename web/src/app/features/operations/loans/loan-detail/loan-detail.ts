@@ -5,7 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge';
 import {
   LoanService, Loan, RepaymentInstallment,
-  LoanCharge, Guarantor, Collateral, AuditEntry,
+  LoanCharge, AvailableCharge, Guarantor, Collateral, AuditEntry,
   LoanCreateRequest,
 } from '../loan.service';
 
@@ -43,6 +43,24 @@ export class LoanDetailComponent implements OnInit {
   charges: LoanCharge[] = [];
   chargesLoaded = false;
   chargesLoading = false;
+
+  // Add charge modal
+  showAddChargeModal = false;
+  availableCharges: AvailableCharge[] = [];
+  availableChargesLoaded = false;
+  addChargeDefinitionId = '';
+  addChargeAmount: number | null = null;
+  addChargeDueDate = '';
+  addChargeSaving = false;
+  addChargeError = '';
+
+  // Waive charge confirm
+  showWaiveChargeModal = false;
+  waiveChargeTarget: LoanCharge | null = null;
+
+  // Delete charge confirm
+  showDeleteChargeModal = false;
+  deleteChargeTarget: LoanCharge | null = null;
 
   // Collateral tab
   guarantors: Guarantor[] = [];
@@ -202,11 +220,72 @@ export class LoanDetailComponent implements OnInit {
   payCharge(charge: LoanCharge): void {
     if (!this.loan) return;
     this.svc.payCharge(this.loan.id, charge.id).subscribe({
-      next: updated => {
-        const idx = this.charges.findIndex(c => c.id === updated.id);
-        if (idx >= 0) this.charges[idx] = updated;
+      next: updated => this.replaceCharge(updated),
+    });
+  }
+
+  openAddCharge(): void {
+    this.addChargeDefinitionId = '';
+    this.addChargeAmount = null;
+    this.addChargeDueDate = '';
+    this.addChargeError = '';
+    this.showAddChargeModal = true;
+    if (!this.availableChargesLoaded) {
+      this.svc.listAvailableCharges().subscribe({
+        next: list => { this.availableCharges = list; this.availableChargesLoaded = true; },
+      });
+    }
+  }
+
+  onAddChargeDefChange(): void {
+    const def = this.availableCharges.find(c => c.id === this.addChargeDefinitionId);
+    if (def) this.addChargeAmount = def.amount;
+  }
+
+  submitAddCharge(): void {
+    if (!this.loan || !this.addChargeDefinitionId || !this.addChargeAmount) {
+      this.addChargeError = 'Charge definition and amount are required.';
+      return;
+    }
+    this.addChargeSaving = true;
+    this.addChargeError = '';
+    this.svc.addCharge(this.loan.id, this.addChargeDefinitionId,
+                       this.addChargeAmount, this.addChargeDueDate || undefined).subscribe({
+      next: c => {
+        this.charges = [...this.charges, c];
+        this.showAddChargeModal = false;
+        this.addChargeSaving = false;
+      },
+      error: () => { this.addChargeError = 'Failed to add charge.'; this.addChargeSaving = false; },
+    });
+  }
+
+  openWaiveCharge(c: LoanCharge): void { this.waiveChargeTarget = c; this.showWaiveChargeModal = true; }
+
+  confirmWaiveCharge(): void {
+    if (!this.loan || !this.waiveChargeTarget) return;
+    this.svc.waiveCharge(this.loan.id, this.waiveChargeTarget.id).subscribe({
+      next: updated => { this.replaceCharge(updated); this.showWaiveChargeModal = false; this.waiveChargeTarget = null; },
+    });
+  }
+
+  openDeleteCharge(c: LoanCharge): void { this.deleteChargeTarget = c; this.showDeleteChargeModal = true; }
+
+  confirmDeleteCharge(): void {
+    if (!this.loan || !this.deleteChargeTarget) return;
+    const id = this.deleteChargeTarget.id;
+    this.svc.deleteCharge(this.loan.id, id).subscribe({
+      next: () => {
+        this.charges = this.charges.filter(c => c.id !== id);
+        this.showDeleteChargeModal = false;
+        this.deleteChargeTarget = null;
       },
     });
+  }
+
+  private replaceCharge(updated: LoanCharge): void {
+    const idx = this.charges.findIndex(c => c.id === updated.id);
+    if (idx >= 0) this.charges = [...this.charges.slice(0, idx), updated, ...this.charges.slice(idx + 1)];
   }
 
   // ── Helpers ──────────────────────────────────────────────

@@ -109,6 +109,17 @@ public class ChargeService {
     }
 
     @Transactional
+    public LoanCharge payLoanCharge(UUID loanId, UUID chargeId) {
+        LoanCharge lc = loanChargeRepository.findById(chargeId)
+            .filter(c -> c.getLoan().getId().equals(loanId))
+            .orElseThrow(() -> CbaException.notFound("LoanCharge", chargeId.toString()));
+        lc.setAmountPaid(lc.getAmount());
+        lc.setAmountOutstanding(BigDecimal.ZERO);
+        lc.setPaid(true);
+        return loanChargeRepository.save(lc);
+    }
+
+    @Transactional
     public LoanCharge waiveLoanCharge(UUID loanId, UUID chargeId) {
         LoanCharge lc = loanChargeRepository.findById(chargeId)
             .filter(c -> c.getLoan().getId().equals(loanId))

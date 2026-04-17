@@ -2478,6 +2478,7 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Recurring deposit product detail | `RecurringDepositDetailComponent` | `ProductsModule` | ✅ Built — view/edit toggle, 5 section tabs (core/rates/frequency/term/penalty) |
 | Share products list | `SharesListComponent` | `ProductsModule` | ✅ Built — search, active filter, pagination; unit price + shares issued columns |
 | Share product detail | `ShareDetailComponent` | `ProductsModule` | ✅ Built — view/edit toggle, 3 section tabs (core/shares/lockin); dividend policy toggle |
+| Charges list | `ChargesComponent` | `ProductsModule` | ✅ Built — server-paginated CRUD; applies-to colour badges (loan/savings/client/share); penalty/fee chips; time type options filtered by applies-to _(Session 68)_ |
 | GL accounts | `GlAccountsComponent` | `AccountingModule` | ✅ Built — type filter tabs, search, enable/disable, create/edit modal |
 | Journal entries | `JournalEntriesComponent` | `AccountingModule` | ✅ Built — T-ledger grouped view, date filter, manual entry modal with balance validation, reversal |
 | Provisioning criteria | `ProvisioningComponent` | `AccountingModule` | ✅ Built — IFRS 9 age bands, create/edit/delete, GL account dropdowns by type |
@@ -2919,7 +2920,7 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | 1 | Customer Onboarding | ✅ Built | ✅ Built | ✅ Done |
 | 2 | Customer Account Management (Savings) | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
 | 3 | Loan Management | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
-| 4 | Fees & Charges | ✅ Built | ❌ Missing | ⚠️ Gap |
+| 4 | Fees & Charges | ✅ Built | ✅ Built | ✅ Done |
 | 5 | GL Accounting | ✅ Built | ✅ Built | ✅ Done |
 | 6 | Treasury | ❌ Missing | ❌ Missing | ❌ Gap |
 | 7 | Audit & Internal Control | ⚠️ Partial | ❌ Missing | ⚠️ Gap |
@@ -3023,12 +3024,12 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 
 | PRD Feature | Backend Status | Angular Status | Gap |
 |-------------|---------------|----------------|-----|
-| Charge definition CRUD (`/api/v1/charges`) | ✅ Module 18 | ❌ No Angular component | ❌ |
-| Apply charge to loan | ✅ `POST /loans/{id}/charges` | ❌ Not accessible from LoanDetail | ⚠️ |
-| Pay charge on loan | ✅ `?command=pay` | ❌ Not accessible from LoanDetail | ⚠️ |
-| Waive charge on loan | ❌ No waive command in ChargesModule | ❌ Missing | ❌ |
-| List charges on loan | ✅ `GET /loans/{id}/charges` | ❌ No charges tab on LoanDetail | ⚠️ |
-| Charges management page (global) | ✅ Backend | ❌ No Angular route/component | ❌ |
+| Charge definition CRUD (`/api/v1/charges`) | ✅ Module 18 | ✅ `ChargesComponent` at `/products/charges` _(Session 68)_ | — |
+| Apply charge to loan | ✅ `POST /loans/{id}/charges` | ✅ Add Charge modal on LoanDetail _(Session 68)_ | — |
+| Pay charge on loan | ✅ `POST /loans/{id}/charges/{id}/pay` _(Session 68)_ | ✅ Pay button on Charges tab _(Session 68)_ | — |
+| Waive charge on loan | ✅ `POST /loans/{id}/charges/{id}/waive` | ✅ Waive button + confirm modal on LoanDetail _(Session 68)_ | — |
+| List charges on loan | ✅ `GET /loans/{id}/charges` | ✅ Charges tab on LoanDetail _(Session 68)_ | — |
+| Charges management page (global) | ✅ Backend | ✅ `ChargesComponent` _(Session 68)_ | — |
 
 ---
 
@@ -3150,7 +3151,7 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | Customer Onboarding | ✅ Done | Session 49 |
 | Customer Account Management | 🔲 Queued | — |
 | Loan Management | 🔲 Queued | — |
-| Fees & Charges | 🔲 Queued | — |
+| Fees & Charges | ✅ Done | Session 68 |
 | GL Accounting | ✅ Done | Prior sessions |
 | Treasury | 🔲 Queued | — |
 | Audit & Internal Control | 🔲 Queued | — |

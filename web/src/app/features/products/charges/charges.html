@@ -1,0 +1,248 @@
+<div class="page">
+  <div class="page-header">
+    <div class="page-header__left">
+      <h1 class="page-title">Charges</h1>
+      <p class="page-subtitle">{{ total }} charge definition{{ total !== 1 ? 's' : '' }}</p>
+    </div>
+    <div class="page-header__right">
+      <button class="btn-primary" (click)="openCreate()">
+        <span class="material-icons">add</span> New Charge
+      </button>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="search-box">
+      <span class="material-icons">search</span>
+      <input type="text" placeholder="Search by name…"
+             [ngModel]="searchQuery" (ngModelChange)="onSearch($event)" />
+    </div>
+    <select class="filter-select" [(ngModel)]="filterApplies" (ngModelChange)="onFilterChange()">
+      <option value="">All types</option>
+      @for (t of appliesToOptions; track t) {
+        <option [value]="t">{{ appliesToLabel(t) }}</option>
+      }
+    </select>
+  </div>
+
+  <!-- Table -->
+  <div class="card">
+    @if (loading) {
+      <div class="skeleton-rows">
+        @for (i of [1,2,3,4,5,6]; track i) {
+          <div class="skeleton-row">
+            <div class="skeleton sk-name"></div>
+            <div class="skeleton sk-badge"></div>
+            <div class="skeleton sk-code"></div>
+            <div class="skeleton sk-code"></div>
+            <div class="skeleton sk-num"></div>
+            <div class="skeleton sk-badge"></div>
+          </div>
+        }
+      </div>
+    } @else if (charges.length === 0) {
+      <div class="empty-state">
+        <span class="material-icons">percent</span>
+        <p>{{ filterApplies || searchQuery ? 'No charges match your filter.' : 'No charge definitions configured yet.' }}</p>
+        @if (!filterApplies && !searchQuery) {
+          <button class="btn-primary btn-sm" (click)="openCreate()">
+            <span class="material-icons">add</span> Create First Charge
+          </button>
+        }
+      </div>
+    } @else {
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Applies To</th>
+            <th>Charge Time</th>
+            <th>Calculation</th>
+            <th>Amount</th>
+            <th>Penalty</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (c of charges; track c.id) {
+            <tr>
+              <td>
+                <div class="charge-name">{{ c.name }}</div>
+              </td>
+              <td>
+                <span class="applies-badge applies-badge--{{ c.chargeAppliesTo.toLowerCase() }}">
+                  {{ appliesToLabel(c.chargeAppliesTo) }}
+                </span>
+              </td>
+              <td>{{ timeTypeLabel(c.chargeTimeType) }}</td>
+              <td>{{ calculationLabel(c.chargeCalculation) }}</td>
+              <td class="mono">{{ amountDisplay(c) }}</td>
+              <td>
+                @if (c.penalty) {
+                  <span class="penalty-chip">Penalty</span>
+                } @else {
+                  <span class="fee-chip">Fee</span>
+                }
+              </td>
+              <td>
+                <app-status-badge
+                  [label]="c.active ? 'Active' : 'Inactive'"
+                  [variant]="c.active ? 'success' : 'neutral'" />
+              </td>
+              <td class="action-cell">
+                <button class="btn-ghost btn-sm" title="Edit" (click)="openEdit(c, $event)">
+                  <span class="material-icons">edit</span>
+                </button>
+                <button class="btn-ghost btn-sm btn-danger" title="Delete" (click)="openDelete(c, $event)">
+                  <span class="material-icons">delete</span>
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      <!-- Pagination -->
+      @if (total > pageSize) {
+        <div class="pagination">
+          <span class="pagination__info">{{ startRow }}–{{ endRow }} of {{ total }}</span>
+          <div class="pagination__controls">
+            <button class="page-btn" (click)="prevPage()" [disabled]="page === 0">
+              <span class="material-icons">chevron_left</span>
+            </button>
+            <span class="page-indicator">{{ page + 1 }} / {{ totalPages }}</span>
+            <button class="page-btn" (click)="nextPage()" [disabled]="page === totalPages - 1">
+              <span class="material-icons">chevron_right</span>
+            </button>
+          </div>
+        </div>
+      }
+    }
+  </div>
+</div>
+
+<!-- ── Create / Edit Modal ────────────────────────────────────────────────── -->
+@if (showModal) {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2 class="modal-title">{{ editTarget ? 'Edit Charge' : 'New Charge Definition' }}</h2>
+        <button class="modal-close" (click)="closeModal()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Name -->
+        <div class="field">
+          <label class="field-label">Name <span class="req">*</span></label>
+          <input class="field-input" type="text" [(ngModel)]="form.name"
+                 placeholder="e.g. Loan Origination Fee" />
+        </div>
+
+        <!-- Applies To + Currency -->
+        <div class="field-row">
+          <div class="field">
+            <label class="field-label">Applies To <span class="req">*</span></label>
+            <select class="field-input" [(ngModel)]="form.chargeAppliesTo"
+                    (ngModelChange)="onAppliesToChange()">
+              <option value="">Select…</option>
+              @for (t of appliesToOptions; track t) {
+                <option [value]="t">{{ appliesToLabel(t) }}</option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label">Currency</label>
+            <input class="field-input" type="text" [(ngModel)]="form.currencyCode"
+                   placeholder="USD" maxlength="3" style="text-transform:uppercase" />
+          </div>
+        </div>
+
+        <!-- Charge Time Type -->
+        <div class="field">
+          <label class="field-label">Charge Time <span class="req">*</span></label>
+          <select class="field-input" [(ngModel)]="form.chargeTimeType"
+                  [disabled]="!form.chargeAppliesTo">
+            <option value="">{{ form.chargeAppliesTo ? 'Select…' : 'Select Applies To first' }}</option>
+            @for (t of timeTypeOptions; track t) {
+              <option [value]="t">{{ timeTypeLabel(t) }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Calculation + Amount -->
+        <div class="field-row">
+          <div class="field">
+            <label class="field-label">Calculation <span class="req">*</span></label>
+            <select class="field-input" [(ngModel)]="form.chargeCalculation">
+              @for (c of calculationOptions; track c) {
+                <option [value]="c">{{ calculationLabel(c) }}</option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label">
+              Amount <span class="req">*</span>
+              <span class="field-hint">
+                {{ form.chargeCalculation === 'FLAT' ? '(flat amount)' : '(percentage)' }}
+              </span>
+            </label>
+            <input class="field-input" type="number" min="0" step="0.01"
+                   [(ngModel)]="form.amount" placeholder="0.00" />
+          </div>
+        </div>
+
+        <!-- Toggles -->
+        <div class="field-row field-toggles">
+          <label class="toggle-label">
+            <input type="checkbox" [(ngModel)]="form.penalty" />
+            <span>Penalty charge</span>
+          </label>
+          <label class="toggle-label">
+            <input type="checkbox" [(ngModel)]="form.active" />
+            <span>Active</span>
+          </label>
+        </div>
+
+        @if (saveError) {
+          <p class="field-error">{{ saveError }}</p>
+        }
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-ghost" (click)="closeModal()" [disabled]="saving">Cancel</button>
+        <button class="btn-primary" (click)="save()" [disabled]="saving">
+          {{ saving ? 'Saving…' : (editTarget ? 'Save Changes' : 'Create Charge') }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── Delete Confirm Modal ───────────────────────────────────────────────── -->
+@if (showDeleteModal && deleteTarget) {
+  <div class="modal-backdrop" (click)="closeDelete()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h2 class="modal-title">Delete Charge</h2>
+        <button class="modal-close" (click)="closeDelete()">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="confirm-text">
+          Delete <strong>{{ deleteTarget.name }}</strong>?
+          This will remove the charge definition and cannot be undone.
+          Existing applied charges on loans or accounts are not affected.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost" (click)="closeDelete()">Cancel</button>
+        <button class="btn-danger-solid" (click)="confirmDelete()">Delete</button>
+      </div>
+    </div>
+  </div>
+}

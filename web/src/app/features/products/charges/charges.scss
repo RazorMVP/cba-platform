@@ -1,0 +1,193 @@
+@use 'assets/styles/design-system' as *;
+
+:host { display: block; }
+
+.page { padding: $space-6; }
+
+// ── Page header ──────────────────────────────────────────────────────────────
+.page-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  margin-bottom: $space-5; gap: $space-4; flex-wrap: wrap;
+}
+.page-title    { font-size: $text-2xl; font-weight: $font-weight-semibold; color: $color-text-primary; margin: 0; }
+.page-subtitle { font-size: $text-sm; color: $color-text-muted; margin: 2px 0 0; }
+
+// ── Toolbar ──────────────────────────────────────────────────────────────────
+.toolbar {
+  display: flex; align-items: center; gap: $space-4; margin-bottom: $space-4; flex-wrap: wrap;
+}
+.search-box {
+  display: flex; align-items: center; gap: $space-2;
+  background: white; border: 1px solid $color-border-default; border-radius: $radius-sm;
+  padding: 0 $space-3; height: 38px; flex: 1; max-width: 360px;
+  .material-icons { font-size: 18px; color: $color-text-muted; }
+  input { border: none; outline: none; font-size: $text-sm; width: 100%; background: transparent; }
+}
+.filter-select {
+  height: 38px; padding: 0 $space-3; border: 1px solid $color-border-default;
+  border-radius: $radius-sm; font-size: $text-sm; background: white; cursor: pointer;
+  outline: none;
+  &:focus { border-color: $color-primary-800; }
+}
+
+// ── Buttons ──────────────────────────────────────────────────────────────────
+.btn-primary {
+  display: inline-flex; align-items: center; gap: $space-1; height: 36px; padding: 0 $space-4;
+  border-radius: $radius-full; background: $color-primary-800; color: white; border: none;
+  font-size: $text-sm; font-weight: $font-weight-medium; cursor: pointer; text-decoration: none;
+  .material-icons { font-size: 18px; }
+  &:hover:not(:disabled) { opacity: .9; }
+  &:disabled { opacity: .5; cursor: not-allowed; }
+  &.btn-sm { height: 30px; padding: 0 $space-3; font-size: $text-xs; }
+}
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: $space-1; height: 30px; padding: 0 $space-2;
+  border-radius: $radius-sm; background: transparent; border: 1px solid $color-border-default;
+  font-size: $text-xs; cursor: pointer; color: $color-text-muted; text-decoration: none;
+  .material-icons { font-size: 16px; }
+  &:hover:not(:disabled) { background: $color-grey-50; color: $color-text-primary; }
+  &:disabled { opacity: .4; cursor: not-allowed; }
+  &.btn-danger:hover { background: #fef2f2; color: #dc2626; border-color: #fca5a5; }
+}
+.btn-danger-solid {
+  display: inline-flex; align-items: center; gap: $space-1; height: 36px; padding: 0 $space-4;
+  border-radius: $radius-full; background: #dc2626; color: white; border: none;
+  font-size: $text-sm; font-weight: $font-weight-medium; cursor: pointer;
+  &:hover { background: #b91c1c; }
+}
+
+// ── Card ─────────────────────────────────────────────────────────────────────
+.card {
+  background: $color-bg-card; border-radius: $radius-md;
+  box-shadow: $shadow-card; border: 1px solid $color-border-default; overflow: hidden;
+}
+
+// ── Table ────────────────────────────────────────────────────────────────────
+.data-table {
+  width: 100%; border-collapse: collapse;
+  th {
+    text-align: left; font-size: 11px; font-weight: $font-weight-semibold;
+    color: $color-text-muted; text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 10px $space-5; background: $color-grey-50;
+    border-bottom: 1px solid $color-border-default; white-space: nowrap;
+  }
+  td {
+    padding: 13px $space-5; font-size: $text-sm; color: $color-text-primary;
+    border-bottom: 1px solid rgba(0,0,0,0.04); vertical-align: middle;
+  }
+  tr:last-child td { border-bottom: none; }
+}
+.charge-name { font-weight: $font-weight-medium; }
+.mono        { font-family: monospace; font-size: $text-xs; }
+.action-cell { width: 80px; text-align: right; display: flex; align-items: center; gap: $space-1; justify-content: flex-end; }
+
+// ── Applies-to badges ─────────────────────────────────────────────────────────
+.applies-badge {
+  display: inline-flex; align-items: center; padding: 2px 8px;
+  border-radius: $radius-full; font-size: $text-xs; font-weight: $font-weight-medium;
+  &--loan    { background: #eff6ff; color: #1d4ed8; }
+  &--savings { background: #f0fdf4; color: #15803d; }
+  &--client  { background: #fdf4ff; color: #7e22ce; }
+  &--share   { background: #fff7ed; color: #c2410c; }
+}
+
+// ── Penalty / Fee chips ───────────────────────────────────────────────────────
+.penalty-chip {
+  display: inline-flex; padding: 2px 8px; border-radius: $radius-full;
+  font-size: $text-xs; font-weight: $font-weight-medium;
+  background: #fef2f2; color: #dc2626;
+}
+.fee-chip {
+  display: inline-flex; padding: 2px 8px; border-radius: $radius-full;
+  font-size: $text-xs; font-weight: $font-weight-medium;
+  background: $color-grey-100; color: $color-text-muted;
+}
+
+// ── Skeleton ─────────────────────────────────────────────────────────────────
+.skeleton-rows { padding: $space-2 0; }
+.skeleton-row  { display: flex; align-items: center; gap: $space-4; padding: 14px $space-5; border-bottom: 1px solid rgba(0,0,0,0.04); }
+.skeleton {
+  background: linear-gradient(90deg, $color-grey-100 25%, $color-grey-50 50%, $color-grey-100 75%);
+  background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: $radius-sm;
+}
+.sk-name  { height: 16px; width: 180px; }
+.sk-code  { height: 14px; width: 100px; }
+.sk-num   { height: 14px; width: 80px; }
+.sk-badge { height: 22px; width: 70px; border-radius: $radius-full; }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; gap: $space-3;
+  padding: $space-12; color: $color-text-muted;
+  .material-icons { font-size: 48px; opacity: .3; }
+  p { font-size: $text-sm; margin: 0; }
+}
+
+// ── Pagination ────────────────────────────────────────────────────────────────
+.pagination {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: $space-3 $space-5; border-top: 1px solid $color-border-default; background: $color-grey-50;
+}
+.pagination__info    { font-size: $text-sm; color: $color-text-muted; }
+.pagination__controls { display: flex; align-items: center; gap: $space-2; }
+.page-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: $radius-sm;
+  border: 1px solid $color-border-default; background: white; cursor: pointer;
+  .material-icons { font-size: 18px; }
+  &:hover:not(:disabled) { background: $color-grey-50; }
+  &:disabled { opacity: .4; cursor: not-allowed; }
+}
+.page-indicator { font-size: $text-sm; color: $color-text-muted; min-width: 60px; text-align: center; }
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000;
+  display: flex; align-items: center; justify-content: center; padding: $space-4;
+}
+.modal {
+  background: white; border-radius: $radius-md; box-shadow: $shadow-modal;
+  width: 100%; max-width: 540px; max-height: 90vh; display: flex; flex-direction: column;
+  &--sm { max-width: 420px; }
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: $space-4 $space-5; border-bottom: 1px solid $color-border-default;
+}
+.modal-title { font-size: $text-lg; font-weight: $font-weight-semibold; margin: 0; }
+.modal-close {
+  display: flex; align-items: center; justify-content: center; width: 32px; height: 32px;
+  border: none; background: transparent; border-radius: $radius-sm; cursor: pointer; color: $color-text-muted;
+  &:hover { background: $color-grey-50; }
+  .material-icons { font-size: 20px; }
+}
+.modal-body   { padding: $space-5; overflow-y: auto; display: flex; flex-direction: column; gap: $space-4; }
+.modal-footer {
+  display: flex; align-items: center; justify-content: flex-end; gap: $space-3;
+  padding: $space-4 $space-5; border-top: 1px solid $color-border-default;
+}
+
+// ── Form fields ───────────────────────────────────────────────────────────────
+.field { display: flex; flex-direction: column; gap: $space-1; }
+.field-label {
+  font-size: $text-sm; font-weight: $font-weight-medium; color: $color-text-primary;
+  .req { color: #dc2626; }
+}
+.field-hint { font-size: $text-xs; font-weight: $font-weight-regular; color: $color-text-muted; margin-left: 4px; }
+.field-input {
+  height: 38px; padding: 0 $space-3; border: 1px solid $color-border-default;
+  border-radius: $radius-sm; font-size: $text-sm; background: white; outline: none; width: 100%; box-sizing: border-box;
+  &:focus { border-color: $color-primary-800; box-shadow: 0 0 0 2px rgba(30,40,51,0.08); }
+  &:disabled { background: $color-grey-50; cursor: not-allowed; }
+}
+.field-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: $space-4;
+  &.field-toggles { grid-template-columns: 1fr 1fr; align-items: center; }
+}
+.toggle-label {
+  display: flex; align-items: center; gap: $space-2; font-size: $text-sm; cursor: pointer;
+  input[type=checkbox] { accent-color: $color-primary-800; width: 15px; height: 15px; }
+}
+.field-error { font-size: $text-sm; color: #dc2626; margin: 0; }
+.confirm-text { font-size: $text-sm; color: $color-text-primary; line-height: 1.6; margin: 0; }

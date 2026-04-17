@@ -67,6 +67,10 @@ export const routes: Routes = [
             path: 'shares',
             loadChildren: () => import('./features/products/shares/shares.routes').then(m => m.SHARES_ROUTES),
           },
+          {
+            path: 'charges',
+            loadChildren: () => import('./features/products/charges/charges.routes').then(m => m.CHARGES_ROUTES),
+          },
         ],
       },
 

@@ -48,6 +48,7 @@ export class SidebarComponent {
         { label: 'Fixed Deposits',     icon: 'lock_clock',        route: '/products/fixed-deposits' },
         { label: 'Recurring Deposits', icon: 'autorenew',         route: '/products/recurring-deposits' },
         { label: 'Share Products',     icon: 'pie_chart',         route: '/products/shares' },
+        { label: 'Charges',            icon: 'percent',           route: '/products/charges' },
       ],
     },
     {

@@ -330,6 +330,39 @@ export interface ShareProductRequest {
   allowDividendsForInactive?: boolean;
 }
 
+// ── Charge Definition ─────────────────────────────────────────────────────────
+
+export type ChargeAppliesTo = 'LOAN' | 'SAVINGS' | 'CLIENT' | 'SHARE';
+export type ChargeTimeType =
+  'DISBURSEMENT' | 'SPECIFIED_DUE_DATE' | 'INSTALLMENT_FEE' | 'OVERDUE_INSTALLMENT' |
+  'ANNUAL_FEE' | 'MONTHLY_FEE' | 'WITHDRAWAL_FEE' | 'SAVINGS_ACTIVATION' | 'SHARE_PURCHASE';
+export type ChargeCalculation =
+  'FLAT' | 'PERCENT_OF_AMOUNT' | 'PERCENT_OF_INTEREST' | 'PERCENT_OF_AMOUNT_AND_INTEREST';
+
+export interface ChargeDefinition {
+  id: string;
+  name: string;
+  currencyCode: string;
+  chargeAppliesTo: ChargeAppliesTo;
+  chargeTimeType: ChargeTimeType;
+  chargeCalculation: ChargeCalculation;
+  amount: number;
+  active: boolean;
+  penalty: boolean;
+  createdAt: string;
+}
+
+export interface ChargeCreateRequest {
+  name: string;
+  currencyCode: string;
+  chargeAppliesTo: ChargeAppliesTo;
+  chargeTimeType: ChargeTimeType;
+  chargeCalculation: ChargeCalculation;
+  amount: number;
+  penalty: boolean;
+  active: boolean;
+}
+
 // ── Service ───────────────────────────────────────────────────────────────────
 
 @Injectable({ providedIn: 'root' })
@@ -427,5 +460,23 @@ export class ProductService {
   }
   deactivateShareProduct(id: string): Observable<void> {
     return this.api.delete<void>(`/shareproducts/${id}`);
+  }
+
+  // Charges
+  listCharges(page = 0, size = 20, appliesTo?: ChargeAppliesTo) {
+    const extra: Record<string, string> = appliesTo ? { appliesTo } : {};
+    return this.api.getPage<ChargeDefinition>('/charges', page, size, extra);
+  }
+
+  createCharge(body: ChargeCreateRequest): Observable<ChargeDefinition> {
+    return this.api.post<ChargeDefinition>('/charges', body);
+  }
+
+  updateCharge(id: string, body: ChargeCreateRequest): Observable<ChargeDefinition> {
+    return this.api.put<ChargeDefinition>(`/charges/${id}`, body);
+  }
+
+  deleteCharge(id: string): Observable<void> {
+    return this.api.delete<void>(`/charges/${id}`);
   }
 }

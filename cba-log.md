@@ -59,6 +59,72 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 68 — 2026-04-17
+**Fees & Charges PRD gaps closed — global Charges page + full LoanDetail charges tab (add/pay/waive/delete) + backend `payLoanCharge` endpoint.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/src/app/features/products/charges/charges.ts` | NEW — standalone component; server-paginated CRUD for charge definitions; `TIME_TYPES_BY_APPLIES` map filters time type options by applies-to |
+| `web/src/app/features/products/charges/charges.html` | NEW — toolbar + table with applies-to badges + penalty/fee chips; create/edit modal (name, currency, applies-to, time type, calculation, amount, flags); delete confirm modal |
+| `web/src/app/features/products/charges/charges.scss` | NEW — `.applies-badge--loan/savings/client/share`, `.penalty-chip`, `.fee-chip`; shared modal/form/table/skeleton styles |
+| `web/src/app/features/products/charges/charges.routes.ts` | NEW — lazy-loaded route `{ path: '', component: ChargesComponent }` |
+| `web/src/app/app.routes.ts` | Added `{ path: 'charges' }` under products children |
+| `web/src/app/layout/sidebar/sidebar.ts` | Added "Charges" nav item to Products group |
+| `web/src/app/features/products/product.service.ts` | Added `ChargeDefinition`, `ChargeCreateRequest`, `ChargeAppliesTo`, `ChargeTimeType`, `ChargeCalculation` types; added `listCharges`, `createCharge`, `updateCharge`, `deleteCharge` service methods |
+| `backend/src/main/java/com/cba/charge/ChargeService.java` | Added `payLoanCharge()` method |
+| `backend/src/main/java/com/cba/charge/LoanChargeController.java` | Added `POST /{chargeId}/pay` endpoint |
+| `web/src/app/features/operations/loans/loan.service.ts` | Fixed `LoanCharge` interface field names (`name`, `dueForCollectionAsOfDate`); added `AvailableCharge` interface; fixed `getCharges()` to use `getPage()` + map; added `addCharge`, `waiveCharge`, `listAvailableCharges`; fixed `payCharge` URL |
+| `web/src/app/features/operations/loans/loan-detail/loan-detail.ts` | Added all charge modal state + `openAddCharge`, `onAddChargeDefChange`, `submitAddCharge`, `openWaiveCharge`, `confirmWaiveCharge`, `openDeleteCharge`, `confirmDeleteCharge`, private `replaceCharge` |
+| `web/src/app/features/operations/loans/loan-detail/loan-detail.html` | Charges tab: Add Charge button in header; fixed field names; Waive + Delete row actions; Add Charge modal; Waive confirm modal; Delete confirm modal |
+| `web/src/app/features/operations/loans/loan-detail/loan-detail.scss` | Added `.modal--sm`, `.confirm-text`, `.modal__warning`, `.action-cell`, `.btn-ghost.btn-sm.btn-danger` |
+
+#### Key Patterns / Decisions
+- `TIME_TYPES_BY_APPLIES` lookup map: selecting LOAN shows DISBURSEMENT/SPECIFIED_DUE_DATE/INSTALLMENT_FEE/OVERDUE_INSTALLMENT; SAVINGS shows WITHDRAWAL_FEE/ANNUAL_FEE/MONTHLY_FEE/SAVINGS_ACTIVATION — `onAppliesToChange()` resets `form.chargeTimeType` when parent changes
+- `onAddChargeDefChange()` auto-populates amount from the selected charge definition, allowing override before submit
+- `replaceCharge()` uses immutable array update pattern (`[...slice, updated, ...slice]`) for correct Angular change detection
+- Waive vs Pay: Waive writes off the charge (`waived=true`, `amountWaived=amount`); Pay records actual cash received (`paid=true`, `amountPaid=amount`). Both set `amountOutstanding=0`
+
+#### Build Verification
+- Backend: `./mvnw compile` → clean (new `payLoanCharge` method added)
+- Angular: `npx ng build --configuration production` → BUILD SUCCESS, 0 errors, pre-existing warnings only
+
+#### PRD Gap Closure — Module 4 (Fees & Charges)
+| Gap | Status |
+|-----|--------|
+| Charge definition CRUD page (`/products/charges`) | ✅ Closed |
+| List charges on loan (Charges tab) | ✅ Closed |
+| Apply charge to loan (Add Charge modal) | ✅ Closed |
+| Pay charge on loan (Pay button + backend endpoint) | ✅ Closed |
+| Waive charge on loan (Waive button + confirm modal) | ✅ Closed |
+
+#### Confirmed Platform Versions
+
+**Backend (`backend/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `2d8a1ea` |
+| Java | 21 | `2d8a1ea` |
+| Application artifact | `cba-backend 0.1.0-SNAPSHOT` | `2d8a1ea` |
+| Keycloak admin client | 26.0.5 | `2d8a1ea` |
+| springdoc-openapi | 2.8.6 | `2d8a1ea` |
+| Lombok | 1.18.38 | `2d8a1ea` |
+| PostgreSQL | 16 (Docker) | `2d8a1ea` |
+
+**Angular Web App (`web/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | (this session) |
+| Angular CLI | 21.2.7 | (this session) |
+| PrimeNG | 21.0.x | (this session) |
+| RxJS | 7.8.x | (this session) |
+| TypeScript | 5.9.x | (this session) |
+| Vercel deployment | `cba-web-nine.vercel.app` | (this session) |
+
+---
+
 ### Session 67 — 2026-04-17
 **Dashboard recent transactions 404 fixed — new `GET /api/v1/transactions` endpoint with account JOIN FETCH; CI pipeline fully green; production deployed.**
 

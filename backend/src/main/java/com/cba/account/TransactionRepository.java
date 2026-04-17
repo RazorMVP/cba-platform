@@ -17,6 +17,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
     Page<Transaction> findByAccountIdAndTransactionDateBetween(
         UUID accountId, Instant from, Instant to, Pageable pageable);
 
-    @Query("SELECT t FROM Transaction t JOIN FETCH t.account ORDER BY t.transactionDate DESC")
+    @Query(value = "SELECT t FROM Transaction t JOIN FETCH t.account ORDER BY t.transactionDate DESC",
+           countQuery = "SELECT COUNT(t) FROM Transaction t")
     Page<Transaction> findAllWithAccount(Pageable pageable);
 }

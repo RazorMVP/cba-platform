@@ -51,7 +51,7 @@ public class TransactionController {
                 .map(tx -> new RecentTransactionResponse(
                         tx.getId(),
                         tx.getAccount().getAccountNumber(),
-                        tx.getAccount().getCustomer().getFirstName() + " " + tx.getAccount().getCustomer().getLastName(),
+                        null, // customerName omitted — customer PII requires separate decryption context
                         tx.getTransactionType().name(),
                         tx.getAmount(),
                         tx.getRunningBalance(),

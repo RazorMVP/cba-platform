@@ -16,7 +16,6 @@
 .skeleton { background: linear-gradient(90deg, $color-grey-100 25%, $color-grey-50 50%, $color-grey-100 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: $radius-sm; }
 .skeleton--header { height: 100px; border-radius: $radius-md; }
 .skeleton--body   { height: 400px; border-radius: $radius-md; }
-@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 .error-state { text-align: center; padding: $space-12; color: $color-text-muted; .material-icons { font-size: 48px; display: block; margin-bottom: $space-4; color: $color-error-600; } }
 
 // ── Product header ────────────────────────────────────────────────────────────

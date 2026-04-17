@@ -347,11 +347,6 @@
   &--row { height: 44px; }
 }
 
-@keyframes shimmer {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
 // ── Empty state ────────────────────────────────────────────────────────────────
 
 .empty-state {
@@ -533,7 +528,6 @@
   animation: fade-in 0.15s ease;
 }
 
-@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 
 .modal {
   background: var(--bg-card);
@@ -545,11 +539,6 @@
   animation: slide-up 0.2s ease;
 
   &--wide { max-width: 640px; }
-}
-
-@keyframes slide-up {
-  from { transform: translateY(16px); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
 }
 
 .modal__header {
@@ -721,4 +710,3 @@
   animation: spin 0.7s linear infinite;
 }
 
-@keyframes spin { to { transform: rotate(360deg); } }

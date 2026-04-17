@@ -95,7 +95,6 @@
 .sk-code  { height: 14px; width: 60px; }
 .sk-num   { height: 14px; width: 100px; }
 .sk-badge { height: 22px; width: 70px; border-radius: $radius-full; }
-@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
 // ── Empty state ───────────────────────────────────────────────────────────────
 .empty-state {

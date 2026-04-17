@@ -16,7 +16,6 @@
 .card { background: var(--bg-card); border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.08); overflow: hidden; }
 .skeleton-card { padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
 .skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 6px; &--row { height: 44px; } }
-@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 .empty-state { display: flex; flex-direction: column; align-items: center; padding: 3.5rem 2rem; gap: 1rem; color: var(--color-muted); text-align: center; .material-icons { font-size: 3rem; opacity: 0.3; } p { margin: 0; font-size: 0.9rem; } }
 .data-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; th { padding: 0.75rem 1.25rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.05em; background: #f9fafb; border-bottom: 1px solid #e5e7eb; } td { padding: 0.75rem 1.25rem; border-bottom: 1px solid #f1f5f9; color: var(--color-text); vertical-align: middle; } tr:last-child td { border-bottom: none; } }
 .table-row { cursor: pointer; &:hover td { background: #fafafa; } }
@@ -25,9 +24,7 @@
 .arrow-icon { font-size: 1.1rem; color: var(--color-muted); }
 .table-footer { padding: 0.75rem 1.25rem; font-size: 0.8rem; color: var(--color-muted); border-top: 1px solid #f1f5f9; }
 .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 1000; animation: fade-in 0.15s ease; }
-@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 .modal { background: var(--bg-card); border-radius: 14px; width: 100%; max-width: 480px; box-shadow: 0 8px 32px rgba(0,0,0,.18); overflow: hidden; animation: slide-up 0.2s ease; }
-@keyframes slide-up { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 .modal__header { display: flex; align-items: center; gap: 0.75rem; padding: 1.25rem 1.5rem; font-size: 1rem; font-weight: 600; color: var(--color-text); border-bottom: 1px solid #f1f5f9; }
 .modal__icon { font-size: 1.4rem; color: var(--color-primary); }
 .modal__body { padding: 1.25rem 1.5rem; }
@@ -38,4 +35,3 @@
 .form-input { width: 100%; padding: 0.55rem 0.875rem; border: 1.5px solid #e5e7eb; border-radius: 6px; font-size: 0.875rem; color: var(--color-text); background: #fff; box-sizing: border-box; font-family: inherit; &:focus { outline: none; border-color: var(--color-primary); } }
 .required { color: #dc2626; }
 .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }

@@ -135,7 +135,6 @@
 .sk-id     { height: 13px; width: 180px; }
 .sk-action { height: 20px; width: 80px; border-radius: $radius-full; }
 .sk-user   { height: 13px; width: 100px; }
-@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
 // ── Empty state ───────────────────────────────────────────────────────────────
 .empty-state {

@@ -100,4 +100,3 @@
 .action-secondary { height: 36px; padding: 0 $space-4; border-radius: $radius-full; background: white; color: $color-text-primary; border: 1px solid $color-border-default; font-size: $text-sm; font-weight: $font-weight-medium; text-decoration: none; display: inline-flex; align-items: center; cursor: pointer; &:hover { background: $color-grey-50; } }
 
 .skeleton { height: 20px; border-radius: $radius-sm; background: linear-gradient(90deg, $color-grey-100 25%, $color-grey-50 50%, $color-grey-100 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
-@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }

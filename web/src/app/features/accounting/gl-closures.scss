@@ -106,7 +106,6 @@
 .sk-date  { height: 16px; width: 120px; }
 .sk-name  { height: 14px; width: 150px; }
 .sk-muted { height: 14px; width: 200px; }
-@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
 // ── Empty state ───────────────────────────────────────────────────────────────
 .empty-state {
@@ -172,4 +171,3 @@
   display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.4);
   border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite;
 }
-@keyframes spin { to { transform: rotate(360deg); } }

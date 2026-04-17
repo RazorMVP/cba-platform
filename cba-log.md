@@ -59,6 +59,53 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 79 — 2026-04-17
+**Bulk-remove duplicate `@keyframes` from all 51 remaining feature SCSS files to eliminate app-wide sidebar freeze and animation corruption on localhost.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| 51 `*.scss` files across `accounting/`, `admin/`, `groups/`, `open-banking/`, `operations/`, `products/`, `reports/`, `system/` | Stripped duplicate `@keyframes shimmer`, `fade-in`, `slide-up`, `spin` declarations — these were leaking into the global stylesheet and overwriting `_design-system.scss` definitions |
+| `operations/payments/payments-list.scss` | Also removed orphaned keyframe body content left by sed (percentage stops + closing `}`) |
+| `operations/accounts/account-detail/account-detail.scss` | Same orphan cleanup |
+| `operations/payments/payment-detail/payment-detail.scss` | Same orphan cleanup |
+
+#### Key Patterns / Decisions
+- Bulk removal used `grep -rl "^@keyframes" | xargs sed -i ''` — removed the declaration line only; the keyframe body (percentage stops + closing `}`) was left as orphaned SCSS in 3 files, causing "unmatched }" compile errors.
+- Orphaned content pattern (`  0% { ... }`, `  100% { ... }`, `}`) removed via Python regex on the 3 affected files.
+- 3 files with legitimate unique animations retained their `@keyframes`: `audit-log.scss` (`slideIn`), `codes.scss` (`expand`), `floating-rates.scss` (`expand`).
+
+#### Build Verification
+`npm run build -- --configuration=production` → **BUILD SUCCESS** (0 errors; budget warning on `loan-detail.scss` only)
+
+#### Confirmed Platform Versions
+
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `bde3a64` |
+| Java | 21 | `bde3a64` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `bde3a64` |
+| Keycloak admin client | 26.0.5 | `bde3a64` |
+| springdoc-openapi | 2.8.6 | `bde3a64` |
+| Lombok | 1.18.38 | `bde3a64` |
+| PostgreSQL | 16 (Docker) | `bde3a64` |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `pending` |
+| Angular CLI | 21.2.7 | `pending` |
+| PrimeNG | 21.0.x | `pending` |
+| RxJS | 7.8.x | `pending` |
+| TypeScript | 5.9.x | `pending` |
+| Production URL | `cba-web-nine.vercel.app` | `pending` |
+
+#### Compliance Checklist Update
+No new REST endpoints. Angular-only CSS fix. API docs not updated.
+
+---
+
 ### Session 78 — 2026-04-17
 **Fix dev-mode CSS bugs in 5 Session-77 system SCSS files: remove `@keyframes` global leaks and duplicate global class definitions (commit `2e608e0`).**
 

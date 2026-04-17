@@ -59,6 +59,53 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 66 — 2026-04-17
+**CI pipeline fixed end-to-end: Angular 21 / Vitest test runner wired correctly, Vercel `--prebuilt` deploy corrected; production deployment confirmed at `cba-web-nine.vercel.app`.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `.github/workflows/web-ci.yml` | Fixed `--code-coverage` → `--coverage` (Angular 21 flag rename); removed `--browsers=ChromeHeadless` (Karma flag, invalid with Vitest); replaced `npx ng build` with `vercel build --prod` so `--prebuilt` deploy finds `.vercel/output/` |
+| `web/package.json` | Added `@vitest/coverage-v8` devDependency — required by `ng test --coverage` under Angular 21 Vitest runner |
+| `web/package-lock.json` | Updated lockfile for `@vitest/coverage-v8` install |
+
+#### Key Patterns / Decisions
+- Angular 21 ships with `@angular/build:unit-test` (Vitest) instead of Karma — all Karma-specific flags (`--browsers`, `--code-coverage`) are invalid
+- `vercel deploy --prebuilt` requires `.vercel/output/` which only `vercel build` produces; `ng build` outputs to `dist/` which Vercel ignores with `--prebuilt`
+- Three separate CI fixes were needed in sequence — each failure exposed the next layer
+
+#### Build Verification
+- GitHub Actions run `24563059341`: Lint & Test ✅ · Security Audit ✅ · Build & Deploy → Vercel ✅
+- Production alias: `https://cba-web-nine.vercel.app`
+
+#### Confirmed Platform Versions
+
+**Backend (`backend/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `73edb4d` |
+| Java | 21 | `73edb4d` |
+| Application artifact | `cba-backend 0.1.0-SNAPSHOT` | `73edb4d` |
+| Keycloak admin client | 26.0.5 | `73edb4d` |
+| springdoc-openapi | 2.8.6 | `73edb4d` |
+| Lombok | 1.18.38 | `73edb4d` |
+| PostgreSQL | 16 (Docker) | `73edb4d` |
+
+**Angular Web App (`web/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `9229dea` |
+| Angular CLI | 21.2.7 | `9229dea` |
+| PrimeNG | 21.0.x | `9229dea` |
+| RxJS | 7.8.x | `9229dea` |
+| TypeScript | 5.9.x | `9229dea` |
+| Vercel deployment | `cba-2lq213thc-razormvps-projects.vercel.app` | `909139a` |
+| Production URL | `cba-web-nine.vercel.app` | `909139a` |
+
+---
+
 ### Session 65 — 2026-04-17
 **PRD gap analysis + loan write-off wiring: fixed broken service method, wired component state + action, added button + confirmation modal.**
 

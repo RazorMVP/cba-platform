@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 64 — 2026-04-17)
+## Confirmed Platform Versions (Session 66 — 2026-04-17)
 
 These are the verified-working versions for both production components. Update this table whenever a dependency is upgraded.
 
@@ -20,21 +20,22 @@ These are the verified-working versions for both production components. Update t
 | **Lombok** | 1.18.38 | Minimum for Java 25 `TypeTag` fix; also works on Java 21 |
 | **PostgreSQL** | 16 | Via Docker; schema managed by Flyway |
 | **AWS SDK v2 S3** | 2.26.12 | Optional — for S3/MinIO/GCS image storage |
-| **Last git commit** | `f018ee2` | `fix(tenant): add GET /api/v1/tenants endpoint for Account Algorithms page` |
+| **Last git commit** | `73edb4d` | `feat(images): customer image storage — pluggable provider + mandatory at account opening` |
 
 ### Angular Web App (`web/`)
 
 | Component | Version | Notes |
 |-----------|---------|-------|
 | **Angular** | 21.2.x | `@angular/core`, `@angular/material`, all `@angular/*` packages |
-| **Angular CLI** | 21.2.7 | Used for `ng build --configuration=production` |
+| **Angular CLI** | 21.2.7 | Used for `vercel build --prod` (CI) |
 | **PrimeNG** | 21.0.x | UI component library |
 | **RxJS** | 7.8.x | Reactive extensions; `~7.8.0` pinned |
 | **TypeScript** | 5.9.x | `~5.9.2` pinned |
-| **Vercel deployment** | `dpl_5U67X9GZzUBUD8AHxp5ciwpN7vMt` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `0c6cb55` | `fix(web): remove doubled /api/v1 prefix from service paths` |
+| **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma) |
+| **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
+| **Last git commit** | `909139a` | `fix(ci): replace ng build with vercel build for --prebuilt deploy` |
 
-> **Session 63 fix**: Removed duplicate `/api/v1` path prefix from `admin`, `system`, `accounting`, `reports`, `groups` service files. All Angular pages in those modules (Users, Roles, Offices, Codes, Config, GL, Reports, Groups, etc.) were silently returning 404 due to URL doubling against `apiBaseUrl`.
+> **Session 66 CI fixes**: Angular 21 uses Vitest (not Karma) — `--browsers=ChromeHeadless` and `--code-coverage` are invalid flags. `vercel deploy --prebuilt` requires `.vercel/output/` from `vercel build`, not `dist/` from `ng build`. All three issues fixed; CI pipeline and Vercel production deployment now fully green.
 
 ---
 

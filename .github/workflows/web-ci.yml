@@ -113,11 +113,11 @@ jobs:
 
       - name: Build Angular (preview)
         if: github.event_name == 'pull_request'
-        run: npx ng build --configuration=production
+        run: vercel build --prod --token="${VERCEL_TOKEN}"
 
       - name: Build Angular (production)
         if: github.event_name == 'push'
-        run: npx ng build --configuration=production
+        run: vercel build --prod --token="${VERCEL_TOKEN}"
 
       - name: Deploy preview to Vercel
         if: github.event_name == 'pull_request'

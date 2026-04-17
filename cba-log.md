@@ -59,6 +59,52 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 65 — 2026-04-17
+**PRD gap analysis + loan write-off wiring: fixed broken service method, wired component state + action, added button + confirmation modal.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/src/app/features/operations/loans/loan.service.ts` | Fixed `writeOff()` — was calling `?command=writeOff` (wrong endpoint + no body); now calls `POST /loans/{id}/write-off` with `{ reason, writeOffDate }` body matching backend `WriteOffRequest` record |
+| `web/src/app/features/operations/loans/loan-detail/loan-detail.ts` | Added `showWriteOffModal`, `writeOffReason`, `writeOffDate`, `writeOffSaving`, `writeOffError` state fields; `submitWriteOff()` action method; `canWriteOff` getter (true when status is `ACTIVE` or `IN_ARREARS`) |
+| `web/src/app/features/operations/loans/loan-detail/loan-detail.html` | Added Write Off button in status-band actions; added write-off confirmation modal with amber irreversibility warning banner, date picker, required reason textarea, and inline error display |
+| `web/src/assets/styles/_design-system.scss` | Added `.modal__warning` CSS class — amber banner used for destructive/irreversible action modals |
+
+#### Key Patterns / Decisions
+- `canWriteOff` is valid for `ACTIVE` and `IN_ARREARS` loans only — pre-disbursement and already-terminal loans cannot be written off
+- The modal requires a non-blank reason (`@NotBlank` enforced both client-side guard and backend validation)
+- Write-off is a terminal state — no undo path exists; the amber warning banner communicates this before the user confirms
+- Service method fix was necessary: `api.command()` sends `POST ?command=writeOff {}` but backend maps `POST /loans/{id}/write-off` with a typed request body — the two signatures are incompatible
+
+#### Build Verification
+- `cd web && npx ng build --configuration=development` → `Application bundle generation complete` (0 errors; pre-existing NG8107 warnings only in `CodesComponent`)
+
+#### Confirmed Platform Versions
+
+**Backend (`backend/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `73edb4d` |
+| Java | 21 | `73edb4d` |
+| Application artifact | `cba-backend 0.1.0-SNAPSHOT` | `73edb4d` |
+| Keycloak admin client | 26.0.5 | `73edb4d` |
+| springdoc-openapi | 2.8.6 | `73edb4d` |
+| Lombok | 1.18.38 | `73edb4d` |
+| PostgreSQL | 16 (Docker) | `73edb4d` |
+
+**Angular Web App (`web/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `73edb4d` |
+| Angular CLI | 21.2.7 | `73edb4d` |
+| PrimeNG | 21.0.x | `73edb4d` |
+| RxJS | 7.8.x | `73edb4d` |
+| TypeScript | 5.9.x | `73edb4d` |
+
+---
+
 ### Session 64 — 2026-04-17
 **Customer image storage — full implementation: pluggable StorageProvider (FILE_SYSTEM/DATABASE/S3), multipart API, optional photo at customer creation, mandatory photo at account opening.**
 

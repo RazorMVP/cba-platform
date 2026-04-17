@@ -97,6 +97,11 @@
             <span class="material-icons">cancel</span> Reject
           </button>
         }
+        @if (canWriteOff) {
+          <button class="btn-danger" (click)="showWriteOffModal = true; writeOffReason = ''; writeOffError = ''">
+            <span class="material-icons">money_off</span> Write Off
+          </button>
+        }
       </div>
     </div>
 
@@ -429,6 +434,42 @@
         <button class="btn-ghost" (click)="showApproveModal = false">Cancel</button>
         <button class="btn-success" [disabled]="approveSaving" (click)="submitApprove()">
           {{ approveSaving ? 'Approving…' : 'Confirm Approval' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ══ WRITE-OFF MODAL ══ -->
+@if (showWriteOffModal) {
+  <div class="modal-overlay" (click)="showWriteOffModal = false">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h2 class="modal__title">Write Off Loan</h2>
+        <button class="modal__close" (click)="showWriteOffModal = false">✕</button>
+      </div>
+      <div class="modal__body">
+        <div class="modal__warning">
+          <span class="material-icons">warning</span>
+          This action is <strong>irreversible</strong>. The loan will be marked as unrecoverable and the outstanding balance written off the books.
+        </div>
+        <div class="form-group">
+          <label class="form-label">Write-off Date</label>
+          <input type="date" class="form-input" [(ngModel)]="writeOffDate" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Reason <span class="required">*</span></label>
+          <textarea class="form-textarea" rows="3" placeholder="e.g. Customer deceased, debt declared irrecoverable…"
+                    [(ngModel)]="writeOffReason"></textarea>
+        </div>
+        @if (writeOffError) {
+          <div class="form-error">{{ writeOffError }}</div>
+        }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-ghost" [disabled]="writeOffSaving" (click)="showWriteOffModal = false">Cancel</button>
+        <button class="btn-danger" [disabled]="!writeOffReason.trim() || writeOffSaving" (click)="submitWriteOff()">
+          {{ writeOffSaving ? 'Processing…' : 'Confirm Write-Off' }}
         </button>
       </div>
     </div>

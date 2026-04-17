@@ -2463,7 +2463,7 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Teller list | `TellerListComponent` | `OperationsModule` | ✅ Built — search + status filter, create teller modal |
 | Teller detail | `TellerDetailComponent` | `OperationsModule` | ✅ Built — overview/cashiers/sessions tabs, session expand/collapse, cash-in/out/settle modals, lifecycle buttons |
 | Loans list | `LoansListComponent` | `OperationsModule` | ✅ Built — pipeline view, sliding detail panel |
-| Loan detail | `LoanDetailComponent` | `OperationsModule` | ✅ Built — 5 tabs, approve/disburse/repayment/reject; `isNew` mode: shows New Loan Application form (customerId, productId, principalAmount, termMonths required; interestRate, disbursementDate optional) |
+| Loan detail | `LoanDetailComponent` | `OperationsModule` | ✅ Built — 5 tabs, approve/disburse/repayment/reject/**write-off**; `isNew` mode: shows New Loan Application form (customerId, productId, principalAmount, termMonths required; interestRate, disbursementDate optional); write-off button visible on ACTIVE/IN_ARREARS loans; requires reason (Session 65) |
 | Loan products list | `LoanProductsListComponent` | `ProductsModule` | ✅ Built — search, active filter, pagination |
 | Loan product detail | `LoanProductDetailComponent` | `ProductsModule` | ✅ Built — view/edit toggle, 5 section tabs, GL linkages, charges |
 | Deposit products list | `DepositProductsListComponent` | `ProductsModule` | ✅ Built — search, type filter, pagination |

@@ -72,6 +72,13 @@ export class LoanDetailComponent implements OnInit {
   approveAmount: number | null = null;
   approveSaving = false;
 
+  // Write-off modal
+  showWriteOffModal = false;
+  writeOffReason = '';
+  writeOffDate = new Date().toISOString().slice(0, 10);
+  writeOffSaving = false;
+  writeOffError = '';
+
   readonly tabs: Array<{ id: LoanTab; label: string; icon: string }> = [
     { id: 'summary',    label: 'Summary',    icon: 'summarize' },
     { id: 'schedule',   label: 'Repayment Schedule', icon: 'event_note' },
@@ -182,6 +189,16 @@ export class LoanDetailComponent implements OnInit {
     });
   }
 
+  submitWriteOff(): void {
+    if (!this.loan || !this.writeOffReason.trim()) return;
+    this.writeOffSaving = true;
+    this.writeOffError = '';
+    this.svc.writeOff(this.loan.id, this.writeOffReason.trim(), this.writeOffDate || undefined).subscribe({
+      next: l  => { this.loan = l; this.showWriteOffModal = false; this.writeOffReason = ''; this.writeOffSaving = false; },
+      error: () => { this.writeOffError = 'Write-off failed. Please try again.'; this.writeOffSaving = false; },
+    });
+  }
+
   payCharge(charge: LoanCharge): void {
     if (!this.loan) return;
     this.svc.payCharge(this.loan.id, charge.id).subscribe({
@@ -199,10 +216,11 @@ export class LoanDetailComponent implements OnInit {
     return Math.round((1 - this.loan.outstandingBalance / this.loan.principalAmount) * 100);
   }
 
-  get canApprove():  boolean { return !!this.loan && ['SUBMITTED','UNDER_REVIEW'].includes(this.loan.status); }
-  get canDisburse(): boolean { return !!this.loan && this.loan.status === 'APPROVED'; }
-  get canReject():   boolean { return !!this.loan && ['SUBMITTED','UNDER_REVIEW','APPROVED'].includes(this.loan.status); }
-  get canRepay():    boolean { return !!this.loan && ['ACTIVE','IN_ARREARS'].includes(this.loan.status); }
+  get canApprove():   boolean { return !!this.loan && ['SUBMITTED','UNDER_REVIEW'].includes(this.loan.status); }
+  get canDisburse():  boolean { return !!this.loan && this.loan.status === 'APPROVED'; }
+  get canReject():    boolean { return !!this.loan && ['SUBMITTED','UNDER_REVIEW','APPROVED'].includes(this.loan.status); }
+  get canRepay():     boolean { return !!this.loan && ['ACTIVE','IN_ARREARS'].includes(this.loan.status); }
+  get canWriteOff():  boolean { return !!this.loan && ['ACTIVE','IN_ARREARS'].includes(this.loan.status); }
 
   statusVariant(s: Loan['status']): 'success'|'warning'|'error'|'info'|'neutral'|'primary' {
     const m: Record<string,'success'|'warning'|'error'|'info'|'neutral'|'primary'> = {

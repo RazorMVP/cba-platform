@@ -119,8 +119,8 @@ export class LoanService {
     return this.api.command<Loan>(`/loans/${id}`, 'reject', { reason });
   }
 
-  writeOff(id: string): Observable<Loan> {
-    return this.api.command<Loan>(`/loans/${id}`, 'writeOff');
+  writeOff(id: string, reason: string, writeOffDate?: string): Observable<Loan> {
+    return this.api.post<Loan>(`/loans/${id}/write-off`, { reason, writeOffDate });
   }
 
   recordRepayment(id: string, amount: number, paymentDate: string): Observable<Loan> {

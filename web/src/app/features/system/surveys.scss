@@ -54,7 +54,6 @@
 .q-seq  { font-size: 0.72rem; font-weight: 700; color: var(--color-primary); min-width: 24px; }
 .q-text { font-weight: 500; font-size: 0.875rem; color: var(--color-text); flex: 1; }
 .q-key  { font-size: 0.75rem; font-family: monospace; }
-.muted  { color: var(--color-muted); }
 .responses-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 0.5rem; padding: 0.75rem 1rem;
@@ -83,16 +82,11 @@
 .modal__body   { overflow-y: auto; flex: 1; }
 .modal__footer { flex-shrink: 0; }
 
-.modal__error {
-  margin-bottom: 1rem; padding: 0.6rem 0.875rem;
-  background: #fee2e2; border-radius: 6px; color: #991b1b; font-size: 0.8rem;
-}
 .confirm-text { margin: 0; font-size: 0.9rem; line-height: 1.6; color: var(--color-text); }
 
 // ── Form extensions (global handles base) ─────────────────────────────────────
 // form-label, form-input, required come from global
 // form-row uses flex-wrap for side-by-side fields (not grid)
 .form-row      { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
-.form-field    { flex: 1; }
 .form-textarea { resize: vertical; min-height: 72px; }
 .col-narrow    { flex: 0 0 90px; min-width: 0; }

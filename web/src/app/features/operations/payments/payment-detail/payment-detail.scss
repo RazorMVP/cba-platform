@@ -2,11 +2,6 @@
 
 :host { display: block; }
 
-.page {
-  padding: 2rem;
-  max-width: 1100px;
-  margin: 0 auto;
-}
 
 .back-link {
   display: inline-flex;
@@ -25,14 +20,6 @@
 
 .loading-skeleton { display: flex; flex-direction: column; gap: 1rem; }
 
-.skeleton {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-  border-radius: 8px;
-  &--header { height: 100px; }
-  &--body   { height: 280px; }
-}
 
 .error-state {
   display: flex;
@@ -147,46 +134,13 @@
 
 .btn-primary,
 .btn-secondary,
-.btn-danger {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  cursor: pointer;
-  border: none;
-  transition: opacity 0.15s, filter 0.15s;
-  .material-icons { font-size: 1rem; }
-  &:disabled { opacity: 0.5; cursor: not-allowed; }
-  &:not(:disabled):hover { filter: brightness(0.9); }
-}
 
-.btn-primary   { background: var(--color-primary); color: #fff; }
-.btn-secondary { background: #f1f5f9; color: var(--color-text); }
-.btn-danger    { background: #dc2626; color: #fff; }
 
 // ── Detail grid ────────────────────────────────────────────────────────────────
 
-.detail-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
-
-  @media (max-width: 768px) { grid-template-columns: 1fr; }
-}
 
 // ── Card ───────────────────────────────────────────────────────────────────────
 
-.card {
-  background: var(--bg-card);
-  border-radius: 12px;
-  box-shadow: 0 1px 4px rgba(0,0,0,.08);
-  overflow: hidden;
-
-  &--fx { border-top: 2px solid #a78bfa; }
-}
 
 .card__header {
   display: flex;
@@ -277,17 +231,6 @@
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
 
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  animation: fade-in 0.15s ease;
-}
-
 
 .modal {
   background: var(--bg-card);
@@ -310,10 +253,6 @@
   border-bottom: 1px solid #f1f5f9;
 }
 
-.modal__icon {
-  font-size: 1.4rem;
-  &--danger { color: #dc2626; }
-}
 
 .modal__body {
   padding: 1.25rem 1.5rem;
@@ -323,14 +262,6 @@
 
 .modal__hint { color: var(--color-muted); font-size: 0.8rem !important; }
 
-.modal__error {
-  margin-top: 0.75rem;
-  padding: 0.6rem 0.875rem;
-  background: #fee2e2;
-  border-radius: 6px;
-  color: #991b1b;
-  font-size: 0.8rem;
-}
 
 .modal__footer {
   display: flex;
@@ -338,40 +269,5 @@
   gap: 0.75rem;
   padding: 1rem 1.5rem;
   border-top: 1px solid #f1f5f9;
-}
-
-.form-field { margin-top: 1rem; }
-
-.form-label {
-  display: block;
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--color-text);
-  margin-bottom: 0.4rem;
-}
-
-.form-input {
-  width: 100%;
-  padding: 0.55rem 0.875rem;
-  border: 1.5px solid #e5e7eb;
-  border-radius: 6px;
-  font-size: 0.875rem;
-  color: var(--color-text);
-  background: #fff;
-  box-sizing: border-box;
-  transition: border-color 0.15s;
-  &:focus { outline: none; border-color: var(--color-primary); }
-}
-
-.required { color: #dc2626; }
-
-.spinner {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(255,255,255,.4);
-  border-top-color: #fff;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
 }
 

@@ -2,13 +2,8 @@
 
 :host { display: block; }
 
-.page { padding: $space-6; max-width: 860px; }
 
 // ── Page header ──────────────────────────────────────────────────────────────
-.page-header {
-  display: flex; align-items: flex-start; justify-content: space-between;
-  margin-bottom: $space-5; gap: $space-4; flex-wrap: wrap;
-}
 .page-title    { font-size: $text-2xl; font-weight: $font-weight-semibold; color: $color-text-primary; margin: 0; }
 .page-subtitle { font-size: $text-sm; color: $color-text-muted; margin: 2px 0 0; }
 
@@ -30,14 +25,6 @@
 }
 
 // ── Buttons ───────────────────────────────────────────────────────────────────
-.btn-primary {
-  display: inline-flex; align-items: center; gap: $space-1; height: 36px; padding: 0 $space-4;
-  border-radius: $radius-full; background: $color-primary-800; color: white; border: none;
-  font-size: $text-sm; font-weight: $font-weight-medium; cursor: pointer;
-  .material-icons { font-size: 18px; }
-  &:hover:not(:disabled) { opacity: .9; }
-  &:disabled { opacity: .5; cursor: not-allowed; }
-}
 .btn-ghost {
   display: inline-flex; align-items: center; gap: $space-1; height: 36px; padding: 0 $space-4;
   border-radius: $radius-full; background: transparent; border: 1px solid $color-border-default;
@@ -56,11 +43,6 @@
 }
 
 // ── Card ──────────────────────────────────────────────────────────────────────
-.card {
-  background: $color-bg-card; border-radius: $radius-md;
-  box-shadow: $shadow-card; border: 1px solid $color-border-default; overflow: hidden;
-  margin-bottom: $space-5;
-}
 .card-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: $space-4 $space-5; border-bottom: 1px solid $color-border-default;
@@ -75,45 +57,20 @@
 }
 
 // ── Table ─────────────────────────────────────────────────────────────────────
-.data-table {
-  width: 100%; border-collapse: collapse;
-  th {
-    text-align: left; font-size: 11px; font-weight: $font-weight-semibold;
-    color: $color-text-muted; text-transform: uppercase; letter-spacing: 0.5px;
-    padding: 10px $space-5; background: $color-grey-50;
-    border-bottom: 1px solid $color-border-default; white-space: nowrap;
-  }
-  td {
-    padding: 14px $space-5; font-size: $text-sm; color: $color-text-primary;
-    border-bottom: 1px solid rgba(0,0,0,0.04); vertical-align: middle;
-  }
-  tr:last-child td { border-bottom: none; }
-}
 .date-cell {
   display: flex; align-items: center; gap: $space-2;
   font-weight: $font-weight-semibold; font-family: monospace; font-size: 13px;
 }
 .lock-icon { font-size: 16px; color: $color-primary-800; }
-.muted { color: $color-text-muted; }
 
 // ── Skeleton ─────────────────────────────────────────────────────────────────
 .skeleton-rows { padding: $space-2 0; }
 .skeleton-row  { display: flex; align-items: center; gap: $space-4; padding: 14px $space-5; border-bottom: 1px solid rgba(0,0,0,0.04); }
-.skeleton {
-  background: linear-gradient(90deg, $color-grey-100 25%, $color-grey-50 50%, $color-grey-100 75%);
-  background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: $radius-sm;
-}
 .sk-date  { height: 16px; width: 120px; }
 .sk-name  { height: 14px; width: 150px; }
 .sk-muted { height: 14px; width: 200px; }
 
 // ── Empty state ───────────────────────────────────────────────────────────────
-.empty-state {
-  display: flex; flex-direction: column; align-items: center; gap: $space-3;
-  padding: $space-12; color: $color-text-muted;
-  .material-icons { font-size: 48px; opacity: .3; }
-  p { font-size: $text-sm; margin: 0; }
-}
 
 // ── Info callout ─────────────────────────────────────────────────────────────
 .info-callout {
@@ -167,7 +124,3 @@
 .field-error { font-size: $text-sm; color: #dc2626; margin: 0; }
 
 // ── Spinner ───────────────────────────────────────────────────────────────────
-.spinner {
-  display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.4);
-  border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite;
-}

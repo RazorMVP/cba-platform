@@ -19,7 +19,7 @@
 | **Teller / Cash Management** | `teller/Teller`, `Cashier`, `TellerSession`, `CashTransaction`, repositories, `TellerService`, `TellerController`, DTOs; `V5__teller_module.sql` | Full session lifecycle: create teller → activate → assign cashier → open session → cash-in/cash-out → settle; mirrors Mifos pattern |
 | **Open Banking (FAPI 2.0)** | `openbanking/OpenBankingConsent`, `ConsentStatus`, `ConsentRepository`, `ConsentService`, `ConsentController`, `AccountInfoController`, `PispController`, `CbpiiController`, DTOs | Full stack: consent lifecycle + AISP (accounts/balances/transactions) + PISP (domestic-payments) + CBPII (funds-confirmation) |
 | **Notification Module** | `notification/AccountEvent`, `LoanEvent`, `NotificationEventListener` | Spring `@EventListener` + `@Async`; hooks for account/loan events |
-| **Audit Module** | `audit/AuditLog`, `AuditLogRepository`, `AuditLogService`, `AuditController` | Append-only; `@Transactional(REQUIRES_NEW)`; 7-year retention; REST search at `/api/v1/audits` |
+| **Audit Module** | `audit/AuditLog`, `AuditLogRepository`, `AuditLogService`, `AuditController` | Append-only; `@Transactional(REQUIRES_NEW)`; 10-year retention; REST search at `/api/v1/audits` |
 | **SMS Campaigns** | `social/SmsCampaign`, `SmsMessage`, repos, `SmsCampaignService`, `SmsCampaignController` | CRUD + activate command; message delivery tracking per recipient |
 | **Report Mailing Jobs** | `social/ReportMailingJob`, `ReportMailingJobRepository`, `ReportMailingJobService`, `ReportMailingJobController` | CRUD + manual run; iCal RRULE recurrence; run history tracked |
 | **Standing Instructions** | `social/StandingInstruction`, `StandingInstructionRepository`, `StandingInstructionService`, `StandingInstructionController` | Mifos-compatible model; FIXED/OUTSTANDING_BALANCE; disable/enable lifecycle |
@@ -60,7 +60,7 @@ _None — all Phase 1 backend modules are now complete._
 ## Change History
 
 ### Session 70 — 2026-04-17
-**Audit Log viewer built — server-paginated list with 5-filter bar, action/entity-type badges, slide-in detail panel with JSON old/new values display.**
+**Audit Log viewer built + retention policy updated from 7 years to 10 years across entire build.**
 
 #### New/Updated Files
 | File | Change |
@@ -71,6 +71,12 @@ _None — all Phase 1 backend modules are now complete._
 | `web/src/app/features/admin/admin.service.ts` | Added `AuditLog` + `AuditFilter` interfaces; `listAuditLogs(page, filter)` + `getAuditLog(id)` service methods |
 | `web/src/app/features/admin/admin.routes.ts` | Added `{ path: 'audit-log', component: AuditLogComponent }` |
 | `web/src/app/layout/sidebar/sidebar.ts` | Added "Audit Log" nav item (`manage_search` icon) to Admin group |
+| `backend/src/main/java/com/cba/audit/AuditLog.java` | Javadoc: retention 7 → 10 years |
+| `CLAUDE.md` | Retention policy 7 → 10 years (Module 8 + gap table) |
+| `cba-log.md` | Retention policy 7 → 10 years (Backend Audit table) |
+| `docs/api-reference.html` | Retention 7 → 10 years (two audit section descriptions) |
+| `docs/cba-postman-collection-v2.json` | Retention 7 → 10 years (Audit module description) |
+| `.claude/skills/cba/references/modules.md` | Retention 7 → 10 years (Audit module spec) |
 
 #### Key Patterns / Decisions
 - Routes to `/audits/search` when any filter is set; bare `/audits` when no filters — backend search has conditional branching logic per param combination

@@ -1495,7 +1495,7 @@ difference = actual_cash - closing_balance</pre>
 <!-- AUDIT ───────────────────────────────────────────────────────────────── -->
 <section id="audit">
 <h2>Audit Log</h2>
-<p>Immutable, append-only log of every state-changing operation. Records are never updated or deleted. Minimum retention: 7 years.</p>
+<p>Immutable, append-only log of every state-changing operation. Records are never updated or deleted. Minimum retention: 10 years.</p>
 
 <div class="callout warning">PII is masked in audit log entries. Account numbers appear as <code>****1234</code>. National IDs and card numbers are never logged in plaintext.</div>
 
@@ -1941,7 +1941,7 @@ Content-Type: application/json
 <!-- AUDIT SEARCH ────────────────────────────────────────────────────────── -->
 <section id="audit-rest">
 <h2>Audit Log — Search &amp; Retrieval</h2>
-<p>Search the immutable audit log by entity, user, or date range. Records are never modified or deleted. Minimum 7-year retention.</p>
+<p>Search the immutable audit log by entity, user, or date range. Records are never modified or deleted. Minimum 10-year retention.</p>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
 <tr><td>GET</td><td>/api/v1/audits</td><td>List audit entries (paginated)</td><td>ADMIN</td></tr>

@@ -11,7 +11,7 @@ import java.util.UUID;
 
 /**
  * Immutable audit log record. NEVER update or delete rows in this table.
- * Retention minimum: 7 years.
+ * Retention minimum: 10 years.
  */
 @Entity
 @Table(name = "audit_log")

@@ -217,7 +217,7 @@ public class NotificationEventListener {
 - NEVER update or delete audit log records
 - Log every state-changing operation (CREATE, UPDATE, STATUS_CHANGE)
 - Capture: entity type, entity ID, user, timestamp, old value, new value, IP address
-- Retention: minimum 7 years (configurable)
+- Retention: minimum 10 years (configurable)
 
 ### Query API
 ```

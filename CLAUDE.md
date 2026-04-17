@@ -273,7 +273,7 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 - **NEVER update or delete audit log records** — append-only
 - Log every state-changing operation
 - Fields: entity_type, entity_id, action, changed_by, timestamp, old_values (JSONB), new_values (JSONB), IP, user agent
-- Retention: minimum 7 years
+- Retention: minimum 10 years
 - `AuditLogService` always uses `@Transactional(propagation = REQUIRES_NEW)`
 - **`JOIN FETCH` + `Page` requires explicit `countQuery`** — when a Spring Data `@Query` uses `JOIN FETCH`, Hibernate cannot auto-derive the count query; always add `countQuery = "SELECT COUNT(t) FROM ..."` to avoid `InvalidDataAccessApiUsageException` _(Session 67)_
 - **`EncryptedStringConverter` fails across repository boundaries** — loading `Customer` via a `JOIN FETCH` from `TransactionRepository` (instead of `CustomerRepository`) causes `Error attempting to apply AttributeConverter` because the `@Autowired FieldEncryptor` injection context differs. Solution: load only the non-encrypted entity (Account) via JOIN FETCH; fetch Customer PII separately through `CustomerRepository` if needed _(Session 67)_
@@ -3069,7 +3069,7 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 
 | PRD Feature | Backend Status | Angular Status | Gap |
 |-------------|---------------|----------------|-----|
-| Audit log (append-only, 7-year retention) | ✅ Module 8 | ✅ `AuditLogComponent` _(Session 70)_ | ✅ |
+| Audit log (append-only, 10-year retention) | ✅ Module 8 | ✅ `AuditLogComponent` _(Session 70)_ | ✅ |
 | Audit search (`GET /api/v1/audits`) | ✅ `AuditController` | ✅ 5-filter search bar _(Session 70)_ | ✅ |
 | Maker-Checker workflow | ✅ Module 29 | ✅ MakerCheckerComponent | — |
 | System access logs / login history | ❌ No login history tracking | ❌ Missing | ❌ |

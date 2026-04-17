@@ -94,12 +94,12 @@ _None — all Phase 1 backend modules are now complete._
 **Angular Web App (`web/`):**
 | Component | Version | Git ref |
 |-----------|---------|---------|
-| Angular | 21.2.x | `pending` |
-| Angular CLI | 21.2.7 | `pending` |
-| PrimeNG | 21.0.x | `pending` |
-| RxJS | 7.8.x | `pending` |
-| TypeScript | 5.9.x | `pending` |
-| Production URL | `cba-web-nine.vercel.app` | `pending` |
+| Angular | 21.2.x | `94640f1` |
+| Angular CLI | 21.2.7 | `94640f1` |
+| PrimeNG | 21.0.x | `94640f1` |
+| RxJS | 7.8.x | `94640f1` |
+| TypeScript | 5.9.x | `94640f1` |
+| Production URL | `cba-web-nine.vercel.app` | `94640f1` |
 
 #### Compliance Checklist Update
 No new REST endpoints. Angular-only CSS fix. API docs not updated.

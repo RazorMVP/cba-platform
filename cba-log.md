@@ -59,6 +59,48 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 72 — 2026-04-17
+**Account approve/activate lifecycle — backend state machine + Angular UI.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/.../AccountStatus.java` | Added `SUBMITTED`, `APPROVED`, `REJECTED` to enum |
+| `backend/.../Account.java` | Default status changed from `ACTIVE` → `SUBMITTED` |
+| `backend/.../AccountService.java` | Added `approveAccount()`, `activateAccount()`, `rejectAccount()` |
+| `backend/.../AccountController.java` | Added `POST /{id}?command=approve\|activate\|reject` |
+| `backend/.../db/migration/V35__account_lifecycle.sql` | Documents lifecycle change (no DDL needed) |
+| `web/.../account.service.ts` | Extended `Account.status` union; added `approve()`, `activate()`, `reject()` |
+| `web/.../account-detail.ts` | Extended `ModalType`; added `doApprove/Activate/Reject()` methods; updated `statusVariant()` |
+| `web/.../account-detail.html` | Conditional SUBMITTED/APPROVED/ACTIVE action buttons; 3 new confirm modals |
+
+#### Key Patterns / Decisions
+- `SUBMITTED → APPROVED → ACTIVE` lifecycle enforced at service layer (state machine guards in each method)
+- `validateAccountActive()` already existed — deposit/withdraw already blocked non-ACTIVE accounts
+- `REJECTED` is a terminal state (no undo command) — matches Mifos savings account conventions
+- `statusVariant()` updated: SUBMITTED=warning, APPROVED=info, ACTIVE=success, FROZEN/REJECTED=error, DORMANT/CLOSED=neutral
+- Existing demo data accounts stay ACTIVE (backward-compatible — only new accounts start SUBMITTED)
+
+#### Build Verification
+- `./mvnw compile -q` → clean
+- `npx tsc --noEmit` → clean
+
+#### Confirmed Platform Versions
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `bde3a64` |
+| Java | 21 | `bde3a64` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `bde3a64` |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `e113185` |
+| Angular CLI | 21.2.7 | `e113185` |
+
+---
+
 ### Session 71 — 2026-04-17
 **Fix loan waive-charge: add saving state, error handler, and disabled button to confirm modal.**
 

@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 67 — 2026-04-17)
+## Confirmed Platform Versions (Session 72 — 2026-04-17)
 
 These are the verified-working versions for both production components. Update this table whenever a dependency is upgraded.
 
@@ -20,7 +20,7 @@ These are the verified-working versions for both production components. Update t
 | **Lombok** | 1.18.38 | Minimum for Java 25 `TypeTag` fix; also works on Java 21 |
 | **PostgreSQL** | 16 | Via Docker; schema managed by Flyway |
 | **AWS SDK v2 S3** | 2.26.12 | Optional — for S3/MinIO/GCS image storage |
-| **Last git commit** | `2d8a1ea` | `fix(transactions): add countQuery + remove customer JOIN FETCH to fix AttributeConverter error` |
+| **Last git commit** | `bde3a64` | `chore(audit): update retention policy from 7 years to 10 years across entire build` |
 
 ### Angular Web App (`web/`)
 
@@ -33,7 +33,7 @@ These are the verified-working versions for both production components. Update t
 | **TypeScript** | 5.9.x | `~5.9.2` pinned |
 | **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma) |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `e906db2` | `fix(dashboard): add GET /api/v1/transactions endpoint + fix 404 on recent transactions` |
+| **Last git commit** | `e113185` | `fix(loans): add saving state + error handler to waive-charge confirm modal` |
 
 > **Session 66 CI fixes**: Angular 21 uses Vitest (not Karma) — `--browsers=ChromeHeadless` and `--code-coverage` are invalid flags. `vercel deploy --prebuilt` requires `.vercel/output/` from `vercel build`, not `dist/` from `ng build`. All three issues fixed; CI pipeline and Vercel production deployment now fully green.
 
@@ -219,8 +219,11 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 ### 2. Account Module
 - Savings, Checking, Fixed Deposit accounts
 - Account number format: `{branch_code}-{type_code}-{sequence}` (e.g. `001-SAV-0001234`)
+- **Lifecycle**: `SUBMITTED → APPROVED → ACTIVE` (new accounts start SUBMITTED); `REJECTED` terminal state; commands via `POST /{id}?command=approve|activate|reject` _(Session 72)_
+- `FROZEN`, `DORMANT`, `CLOSED` also valid statuses (set via `PUT /{id}/status`)
 - Balance never goes below `minimum_balance` (configurable per product)
 - Closed accounts are read-only; balance must be zero first
+- Deposit/withdraw guarded by `validateAccountActive()` — only ACTIVE accounts accept teller transactions
 - All debits/credits produce an immutable `Transaction` record
 - Interest calculated via daily scheduled job
 
@@ -2974,7 +2977,7 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | PRD Feature | Backend Status | Angular Status | Gap |
 |-------------|---------------|----------------|-----|
 | Open savings account | ✅ `POST /api/v1/accounts` | ✅ `isNew` creation form | — |
-| Approve / Activate account | ❌ No `?command=approve` | ❌ No button | ❌ |
+| Approve / Activate account | ✅ `?command=approve\|activate\|reject` _(Session 72)_ | ✅ Buttons + modals in AccountDetail _(Session 72)_ | ✅ |
 | Deposit / Credit | ✅ Via payment/transaction | ✅ Deposit modal | — |
 | Withdrawal / Debit | ✅ Via payment/transaction | ✅ Withdraw modal | — |
 | Hold funds (`HOLD` transaction type) | ❌ No hold mechanism | ❌ Missing | ❌ |

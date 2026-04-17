@@ -8,7 +8,7 @@ import { CustomerService, ImageMeta } from '../../customers/customer.service';
 import { PageResponse } from '../../../../core/models/api-response.model';
 
 type ActiveTab = 'overview' | 'transactions';
-type ModalType = 'freeze' | 'unfreeze' | 'close' | 'deposit' | 'withdraw' | 'statement' | null;
+type ModalType = 'approve' | 'activate' | 'reject' | 'freeze' | 'unfreeze' | 'close' | 'deposit' | 'withdraw' | 'statement' | null;
 
 @Component({
   selector: 'app-account-detail',
@@ -212,6 +212,33 @@ export class AccountDetailComponent implements OnInit {
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
+  doApprove(): void {
+    if (!this.account) return;
+    this.modalWorking = true;
+    this.svc.approve(this.account.id).subscribe({
+      next: a  => { this.account = a; this.modalWorking = false; this.activeModal = null; },
+      error: () => { this.modalError = 'Approval failed.'; this.modalWorking = false; },
+    });
+  }
+
+  doActivate(): void {
+    if (!this.account) return;
+    this.modalWorking = true;
+    this.svc.activate(this.account.id).subscribe({
+      next: a  => { this.account = a; this.modalWorking = false; this.activeModal = null; },
+      error: () => { this.modalError = 'Activation failed.'; this.modalWorking = false; },
+    });
+  }
+
+  doReject(): void {
+    if (!this.account) return;
+    this.modalWorking = true;
+    this.svc.reject(this.account.id).subscribe({
+      next: a  => { this.account = a; this.modalWorking = false; this.activeModal = null; },
+      error: () => { this.modalError = 'Reject failed.'; this.modalWorking = false; },
+    });
+  }
+
   doFreeze(): void {
     if (!this.account) return;
     this.modalWorking = true;
@@ -261,8 +288,12 @@ export class AccountDetailComponent implements OnInit {
 
   // ── Display helpers ────────────────────────────────────────────────────────
 
-  statusVariant(s: Account['status']): 'success' | 'warning' | 'error' | 'neutral' {
-    return s === 'ACTIVE' ? 'success' : s === 'DORMANT' ? 'warning' : s === 'FROZEN' ? 'error' : 'neutral';
+  statusVariant(s: Account['status']): 'success' | 'warning' | 'error' | 'neutral' | 'info' {
+    if (s === 'ACTIVE') return 'success';
+    if (s === 'APPROVED') return 'info';
+    if (s === 'SUBMITTED') return 'warning';
+    if (s === 'FROZEN' || s === 'REJECTED') return 'error';
+    return 'neutral'; // DORMANT, CLOSED
   }
 
   txnClass(t: Transaction): string {

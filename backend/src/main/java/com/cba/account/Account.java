@@ -43,7 +43,7 @@ public class Account extends AuditableEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
-    private AccountStatus status = AccountStatus.ACTIVE;
+    private AccountStatus status = AccountStatus.SUBMITTED;
 
     @Column(name = "balance", nullable = false, precision = 19, scale = 4)
     private BigDecimal balance = BigDecimal.ZERO;

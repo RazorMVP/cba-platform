@@ -9,7 +9,7 @@ export interface Account {
   customerId: string;
   customerName?: string;
   accountType: 'SAVINGS' | 'CHECKING' | 'FIXED_DEPOSIT';
-  status: 'ACTIVE' | 'DORMANT' | 'CLOSED' | 'FROZEN';
+  status: 'SUBMITTED' | 'APPROVED' | 'ACTIVE' | 'FROZEN' | 'DORMANT' | 'REJECTED' | 'CLOSED';
   balance: number;
   currencyCode: string;
   productId: string;
@@ -52,6 +52,18 @@ export class AccountService {
 
   create(body: AccountCreateRequest): Observable<Account> {
     return this.api.post<Account>('/accounts', body);
+  }
+
+  approve(id: string): Observable<Account> {
+    return this.api.post<Account>(`/accounts/${id}?command=approve`, {});
+  }
+
+  activate(id: string): Observable<Account> {
+    return this.api.post<Account>(`/accounts/${id}?command=activate`, {});
+  }
+
+  reject(id: string): Observable<Account> {
+    return this.api.post<Account>(`/accounts/${id}?command=reject`, {});
   }
 
   freeze(id: string): Observable<Account> {

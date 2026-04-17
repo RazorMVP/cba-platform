@@ -114,6 +114,19 @@
         <button class="btn-outline" (click)="openModal('statement')">
           <span class="material-icons">description</span> Statement
         </button>
+        @if (account.status === 'SUBMITTED') {
+          <button class="btn-primary" (click)="openModal('approve')">
+            <span class="material-icons">check_circle</span> Approve
+          </button>
+          <button class="btn-danger" (click)="openModal('reject')">
+            <span class="material-icons">cancel</span> Reject
+          </button>
+        }
+        @if (account.status === 'APPROVED') {
+          <button class="btn-success" (click)="openModal('activate')">
+            <span class="material-icons">play_circle</span> Activate
+          </button>
+        }
         @if (account.status === 'ACTIVE') {
           <button class="btn-outline" (click)="openModal('deposit')">
             <span class="material-icons">add</span> Deposit
@@ -265,6 +278,81 @@
 <!-- ═══════════════════════════════════════════════════════════════
      MODALS
 ═══════════════════════════════════════════════════════════════ -->
+
+<!-- Approve confirm -->
+@if (activeModal === 'approve') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h2 class="modal__title">Approve Account</h2>
+        <button class="modal__close" (click)="closeModal()">✕</button>
+      </div>
+      <div class="modal__body">
+        <p class="confirm-text">
+          Approve account <strong>{{ account?.accountNumber }}</strong>?
+          It will move to <strong>Approved</strong> status and can then be activated.
+        </p>
+        @if (modalError) { <p class="modal__error">{{ modalError }}</p> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-ghost" [disabled]="modalWorking" (click)="closeModal()">Cancel</button>
+        <button class="btn-primary" [disabled]="modalWorking" (click)="doApprove()">
+          {{ modalWorking ? 'Approving…' : 'Approve' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Activate confirm -->
+@if (activeModal === 'activate') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h2 class="modal__title">Activate Account</h2>
+        <button class="modal__close" (click)="closeModal()">✕</button>
+      </div>
+      <div class="modal__body">
+        <p class="confirm-text">
+          Activate account <strong>{{ account?.accountNumber }}</strong>?
+          It will become <strong>Active</strong> and ready for deposits and withdrawals.
+        </p>
+        @if (modalError) { <p class="modal__error">{{ modalError }}</p> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-ghost" [disabled]="modalWorking" (click)="closeModal()">Cancel</button>
+        <button class="btn-success" [disabled]="modalWorking" (click)="doActivate()">
+          {{ modalWorking ? 'Activating…' : 'Activate' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Reject confirm -->
+@if (activeModal === 'reject') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h2 class="modal__title">Reject Account Application</h2>
+        <button class="modal__close" (click)="closeModal()">✕</button>
+      </div>
+      <div class="modal__body">
+        <p class="confirm-text">
+          Reject the application for account <strong>{{ account?.accountNumber }}</strong>?
+          This marks the account as <strong>Rejected</strong> and cannot be undone.
+        </p>
+        @if (modalError) { <p class="modal__error">{{ modalError }}</p> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-ghost" [disabled]="modalWorking" (click)="closeModal()">Cancel</button>
+        <button class="btn-danger" [disabled]="modalWorking" (click)="doReject()">
+          {{ modalWorking ? 'Rejecting…' : 'Reject Application' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
 
 <!-- Freeze confirm -->
 @if (activeModal === 'freeze') {

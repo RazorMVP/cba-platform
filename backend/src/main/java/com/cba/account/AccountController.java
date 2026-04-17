@@ -60,6 +60,22 @@ public class AccountController {
             ApiResponse.PageMeta.of(page.getNumber(), page.getSize(), page.getTotalElements())));
     }
 
+    @PostMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
+    @Operation(summary = "Execute account lifecycle command (approve, activate, reject)")
+    public ResponseEntity<ApiResponse<AccountResponse>> executeCommand(
+            @PathVariable UUID id,
+            @RequestParam String command) {
+        AccountResponse response = switch (command.toLowerCase()) {
+            case "approve"  -> accountService.approveAccount(id);
+            case "activate" -> accountService.activateAccount(id);
+            case "reject"   -> accountService.rejectAccount(id);
+            default         -> throw com.cba.common.exception.CbaException.badRequest(
+                                   "UNKNOWN_COMMAND", "Unknown command: " + command);
+        };
+        return ResponseEntity.ok(ApiResponse.ok(response));
+    }
+
     @PutMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
     @Operation(summary = "Change account status (ACTIVE, FROZEN, DORMANT, CLOSED)")

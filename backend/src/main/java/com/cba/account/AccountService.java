@@ -108,6 +108,49 @@ public class AccountService {
     }
 
     @Transactional
+    public AccountResponse approveAccount(UUID id) {
+        Account account = findById(id);
+        if (account.getStatus() != AccountStatus.SUBMITTED) {
+            throw CbaException.badRequest("INVALID_TRANSITION",
+                "Only SUBMITTED accounts can be approved (current: " + account.getStatus() + ")");
+        }
+        account.setStatus(AccountStatus.APPROVED);
+        Account saved = accountRepository.save(account);
+        auditLogService.log("ACCOUNT", id.toString(), "APPROVED",
+            AccountStatus.SUBMITTED.name(), AccountStatus.APPROVED.name());
+        return toResponse(saved);
+    }
+
+    @Transactional
+    public AccountResponse activateAccount(UUID id) {
+        Account account = findById(id);
+        if (account.getStatus() != AccountStatus.APPROVED) {
+            throw CbaException.badRequest("INVALID_TRANSITION",
+                "Only APPROVED accounts can be activated (current: " + account.getStatus() + ")");
+        }
+        account.setStatus(AccountStatus.ACTIVE);
+        Account saved = accountRepository.save(account);
+        auditLogService.log("ACCOUNT", id.toString(), "ACTIVATED",
+            AccountStatus.APPROVED.name(), AccountStatus.ACTIVE.name());
+        eventPublisher.publishEvent(new AccountEvent(this, saved.getId(), AccountEvent.Type.OPENED));
+        return toResponse(saved);
+    }
+
+    @Transactional
+    public AccountResponse rejectAccount(UUID id) {
+        Account account = findById(id);
+        if (account.getStatus() != AccountStatus.SUBMITTED) {
+            throw CbaException.badRequest("INVALID_TRANSITION",
+                "Only SUBMITTED accounts can be rejected (current: " + account.getStatus() + ")");
+        }
+        account.setStatus(AccountStatus.REJECTED);
+        Account saved = accountRepository.save(account);
+        auditLogService.log("ACCOUNT", id.toString(), "REJECTED",
+            AccountStatus.SUBMITTED.name(), AccountStatus.REJECTED.name());
+        return toResponse(saved);
+    }
+
+    @Transactional
     public TransactionResponse deposit(UUID accountId, BigDecimal amount, String description, String createdBy) {
         Account account = accountRepository.findByIdWithLock(accountId)
             .orElseThrow(() -> CbaException.notFound("Account", accountId));

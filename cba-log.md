@@ -59,6 +59,33 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 83 — 2026-04-18
+**Fix: report-mailing modal completely broken on localhost — root cause was `GET /reportmailingjobs` returning `Page<T>` (not array), crashing `@for` change detection.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/src/app/features/reports/report.service.ts` | FIX `listMailingJobs()` — use `api.getPage<ReportMailingJob>()` + `.pipe(map(page => page.content ?? []))` instead of `api.get<ReportMailingJob[]>()` which was passing the raw Spring Page object as `mailingJobs` |
+
+#### Key Patterns / Decisions
+- **Root cause**: `ReportMailingJobController.list()` returns `ApiResponse<Page<ReportMailingJob>>`. `ApiService.get()` extracts `r.data` which is the Spring `Page` object (not an array). The component set `this.mailingJobs = pageObject`. `@for (j of mailingJobs)` then throws `TypeError: mailingJobs is not iterable`, crashing Angular's change detection mid-cycle. The crash prevented the modal's `{{ }}` interpolations and `*ngFor` options from being evaluated — causing the title, dropdowns, and checkbox to stay blank.
+- **Why Vercel worked**: On Vercel the backend is not reachable from the Angular app (API calls fail), so the error handler fires, `this.error` is set, and the template shows the error-state branch — the `@for` branch is never entered so no crash occurs. On localhost with Docker backend running, the call succeeds and returns the Page object → crash.
+- **Fix**: Use `api.getPage<ReportMailingJob>('/reportmailingjobs').pipe(map(page => page.content ?? []))` which correctly interprets the paginated response and returns a plain `ReportMailingJob[]`.
+
+#### Build Verification
+Angular dev server HMR picks up the change. No compilation errors.
+
+#### Confirmed Platform Versions
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | see push SHA |
+| Angular CLI | 21.2.7 | see push SHA |
+| PrimeNG | 21.0.x | see push SHA |
+| RxJS | 7.8.x | see push SHA |
+| TypeScript | 5.9.x | see push SHA |
+| Vercel deployment | `cba-web-nine.vercel.app` | see push SHA |
+
 ### Session 82 — 2026-04-18
 **Fix: sidebar freeze + report-mailing modal dev/prod divergence (commit `2c8bc1f`).**
 

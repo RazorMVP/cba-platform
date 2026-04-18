@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { ApiService } from '../../core/api/api.service';
 
 // ── Reports ────────────────────────────────────────────────────────────────────
@@ -127,9 +128,11 @@ export class ReportService {
     return this.api.get<CobJobHistory[]>(`/jobs/${encodeURIComponent(jobName)}/history`);
   }
 
-  // Report Mailing Jobs
+  // Report Mailing Jobs — backend returns Page<ReportMailingJob>; extract content array
   listMailingJobs(): Observable<ReportMailingJob[]> {
-    return this.api.get<ReportMailingJob[]>('/reportmailingjobs');
+    return this.api.getPage<ReportMailingJob>('/reportmailingjobs').pipe(
+      map(page => page.content ?? [])
+    );
   }
   createMailingJob(req: ReportMailingRequest): Observable<ReportMailingJob> {
     return this.api.post<ReportMailingJob>('/reportmailingjobs', req);

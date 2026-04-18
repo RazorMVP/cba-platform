@@ -199,7 +199,15 @@ public class AccountService {
 
         BigDecimal onHold = accountHoldRepository.sumActiveHoldsByAccount(accountId);
         BigDecimal available = account.getBalance().subtract(onHold);
-        account.debit(amount, available);
+        BigDecimal floor = account.computeEffectiveFloor();
+        BigDecimal effectiveAvailable = available.subtract(floor);
+        if (effectiveAvailable.compareTo(amount) < 0) {
+            String msg = floor.compareTo(BigDecimal.ZERO) > 0
+                ? "Withdrawal would breach minimum balance requirement of " + floor
+                : "Insufficient available balance (available: " + effectiveAvailable + ")";
+            throw CbaException.badRequest("BELOW_MINIMUM_BALANCE", msg);
+        }
+        account.debit(amount, effectiveAvailable);
         accountRepository.save(account);
 
         Transaction tx = Transaction.of(account, TransactionType.WITHDRAWAL, amount,
@@ -218,9 +226,10 @@ public class AccountService {
 
         BigDecimal onHold = accountHoldRepository.sumActiveHoldsByAccount(accountId);
         BigDecimal available = account.getBalance().subtract(onHold);
-        if (available.compareTo(request.amount()) < 0) {
+        BigDecimal effectiveAvailable = available.subtract(account.computeEffectiveFloor());
+        if (effectiveAvailable.compareTo(request.amount()) < 0) {
             throw CbaException.badRequest("INSUFFICIENT_AVAILABLE_BALANCE",
-                "Cannot place hold of " + request.amount() + "; available balance is " + available);
+                "Cannot place hold of " + request.amount() + "; effective available balance is " + effectiveAvailable);
         }
 
         AccountHold hold = new AccountHold();
@@ -287,6 +296,29 @@ public class AccountService {
         Instant toInstant = to.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
         return transactionRepository.findByAccountIdAndTransactionDateBetween(accountId, fromInstant, toInstant, pageable)
             .map(this::toTransactionResponse);
+    }
+
+    /** Returns available deposit products and account types for the new-account form. */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getOpenAccountTemplate() {
+        List<com.cba.product.DepositProduct> products = depositProductRepository.findAll();
+        List<Map<String, Object>> productList = products.stream().map(p -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", p.getId());
+            m.put("name", p.getName());
+            m.put("shortName", p.getShortName());
+            m.put("accountType", p.getAccountType());
+            m.put("interestRate", p.getInterestRate());
+            m.put("interestCompounding", p.getInterestCompounding());
+            m.put("minimumBalance", p.getMinimumBalance());
+            m.put("allowOverdraft", p.isAllowOverdraft());
+            m.put("currencyCode", p.getCurrencyCode());
+            return m;
+        }).toList();
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("depositProducts", productList);
+        result.put("accountTypes", AccountType.values());
+        return result;
     }
 
     @Transactional(readOnly = true)

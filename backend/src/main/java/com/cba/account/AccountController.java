@@ -35,6 +35,13 @@ public class AccountController {
 
     private final AccountService accountService;
 
+    @GetMapping("/template")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
+    @Operation(summary = "Get available deposit products and account types for opening a new account")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getOpenAccountTemplate() {
+        return ResponseEntity.ok(ApiResponse.ok(accountService.getOpenAccountTemplate()));
+    }
+
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
     @Operation(summary = "Open a new account for a customer")

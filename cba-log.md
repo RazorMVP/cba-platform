@@ -59,6 +59,51 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 86 — 2026-04-18
+**Module 2 Account Management — minimum balance enforcement, overdraft support, interest credit transaction records, new account template endpoint; React frontend permanently deleted.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/src/main/java/com/cba/account/Account.java` | UPDATED — `computeEffectiveFloor()` method added; returns negative floor for overdraft-enabled products, positive for minimum-balance products; `debit()` javadoc clarified |
+| `backend/src/main/java/com/cba/account/AccountService.java` | UPDATED — `withdraw()` pre-checks product floor before calling `debit()`; `placeHold()` uses effective available; `getOpenAccountTemplate()` added (returns all deposit products + account types for new-account form) |
+| `backend/src/main/java/com/cba/account/AccountController.java` | UPDATED — `GET /api/v1/accounts/template` (no ID) added; returns deposit products for open-account form |
+| `backend/src/main/java/com/cba/payment/PaymentService.java` | UPDATED — `transfer()` and `reversePayment()` now compute `srcEffectiveAvailable`/`dstEffectiveAvailable` via `account.computeEffectiveFloor()` — enforces product min balance and overdraft limit on transfers |
+| `backend/src/main/java/com/cba/cob/InterestAccrualJob.java` | REWRITTEN — processor now returns inner `AccrualResult(account, interestAmount)` record; writer saves both account and `INTEREST_CREDIT` Transaction records; `TransactionRepository` injected |
+| `backend/src/main/resources/db/migration/V39__account_management_enhancements.sql` | NEW — composite index on `(account_id, transaction_type, transaction_date DESC)` for interest tab queries; secondary index on `(transaction_type, transaction_date DESC)` for CoB reporting |
+| `CLAUDE.md` | UPDATED — React migration sections removed; Angular Component Map Status column restored; monorepo structure, CI/CD, and tech stack sections updated to reflect Angular-only frontend |
+| `cba-log.md` | UPDATED — Session 86 entry added |
+| `web-react-archived/` | DELETED — 505 MB React archive permanently removed from repo |
+
+#### Key Patterns / Decisions
+- **`computeEffectiveFloor()` on Account entity** — keeps the product-constraint logic co-located with the entity; services call `available.subtract(account.computeEffectiveFloor())` and pass the result as `effectiveAvailable` to `debit()`. Overdraft products return a negative floor (balance can go negative), min-balance products return a positive floor (effective available is reduced).
+- **Error code `BELOW_MINIMUM_BALANCE`** — distinct from `INSUFFICIENT_BALANCE` (which means no funds at all). The error message states the minimum balance requirement when applicable.
+- **`InterestAccrualJob` `AccrualResult` record** — avoids storing `@Transient` on `Account` by making the processor output a strongly-typed pair. The writer receives both the mutated account and the exact accrued amount, enabling a single `saveAll()` for accounts and another for transactions.
+- **React deleted, not archived** — `web-react-archived/` (505 MB including node_modules) permanently removed; all React migration sections stripped from CLAUDE.md; Angular `web/` confirmed as the sole production frontend.
+
+#### Build Verification
+`cd backend && ./mvnw clean compile` → BUILD SUCCESS (0 errors)
+
+#### Confirmed Platform Versions
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `f07e07a` |
+| Java | 21 | `f07e07a` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `f07e07a` |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `f07e07a` |
+| Angular CLI | 21.2.7 | `f07e07a` |
+| PrimeNG | 21.0.x | `f07e07a` |
+| RxJS | 7.8.x | `f07e07a` |
+| TypeScript | 5.9.x | `f07e07a` |
+| Vercel deployment | `cba-web-nine.vercel.app` | `f07e07a` |
+
+---
+
 ### Session 85 — 2026-04-18
 **Liquidity Management module built end-to-end: Flyway V38, backend computed-position service + reserve CRUD + snapshot CoB job, Angular 4-tab screen (Position / Cash Flow / Reserves / History).**
 

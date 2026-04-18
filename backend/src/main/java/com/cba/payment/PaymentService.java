@@ -119,7 +119,9 @@ public class PaymentService {
 
         // Apply double-entry: debit source in source currency, credit destination in its currency
         BigDecimal srcOnHold = accountHoldRepository.sumActiveHoldsByAccount(source.getId());
-        source.debit(request.amount(), source.getBalance().subtract(srcOnHold));
+        BigDecimal srcEffectiveAvailable = source.getBalance().subtract(srcOnHold)
+                .subtract(source.computeEffectiveFloor());
+        source.debit(request.amount(), srcEffectiveAvailable);
         destination.credit(creditAmount);
         accountRepository.save(source);
         accountRepository.save(destination);
@@ -229,7 +231,9 @@ public class PaymentService {
         // Swap: credit back source, debit destination
         src.credit(original.getAmount());
         BigDecimal dstOnHold = accountHoldRepository.sumActiveHoldsByAccount(dst.getId());
-        dst.debit(original.getAmount(), dst.getBalance().subtract(dstOnHold));
+        BigDecimal dstEffectiveAvailable = dst.getBalance().subtract(dstOnHold)
+                .subtract(dst.computeEffectiveFloor());
+        dst.debit(original.getAmount(), dstEffectiveAvailable);
         accountRepository.save(src);
         accountRepository.save(dst);
 

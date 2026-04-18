@@ -65,17 +65,33 @@ public class Account extends AuditableEntity {
         this.lastTransactionDate = LocalDate.now();
     }
 
-    /** Debit validates against availableBalance (total - active holds). */
-    public void debit(BigDecimal amount, BigDecimal availableBalance) {
-        if (availableBalance.subtract(amount).compareTo(BigDecimal.ZERO) < 0) {
+    /**
+     * Debit validates against effectiveAvailable (total - holds - product floor).
+     * Callers must compute effectiveAvailable using {@link #computeEffectiveFloor()}.
+     */
+    public void debit(BigDecimal amount, BigDecimal effectiveAvailable) {
+        if (effectiveAvailable.subtract(amount).compareTo(BigDecimal.ZERO) < 0) {
             throw new com.cba.common.exception.CbaException(
                 "INSUFFICIENT_BALANCE",
                 "Insufficient available balance in account " + accountNumber +
-                " (available: " + availableBalance + ")",
+                " (effective available: " + effectiveAvailable + ")",
                 org.springframework.http.HttpStatus.BAD_REQUEST
             );
         }
         this.balance = this.balance.subtract(amount);
         this.lastTransactionDate = LocalDate.now();
+    }
+
+    /**
+     * Returns the effective balance floor for this account's product.
+     * Negative for overdraft-enabled products (balance may go negative up to the limit).
+     * Positive for products with a minimum balance requirement.
+     */
+    public BigDecimal computeEffectiveFloor() {
+        if (product == null) return BigDecimal.ZERO;
+        if (product.isAllowOverdraft() && product.getOverdraftLimit() != null) {
+            return product.getOverdraftLimit().negate();
+        }
+        return product.getMinimumBalance() != null ? product.getMinimumBalance() : BigDecimal.ZERO;
     }
 }

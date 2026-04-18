@@ -164,25 +164,7 @@ fineract-cob            — Close of Business batch processing
 - **Lombok + MapStruct** — boilerplate reduction and DTO mapping
 - **Testcontainers** — real database in integration tests (never mock the DB)
 
-### Web Frontend — React (in progress, replacing Angular) _(decision: Session 52)_
-
-**Status**: Full rewrite in progress. `web-react/` is the new frontend. `web/` (Angular) remains live during transition and is removed after React reaches feature parity.
-
-| Concern | Choice |
-|---------|--------|
-| Build tool | Vite 6 |
-| Routing | React Router v6 |
-| Data fetching | TanStack Query v5 |
-| HTTP client | Axios (interceptors for auth header + base URL) |
-| UI components | shadcn/ui (copy-paste into `src/shared/components/` — owned code) |
-| Styling | Tailwind CSS v4 (Nubeero tokens mapped into `tailwind.config.ts`) |
-| State | React Context + TanStack Query (no Zustand/Redux) |
-| Auth | Auth bypass env flag (dev); Keycloak added at parity cutover |
-| Language | TypeScript strict mode |
-
-### Web Frontend — Angular 17+ _(legacy — being replaced by React)_
-- `web/` stays deployed until `web-react/` reaches feature parity
-- Do not add new features to `web/` — all new screen work goes into `web-react/`
+### Web Frontend — Angular 17+ (Production Frontend)
 - Standalone components (`--standalone`)
 - Angular Material + PrimeNG for UI components
 - NGRx for state management
@@ -2458,89 +2440,89 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 - Deep link structure: `loans/:loanId/charges/:id/action/:action`
 
 ### Angular Component Map (Nubeero Design)
-| Design Component | Angular Component | Module | Status |
-|-----------------|-------------------|--------|--------|
-| Sidebar nav | `SidebarComponent` | `LayoutModule` | ✅ Built — `exact: true` on Dashboard + Card List nav items; `[routerLinkActiveOptions]="{ exact: item.exact ?? false }"` prevents prefix-match active state on sub-routes |
-| Topbar | `TopbarComponent` | `LayoutModule` | ✅ Built |
-| KPI card | `KpiCardComponent` | `SharedModule` | ✅ Built |
-| Data table | `DataTableComponent` | `SharedModule` | ✅ Built |
-| Status badge | `StatusBadgeComponent` | `SharedModule` | ✅ Built — inputs: `[label]` (string) + `[variant]` (success/warning/error/info/neutral/primary) — **never use `[status]`** |
-| Dashboard | `DashboardComponent` | `OperationsModule` | ✅ Built — KPIs, transaction table, portfolio bars, KYC queue |
-| Customers list | `CustomersListComponent` | `OperationsModule` | ✅ Built — debounced search, KYC filter tabs, pagination |
-| Customer detail | `CustomerDetailComponent` | `OperationsModule` | ✅ Built — 7 tabs (Overview/Accounts/Loans/Staff/Transfer + KYC state machine); `isNew` mode: `id === 'new'` shows inline creation form; Staff tab: assignStaff/unassignStaff commands; Transfer tab: propose/accept/reject/withdraw/direct transfer commands; 12 command modals total (reject, withdraw, reactivate, undoRejection, undoWithdrawal, close, assignStaff, proposeTransfer, acceptTransfer, rejectTransfer, withdrawTransfer, delete); `PUT /{id}` profile edit _(Session 49)_ |
-| Accounts list | `AccountsListComponent` | `OperationsModule` | ✅ Built — type filter, pagination |
-| Account detail | `AccountDetailComponent` | `OperationsModule` | ✅ Built — header card, overview/transactions tabs, freeze/unfreeze/close/deposit/withdraw modals, Statement modal (date range picker, summary KPIs, transaction table); `isNew` mode: shows Open Account form (customerId, productId, accountType select, currencyCode) |
-| Payments list | `PaymentsListComponent` | `OperationsModule` | ✅ Built — account context picker, paginated payment history, 3-step transfer wizard modal, standing order modal |
-| Payment detail | `PaymentDetailComponent` | `OperationsModule` | ✅ Built — status band with FX details, transfer route card, payment details card, reverse modal |
-| Teller list | `TellerListComponent` | `OperationsModule` | ✅ Built — search + status filter, create teller modal |
-| Teller detail | `TellerDetailComponent` | `OperationsModule` | ✅ Built — overview/cashiers/sessions tabs, session expand/collapse, cash-in/out/settle modals, lifecycle buttons |
-| Loans list | `LoansListComponent` | `OperationsModule` | ✅ Built — pipeline view, sliding detail panel |
-| Loan detail | `LoanDetailComponent` | `OperationsModule` | ✅ Built — 7 tabs (summary/schedule/charges/collateral/reschedule/reaging/audit); approve/disburse/repayment/reject/write-off; Reschedule tab: create/approve/reject requests; Re-aging tab: history + re-amortize trigger; both tabs lazy-load on first selection _(Session 75)_ |
-| Loan products list | `LoanProductsListComponent` | `ProductsModule` | ✅ Built — search, active filter, pagination |
-| Loan product detail | `LoanProductDetailComponent` | `ProductsModule` | ✅ Built — view/edit toggle, 5 section tabs, GL linkages, charges |
-| Deposit products list | `DepositProductsListComponent` | `ProductsModule` | ✅ Built — search, type filter, pagination |
-| Deposit product detail | `DepositProductDetailComponent` | `ProductsModule` | ✅ Built — view/edit toggle, 5 section tabs, overdraft config, GL linkages |
-| Fixed deposit products list | `FixedDepositsListComponent` | `ProductsModule` | ✅ Built — search, active filter, pagination; term range column |
-| Fixed deposit product detail | `FixedDepositDetailComponent` | `ProductsModule` | ✅ Built — view/edit toggle, 4 section tabs (core/rates/term/penalty) |
-| Recurring deposit products list | `RecurringDepositsListComponent` | `ProductsModule` | ✅ Built — search, active filter, pagination; deposit frequency column |
-| Recurring deposit product detail | `RecurringDepositDetailComponent` | `ProductsModule` | ✅ Built — view/edit toggle, 5 section tabs (core/rates/frequency/term/penalty) |
-| Share products list | `SharesListComponent` | `ProductsModule` | ✅ Built — search, active filter, pagination; unit price + shares issued columns |
-| Share product detail | `ShareDetailComponent` | `ProductsModule` | ✅ Built — view/edit toggle, 3 section tabs (core/shares/lockin); dividend policy toggle |
-| Charges list | `ChargesComponent` | `ProductsModule` | ✅ Built — server-paginated CRUD; applies-to colour badges (loan/savings/client/share); penalty/fee chips; time type options filtered by applies-to _(Session 68)_ |
-| GL accounts | `GlAccountsComponent` | `AccountingModule` | ✅ Built — type filter tabs, search, enable/disable, create/edit modal |
-| Journal entries | `JournalEntriesComponent` | `AccountingModule` | ✅ Built — T-ledger grouped view, date filter, manual entry modal with balance validation, reversal |
-| Provisioning criteria | `ProvisioningComponent` | `AccountingModule` | ✅ Built — IFRS 9 age bands, create/edit/delete, GL account dropdowns by type |
-| Financial Activity Accounts | `FinancialActivityAccountsComponent` | `AccountingModule` | ✅ Built — maps abstract activities to GL account codes; create/edit/delete; activity-type selector; GL account picker |
-| Accounting Rules | `AccountingRulesComponent` | `AccountingModule` | ✅ Built — GL account dropdown pickers (not raw UUIDs); `glLabel()` helper shows `glCode — name`; allowMultipleDebits/Credits checkboxes _(Session 75)_ |
-| GL Closures | `GlClosuresComponent` | `AccountingModule` | ✅ Built — office picker, closures list (date/closedBy/comments), Create modal; POST uses query params not JSON body _(Session 69)_ |
-| Treasury Placements | `TreasuryPlacementsComponent` | `TreasuryModule` | ✅ Built — placement type chips, status badges, Activate/Mature/Cancel command buttons, CRUD modals with currency/date pickers _(Session 84)_ |
-| Treasury Interbank | `TreasuryInterbankComponent` | `TreasuryModule` | ✅ Built — direction chips (LENDING=green/BORROWING=red), Settle/Cancel commands, optional maturity date for open facilities, CRUD modals _(Session 84)_ |
-| Treasury Liquidity | `TreasuryLiquidityComponent` | `TreasuryModule` | ✅ Built — 4-tab: Position (KPI cards + breakdown table, 3-level alert), Cash Flow Forecast (30/60/90d horizon), Reserve Requirements CRUD, Snapshot History _(Session 85)_ |
-| Reports list | `ReportsListComponent` | `ReportsModule` | ✅ Built — search/category filter, dynamic param form, schema-on-read results table, CSV export, create/delete |
-| CoB Scheduler | `CobSchedulerComponent` | `ReportsModule` | ✅ Built — job cards with stats, Run Now trigger, inline history panel, duration helper |
-| Report Mailing Jobs | `ReportMailingComponent` | `ReportsModule` | ✅ Built — mailing job CRUD, RRULE schedule presets, output type chips, send-now trigger |
-| Users | `UsersComponent` | `AdminModule` | ✅ Built — search filter, create modal (firstname/lastname/username/email/password/office/roles), enable/disable toggle, delete confirm |
-| Roles | `RolesComponent` | `AdminModule` | ✅ Built — list with permission count badge, create/edit modal, permissions matrix modal grouped by grouping with select-all-in-group |
-| Offices | `OfficesComponent` | `AdminModule` | ✅ Built — search, create/edit modal with parent office dropdown, hierarchy column |
-| Staff | `StaffComponent` | `AdminModule` | ✅ Built — office dropdown filter (server-side) + loan officer checkbox (client-side); create/edit/delete modals; loan-officer-badge chip _(Session 75)_ |
-| Hooks | `HooksComponent` | `AdminModule` | ✅ Built — WEB/SMS type chips, create/edit modal with event selection chips |
-| Maker-Checker | `MakerCheckerComponent` | `AdminModule` | ✅ Built — status filter tabs (All/PENDING/APPROVED/REJECTED), metadata table, approve/reject for PENDING entries |
-| Notifications Admin | `NotificationsComponent` | `AdminModule` | ✅ Built — templates CRUD (two-column form modal, event type + delivery method + body), test send modal, delivery history tab with event filter |
-| Audit Log | `AuditLogComponent` | `AdminModule` | ✅ Built — 5-filter bar (entityType/entityId/changedBy/from/to), server-paginated list, action + entity-type badges, slide-in detail panel with JSON old/new values _(Session 70)_ |
-| TPP Management | `OpenBankingComponent` | `AdminModule` | ✅ Built — TPP registry: clientId, country, scope chips, cert expiry; register/activate/revoke |
-| SMS Campaigns | `SmsCampaignsComponent` | `AdminModule` | ✅ Built — paginated list, campaign type chips, RRULE recurrence presets, activate command (PENDING/WAITING_FOR_ACTIVATION only), slide-in messages delivery log panel _(Session 73)_ |
-| Standing Instructions | `StandingInstructionsComponent` | `AdminModule` | ✅ Built — priority/type/status chips; FIXED/OUTSTANDING_BALANCE conditional amount field; PERIODIC_RECURRENCE conditional frequency field; disable/enable toggle _(Session 75)_ |
-| Groups list | `GroupsListComponent` | `GroupsModule` | ✅ Built — status filter + search, create modal, routerLink to detail |
-| Group detail | `GroupDetailComponent` | `GroupsModule` | ✅ Built — 4 tabs: Members (add/remove), Collection Sheet (generate + table), GLIM Accounts (accordion), Staff (assign/remove loan officer) |
-| Centers list | `CentersListComponent` | `GroupsModule` | ✅ Built — status filter + search, create modal, routerLink to detail |
-| Center detail | `CenterDetailComponent` | `GroupsModule` | ✅ Built — 2 tabs: Groups (links), All Members |
-| Consents list | `OpenBankingListComponent` | `OpenBankingModule` | ✅ Built — type filter tabs (All/AISP/PISP/CBPII) + status dropdown, type badges, scope chips |
-| Consent detail | `ConsentDetailComponent` | `OpenBankingModule` | ✅ Built — status badge, conditional Authorise/Revoke button, two-column detail grid, confirm modal |
-| Codes & Values | `CodesComponent` | `SystemModule` | ✅ Built — inline accordion expand, load-on-expand, inline add/edit value form, create code modal |
-| Global Config | `GlobalConfigComponent` | `SystemModule` | ✅ Built — searchable table, inline row edit (type-aware: string/number/boolean), enabled toggle |
-| Floating Rates | `FloatingRatesComponent` | `SystemModule` | ✅ Built — accordion with rate periods, create/edit modal with dynamic period rows, delete confirm |
-| Taxes | `TaxesComponent` | `SystemModule` | ✅ Built — two tabs: Tax Components (CRUD) + Tax Groups (component bundles with effective dates) |
-| Account Algorithms | `AccountAlgorithmsComponent` | `SystemModule` | ✅ Built — per-tenant, per-account-type algorithm config; MIFOS/NUBAN toggle per type; bank code input; STRICT/PARANOID validation mode toggle |
-| Holidays | `HolidaysComponent` | `SystemModule` | ✅ Built — paginated list with from/to dates + repayment scheduling rule; activate (PENDING only) + delete; create modal with conditional rescheduled-date field _(Session 74)_ |
-| Payment Types | `PaymentTypesComponent` | `SystemModule` | ✅ Built — paginated CRUD; systemDefined protection (delete disabled, not hidden); cashPayment bool chip _(Session 75)_ |
-| Exchange Rates | `ExchangeRatesComponent` | `SystemModule` | ✅ Built — upsert pattern (POST creates or updates); active/inactive grouping; inverse rate auto-generated by backend _(Session 75)_ |
-| Funds | `FundsComponent` | `SystemModule` | ✅ Built — simple CRUD table; name + externalId; create/edit modals; no delete _(Session 77)_ |
-| Acct No. Formats | `AccountNumberFormatsComponent` | `SystemModule` | ✅ Built — CRUD table; accountType colour chips (loan/savings/client/share); prefixType human-readable labels; create/edit/delete modals _(Session 77)_ |
-| DataTables | `DataTablesComponent` | `SystemModule` | ✅ Built — accordion listing; dynamic column builder in create modal (add/remove rows); canSave validation; delete confirm _(Session 77)_ |
-| Surveys | `SurveysComponent` | `SystemModule` | ✅ Built — accordion; survey metadata + questions/responses in expanded body; create/edit/delete modals; countryCode badge _(Session 77)_ |
-| Credit Bureau | `CreditBureauComponent` | `SystemModule` | ✅ Built — accordion with StatusBadge; lazy-loaded mappings per bureau; activate/deactivate/edit/delete; Add Mapping modal _(Session 77)_ |
-| Card List | `CardListComponent` | `CardsModule` | ✅ Built — search by PAN suffix/customer, type + status filters, issue card modal |
-| Card Detail | `CardDetailComponent` | `CardsModule` | ✅ Built — 3 tabs (overview/authorizations/limits), block/unblock/cancel/activate commands, edit limits modal |
-| Card Products | `CardProductsComponent` | `CardsModule` | ✅ Built — product list with BIN range display, create product modal |
-| Fraud Rules | `FraudRulesComponent` | `CardsModule` | ✅ Built — score legend (0–29/30–69/70–100), inline weight/enabled edit, JSON params editor, hard-block indicator |
-| Settlement | `SettlementComponent` | `CardsModule` | ✅ Built — batch accordion with close + export triggers, transmissions tab per scheme |
-| Disputes | `DisputesComponent` | `CardsModule` | ✅ Built — sliding detail panel, 7-state chargeback workflow actions, raise + resolve modals |
-| Terminal Simulator | `TerminalSimulatorComponent` | `CardsModule` | ✅ Built — txn type selector, entry mode toggle (CHIP/SWIPE/CONTACTLESS), approve/decline response banner, collapsible hex dump |
-| API Keys | `ApiKeysComponent` | `CardsModule` | ✅ Built — issue key with scope checkboxes, one-time key reveal with copy button, revoke |
-| Webhooks | `WebhooksComponent` | `CardsModule` | ✅ Built — webhook list, delivery log side panel, event-category selector, HMAC secret input |
-| BIN Management | `BinManagementComponent` | `CardsModule` | ✅ Built — 6/8-digit BIN range CRUD, scheme colour badges, soft-delete |
-| Scheme Config | `SchemeConfigComponent` | `CardsModule` | ✅ Built — accordion per scheme (Visa/MC/Verve/Afrigo/UnionPay), adapter details, YAML activation snippet |
-| Interchange | `InterchangeComponent` | `CardsModule` | ✅ Built — rate table with scheme filter, rate + fee CRUD modals, tabs for rates vs scheme fees |
+| Design Component | Angular Component | Module  | Status |
+|-----------------|-------------------|-------- |-----|
+| Sidebar nav | `SidebarComponent` | `LayoutModule`  | ✅ Built — `exact: true` on Dashboard + Card List nav items; `[routerLinkActiveOptions]="{ exact: item.exact ?? false }"` prevents prefix-match active state on sub-routes |
+| Topbar | `TopbarComponent` | `LayoutModule`  | ✅ Built |
+| KPI card | `KpiCardComponent` | `SharedModule`  | ✅ Built |
+| Data table | `DataTableComponent` | `SharedModule`  | ✅ Built |
+| Status badge | `StatusBadgeComponent` | `SharedModule`  | ✅ Built — inputs: `[label]` (string) + `[variant]` (success/warning/error/info/neutral/primary) — **never use `[status]`** |
+| Dashboard | `DashboardComponent` | `OperationsModule`  | ✅ Built — KPIs, transaction table, portfolio bars, KYC queue |
+| Customers list | `CustomersListComponent` | `OperationsModule`  | ✅ Built — debounced search, KYC filter tabs, pagination |
+| Customer detail | `CustomerDetailComponent` | `OperationsModule`  | ✅ Built — 7 tabs (Overview/Accounts/Loans/Staff/Transfer + KYC state machine); 12 command modals; `PUT /{id}` profile edit _(Session 49)_ |
+| Accounts list | `AccountsListComponent` | `OperationsModule`  | ✅ Built — type filter, pagination |
+| Account detail | `AccountDetailComponent` | `OperationsModule`  | ✅ Built — header card, overview/transactions tabs, freeze/unfreeze/close/deposit/withdraw modals, Statement modal; `isNew` mode: shows Open Account form |
+| Payments list | `PaymentsListComponent` | `OperationsModule`  | ✅ Built — account context picker, paginated payment history, 3-step transfer wizard modal, standing order modal |
+| Payment detail | `PaymentDetailComponent` | `OperationsModule`  | ✅ Built — status band with FX details, transfer route card, payment details card, reverse modal |
+| Teller list | `TellerListComponent` | `OperationsModule`  | ✅ Built — search + status filter, create teller modal |
+| Teller detail | `TellerDetailComponent` | `OperationsModule`  | ✅ Built — overview/cashiers/sessions tabs, session expand/collapse, cash-in/out/settle modals, lifecycle buttons |
+| Loans list | `LoansListComponent` | `OperationsModule`  | ✅ Built — pipeline view, sliding detail panel |
+| Loan detail | `LoanDetailComponent` | `OperationsModule`  | ✅ Built — 7 tabs (summary/schedule/charges/collateral/reschedule/reaging/audit); approve/disburse/repayment/reject/write-off _(Session 75)_ |
+| Loan products list | `LoanProductsListComponent` | `ProductsModule`  | ✅ Built — search, active filter, pagination |
+| Loan product detail | `LoanProductDetailComponent` | `ProductsModule`  | ✅ Built — view/edit toggle, 5 section tabs, GL linkages, charges |
+| Deposit products list | `DepositProductsListComponent` | `ProductsModule`  | ✅ Built — search, type filter, pagination |
+| Deposit product detail | `DepositProductDetailComponent` | `ProductsModule`  | ✅ Built — view/edit toggle, 5 section tabs, overdraft config, GL linkages |
+| Fixed deposit products list | `FixedDepositsListComponent` | `ProductsModule`  | ✅ Built — search, active filter, pagination; term range column |
+| Fixed deposit product detail | `FixedDepositDetailComponent` | `ProductsModule`  | ✅ Built — view/edit toggle, 4 section tabs (core/rates/term/penalty) |
+| Recurring deposit products list | `RecurringDepositsListComponent` | `ProductsModule`  | ✅ Built — search, active filter, pagination; deposit frequency column |
+| Recurring deposit product detail | `RecurringDepositDetailComponent` | `ProductsModule`  | ✅ Built — view/edit toggle, 5 section tabs (core/rates/frequency/term/penalty) |
+| Share products list | `SharesListComponent` | `ProductsModule`  | ✅ Built — search, active filter, pagination; unit price + shares issued columns |
+| Share product detail | `ShareDetailComponent` | `ProductsModule`  | ✅ Built — view/edit toggle, 3 section tabs (core/shares/lockin); dividend policy toggle |
+| Charges list | `ChargesComponent` | `ProductsModule`  | ✅ Built — server-paginated CRUD; applies-to colour badges; penalty/fee chips _(Session 68)_ |
+| GL accounts | `GlAccountsComponent` | `AccountingModule`  | ✅ Built — type filter tabs, search, enable/disable, create/edit modal |
+| Journal entries | `JournalEntriesComponent` | `AccountingModule`  | ✅ Built — T-ledger grouped view, date filter, manual entry modal with balance validation, reversal |
+| Provisioning criteria | `ProvisioningComponent` | `AccountingModule`  | ✅ Built — IFRS 9 age bands, create/edit/delete, GL account dropdowns by type |
+| Financial Activity Accounts | `FinancialActivityAccountsComponent` | `AccountingModule`  | ✅ Built — maps abstract activities to GL account codes; create/edit/delete |
+| Accounting Rules | `AccountingRulesComponent` | `AccountingModule`  | ✅ Built — GL account dropdown pickers; `glLabel()` helper; allowMultipleDebits/Credits checkboxes _(Session 75)_ |
+| GL Closures | `GlClosuresComponent` | `AccountingModule`  | ✅ Built — office picker, closures list, Create modal; POST uses query params not JSON body _(Session 69)_ |
+| Treasury Placements | `TreasuryPlacementsComponent` | `TreasuryModule`  | ✅ Built — placement type chips, status badges, Activate/Mature/Cancel command buttons, CRUD modals _(Session 84)_ |
+| Treasury Interbank | `TreasuryInterbankComponent` | `TreasuryModule`  | ✅ Built — direction chips (LENDING=green/BORROWING=red), Settle/Cancel commands, CRUD modals _(Session 84)_ |
+| Treasury Liquidity | `TreasuryLiquidityComponent` | `TreasuryModule`  | ✅ Built — 4-tab: Position, Cash Flow Forecast, Reserve Requirements CRUD, Snapshot History _(Session 85)_ |
+| Reports list | `ReportsListComponent` | `ReportsModule`  | ✅ Built — search/category filter, dynamic param form, schema-on-read results table, CSV export, create/delete |
+| CoB Scheduler | `CobSchedulerComponent` | `ReportsModule`  | ✅ Built — job cards with stats, Run Now trigger, inline history panel, duration helper |
+| Report Mailing Jobs | `ReportMailingComponent` | `ReportsModule`  | ✅ Built — mailing job CRUD, RRULE schedule presets, output type chips, send-now trigger |
+| Users | `UsersComponent` | `AdminModule`  | ✅ Built — search filter, create modal, enable/disable toggle, delete confirm |
+| Roles | `RolesComponent` | `AdminModule`  | ✅ Built — list with permission count badge, create/edit modal, permissions matrix modal grouped by grouping |
+| Offices | `OfficesComponent` | `AdminModule`  | ✅ Built — search, create/edit modal with parent office dropdown, hierarchy column |
+| Staff | `StaffComponent` | `AdminModule`  | ✅ Built — office dropdown filter + loan officer checkbox; create/edit/delete modals; loan-officer-badge chip _(Session 75)_ |
+| Hooks | `HooksComponent` | `AdminModule`  | ✅ Built — WEB/SMS type chips, create/edit modal with event selection chips |
+| Maker-Checker | `MakerCheckerComponent` | `AdminModule`  | ✅ Built — status filter tabs (All/PENDING/APPROVED/REJECTED), metadata table, approve/reject for PENDING entries |
+| Notifications Admin | `NotificationsComponent` | `AdminModule`  | ✅ Built — templates CRUD, test send modal, delivery history tab with event filter |
+| Audit Log | `AuditLogComponent` | `AdminModule`  | ✅ Built — 5-filter bar, server-paginated list, action + entity-type badges, slide-in detail panel _(Session 70)_ |
+| TPP Management | `OpenBankingComponent` | `AdminModule`  | ✅ Built — TPP registry: clientId, country, scope chips, cert expiry; register/activate/revoke |
+| SMS Campaigns | `SmsCampaignsComponent` | `AdminModule`  | ✅ Built — paginated list, campaign type chips, RRULE recurrence presets, activate command, slide-in messages panel _(Session 73)_ |
+| Standing Instructions | `StandingInstructionsComponent` | `AdminModule`  | ✅ Built — priority/type/status chips; FIXED/OUTSTANDING_BALANCE conditional amount field _(Session 75)_ |
+| Groups list | `GroupsListComponent` | `GroupsModule`  | ✅ Built — status filter + search, create modal, routerLink to detail |
+| Group detail | `GroupDetailComponent` | `GroupsModule`  | ✅ Built — 4 tabs: Members (add/remove), Collection Sheet, GLIM Accounts, Staff |
+| Centers list | `CentersListComponent` | `GroupsModule`  | ✅ Built — status filter + search, create modal, routerLink to detail |
+| Center detail | `CenterDetailComponent` | `GroupsModule`  | ✅ Built — 2 tabs: Groups (links), All Members |
+| Consents list | `OpenBankingListComponent` | `OpenBankingModule`  | ✅ Built — type filter tabs (All/AISP/PISP/CBPII) + status dropdown, type badges, scope chips |
+| Consent detail | `ConsentDetailComponent` | `OpenBankingModule`  | ✅ Built — status badge, conditional Authorise/Revoke button, two-column detail grid, confirm modal |
+| Codes & Values | `CodesComponent` | `SystemModule`  | ✅ Built — inline accordion expand, load-on-expand, inline add/edit value form, create code modal |
+| Global Config | `GlobalConfigComponent` | `SystemModule`  | ✅ Built — searchable table, inline row edit (type-aware: string/number/boolean), enabled toggle |
+| Floating Rates | `FloatingRatesComponent` | `SystemModule`  | ✅ Built — accordion with rate periods, create/edit modal with dynamic period rows, delete confirm |
+| Taxes | `TaxesComponent` | `SystemModule`  | ✅ Built — two tabs: Tax Components (CRUD) + Tax Groups (component bundles with effective dates) |
+| Account Algorithms | `AccountAlgorithmsComponent` | `SystemModule`  | ✅ Built — per-tenant, per-account-type algorithm config; MIFOS/NUBAN toggle; STRICT/PARANOID validation mode toggle |
+| Holidays | `HolidaysComponent` | `SystemModule`  | ✅ Built — paginated list with from/to dates + repayment scheduling rule; activate + delete _(Session 74)_ |
+| Payment Types | `PaymentTypesComponent` | `SystemModule`  | ✅ Built — paginated CRUD; systemDefined protection; cashPayment bool chip _(Session 75)_ |
+| Exchange Rates | `ExchangeRatesComponent` | `SystemModule`  | ✅ Built — upsert pattern; active/inactive grouping; inverse rate auto-generated by backend _(Session 75)_ |
+| Funds | `FundsComponent` | `SystemModule`  | ✅ Built — simple CRUD table; name + externalId; create/edit modals; no delete _(Session 77)_ |
+| Acct No. Formats | `AccountNumberFormatsComponent` | `SystemModule`  | ✅ Built — CRUD table; accountType colour chips; prefixType human-readable labels _(Session 77)_ |
+| DataTables | `DataTablesComponent` | `SystemModule`  | ✅ Built — accordion listing; dynamic column builder; canSave validation; delete confirm _(Session 77)_ |
+| Surveys | `SurveysComponent` | `SystemModule`  | ✅ Built — accordion; survey metadata + questions/responses; create/edit/delete modals; countryCode badge _(Session 77)_ |
+| Credit Bureau | `CreditBureauComponent` | `SystemModule`  | ✅ Built — accordion with StatusBadge; lazy-loaded mappings; activate/deactivate/edit/delete _(Session 77)_ |
+| Card List | `CardListComponent` | `CardsModule`  | ✅ Built — search by PAN suffix/customer, type + status filters, issue card modal |
+| Card Detail | `CardDetailComponent` | `CardsModule`  | ✅ Built — 3 tabs (overview/authorizations/limits), block/unblock/cancel/activate commands, edit limits modal |
+| Card Products | `CardProductsComponent` | `CardsModule`  | ✅ Built — product list with BIN range display, create product modal |
+| Fraud Rules | `FraudRulesComponent` | `CardsModule`  | ✅ Built — score legend (0–29/30–69/70–100), inline weight/enabled edit, JSON params editor, hard-block indicator |
+| Settlement | `SettlementComponent` | `CardsModule`  | ✅ Built — batch accordion with close + export triggers, transmissions tab per scheme |
+| Disputes | `DisputesComponent` | `CardsModule`  | ✅ Built — sliding detail panel, 7-state chargeback workflow actions, raise + resolve modals |
+| Terminal Simulator | `TerminalSimulatorComponent` | `CardsModule`  | ✅ Built — txn type selector, entry mode toggle, approve/decline response banner, collapsible hex dump |
+| API Keys | `ApiKeysComponent` | `CardsModule`  | ✅ Built — issue key with scope checkboxes, one-time key reveal with copy button, revoke |
+| Webhooks | `WebhooksComponent` | `CardsModule`  | ✅ Built — webhook list, delivery log side panel, event-category selector, HMAC secret input |
+| BIN Management | `BinManagementComponent` | `CardsModule`  | ✅ Built — 6/8-digit BIN range CRUD, scheme colour badges, soft-delete |
+| Scheme Config | `SchemeConfigComponent` | `CardsModule`  | ✅ Built — accordion per scheme (Visa/MC/Verve/Afrigo/UnionPay), adapter details, YAML activation snippet |
+| Interchange | `InterchangeComponent` | `CardsModule`  | ✅ Built — rate table with scheme filter, rate + fee CRUD modals, tabs for rates vs scheme fees |
 
 ### Angular View/Edit Toggle Pattern
 All detail pages (loan product, deposit product, customer, loan) share this pattern:
@@ -2668,8 +2650,6 @@ CoreBanking/                          ← monorepo root (this repo)
 ├── backend/                          → Docker → Kubernetes (GHCR images)
 ├── card-service/                     → Docker → Kubernetes (GHCR images)
 ├── fep-service/                      → Docker → Kubernetes (GHCR images)
-├── web-archived/                     → Angular app (archived Session 58; no longer deployed)
-├── web-react/                        → Vercel (React — production frontend)
 ├── mobile/                           → GitHub Artifacts (APK / IPA)
 ├── infrastructure/                   → k8s manifests applied via kubectl
 ├── .github/
@@ -2690,15 +2670,14 @@ CoreBanking/                          ← monorepo root (this repo)
 |----------|---------|-------------|----------|
 | `backend-ci.yml` | push/PR to main/develop | `backend/**` | **api-doc-check** → test → sonar → owasp → spotbugs → docker → deploy-k8s |
 | `card-service-ci.yml` | push/PR to main/develop | `card-service/**` | **api-doc-check** → test → owasp → spotbugs → docker → deploy-k8s |
-| `web-ci.yml` | push/PR to main/develop | `web-react/**` | test → security → deploy (Vercel prod) → e2e |
+| `web-ci.yml` | push/PR to main/develop | `web/**` | lint → test → build → Vercel deploy → e2e |
 | `mobile-ci.yml` | push/PR to main/develop | `mobile/**` | test → dart-audit → build-android → build-ios |
 | `security-scan.yml` | push/PR + cron (Mon 03:00) | all | codeql → trivy-fs → gitleaks → dependency-review → snyk → zap |
 
-### Vercel Deployment (React Web App — production since Session 58)
+### Vercel Deployment (Angular Web App — production)
 
-**Config**: `web-react/vercel.json`
-**Pattern**: `--prebuilt` — CI builds the React app, tests it, then deploys the artifact (Vercel never rebuilds)
-**Angular app**: archived to `web-archived/` (full git history preserved); no longer deployed.
+**Config**: `web/vercel.json`
+**Pattern**: `--prebuilt` — CI builds the Angular app, tests it, then deploys the artifact (Vercel never rebuilds)
 
 ```
 PR opened       → vercel build → vercel deploy --prebuilt        → Preview URL auto-commented on PR
@@ -2709,12 +2688,12 @@ Push to main    → vercel build --prod → vercel deploy --prebuilt --prod → 
 **Required GitHub Secrets for Vercel**:
 ```
 VERCEL_TOKEN          — Personal Access Token from vercel.com/account/tokens
-VERCEL_ORG_ID         — From web-react/.vercel/project.json after vercel link
-VERCEL_PROJECT_ID_WEB — Canonical Vercel project ID (now pointing at React app)
+VERCEL_ORG_ID         — From web/.vercel/project.json after vercel link
+VERCEL_PROJECT_ID_WEB — Canonical Vercel project ID for the Angular app
 ```
 
 **vercel.json features**:
-- Framework: `vite` (React SPA)
+- Framework: `angular` (Angular SPA)
 - SPA rewrites: all non-asset routes → `index.html`
 - Security headers: CSP, HSTS, X-Frame-Options, Referrer-Policy, Permissions-Policy
 - Static asset caching: `max-age=31536000, immutable` for JS/CSS/assets
@@ -3188,295 +3167,3 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 
 ---
 
-## React Frontend Migration — Session 52 (2026-04-15)
-
-**Decision**: Full rewrite of Angular `web/` → React `web-react/`. ✅ **Cutover complete — Session 58 (2026-04-16).**
-
-**Drivers**: Team React skill-set alignment.
-
----
-
-### Migration Strategy
-
-- ✅ `web-react/` built in parallel alongside `web/` — Phases 0–8 complete (Sessions 52–57)
-- ✅ Cutover performed in Session 58: `web-ci.yml` updated to deploy `web-react/` to production
-- ✅ Angular `web/` archived to `web-archived/` (git history fully preserved, not deleted)
-- Both apps always shared the same Spring Boot backend API (no backend changes)
-- `VERCEL_PROJECT_ID_WEB` now points at the React app in Vercel
-
----
-
-### `web-react/` Project Structure
-
-```
-web-react/
-├── index.html
-├── vite.config.ts
-├── tailwind.config.ts
-├── tsconfig.json
-├── package.json
-├── components.json          ← shadcn/ui config
-└── src/
-    ├── main.tsx
-    ├── app/
-    │   ├── router.tsx        ← React Router v6 routes (mirrors Angular route structure)
-    │   ├── layout/
-    │   │   ├── Shell.tsx     ← App shell (sidebar + topbar + outlet)
-    │   │   ├── Sidebar.tsx   ← Left nav (same sections as Angular sidebar)
-    │   │   └── Topbar.tsx
-    │   ├── features/
-    │   │   ├── operations/   ← customers, accounts, loans, payments, tellers
-    │   │   ├── products/     ← loan products, deposit products, shares
-    │   │   ├── accounting/   ← GL, journals, provisioning
-    │   │   ├── cards/        ← full card management platform
-    │   │   ├── reports/      ← reports, CoB scheduler, mailing jobs
-    │   │   ├── admin/        ← users, roles, offices, hooks, maker-checker
-    │   │   ├── groups/       ← groups, centers
-    │   │   ├── system/       ← codes, config, floating rates, taxes
-    │   │   └── open-banking/ ← consents, TPP management
-    │   ├── core/
-    │   │   ├── api/
-    │   │   │   └── apiClient.ts   ← Axios instance; base URL from env; auth header
-    │   │   └── auth/
-    │   │       └── AuthContext.tsx ← bypass flag; Keycloak stub
-    │   └── shared/
-    │       └── components/
-    │           ├── StatusBadge.tsx
-    │           ├── DataTable.tsx
-    │           ├── KpiCard.tsx
-    │           ├── PageHeader.tsx
-    │           └── Modal.tsx
-    └── styles/
-        └── globals.css       ← Tailwind directives + Nubeero CSS variable overrides
-```
-
----
-
-### Nubeero Design Token Migration
-
-Nubeero SCSS tokens (`web/src/assets/styles/_tokens.scss`) are mapped into two places:
-
-**`tailwind.config.ts`** — extends Tailwind with Nubeero semantic tokens:
-```ts
-theme: {
-  extend: {
-    colors: {
-      'bg-app':      '#040609',
-      'bg-sidebar':  '#0a1628',
-      'bg-card':     '#ffffff',
-      'primary':     '#1e2833',
-      'text':        '#000314',
-      'muted':       '#888888',
-    },
-    fontFamily: {
-      sans: ['Instrument Sans', 'sans-serif'],
-    },
-  }
-}
-```
-
-**`globals.css`** — CSS custom properties for runtime theming:
-```css
-:root {
-  --bg-app:     #040609;
-  --bg-sidebar: #0a1628;
-  --bg-card:    #ffffff;
-  --primary:    #1e2833;
-}
-```
-
----
-
-### Angular Component Map → React Migration Checklist
-
-Every ✅ row in the Angular Component Map is a screen to rebuild in React. Status column tracks React progress.
-
-| Screen | Angular Status | React Status |
-|--------|---------------|--------------|
-| Dashboard | ✅ Angular | ✅ Built — Session 55 |
-| Customers list | ✅ Angular | ✅ Built — Session 55 |
-| Customer detail (7 tabs + 12 modals) | ✅ Angular | ✅ Built — Session 55 |
-| Accounts list | ✅ Angular | ✅ Built — Session 55 |
-| Account detail | ✅ Angular | ✅ Built — Session 55 |
-| Payments list | ✅ Angular | ✅ Built — Session 55 |
-| Payment detail | ✅ Angular | ✅ Built — Session 55 |
-| Teller list | ✅ Angular | ✅ Built — Session 55 |
-| Teller detail | ✅ Angular | ✅ Built — Session 55 |
-| Loans list | ✅ Angular | ✅ Built — Session 55 |
-| Loan detail | ✅ Angular | ✅ Built — Session 55 |
-| Loan products list | ✅ Angular | ✅ Built — Session 55 |
-| Loan product detail | ✅ Angular | ✅ Built — Session 55 |
-| Deposit products list | ✅ Angular | ✅ Built — Session 55 |
-| Deposit product detail | ✅ Angular | ✅ Built — Session 55 |
-| Fixed deposit products list | ✅ Angular | ✅ Built — Session 55 |
-| Fixed deposit product detail | ✅ Angular | ✅ Built — Session 55 |
-| Recurring deposit products list | ✅ Angular | ✅ Built — Session 55 |
-| Recurring deposit product detail | ✅ Angular | ✅ Built — Session 55 |
-| Share products list | ✅ Angular | ✅ Built — Session 55 |
-| Share product detail | ✅ Angular | ✅ Built — Session 55 |
-| GL accounts | ✅ Angular | ✅ Built — Session 55 |
-| Journal entries | ✅ Angular | ✅ Built — Session 55 |
-| Provisioning criteria | ✅ Angular | ✅ Built — Session 55 |
-| Financial Activity Accounts | ✅ Angular | ✅ Built — Session 55 |
-| Reports list | ✅ Angular | ✅ Built — Session 56 |
-| CoB Scheduler | ✅ Angular | ✅ Built — Session 56 |
-| Report Mailing Jobs | ✅ Angular | ✅ Built — Session 56 |
-| Users | ✅ Angular | ✅ Built — Session 56 |
-| Roles | ✅ Angular | ✅ Built — Session 56 |
-| Offices | ✅ Angular | ✅ Built — Session 56 |
-| Hooks | ✅ Angular | ✅ Built — Session 56 |
-| Maker-Checker | ✅ Angular | ✅ Built — Session 56 |
-| Notifications Admin | ✅ Angular | ✅ Built — Session 56 |
-| TPP Management | ✅ Angular | ✅ Built — Session 56 |
-| Groups list | ✅ Angular | ✅ Built — Session 57 |
-| Group detail | ✅ Angular | ✅ Built — Session 57 |
-| Centers list | ✅ Angular | ✅ Built — Session 57 |
-| Center detail | ✅ Angular | ✅ Built — Session 57 |
-| Consents list | ✅ Angular | ✅ Built — Session 57 |
-| Consent detail | ✅ Angular | ✅ Built — Session 57 |
-| Codes & Values | ✅ Angular | ✅ Built — Session 57 |
-| Global Config | ✅ Angular | ✅ Built — Session 57 |
-| Floating Rates | ✅ Angular | ✅ Built — Session 57 |
-| Taxes | ✅ Angular | ✅ Built — Session 57 |
-| Account Algorithms | ✅ Angular | ✅ Built — Session 57 |
-| Card List | ✅ Angular | ✅ Built — Session 55 |
-| Card Detail | ✅ Angular | ✅ Built — Session 55 |
-| Card Products | ✅ Angular | ✅ Built — Session 55 |
-| Fraud Rules | ✅ Angular | ✅ Built — Session 55 |
-| Settlement | ✅ Angular | ✅ Built — Session 55 |
-| Disputes | ✅ Angular | ✅ Built — Session 55 |
-| Terminal Simulator | ✅ Angular | ✅ Built — Session 55 |
-| API Keys | ✅ Angular | ✅ Built — Session 55 |
-| Webhooks | ✅ Angular | ✅ Built — Session 55 |
-| BIN Management | ✅ Angular | ✅ Built — Session 55 |
-| Scheme Config | ✅ Angular | ✅ Built — Session 55 |
-| Interchange | ✅ Angular | ✅ Built — Session 55 |
-
-**Build order**: Operations (customers → accounts → loans → payments → tellers) → Products → Accounting → Cards → Reports → Admin → Groups → System → Open Banking
-
----
-
-### CI/CD — Parallel Vercel Deployments
-
-During the transition, both apps have their own Vercel deployment:
-
-| App | Vercel project | URL | Status |
-|-----|---------------|-----|--------|
-| `web/` (Angular) | `cba-platform-web` | Production URL | Live — do not break |
-| `web-react/` (React) | `cba-platform-web-react` | Preview URL | In development |
-
-`web-ci.yml` gains a second job (`react-deploy`) that runs on `web-react/**` path changes. At cutover: `react-deploy` is promoted to production, `angular-deploy` job is removed.
-
----
-
-### Critical Gotchas for Future Sessions
-
-| Issue | Fix |
-|-------|-----|
-| TanStack Query keys must be consistent | Use array keys: `['customers', id]`, `['accounts', customerId]` — mismatch causes cache misses and double fetches |
-| Axios base URL from env | `import.meta.env.VITE_API_URL` — must be set in `.env.local` and Vercel env vars; never hardcode `localhost:8080` |
-| shadcn/ui requires `components.json` | Run `npx shadcn@latest init` to generate; sets the import alias and Tailwind config automatically |
-| `cn()` utility required for shadcn | Install `clsx` + `tailwind-merge`; shadcn components use `cn()` to merge class names |
-| Tailwind v4 config syntax changed | v4 uses CSS-first config (`@theme` in CSS) not `tailwind.config.ts`; verify which version is installed |
-| React Router v6 lazy routes | Use `lazy: () => import('./features/...')` in route config for code splitting — equivalent to Angular lazy modules |
-| No Angular `| async` pipe in React | Replace with TanStack Query `useQuery` hook; `isLoading` + `data` replace `*ngIf` + Observable |
-| `bg-white/8` is invalid in Tailwind v4 | Opacity scale is 5, 10, 15… — use `bg-white/[0.08]` for arbitrary values _(Phase 0)_ |
-| `tabular-nums` is for numeric data only | Status labels, names, IDs must NOT have `tabular-nums`; use `col.numeric = true` in `DataTable` to opt in per-column _(Phase 0)_ |
-| Native `<dialog>` backdrop detection | `e.target === dialogRef.current` — not `getBoundingClientRect`; drag-release-outside must not close the dialog _(Phase 0)_ |
-| `onClose` in `useEffect` deps | Use `onCloseRef` pattern — ref synced on every render, effect registered once (empty dep array) _(Phase 0)_ |
-| Topbar `<p>` not `<h1>` | Feature pages render their own `<h1>` via `PageHeader`; Topbar section label must be `<p>` to avoid duplicate headings _(Phase 0)_ |
-| `KpiCard` delta three-state | `deltaPositive: true` = Increase (green), `false` = Decrease (red), `undefined` = neutral (muted) — never binary _(Phase 0)_ |
-| Semantic bg tokens in `@theme` | `--color-success-bg` / `warning-bg` / `error-bg` / `info-bg` are forwarded into `@theme` → use `bg-success-bg` etc. as Tailwind utilities _(Phase 0)_ |
-| React Router v6 scoring | Uses best-match scoring (static > dynamic), not first-match order for siblings; `end` prop replaces v5's `exact` _(Phase 0)_ |
-
----
-
-### Phase 0 — Foundation (✅ Complete — Session 54)
-
-**Status**: `web-react/` scaffold complete. All 57 routes navigable. Feature pages say "Coming soon." Angular `web/` untouched.
-
-**Build**: `npm run build` passes. `npx vitest run` → 22/22 passing (6 test files).
-
-**Committed files:**
-```
-web-react/
-├── index.html                            ← Epilogue Google Fonts + app mount
-├── vite.config.ts                        ← @tailwindcss/vite + @/ alias + Vitest inline
-├── tsconfig.json / tsconfig.node.json    ← strict mode + @/ alias
-├── package.json                          ← all deps
-├── components.json                       ← shadcn/ui config
-├── vercel.json                           ← SPA rewrite + security headers + asset cache
-└── src/
-    ├── main.tsx                          ← QueryClientProvider > AuthProvider > RouterProvider
-    ├── styles/globals.css                ← @theme OKLCH tokens, Epilogue + Geist, resets
-    ├── app/
-    │   ├── router.tsx                    ← all 57 routes, lazy PlaceholderPage
-    │   ├── layout/Shell.tsx              ← fixed sidebar + topbar + scrollable Outlet
-    │   ├── layout/Sidebar.tsx            ← 9 sections, 44 items, amber active state
-    │   └── layout/Topbar.tsx             ← 40-entry prefix → section label map
-    ├── core/
-    │   ├── api/apiClient.ts              ← Axios + VITE_API_URL + auth interceptor
-    │   └── auth/AuthContext.tsx          ← dev bypass (VITE_AUTH_BYPASS) + role helpers
-    └── shared/components/
-        ├── StatusBadge.tsx               ← 6 variants, no tabular-nums on text
-        ├── DataTable.tsx                 ← generic typed table, col.numeric opt-in
-        ├── KpiCard.tsx                   ← value + three-state delta + aria-label
-        ├── PageHeader.tsx                ← <h1> + optional actions slot
-        ├── Modal.tsx                     ← native <dialog>, correct backdrop detection
-        └── cn.ts                         ← clsx + tailwind-merge
-```
-
-**CI**: `react-deploy` job in `web-ci.yml`; fires on `web-react/**` pushes; deploys to Vercel preview using `VERCEL_TOKEN_REACT` / `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID_REACT`.
-
----
-
-### Phase 8 — Open Banking (✅ Complete — Session 57)
-
-**Screens built**: Consents list, Consent detail.
-
-**Consents list** — type filter tabs (All / AISP / PISP / CBPII), status dropdown, scope chip overflow (+N), `Link` to detail page.
-
-**Consent detail** — status + type badge banner, conditional Authorise/Revoke action buttons (Authorise only for AWAITING_AUTHORISATION; Revoke for any non-REVOKED), two-column `<dl>` grid with PISP-specific fields (amount, reference, debtor/creditor accounts) and CBPII funds-available badge, scope chips panel, confirm modal for each action (navigate back to list after revoke).
-
-**React migration: feature parity reached.** All 57 routes in `router.tsx` resolve to real page components — `PlaceholderPage` import removed. ✅ **Cutover complete — Session 58 (2026-04-16).** `web-ci.yml` now deploys `web-react/` to production. Angular `web/` archived to `web-archived/`.
-
----
-
-## Design Context — CBA Backoffice React App (Nubeero / Impeccable)
-
-> Source of truth: `.impeccable.md` in project root. This section is a summary for session context.
-
-### Users
-Bank operations staff (tellers, loan officers, branch managers, admins) working at a desk during business hours. They live in this interface 6–8 hours/day. Speed and accuracy matter more than novelty.
-
-### Brand Personality
-**Trustworthy, clear, approachable.** The interface should make users feel *capable*, not overwhelmed.
-
-### Aesthetic Direction
-**Bold redesign** — same navy/dark-shell brand foundation, entirely new typographic system and layout patterns.
-
-**Theme:** Dark shell + white content cards (dark sidebar + topbar, white card surfaces).
-
-**Typography:**
-- Headings / labels: **Epilogue** (Google Fonts, variable) — weights 500–700
-- Body / UI / data: **Geist** (Vercel open source) — tabular numerals throughout
-- Scale: fixed `rem` (app UI, not marketing) — xs/12px → sm/14px → base/16px → lg/18px → xl/20px → 2xl/24px
-
-**Colours (OKLCH):**
-- App shell: `oklch(10% 0.018 250)` — near-black, navy-tinted
-- Sidebar: `oklch(15% 0.028 250)`
-- Cards: `oklch(99% 0.004 250)` — near-white
-- Primary CTA: `oklch(28% 0.045 250)` — deep navy
-- **Accent: `oklch(72% 0.13 68)`** — warm amber/gold; used ONLY for focus rings, active nav, key badges
-
-**Anti-references:** No generic SaaS (Stripe/Linear), no heavy enterprise (SAP/Oracle), no AI startup aesthetic (cyan/glow), no Material Design.
-
-### Design Principles
-1. **Data over decoration** — every element earns its place
-2. **Calm authority** — transitions convey state, not personality; always `ease-out-quint`
-3. **Density with breathing room** — 44px table rows, 24px card padding, 32–48px section gaps
-4. **Approachable structure** — visible affordances, no hover-only disclosure for critical actions
-5. **Amber as the single accent** — appears nowhere outside focus/active/key-status contexts
-
-### WCAG
-WCAG 2.1 AA minimum. `prefers-reduced-motion` respected on all transitions.

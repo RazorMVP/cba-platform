@@ -79,12 +79,12 @@ Angular dev server HMR picks up the change. No compilation errors.
 **Angular Web App (`web/`):**
 | Component | Version | Git ref |
 |-----------|---------|---------|
-| Angular | 21.2.x | see push SHA |
-| Angular CLI | 21.2.7 | see push SHA |
-| PrimeNG | 21.0.x | see push SHA |
-| RxJS | 7.8.x | see push SHA |
-| TypeScript | 5.9.x | see push SHA |
-| Vercel deployment | `cba-web-nine.vercel.app` | see push SHA |
+| Angular | 21.2.x | `ebe47bd` |
+| Angular CLI | 21.2.7 | `ebe47bd` |
+| PrimeNG | 21.0.x | `ebe47bd` |
+| RxJS | 7.8.x | `ebe47bd` |
+| TypeScript | 5.9.x | `ebe47bd` |
+| Vercel deployment | `cba-web-nine.vercel.app` | `ebe47bd` |
 
 ### Session 82 — 2026-04-18
 **Fix: sidebar freeze + report-mailing modal dev/prod divergence (commit `2c8bc1f`).**

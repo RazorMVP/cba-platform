@@ -2404,6 +2404,198 @@
           ]
         },
         {
+          "name": "Undo Write-Off Loan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/loans/{{loanId}}/undo-write-off",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "loans", "{{loanId}}", "undo-write-off"]
+            },
+            "description": "Reverses a WRITTEN_OFF loan back to IN_ARREARS. Outstanding balance is reconstructed from the repayment schedule. No request body required."
+          },
+          "response": [
+            {
+              "name": "200 OK — Loan restored to IN_ARREARS",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": \"{{loanId}}\",\n    \"status\": \"IN_ARREARS\",\n    \"outstandingBalance\": 9050.00\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            },
+            {
+              "name": "400 Bad Request — Loan not in WRITTEN_OFF state",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{\"code\": \"INVALID_LOAN_STATE\", \"message\": \"Only WRITTEN_OFF loans can be un-written-off\"}]\n}"
+            }
+          ],
+          "x-code-samples": [
+            {
+              "lang": "cURL",
+              "source": "curl -X POST '{{base_url}}/api/v1/loans/{{loanId}}/undo-write-off' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'X-Tenant-ID: {{tenant_id}}'"
+            },
+            {
+              "lang": "JavaScript (fetch)",
+              "source": "fetch('{{base_url}}/api/v1/loans/{{loanId}}/undo-write-off', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'X-Tenant-ID': '{{tenant_id}}'\n  }\n}).then(r => r.json()).then(console.log);"
+            },
+            {
+              "lang": "Python (requests)",
+              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/api/v1/loans/{{loanId}}/undo-write-off',\n    headers={\n        'Authorization': 'Bearer {{access_token}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    }\n)\nprint(response.json())"
+            },
+            {
+              "lang": "Java (OkHttp)",
+              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/api/v1/loans/{{loanId}}/undo-write-off\")\n    .post(RequestBody.create(\"\", null))\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
+            },
+            {
+              "lang": "Go (net/http)",
+              "source": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n)\n\nfunc main() {\n    req, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/loans/{{loanId}}/undo-write-off\", nil)\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := new(http.Client).Do(req)\n    defer resp.Body.Close()\n    fmt.Println(resp.Status)\n}"
+            },
+            {
+              "lang": "Ruby (Net::HTTP)",
+              "source": "require 'net/http'\n\nuri = URI('{{base_url}}/api/v1/loans/{{loanId}}/undo-write-off')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Post.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nputs http.request(req).body"
+            }
+          ]
+        },
+        {
+          "name": "Waive Interest on Loan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/loans/{{loanId}}/waive-interest",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "loans", "{{loanId}}", "waive-interest"]
+            },
+            "description": "Waives all outstanding interest on the loan by setting interestPaid = interestDue on every non-PAID installment. Principal balance is unaffected. Valid from ACTIVE or IN_ARREARS.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Hardship waiver approved by credit committee\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK — Interest waived",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": \"{{loanId}}\",\n    \"status\": \"ACTIVE\",\n    \"outstandingBalance\": 9000.00\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            },
+            {
+              "name": "400 Bad Request — Invalid state",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{\"code\": \"INVALID_LOAN_STATE\", \"message\": \"Only ACTIVE or IN_ARREARS loans can have interest waived\"}]\n}"
+            }
+          ],
+          "x-code-samples": [
+            {
+              "lang": "cURL",
+              "source": "curl -X POST '{{base_url}}/api/v1/loans/{{loanId}}/waive-interest' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -d '{\"reason\": \"Hardship waiver approved by credit committee\"}'"
+            },
+            {
+              "lang": "JavaScript (fetch)",
+              "source": "fetch('{{base_url}}/api/v1/loans/{{loanId}}/waive-interest', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  },\n  body: JSON.stringify({reason: 'Hardship waiver approved by credit committee'})\n}).then(r => r.json()).then(console.log);"
+            },
+            {
+              "lang": "Python (requests)",
+              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/api/v1/loans/{{loanId}}/waive-interest',\n    headers={\n        'Authorization': 'Bearer {{access_token}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    },\n    json={'reason': 'Hardship waiver approved by credit committee'}\n)\nprint(response.json())"
+            },
+            {
+              "lang": "Java (OkHttp)",
+              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/api/v1/loans/{{loanId}}/waive-interest\")\n    .post(RequestBody.create(\"{\\\"reason\\\": \\\"Hardship waiver approved by credit committee\\\"}\", MediaType.parse(\"application/json\")))\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
+            },
+            {
+              "lang": "Go (net/http)",
+              "source": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n    \"strings\"\n)\n\nfunc main() {\n    body := strings.NewReader(`{\"reason\": \"Hardship waiver approved by credit committee\"}`)\n    req, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/loans/{{loanId}}/waive-interest\", body)\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"Content-Type\", \"application/json\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := new(http.Client).Do(req)\n    defer resp.Body.Close()\n    fmt.Println(resp.Status)\n}"
+            },
+            {
+              "lang": "Ruby (Net::HTTP)",
+              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/api/v1/loans/{{loanId}}/waive-interest')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Post.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq.body = {reason: 'Hardship waiver approved by credit committee'}.to_json\nputs http.request(req).body"
+            }
+          ]
+        },
+        {
+          "name": "Foreclose Loan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/loans/{{loanId}}/foreclose",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "loans", "{{loanId}}", "foreclose"]
+            },
+            "description": "Forecloses a loan — moves it to the terminal FORECLOSED state and zeroes the outstanding balance. Collateral recovery is handled out-of-band. Valid from ACTIVE or IN_ARREARS.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Collateral seized and liquidated per court order\",\n  \"foreclosureDate\": \"2026-04-18\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK — Loan foreclosed",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": \"{{loanId}}\",\n    \"status\": \"FORECLOSED\",\n    \"outstandingBalance\": 0.00\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            },
+            {
+              "name": "400 Bad Request — Invalid state",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{\"code\": \"INVALID_LOAN_STATE\", \"message\": \"Only ACTIVE or IN_ARREARS loans can be foreclosed\"}]\n}"
+            }
+          ],
+          "x-code-samples": [
+            {
+              "lang": "cURL",
+              "source": "curl -X POST '{{base_url}}/api/v1/loans/{{loanId}}/foreclose' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -d '{\n  \"reason\": \"Collateral seized and liquidated per court order\",\n  \"foreclosureDate\": \"2026-04-18\"\n}'"
+            },
+            {
+              "lang": "JavaScript (fetch)",
+              "source": "fetch('{{base_url}}/api/v1/loans/{{loanId}}/foreclose', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  },\n  body: JSON.stringify({reason: 'Collateral seized and liquidated per court order', foreclosureDate: '2026-04-18'})\n}).then(r => r.json()).then(console.log);"
+            },
+            {
+              "lang": "Python (requests)",
+              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/api/v1/loans/{{loanId}}/foreclose',\n    headers={\n        'Authorization': 'Bearer {{access_token}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    },\n    json={'reason': 'Collateral seized and liquidated per court order', 'foreclosureDate': '2026-04-18'}\n)\nprint(response.json())"
+            },
+            {
+              "lang": "Java (OkHttp)",
+              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/api/v1/loans/{{loanId}}/foreclose\")\n    .post(RequestBody.create(\"{\\\"reason\\\": \\\"Collateral seized and liquidated per court order\\\", \\\"foreclosureDate\\\": \\\"2026-04-18\\\"}\", MediaType.parse(\"application/json\")))\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
+            },
+            {
+              "lang": "Go (net/http)",
+              "source": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n    \"strings\"\n)\n\nfunc main() {\n    body := strings.NewReader(`{\"reason\": \"Collateral seized and liquidated per court order\", \"foreclosureDate\": \"2026-04-18\"}`)\n    req, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/loans/{{loanId}}/foreclose\", body)\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"Content-Type\", \"application/json\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := new(http.Client).Do(req)\n    defer resp.Body.Close()\n    fmt.Println(resp.Status)\n}"
+            },
+            {
+              "lang": "Ruby (Net::HTTP)",
+              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/api/v1/loans/{{loanId}}/foreclose')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Post.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq.body = {reason: 'Collateral seized and liquidated per court order', foreclosureDate: '2026-04-18'}.to_json\nputs http.request(req).body"
+            }
+          ]
+        },
+        {
           "name": "List Loans by Customer",
           "request": {
             "method": "GET",

@@ -1152,6 +1152,46 @@ Where:
     <p>Payment allocated: fees first → interest → principal.</p>
   </div>
 </details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/loans/{id}/undo-write-off</span>
+    <span class="endpoint-summary">Undo write-off — restore loan to IN_ARREARS</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Reverses a <code>WRITTEN_OFF</code> loan back to <code>IN_ARREARS</code>. Outstanding balance is reconstructed from the repayment schedule (sum of unpaid principal across all non-PAID installments). Requires ADMIN role.</p>
+    <p><strong>Request body:</strong> none</p>
+    <p><strong>Valid from state:</strong> <code>WRITTEN_OFF</code></p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/loans/{id}/waive-interest</span>
+    <span class="endpoint-summary">Waive outstanding interest on all pending installments</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "reason": "Hardship waiver approved by credit committee" }</pre>
+    <p>Sets <code>interestPaid = interestDue</code> on every installment that is not fully PAID, effectively zeroing the outstanding interest balance. Principal is unaffected. Requires ADMIN role.</p>
+    <p><strong>Valid from states:</strong> <code>ACTIVE</code>, <code>IN_ARREARS</code></p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/loans/{id}/foreclose</span>
+    <span class="endpoint-summary">Foreclose loan — terminal state</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "reason": "Collateral seized and liquidated", "foreclosureDate": "2026-04-18" }</pre>
+    <p>Moves the loan to the terminal <code>FORECLOSED</code> state. Outstanding balance is zeroed (collateral recovery is handled out-of-band). Requires ADMIN role.</p>
+    <p><strong>Valid from states:</strong> <code>ACTIVE</code>, <code>IN_ARREARS</code></p>
+    <p><strong>Fields:</strong> <code>reason</code> (required), <code>foreclosureDate</code> (optional, ISO date)</p>
+  </div>
+</details>
 </section>
 
 <!-- PAYMENTS ────────────────────────────────────────────────────────────── -->
@@ -2721,6 +2761,9 @@ Content-Type: application/json
 <tr><td>POST</td><td>/api/v1/loans/{id}?command=reject</td><td>Reject loan</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/loans/{id}?command=withdrawnByApplicant</td><td>Withdraw loan</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/loans/{id}?command=writeOff</td><td>Write off loan</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}/undo-write-off</td><td>Undo write-off (WRITTEN_OFF → IN_ARREARS)</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}/waive-interest</td><td>Waive outstanding interest on all pending installments</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}/foreclose</td><td>Foreclose loan — terminal FORECLOSED state</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/api/v1/loans/{id}/repayment-schedule</td><td>Repayment schedule</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/loans/{id}/repayments</td><td>Make repayment</td><td>ADMIN, TELLER</td></tr>
 <!-- Loan Charges -->

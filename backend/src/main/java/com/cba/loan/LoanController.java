@@ -6,6 +6,8 @@ import com.cba.loan.dto.LoanRepaymentRequest;
 import com.cba.loan.dto.LoanRepaymentResponse;
 import com.cba.loan.dto.LoanResponse;
 import com.cba.loan.dto.RepaymentScheduleResponse;
+import com.cba.loan.dto.ForecloseRequest;
+import com.cba.loan.dto.WaiveInterestRequest;
 import com.cba.loan.dto.WriteOffRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -102,5 +104,30 @@ public class LoanController {
             @PathVariable UUID id,
             @Valid @RequestBody WriteOffRequest request) {
         return ResponseEntity.ok(ApiResponse.ok(loanService.writeOffLoan(id, request)));
+    }
+
+    @PostMapping("/{id}/undo-write-off")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Reverse a write-off — restores loan to IN_ARREARS with outstanding balance from schedule")
+    public ResponseEntity<ApiResponse<LoanResponse>> undoWriteOff(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(loanService.undoWriteOff(id)));
+    }
+
+    @PostMapping("/{id}/waive-interest")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Waive all outstanding interest on an active loan")
+    public ResponseEntity<ApiResponse<LoanResponse>> waiveInterest(
+            @PathVariable UUID id,
+            @Valid @RequestBody WaiveInterestRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(loanService.waiveInterest(id, request)));
+    }
+
+    @PostMapping("/{id}/foreclose")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Foreclose a loan — terminal state for secured-asset recovery")
+    public ResponseEntity<ApiResponse<LoanResponse>> forecloseLoan(
+            @PathVariable UUID id,
+            @Valid @RequestBody ForecloseRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(loanService.forecloseLoan(id, request)));
     }
 }

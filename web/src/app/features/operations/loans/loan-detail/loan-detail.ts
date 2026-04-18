@@ -8,9 +8,10 @@ import {
   LoanCharge, AvailableCharge, Guarantor, Collateral, AuditEntry,
   LoanCreateRequest, LoanRescheduleRequest, CreateRescheduleRequest,
   ReagingRequest, CreateReagingRequest, FrequencyType,
+  LoanNote, LoanDocument,
 } from '../loan.service';
 
-export type LoanTab = 'summary' | 'schedule' | 'charges' | 'collateral' | 'audit' | 'reschedule' | 'reaging';
+export type LoanTab = 'summary' | 'schedule' | 'charges' | 'collateral' | 'documents' | 'notes' | 'audit' | 'reschedule' | 'reaging';
 
 @Component({
   selector: 'app-loan-detail',
@@ -100,6 +101,37 @@ export class LoanDetailComponent implements OnInit {
   writeOffSaving = false;
   writeOffError = '';
 
+  // Undo write-off confirm
+  showUndoWriteOffModal = false;
+  undoWriteOffSaving = false;
+
+  // Waive interest modal
+  showWaiveInterestModal = false;
+  waiveInterestReason = '';
+  waiveInterestSaving = false;
+  waiveInterestError = '';
+
+  // Foreclose modal
+  showForecloseModal = false;
+  forecloseReason = '';
+  forecloseDate = new Date().toISOString().slice(0, 10);
+  forecloseSaving = false;
+  forecloseError = '';
+
+  // Notes tab
+  notes: LoanNote[] = [];
+  notesLoaded = false;
+  notesLoading = false;
+  showAddNoteModal = false;
+  newNoteText = '';
+  addNoteSaving = false;
+  addNoteError = '';
+
+  // Documents tab
+  documents: LoanDocument[] = [];
+  documentsLoaded = false;
+  documentsLoading = false;
+
   // Reschedule tab
   rescheduleRequests: LoanRescheduleRequest[] = [];
   rescheduleLoaded  = false;
@@ -124,6 +156,8 @@ export class LoanDetailComponent implements OnInit {
     { id: 'schedule',    label: 'Repayment Schedule',        icon: 'event_note' },
     { id: 'charges',     label: 'Charges',                   icon: 'receipt' },
     { id: 'collateral',  label: 'Guarantors & Collateral',   icon: 'security' },
+    { id: 'documents',   label: 'Documents',                 icon: 'attach_file' },
+    { id: 'notes',       label: 'Notes',                     icon: 'sticky_note_2' },
     { id: 'reschedule',  label: 'Reschedule',                icon: 'event_repeat' },
     { id: 'reaging',     label: 'Re-aging',                  icon: 'restore' },
     { id: 'audit',       label: 'Audit Trail',               icon: 'history' },
@@ -184,6 +218,20 @@ export class LoanDetailComponent implements OnInit {
       this.svc.getAuditLog(id).subscribe({
         next:  a  => { this.auditLog = a; this.auditLoaded = true; this.auditLoading = false; },
         error: () => { this.auditLoading = false; },
+      });
+    }
+    if (tab === 'notes' && !this.notesLoaded) {
+      this.notesLoading = true;
+      this.svc.getNotes(id).subscribe({
+        next:  n  => { this.notes = n; this.notesLoaded = true; this.notesLoading = false; },
+        error: () => { this.notesLoading = false; },
+      });
+    }
+    if (tab === 'documents' && !this.documentsLoaded) {
+      this.documentsLoading = true;
+      this.svc.getDocuments(id).subscribe({
+        next:  d  => { this.documents = d; this.documentsLoaded = true; this.documentsLoading = false; },
+        error: () => { this.documentsLoading = false; },
       });
     }
     if (tab === 'reschedule' && !this.rescheduleLoaded) {
@@ -336,6 +384,63 @@ export class LoanDetailComponent implements OnInit {
     });
   }
 
+  submitUndoWriteOff(): void {
+    if (!this.loan || this.undoWriteOffSaving) return;
+    this.undoWriteOffSaving = true;
+    this.svc.undoWriteOff(this.loan.id).subscribe({
+      next: l => { this.loan = l; this.showUndoWriteOffModal = false; this.undoWriteOffSaving = false; },
+      error: () => { this.undoWriteOffSaving = false; },
+    });
+  }
+
+  submitWaiveInterest(): void {
+    if (!this.loan || !this.waiveInterestReason.trim()) return;
+    this.waiveInterestSaving = true;
+    this.waiveInterestError = '';
+    this.svc.waiveInterest(this.loan.id, this.waiveInterestReason.trim()).subscribe({
+      next: l => {
+        this.loan = l;
+        this.showWaiveInterestModal = false;
+        this.waiveInterestReason = '';
+        this.waiveInterestSaving = false;
+        this.scheduleLoaded = false;
+        this.schedule = [];
+      },
+      error: () => { this.waiveInterestError = 'Failed to waive interest. Please try again.'; this.waiveInterestSaving = false; },
+    });
+  }
+
+  submitForeclose(): void {
+    if (!this.loan || !this.forecloseReason.trim()) return;
+    this.forecloseSaving = true;
+    this.forecloseError = '';
+    this.svc.foreclose(this.loan.id, this.forecloseReason.trim(), this.forecloseDate || undefined).subscribe({
+      next: l => { this.loan = l; this.showForecloseModal = false; this.forecloseReason = ''; this.forecloseSaving = false; },
+      error: () => { this.forecloseError = 'Failed to foreclose loan. Please try again.'; this.forecloseSaving = false; },
+    });
+  }
+
+  openAddNote(): void {
+    this.newNoteText = '';
+    this.addNoteError = '';
+    this.showAddNoteModal = true;
+  }
+
+  submitAddNote(): void {
+    if (!this.loan || !this.newNoteText.trim()) return;
+    this.addNoteSaving = true;
+    this.addNoteError = '';
+    this.svc.addNote(this.loan.id, this.newNoteText.trim()).subscribe({
+      next: n => {
+        this.notes = [n, ...this.notes];
+        this.showAddNoteModal = false;
+        this.newNoteText = '';
+        this.addNoteSaving = false;
+      },
+      error: () => { this.addNoteError = 'Failed to add note. Please try again.'; this.addNoteSaving = false; },
+    });
+  }
+
   private replaceCharge(updated: LoanCharge): void {
     const idx = this.charges.findIndex(c => c.id === updated.id);
     if (idx >= 0) this.charges = [...this.charges.slice(0, idx), updated, ...this.charges.slice(idx + 1)];
@@ -348,17 +453,21 @@ export class LoanDetailComponent implements OnInit {
     return Math.round((1 - this.loan.outstandingBalance / this.loan.principalAmount) * 100);
   }
 
-  get canApprove():   boolean { return !!this.loan && ['SUBMITTED','UNDER_REVIEW'].includes(this.loan.status); }
-  get canDisburse():  boolean { return !!this.loan && this.loan.status === 'APPROVED'; }
-  get canReject():    boolean { return !!this.loan && ['SUBMITTED','UNDER_REVIEW','APPROVED'].includes(this.loan.status); }
-  get canRepay():     boolean { return !!this.loan && ['ACTIVE','IN_ARREARS'].includes(this.loan.status); }
-  get canWriteOff():  boolean { return !!this.loan && ['ACTIVE','IN_ARREARS'].includes(this.loan.status); }
+  get canApprove():       boolean { return !!this.loan && ['SUBMITTED','UNDER_REVIEW'].includes(this.loan.status); }
+  get canDisburse():      boolean { return !!this.loan && this.loan.status === 'APPROVED'; }
+  get canReject():        boolean { return !!this.loan && ['SUBMITTED','UNDER_REVIEW','APPROVED'].includes(this.loan.status); }
+  get canRepay():         boolean { return !!this.loan && ['ACTIVE','IN_ARREARS'].includes(this.loan.status); }
+  get canWriteOff():      boolean { return !!this.loan && ['ACTIVE','IN_ARREARS'].includes(this.loan.status); }
+  get canUndoWriteOff():  boolean { return !!this.loan && this.loan.status === 'WRITTEN_OFF'; }
+  get canWaiveInterest(): boolean { return !!this.loan && ['ACTIVE','IN_ARREARS'].includes(this.loan.status); }
+  get canForeclose():     boolean { return !!this.loan && ['ACTIVE','IN_ARREARS'].includes(this.loan.status); }
 
   statusVariant(s: Loan['status']): 'success'|'warning'|'error'|'info'|'neutral'|'primary' {
     const m: Record<string,'success'|'warning'|'error'|'info'|'neutral'|'primary'> = {
       ACTIVE:'primary', SUBMITTED:'info', UNDER_REVIEW:'warning',
       APPROVED:'success', DISBURSED:'success', IN_ARREARS:'error',
-      WRITTEN_OFF:'error', CLOSED_OBLIGATIONS_MET:'neutral',
+      WRITTEN_OFF:'error', FORECLOSED:'error', REJECTED:'error',
+      CLOSED_OBLIGATIONS_MET:'neutral',
     };
     return m[s] ?? 'neutral';
   }
@@ -367,6 +476,7 @@ export class LoanDetailComponent implements OnInit {
       SUBMITTED:'Submitted', UNDER_REVIEW:'Under Review', APPROVED:'Approved',
       DISBURSED:'Disbursed', ACTIVE:'Active', IN_ARREARS:'In Arrears',
       CLOSED_OBLIGATIONS_MET:'Closed', WRITTEN_OFF:'Written Off',
+      FORECLOSED:'Foreclosed', REJECTED:'Rejected',
     };
     return m[s] ?? s;
   }

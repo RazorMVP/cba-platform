@@ -16,6 +16,8 @@ import com.cba.loan.dto.LoanRepaymentRequest;
 import com.cba.loan.dto.LoanRepaymentResponse;
 import com.cba.loan.dto.LoanResponse;
 import com.cba.loan.dto.RepaymentScheduleResponse;
+import com.cba.loan.dto.ForecloseRequest;
+import com.cba.loan.dto.WaiveInterestRequest;
 import com.cba.loan.dto.WriteOffRequest;
 import com.cba.notification.LoanEvent;
 import com.cba.product.LoanProduct;
@@ -260,6 +262,78 @@ public class LoanService {
         Loan saved = loanRepository.save(loan);
         auditLogService.log("LOAN", loanId.toString(), "WRITE_OFF", LoanStatus.ACTIVE.name(), LoanStatus.WRITTEN_OFF.name());
         log.info("Loan written off: {} — reason: {}", saved.getLoanAccountNumber(), request.reason());
+        return toResponse(saved);
+    }
+
+    @Transactional
+    public LoanResponse undoWriteOff(UUID loanId) {
+        Loan loan = findById(loanId);
+
+        if (loan.getStatus() != LoanStatus.WRITTEN_OFF) {
+            throw CbaException.badRequest("INVALID_LOAN_STATE", "Only WRITTEN_OFF loans can be un-written-off");
+        }
+
+        // Restore outstanding balance from unpaid schedule installments
+        BigDecimal restored = loan.getRepaymentSchedule().stream()
+            .filter(s -> s.getStatus() != LoanRepaymentSchedule.InstallmentStatus.PAID)
+            .map(s -> s.getPrincipalDue().subtract(s.getPrincipalPaid() != null ? s.getPrincipalPaid() : BigDecimal.ZERO))
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        loan.setStatus(LoanStatus.IN_ARREARS);
+        loan.setOutstandingBalance(restored);
+        loan.setWrittenOffOn(null);
+        loan.setWriteOffReason(null);
+
+        Loan saved = loanRepository.save(loan);
+        auditLogService.log("LOAN", loanId.toString(), "UNDO_WRITE_OFF", LoanStatus.WRITTEN_OFF.name(), LoanStatus.IN_ARREARS.name());
+        log.info("Loan write-off reversed: {}", saved.getLoanAccountNumber());
+        return toResponse(saved);
+    }
+
+    @Transactional
+    public LoanResponse waiveInterest(UUID loanId, WaiveInterestRequest request) {
+        Loan loan = findById(loanId);
+
+        if (loan.getStatus() != LoanStatus.ACTIVE && loan.getStatus() != LoanStatus.IN_ARREARS) {
+            throw CbaException.badRequest("INVALID_LOAN_STATE",
+                "Only ACTIVE or IN_ARREARS loans can have interest waived");
+        }
+
+        // Zero out unpaid interest on all pending installments
+        BigDecimal totalWaived = BigDecimal.ZERO;
+        for (LoanRepaymentSchedule installment : loan.getRepaymentSchedule()) {
+            if (installment.getStatus() == LoanRepaymentSchedule.InstallmentStatus.PAID) continue;
+            BigDecimal interestOutstanding = installment.getInterestDue()
+                .subtract(installment.getInterestPaid() != null ? installment.getInterestPaid() : BigDecimal.ZERO);
+            if (interestOutstanding.compareTo(BigDecimal.ZERO) > 0) {
+                installment.setInterestPaid(installment.getInterestDue());
+                totalWaived = totalWaived.add(interestOutstanding);
+            }
+        }
+
+        Loan saved = loanRepository.save(loan);
+        auditLogService.log("LOAN", loanId.toString(), "WAIVE_INTEREST", null,
+            java.util.Map.of("totalWaived", totalWaived, "reason", request.reason()));
+        log.info("Interest waived on loan {}: amount={}", saved.getLoanAccountNumber(), totalWaived);
+        return toResponse(saved);
+    }
+
+    @Transactional
+    public LoanResponse forecloseLoan(UUID loanId, ForecloseRequest request) {
+        Loan loan = findById(loanId);
+
+        if (loan.getStatus() != LoanStatus.ACTIVE && loan.getStatus() != LoanStatus.IN_ARREARS) {
+            throw CbaException.badRequest("INVALID_LOAN_STATE",
+                "Only ACTIVE or IN_ARREARS loans can be foreclosed");
+        }
+
+        loan.setStatus(LoanStatus.FORECLOSED);
+        loan.setOutstandingBalance(BigDecimal.ZERO);
+
+        Loan saved = loanRepository.save(loan);
+        auditLogService.log("LOAN", loanId.toString(), "FORECLOSED",
+            loan.getStatus().name(), LoanStatus.FORECLOSED.name());
+        log.info("Loan foreclosed: {} — reason: {}", saved.getLoanAccountNumber(), request.reason());
         return toResponse(saved);
     }
 

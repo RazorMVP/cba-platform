@@ -102,6 +102,21 @@
             <span class="material-icons">money_off</span> Write Off
           </button>
         }
+        @if (canUndoWriteOff) {
+          <button class="btn-warning" (click)="showUndoWriteOffModal = true">
+            <span class="material-icons">undo</span> Undo Write-Off
+          </button>
+        }
+        @if (canWaiveInterest) {
+          <button class="btn-secondary" (click)="showWaiveInterestModal = true; waiveInterestReason = ''; waiveInterestError = ''">
+            <span class="material-icons">remove_circle_outline</span> Waive Interest
+          </button>
+        }
+        @if (canForeclose) {
+          <button class="btn-danger" (click)="showForecloseModal = true; forecloseReason = ''; forecloseError = ''">
+            <span class="material-icons">gavel</span> Foreclose
+          </button>
+        }
       </div>
     </div>
 
@@ -350,6 +365,80 @@
           }
         </div>
 
+      </div>
+    }
+
+    <!-- ── DOCUMENTS TAB ── -->
+    @if (activeTab === 'documents') {
+      <div class="card">
+        <div class="card__header">
+          <div class="card__title">Documents</div>
+        </div>
+        @if (documentsLoading) {
+          <div class="tab-loading">Loading documents…</div>
+        } @else if (documents.length === 0) {
+          <div class="tab-empty">
+            <span class="material-icons">attach_file</span>
+            <p>No documents attached to this loan.</p>
+          </div>
+        } @else {
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>File Name</th>
+                <th>Type</th>
+                <th>Size</th>
+                <th>Uploaded</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (doc of documents; track doc.id) {
+                <tr>
+                  <td class="bold">
+                    <span class="material-icons" style="font-size:14px;vertical-align:middle;margin-right:4px">insert_drive_file</span>
+                    {{ doc.fileName }}
+                  </td>
+                  <td class="muted small">{{ doc.contentType }}</td>
+                  <td class="tabular muted">{{ (doc.fileSize / 1024).toFixed(1) }} KB</td>
+                  <td class="muted small">{{ doc.createdAt | date:'mediumDate' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+    }
+
+    <!-- ── NOTES TAB ── -->
+    @if (activeTab === 'notes') {
+      <div class="card">
+        <div class="card__header">
+          <div class="card__title">Notes</div>
+          <button class="btn-primary btn-sm" (click)="openAddNote()">
+            <span class="material-icons">add</span> Add Note
+          </button>
+        </div>
+        @if (notesLoading) {
+          <div class="tab-loading">Loading notes…</div>
+        } @else if (notes.length === 0) {
+          <div class="tab-empty">
+            <span class="material-icons">sticky_note_2</span>
+            <p>No notes on this loan yet.</p>
+          </div>
+        } @else {
+          <div class="notes-list">
+            @for (n of notes; track n.id) {
+              <div class="note-card">
+                <div class="note-meta">
+                  <span class="note-author">{{ n.createdBy }}</span>
+                  <span class="muted separator">·</span>
+                  <span class="muted small">{{ n.createdAt | date:'medium' }}</span>
+                </div>
+                <div class="note-text">{{ n.note }}</div>
+              </div>
+            }
+          </div>
+        }
       </div>
     }
 
@@ -781,6 +870,137 @@
         <button class="btn-ghost" [disabled]="waiveSaving" (click)="showWaiveChargeModal = false">Cancel</button>
         <button class="btn-danger" [disabled]="waiveSaving" (click)="confirmWaiveCharge()">
           {{ waiveSaving ? 'Waiving…' : 'Confirm Waive' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ══ UNDO WRITE-OFF MODAL ══ -->
+@if (showUndoWriteOffModal) {
+  <div class="modal-overlay" (click)="showUndoWriteOffModal = false">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h2 class="modal__title">Undo Write-Off</h2>
+        <button class="modal__close" (click)="showUndoWriteOffModal = false">✕</button>
+      </div>
+      <div class="modal__body">
+        <p class="confirm-text">
+          Reverse the write-off for <strong>{{ loan?.loanAccountNumber }}</strong>?
+          The loan will return to <strong>IN_ARREARS</strong> with its outstanding balance restored from the repayment schedule.
+        </p>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-ghost" [disabled]="undoWriteOffSaving" (click)="showUndoWriteOffModal = false">Cancel</button>
+        <button class="btn-warning" [disabled]="undoWriteOffSaving" (click)="submitUndoWriteOff()">
+          @if (undoWriteOffSaving) { <span class="spinner"></span> }
+          Confirm Undo
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ══ WAIVE INTEREST MODAL ══ -->
+@if (showWaiveInterestModal) {
+  <div class="modal-overlay" (click)="showWaiveInterestModal = false">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h2 class="modal__title">Waive Outstanding Interest</h2>
+        <button class="modal__close" (click)="showWaiveInterestModal = false">✕</button>
+      </div>
+      <div class="modal__body">
+        <div class="modal__warning">
+          <span class="material-icons">info</span>
+          All outstanding (unpaid) interest on pending installments will be zeroed out. Principal remains unchanged.
+        </div>
+        <div class="form-group">
+          <label class="form-label">Reason <span class="required">*</span></label>
+          <textarea class="form-textarea" rows="3"
+                    placeholder="e.g. Customer hardship, regulatory directive…"
+                    [(ngModel)]="waiveInterestReason"></textarea>
+        </div>
+        @if (waiveInterestError) {
+          <div class="form-error">{{ waiveInterestError }}</div>
+        }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-ghost" [disabled]="waiveInterestSaving" (click)="showWaiveInterestModal = false">Cancel</button>
+        <button class="btn-primary"
+          [disabled]="!waiveInterestReason.trim() || waiveInterestSaving"
+          (click)="submitWaiveInterest()">
+          @if (waiveInterestSaving) { <span class="spinner"></span> }
+          Waive Interest
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ══ FORECLOSE MODAL ══ -->
+@if (showForecloseModal) {
+  <div class="modal-overlay" (click)="showForecloseModal = false">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h2 class="modal__title">Foreclose Loan</h2>
+        <button class="modal__close" (click)="showForecloseModal = false">✕</button>
+      </div>
+      <div class="modal__body">
+        <div class="modal__warning">
+          <span class="material-icons">warning</span>
+          Foreclosure is a <strong>terminal state</strong>. The collateral recovery process begins and the loan balance is cleared.
+        </div>
+        <div class="form-group">
+          <label class="form-label">Foreclosure Date</label>
+          <input type="date" class="form-input" [(ngModel)]="forecloseDate" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Reason <span class="required">*</span></label>
+          <textarea class="form-textarea" rows="3"
+                    placeholder="e.g. Continued default, collateral repossession initiated…"
+                    [(ngModel)]="forecloseReason"></textarea>
+        </div>
+        @if (forecloseError) {
+          <div class="form-error">{{ forecloseError }}</div>
+        }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-ghost" [disabled]="forecloseSaving" (click)="showForecloseModal = false">Cancel</button>
+        <button class="btn-danger"
+          [disabled]="!forecloseReason.trim() || forecloseSaving"
+          (click)="submitForeclose()">
+          @if (forecloseSaving) { <span class="spinner"></span> }
+          Confirm Foreclosure
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ══ ADD NOTE MODAL ══ -->
+@if (showAddNoteModal) {
+  <div class="modal-overlay" (click)="showAddNoteModal = false">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h2 class="modal__title">Add Note</h2>
+        <button class="modal__close" (click)="showAddNoteModal = false">✕</button>
+      </div>
+      <div class="modal__body">
+        <div class="form-group">
+          <label class="form-label">Note <span class="required">*</span></label>
+          <textarea class="form-textarea" rows="4" placeholder="Enter note…" [(ngModel)]="newNoteText"></textarea>
+        </div>
+        @if (addNoteError) {
+          <div class="form-error">{{ addNoteError }}</div>
+        }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-ghost" [disabled]="addNoteSaving" (click)="showAddNoteModal = false">Cancel</button>
+        <button class="btn-primary"
+          [disabled]="!newNoteText.trim() || addNoteSaving"
+          (click)="submitAddNote()">
+          @if (addNoteSaving) { <span class="spinner"></span> }
+          Save Note
         </button>
       </div>
     </div>

@@ -74,6 +74,10 @@
   @extend .btn-primary;
   background: $color-error-600;
 }
+.btn-warning {
+  @extend .btn-primary;
+  background: #b45309;
+}
 .btn-secondary {
   display: inline-flex; align-items: center; height: 36px; padding: 0 $space-4; border-radius: $radius-full;
   background: white; color: $color-text-primary; border: 1px solid $color-border-default;
@@ -270,3 +274,20 @@
   border: 2px solid rgba(255,255,255,.4); border-top-color: #fff;
   border-radius: 50%; animation: spin 0.7s linear infinite;
 }
+
+// ── Notes tab ────────────────────────────────────────────────────────────────
+.notes-list { display: flex; flex-direction: column; gap: $space-4; padding: $space-5; }
+.note-card {
+  border: 1px solid $color-border-default; border-radius: $radius-sm; padding: $space-4;
+  background: $color-grey-50;
+}
+.note-meta {
+  display: flex; align-items: center; gap: $space-2;
+  font-size: $text-xs; margin-bottom: $space-2;
+}
+.note-author { font-weight: $font-weight-semibold; color: $color-text-primary; }
+.note-text   { font-size: $text-sm; color: $color-text-primary; line-height: 1.6; white-space: pre-wrap; }
+
+// ── Status band variants ──────────────────────────────────────────────────────
+.status-band--foreclosed { background: #4c1d95; }
+.status-band--rejected   { background: $color-grey-700; }

@@ -59,6 +59,57 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 92 — 2026-04-18
+**Module 3 Loan Management gap closure: FORECLOSED status, undo-write-off, waive-interest, foreclose backend commands; Documents + Notes tabs + 3 new modals in Angular LoanDetail.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/…/loan/LoanStatus.java` | Added `FORECLOSED` enum value |
+| `backend/…/loan/dto/WaiveInterestRequest.java` | NEW — `{ reason }` |
+| `backend/…/loan/dto/ForecloseRequest.java` | NEW — `{ foreclosureDate, reason }` |
+| `backend/…/loan/LoanService.java` | Added `undoWriteOff()`, `waiveInterest()`, `forecloseLoan()` methods |
+| `backend/…/loan/LoanController.java` | Added `POST /{id}/undo-write-off`, `POST /{id}/waive-interest`, `POST /{id}/foreclose` endpoints (ADMIN) |
+| `web/…/loans/loan.service.ts` | Added `FORECLOSED`/`REJECTED` to status union; `LoanNote`/`LoanDocument` interfaces; `undoWriteOff()`, `waiveInterest()`, `foreclose()`, `getNotes()`, `addNote()`, `deleteNote()`, `getDocuments()` methods |
+| `web/…/loans/loan-detail/loan-detail.ts` | Added `documents`/`notes` to `LoanTab`; lazy-load for new tabs; new modal state vars; `canUndoWriteOff`/`canWaiveInterest`/`canForeclose` getters; `submitUndoWriteOff()`, `submitWaiveInterest()`, `submitForeclose()`, `openAddNote()`, `submitAddNote()`; FORECLOSED/REJECTED in status maps |
+| `web/…/loans/loan-detail/loan-detail.html` | Added 3 action buttons (Undo Write-Off/Waive Interest/Foreclose); Documents tab; Notes tab; 4 new modals (undo write-off, waive interest, foreclose, add note) |
+| `web/…/loans/loan-detail/loan-detail.scss` | Added `.btn-warning`; notes card styles; foreclosed/rejected status band variants |
+
+#### Key Patterns / Decisions
+- **`undoWriteOff` restores balance from schedule**: sums unpaid principal from `repaymentSchedule` installments — avoids storing a snapshot; consistent with how Fineract tracks balance via the schedule
+- **`waiveInterest` zeroes installment interest**: sets `interestPaid = interestDue` on all non-PAID installments; schedule cache invalidated in Angular so next view of the Schedule tab re-fetches
+- **`forecloseLoan` is terminal**: ACTIVE/IN_ARREARS → FORECLOSED; balance cleared to zero (collateral recovery happens out-of-band)
+- **Notes + Documents use polymorphic backend**: `GET /api/v1/loans/{id}/notes` and `/documents` route through `NoteController`/`DocumentController` with `entityType='loans'` — no new controller needed
+
+#### Build Verification
+- `cd backend && ./mvnw compile` → BUILD SUCCESS (0 errors, JVM warnings only)
+- `cd web && npx tsc --noEmit` → 0 errors
+
+#### Confirmed Platform Versions
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `123c9c5` |
+| Java | 21 | `123c9c5` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `123c9c5` |
+| Keycloak admin client | 26.0.5 | `123c9c5` |
+| springdoc-openapi | 2.8.6 | `123c9c5` |
+| Lombok | 1.18.38 | `123c9c5` |
+| thumbnailator | 0.4.20 | `123c9c5` |
+| PostgreSQL | 16 (Docker) | `123c9c5` |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `123c9c5` |
+| Angular CLI | 21.2.7 | `123c9c5` |
+| PrimeNG | 21.0.x | `123c9c5` |
+| RxJS | 7.8.x | `123c9c5` |
+| TypeScript | 5.9.x | `123c9c5` |
+| Production URL | cba-web-nine.vercel.app | `123c9c5` |
+
+---
+
 ### Session 91 — 2026-04-18
 **Module 1 gap closure: client photo server-side resize + FieldConfiguration module.**
 

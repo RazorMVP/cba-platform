@@ -9,5 +9,6 @@ public enum LoanStatus {
     IN_ARREARS,             // Sub-state: loan is ACTIVE but has overdue installments
     CLOSED_OBLIGATIONS_MET,
     WRITTEN_OFF,
+    FORECLOSED,
     REJECTED
 }

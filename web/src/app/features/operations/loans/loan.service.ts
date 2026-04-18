@@ -15,7 +15,7 @@ export interface Loan {
   outstandingBalance: number;
   interestRate: number;
   termMonths: number;
-  status: 'SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | 'DISBURSED' | 'ACTIVE' | 'CLOSED_OBLIGATIONS_MET' | 'WRITTEN_OFF' | 'IN_ARREARS';
+  status: 'SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | 'DISBURSED' | 'ACTIVE' | 'CLOSED_OBLIGATIONS_MET' | 'WRITTEN_OFF' | 'FORECLOSED' | 'IN_ARREARS' | 'REJECTED';
   disbursedDate?: string;
   closedDate?: string;
   createdAt: string;
@@ -93,6 +93,24 @@ export interface AuditEntry {
   changedAt: string;
   oldValues?: Record<string, unknown>;
   newValues?: Record<string, unknown>;
+}
+
+// ── Notes ─────────────────────────────────────────────────────────────────────
+export interface LoanNote {
+  id: string;
+  note: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+// ── Documents ─────────────────────────────────────────────────────────────────
+export interface LoanDocument {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  contentType: string;
+  description?: string;
+  createdAt: string;
 }
 
 // ── Reschedule ────────────────────────────────────────────────────────────────
@@ -181,6 +199,18 @@ export class LoanService {
     return this.api.post<Loan>(`/loans/${id}/write-off`, { reason, writeOffDate });
   }
 
+  undoWriteOff(id: string): Observable<Loan> {
+    return this.api.post<Loan>(`/loans/${id}/undo-write-off`, {});
+  }
+
+  waiveInterest(id: string, reason: string): Observable<Loan> {
+    return this.api.post<Loan>(`/loans/${id}/waive-interest`, { reason });
+  }
+
+  foreclose(id: string, reason: string, foreclosureDate?: string): Observable<Loan> {
+    return this.api.post<Loan>(`/loans/${id}/foreclose`, { reason, foreclosureDate });
+  }
+
   recordRepayment(id: string, amount: number, paymentDate: string): Observable<Loan> {
     return this.api.command<Loan>(`/loans/${id}`, 'repayment', { transactionAmount: amount, transactionDate: paymentDate });
   }
@@ -216,6 +246,22 @@ export class LoanService {
   // Collateral
   getCollateral(id: string): Observable<Collateral[]> {
     return this.api.get<Collateral[]>(`/loans/${id}/collaterals`);
+  }
+
+  // Notes
+  getNotes(id: string): Observable<LoanNote[]> {
+    return this.api.get<LoanNote[]>(`/loans/${id}/notes`);
+  }
+  addNote(id: string, note: string): Observable<LoanNote> {
+    return this.api.post<LoanNote>(`/loans/${id}/notes`, { note });
+  }
+  deleteNote(loanId: string, noteId: string): Observable<void> {
+    return this.api.delete<void>(`/loans/${loanId}/notes/${noteId}`);
+  }
+
+  // Documents
+  getDocuments(id: string): Observable<LoanDocument[]> {
+    return this.api.get<LoanDocument[]>(`/loans/${id}/documents`);
   }
 
   // Audit log for this loan

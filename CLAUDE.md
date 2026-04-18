@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 91 — 2026-04-18)
+## Confirmed Platform Versions (Session 92 — 2026-04-18)
 
 These are the verified-working versions for both production components. Update this table whenever a dependency is upgraded.
 
@@ -3008,19 +3008,19 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | Reject loan | ✅ `?command=reject` | ✅ Reject button | — |
 | Repayment (manual) | ✅ Repayment modal | ✅ Repayment modal | — |
 | Repayment schedule view | ✅ Schedule tab | ✅ Schedule tab | — |
-| Write off loan | ❌ No `?command=writeOff` | ❌ No button | ❌ |
-| Undo write-off | ❌ Missing | ❌ Missing | ❌ |
-| Waive interest | ❌ No `?command=waiveInterest` | ❌ Missing | ❌ |
-| Waive charge | ✅ Charges module (pay command) | ❌ No charge waive UI on loan detail | ⚠️ |
-| Loan charges tab (view + add + pay + waive) | ✅ `LoanCharge` entity/service | ❌ No charges tab on LoanDetail | ⚠️ |
-| Guarantors tab | ✅ Guarantors module (Module 22) | ❌ No Guarantors tab on LoanDetail | ⚠️ |
-| Collateral tab | ✅ Collateral module (Module 22) | ❌ No Collateral tab on LoanDetail | ⚠️ |
-| Loan documents tab | ✅ Notes & Documents module | ❌ No Documents tab on LoanDetail | ⚠️ |
-| Loan notes tab | ✅ Notes module | ❌ No Notes tab on LoanDetail | ⚠️ |
+| Write off loan | ✅ `POST /{id}/write-off` | ✅ Write-Off modal | — |
+| Undo write-off | ✅ `POST /{id}/undo-write-off` _(Session 92)_ | ✅ Undo Write-Off modal _(Session 92)_ | ✅ |
+| Waive interest | ✅ `POST /{id}/waive-interest` _(Session 92)_ | ✅ Waive Interest modal _(Session 92)_ | ✅ |
+| Waive charge | ✅ Charges module | ✅ Waive button + confirm modal on Charges tab | — |
+| Loan charges tab (view + add + pay + waive) | ✅ `LoanCharge` entity/service | ✅ Charges tab on LoanDetail _(Session 68)_ | — |
+| Guarantors tab | ✅ Guarantors module (Module 22) | ✅ Guarantors & Collateral tab on LoanDetail | — |
+| Collateral tab | ✅ Collateral module (Module 22) | ✅ Guarantors & Collateral tab on LoanDetail | — |
+| Loan documents tab | ✅ Notes & Documents module | ✅ Documents tab on LoanDetail _(Session 92)_ | ✅ |
+| Loan notes tab | ✅ Notes module | ✅ Notes tab + Add Note modal on LoanDetail _(Session 92)_ | ✅ |
 | Loan reschedule | ✅ Reschedule module (Module 23) | ✅ Reschedule tab on LoanDetail _(Session 75)_ | — |
 | Loan re-aging | ✅ Re-aging module (Module 23) | ✅ Re-aging tab + re-amortize trigger on LoanDetail _(Session 75)_ | — |
-| Foreclose loan | ❌ No `?command=foreclose` | ❌ Missing | ❌ |
-| Recover from NPA | ❌ Missing | ❌ Missing | ❌ |
+| Foreclose loan | ✅ `POST /{id}/foreclose` _(Session 92)_ | ✅ Foreclose modal _(Session 92)_ | ✅ |
+| Recover from NPA | ⚠️ Covered by undo-write-off + repayment | ⚠️ No dedicated UI | ⚠️ |
 | In-arrears classification (CoB) | ✅ `arrearsClassificationJob` | ❌ No arrears indicator in UI | ⚠️ |
 
 ---

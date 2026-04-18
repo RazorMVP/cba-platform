@@ -1,6 +1,8 @@
 package com.cba.share;
 
 import com.cba.common.response.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -10,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
+@Tag(name = "Share Accounts", description = "Equity share accounts for cooperative/MFI institutions — apply, approve, activate, purchase shares, redeem and close")
 @RestController
 @RequestMapping("/api/v1/shareaccounts")
 @RequiredArgsConstructor
@@ -17,6 +20,7 @@ public class ShareAccountController {
 
     private final ShareService service;
 
+    @Operation(summary = "List share accounts, optionally filtered by ?customerId=")
     @GetMapping
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<Page<ShareAccount>> list(
@@ -25,12 +29,14 @@ public class ShareAccountController {
         return ApiResponse.ok(service.listAccounts(customerId, pageable));
     }
 
+    @Operation(summary = "Get a share account by ID")
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<ShareAccount> get(@PathVariable UUID id) {
         return ApiResponse.ok(service.getAccount(id));
     }
 
+    @Operation(summary = "Submit a new share account application")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAnyRole('ADMIN','TELLER','CUSTOMER')")
@@ -38,6 +44,7 @@ public class ShareAccountController {
         return ApiResponse.ok(service.applyForShares(req));
     }
 
+    @Operation(summary = "Execute a lifecycle command (?command=approve|activate|reject|close)")
     @PostMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<ShareAccount> command(
@@ -53,6 +60,7 @@ public class ShareAccountController {
         return ApiResponse.ok(result);
     }
 
+    @Operation(summary = "List share transactions for an account")
     @GetMapping("/{id}/transactions")
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<Page<ShareAccountTransaction>> transactions(
@@ -60,6 +68,7 @@ public class ShareAccountController {
         return ApiResponse.ok(service.getTransactions(id, pageable));
     }
 
+    @Operation(summary = "Post a share transaction (?type=purchase|redeem)")
     @PostMapping("/{id}/transactions")
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAnyRole('ADMIN','TELLER')")

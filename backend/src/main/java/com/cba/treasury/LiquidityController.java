@@ -1,6 +1,8 @@
 package com.cba.treasury;
 
 import com.cba.common.response.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -10,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+@Tag(name = "Liquidity Management", description = "Real-time liquidity positions, cash flow forecasting, reserve requirements and historical snapshots")
 @RestController
 @RequestMapping("/api/v1/treasury/liquidity")
 @RequiredArgsConstructor
@@ -19,12 +22,14 @@ public class LiquidityController {
 
     // ── Live Position ───────────────────────────────────────────────────────────
 
+    @Operation(summary = "List liquidity positions for all currencies")
     @GetMapping("/positions")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<LiquidityService.LiquidityPositionDto>>> getAllPositions() {
         return ResponseEntity.ok(ApiResponse.ok(svc.getAllPositions()));
     }
 
+    @Operation(summary = "Get the liquidity position for a specific currency code")
     @GetMapping("/positions/{currency}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<LiquidityService.LiquidityPositionDto>> getPosition(
@@ -34,6 +39,7 @@ public class LiquidityController {
 
     // ── Cash Flow Forecast ──────────────────────────────────────────────────────
 
+    @Operation(summary = "Get a cash flow forecast for a currency over the next N days (default 30)")
     @GetMapping("/cashflow")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<LiquidityService.CashFlowEntryDto>>> getCashFlow(
@@ -44,12 +50,14 @@ public class LiquidityController {
 
     // ── Reserve Requirements CRUD ───────────────────────────────────────────────
 
+    @Operation(summary = "List all reserve requirement rules")
     @GetMapping("/reserves")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<LiquidityReserveRequirement>>> listReserves() {
         return ResponseEntity.ok(ApiResponse.ok(svc.listReserves()));
     }
 
+    @Operation(summary = "Create a new reserve requirement rule")
     @PostMapping("/reserves")
     @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ResponseEntity<ApiResponse<LiquidityReserveRequirement>> createReserve(
@@ -57,6 +65,7 @@ public class LiquidityController {
         return ResponseEntity.ok(ApiResponse.ok(svc.createReserve(req)));
     }
 
+    @Operation(summary = "Update a reserve requirement rule")
     @PutMapping("/reserves/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ResponseEntity<ApiResponse<LiquidityReserveRequirement>> updateReserve(
@@ -65,6 +74,7 @@ public class LiquidityController {
         return ResponseEntity.ok(ApiResponse.ok(svc.updateReserve(id, req)));
     }
 
+    @Operation(summary = "Delete a reserve requirement rule")
     @DeleteMapping("/reserves/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteReserve(@PathVariable UUID id) {
@@ -74,6 +84,7 @@ public class LiquidityController {
 
     // ── Snapshot History ────────────────────────────────────────────────────────
 
+    @Operation(summary = "Get historical liquidity snapshots for a currency")
     @GetMapping("/snapshots")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<LiquiditySnapshot>>> getSnapshots(
@@ -82,6 +93,7 @@ public class LiquidityController {
         return ResponseEntity.ok(ApiResponse.ok(svc.getSnapshots(currency, limit)));
     }
 
+    @Operation(summary = "Trigger an immediate liquidity snapshot for all currencies (ADMIN only)")
     @PostMapping("/snapshots/take")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> takeSnapshot() {

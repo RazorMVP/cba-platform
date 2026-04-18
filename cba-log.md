@@ -59,6 +59,43 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 95 — 2026-04-18
+**Swagger UI completeness: added `@Tag` + `@Operation` annotations to all remaining unannotated backend controllers — every endpoint now has a named group and summary in Swagger UI.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/…/user/TwoFactorController.java` | Added `@Tag("Two-Factor Authentication")` + 3 `@Operation` |
+| `backend/…/search/SearchController.java` | Added `@Tag("Global Search")` + 1 `@Operation` |
+| `backend/…/role/RoleController.java` | Added `@Tag("Roles & Permissions")` + 7 `@Operation` |
+| `backend/…/audit/AuditController.java` | Added `@Tag("Audit Log")` + 3 `@Operation` |
+| `backend/…/treasury/TreasuryController.java` | Added `@Tag("Treasury")` + 12 `@Operation` |
+| `backend/…/treasury/LiquidityController.java` | Added `@Tag("Liquidity Management")` + 8 `@Operation` |
+| `backend/…/customer/ClientImageController.java` | Added `@Tag("Client Images")` + 4 `@Operation` |
+| `backend/…/customer/BeneficiaryController.java` | Added `@Tag("Client Beneficiaries")` + 5 `@Operation` |
+| `backend/…/customer/ClientAddressController.java` | Added `@Tag("Client Addresses")` + 3 `@Operation` |
+| `backend/…/customer/ClientIdentifierController.java` | Added `@Tag("Client Identifiers")` + 3 `@Operation` |
+| `backend/…/share/ShareAccountController.java` | Added `@Tag("Share Accounts")` + 6 `@Operation` |
+| `backend/…/share/ShareProductController.java` | Added `@Tag("Share Products")` + 5 `@Operation` |
+| `backend/…/tenant/TenantController.java` | Added `@Tag("Tenants")` + 1 `@Operation` |
+
+#### Key Patterns / Decisions
+
+- `grep -rL "@Tag" src/main/java/com/cba --include="*Controller.java"` returns 0 — full sweep confirmed
+- `TwoFactorController` has no class-level `@RequestMapping` (methods use inline paths) — `@Tag` still works; springdoc groups by the annotation, not by path prefix
+- All descriptions follow the pattern: "Entity type — what operations are available and any key business rules"
+
+#### Build Verification
+
+- `cd backend && ./mvnw clean compile -q` → BUILD SUCCESS (0 errors, JVM warnings only)
+
+#### Confirmed Platform Versions
+See Session 92 for full version table — no dependency changes this session.
+**Backend last commit:** `3cf0373` (pre-push)
+**Web last commit:** `3cf0373`
+
+---
+
 ### Session 94 — 2026-04-18
 **Module 11 (Business Intelligence) gap closure: real `GET /api/v1/dashboard` KPI endpoint + `GET /api/v1/dashboard/analytics/loans` portfolio aging endpoint; Angular DashboardService + component wired to live data; deposit balance and loan portfolio percentages now real.**
 

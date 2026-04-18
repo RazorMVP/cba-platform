@@ -22,4 +22,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
     @Query(value = "SELECT t FROM Transaction t JOIN FETCH t.account ORDER BY t.transactionDate DESC",
            countQuery = "SELECT COUNT(t) FROM Transaction t")
     Page<Transaction> findAllWithAccount(Pageable pageable);
+
+    long countByValueDate(java.time.LocalDate valueDate);
 }

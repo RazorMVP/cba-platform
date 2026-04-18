@@ -18,4 +18,6 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID> {
 
     @Query("SELECT c FROM Customer c WHERE c.kycStatus = :status ORDER BY c.createdAt DESC")
     Page<Customer> findByKycStatusOrderByCreatedAt(KycStatus status, Pageable pageable);
+
+    long countByKycStatus(KycStatus kycStatus);
 }

@@ -23,4 +23,14 @@ public interface LoanRepository extends JpaRepository<Loan, UUID> {
            "AND EXISTS (SELECT s FROM LoanRepaymentSchedule s " +
            "WHERE s.loan = l AND s.dueDate < :today AND s.status = 'PENDING')")
     List<Loan> findLoansWithOverdueInstallments(LocalDate today);
+
+    long countByStatus(LoanStatus status);
+
+    @Query("SELECT COUNT(DISTINCT s.loan.id) FROM LoanRepaymentSchedule s " +
+           "WHERE s.status = 'OVERDUE' AND s.dueDate >= :from AND s.dueDate < :to")
+    long countLoansWithOverdueBetween(LocalDate from, LocalDate to);
+
+    @Query("SELECT COUNT(DISTINCT s.loan.id) FROM LoanRepaymentSchedule s " +
+           "WHERE s.status = 'OVERDUE' AND s.dueDate < :before")
+    long countLoansWithOverdueBefore(LocalDate before);
 }

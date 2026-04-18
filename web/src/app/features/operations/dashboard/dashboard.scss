@@ -118,6 +118,8 @@
   margin-bottom: 6px;
 }
 .portfolio-label { font-size: $text-sm; color: $color-text-primary; font-weight: $font-weight-medium; }
+.portfolio-right { display: flex; align-items: center; gap: $space-2; }
+.portfolio-count { font-size: $text-xs; }
 .portfolio-pct   { font-size: $text-sm; font-weight: $font-weight-semibold; }
 .progress-track {
   height: 4px;

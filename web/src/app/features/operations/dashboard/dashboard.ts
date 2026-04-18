@@ -3,7 +3,7 @@ import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { KpiCardComponent } from '../../../shared/components/kpi-card/kpi-card';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge';
-import { DashboardService, DashboardKpi, RecentTransaction, KycPendingCustomer } from './dashboard.service';
+import { DashboardService, DashboardKpi, LoanPortfolioItem, RecentTransaction, KycPendingCustomer } from './dashboard.service';
 
 const AVATAR_COLORS = ['#3b82f6','#16a34a','#7c3aed','#ea580c','#db2777','#0891b2'];
 
@@ -24,11 +24,11 @@ export class DashboardComponent implements OnInit {
 
   readonly today = new Date();
 
-  readonly loanPortfolio = [
-    { label: 'Current (0–30 days)',    pct: 82, color: '#16a34a' },
-    { label: '30–60 days past due',    pct: 10, color: '#ca8a04' },
-    { label: '60–90 days past due',    pct:  5, color: '#ea580c' },
-    { label: '90+ days / Write-off',   pct:  3, color: '#dc2626' },
+  loanPortfolio: LoanPortfolioItem[] = [
+    { label: 'Current (0–30 days)',   pct: 0, color: '#16a34a' },
+    { label: '30–60 days past due',   pct: 0, color: '#ca8a04' },
+    { label: '60–90 days past due',   pct: 0, color: '#ea580c' },
+    { label: '90+ days / Write-off',  pct: 0, color: '#dc2626' },
   ];
 
   ngOnInit(): void {
@@ -36,6 +36,7 @@ export class DashboardComponent implements OnInit {
       next: kpis => { this.kpis = kpis; this.loading = false; },
       error: () => { this.loading = false; },
     });
+    this.svc.getLoanPortfolio().subscribe(p => this.loanPortfolio = p);
     this.svc.getRecentTransactions().subscribe(txns => this.recentTransactions = txns);
     this.svc.getKycPendingCustomers().subscribe(list => this.kycPending = list);
   }
@@ -54,5 +55,11 @@ export class DashboardComponent implements OnInit {
     if (upper.includes('PENDING'))   return 'warning';
     if (upper.includes('FAILED'))    return 'error';
     return 'info';
+  }
+
+  get depositBalanceFormatted(): string {
+    const bal = (this.kpis as DashboardKpi).depositBalance;
+    if (!bal) return '—';
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(bal));
   }
 }

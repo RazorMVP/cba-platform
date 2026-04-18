@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 92 — 2026-04-18)
+## Confirmed Platform Versions (Session 94 — 2026-04-18)
 
 These are the verified-working versions for both production components. Update this table whenever a dependency is upgraded.
 
@@ -21,7 +21,7 @@ These are the verified-working versions for both production components. Update t
 | **PostgreSQL** | 16 | Via Docker; schema managed by Flyway |
 | **AWS SDK v2 S3** | 2.26.12 | Optional — for S3/MinIO/GCS image storage |
 | **thumbnailator** | 0.4.20 | Server-side image resize for `ClientImageService` — max 500×500, JPEG output |
-| **Last git commit** | `f12f21e` | Session 91 — client photo resize + FieldConfiguration module |
+| **Last git commit** | `4a7bbdf` | Session 94 — DashboardController + repository count queries |
 
 ### Angular Web App (`web/`)
 
@@ -34,7 +34,7 @@ These are the verified-working versions for both production components. Update t
 | **TypeScript** | 5.9.x | `~5.9.2` pinned |
 | **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma) |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `f12f21e` | Session 91 — client photo resize + FieldConfiguration module |
+| **Last git commit** | `4a7bbdf` | Session 94 — DashboardController + repository count queries |
 
 > **Session 66 CI fixes**: Angular 21 uses Vitest (not Karma) — `--browsers=ChromeHeadless` and `--code-coverage` are invalid flags. `vercel deploy --prebuilt` requires `.vercel/output/` from `vercel build`, not `dist/` from `ng build`. All three issues fixed; CI pipeline and Vercel production deployment now fully green.
 
@@ -3141,14 +3141,14 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | PRD Feature | Backend Status | Angular Status | Gap |
 |-------------|---------------|----------------|-----|
 | Dynamic report engine | ✅ Module 15 (SQL-based) | ✅ ReportsListComponent | — |
-| Dashboard KPIs (total loans, deposits, customers) | ⚠️ No dedicated `/api/v1/dashboard` endpoint | ✅ DashboardComponent (mock data + partial) | ⚠️ |
-| Loan portfolio breakdown chart | ❌ No `/api/v1/analytics/loans` | ⚠️ DashboardComponent portfolio bars (mock) | ⚠️ |
+| Dashboard KPIs (total loans, deposits, customers) | ✅ `GET /api/v1/dashboard` — 7 KPIs in one call _(Session 94)_ | ✅ Live data: deposit balance + arrears sub-count _(Session 94)_ | ✅ |
+| Loan portfolio breakdown chart | ✅ `GET /api/v1/dashboard/analytics/loans` — 4 aging buckets _(Session 94)_ | ✅ Real % + count badges per bucket _(Session 94)_ | ✅ |
 | Deposit analytics | ❌ No analytics endpoint | ❌ Missing | ❌ |
 | Repayment performance metrics | ❌ No analytics endpoint | ❌ Missing | ❌ |
 | CoB job history / scheduler UI | ✅ `CobJobHistory` entity | ✅ CobSchedulerComponent | — |
 | Report mailing scheduler | ✅ Module 34 | ✅ ReportMailingComponent | — |
 | Export (CSV / XLS / PDF) | ⚠️ CSV export in Reports UI | ⚠️ Only CSV; XLS/PDF not wired | ⚠️ |
-| Real-time dashboard API | ❌ Not implemented | ❌ Missing | ❌ |
+| Real-time dashboard API | ✅ `GET /api/v1/dashboard` covers core KPIs _(Session 94)_ | ✅ Angular wired with graceful fallback | ✅ |
 
 ---
 

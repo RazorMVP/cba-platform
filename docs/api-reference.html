@@ -2216,6 +2216,55 @@ Content-Type: application/json
 </section>
 
 <!-- GLOBAL SEARCH ───────────────────────────────────────────────────────── -->
+<section id="dashboard">
+<h2>Dashboard &amp; Analytics</h2>
+<p>Real-time KPI and loan portfolio analytics endpoints. All data is computed server-side from live database counts — no caching layer. Replaces the previous pattern of 3 separate paginated queries from the frontend.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/dashboard</td><td>All KPIs in one call</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/dashboard/analytics/loans</td><td>Loan portfolio aging breakdown</td><td>ADMIN, TELLER</td></tr>
+</table>
+
+<details class="endpoint">
+<summary><span class="method get">GET</span> /api/v1/dashboard</summary>
+<p>Returns all dashboard KPIs in a single round-trip. Avoids the frontend needing 3+ separate paginated queries for counts. Implemented in <code>DashboardController</code> at <code>com.cba.common</code>.</p>
+<h4>Response — 200 OK</h4>
+<pre><code>{
+  "data": {
+    "totalCustomers": 1240,
+    "kycPending": 18,
+    "activeLoans": 342,
+    "loansInArrears": 27,
+    "totalDeposits": 890,
+    "depositBalance": 4750000.00,
+    "todayTransactions": 154
+  },
+  "meta": null,
+  "errors": []
+}</code></pre>
+</details>
+
+<details class="endpoint">
+<summary><span class="method get">GET</span> /api/v1/dashboard/analytics/loans</summary>
+<p>Returns loan portfolio aging breakdown. Buckets are computed from <code>LoanRepaymentSchedule.dueDate</code> — counts distinct loan IDs per overdue window. Active loans with no overdue installments contribute to <code>pctCurrent</code>.</p>
+<h4>Response — 200 OK</h4>
+<pre><code>{
+  "data": {
+    "totalLoans": 342,
+    "pctCurrent": 82.1,
+    "pct30to60": 9.4,
+    "pct60to90": 5.0,
+    "pct90plus": 3.5,
+    "countActive": 315,
+    "countInArrears": 22,
+    "countWrittenOff": 5
+  },
+  "meta": null,
+  "errors": []
+}</code></pre>
+</details>
+</section>
+
 <section id="search">
 <h2>Global Search</h2>
 <p>Cross-entity search across clients, loans, savings accounts, and groups. Uses JDBC queries for loose coupling to domain packages. Filter by resource type with <code>?resource=</code>. Returns entityId, entityType, entityAccountNo, entityStatus.</p>
@@ -3019,6 +3068,9 @@ Content-Type: application/json
 <tr><td>POST</td><td>/api/v1/standinginstructions/{id}?command=disable</td><td>Disable instruction</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/standinginstructions/{id}?command=enable</td><td>Enable instruction</td><td>ADMIN, TELLER</td></tr>
 <tr><td>DELETE</td><td>/api/v1/standinginstructions/{id}</td><td>Delete instruction</td><td>ADMIN</td></tr>
+<!-- Dashboard / Analytics -->
+<tr><td>GET</td><td>/api/v1/dashboard</td><td>All KPIs in one call (customers, loans, deposits, arrears, today's txns)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/dashboard/analytics/loans</td><td>Loan portfolio aging breakdown (0-30, 30-60, 60-90, 90+ day buckets)</td><td>ADMIN, TELLER</td></tr>
 <!-- Search -->
 <tr><td>GET</td><td>/api/v1/search?query={q}</td><td>Global entity search</td><td>ADMIN, TELLER</td></tr>
 <!-- Two-Factor Auth -->

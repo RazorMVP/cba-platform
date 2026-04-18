@@ -30,6 +30,11 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
     @Query("SELECT COALESCE(SUM(a.balance), 0) FROM Account a WHERE a.customer.id = :customerId AND a.status = 'ACTIVE'")
     java.math.BigDecimal sumActiveBalanceByCustomer(UUID customerId);
 
+    long countByStatus(AccountStatus status);
+
+    @Query("SELECT COALESCE(SUM(a.balance), 0) FROM Account a WHERE a.status = 'ACTIVE'")
+    java.math.BigDecimal sumAllActiveBalances();
+
     /**
      * Finds ACTIVE accounts with no transactions since the cutoff date.
      * Used by the nightly dormancy classification CoB job.

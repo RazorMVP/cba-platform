@@ -59,6 +59,44 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 94 — 2026-04-18
+**Module 11 (Business Intelligence) gap closure: real `GET /api/v1/dashboard` KPI endpoint + `GET /api/v1/dashboard/analytics/loans` portfolio aging endpoint; Angular DashboardService + component wired to live data; deposit balance and loan portfolio percentages now real.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/src/main/java/com/cba/common/DashboardController.java` | NEW — `GET /api/v1/dashboard` (7 KPIs in one call) + `GET /api/v1/dashboard/analytics/loans` (portfolio aging buckets) |
+| `backend/src/main/java/com/cba/loan/LoanRepository.java` | Added `countByStatus`, `countLoansWithOverdueBetween`, `countLoansWithOverdueBefore` |
+| `backend/src/main/java/com/cba/account/AccountRepository.java` | Added `countByStatus`, `sumAllActiveBalances` |
+| `backend/src/main/java/com/cba/customer/CustomerRepository.java` | Added `countByKycStatus` |
+| `backend/src/main/java/com/cba/account/TransactionRepository.java` | Added `countByValueDate` |
+| `web/src/app/features/operations/dashboard/dashboard.service.ts` | Replaced forkJoin workaround with `GET /dashboard`; added `getLoanPortfolio()` using `GET /dashboard/analytics/loans`; fallback retained |
+| `web/src/app/features/operations/dashboard/dashboard.ts` | `loanPortfolio` now populated from service instead of hardcoded; added `depositBalanceFormatted` |
+| `web/src/app/features/operations/dashboard/dashboard.html` | Deposit Balance KPI shows real balance + account count; Active Loans shows in-arrears sub-count; loan portfolio has count badges; "View loans →" link on portfolio card |
+| `web/src/app/features/operations/dashboard/dashboard.scss` | Added `.portfolio-right`, `.portfolio-count` |
+
+#### Key Patterns / Decisions
+
+- Single `GET /api/v1/dashboard` endpoint avoids 3 separate paginated queries the frontend was doing just for `totalElements`
+- `countByStatus` on each repository — Spring Data derives the COUNT query automatically, one DB round-trip each
+- `sumAllActiveBalances()` uses JPQL `COALESCE(SUM, 0)` — never returns null even on empty DB
+- `countByValueDate(LocalDate)` counts today's transactions without timezone issues (uses `valueDate` column, not `transactionDate` Instant)
+- Loan portfolio aging uses JPQL `countLoansWithOverdueBetween(from, to)` on `LoanRepaymentSchedule.dueDate` — counts **distinct loan IDs** per bucket, not installment count
+- Angular service has graceful fallback: if `/dashboard` returns an error (old backend), reverts to individual forkJoin queries
+- `depositBalance` displayed with `Intl.NumberFormat` (not Angular `CurrencyPipe`) — pipe requires number, backend returns BigDecimal as string in JSON
+
+#### Build Verification
+
+- `cd backend && ./mvnw compile -q` → BUILD SUCCESS (0 errors)
+- `cd web && npx ng build --configuration production` → BUILD SUCCESS (0 errors, pre-existing warnings only)
+
+#### Confirmed Platform Versions
+See Session 92 for full version table — no dependency changes this session.
+**Backend last commit:** `4a7bbdf`
+**Web last commit:** `4be25b8`
+
+---
+
 ### Session 93 — 2026-04-18
 **Module 2 + 3 PRD UI indicator closure: IN_ARREARS pipeline stage in loans list; arrears alert banner in loan detail (auto-loads schedule, shows overdue count + amount); repayment action in list panel; SCSS fix for field-configuration.scss.**
 

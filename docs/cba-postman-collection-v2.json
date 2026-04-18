@@ -14502,6 +14502,70 @@
       ]
     },
     {
+      "name": "34 \u00b7 Dashboard & Analytics",
+      "description": "Real-time KPI and loan portfolio aging endpoints",
+      "item": [
+        {
+          "name": "Get Dashboard KPIs",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/dashboard",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "dashboard"]
+            },
+            "description": "Returns all 7 KPIs in a single call: totalCustomers, kycPending, activeLoans, loansInArrears, totalDeposits, depositBalance, todayTransactions."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\"data\":{\"totalCustomers\":1240,\"kycPending\":18,\"activeLoans\":342,\"loansInArrears\":27,\"totalDeposits\":890,\"depositBalance\":4750000.00,\"todayTransactions\":154},\"meta\":null,\"errors\":[]}"
+            }
+          ],
+          "x-code-samples": [
+            { "lang": "cURL", "source": "curl -X GET '{{baseUrl}}/api/v1/dashboard' -H 'Authorization: Bearer {{token}}'" },
+            { "lang": "JavaScript", "source": "const r = await fetch('/api/v1/dashboard', { headers: { Authorization: `Bearer ${token}` } });\nconst { data } = await r.json();" },
+            { "lang": "Python", "source": "import requests\nr = requests.get('/api/v1/dashboard', headers={'Authorization': f'Bearer {token}'})\nprint(r.json()['data'])" },
+            { "lang": "Java", "source": "ResponseEntity<ApiResponse> r = restTemplate.getForEntity(\"/api/v1/dashboard\", ApiResponse.class);" },
+            { "lang": "Go", "source": "req, _ := http.NewRequest(\"GET\", \"/api/v1/dashboard\", nil)\nreq.Header.Set(\"Authorization\", \"Bearer \"+token)" },
+            { "lang": "Ruby", "source": "response = Net::HTTP.get(URI('/api/v1/dashboard'))" }
+          ]
+        },
+        {
+          "name": "Get Loan Portfolio Aging",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/dashboard/analytics/loans",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "dashboard", "analytics", "loans"]
+            },
+            "description": "Returns loan portfolio aging breakdown: pctCurrent (0-30 days), pct30to60, pct60to90, pct90plus — computed from LoanRepaymentSchedule.dueDate."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\"data\":{\"totalLoans\":342,\"pctCurrent\":82.1,\"pct30to60\":9.4,\"pct60to90\":5.0,\"pct90plus\":3.5,\"countActive\":315,\"countInArrears\":22,\"countWrittenOff\":5},\"meta\":null,\"errors\":[]}"
+            }
+          ],
+          "x-code-samples": [
+            { "lang": "cURL", "source": "curl -X GET '{{baseUrl}}/api/v1/dashboard/analytics/loans' -H 'Authorization: Bearer {{token}}'" },
+            { "lang": "JavaScript", "source": "const r = await fetch('/api/v1/dashboard/analytics/loans', { headers: { Authorization: `Bearer ${token}` } });\nconst { data } = await r.json();" },
+            { "lang": "Python", "source": "import requests\nr = requests.get('/api/v1/dashboard/analytics/loans', headers={'Authorization': f'Bearer {token}'})\nprint(r.json()['data'])" },
+            { "lang": "Java", "source": "ResponseEntity<ApiResponse> r = restTemplate.getForEntity(\"/api/v1/dashboard/analytics/loans\", ApiResponse.class);" },
+            { "lang": "Go", "source": "req, _ := http.NewRequest(\"GET\", \"/api/v1/dashboard/analytics/loans\", nil)\nreq.Header.Set(\"Authorization\", \"Bearer \"+token)" },
+            { "lang": "Ruby", "source": "response = Net::HTTP.get(URI('/api/v1/dashboard/analytics/loans'))" }
+          ]
+        }
+      ]
+    },
+    {
       "name": "33 \u00b7 Global Search",
       "description": "Cross-entity search: clients, loans, savings, groups",
       "item": [

@@ -20,12 +20,12 @@
       trendValue="vs last month"
     />
     <app-kpi-card
-      title="Deposits (Accounts)"
-      [value]="loading ? '…' : (kpis.totalDeposits ?? 0)"
+      title="Deposit Balance"
+      [value]="loading ? '…' : depositBalanceFormatted"
       icon="account_balance"
       color="success"
       trend="up"
-      trendValue="open accounts"
+      [trendValue]="(kpis.totalDeposits ?? 0) + ' active accounts'"
     />
     <app-kpi-card
       title="Active Loans"
@@ -33,7 +33,7 @@
       icon="payments"
       color="warning"
       trend="neutral"
-      trendValue="this period"
+      [trendValue]="(kpis.loansInArrears ?? 0) + ' in arrears'"
     />
     <app-kpi-card
       title="KYC Pending"
@@ -41,7 +41,7 @@
       icon="verified_user"
       color="error"
       trend="neutral"
-      trendValue="awaiting review"
+      [trendValue]="'Today: ' + (kpis.todayTransactions ?? 0) + ' txns'"
     />
   </div>
 
@@ -102,13 +102,19 @@
       <div class="card">
         <div class="card__header">
           <div class="card__title">Loan Portfolio Health</div>
+          <a routerLink="/operations/loans" class="card__action">View loans →</a>
         </div>
         <div class="card__body">
           @for (segment of loanPortfolio; track segment.label) {
             <div class="portfolio-row">
               <div class="portfolio-meta">
                 <span class="portfolio-label">{{ segment.label }}</span>
-                <span class="portfolio-pct" [style.color]="segment.color">{{ segment.pct }}%</span>
+                <div class="portfolio-right">
+                  @if (segment.count != null) {
+                    <span class="portfolio-count muted">{{ segment.count }}</span>
+                  }
+                  <span class="portfolio-pct" [style.color]="segment.color">{{ segment.pct }}%</span>
+                </div>
               </div>
               <div class="progress-track">
                 <div class="progress-fill" [style.width.%]="segment.pct" [style.background]="segment.color"></div>

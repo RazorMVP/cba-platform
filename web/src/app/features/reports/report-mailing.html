@@ -112,108 +112,94 @@
 </div>
 
 <!-- ── Create / Edit Modal ── -->
-@if (activeModal === 'create' || activeModal === 'edit') {
-  <div class="modal-backdrop" (click)="closeModal()">
-    <div class="modal modal--lg" (click)="$event.stopPropagation()">
-      <div class="modal__header">
-        <span class="material-icons modal__icon">email</span>
-        {{ activeModal === 'create' ? 'New Mailing Job' : 'Edit Mailing Job' }}
+<div class="modal-backdrop" *ngIf="activeModal === 'create' || activeModal === 'edit'" (click)="closeModal()">
+  <div class="modal modal--lg" (click)="$event.stopPropagation()">
+    <div class="modal__header">
+      <span class="material-icons modal__icon">email</span>
+      {{ activeModal === 'create' ? 'New Mailing Job' : 'Edit Mailing Job' }}
+    </div>
+    <div class="modal__body">
+      <div class="form-row">
+        <div class="form-field form-field--half">
+          <label class="form-label">Job Name <span class="required">*</span></label>
+          <input class="form-input" type="text" [(ngModel)]="formName"
+                 placeholder="e.g. Weekly Loan Summary" />
+        </div>
+        <div class="form-field form-field--half">
+          <label class="form-label">Report <span class="required">*</span></label>
+          <select class="form-input" [(ngModel)]="formReportName">
+            <option value="">— select report —</option>
+            <option *ngFor="let r of reports" [value]="r.reportName">{{ r.reportName }}</option>
+          </select>
+        </div>
       </div>
-      <div class="modal__body">
-        <div class="form-row">
-          <div class="form-field form-field--half">
-            <label class="form-label">Job Name <span class="required">*</span></label>
-            <input class="form-input" type="text" [(ngModel)]="formName"
-                   placeholder="e.g. Weekly Loan Summary" />
-          </div>
-          <div class="form-field form-field--half">
-            <label class="form-label">Report <span class="required">*</span></label>
-            <select class="form-input" [(ngModel)]="formReportName">
-              <option value="">— select report —</option>
-              @for (r of reports; track r.id) {
-                <option [value]="r.reportName">{{ r.reportName }}</option>
-              }
-            </select>
-          </div>
-        </div>
-        <div class="form-field">
-          <label class="form-label">Email Recipients <span class="required">*</span></label>
-          <input class="form-input" type="text" [(ngModel)]="formRecipients"
-                 placeholder="admin@cba.com, cfo@cba.com" />
-        </div>
-        <div class="form-field">
-          <label class="form-label">Email Subject <span class="required">*</span></label>
-          <input class="form-input" type="text" [(ngModel)]="formSubject"
-                 placeholder="e.g. Weekly Loan Portfolio Report" />
-        </div>
-        <div class="form-row">
-          <div class="form-field form-field--half">
-            <label class="form-label">Schedule</label>
-            <select class="form-input" [(ngModel)]="rrulePreset" (ngModelChange)="onRrulePresetChange()">
-              @for (p of rrulePresets; track p.value) {
-                <option [value]="p.value">{{ p.label }}</option>
-              }
-            </select>
-            @if (!rrulePreset) {
-              <input class="form-input" style="margin-top:0.4rem" type="text"
-                     [(ngModel)]="formRecurrence" placeholder="FREQ=WEEKLY;BYDAY=MO,WE,FR" />
-            }
-          </div>
-          <div class="form-field form-field--half">
-            <label class="form-label">Output Format</label>
-            <select class="form-input" [(ngModel)]="formOutputType">
-              @for (t of outputTypes; track t) {
-                <option [value]="t">{{ t }}</option>
-              }
-            </select>
-          </div>
-        </div>
-        <div class="form-field">
-          <label class="form-label">Message <span class="form-hint">(optional)</span></label>
-          <input class="form-input" type="text" [(ngModel)]="formMessage"
-                 placeholder="Brief email body message" />
-        </div>
-        <div class="form-field">
-          <label class="checkbox-label">
-            <input type="checkbox" [(ngModel)]="formActive" />
-            Active — job will run on schedule
-          </label>
-        </div>
-        @if (modalError) {
-          <div class="modal__error">{{ modalError }}</div>
-        }
+      <div class="form-field">
+        <label class="form-label">Email Recipients <span class="required">*</span></label>
+        <input class="form-input" type="text" [(ngModel)]="formRecipients"
+               placeholder="admin@cba.com, cfo@cba.com" />
       </div>
-      <div class="modal__footer">
-        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
-        <button class="btn-primary" (click)="submitModal()"
-                [disabled]="modalWorking || !formName || !formReportName || !formRecipients || !formSubject">
-          @if (modalWorking) { <span class="spinner"></span> }
-          {{ activeModal === 'create' ? 'Create Job' : 'Save Changes' }}
-        </button>
+      <div class="form-field">
+        <label class="form-label">Email Subject <span class="required">*</span></label>
+        <input class="form-input" type="text" [(ngModel)]="formSubject"
+               placeholder="e.g. Weekly Loan Portfolio Report" />
       </div>
+      <div class="form-row">
+        <div class="form-field form-field--half">
+          <label class="form-label">Schedule</label>
+          <select class="form-input" [(ngModel)]="rrulePreset" (ngModelChange)="onRrulePresetChange()">
+            <option *ngFor="let p of rrulePresets" [value]="p.value">{{ p.label }}</option>
+          </select>
+          <input *ngIf="!rrulePreset" class="form-input" style="margin-top:0.4rem" type="text"
+                 [(ngModel)]="formRecurrence" placeholder="FREQ=WEEKLY;BYDAY=MO,WE,FR" />
+        </div>
+        <div class="form-field form-field--half">
+          <label class="form-label">Output Format</label>
+          <select class="form-input" [(ngModel)]="formOutputType">
+            <option *ngFor="let t of outputTypes" [value]="t">{{ t }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Message <span class="form-hint">(optional)</span></label>
+        <input class="form-input" type="text" [(ngModel)]="formMessage"
+               placeholder="Brief email body message" />
+      </div>
+      <div class="form-field">
+        <label class="checkbox-label">
+          <input type="checkbox" [(ngModel)]="formActive" />
+          Active — job will run on schedule
+        </label>
+      </div>
+      <div class="modal__error" *ngIf="modalError">{{ modalError }}</div>
+    </div>
+    <div class="modal__footer">
+      <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+      <button class="btn-primary" (click)="submitModal()"
+              [disabled]="modalWorking || !formName || !formReportName || !formRecipients || !formSubject">
+        <span class="spinner" *ngIf="modalWorking"></span>
+        {{ activeModal === 'create' ? 'Create Job' : 'Save Changes' }}
+      </button>
     </div>
   </div>
-}
+</div>
 
 <!-- ── Delete Modal ── -->
-@if (activeModal === 'delete') {
-  <div class="modal-backdrop" (click)="closeModal()">
-    <div class="modal modal--sm" (click)="$event.stopPropagation()">
-      <div class="modal__header">
-        <span class="material-icons modal__icon" style="color:#dc2626">delete</span>
-        Delete Mailing Job
-      </div>
-      <div class="modal__body">
-        <p class="confirm-text">Delete mailing job <strong>{{ deletingName }}</strong>? This cannot be undone.</p>
-        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
-      </div>
-      <div class="modal__footer">
-        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
-        <button class="btn-danger" (click)="submitDelete()" [disabled]="modalWorking">
-          @if (modalWorking) { <span class="spinner"></span> }
-          Delete
-        </button>
-      </div>
+<div class="modal-backdrop" *ngIf="activeModal === 'delete'" (click)="closeModal()">
+  <div class="modal modal--sm" (click)="$event.stopPropagation()">
+    <div class="modal__header">
+      <span class="material-icons modal__icon" style="color:#dc2626">delete</span>
+      Delete Mailing Job
+    </div>
+    <div class="modal__body">
+      <p class="confirm-text">Delete mailing job <strong>{{ deletingName }}</strong>? This cannot be undone.</p>
+      <div class="modal__error" *ngIf="modalError">{{ modalError }}</div>
+    </div>
+    <div class="modal__footer">
+      <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+      <button class="btn-danger" (click)="submitDelete()" [disabled]="modalWorking">
+        <span class="spinner" *ngIf="modalWorking"></span>
+        Delete
+      </button>
     </div>
   </div>
-}
+</div>

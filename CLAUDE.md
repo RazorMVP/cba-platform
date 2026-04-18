@@ -2924,8 +2924,8 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | # | PRD Module | Backend | Angular UI | Overall |
 |---|-----------|---------|------------|---------|
 | 1 | Customer Onboarding | ✅ Built | ✅ Built | ✅ Done |
-| 2 | Customer Account Management (Savings) | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
-| 3 | Loan Management | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
+| 2 | Customer Account Management (Savings) | ✅ Built | ✅ Built | ✅ Done |
+| 3 | Loan Management | ✅ Built | ✅ Built | ✅ Done |
 | 4 | Fees & Charges | ✅ Built | ✅ Built | ✅ Done |
 | 5 | GL Accounting | ✅ Built | ✅ Built | ✅ Done |
 | 6 | Treasury | ❌ Missing | ❌ Missing | ❌ Gap |
@@ -3020,8 +3020,8 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | Loan reschedule | ✅ Reschedule module (Module 23) | ✅ Reschedule tab on LoanDetail _(Session 75)_ | — |
 | Loan re-aging | ✅ Re-aging module (Module 23) | ✅ Re-aging tab + re-amortize trigger on LoanDetail _(Session 75)_ | — |
 | Foreclose loan | ✅ `POST /{id}/foreclose` _(Session 92)_ | ✅ Foreclose modal _(Session 92)_ | ✅ |
-| Recover from NPA | ⚠️ Covered by undo-write-off + repayment | ⚠️ No dedicated UI | ⚠️ |
-| In-arrears classification (CoB) | ✅ `arrearsClassificationJob` | ❌ No arrears indicator in UI | ⚠️ |
+| Recover from NPA | ✅ Covered by undo-write-off + repayment | ✅ Arrears banner CTAs + Record Repayment in list panel _(Session 93)_ | ✅ |
+| In-arrears classification (CoB) | ✅ `arrearsClassificationJob` | ✅ Arrears banner in detail (overdue count + amount); IN_ARREARS pipeline stage in list _(Session 93)_ | ✅ |
 
 ---
 
@@ -3157,8 +3157,8 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | Module | Status | Session Closed |
 |--------|--------|---------------|
 | Customer Onboarding | ✅ Done | Session 49 |
-| Customer Account Management | 🔲 Queued | — |
-| Loan Management | 🔲 Queued | — |
+| Customer Account Management | ✅ Done | Session 93 |
+| Loan Management | ✅ Done | Session 93 |
 | Fees & Charges | ✅ Done | Session 68 |
 | GL Accounting | ✅ Done | Prior sessions |
 | Treasury | 🔲 Queued | — |

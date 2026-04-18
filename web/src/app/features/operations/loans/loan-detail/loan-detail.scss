@@ -291,3 +291,17 @@
 // ── Status band variants ──────────────────────────────────────────────────────
 .status-band--foreclosed { background: #4c1d95; }
 .status-band--rejected   { background: $color-grey-700; }
+
+// ── Arrears alert banner ──────────────────────────────────────────────────────
+.arrears-banner {
+  display: flex; align-items: flex-start; gap: $space-4;
+  background: #fef2f2; border: 1px solid #fecaca; border-radius: $radius-lg;
+  padding: $space-4 $space-5; margin-bottom: $space-5;
+
+  &__icon { color: #dc2626; font-size: 20px; margin-top: 2px; flex-shrink: 0; }
+  &__body {
+    flex: 1; font-size: $text-sm; color: $color-text-primary; line-height: 1.6;
+    strong { display: block; font-weight: $font-weight-semibold; margin-bottom: $space-1; color: #dc2626; }
+  }
+  &__cta { flex-shrink: 0; display: inline-flex; align-items: center; gap: $space-2; font-size: $text-sm; }
+}

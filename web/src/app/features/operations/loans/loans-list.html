@@ -178,6 +178,23 @@
           }
         </div>
 
+        <!-- Arrears alert -->
+        @if (selectedLoan.status === 'IN_ARREARS') {
+          <div class="arrears-alert">
+            <span class="material-icons">warning</span>
+            <div class="arrears-alert__body">
+              <strong>Loan in Arrears</strong>
+              @if (!scheduleLoading && overdueCount > 0) {
+                <span>{{ overdueCount }} overdue installment{{ overdueCount > 1 ? 's' : '' }} · {{ overdueTotal | currency:'USD':'symbol':'1.0-0' }} past due</span>
+              } @else if (scheduleLoading) {
+                <span>Calculating overdue…</span>
+              } @else {
+                <span>Review repayment schedule for details</span>
+              }
+            </div>
+          </div>
+        }
+
         <!-- Actions -->
         <div class="detail-actions">
           @if (selectedLoan.status === 'SUBMITTED' || selectedLoan.status === 'UNDER_REVIEW') {
@@ -186,6 +203,9 @@
           }
           @if (selectedLoan.status === 'APPROVED') {
             <button class="action-primary">Disburse</button>
+          }
+          @if (selectedLoan.status === 'ACTIVE' || selectedLoan.status === 'IN_ARREARS') {
+            <a [routerLink]="selectedLoan.id" class="action-primary">Record Repayment →</a>
           }
           <a [routerLink]="selectedLoan.id" class="action-secondary">Full Details →</a>
         </div>

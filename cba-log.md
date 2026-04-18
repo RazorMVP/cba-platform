@@ -59,6 +59,38 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 93 — 2026-04-18
+**Module 2 + 3 PRD UI indicator closure: IN_ARREARS pipeline stage in loans list; arrears alert banner in loan detail (auto-loads schedule, shows overdue count + amount); repayment action in list panel; SCSS fix for field-configuration.scss.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/src/app/features/operations/loans/loans-list.ts` | Added "In Arrears" pipeline stage (red); `overdueCount`/`overdueTotal` getters; `FORECLOSED`/`REJECTED` in status maps |
+| `web/src/app/features/operations/loans/loans-list.html` | Arrears alert row in detail panel; "Record Repayment" action for ACTIVE/IN_ARREARS |
+| `web/src/app/features/operations/loans/loans-list.scss` | `.arrears-alert` styles |
+| `web/src/app/features/operations/loans/loan-detail/loan-detail.ts` | Auto-load schedule on init for IN_ARREARS loans; `overdueCount`/`overdueTotal` getters |
+| `web/src/app/features/operations/loans/loan-detail/loan-detail.html` | Arrears alert banner with overdue breakdown + inline "Record Repayment" CTA |
+| `web/src/app/features/operations/loans/loan-detail/loan-detail.scss` | `.arrears-banner` styles |
+| `web/src/app/features/system/field-configuration.scss` | Fixed `$font-sans` undefined variable (pre-existing build error) |
+
+#### Key Patterns / Decisions
+
+- Schedule auto-loaded on `ngOnInit` when `loan.status === 'IN_ARREARS'` — avoids requiring tab click before arrears breakdown is available in the banner
+- `overdueTotal` sums `totalDue - principalPaid - interestPaid` for OVERDUE installments — this is the remaining balance on each overdue row, not the original scheduled amount
+- "Record Repayment" in the loans list panel links to full detail page (repayment modal lives there, not in the list)
+- Pipeline now has 6 stages: Submitted → Under Review → Approved → Active → **In Arrears** → Closed
+
+#### Build Verification
+
+- `ng build --configuration production` → no errors; one pre-existing treasury warning; loan-detail.scss at 21.5kB (warning threshold 20kB, error threshold 40kB)
+
+#### Confirmed Platform Versions
+See Session 92 for full version table — no dependency changes this session.
+**Web last commit:** `4a7bbdf` (pre-push SHA; updated on push)
+**Backend last commit:** `4a7bbdf`
+
+---
+
 ### Session 92 — 2026-04-18
 **Module 3 Loan Management gap closure: FORECLOSED status, undo-write-off, waive-interest, foreclose backend commands; Documents + Notes tabs + 3 new modals in Angular LoanDetail.**
 

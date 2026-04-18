@@ -29,6 +29,7 @@ export class LoansListComponent implements OnInit {
     { label: 'Under Review', status: 'UNDER_REVIEW',  color: '#ca8a04' },
     { label: 'Approved',     status: 'APPROVED',      color: '#16a34a' },
     { label: 'Active',       status: 'ACTIVE',        color: '#7c3aed' },
+    { label: 'In Arrears',   status: 'IN_ARREARS',    color: '#dc2626' },
     { label: 'Closed',       status: 'CLOSED_OBLIGATIONS_MET', color: '#888' },
   ];
 
@@ -68,7 +69,7 @@ export class LoansListComponent implements OnInit {
     const map: Record<string, 'success' | 'warning' | 'error' | 'info' | 'neutral' | 'primary'> = {
       ACTIVE: 'primary', SUBMITTED: 'info', UNDER_REVIEW: 'warning',
       APPROVED: 'success', DISBURSED: 'success',
-      IN_ARREARS: 'error', WRITTEN_OFF: 'error',
+      IN_ARREARS: 'error', WRITTEN_OFF: 'error', FORECLOSED: 'error', REJECTED: 'error',
       CLOSED_OBLIGATIONS_MET: 'neutral',
     };
     return map[s] ?? 'neutral';
@@ -79,7 +80,18 @@ export class LoansListComponent implements OnInit {
       SUBMITTED: 'Submitted', UNDER_REVIEW: 'Under Review', APPROVED: 'Approved',
       DISBURSED: 'Disbursed', ACTIVE: 'Active', IN_ARREARS: 'In Arrears',
       CLOSED_OBLIGATIONS_MET: 'Closed', WRITTEN_OFF: 'Written Off',
+      FORECLOSED: 'Foreclosed', REJECTED: 'Rejected',
     };
     return map[s] ?? s;
+  }
+
+  get overdueCount(): number {
+    return this.schedule.filter(i => i.status === 'OVERDUE').length;
+  }
+
+  get overdueTotal(): number {
+    return this.schedule
+      .filter(i => i.status === 'OVERDUE')
+      .reduce((sum, i) => sum + (i.totalDue - (i.principalPaid ?? 0) - (i.interestPaid ?? 0)), 0);
   }
 }

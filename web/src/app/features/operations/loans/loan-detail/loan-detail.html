@@ -130,6 +130,31 @@
       <span>{{ loan.outstandingBalance | currency:'USD':'symbol':'1.2-2' }} outstanding of {{ loan.principalAmount | currency:'USD':'symbol':'1.2-2' }}</span>
     </div>
 
+    <!-- Arrears alert banner -->
+    @if (loan.status === 'IN_ARREARS') {
+      <div class="arrears-banner">
+        <span class="material-icons arrears-banner__icon">warning</span>
+        <div class="arrears-banner__body">
+          <strong>This loan is in arrears.</strong>
+          @if (scheduleLoading) {
+            <span>Calculating overdue installments…</span>
+          } @else if (overdueCount > 0) {
+            <span>
+              {{ overdueCount }} installment{{ overdueCount > 1 ? 's' : '' }} overdue
+              &mdash; {{ overdueTotal | currency:'USD':'symbol':'1.2-2' }} past due.
+              Use <em>Record Repayment</em> to collect payment, or <em>Waive Interest</em> / <em>Reschedule</em> for restructuring.
+            </span>
+          } @else {
+            <span>Overdue installments will appear in the Repayment Schedule tab.</span>
+          }
+        </div>
+        <button class="btn-primary arrears-banner__cta"
+                (click)="showRepaymentModal = true; repaymentAmount = null">
+          <span class="material-icons">payments</span> Record Repayment
+        </button>
+      </div>
+    }
+
     <!-- Tab bar -->
     <div class="tab-bar">
       @for (tab of tabs; track tab.id) {

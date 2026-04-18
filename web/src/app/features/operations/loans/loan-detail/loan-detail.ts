@@ -171,7 +171,17 @@ export class LoanDetailComponent implements OnInit {
       return;
     }
     this.svc.get(id).subscribe({
-      next:  l  => { this.loan = l; this.loading = false; },
+      next: l => {
+        this.loan = l;
+        this.loading = false;
+        if (l.status === 'IN_ARREARS' && !this.scheduleLoaded) {
+          this.scheduleLoading = true;
+          this.svc.getSchedule(id).subscribe({
+            next:  s  => { this.schedule = s; this.scheduleLoaded = true; this.scheduleLoading = false; },
+            error: () => { this.scheduleLoading = false; },
+          });
+        }
+      },
       error: () => { this.error = 'Loan not found.'; this.loading = false; },
     });
   }
@@ -461,6 +471,16 @@ export class LoanDetailComponent implements OnInit {
   get canUndoWriteOff():  boolean { return !!this.loan && this.loan.status === 'WRITTEN_OFF'; }
   get canWaiveInterest(): boolean { return !!this.loan && ['ACTIVE','IN_ARREARS'].includes(this.loan.status); }
   get canForeclose():     boolean { return !!this.loan && ['ACTIVE','IN_ARREARS'].includes(this.loan.status); }
+
+  get overdueCount(): number {
+    return this.schedule.filter(i => i.status === 'OVERDUE').length;
+  }
+
+  get overdueTotal(): number {
+    return this.schedule
+      .filter(i => i.status === 'OVERDUE')
+      .reduce((sum, i) => sum + (i.totalDue - (i.principalPaid ?? 0) - (i.interestPaid ?? 0)), 0);
+  }
 
   statusVariant(s: Loan['status']): 'success'|'warning'|'error'|'info'|'neutral'|'primary' {
     const m: Record<string,'success'|'warning'|'error'|'info'|'neutral'|'primary'> = {

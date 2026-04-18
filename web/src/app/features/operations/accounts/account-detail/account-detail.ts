@@ -457,6 +457,13 @@ export class AccountDetailComponent implements OnInit {
     return 'neutral'; // DORMANT, CLOSED
   }
 
+  /** True when lockinExpiryDate is present and today is on or before that date. */
+  get inLockinPeriod(): boolean {
+    const expiry = this.account?.lockinExpiryDate;
+    if (!expiry) return false;
+    return new Date().toISOString().slice(0, 10) <= expiry;
+  }
+
   isCredit(t: Transaction): boolean {
     return t.transactionType.includes('CREDIT');
   }

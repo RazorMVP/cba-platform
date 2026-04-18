@@ -20,7 +20,7 @@ These are the verified-working versions for both production components. Update t
 | **Lombok** | 1.18.38 | Minimum for Java 25 `TypeTag` fix; also works on Java 21 |
 | **PostgreSQL** | 16 | Via Docker; schema managed by Flyway |
 | **AWS SDK v2 S3** | 2.26.12 | Optional — for S3/MinIO/GCS image storage |
-| **Last git commit** | `3a07437` | `feat(accounts): overdraft/min-balance UI indicator, product dropdown in open-account form, ?template=true Mifos endpoint` |
+| **Last git commit** | `37345c1` | Session 90 — minRequiredOpeningBalance + lock-in enforcement (GlobalConfig-gated) |
 
 ### Angular Web App (`web/`)
 
@@ -33,7 +33,7 @@ These are the verified-working versions for both production components. Update t
 | **TypeScript** | 5.9.x | `~5.9.2` pinned |
 | **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma) |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `3a07437` | `feat(accounts): overdraft/min-balance UI indicator, product dropdown in open-account form, ?template=true Mifos endpoint` |
+| **Last git commit** | `37345c1` | Session 90 — minRequiredOpeningBalance + lock-in enforcement (GlobalConfig-gated) |
 
 > **Session 66 CI fixes**: Angular 21 uses Vitest (not Karma) — `--browsers=ChromeHeadless` and `--code-coverage` are invalid flags. `vercel deploy --prebuilt` requires `.vercel/output/` from `vercel build`, not `dist/` from `ng build`. All three issues fixed; CI pipeline and Vercel production deployment now fully green.
 
@@ -2987,9 +2987,10 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | Interest posting (daily accrual, periodic posting) | ✅ `interestAccrualJob` (CoB) + `?command=postInterest` + `GET /{id}/interest/calculate` _(Session 89)_ | ✅ "Post Interest" button + preview modal on Interest tab _(Session 89)_ | ✅ |
 | Account transfers (internal) | ✅ Via payment service | ✅ Transfer wizard modal | — |
 | Statement download | ✅ Statement modal with date filter | ✅ Statement modal | — |
-| Savings account template (`?template=true`) | ❌ No template endpoint | ❌ Missing | ❌ |
-| Overdraft (`allowOverdraft` product-level) | ✅ Deposit product has overdraft fields | ❌ No overdraft enforcement in AccountService | ⚠️ |
-| Minimum balance enforcement | ❌ `minimumBalance` on product but not enforced in debit logic | ❌ Missing | ⚠️ |
+| Savings account template (`?template=true`) | ✅ `GET /api/v1/accounts/template` + `?template=true` param _(Session 88)_ | ✅ `isNew` product dropdown loads from template _(Session 88)_ | — |
+| Overdraft enforcement (`allowOverdraft` product-level) | ✅ `computeEffectiveFloor()` in `withdraw()`; UI gated by `enforce-lockin-period-withdrawal` GlobalConfig _(Session 88/90)_ | ✅ Overdraft indicator in header _(Session 88)_ | — |
+| Minimum balance enforcement in debit | ✅ `computeEffectiveFloor()` on every `withdraw()`; `minRequiredOpeningBalance` at activation; gated by `enforce-min-required-opening-balance` GlobalConfig _(Session 90)_ | ✅ Min-balance indicator in header _(Session 88)_ | — |
+| Lock-in period withdrawal block | ✅ `withdraw()` checks `computeLockinExpiry()`; gated by `enforce-lockin-period-withdrawal` GlobalConfig _(Session 90)_ | ✅ "Lock-in until [date]" badge in header _(Session 90)_ | — |
 
 ---
 

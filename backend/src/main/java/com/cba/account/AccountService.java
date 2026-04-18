@@ -11,6 +11,7 @@ import com.cba.customer.KycStatus;
 import com.cba.notification.AccountEvent;
 import com.cba.product.DepositProduct;
 import com.cba.product.DepositProductRepository;
+import com.cba.system.GlobalConfigurationRepository;
 import com.cba.tenant.TenantService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +45,7 @@ public class AccountService {
     private final AuditLogService auditLogService;
     private final ApplicationEventPublisher eventPublisher;
     private final TenantService tenantService;
+    private final GlobalConfigurationRepository globalConfigRepository;
 
     @Transactional
     public AccountResponse openAccount(OpenAccountRequest request) {
@@ -134,6 +136,19 @@ public class AccountService {
             throw CbaException.badRequest("INVALID_TRANSITION",
                 "Only APPROVED accounts can be activated (current: " + account.getStatus() + ")");
         }
+
+        if (isConfigEnabled("enforce-min-required-opening-balance")) {
+            DepositProduct p = account.getProduct();
+            BigDecimal minOpen = p != null ? p.getMinRequiredOpeningBalance() : null;
+            if (minOpen != null && minOpen.compareTo(BigDecimal.ZERO) > 0
+                    && account.getBalance().compareTo(minOpen) < 0) {
+                throw CbaException.badRequest("BELOW_MIN_OPENING_BALANCE",
+                    "Account balance " + account.getBalance()
+                    + " does not meet the minimum required opening balance of " + minOpen
+                    + " for product '" + p.getName() + "'");
+            }
+        }
+
         account.setStatus(AccountStatus.ACTIVE);
         Account saved = accountRepository.save(account);
         auditLogService.log("ACCOUNT", id.toString(), "ACTIVATED",
@@ -197,6 +212,14 @@ public class AccountService {
             .orElseThrow(() -> CbaException.notFound("Account", accountId));
 
         validateAccountActive(account);
+
+        if (isConfigEnabled("enforce-lockin-period-withdrawal")) {
+            LocalDate expiry = computeLockinExpiry(account.getProduct(), account.getOpenedDate());
+            if (expiry != null && !LocalDate.now().isAfter(expiry)) {
+                throw CbaException.badRequest("ACCOUNT_IN_LOCKIN_PERIOD",
+                    "Withdrawals are not permitted until the lock-in period ends on " + expiry);
+            }
+        }
 
         BigDecimal onHold = accountHoldRepository.sumActiveHoldsByAccount(accountId);
         BigDecimal available = account.getBalance().subtract(onHold);
@@ -350,6 +373,25 @@ public class AccountService {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    /** Returns true when the named GlobalConfiguration exists, is_enabled=true, and boolean_value=true. */
+    private boolean isConfigEnabled(String name) {
+        return globalConfigRepository.findByName(name)
+            .filter(c -> c.isEnabled() && Boolean.TRUE.equals(c.getBooleanValue()))
+            .isPresent();
+    }
+
+    /** Computes the lock-in expiry date from a product's lock-in fields; null when no lock-in is configured. */
+    private LocalDate computeLockinExpiry(DepositProduct p, LocalDate openedDate) {
+        if (p == null || p.getLockinPeriodFrequency() == null || p.getLockinPeriodFrequencyType() == null) return null;
+        int freq = p.getLockinPeriodFrequency();
+        return switch (p.getLockinPeriodFrequencyType()) {
+            case DAYS   -> openedDate.plusDays(freq);
+            case WEEKS  -> openedDate.plusWeeks(freq);
+            case MONTHS -> openedDate.plusMonths(freq);
+            case YEARS  -> openedDate.plusYears(freq);
+        };
+    }
+
     private void validateAccountActive(Account account) {
         if (account.getStatus() != AccountStatus.ACTIVE) {
             throw CbaException.badRequest("ACCOUNT_NOT_ACTIVE",
@@ -424,6 +466,7 @@ public class AccountService {
         BigDecimal available = a.getBalance().subtract(onHold);
         String customerName = a.getCustomer().getFirstName() + " " + a.getCustomer().getLastName();
         var p = a.getProduct();
+        LocalDate lockinExpiry = computeLockinExpiry(p, a.getOpenedDate());
         return new AccountResponse(
             a.getId(), a.getAccountNumber(), a.getCustomer().getId(),
             customerName, p.getName(),
@@ -431,7 +474,8 @@ public class AccountService {
             available, onHold,
             a.getCurrencyCode(), a.getOpenedDate(), a.getClosedDate(),
             a.getLastTransactionDate(), a.getCreatedAt(),
-            p.isAllowOverdraft(), p.getOverdraftLimit(), p.getMinimumBalance()
+            p.isAllowOverdraft(), p.getOverdraftLimit(), p.getMinimumBalance(),
+            lockinExpiry
         );
     }
 

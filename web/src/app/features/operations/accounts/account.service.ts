@@ -22,6 +22,8 @@ export interface Account {
   allowOverdraft?: boolean;
   overdraftLimit?: number;
   minimumBalance?: number;
+  /** ISO date string; null when the product has no lock-in period. */
+  lockinExpiryDate?: string;
 }
 
 export interface AccountHold {

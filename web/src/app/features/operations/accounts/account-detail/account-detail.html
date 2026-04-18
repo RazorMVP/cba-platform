@@ -135,6 +135,12 @@
             Min. balance {{ account.minimumBalance | number:'1.2-2' }} {{ account.currencyCode }}
           </div>
         }
+        @if (inLockinPeriod) {
+          <div class="balance-min">
+            <span class="material-icons">lock</span>
+            Lock-in until {{ account.lockinExpiryDate | date:'mediumDate' }}
+          </div>
+        }
       </div>
 
       <div class="acct-header__status">

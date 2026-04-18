@@ -59,6 +59,52 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 90 — 2026-04-18
+**Module 2 Account Management — minRequiredOpeningBalance enforcement at activation + lock-in period withdrawal block; both gates controlled by runtime GlobalConfiguration flags.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/…/db/migration/V40__account_constraint_configs.sql` | Seeds two GlobalConfiguration rows: `enforce-min-required-opening-balance` and `enforce-lockin-period-withdrawal` (both enabled by default) |
+| `backend/…/dto/AccountResponse.java` | Added nullable `lockinExpiryDate` field |
+| `backend/…/AccountService.java` | Injected `GlobalConfigurationRepository`; added `isConfigEnabled()` and `computeLockinExpiry()` helpers; `activateAccount()` enforces min opening balance when flag is on; `withdraw()` blocks during lock-in period when flag is on; `toResponse()` populates `lockinExpiryDate` |
+| `web/…/account.service.ts` | `Account` interface: added optional `lockinExpiryDate` string field |
+| `web/…/account-detail.ts` | Added `inLockinPeriod` getter (compares today's ISO date string to `account.lockinExpiryDate`) |
+| `web/…/account-detail.html` | Lock-in badge (`lock` icon + "Lock-in until [date]") rendered in header alongside overdraft/min-balance indicators |
+
+#### Key Patterns / Decisions
+- Both constraints read from `GlobalConfiguration` at runtime — admins toggle via the existing `PUT /api/v1/configurations` endpoint (surfaced in `GlobalConfigComponent`) with no redeployment needed.
+- `isConfigEnabled(name)` requires BOTH `is_enabled=true` AND `boolean_value=true` — the double gate lets an admin disable the entry (`is_enabled=false`) as a kill switch without changing the intended value.
+- `computeLockinExpiry()` is a pure helper (no DB call); reused by both `withdraw()` and `toResponse()` to keep the date logic in one place.
+- Lock-in check uses `!LocalDate.now().isAfter(expiry)` — blocks on the expiry date itself (last day of lock-in is still locked), consistent with Mifos behaviour.
+- `minRequiredOpeningBalance` is checked at **activation** (APPROVED → ACTIVE), not at account creation — the account is SUBMITTED at creation with zero balance; the first deposit(s) happen before activation.
+- Angular `inLockinPeriod` getter compares ISO date strings lexicographically (`today <= expiry`) — valid for `yyyy-MM-dd` format; no Date parsing needed.
+
+#### Build Verification
+- `cd backend && ./mvnw compile` — BUILD SUCCESS (0 errors, JVM warnings only)
+
+#### Confirmed Platform Versions
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `37345c1` |
+| Java | 21 | `37345c1` |
+| Application artifact | `cba-backend 0.1.0-SNAPSHOT` | `37345c1` |
+| Keycloak admin client | 26.0.5 | `37345c1` |
+| springdoc-openapi | 2.8.6 | `37345c1` |
+| Lombok | 1.18.38 | `37345c1` |
+| PostgreSQL | 16 (Docker) | `37345c1` |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `37345c1` |
+| Angular CLI | 21.2.7 | `37345c1` |
+| PrimeNG | 21.0.x | `37345c1` |
+| RxJS | 7.8.x | `37345c1` |
+| TypeScript | 5.9.x | `37345c1` |
+| Vercel deployment | `cba-web-nine.vercel.app` | `37345c1` |
+
 ### Session 89 — 2026-04-18
 **Module 2 Account Management gap: Interest Posting UI — `calculateInterest` preview endpoint + `?command=postInterest` backend; "Post Interest" button and confirm modal on Angular Interest tab.**
 

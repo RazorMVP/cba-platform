@@ -31,5 +31,11 @@ public record AccountResponse(
         /** maximum negative balance allowed; null when allowOverdraft is false. */
         BigDecimal overdraftLimit,
         /** minimum balance the account must maintain; enforced on every debit. */
-        BigDecimal minimumBalance
+        BigDecimal minimumBalance,
+        /**
+         * Date on which the lock-in period expires (null when the product has no lock-in).
+         * Withdrawals are blocked before this date when the enforce-lockin-period-withdrawal
+         * global config flag is enabled.
+         */
+        LocalDate lockinExpiryDate
 ) {}

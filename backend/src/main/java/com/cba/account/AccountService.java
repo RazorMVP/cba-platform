@@ -290,6 +290,12 @@ public class AccountService {
     }
 
     @Transactional(readOnly = true)
+    public Page<TransactionResponse> getTransactionsByType(UUID accountId, TransactionType type, Pageable pageable) {
+        return transactionRepository.findByAccountIdAndTransactionType(accountId, type, pageable)
+            .map(this::toTransactionResponse);
+    }
+
+    @Transactional(readOnly = true)
     public Page<TransactionResponse> getTransactionsByDateRange(
             UUID accountId, LocalDate from, LocalDate to, Pageable pageable) {
         Instant fromInstant = from.atStartOfDay(ZoneOffset.UTC).toInstant();

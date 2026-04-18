@@ -123,11 +123,14 @@ public class AccountController {
 
     @GetMapping("/{id}/transactions")
     @PreAuthorize("hasAnyRole('ADMIN', 'TELLER', 'CUSTOMER')")
-    @Operation(summary = "Get paginated transaction history for an account")
+    @Operation(summary = "Get paginated transaction history for an account; optionally filter by transactionType")
     public ResponseEntity<ApiResponse<Page<TransactionResponse>>> getTransactions(
             @PathVariable UUID id,
+            @RequestParam(required = false) TransactionType transactionType,
             @PageableDefault(size = 20, sort = "transactionDate") Pageable pageable) {
-        Page<TransactionResponse> page = accountService.getTransactions(id, pageable);
+        Page<TransactionResponse> page = transactionType != null
+            ? accountService.getTransactionsByType(id, transactionType, pageable)
+            : accountService.getTransactions(id, pageable);
         return ResponseEntity.ok(ApiResponse.ok(page,
             ApiResponse.PageMeta.of(page.getNumber(), page.getSize(), page.getTotalElements())));
     }

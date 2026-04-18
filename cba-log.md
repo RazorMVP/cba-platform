@@ -59,6 +59,49 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 87 — 2026-04-18
+**Module 2 Account Management — Interest tab on AccountDetailComponent; `?transactionType=` filter on transactions endpoint.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/src/main/java/com/cba/account/TransactionRepository.java` | UPDATED — `findByAccountIdAndTransactionType()` added (Spring Data derived query; uses V39 composite index) |
+| `backend/src/main/java/com/cba/account/AccountService.java` | UPDATED — `getTransactionsByType()` method added |
+| `backend/src/main/java/com/cba/account/AccountController.java` | UPDATED — `GET /api/v1/accounts/{id}/transactions` now accepts optional `?transactionType=` param; delegates to `getTransactionsByType()` when present |
+| `web/src/app/features/operations/accounts/account.service.ts` | UPDATED — `getTransactions()` accepts optional `transactionType` param forwarded as query string; `Transaction.transactionType` widened to `string` (supports INTEREST_CREDIT, TRANSFER_DEBIT, etc.) |
+| `web/src/app/features/operations/accounts/account-detail/account-detail.ts` | UPDATED — `'interest'` added to `ActiveTab`; interest state vars (`intTxns`, `intPage`, `intTotal`, etc.); `loadIntTxns()` + pagination helpers; `isCredit()` helper replaces `=== 'CREDIT'` check to handle all credit subtypes |
+| `web/src/app/features/operations/accounts/account-detail/account-detail.html` | UPDATED — Interest tab button (with count badge) + full Interest tab panel (table + pagination + empty state) added between Transactions and Holds |
+
+#### Key Patterns / Decisions
+- **`?transactionType=` is additive, not breaking** — existing callers with no param get the same behaviour; Angular interest tab passes `INTEREST_CREDIT`; could equally filter `TRANSFER_DEBIT`, etc. in future.
+- **`isCredit()` uses `includes('CREDIT')`** — covers `CREDIT`, `INTEREST_CREDIT`, `TRANSFER_CREDIT` all at once without maintaining an explicit enum list.
+- **Interest tab shows 4 decimal places** — interest amounts are computed to 4dp by `InterestAccrualJob`; showing 2dp would truncate meaningful precision for small balances.
+- **Interest tab badge counts total, not page** — `intTotal` is set on first load and reflects the full server-side count.
+
+#### Build Verification
+`cd backend && ./mvnw clean compile` → BUILD SUCCESS (0 errors)
+`cd web && npx ng build --configuration=production` → Build success (pre-existing warnings only, no errors)
+
+#### Confirmed Platform Versions
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `28816a3` |
+| Java | 21 | `28816a3` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `28816a3` |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `28816a3` |
+| Angular CLI | 21.2.7 | `28816a3` |
+| PrimeNG | 21.0.x | `28816a3` |
+| RxJS | 7.8.x | `28816a3` |
+| TypeScript | 5.9.x | `28816a3` |
+| Vercel deployment | `cba-web-nine.vercel.app` | `28816a3` |
+
+---
+
 ### Session 86 — 2026-04-18
 **Module 2 Account Management — minimum balance enforcement, overdraft support, interest credit transaction records, new account template endpoint; React frontend permanently deleted.**
 

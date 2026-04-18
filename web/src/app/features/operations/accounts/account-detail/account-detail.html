@@ -171,6 +171,12 @@
       <button class="tab-item" [class.tab-item--active]="activeTab === 'transactions'" (click)="setTab('transactions')">
         <span class="material-icons">receipt_long</span> Transactions
       </button>
+      <button class="tab-item" [class.tab-item--active]="activeTab === 'interest'" (click)="setTab('interest')">
+        <span class="material-icons">savings</span> Interest
+        @if (intTotal > 0) {
+          <span class="tab-badge">{{ intTotal }}</span>
+        }
+      </button>
       <button class="tab-item" [class.tab-item--active]="activeTab === 'holds'" (click)="setTab('holds')">
         <span class="material-icons">lock</span> Holds
         @if (holds.length > 0) {
@@ -282,6 +288,74 @@
                 </button>
                 <span class="pagination__page">{{ txnPage + 1 }} / {{ txnTotalPages }}</span>
                 <button class="pagination__btn" [disabled]="(txnPage + 1) * txnPageSize >= txnTotal" (click)="nextTxnPage()">
+                  <span class="material-icons">chevron_right</span>
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+
+      }
+    }
+
+    <!-- ── INTEREST TAB ── -->
+    @if (activeTab === 'interest') {
+
+      @if (intLoading) {
+        <div class="txn-loading">
+          <div class="skeleton skeleton--table-row"></div>
+          <div class="skeleton skeleton--table-row"></div>
+          <div class="skeleton skeleton--table-row"></div>
+        </div>
+      } @else {
+
+        <div class="card">
+          <div class="card__header">
+            Interest Accruals
+            <span class="card__count">{{ intTotal }} total</span>
+          </div>
+
+          @if (intTxns.length === 0) {
+            <div class="empty-state">
+              <span class="material-icons">savings</span>
+              <p>No interest credits yet. Interest is accrued nightly by the CoB scheduler.</p>
+            </div>
+          } @else {
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th class="col-amount">Interest Credited</th>
+                  <th class="col-amount">Running Balance</th>
+                  <th>Reference</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (t of intTxns; track t.id) {
+                  <tr>
+                    <td>{{ t.transactionDate | date:'mediumDate' }}</td>
+                    <td class="col-amount">
+                      <span class="amount--credit">+{{ t.amount | number:'1.4-4' }}</span>
+                    </td>
+                    <td class="col-amount muted">{{ t.runningBalance | number:'1.2-2' }}</td>
+                    <td class="muted">{{ t.referenceNumber ?? '—' }}</td>
+                    <td class="muted">{{ t.description ?? '—' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+
+            <div class="pagination">
+              <span class="pagination__info">
+                {{ intStartRow }}–{{ intEndRow }} of {{ intTotal }}
+              </span>
+              <div class="pagination__controls">
+                <button class="pagination__btn" [disabled]="intPage === 0" (click)="prevIntPage()">
+                  <span class="material-icons">chevron_left</span>
+                </button>
+                <span class="pagination__page">{{ intPage + 1 }} / {{ intTotalPages }}</span>
+                <button class="pagination__btn" [disabled]="(intPage + 1) * intPageSize >= intTotal" (click)="nextIntPage()">
                   <span class="material-icons">chevron_right</span>
                 </button>
               </div>

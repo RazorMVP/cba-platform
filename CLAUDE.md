@@ -20,7 +20,7 @@ These are the verified-working versions for both production components. Update t
 | **Lombok** | 1.18.38 | Minimum for Java 25 `TypeTag` fix; also works on Java 21 |
 | **PostgreSQL** | 16 | Via Docker; schema managed by Flyway |
 | **AWS SDK v2 S3** | 2.26.12 | Optional — for S3/MinIO/GCS image storage |
-| **Last git commit** | `e299164` | `feat(accounts): add account holds, dormancy CoB job, reactivate command` |
+| **Last git commit** | `28816a3` | `feat(accounts): min balance/overdraft enforcement, INTEREST_CREDIT tx records, account template endpoint` |
 
 ### Angular Web App (`web/`)
 
@@ -33,7 +33,7 @@ These are the verified-working versions for both production components. Update t
 | **TypeScript** | 5.9.x | `~5.9.2` pinned |
 | **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma) |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `ebe47bd` | `fix(reports): listMailingJobs crashes @for by passing Spring Page as array` |
+| **Last git commit** | `28816a3` | `feat(accounts): min balance/overdraft enforcement, INTEREST_CREDIT tx records, account template endpoint` |
 
 > **Session 66 CI fixes**: Angular 21 uses Vitest (not Karma) — `--browsers=ChromeHeadless` and `--code-coverage` are invalid flags. `vercel deploy --prebuilt` requires `.vercel/output/` from `vercel build`, not `dist/` from `ng build`. All three issues fixed; CI pipeline and Vercel production deployment now fully green.
 
@@ -2451,7 +2451,7 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Customers list | `CustomersListComponent` | `OperationsModule`  | ✅ Built — debounced search, KYC filter tabs, pagination |
 | Customer detail | `CustomerDetailComponent` | `OperationsModule`  | ✅ Built — 7 tabs (Overview/Accounts/Loans/Staff/Transfer + KYC state machine); 12 command modals; `PUT /{id}` profile edit _(Session 49)_ |
 | Accounts list | `AccountsListComponent` | `OperationsModule`  | ✅ Built — type filter, pagination |
-| Account detail | `AccountDetailComponent` | `OperationsModule`  | ✅ Built — header card, overview/transactions tabs, freeze/unfreeze/close/deposit/withdraw modals, Statement modal; `isNew` mode: shows Open Account form |
+| Account detail | `AccountDetailComponent` | `OperationsModule`  | ✅ Built — header card, overview/transactions/interest/holds tabs, freeze/unfreeze/close/deposit/withdraw modals, Statement modal; Interest tab filters by `INTEREST_CREDIT` (4dp amounts, CoB reference); `isNew` mode: shows Open Account form |
 | Payments list | `PaymentsListComponent` | `OperationsModule`  | ✅ Built — account context picker, paginated payment history, 3-step transfer wizard modal, standing order modal |
 | Payment detail | `PaymentDetailComponent` | `OperationsModule`  | ✅ Built — status band with FX details, transfer route card, payment details card, reverse modal |
 | Teller list | `TellerListComponent` | `OperationsModule`  | ✅ Built — search + status filter, create teller modal |

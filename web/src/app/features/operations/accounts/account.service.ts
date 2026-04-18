@@ -44,7 +44,7 @@ export interface AccountHoldRequest {
 export interface Transaction {
   id: string;
   accountId: string;
-  transactionType: 'CREDIT' | 'DEBIT';
+  transactionType: string;
   amount: number;
   runningBalance: number;
   referenceNumber?: string;
@@ -101,8 +101,10 @@ export class AccountService {
     return this.api.putParams<Account>(`/accounts/${id}/status`, { status: 'CLOSED' });
   }
 
-  getTransactions(id: string, page = 0, size = 20): Observable<PageResponse<Transaction>> {
-    return this.api.getPage<Transaction>(`/accounts/${id}/transactions`, page, size);
+  getTransactions(id: string, page = 0, size = 20, transactionType?: string): Observable<PageResponse<Transaction>> {
+    const params: Record<string, string> = {};
+    if (transactionType) params['transactionType'] = transactionType;
+    return this.api.getPage<Transaction>(`/accounts/${id}/transactions`, page, size, params);
   }
 
   deposit(id: string, amount: number, description?: string): Observable<Transaction> {

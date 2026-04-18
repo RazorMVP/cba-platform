@@ -7,7 +7,7 @@ import { AccountService, Account, Transaction, AccountCreateRequest, AccountHold
 import { CustomerService, ImageMeta } from '../../customers/customer.service';
 import { PageResponse } from '../../../../core/models/api-response.model';
 
-type ActiveTab = 'overview' | 'transactions' | 'holds';
+type ActiveTab = 'overview' | 'transactions' | 'interest' | 'holds';
 type ModalType = 'approve' | 'activate' | 'reject' | 'freeze' | 'unfreeze' | 'close' | 'deposit' | 'withdraw' | 'statement' | 'placeHold' | 'releaseHold' | 'reactivate' | null;
 
 @Component({
@@ -48,6 +48,14 @@ export class AccountDetailComponent implements OnInit {
   txnLoading    = false;
   txnLoaded     = false;
   readonly txnPageSize = 20;
+
+  // Interest tab (lazy-loaded)
+  intTxns: Transaction[]  = [];
+  intPage       = 0;
+  intTotal      = 0;
+  intLoading    = false;
+  intLoaded     = false;
+  readonly intPageSize = 20;
 
   // Holds tab (lazy-loaded)
   holds: AccountHold[]    = [];
@@ -155,6 +163,7 @@ export class AccountDetailComponent implements OnInit {
   setTab(tab: ActiveTab): void {
     this.activeTab = tab;
     if (tab === 'transactions' && !this.txnLoaded) this.loadTxns();
+    if (tab === 'interest'     && !this.intLoaded) this.loadIntTxns();
     if (tab === 'holds' && !this.holdsLoaded)       this.loadHolds();
   }
 
@@ -187,6 +196,36 @@ export class AccountDetailComponent implements OnInit {
   get txnTotalPages(): number { return Math.max(1, Math.ceil(this.txnTotal / this.txnPageSize)); }
   get txnStartRow():   number { return this.txnTotal === 0 ? 0 : this.txnPage * this.txnPageSize + 1; }
   get txnEndRow():     number { return Math.min((this.txnPage + 1) * this.txnPageSize, this.txnTotal); }
+
+  // ── Interest ────────────────────────────────────────────────────────────────
+
+  loadIntTxns(): void {
+    if (!this.account) return;
+    this.intLoading = true;
+    this.svc.getTransactions(this.account.id, this.intPage, this.intPageSize, 'INTEREST_CREDIT').subscribe({
+      next: (p: PageResponse<Transaction>) => {
+        this.intTxns    = p.content;
+        this.intTotal   = p.totalElements;
+        this.intLoaded  = true;
+        this.intLoading = false;
+      },
+      error: () => { this.intLoading = false; },
+    });
+  }
+
+  prevIntPage(): void {
+    if (this.intPage > 0) { this.intPage--; this.intLoaded = false; this.loadIntTxns(); }
+  }
+
+  nextIntPage(): void {
+    if ((this.intPage + 1) * this.intPageSize < this.intTotal) {
+      this.intPage++; this.intLoaded = false; this.loadIntTxns();
+    }
+  }
+
+  get intTotalPages(): number { return Math.max(1, Math.ceil(this.intTotal / this.intPageSize)); }
+  get intStartRow():   number { return this.intTotal === 0 ? 0 : this.intPage * this.intPageSize + 1; }
+  get intEndRow():     number { return Math.min((this.intPage + 1) * this.intPageSize, this.intTotal); }
 
   // ── Holds ──────────────────────────────────────────────────────────────────
 
@@ -369,11 +408,15 @@ export class AccountDetailComponent implements OnInit {
     return 'neutral'; // DORMANT, CLOSED
   }
 
+  isCredit(t: Transaction): boolean {
+    return t.transactionType.includes('CREDIT');
+  }
+
   txnClass(t: Transaction): string {
-    return t.transactionType === 'CREDIT' ? 'amount--credit' : 'amount--debit';
+    return this.isCredit(t) ? 'amount--credit' : 'amount--debit';
   }
 
   txnSign(t: Transaction): string {
-    return t.transactionType === 'CREDIT' ? '+' : '−';
+    return this.isCredit(t) ? '+' : '−';
   }
 }

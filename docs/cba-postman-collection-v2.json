@@ -1337,8 +1337,367 @@
             "description": "Returns the deposit product configuration applied to this account (rates, limits, overdraft settings)."
           },
           "response": []
+        },
+        {
+          "name": "Approve Account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/:id?command=approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts",
+                ":id"
+              ],
+              "query": [
+                {
+                  "key": "command",
+                  "value": "approve"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "account-uuid"
+                }
+              ]
+            },
+            "description": "Lifecycle command: SUBMITTED \u2192 APPROVED. Indicates credit/compliance check passed. Roles: ADMIN, TELLER."
+          },
+          "response": [
+            {
+              "name": "200 OK \u2014 Approved",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": \"account-uuid\",\n    \"accountNumber\": \"001-SAV-0001234\",\n    \"status\": \"APPROVED\",\n    \"balance\": 0.0000,\n    \"availableBalance\": 0.0000,\n    \"onHoldAmount\": 0.0000\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            },
+            {
+              "name": "400 Bad Request \u2014 Wrong state",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{\"code\": \"INVALID_STATE_TRANSITION\", \"message\": \"Cannot approve account in ACTIVE status\"}]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Activate Account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/:id?command=activate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts",
+                ":id"
+              ],
+              "query": [
+                {
+                  "key": "command",
+                  "value": "activate"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "account-uuid"
+                }
+              ]
+            },
+            "description": "Lifecycle command: APPROVED \u2192 ACTIVE. Account is now ready for deposits, withdrawals, and transfers. Roles: ADMIN, TELLER."
+          },
+          "response": [
+            {
+              "name": "200 OK \u2014 Activated",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": \"account-uuid\",\n    \"accountNumber\": \"001-SAV-0001234\",\n    \"status\": \"ACTIVE\",\n    \"balance\": 0.0000,\n    \"availableBalance\": 0.0000,\n    \"onHoldAmount\": 0.0000,\n    \"lastTransactionDate\": null\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Reject Account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/:id?command=reject",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts",
+                ":id"
+              ],
+              "query": [
+                {
+                  "key": "command",
+                  "value": "reject"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "account-uuid"
+                }
+              ]
+            },
+            "description": "Lifecycle command: SUBMITTED \u2192 REJECTED. Terminal state \u2014 a rejected account cannot be reopened. Roles: ADMIN, TELLER."
+          },
+          "response": []
+        },
+        {
+          "name": "Reactivate Dormant Account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/:id?command=reactivate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts",
+                ":id"
+              ],
+              "query": [
+                {
+                  "key": "command",
+                  "value": "reactivate"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "account-uuid"
+                }
+              ]
+            },
+            "description": "Lifecycle command: DORMANT \u2192 ACTIVE. Reactivates an account that was classified as dormant by the nightly CoB job (DormancyClassificationJob at 23:56; 90-day inactivity cutoff). Also expires any ACTIVE holds on the account. Roles: ADMIN, TELLER."
+          },
+          "response": []
+        },
+        {
+          "name": "List Account Holds",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/:id/holds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts",
+                ":id",
+                "holds"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "account-uuid"
+                }
+              ]
+            },
+            "description": "List all funds holds on an account. Status values: ACTIVE (reducing availableBalance), RELEASED (manually released), EXPIRED (past expiryDate or expired by dormancy job). Roles: ADMIN, TELLER."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"hold-uuid\",\n      \"accountId\": \"account-uuid\",\n      \"amount\": 500.0000,\n      \"reason\": \"Regulatory freeze pending investigation\",\n      \"referenceNumber\": \"HLD-20260418-001\",\n      \"status\": \"ACTIVE\",\n      \"expiryDate\": \"2026-05-18\",\n      \"releasedAt\": null,\n      \"releasedBy\": null,\n      \"createdAt\": \"2026-04-18T09:00:00Z\",\n      \"createdBy\": \"admin@cba.com\"\n    }\n  ],\n  \"meta\": {},\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Place Account Hold",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 500.00,\n  \"reason\": \"Regulatory freeze pending investigation\",\n  \"expiryDate\": \"2026-05-18\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/:id/holds",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts",
+                ":id",
+                "holds"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "account-uuid"
+                }
+              ]
+            },
+            "description": "Place a funds hold on an ACTIVE account. The hold reduces availableBalance immediately but does NOT change the ledger balance. Multiple concurrent holds are allowed. expiryDate is optional \u2014 omit for a hold that never auto-expires. Roles: ADMIN, TELLER."
+          },
+          "response": [
+            {
+              "name": "200 OK \u2014 Hold Placed",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": \"new-hold-uuid\",\n    \"accountId\": \"account-uuid\",\n    \"amount\": 500.0000,\n    \"reason\": \"Regulatory freeze pending investigation\",\n    \"referenceNumber\": \"HLD-20260418-001\",\n    \"status\": \"ACTIVE\",\n    \"expiryDate\": \"2026-05-18\",\n    \"createdAt\": \"2026-04-18T09:00:00Z\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            },
+            {
+              "name": "400 Bad Request \u2014 Account not ACTIVE",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{\"code\": \"INVALID_ACCOUNT_STATUS\", \"message\": \"Holds can only be placed on ACTIVE accounts\"}]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Release Account Hold",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/:id/holds/:holdId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts",
+                ":id",
+                "holds",
+                ":holdId"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "account-uuid"
+                },
+                {
+                  "key": "holdId",
+                  "value": "hold-uuid"
+                }
+              ]
+            },
+            "description": "Release a specific hold. Marks it RELEASED and immediately restores the held amount to availableBalance. Idempotent. Roles: ADMIN, TELLER."
+          },
+          "response": [
+            {
+              "name": "200 OK \u2014 Released",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": \"hold-uuid\",\n    \"status\": \"RELEASED\",\n    \"releasedAt\": \"2026-04-18T14:00:00Z\",\n    \"releasedBy\": \"teller@cba.com\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            }
+          ]
         }
       ]
+    },
+    {
+      "name": "02b \u00b7 Global Transactions",
+      "item": [
+        {
+          "name": "List All Transactions (Dashboard)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transactions?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Cross-account paginated transaction list sorted newest-first. Used by the dashboard recent activity panel. customerName is always null \u2014 customer PII requires a separate decryption context (resolve from accountNumber via customer module). ADMIN and TELLER only. Implemented in TransactionController at com.cba.account."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"content\": [\n      {\n        \"id\": \"txn-uuid\",\n        \"accountNumber\": \"001-SAV-0001234\",\n        \"customerName\": null,\n        \"transactionType\": \"CREDIT\",\n        \"amount\": 5000.0000,\n        \"runningBalance\": 7500.0000,\n        \"currencyCode\": \"USD\",\n        \"description\": \"Teller deposit\",\n        \"referenceNumber\": \"TXN-20260418-001\",\n        \"createdAt\": \"2026-04-18T09:15:00Z\"\n      }\n    ],\n    \"number\": 0,\n    \"size\": 10,\n    \"totalElements\": 342\n  },\n  \"meta\": { \"page\": 0, \"size\": 10, \"total\": 342 },\n  \"errors\": []\n}"
+            }
+          ]
+        }
+      ],
+      "description": "Global transaction listing across all accounts. GET /api/v1/transactions \u2014 paginated, sorted newest-first, ADMIN/TELLER only. Used by the dashboard recent activity panel. Note: customerName is always null in this endpoint."
     },
     {
       "name": "03 \u00b7 Loans",

@@ -115,6 +115,7 @@ details.endpoint[open] .endpoint-body{display:block}
     <div class="section-head">Modules</div>
     <a href="#customers">Customers</a>
     <a href="#accounts">Accounts</a>
+    <a href="#transactions-global">Global Transactions</a>
     <a href="#loans">Loans</a>
     <a href="#payments">Payments &amp; Transfers</a>
     <a href="#products">Products</a>
@@ -896,6 +897,113 @@ Where:
   <div class="endpoint-body">
     <p>Roles: ADMIN, TELLER, CUSTOMER. Returns the deposit product settings currently applied to this account — interest rate, compounding, minimum balance, overdraft config. Useful for displaying product terms to the customer.</p>
     <pre>{ "data": { "productId": "...", "productName": "Classic Savings", "interestRate": 3.50, "interestCompounding": "MONTHLY", "minimumBalance": 100.00, "allowOverdraft": false, "currency": "USD" } }</pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary>
+    <span class="method post">POST</span>
+    <span class="endpoint-path">/api/v1/accounts/{id}?command=approve|activate|reject|reactivate</span>
+    <span class="endpoint-summary">Execute account lifecycle command</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Roles: ADMIN, TELLER. Drives the account through its lifecycle state machine. New accounts start as <code>SUBMITTED</code>.</p>
+    <table>
+    <tr><th>Command</th><th>From</th><th>To</th><th>Notes</th></tr>
+    <tr><td><code>approve</code></td><td>SUBMITTED</td><td>APPROVED</td><td>Credit/compliance check passed</td></tr>
+    <tr><td><code>activate</code></td><td>APPROVED</td><td>ACTIVE</td><td>Account ready for transactions</td></tr>
+    <tr><td><code>reject</code></td><td>SUBMITTED</td><td>REJECTED</td><td>Terminal — account cannot be reopened</td></tr>
+    <tr><td><code>reactivate</code></td><td>DORMANT</td><td>ACTIVE</td><td>Reactivates a dormancy-classified account; also expires any active holds</td></tr>
+    </table>
+    <pre>POST /api/v1/accounts/acct-uuid?command=approve
+{ "data": { "id": "acct-uuid", "status": "APPROVED", ... } }</pre>
+  </div>
+</details>
+
+<h3>Account Holds <span style="font-size:.75rem;font-weight:400;color:#065f46;background:#d1fae5;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Live — Session 80</span></h3>
+<p>Funds holds reserve a portion of the account balance. <code>availableBalance = balance − Σ(ACTIVE holds)</code>. The <code>AccountResponse</code> includes <code>availableBalance</code>, <code>onHoldAmount</code>, and <code>lastTransactionDate</code>. Holds are automatically expired when an account is marked DORMANT (nightly CoB at 23:56).</p>
+
+<details class="endpoint">
+  <summary>
+    <span class="method get">GET</span>
+    <span class="endpoint-path">/api/v1/accounts/{id}/holds</span>
+    <span class="endpoint-summary">List all holds on an account</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Roles: ADMIN, TELLER. Returns all holds — ACTIVE and RELEASED. Status: <code>ACTIVE | RELEASED | EXPIRED</code>.</p>
+    <pre>{ "data": [ { "id": "hold-uuid", "accountId": "acct-uuid", "amount": 500.00, "reason": "Regulatory freeze", "referenceNumber": "HLD-001", "status": "ACTIVE", "expiryDate": "2026-05-18", "createdAt": "2026-04-18T09:00:00Z" } ] }</pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary>
+    <span class="method post">POST</span>
+    <span class="endpoint-path">/api/v1/accounts/{id}/holds</span>
+    <span class="endpoint-summary">Place a funds hold on an account</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Roles: ADMIN, TELLER. Hold reduces <code>availableBalance</code> immediately. Account must be ACTIVE. Hold does not reduce the ledger balance — only the spendable balance.</p>
+    <table>
+    <tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr>
+    <tr><td><code>amount</code></td><td>decimal</td><td>✓</td><td>Amount to hold (&gt; 0)</td></tr>
+    <tr><td><code>reason</code></td><td>string</td><td>✓</td><td>Free text reason for the hold</td></tr>
+    <tr><td><code>expiryDate</code></td><td>date</td><td></td><td>Optional — hold never expires if omitted</td></tr>
+    </table>
+    <pre>{ "amount": 500.00, "reason": "Regulatory freeze pending investigation", "expiryDate": "2026-05-18" }</pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary>
+    <span class="method delete">DELETE</span>
+    <span class="endpoint-path">/api/v1/accounts/{id}/holds/{holdId}</span>
+    <span class="endpoint-summary">Release a specific hold</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Roles: ADMIN, TELLER. Marks the hold as RELEASED and immediately restores the held amount to <code>availableBalance</code>. Idempotent — releasing an already-released hold returns 200.</p>
+    <pre>DELETE /api/v1/accounts/acct-uuid/holds/hold-uuid
+{ "data": { "id": "hold-uuid", "status": "RELEASED", "releasedAt": "2026-04-18T14:00:00Z" } }</pre>
+  </div>
+</details>
+</section>
+
+<!-- GLOBAL TRANSACTIONS ──────────────────────────────────────────────────── -->
+<section id="transactions-global">
+<h2>Global Transactions <span style="font-size:.75rem;font-weight:400;color:#065f46;background:#d1fae5;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Live — Session 67</span></h2>
+<p>Cross-account paginated transaction list. Used by the dashboard recent activity panel. Returns all transactions across all accounts, sorted newest-first. <code>customerName</code> is always <code>null</code> in this response — customer PII requires a separate decryption context (resolve from <code>accountNumber</code> via the customer module). Implemented in <code>TransactionController</code> at <code>com.cba.account</code>.</p>
+
+<details class="endpoint">
+  <summary>
+    <span class="method get">GET</span>
+    <span class="endpoint-path">/api/v1/transactions</span>
+    <span class="endpoint-summary">Paginated list of all transactions (dashboard)</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Roles: ADMIN, TELLER. Query params: <code>?page=0&amp;size=10</code>. Sorted by <code>transactionDate</code> descending.</p>
+    <pre>GET /api/v1/transactions?page=0&size=10
+{
+  "data": {
+    "content": [
+      {
+        "id": "txn-uuid",
+        "accountNumber": "001-SAV-0001234",
+        "customerName": null,
+        "transactionType": "CREDIT",
+        "amount": 5000.00,
+        "runningBalance": 7500.00,
+        "currencyCode": "USD",
+        "description": "Teller deposit",
+        "referenceNumber": "TXN-20260418-001",
+        "createdAt": "2026-04-18T09:15:00Z"
+      }
+    ],
+    "number": 0,
+    "size": 10,
+    "totalElements": 342
+  },
+  "meta": { "page": 0, "size": 10, "total": 342 },
+  "errors": []
+}</pre>
   </div>
 </details>
 </section>
@@ -2505,6 +2613,14 @@ Content-Type: application/json
 <tr><td>POST</td><td>/api/v1/accounts/{id}/deposit</td><td>Teller deposit — creates immutable Transaction ledger record</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/accounts/{id}/withdraw</td><td>Teller withdrawal — enforces minimum balance rule</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/accounts/{id}/transactions</td><td>Transaction ledger (paginated)</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>POST</td><td>/api/v1/accounts/{id}?command=approve</td><td>SUBMITTED → APPROVED lifecycle command</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/accounts/{id}?command=activate</td><td>APPROVED → ACTIVE lifecycle command</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/accounts/{id}?command=reject</td><td>SUBMITTED → REJECTED lifecycle command</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/accounts/{id}?command=reactivate</td><td>DORMANT → ACTIVE; expires active holds</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/accounts/{id}/holds</td><td>List funds holds (ACTIVE/RELEASED/EXPIRED)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/accounts/{id}/holds</td><td>Place a funds hold; reduces availableBalance</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/accounts/{id}/holds/{holdId}</td><td>Release hold; restores availableBalance</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/transactions</td><td>All transactions paginated — dashboard recent activity</td><td>ADMIN, TELLER</td></tr>
 <!-- Loans -->
 <tr><td>GET</td><td>/api/v1/loans</td><td>List loans</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/loans/{id}</td><td>Get loan</td><td>ADMIN, TELLER</td></tr>

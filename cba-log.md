@@ -59,6 +59,59 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 84 — 2026-04-18
+**Treasury module built end-to-end: Flyway V37, backend entities/service/controller, Angular Placements + Interbank screens with full CRUD + command pattern.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/src/main/resources/db/migration/V37__treasury_module.sql` | NEW — `treasury_placements` + `treasury_interbank_positions` tables, indexes, 3+2 seed rows |
+| `backend/src/main/java/com/cba/treasury/TreasuryPlacement.java` | NEW — JPA entity; `PlacementType` enum (FIXED_DEPOSIT/TREASURY_BILL/BOND/CALL_MONEY/REPO); `Status` enum (PENDING/ACTIVE/MATURED/CANCELLED) |
+| `backend/src/main/java/com/cba/treasury/TreasuryInterbankPosition.java` | NEW — JPA entity; `Direction` enum (LENDING/BORROWING); `Status` enum (ACTIVE/SETTLED/CANCELLED) |
+| `backend/src/main/java/com/cba/treasury/TreasuryPlacementRepository.java` | NEW |
+| `backend/src/main/java/com/cba/treasury/TreasuryInterbankPositionRepository.java` | NEW |
+| `backend/src/main/java/com/cba/treasury/TreasuryPlacementRequest.java` | NEW — validated record DTO |
+| `backend/src/main/java/com/cba/treasury/TreasuryInterbankRequest.java` | NEW — validated record DTO |
+| `backend/src/main/java/com/cba/treasury/TreasuryService.java` | NEW — activate/mature/cancel commands for placements; settle/cancel for positions |
+| `backend/src/main/java/com/cba/treasury/TreasuryController.java` | NEW — 12 REST endpoints at `/api/v1/treasury/placements` and `/api/v1/treasury/positions` |
+| `web/src/app/features/treasury/treasury.service.ts` | NEW — Angular service; typed interfaces for both entities |
+| `web/src/app/features/treasury/placements.ts/.html/.scss` | NEW — Placements component: table with type/status chips, command buttons (Activate/Mature/Cancel), CRUD modals |
+| `web/src/app/features/treasury/interbank.ts/.html/.scss` | NEW — Interbank component: direction chips (green=LENDING/red=BORROWING), Settle/Cancel commands, CRUD modals |
+| `web/src/app/features/treasury/treasury.routes.ts` | NEW — `placements` + `interbank` routes |
+| `web/src/app/app.routes.ts` | UPDATED — `treasury` lazy route added |
+| `web/src/app/layout/sidebar/sidebar.ts` | UPDATED — Treasury section added (Placements + Interbank nav items) |
+
+#### Key Patterns / Decisions
+- Command pattern (`?command=activate|mature|cancel`) mirrors existing modules (loans, accounts, fixed deposits).
+- `PENDING → ACTIVE → MATURED | CANCELLED` for placements; `ACTIVE → SETTLED | CANCELLED` for positions.
+- Maturity date is optional on interbank positions (supports open/revolving facilities).
+- Direction chips: LENDING=green, BORROWING=red — visual risk direction at a glance.
+- `com.cba.common.exception.CbaException` (not `com.cba.common.CbaException`) — corrected during build.
+
+#### Build Verification
+`cd backend && ./mvnw compile` → BUILD SUCCESS (0 errors)
+`cd web && npx ng build --configuration production` → BUILD SUCCESS (pre-existing warnings only, none from treasury code)
+
+#### Confirmed Platform Versions
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `e0bbd0d` (last backend SHA) |
+| Java | 21 | `e0bbd0d` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `e0bbd0d` |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `ebe47bd` (last web SHA — pre-commit) |
+| Angular CLI | 21.2.7 | `ebe47bd` |
+| PrimeNG | 21.0.x | `ebe47bd` |
+| RxJS | 7.8.x | `ebe47bd` |
+| TypeScript | 5.9.x | `ebe47bd` |
+| Vercel deployment | `cba-web-nine.vercel.app` | `ebe47bd` |
+
+---
+
 ### Session 83 — 2026-04-18
 **Fix: report-mailing modal completely broken on localhost — root cause was `GET /reportmailingjobs` returning `Page<T>` (not array), crashing `@for` change detection.**
 

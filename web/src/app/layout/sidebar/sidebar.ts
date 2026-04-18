@@ -111,6 +111,13 @@ export class SidebarComponent {
       ],
     },
     {
+      label: 'Treasury',
+      items: [
+        { label: 'Placements',         icon: 'account_balance',   route: '/treasury/placements' },
+        { label: 'Interbank',          icon: 'swap_horiz',        route: '/treasury/interbank' },
+      ],
+    },
+    {
       label: 'Admin',
       items: [
         { label: 'Users',              icon: 'manage_accounts',   route: '/admin/users' },

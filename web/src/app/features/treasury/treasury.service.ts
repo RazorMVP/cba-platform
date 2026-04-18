@@ -1,0 +1,126 @@
+import { Injectable, inject } from '@angular/core';
+import { Observable } from 'rxjs';
+import { ApiService } from '../../core/api/api.service';
+
+export interface TreasuryPlacement {
+  id: string;
+  reference: string;
+  counterpartyName: string;
+  counterpartyBic?: string;
+  placementType: 'FIXED_DEPOSIT' | 'TREASURY_BILL' | 'BOND' | 'CALL_MONEY' | 'REPO';
+  principal: number;
+  interestRate: number;
+  currencyCode: string;
+  startDate: string;
+  maturityDate: string;
+  status: 'PENDING' | 'ACTIVE' | 'MATURED' | 'CANCELLED';
+  expectedReturn?: number;
+  actualReturn?: number;
+  glSourceAccount?: string;
+  glIncomeAccount?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TreasuryInterbankPosition {
+  id: string;
+  reference: string;
+  counterpartyName: string;
+  counterpartyBic?: string;
+  direction: 'LENDING' | 'BORROWING';
+  amount: number;
+  currencyCode: string;
+  interestRate: number;
+  startDate: string;
+  maturityDate?: string;
+  status: 'ACTIVE' | 'SETTLED' | 'CANCELLED';
+  settlementGl?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlacementRequest {
+  reference: string;
+  counterpartyName: string;
+  counterpartyBic?: string;
+  placementType: string;
+  principal: number;
+  interestRate: number;
+  currencyCode: string;
+  startDate: string;
+  maturityDate: string;
+  expectedReturn?: number;
+  notes?: string;
+}
+
+export interface InterbankRequest {
+  reference: string;
+  counterpartyName: string;
+  counterpartyBic?: string;
+  direction: string;
+  amount: number;
+  currencyCode: string;
+  interestRate: number;
+  startDate: string;
+  maturityDate?: string;
+  notes?: string;
+}
+
+@Injectable({ providedIn: 'root' })
+export class TreasuryService {
+  private readonly api = inject(ApiService);
+
+  // ── Placements ──────────────────────────────────────────────────────────────
+
+  listPlacements(): Observable<TreasuryPlacement[]> {
+    return this.api.get<TreasuryPlacement[]>('/treasury/placements');
+  }
+
+  getPlacement(id: string): Observable<TreasuryPlacement> {
+    return this.api.get<TreasuryPlacement>(`/treasury/placements/${id}`);
+  }
+
+  createPlacement(req: PlacementRequest): Observable<TreasuryPlacement> {
+    return this.api.post<TreasuryPlacement>('/treasury/placements', req);
+  }
+
+  updatePlacement(id: string, req: PlacementRequest): Observable<TreasuryPlacement> {
+    return this.api.put<TreasuryPlacement>(`/treasury/placements/${id}`, req);
+  }
+
+  commandPlacement(id: string, command: string): Observable<TreasuryPlacement> {
+    return this.api.command<TreasuryPlacement>(`/treasury/placements/${id}`, command);
+  }
+
+  deletePlacement(id: string): Observable<void> {
+    return this.api.delete<void>(`/treasury/placements/${id}`);
+  }
+
+  // ── Interbank Positions ────────────────────────────────────────────────────
+
+  listPositions(): Observable<TreasuryInterbankPosition[]> {
+    return this.api.get<TreasuryInterbankPosition[]>('/treasury/positions');
+  }
+
+  getPosition(id: string): Observable<TreasuryInterbankPosition> {
+    return this.api.get<TreasuryInterbankPosition>(`/treasury/positions/${id}`);
+  }
+
+  createPosition(req: InterbankRequest): Observable<TreasuryInterbankPosition> {
+    return this.api.post<TreasuryInterbankPosition>('/treasury/positions', req);
+  }
+
+  updatePosition(id: string, req: InterbankRequest): Observable<TreasuryInterbankPosition> {
+    return this.api.put<TreasuryInterbankPosition>(`/treasury/positions/${id}`, req);
+  }
+
+  commandPosition(id: string, command: string): Observable<TreasuryInterbankPosition> {
+    return this.api.command<TreasuryInterbankPosition>(`/treasury/positions/${id}`, command);
+  }
+
+  deletePosition(id: string): Observable<void> {
+    return this.api.delete<void>(`/treasury/positions/${id}`);
+  }
+}

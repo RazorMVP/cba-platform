@@ -1,0 +1,211 @@
+<div class="page">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">account_balance</span>
+      Treasury Placements
+    </div>
+    <button class="btn-primary" (click)="openCreate()">
+      <span class="material-icons">add</span> New Placement
+    </button>
+  </div>
+
+  <!-- State -->
+  @if (loading) {
+    <div class="card skeleton-card">
+      @for (i of [1,2,3]; track i) { <div class="skeleton skeleton--row"></div> }
+    </div>
+  } @else if (error) {
+    <div class="card empty-state">
+      <span class="material-icons">error_outline</span>
+      <p>{{ error }}</p>
+      <button class="btn-primary" (click)="load()">Retry</button>
+    </div>
+  } @else if (placements.length === 0) {
+    <div class="card empty-state">
+      <span class="material-icons">account_balance</span>
+      <p>No treasury placements yet.</p>
+      <button class="btn-primary" (click)="openCreate()">
+        <span class="material-icons">add</span> Add First Placement
+      </button>
+    </div>
+  } @else {
+    <div class="card">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Reference</th>
+            <th>Counterparty</th>
+            <th>Type</th>
+            <th>Principal</th>
+            <th>Rate %</th>
+            <th>Maturity</th>
+            <th>Expected Return</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (p of placements; track p.id) {
+            <tr class="table-row">
+              <td><span class="ref-chip">{{ p.reference }}</span></td>
+              <td>
+                <div class="counterparty-name">{{ p.counterpartyName }}</div>
+                @if (p.counterpartyBic) { <div class="muted bic">{{ p.counterpartyBic }}</div> }
+              </td>
+              <td><span class="type-chip">{{ typeLabel(p.placementType) }}</span></td>
+              <td class="amount-cell">{{ formatAmount(p.principal, p.currencyCode) }}</td>
+              <td>{{ p.interestRate }}%</td>
+              <td class="muted">{{ p.maturityDate | date:'mediumDate' }}</td>
+              <td class="amount-cell muted">
+                @if (p.expectedReturn) { {{ formatAmount(p.expectedReturn, p.currencyCode) }} }
+                @else { — }
+              </td>
+              <td>
+                <span class="badge" [class]="statusClass(p.status)">{{ p.status }}</span>
+              </td>
+              <td class="action-cell">
+                @for (cmd of availableCommands(p); track cmd.cmd) {
+                  <button class="btn-action" (click)="openCommand(p, cmd.cmd); $event.stopPropagation()">
+                    {{ cmd.label }}
+                  </button>
+                }
+                <button class="btn-icon" title="Edit" (click)="openEdit(p); $event.stopPropagation()">
+                  <span class="material-icons">edit</span>
+                </button>
+                <button class="btn-icon btn-icon--danger" title="Delete"
+                        (click)="openDelete(p); $event.stopPropagation()">
+                  <span class="material-icons">delete</span>
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <div class="table-footer">{{ placements.length }} placement{{ placements.length === 1 ? '' : 's' }}</div>
+    </div>
+  }
+
+</div>
+
+<!-- Create / Edit Modal -->
+<div class="modal-backdrop" *ngIf="activeModal === 'create' || activeModal === 'edit'" (click)="closeModal()">
+  <div class="modal modal--lg" (click)="$event.stopPropagation()">
+    <div class="modal__header">
+      <span class="material-icons modal__icon">account_balance</span>
+      {{ activeModal === 'create' ? 'New Placement' : 'Edit Placement' }}
+    </div>
+    <div class="modal__body">
+      <div class="form-row">
+        <div class="form-field form-field--half">
+          <label class="form-label">Reference <span class="required">*</span></label>
+          <input class="form-input" type="text" [(ngModel)]="formReference"
+                 placeholder="e.g. TP-2026-001" [disabled]="activeModal === 'edit'" />
+        </div>
+        <div class="form-field form-field--half">
+          <label class="form-label">Type <span class="required">*</span></label>
+          <select class="form-input" [(ngModel)]="formType">
+            <option *ngFor="let t of placementTypes" [value]="t">{{ typeLabel(t) }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field form-field--half">
+          <label class="form-label">Counterparty <span class="required">*</span></label>
+          <input class="form-input" type="text" [(ngModel)]="formCounterparty"
+                 placeholder="Counterparty bank name" />
+        </div>
+        <div class="form-field form-field--half">
+          <label class="form-label">BIC / SWIFT</label>
+          <input class="form-input" type="text" [(ngModel)]="formBic"
+                 placeholder="e.g. FNBKUSXX" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field form-field--third">
+          <label class="form-label">Principal <span class="required">*</span></label>
+          <input class="form-input" type="number" [(ngModel)]="formPrincipal" min="0.01" />
+        </div>
+        <div class="form-field form-field--third">
+          <label class="form-label">Annual Rate % <span class="required">*</span></label>
+          <input class="form-input" type="number" [(ngModel)]="formRate" step="0.01" />
+        </div>
+        <div class="form-field form-field--third">
+          <label class="form-label">Currency</label>
+          <select class="form-input" [(ngModel)]="formCurrency">
+            <option *ngFor="let c of currencies" [value]="c">{{ c }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-field form-field--half">
+          <label class="form-label">Start Date <span class="required">*</span></label>
+          <input class="form-input" type="date" [(ngModel)]="formStartDate" />
+        </div>
+        <div class="form-field form-field--half">
+          <label class="form-label">Maturity Date <span class="required">*</span></label>
+          <input class="form-input" type="date" [(ngModel)]="formMaturityDate" />
+        </div>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Expected Return</label>
+        <input class="form-input" type="number" [(ngModel)]="formExpectedReturn" min="0" />
+      </div>
+      <div class="form-field">
+        <label class="form-label">Notes</label>
+        <input class="form-input" type="text" [(ngModel)]="formNotes"
+               placeholder="Optional notes" />
+      </div>
+      <div class="modal__error" *ngIf="modalError">{{ modalError }}</div>
+    </div>
+    <div class="modal__footer">
+      <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+      <button class="btn-primary" (click)="submitModal()"
+              [disabled]="modalWorking || !formReference || !formCounterparty || !formPrincipal || !formRate">
+        <span class="spinner" *ngIf="modalWorking"></span>
+        {{ activeModal === 'create' ? 'Create' : 'Save' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Modal -->
+<div class="modal-backdrop" *ngIf="activeModal === 'delete'" (click)="closeModal()">
+  <div class="modal modal--sm" (click)="$event.stopPropagation()">
+    <div class="modal__header">
+      <span class="material-icons modal__icon" style="color:#dc2626">delete</span>
+      Delete Placement
+    </div>
+    <div class="modal__body">
+      <p class="confirm-text">Delete placement <strong>{{ deletingRef }}</strong>? This cannot be undone.</p>
+      <div class="modal__error" *ngIf="modalError">{{ modalError }}</div>
+    </div>
+    <div class="modal__footer">
+      <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+      <button class="btn-danger" (click)="submitDelete()" [disabled]="modalWorking">
+        <span class="spinner" *ngIf="modalWorking"></span> Delete
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Command Confirm Modal -->
+<div class="modal-backdrop" *ngIf="activeModal === 'command'" (click)="closeModal()">
+  <div class="modal modal--sm" (click)="$event.stopPropagation()">
+    <div class="modal__header">
+      <span class="material-icons modal__icon">play_circle</span>
+      {{ commandLabel }} Placement
+    </div>
+    <div class="modal__body">
+      <p class="confirm-text">Are you sure you want to <strong>{{ commandLabel }}</strong> this placement?</p>
+      <div class="modal__error" *ngIf="modalError">{{ modalError }}</div>
+    </div>
+    <div class="modal__footer">
+      <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+      <button class="btn-primary" (click)="submitCommand()" [disabled]="modalWorking">
+        <span class="spinner" *ngIf="modalWorking"></span> {{ commandLabel }}
+      </button>
+    </div>
+  </div>
+</div>

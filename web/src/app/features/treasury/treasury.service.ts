@@ -123,4 +123,98 @@ export class TreasuryService {
   deletePosition(id: string): Observable<void> {
     return this.api.delete<void>(`/treasury/positions/${id}`);
   }
+
+  // ── Liquidity ────────────────────────────────────────────────────────────────
+
+  getLiquidityPositions(): Observable<LiquidityPosition[]> {
+    return this.api.get<LiquidityPosition[]>('/treasury/liquidity/positions');
+  }
+
+  getLiquidityPosition(currency: string): Observable<LiquidityPosition> {
+    return this.api.get<LiquidityPosition>(`/treasury/liquidity/positions/${currency}`);
+  }
+
+  getCashFlowForecast(currency: string, days = 30): Observable<CashFlowEntry[]> {
+    return this.api.get<CashFlowEntry[]>(`/treasury/liquidity/cashflow?currency=${currency}&days=${days}`);
+  }
+
+  listReserveRequirements(): Observable<ReserveRequirement[]> {
+    return this.api.get<ReserveRequirement[]>('/treasury/liquidity/reserves');
+  }
+
+  createReserveRequirement(req: ReserveRequest): Observable<ReserveRequirement> {
+    return this.api.post<ReserveRequirement>('/treasury/liquidity/reserves', req);
+  }
+
+  updateReserveRequirement(id: string, req: ReserveRequest): Observable<ReserveRequirement> {
+    return this.api.put<ReserveRequirement>(`/treasury/liquidity/reserves/${id}`, req);
+  }
+
+  deleteReserveRequirement(id: string): Observable<void> {
+    return this.api.delete<void>(`/treasury/liquidity/reserves/${id}`);
+  }
+
+  getLiquiditySnapshots(currency: string, limit = 30): Observable<LiquiditySnapshot[]> {
+    return this.api.get<LiquiditySnapshot[]>(`/treasury/liquidity/snapshots?currency=${currency}&limit=${limit}`);
+  }
+
+  takeSnapshot(): Observable<void> {
+    return this.api.post<void>('/treasury/liquidity/snapshots/take', {});
+  }
+}
+
+// ── Liquidity interfaces ─────────────────────────────────────────────────────
+
+export interface LiquidityPosition {
+  currency: string;
+  cashOnHand: number;
+  placementsDeployed: number;
+  interbankLending: number;
+  interbankBorrowing: number;
+  netLiquidityPosition: number;
+  reserveRequirement: number;
+  surplusDeficit: number;
+  alertLevel: 'OK' | 'WARN' | 'BREACH';
+  asOfDate: string;
+}
+
+export interface CashFlowEntry {
+  date: string;
+  type: string;
+  reference: string;
+  amount: number;
+  currency: string;
+  direction: 'INFLOW' | 'OUTFLOW';
+}
+
+export interface ReserveRequirement {
+  id: string;
+  currencyCode: string;
+  minimumBalance: number;
+  minimumRatioPercent?: number;
+  alertThresholdPercent?: number;
+  regulatoryReference?: string;
+  active: boolean;
+}
+
+export interface ReserveRequest {
+  currencyCode: string;
+  minimumBalance: number;
+  minimumRatioPercent?: number;
+  alertThresholdPercent?: number;
+  regulatoryReference?: string;
+}
+
+export interface LiquiditySnapshot {
+  id: string;
+  snapshotDate: string;
+  currencyCode: string;
+  cashOnHand: number;
+  placementsDeployed: number;
+  interbankLending: number;
+  interbankBorrowing: number;
+  netLiquidityPosition: number;
+  reserveRequirement?: number;
+  surplusDeficit?: number;
+  createdAt: string;
 }

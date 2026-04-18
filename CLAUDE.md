@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 84 — 2026-04-18)
+## Confirmed Platform Versions (Session 85 — 2026-04-18)
 
 These are the verified-working versions for both production components. Update this table whenever a dependency is upgraded.
 
@@ -2495,6 +2495,7 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | GL Closures | `GlClosuresComponent` | `AccountingModule` | ✅ Built — office picker, closures list (date/closedBy/comments), Create modal; POST uses query params not JSON body _(Session 69)_ |
 | Treasury Placements | `TreasuryPlacementsComponent` | `TreasuryModule` | ✅ Built — placement type chips, status badges, Activate/Mature/Cancel command buttons, CRUD modals with currency/date pickers _(Session 84)_ |
 | Treasury Interbank | `TreasuryInterbankComponent` | `TreasuryModule` | ✅ Built — direction chips (LENDING=green/BORROWING=red), Settle/Cancel commands, optional maturity date for open facilities, CRUD modals _(Session 84)_ |
+| Treasury Liquidity | `TreasuryLiquidityComponent` | `TreasuryModule` | ✅ Built — 4-tab: Position (KPI cards + breakdown table, 3-level alert), Cash Flow Forecast (30/60/90d horizon), Reserve Requirements CRUD, Snapshot History _(Session 85)_ |
 | Reports list | `ReportsListComponent` | `ReportsModule` | ✅ Built — search/category filter, dynamic param form, schema-on-read results table, CSV export, create/delete |
 | CoB Scheduler | `CobSchedulerComponent` | `ReportsModule` | ✅ Built — job cards with stats, Run Now trigger, inline history panel, duration helper |
 | Report Mailing Jobs | `ReportMailingComponent` | `ReportsModule` | ✅ Built — mailing job CRUD, RRULE schedule presets, output type chips, send-now trigger |
@@ -3081,7 +3082,7 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | Treasury placements / investments | ✅ `V37__treasury_module.sql`; `TreasuryPlacement` entity + service + controller; PENDING→ACTIVE→MATURED/CANCELLED _(Session 84)_ | ✅ `TreasuryPlacementsComponent` — type/status chips, Activate/Mature/Cancel commands, CRUD modals _(Session 84)_ | — |
 | Interbank positions (lending/borrowing) | ✅ `TreasuryInterbankPosition` entity + service + controller; ACTIVE→SETTLED/CANCELLED _(Session 84)_ | ✅ `TreasuryInterbankComponent` — direction chips (LENDING/BORROWING), Settle/Cancel commands, CRUD modals _(Session 84)_ | — |
 | Fund management (track sources of capital) | ⚠️ `Funds` entity in SystemModule | ✅ `FundsComponent` _(Session 77)_ | ⚠️ |
-| Liquidity management / cash position | ❌ Missing | ❌ Missing | ❌ |
+| Liquidity management / cash position | ✅ `LiquidityService` (computed position + cash flow forecast + reserve CRUD + CoB snapshot) _(Session 85)_ | ✅ `TreasuryLiquidityComponent` _(Session 85)_ | ✅ |
 | Inter-bank transfers (SWIFT/SEPA) | ❌ Stub only in payment module | ❌ Missing | ❌ |
 
 ---

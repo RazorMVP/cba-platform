@@ -59,6 +59,57 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 85 — 2026-04-18
+**Liquidity Management module built end-to-end: Flyway V38, backend computed-position service + reserve CRUD + snapshot CoB job, Angular 4-tab screen (Position / Cash Flow / Reserves / History).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/src/main/resources/db/migration/V38__liquidity_module.sql` | NEW — `liquidity_reserve_requirements` (UNIQUE per currency) + `liquidity_snapshots` tables; 3 seed reserve rows (USD/KES/GHS) |
+| `backend/src/main/java/com/cba/treasury/LiquidityReserveRequirement.java` | NEW — JPA entity; `alertThresholdPercent` drives WARN/BREACH alert level |
+| `backend/src/main/java/com/cba/treasury/LiquiditySnapshot.java` | NEW — JPA entity; point-in-time snapshot saved by CoB job at 23:50 |
+| `backend/src/main/java/com/cba/treasury/LiquidityReserveRequirementRepository.java` | NEW |
+| `backend/src/main/java/com/cba/treasury/LiquiditySnapshotRepository.java` | NEW |
+| `backend/src/main/java/com/cba/treasury/LiquidityReserveRequest.java` | NEW — validated record DTO |
+| `backend/src/main/java/com/cba/treasury/LiquidityService.java` | NEW — live position computed via JdbcTemplate (cross-repo, no entity imports); cash flow forecast from treasury_placements + interbank + loan_repayment_schedule; `@Scheduled(cron="0 50 23 * * *")` CoB snapshot job |
+| `backend/src/main/java/com/cba/treasury/LiquidityController.java` | NEW — 9 endpoints at `/api/v1/treasury/liquidity/` |
+| `web/src/app/features/treasury/treasury.service.ts` | UPDATED — liquidity interfaces + 8 new service methods appended |
+| `web/src/app/features/treasury/liquidity.ts` | NEW — 4-tab component: Position (KPI cards + breakdown table), Cash Flow Forecast (table + KPIs), Reserve Requirements (CRUD), Snapshot History |
+| `web/src/app/features/treasury/liquidity.html` | NEW |
+| `web/src/app/features/treasury/liquidity.scss` | NEW |
+| `web/src/app/features/treasury/treasury.routes.ts` | UPDATED — `liquidity` route added |
+| `web/src/app/layout/sidebar/sidebar.ts` | UPDATED — Liquidity nav item added under Treasury |
+
+#### Key Patterns / Decisions
+- Live position is **computed**, not stored — JdbcTemplate cross-joins accounts, treasury_placements, and treasury_interbank_positions without importing those domain repositories (same cross-package isolation pattern as `SearchService`, `ReportService`).
+- Three alert levels derived at query time: `OK` (surplus ≥ 0), `WARN` (surplus within alert-threshold band), `BREACH` (net < reserve requirement).
+- Cash flow forecast aggregates three sources: placement maturities (principal + expected return = INFLOW), interbank lending repayments (INFLOW), interbank borrowing repayments (OUTFLOW), plus scheduled loan repayments (INFLOW) from `loan_repayment_schedule`.
+- `LiquidityController` import corrected: `com.cba.common.response.ApiResponse` (not `com.cba.common.ApiResponse`).
+
+#### Build Verification
+`cd backend && ./mvnw compile` → BUILD SUCCESS (0 errors)
+`cd web && npx ng build --configuration production` → BUILD SUCCESS (no new warnings from liquidity code)
+
+#### Confirmed Platform Versions
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `9f077d2` |
+| Java | 21 | `9f077d2` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `9f077d2` |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `9f077d2` |
+| Angular CLI | 21.2.7 | `9f077d2` |
+| PrimeNG | 21.0.x | `9f077d2` |
+| RxJS | 7.8.x | `9f077d2` |
+| TypeScript | 5.9.x | `9f077d2` |
+| Vercel deployment | `cba-web-nine.vercel.app` | `9f077d2` |
+
+---
+
 ### Session 84 — 2026-04-18
 **Treasury module built end-to-end: Flyway V37, backend entities/service/controller, Angular Placements + Interbank screens with full CRUD + command pattern.**
 

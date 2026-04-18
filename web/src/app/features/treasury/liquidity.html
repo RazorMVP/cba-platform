@@ -1,0 +1,446 @@
+<div class="page">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">water_drop</span>
+      Liquidity Management
+    </div>
+    <div class="header-actions">
+      <button class="btn-secondary" (click)="loadPositions(); loadReserves()">
+        <span class="material-icons">refresh</span> Refresh
+      </button>
+      <button class="btn-primary" (click)="activeModal = 'snapshot'">
+        <span class="material-icons">camera_alt</span> Take Snapshot
+      </button>
+    </div>
+  </div>
+
+  <!-- Alert banner for selected position -->
+  @if (selectedPosition && selectedPosition.alertLevel !== 'OK') {
+    <div class="alert-banner" [class]="alertClass(selectedPosition.alertLevel)">
+      <span class="material-icons">{{ selectedPosition.alertLevel === 'BREACH' ? 'warning' : 'info' }}</span>
+      <span>
+        <strong>{{ alertLabel(selectedPosition.alertLevel) }}:</strong>
+        {{ selectedPosition.currency }} net position
+        {{ fmt(selectedPosition.netLiquidityPosition, selectedPosition.currency) }}
+        vs reserve requirement
+        {{ fmt(selectedPosition.reserveRequirement, selectedPosition.currency) }}
+      </span>
+    </div>
+  }
+
+  <!-- Currency tabs -->
+  @if (positions.length > 0) {
+    <div class="currency-tabs">
+      @for (p of positions; track p.currency) {
+        <button class="currency-tab"
+                [class.active]="selectedCurrency === p.currency"
+                (click)="selectedCurrency = p.currency">
+          <span class="ccy-code">{{ p.currency }}</span>
+          <span class="ccy-badge" [class]="alertClass(p.alertLevel)"></span>
+        </button>
+      }
+    </div>
+  }
+
+  <!-- Tab nav -->
+  <div class="tab-nav">
+    <button class="tab-btn" [class.active]="activeTab === 'position'"  (click)="selectTab('position')">Position</button>
+    <button class="tab-btn" [class.active]="activeTab === 'cashflow'"  (click)="selectTab('cashflow')">Cash Flow Forecast</button>
+    <button class="tab-btn" [class.active]="activeTab === 'reserves'"  (click)="selectTab('reserves')">Reserve Requirements</button>
+    <button class="tab-btn" [class.active]="activeTab === 'history'"   (click)="selectTab('history')">Snapshot History</button>
+  </div>
+
+  <!-- ── Position Tab ──────────────────────────────────────────────────────── -->
+  @if (activeTab === 'position') {
+    @if (loadingPositions) {
+      <div class="card skeleton-card">
+        @for (i of [1,2,3,4]; track i) { <div class="skeleton skeleton--row"></div> }
+      </div>
+    } @else if (selectedPosition) {
+      <!-- KPI cards -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Cash on Hand</div>
+          <div class="kpi-value">{{ fmt(selectedPosition.cashOnHand, selectedPosition.currency) }}</div>
+          <div class="kpi-sub">Total active account balances</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Deployed (Placements)</div>
+          <div class="kpi-value">{{ fmt(selectedPosition.placementsDeployed, selectedPosition.currency) }}</div>
+          <div class="kpi-sub">Active treasury placements</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Interbank Net</div>
+          <div class="kpi-value" [class.positive]="selectedPosition.interbankBorrowing > selectedPosition.interbankLending"
+                                 [class.negative]="selectedPosition.interbankLending > selectedPosition.interbankBorrowing">
+            {{ fmt(selectedPosition.interbankBorrowing - selectedPosition.interbankLending, selectedPosition.currency) }}
+          </div>
+          <div class="kpi-sub">Borrowing − Lending</div>
+        </div>
+        <div class="kpi-card" [class]="'kpi-card kpi-card--' + selectedPosition.alertLevel.toLowerCase()">
+          <div class="kpi-label">Net Liquidity Position</div>
+          <div class="kpi-value">{{ fmt(selectedPosition.netLiquidityPosition, selectedPosition.currency) }}</div>
+          <div class="kpi-sub surplus" [class.negative]="(selectedPosition.surplusDeficit ?? 0) < 0">
+            {{ (selectedPosition.surplusDeficit ?? 0) >= 0 ? '+' : '' }}{{ fmt(selectedPosition.surplusDeficit, selectedPosition.currency) }} vs reserve
+          </div>
+        </div>
+      </div>
+
+      <!-- Breakdown table -->
+      <div class="card" style="margin-top:1.5rem">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Component</th>
+              <th style="text-align:right">Amount</th>
+              <th style="text-align:right">% of Net</th>
+              <th>Direction</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="table-row">
+              <td>Cash on Hand (Accounts)</td>
+              <td class="amount-cell" style="text-align:right">{{ fmt(selectedPosition.cashOnHand, selectedPosition.currency) }}</td>
+              <td class="amount-cell" style="text-align:right">{{ pct(selectedPosition.cashOnHand, selectedPosition.netLiquidityPosition) }}</td>
+              <td><span class="dir-chip dir-lending">+</span></td>
+            </tr>
+            <tr class="table-row">
+              <td>Placements Deployed</td>
+              <td class="amount-cell" style="text-align:right">{{ fmt(selectedPosition.placementsDeployed, selectedPosition.currency) }}</td>
+              <td class="amount-cell" style="text-align:right">{{ pct(selectedPosition.placementsDeployed, selectedPosition.netLiquidityPosition) }}</td>
+              <td><span class="dir-chip dir-borrowing">−</span></td>
+            </tr>
+            <tr class="table-row">
+              <td>Interbank Lending</td>
+              <td class="amount-cell" style="text-align:right">{{ fmt(selectedPosition.interbankLending, selectedPosition.currency) }}</td>
+              <td class="amount-cell" style="text-align:right">{{ pct(selectedPosition.interbankLending, selectedPosition.netLiquidityPosition) }}</td>
+              <td><span class="dir-chip dir-borrowing">−</span></td>
+            </tr>
+            <tr class="table-row">
+              <td>Interbank Borrowing</td>
+              <td class="amount-cell" style="text-align:right">{{ fmt(selectedPosition.interbankBorrowing, selectedPosition.currency) }}</td>
+              <td class="amount-cell" style="text-align:right">{{ pct(selectedPosition.interbankBorrowing, selectedPosition.netLiquidityPosition) }}</td>
+              <td><span class="dir-chip dir-lending">+</span></td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td><strong>Net Liquidity Position</strong></td>
+              <td class="amount-cell" style="text-align:right"><strong>{{ fmt(selectedPosition.netLiquidityPosition, selectedPosition.currency) }}</strong></td>
+              <td></td>
+              <td>
+                <span class="badge" [class]="'badge-' + (selectedPosition.alertLevel === 'OK' ? 'success' : selectedPosition.alertLevel === 'WARN' ? 'info' : 'danger')">
+                  {{ alertLabel(selectedPosition.alertLevel) }}
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <td>Reserve Requirement</td>
+              <td class="amount-cell" style="text-align:right">{{ fmt(selectedPosition.reserveRequirement, selectedPosition.currency) }}</td>
+              <td></td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    } @else if (!loadingPositions) {
+      <div class="empty-state">
+        <span class="material-icons">water_drop</span>
+        <p>No active accounts or treasury positions found.</p>
+      </div>
+    }
+  }
+
+  <!-- ── Cash Flow Tab ─────────────────────────────────────────────────────── -->
+  @if (activeTab === 'cashflow') {
+    <div class="forecast-controls">
+      <select class="form-input form-input--sm" [(ngModel)]="selectedCurrency" (change)="loadCashFlow()">
+        @for (c of currenciesAvailable; track c) { <option [value]="c">{{ c }}</option> }
+      </select>
+      <select class="form-input form-input--sm" [(ngModel)]="forecastDays" (change)="loadCashFlow()">
+        <option [value]="14">14 days</option>
+        <option [value]="30">30 days</option>
+        <option [value]="60">60 days</option>
+        <option [value]="90">90 days</option>
+      </select>
+      <button class="btn-secondary" (click)="loadCashFlow()">
+        <span class="material-icons">refresh</span>
+      </button>
+    </div>
+
+    <!-- Forecast KPIs -->
+    @if (!loadingCashFlow) {
+      <div class="kpi-grid kpi-grid--sm">
+        <div class="kpi-card">
+          <div class="kpi-label">Expected Inflows</div>
+          <div class="kpi-value positive">{{ fmt(cashFlowInflows(), selectedCurrency) }}</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Expected Outflows</div>
+          <div class="kpi-value negative">{{ fmt(cashFlowOutflows(), selectedCurrency) }}</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Net Forecast</div>
+          <div class="kpi-value" [class.positive]="cashFlowInflows() > cashFlowOutflows()"
+                                 [class.negative]="cashFlowInflows() < cashFlowOutflows()">
+            {{ fmt(cashFlowInflows() - cashFlowOutflows(), selectedCurrency) }}
+          </div>
+        </div>
+      </div>
+    }
+
+    <div class="card">
+      @if (loadingCashFlow) {
+        <div class="skeleton-card">
+          @for (i of [1,2,3,4,5]; track i) { <div class="skeleton skeleton--row"></div> }
+        </div>
+      } @else if (cashFlow.length === 0) {
+        <div class="empty-state">
+          <span class="material-icons">calendar_today</span>
+          <p>No scheduled cash flows in the next {{ forecastDays }} days.</p>
+        </div>
+      } @else {
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Type</th>
+              <th>Reference</th>
+              <th style="text-align:right">Amount</th>
+              <th>Direction</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (entry of cashFlow; track entry.reference + entry.date) {
+              <tr class="table-row">
+                <td>{{ entry.date | date:'dd MMM yyyy' }}</td>
+                <td>
+                  <span class="type-chip">{{ typeLabel(entry.type) }}</span>
+                </td>
+                <td class="muted">{{ entry.reference }}</td>
+                <td class="amount-cell" style="text-align:right">{{ fmt(entry.amount, entry.currency) }}</td>
+                <td>
+                  <span class="dir-chip" [class]="entry.direction === 'INFLOW' ? 'dir-lending' : 'dir-borrowing'">
+                    {{ entry.direction === 'INFLOW' ? '▲ In' : '▼ Out' }}
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+        <div class="table-footer">{{ cashFlow.length }} events over {{ forecastDays }} days</div>
+      }
+    </div>
+  }
+
+  <!-- ── Reserves Tab ──────────────────────────────────────────────────────── -->
+  @if (activeTab === 'reserves') {
+    <div class="section-header">
+      <span class="section-title">Reserve Requirements</span>
+      <button class="btn-primary" (click)="openCreateReserve()">
+        <span class="material-icons">add</span> Add Requirement
+      </button>
+    </div>
+    <div class="card">
+      @if (loadingReserves) {
+        <div class="skeleton-card">
+          @for (i of [1,2,3]; track i) { <div class="skeleton skeleton--row"></div> }
+        </div>
+      } @else if (reserves.length === 0) {
+        <div class="empty-state">
+          <span class="material-icons">policy</span>
+          <p>No reserve requirements configured.</p>
+        </div>
+      } @else {
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Currency</th>
+              <th style="text-align:right">Minimum Balance</th>
+              <th style="text-align:right">Ratio %</th>
+              <th style="text-align:right">Alert at %</th>
+              <th>Regulatory Reference</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of reserves; track r.id) {
+              <tr class="table-row">
+                <td><strong>{{ r.currencyCode }}</strong></td>
+                <td class="amount-cell" style="text-align:right">{{ fmt(r.minimumBalance, r.currencyCode) }}</td>
+                <td class="amount-cell" style="text-align:right">{{ r.minimumRatioPercent != null ? r.minimumRatioPercent + '%' : '—' }}</td>
+                <td class="amount-cell" style="text-align:right">{{ r.alertThresholdPercent != null ? r.alertThresholdPercent + '%' : '—' }}</td>
+                <td class="muted">{{ r.regulatoryReference || '—' }}</td>
+                <td>
+                  <span class="badge" [class]="r.active ? 'badge-success' : 'badge-neutral'">
+                    {{ r.active ? 'Active' : 'Inactive' }}
+                  </span>
+                </td>
+                <td class="action-cell">
+                  <button class="btn-action" (click)="openEditReserve(r)">Edit</button>
+                  <button class="btn-icon btn-icon--danger" (click)="openDeleteReserve(r)" title="Deactivate">
+                    <span class="material-icons">delete</span>
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </div>
+  }
+
+  <!-- ── History Tab ───────────────────────────────────────────────────────── -->
+  @if (activeTab === 'history') {
+    <div class="forecast-controls">
+      <select class="form-input form-input--sm" [(ngModel)]="snapshotCurrency" (change)="loadSnapshots()">
+        @for (c of currenciesAvailable; track c) { <option [value]="c">{{ c }}</option> }
+      </select>
+      <button class="btn-secondary" (click)="loadSnapshots()">
+        <span class="material-icons">refresh</span>
+      </button>
+    </div>
+    <div class="card">
+      @if (loadingSnapshots) {
+        <div class="skeleton-card">
+          @for (i of [1,2,3,4]; track i) { <div class="skeleton skeleton--row"></div> }
+        </div>
+      } @else if (snapshots.length === 0) {
+        <div class="empty-state">
+          <span class="material-icons">history</span>
+          <p>No snapshots yet. Use "Take Snapshot" to record today's position.</p>
+        </div>
+      } @else {
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th style="text-align:right">Cash on Hand</th>
+              <th style="text-align:right">Deployed</th>
+              <th style="text-align:right">IB Lending</th>
+              <th style="text-align:right">IB Borrowing</th>
+              <th style="text-align:right">Net Position</th>
+              <th style="text-align:right">Surplus / Deficit</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (s of snapshots; track s.id) {
+              <tr class="table-row">
+                <td>{{ s.snapshotDate | date:'dd MMM yyyy' }}</td>
+                <td class="amount-cell" style="text-align:right">{{ fmt(s.cashOnHand, s.currencyCode) }}</td>
+                <td class="amount-cell" style="text-align:right">{{ fmt(s.placementsDeployed, s.currencyCode) }}</td>
+                <td class="amount-cell" style="text-align:right">{{ fmt(s.interbankLending, s.currencyCode) }}</td>
+                <td class="amount-cell" style="text-align:right">{{ fmt(s.interbankBorrowing, s.currencyCode) }}</td>
+                <td class="amount-cell" style="text-align:right"><strong>{{ fmt(s.netLiquidityPosition, s.currencyCode) }}</strong></td>
+                <td class="amount-cell" style="text-align:right"
+                    [class.positive]="(s.surplusDeficit ?? 0) >= 0"
+                    [class.negative]="(s.surplusDeficit ?? 0) < 0">
+                  {{ s.surplusDeficit != null ? fmt(s.surplusDeficit, s.currencyCode) : '—' }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+        <div class="table-footer">{{ snapshots.length }} snapshots — most recent first</div>
+      }
+    </div>
+  }
+
+</div>
+
+<!-- ── Modals ────────────────────────────────────────────────────────────── -->
+
+@if (activeModal === 'createReserve' || activeModal === 'editReserve') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">policy</span>
+        {{ activeModal === 'editReserve' ? 'Edit Reserve Requirement' : 'Add Reserve Requirement' }}
+      </div>
+      <div class="modal__body">
+        <div class="form-row">
+          <div class="form-field form-field--half">
+            <label class="form-label">Currency Code <span class="required">*</span></label>
+            <input class="form-input" [(ngModel)]="reserveForm.currencyCode"
+                   placeholder="USD" maxlength="3" style="text-transform:uppercase"
+                   [disabled]="activeModal === 'editReserve'" />
+          </div>
+          <div class="form-field form-field--half">
+            <label class="form-label">Minimum Balance <span class="required">*</span></label>
+            <input class="form-input" type="number" min="0" [(ngModel)]="reserveForm.minimumBalance" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field form-field--third">
+            <label class="form-label">Minimum Ratio % <span class="form-hint">(optional)</span></label>
+            <input class="form-input" type="number" min="0" max="100" step="0.01" [(ngModel)]="reserveForm.minimumRatioPercent" />
+          </div>
+          <div class="form-field form-field--third">
+            <label class="form-label">Alert Threshold % <span class="form-hint">(optional)</span></label>
+            <input class="form-input" type="number" min="0" max="100" step="0.01" [(ngModel)]="reserveForm.alertThresholdPercent" />
+          </div>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Regulatory Reference</label>
+          <input class="form-input" [(ngModel)]="reserveForm.regulatoryReference"
+                 placeholder="e.g. CBK Prudential Guidelines 2024" />
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()">Cancel</button>
+        <button class="btn-primary" (click)="saveReserve()" [disabled]="savingReserve || !reserveForm.currencyCode">
+          @if (savingReserve) { <span class="spinner"></span> }
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (activeModal === 'deleteReserve') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon" style="color:#dc2626">warning</span>
+        Deactivate Reserve Requirement
+      </div>
+      <div class="modal__body">
+        <p class="confirm-text">
+          Deactivate the <strong>{{ deletingReserve?.currencyCode }}</strong> reserve requirement?
+          The liquidity position for this currency will no longer show a threshold or alert.
+        </p>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()">Cancel</button>
+        <button class="btn-danger" (click)="confirmDeleteReserve()">Deactivate</button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (activeModal === 'snapshot') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">camera_alt</span>
+        Take Liquidity Snapshot
+      </div>
+      <div class="modal__body">
+        <p class="confirm-text">
+          Record today's liquidity position for all active currencies. This is normally run
+          automatically at 23:50 each night by the CoB scheduler.
+        </p>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()">Cancel</button>
+        <button class="btn-primary" (click)="triggerSnapshot()" [disabled]="takingSnapshot">
+          @if (takingSnapshot) { <span class="spinner"></span> }
+          Take Snapshot
+        </button>
+      </div>
+    </div>
+  </div>
+}

@@ -115,6 +115,7 @@ export class SidebarComponent {
       items: [
         { label: 'Placements',         icon: 'account_balance',   route: '/treasury/placements' },
         { label: 'Interbank',          icon: 'swap_horiz',        route: '/treasury/interbank' },
+        { label: 'Liquidity',          icon: 'water_drop',        route: '/treasury/liquidity' },
       ],
     },
     {

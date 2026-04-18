@@ -788,6 +788,65 @@
           ]
         },
         {
+          "name": "Get Open Account Template",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/accounts/template",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts",
+                "template"
+              ]
+            },
+            "description": "Returns all active deposit products and valid account types for populating the Open Account form. Roles: ADMIN, TELLER. Use the returned product IDs in `POST /api/v1/accounts`.\n\nExample response:\n```json\n{\n  \"data\": {\n    \"depositProducts\": [\n      { \"id\": \"...\", \"name\": \"Classic Savings\", \"interestRate\": 3.5, \"minimumBalance\": 100.0, \"currencyCode\": \"USD\" }\n    ],\n    \"accountTypes\": [\"SAVINGS\", \"CHECKING\", \"FIXED_DEPOSIT\"]\n  }\n}\n```"
+          },
+          "x-code-samples": [
+            {
+              "lang": "cURL",
+              "source": "curl -X GET '{{base_url}}/api/v1/accounts/template' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}'"
+            },
+            {
+              "lang": "JavaScript (fetch)",
+              "source": "fetch('{{base_url}}/api/v1/accounts/template', {\n  method: 'GET',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  }\n}).then(r => r.json()).then(console.log);"
+            },
+            {
+              "lang": "Python (requests)",
+              "source": "import requests\n\nresponse = requests.get(\n    '{{base_url}}/api/v1/accounts/template',\n    headers={\n        'Authorization': 'Bearer {{access_token}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    }\n)\nprint(response.json())"
+            },
+            {
+              "lang": "Java (OkHttp)",
+              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/api/v1/accounts/template\")\n    .get()\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
+            },
+            {
+              "lang": "C# (HttpClient)",
+              "source": "var client = new HttpClient();\nclient.DefaultRequestHeaders.Authorization =\n    new AuthenticationHeaderValue(\"Bearer\", \"{{access_token}}\");\nclient.DefaultRequestHeaders.Add(\"X-Tenant-ID\", \"{{tenant_id}}\");\nvar response = await client.GetAsync(\"{{base_url}}/api/v1/accounts/template\");\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
+            },
+            {
+              "lang": "Go (net/http)",
+              "source": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n    \"io/ioutil\"\n)\n\nfunc main() {\n    req, _ := http.NewRequest(\"GET\", \"{{base_url}}/api/v1/accounts/template\", nil)\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"Content-Type\", \"application/json\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := new(http.Client).Do(req)\n    defer resp.Body.Close()\n    b, _ := ioutil.ReadAll(resp.Body)\n    fmt.Println(string(b))\n}"
+            },
+            {
+              "lang": "Ruby (Net::HTTP)",
+              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/api/v1/accounts/template')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Get.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nputs http.request(req).body"
+            }
+          ]
+        },
+        {
           "name": "Get Account by ID",
           "request": {
             "method": "GET",
@@ -1197,7 +1256,7 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/api/v1/accounts/{{accountId}}/transactions?page=0&size=50",
+              "raw": "{{base_url}}/api/v1/accounts/{{accountId}}/transactions?page=0&size=20",
               "host": [
                 "{{base_url}}"
               ],
@@ -1215,11 +1274,17 @@
                 },
                 {
                   "key": "size",
-                  "value": "50"
+                  "value": "20"
+                },
+                {
+                  "key": "transactionType",
+                  "value": "INTEREST_CREDIT",
+                  "description": "Optional filter. Valid values: DEPOSIT, WITHDRAWAL, TRANSFER_CREDIT, TRANSFER_DEBIT, INTEREST_CREDIT, FEE_DEBIT. Omit to return all types.",
+                  "disabled": true
                 }
               ]
             },
-            "description": "Retrieve the immutable transaction ledger for an account. Returns all credits and debits with running balance."
+            "description": "Retrieve the immutable transaction ledger for an account. Returns all credits and debits with running balance.\n\n**Optional `transactionType` filter** — pass `?transactionType=INTEREST_CREDIT` to retrieve only interest accrual records written by the nightly CoB job. Useful for the Interest tab in AccountDetail. When omitted, all transaction types are returned."
           },
           "x-code-samples": [
             {

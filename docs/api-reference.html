@@ -819,6 +819,18 @@ Where:
 
 <details class="endpoint">
   <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/accounts/template</span>
+    <span class="endpoint-summary">Get available deposit products and account types for opening a new account</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Roles: ADMIN, TELLER. Returns all active deposit products (id, name, interestRate, minimumBalance, currencyCode) and the list of valid <code>AccountType</code> values. Use this to populate the "Open New Account" form dropdowns before submitting <code>POST /api/v1/accounts</code>.</p>
+    <pre>{ "data": { "depositProducts": [{ "id": "...", "name": "Classic Savings", "interestRate": 3.50, "minimumBalance": 100.00, "currencyCode": "USD" }], "accountTypes": ["SAVINGS", "CHECKING", "FIXED_DEPOSIT"] } }</pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
     <span class="method POST">POST</span>
     <span class="endpoint-path">/api/v1/accounts</span>
     <span class="endpoint-summary">Open an account</span>
@@ -871,8 +883,13 @@ Where:
     <span class="endpoint-summary">Get transaction ledger</span>
   </summary>
   <div class="endpoint-body">
-    <p>Returns the immutable transaction history. Records cannot be deleted or modified.</p>
-    <pre>{ "data": [{ "id": "...", "transactionType": "DEPOSIT", "amount": "500.00", "runningBalance": "1500.00", "referenceNumber": "TXN-..." }] }</pre>
+    <p>Roles: ADMIN, TELLER, CUSTOMER. Returns the immutable transaction history (paginated). Records cannot be deleted or modified.</p>
+    <p><strong>Query params:</strong></p>
+    <ul>
+      <li><code>?page=0&amp;size=20</code> — standard Spring pagination</li>
+      <li><code>?transactionType=INTEREST_CREDIT</code> — optional filter; returns only transactions of that type. Valid values: <code>DEPOSIT</code>, <code>WITHDRAWAL</code>, <code>TRANSFER_CREDIT</code>, <code>TRANSFER_DEBIT</code>, <code>INTEREST_CREDIT</code>, <code>FEE_DEBIT</code>. Omit to return all types.</li>
+    </ul>
+    <pre>{ "data": { "content": [{ "id": "...", "transactionType": "INTEREST_CREDIT", "amount": "4.5000", "runningBalance": "1504.5000", "referenceNumber": "COB-...", "transactionDate": "2025-12-31" }], "totalElements": 12 } }</pre>
   </div>
 </details>
 

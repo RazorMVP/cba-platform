@@ -407,6 +407,9 @@ X-Tenant-ID: default
 <tr><td><code>currencyCode</code></td><td>ISO 4217</td><td>Defaults to tenant base currency</td></tr>
 <tr><td><code>status</code></td><td>Enum</td><td>ACTIVE, DORMANT, CLOSED</td></tr>
 <tr><td><code>minimumBalance</code></td><td>Decimal(19,4)</td><td>From product config; balance cannot fall below this</td></tr>
+<tr><td><code>allowOverdraft</code></td><td>Boolean</td><td>Whether overdraft spending below zero is permitted</td></tr>
+<tr><td><code>overdraftLimit</code></td><td>Decimal(19,4) | null</td><td>Maximum negative balance allowed; null when allowOverdraft is false</td></tr>
+<tr><td><code>lockinExpiryDate</code></td><td>Date | null</td><td>Date the lock-in period ends; withdrawals blocked before this date when <code>enforce-lockin-period-withdrawal</code> global config is enabled. Null when product has no lock-in.</td></tr>
 </table>
 
 <h3>Loan Fields</h3>
@@ -809,8 +812,8 @@ Where:
       <li><code>?customerId=&lt;uuid&gt;</code> — paginated list of accounts for that customer. <code>customerId</code> is required when <code>template</code> is omitted or false.</li>
       <li><code>?template=true</code> — returns deposit product options and valid account types for the Open Account form. Equivalent to <code>GET /api/v1/accounts/template</code>.</li>
     </ul>
-    <p>The <code>AccountResponse</code> object now includes three product-derived fields: <code>allowOverdraft</code> (boolean), <code>overdraftLimit</code> (nullable decimal), and <code>minimumBalance</code> (decimal). These are surfaced as visual indicators in the account header.</p>
-    <pre>{ "data": { "content": [{ "id": "...", "accountNumber": "001-SAV-0001234", "balance": 1500.00, "availableBalance": 1400.00, "onHoldAmount": 100.00, "allowOverdraft": false, "minimumBalance": 100.00, "overdraftLimit": null }], "totalElements": 1 } }</pre>
+    <p>The <code>AccountResponse</code> object includes product-derived fields: <code>allowOverdraft</code>, <code>overdraftLimit</code>, <code>minimumBalance</code>, and <code>lockinExpiryDate</code> (null when the product has no lock-in period). These are surfaced as visual indicators in the account header.</p>
+    <pre>{ "data": { "content": [{ "id": "...", "accountNumber": "001-SAV-0001234", "balance": 1500.00, "availableBalance": 1400.00, "onHoldAmount": 100.00, "allowOverdraft": false, "minimumBalance": 100.00, "overdraftLimit": null, "lockinExpiryDate": "2026-10-18" }], "totalElements": 1 } }</pre>
   </div>
 </details>
 
@@ -821,8 +824,9 @@ Where:
     <span class="endpoint-summary">Get account details</span>
   </summary>
   <div class="endpoint-body">
-    <p>Roles: ADMIN, TELLER, CUSTOMER. Response includes <code>allowOverdraft</code>, <code>overdraftLimit</code>, and <code>minimumBalance</code> from the linked deposit product.</p>
-    <pre>{ "data": { "id": "...", "accountNumber": "001-SAV-0001234", "accountType": "SAVINGS", "status": "ACTIVE", "balance": 1500.00, "availableBalance": 1400.00, "onHoldAmount": 100.00, "currencyCode": "USD", "allowOverdraft": true, "overdraftLimit": 500.00, "minimumBalance": 0.00 } }</pre>
+    <p>Roles: ADMIN, TELLER, CUSTOMER. Response includes <code>allowOverdraft</code>, <code>overdraftLimit</code>, <code>minimumBalance</code>, and <code>lockinExpiryDate</code> from the linked deposit product. <code>lockinExpiryDate</code> is an ISO-8601 date string (e.g. <code>"2026-10-18"</code>); null when the product has no lock-in period.</p>
+    <p><strong>Error codes on withdraw:</strong> <code>ACCOUNT_IN_LOCKIN_PERIOD</code> (400) when lock-in enforcement is enabled and the account is within its lock-in window; <code>BELOW_MIN_OPENING_BALANCE</code> (400) when activation is attempted before the minimum opening balance is met.</p>
+    <pre>{ "data": { "id": "...", "accountNumber": "001-SAV-0001234", "accountType": "SAVINGS", "status": "ACTIVE", "balance": 1500.00, "availableBalance": 1400.00, "onHoldAmount": 100.00, "currencyCode": "USD", "allowOverdraft": true, "overdraftLimit": 500.00, "minimumBalance": 0.00, "lockinExpiryDate": "2026-10-18" } }</pre>
   </div>
 </details>
 

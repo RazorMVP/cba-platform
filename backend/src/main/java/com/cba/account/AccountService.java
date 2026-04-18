@@ -369,13 +369,15 @@ public class AccountService {
         BigDecimal onHold = accountHoldRepository.sumActiveHoldsByAccount(a.getId());
         BigDecimal available = a.getBalance().subtract(onHold);
         String customerName = a.getCustomer().getFirstName() + " " + a.getCustomer().getLastName();
+        var p = a.getProduct();
         return new AccountResponse(
             a.getId(), a.getAccountNumber(), a.getCustomer().getId(),
-            customerName, a.getProduct().getName(),
+            customerName, p.getName(),
             a.getAccountType(), a.getStatus(), a.getBalance(),
             available, onHold,
             a.getCurrencyCode(), a.getOpenedDate(), a.getClosedDate(),
-            a.getLastTransactionDate(), a.getCreatedAt()
+            a.getLastTransactionDate(), a.getCreatedAt(),
+            p.isAllowOverdraft(), p.getOverdraftLimit(), p.getMinimumBalance()
         );
     }
 

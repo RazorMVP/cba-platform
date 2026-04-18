@@ -152,6 +152,28 @@
   color: var(--color-muted);
 }
 
+.balance-overdraft {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--color-info, #3b82f6);
+  margin-top: 0.25rem;
+
+  .material-icons { font-size: 0.85rem; }
+}
+
+.balance-min {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  margin-top: 0.25rem;
+
+  .material-icons { font-size: 0.85rem; }
+}
+
 .tab-badge {
   display: inline-flex;
   align-items: center;
@@ -553,6 +575,12 @@
   background: #fff;
   box-sizing: border-box;
   transition: border-color 0.15s;
+
+  &--loading {
+    color: var(--color-muted);
+    font-style: italic;
+    pointer-events: none;
+  }
 
   &:focus {
     outline: none;

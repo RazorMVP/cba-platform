@@ -730,7 +730,7 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/api/v1/accounts?page=0&size=20",
+              "raw": "{{base_url}}/api/v1/accounts?customerId={{customerId}}&page=0&size=20",
               "host": [
                 "{{base_url}}"
               ],
@@ -741,6 +741,17 @@
               ],
               "query": [
                 {
+                  "key": "customerId",
+                  "value": "{{customerId}}",
+                  "description": "UUID of the customer whose accounts to list. Required when template=false."
+                },
+                {
+                  "key": "template",
+                  "value": "true",
+                  "description": "When true, returns depositProducts + accountTypes for the Open Account form (Mifos ?template=true convention). customerId is not required. When false (default), returns a paginated list of accounts for the given customerId.",
+                  "disabled": true
+                },
+                {
                   "key": "page",
                   "value": "0"
                 },
@@ -750,7 +761,7 @@
                 }
               ]
             },
-            "description": "Returns all accounts. Filter by customer using `?customerId=<uuid>`."
+            "description": "Dual-mode endpoint.\n\n**Mode 1 — List accounts** (`?customerId=<uuid>`): Returns a paginated list of accounts belonging to the specified customer. Roles: ADMIN, TELLER.\n\n**Mode 2 — Open account template** (`?template=true`): Returns `depositProducts` and `accountTypes` for populating the Open Account form. Equivalent to `GET /api/v1/accounts/template`. Roles: ADMIN, TELLER.\n\nExample list response:\n```json\n{\n  \"data\": [\n    {\n      \"id\": \"...\",\n      \"accountNumber\": \"001-SAV-0001234\",\n      \"accountType\": \"SAVINGS\",\n      \"status\": \"ACTIVE\",\n      \"balance\": 5000.0000,\n      \"currencyCode\": \"USD\",\n      \"allowOverdraft\": false,\n      \"overdraftLimit\": null,\n      \"minimumBalance\": 100.0000\n    }\n  ],\n  \"meta\": { \"page\": 0, \"size\": 20, \"total\": 1 }\n}\n```"
           },
           "x-code-samples": [
             {
@@ -872,7 +883,7 @@
                 "{{accountId}}"
               ]
             },
-            "description": "Retrieve account details including current balance, status, and linked product."
+            "description": "Retrieve full account details including current balance, status, linked product, and product-derived risk parameters.\n\nExample response:\n```json\n{\n  \"data\": {\n    \"id\": \"3fa85f64-5717-4562-b3fc-2c963f66afa6\",\n    \"accountNumber\": \"001-SAV-0001234\",\n    \"accountType\": \"SAVINGS\",\n    \"status\": \"ACTIVE\",\n    \"balance\": 5000.0000,\n    \"currencyCode\": \"USD\",\n    \"customerId\": \"...\",\n    \"productId\": \"...\",\n    \"allowOverdraft\": true,\n    \"overdraftLimit\": 500.0000,\n    \"minimumBalance\": 0.0000,\n    \"createdAt\": \"2024-01-15T10:30:00Z\"\n  }\n}\n```\n\n**Product-derived fields:**\n| Field | Type | Description |\n|-------|------|-------------|\n| `allowOverdraft` | boolean | Whether the account may go below zero (from linked deposit product) |\n| `overdraftLimit` | number\\|null | Maximum negative balance allowed; null when allowOverdraft is false |\n| `minimumBalance` | number | Minimum balance that must be maintained; enforced on every debit |"
           },
           "x-code-samples": [
             {

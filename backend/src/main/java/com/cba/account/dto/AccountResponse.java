@@ -25,5 +25,11 @@ public record AccountResponse(
         LocalDate openedDate,
         LocalDate closedDate,
         LocalDate lastTransactionDate,
-        Instant createdAt
+        Instant createdAt,
+        /** true when the linked deposit product allows overdraft spending below zero. */
+        boolean allowOverdraft,
+        /** maximum negative balance allowed; null when allowOverdraft is false. */
+        BigDecimal overdraftLimit,
+        /** minimum balance the account must maintain; enforced on every debit. */
+        BigDecimal minimumBalance
 ) {}

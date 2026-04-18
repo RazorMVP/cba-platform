@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge';
-import { AccountService, Account, Transaction, AccountCreateRequest, AccountHold, AccountHoldRequest } from '../account.service';
+import { AccountService, Account, Transaction, AccountCreateRequest, AccountHold, AccountHoldRequest, DepositProductSummary } from '../account.service';
 import { CustomerService, ImageMeta } from '../../customers/customer.service';
 import { PageResponse } from '../../../../core/models/api-response.model';
 
@@ -32,6 +32,11 @@ export class AccountDetailComponent implements OnInit {
   saving = false;
   saveError = '';
   newForm: AccountCreateRequest = { customerId: '', productId: '', accountType: 'SAVINGS' };
+
+  // Open-account template (product dropdown)
+  templateProducts: DepositProductSummary[] = [];
+  templateAccountTypes: Account['accountType'][] = ['SAVINGS', 'CHECKING', 'FIXED_DEPOSIT'];
+  templateLoading = false;
 
   // ── Photo (mandatory at account opening) ──────────────────────────────────
   photoMeta: ImageMeta | null = null;
@@ -92,12 +97,26 @@ export class AccountDetailComponent implements OnInit {
     if (id === 'new') {
       this.isNew = true;
       this.loading = false;
+      this.templateLoading = true;
+      this.svc.getOpenAccountTemplate().subscribe({
+        next: t => {
+          this.templateProducts = t.depositProducts;
+          this.templateAccountTypes = t.accountTypes;
+          this.templateLoading = false;
+        },
+        error: () => { this.templateLoading = false; },
+      });
       return;
     }
     this.svc.get(id).subscribe({
       next:  a  => { this.account = a; this.loading = false; },
       error: () => { this.error = 'Account not found.'; this.loading = false; },
     });
+  }
+
+  onProductSelected(productId: string): void {
+    const product = this.templateProducts.find(p => p.id === productId);
+    if (product?.currencyCode) this.newForm.currencyCode = product.currencyCode;
   }
 
   onCustomerIdChange(): void {

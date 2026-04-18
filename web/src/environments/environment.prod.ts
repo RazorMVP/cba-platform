@@ -2,7 +2,7 @@
 // Source of truth: environment variables at build time (see vercel.json / Vercel dashboard).
 export const environment = {
   production: true,
-  authBypass: false,
+  authBypass: true,
   apiBaseUrl: '/api/v1',
   cardServiceUrl: '/card-svc',
   keycloak: {

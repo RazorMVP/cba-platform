@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 85 — 2026-04-18)
+## Confirmed Platform Versions (Session 88 — 2026-04-18)
 
 These are the verified-working versions for both production components. Update this table whenever a dependency is upgraded.
 
@@ -2451,7 +2451,7 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Customers list | `CustomersListComponent` | `OperationsModule`  | ✅ Built — debounced search, KYC filter tabs, pagination |
 | Customer detail | `CustomerDetailComponent` | `OperationsModule`  | ✅ Built — 7 tabs (Overview/Accounts/Loans/Staff/Transfer + KYC state machine); 12 command modals; `PUT /{id}` profile edit _(Session 49)_ |
 | Accounts list | `AccountsListComponent` | `OperationsModule`  | ✅ Built — type filter, pagination |
-| Account detail | `AccountDetailComponent` | `OperationsModule`  | ✅ Built — header card, overview/transactions/interest/holds tabs, freeze/unfreeze/close/deposit/withdraw modals, Statement modal; Interest tab filters by `INTEREST_CREDIT` (4dp amounts, CoB reference); `isNew` mode: shows Open Account form |
+| Account detail | `AccountDetailComponent` | `OperationsModule`  | ✅ Built — header card, overview/transactions/interest/holds tabs, freeze/unfreeze/close/deposit/withdraw modals, Statement modal; Interest tab filters by `INTEREST_CREDIT` (4dp amounts, CoB reference); `isNew` mode: product dropdown + account-type dropdown from `/accounts/template`; overdraft (blue) + min-balance (muted) indicators in header _(Session 88)_ |
 | Payments list | `PaymentsListComponent` | `OperationsModule`  | ✅ Built — account context picker, paginated payment history, 3-step transfer wizard modal, standing order modal |
 | Payment detail | `PaymentDetailComponent` | `OperationsModule`  | ✅ Built — status band with FX details, transfer route card, payment details card, reverse modal |
 | Teller list | `TellerListComponent` | `OperationsModule`  | ✅ Built — search + status filter, create teller modal |

@@ -801,9 +801,17 @@ Where:
   <summary class="endpoint-header">
     <span class="method GET">GET</span>
     <span class="endpoint-path">/api/v1/accounts</span>
-    <span class="endpoint-summary">List accounts</span>
+    <span class="endpoint-summary">List accounts, or retrieve open-account template</span>
   </summary>
-  <div class="endpoint-body"><p>Filter by <code>?customerId=&lt;uuid&gt;</code>, <code>?accountType=SAVINGS</code>, <code>?status=ACTIVE</code></p></div>
+  <div class="endpoint-body">
+    <p>Roles: ADMIN, TELLER. Dual-mode endpoint (Mifos <code>?template=true</code> convention):</p>
+    <ul>
+      <li><code>?customerId=&lt;uuid&gt;</code> — paginated list of accounts for that customer. <code>customerId</code> is required when <code>template</code> is omitted or false.</li>
+      <li><code>?template=true</code> — returns deposit product options and valid account types for the Open Account form. Equivalent to <code>GET /api/v1/accounts/template</code>.</li>
+    </ul>
+    <p>The <code>AccountResponse</code> object now includes three product-derived fields: <code>allowOverdraft</code> (boolean), <code>overdraftLimit</code> (nullable decimal), and <code>minimumBalance</code> (decimal). These are surfaced as visual indicators in the account header.</p>
+    <pre>{ "data": { "content": [{ "id": "...", "accountNumber": "001-SAV-0001234", "balance": 1500.00, "availableBalance": 1400.00, "onHoldAmount": 100.00, "allowOverdraft": false, "minimumBalance": 100.00, "overdraftLimit": null }], "totalElements": 1 } }</pre>
+  </div>
 </details>
 
 <details class="endpoint">
@@ -813,7 +821,8 @@ Where:
     <span class="endpoint-summary">Get account details</span>
   </summary>
   <div class="endpoint-body">
-    <pre>{ "data": { "id": "...", "accountNumber": "001-SAV-0001234", "accountType": "SAVINGS", "status": "ACTIVE", "balance": "1500.00", "currencyCode": "USD" } }</pre>
+    <p>Roles: ADMIN, TELLER, CUSTOMER. Response includes <code>allowOverdraft</code>, <code>overdraftLimit</code>, and <code>minimumBalance</code> from the linked deposit product.</p>
+    <pre>{ "data": { "id": "...", "accountNumber": "001-SAV-0001234", "accountType": "SAVINGS", "status": "ACTIVE", "balance": 1500.00, "availableBalance": 1400.00, "onHoldAmount": 100.00, "currencyCode": "USD", "allowOverdraft": true, "overdraftLimit": 500.00, "minimumBalance": 0.00 } }</pre>
   </div>
 </details>
 

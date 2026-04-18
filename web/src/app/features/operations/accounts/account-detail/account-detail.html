@@ -25,17 +25,27 @@
         <span class="form-hint">Find the customer ID on the Customers page.</span>
       </div>
       <div class="form-field">
-        <label class="form-label">Product ID <span class="required">*</span></label>
-        <input class="form-input" type="text" [(ngModel)]="newForm.productId" placeholder="Paste deposit product UUID" />
-        <span class="form-hint">Find the product ID on the Deposit Products page.</span>
+        <label class="form-label">Deposit Product <span class="required">*</span></label>
+        @if (templateLoading) {
+          <div class="form-input form-input--loading">Loading products…</div>
+        } @else if (templateProducts.length === 0) {
+          <input class="form-input" type="text" [(ngModel)]="newForm.productId" placeholder="No products found — paste UUID" />
+        } @else {
+          <select class="form-input" [(ngModel)]="newForm.productId" (ngModelChange)="onProductSelected($event)">
+            <option value="">— Select a product —</option>
+            @for (p of templateProducts; track p.id) {
+              <option [value]="p.id">{{ p.name }} ({{ p.interestRate }}% p.a. · min {{ p.minimumBalance | number:'1.0-0' }} {{ p.currencyCode }})</option>
+            }
+          </select>
+        }
       </div>
       <div class="form-row">
         <div class="form-field">
           <label class="form-label">Account Type <span class="required">*</span></label>
           <select class="form-input" [(ngModel)]="newForm.accountType">
-            <option value="SAVINGS">Savings</option>
-            <option value="CHECKING">Checking</option>
-            <option value="FIXED_DEPOSIT">Fixed Deposit</option>
+            @for (t of templateAccountTypes; track t) {
+              <option [value]="t">{{ typeLabels[t] ?? t }}</option>
+            }
           </select>
         </div>
         <div class="form-field">
@@ -111,6 +121,18 @@
           </div>
           <div class="balance-available">
             Available: {{ account.availableBalance | number:'1.2-2' }}
+          </div>
+        }
+        @if (account.allowOverdraft) {
+          <div class="balance-overdraft">
+            <span class="material-icons">trending_down</span>
+            Overdraft up to {{ account.overdraftLimit | number:'1.2-2' }} {{ account.currencyCode }}
+          </div>
+        }
+        @if ((account.minimumBalance ?? 0) > 0 && !account.allowOverdraft) {
+          <div class="balance-min">
+            <span class="material-icons">info_outline</span>
+            Min. balance {{ account.minimumBalance | number:'1.2-2' }} {{ account.currencyCode }}
           </div>
         }
       </div>

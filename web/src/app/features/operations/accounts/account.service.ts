@@ -19,6 +19,9 @@ export interface Account {
   openedDate: string;
   lastTransactionDate?: string;
   updatedAt?: string;
+  allowOverdraft?: boolean;
+  overdraftLimit?: number;
+  minimumBalance?: number;
 }
 
 export interface AccountHold {
@@ -142,4 +145,21 @@ export class AccountService {
   getTemplate(id: string): Observable<Record<string, unknown>> {
     return this.api.get<Record<string, unknown>>(`/accounts/${id}/template`);
   }
+
+  getOpenAccountTemplate(): Observable<OpenAccountTemplate> {
+    return this.api.get<OpenAccountTemplate>('/accounts/template');
+  }
+}
+
+export interface DepositProductSummary {
+  id: string;
+  name: string;
+  interestRate: number;
+  minimumBalance: number;
+  currencyCode: string;
+}
+
+export interface OpenAccountTemplate {
+  depositProducts: DepositProductSummary[];
+  accountTypes: Account['accountType'][];
 }

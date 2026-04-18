@@ -60,10 +60,18 @@ public class AccountController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
-    @Operation(summary = "List accounts for a customer")
-    public ResponseEntity<ApiResponse<Page<AccountResponse>>> getCustomerAccounts(
-            @RequestParam UUID customerId,
+    @Operation(summary = "List accounts for a customer, or retrieve the open-account template when ?template=true")
+    public ResponseEntity<?> getCustomerAccounts(
+            @RequestParam(required = false) UUID customerId,
+            @RequestParam(required = false, defaultValue = "false") boolean template,
             @PageableDefault(size = 20) Pageable pageable) {
+        if (template) {
+            return ResponseEntity.ok(ApiResponse.ok(accountService.getOpenAccountTemplate()));
+        }
+        if (customerId == null) {
+            return ResponseEntity.badRequest()
+                .body(ApiResponse.error("MISSING_PARAM", "customerId is required when template=false"));
+        }
         Page<AccountResponse> page = accountService.getCustomerAccounts(customerId, pageable);
         return ResponseEntity.ok(ApiResponse.ok(page,
             ApiResponse.PageMeta.of(page.getNumber(), page.getSize(), page.getTotalElements())));

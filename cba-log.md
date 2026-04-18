@@ -59,6 +59,54 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 88 — 2026-04-18
+**Module 2 Account Management — overdraft/min-balance UI indicator; product dropdown in open-account form; `?template=true` Mifos-style endpoint.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/…/dto/AccountResponse.java` | Added `allowOverdraft`, `overdraftLimit`, `minimumBalance` fields |
+| `backend/…/AccountService.java` | `toResponse()` populates three new product fields |
+| `backend/…/AccountController.java` | `GET /api/v1/accounts` now accepts `?template=true`; `customerId` made optional |
+| `web/…/account.service.ts` | `Account` interface: 3 new optional fields; `DepositProductSummary` + `OpenAccountTemplate` interfaces; `getOpenAccountTemplate()` method |
+| `web/…/account-detail.ts` | `templateProducts`, `templateAccountTypes`, `templateLoading` state; `ngOnInit` loads template when `isNew`; `onProductSelected()` auto-fills currency |
+| `web/…/account-detail.html` | Product ID raw input → `<select>` dropdown; Account Type driven by template; overdraft + min-balance indicator lines in header |
+| `web/…/account-detail.scss` | `.balance-overdraft`, `.balance-min`, `.form-input--loading` styles |
+
+#### Key Patterns / Decisions
+
+- `AccountResponse` embeds product-level overdraft/min-balance fields directly — avoids a second API call from the UI
+- `?template=true` on `GET /api/v1/accounts` is the Mifos convention; `/accounts/template` path remains available as an alias
+- `onProductSelected()` auto-fills `currencyCode` from the selected product — mirrors Mifos form pre-fill behaviour
+- Overdraft indicator (blue) only shown when `allowOverdraft=true`; min-balance indicator (muted) shown only when `allowOverdraft=false` — they are mutually exclusive from a UX standpoint
+
+#### Build Verification
+
+- `cd backend && ./mvnw compile` — BUILD SUCCESS (0 errors)
+- `npx ng build --configuration production` — 0 errors, pre-existing warnings only
+
+#### Confirmed Platform Versions
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `e52d16f` |
+| Java | 21 | `e52d16f` |
+| Application artifact | `cba-backend 0.1.0-SNAPSHOT` | `e52d16f` |
+| Keycloak admin client | 26.0.5 | `e52d16f` |
+| springdoc-openapi | 2.8.6 | `e52d16f` |
+| Lombok | 1.18.38 | `e52d16f` |
+| PostgreSQL | 16 (Docker) | `e52d16f` |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `e52d16f` |
+| Angular CLI | 21.2.7 | `e52d16f` |
+| PrimeNG | 21.0.x | `e52d16f` |
+| RxJS | 7.8.x | `e52d16f` |
+| TypeScript | 5.9.x | `e52d16f` |
+| Vercel deployment | `cba-web-nine.vercel.app` | `e52d16f` |
+
 ### Session 87 — 2026-04-18
 **Module 2 Account Management — Interest tab on AccountDetailComponent; `?transactionType=` filter on transactions endpoint.**
 

@@ -126,6 +126,14 @@ export class AccountService {
     return this.api.post<Account>(`/accounts/${id}?command=reactivate`, {});
   }
 
+  postInterest(id: string): Observable<Account> {
+    return this.api.post<Account>(`/accounts/${id}?command=postInterest`, {});
+  }
+
+  calculateInterest(id: string): Observable<InterestCalculation> {
+    return this.api.get<InterestCalculation>(`/accounts/${id}/interest/calculate`);
+  }
+
   getHolds(id: string): Observable<AccountHold[]> {
     return this.api.get<AccountHold[]>(`/accounts/${id}/holds`);
   }
@@ -162,4 +170,12 @@ export interface DepositProductSummary {
 export interface OpenAccountTemplate {
   depositProducts: DepositProductSummary[];
   accountTypes: Account['accountType'][];
+}
+
+export interface InterestCalculation {
+  accountId: string;
+  accountNumber: string;
+  currentBalance: number;
+  annualInterestRate: number;
+  projectedDailyInterest: number;
 }

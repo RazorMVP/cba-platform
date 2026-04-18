@@ -59,6 +59,51 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 89 — 2026-04-18
+**Module 2 Account Management gap: Interest Posting UI — `calculateInterest` preview endpoint + `?command=postInterest` backend; "Post Interest" button and confirm modal on Angular Interest tab.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/…/AccountService.java` | Added `calculateInterest()`, `postInterest()`, `computeDailyInterest()` private helper; `RoundingMode` import |
+| `backend/…/AccountController.java` | `case "postinterest"` in command switch; new `GET /{id}/interest/calculate` endpoint |
+| `web/…/account.service.ts` | `postInterest()` + `calculateInterest()` methods; `InterestCalculation` interface |
+| `web/…/account-detail.ts` | `ModalType` extended with `'postInterest'`; `interestPreview` + `interestPreviewLoading` state; `openPostInterestModal()` + `doPostInterest()` handlers |
+| `web/…/account-detail.html` | "Post Interest" button in Interest tab header (ACTIVE accounts only); Post Interest confirm modal with preview skeleton + preview rows |
+| `web/…/account-detail.scss` | `.interest-preview` and `.interest-preview__row` styles; `.btn-primary--sm` size modifier |
+
+#### Key Patterns / Decisions
+- Two-step preview → confirm: `calculateInterest` dry-run runs first on modal open; "Post Interest" button disabled until preview loads. Mirrors Mifos Calculate → Post workflow.
+- `computeDailyInterest()` private helper reuses the same `balance × rate / (100 × 365)` formula as `InterestAccrualJob` — single source of truth.
+- After `postInterest` succeeds: balance in header refreshes and `intLoaded = false` forces the interest history list to reload.
+- Modal button disabled while `interestPreviewLoading || !interestPreview` — prevents posting if preview call failed.
+
+#### Build Verification
+- `cd backend && ./mvnw compile` — BUILD SUCCESS (0 errors)
+- `cd web && npx ng build --configuration production` — 0 errors (pre-existing budget warning on loan-detail.scss only)
+
+#### Confirmed Platform Versions
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `3a07437` |
+| Java | 21 | `3a07437` |
+| Application artifact | `cba-backend 0.1.0-SNAPSHOT` | `3a07437` |
+| Keycloak admin client | 26.0.5 | `3a07437` |
+| springdoc-openapi | 2.8.6 | `3a07437` |
+| Lombok | 1.18.38 | `3a07437` |
+| PostgreSQL | 16 (Docker) | `3a07437` |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `3a07437` |
+| Angular CLI | 21.2.7 | `3a07437` |
+| PrimeNG | 21.0.x | `3a07437` |
+| RxJS | 7.8.x | `3a07437` |
+| TypeScript | 5.9.x | `3a07437` |
+| Vercel deployment | `cba-web-nine.vercel.app` | `3a07437` |
+
 ### Session 88 — 2026-04-18
 **Module 2 Account Management — overdraft/min-balance UI indicator; product dropdown in open-account form; `?template=true` Mifos-style endpoint.**
 

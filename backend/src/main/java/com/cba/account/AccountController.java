@@ -84,12 +84,13 @@ public class AccountController {
             @PathVariable UUID id,
             @RequestParam String command) {
         AccountResponse response = switch (command.toLowerCase()) {
-            case "approve"    -> accountService.approveAccount(id);
-            case "activate"   -> accountService.activateAccount(id);
-            case "reject"     -> accountService.rejectAccount(id);
-            case "reactivate" -> accountService.reactivateAccount(id);
-            default           -> throw com.cba.common.exception.CbaException.badRequest(
-                                     "UNKNOWN_COMMAND", "Unknown command: " + command);
+            case "approve"      -> accountService.approveAccount(id);
+            case "activate"     -> accountService.activateAccount(id);
+            case "reject"       -> accountService.rejectAccount(id);
+            case "reactivate"   -> accountService.reactivateAccount(id);
+            case "postinterest" -> accountService.postInterest(id);
+            default             -> throw com.cba.common.exception.CbaException.badRequest(
+                                       "UNKNOWN_COMMAND", "Unknown command: " + command);
         };
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
@@ -203,6 +204,13 @@ public class AccountController {
         String actor = jwt != null ? jwt.getClaimAsString("preferred_username") : "system";
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResponse.ok(accountService.placeHold(id, request, actor)));
+    }
+
+    @GetMapping("/{id}/interest/calculate")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
+    @Operation(summary = "Preview the daily interest that would be posted to this account (dry-run)")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> calculateInterest(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(accountService.calculateInterest(id)));
     }
 
     @DeleteMapping("/{id}/holds/{holdId}")

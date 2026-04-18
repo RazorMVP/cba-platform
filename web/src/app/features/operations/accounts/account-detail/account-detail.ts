@@ -3,12 +3,12 @@ import { CommonModule } from '@angular/common';
 import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge';
-import { AccountService, Account, Transaction, AccountCreateRequest, AccountHold, AccountHoldRequest, DepositProductSummary } from '../account.service';
+import { AccountService, Account, Transaction, AccountCreateRequest, AccountHold, AccountHoldRequest, DepositProductSummary, InterestCalculation } from '../account.service';
 import { CustomerService, ImageMeta } from '../../customers/customer.service';
 import { PageResponse } from '../../../../core/models/api-response.model';
 
 type ActiveTab = 'overview' | 'transactions' | 'interest' | 'holds';
-type ModalType = 'approve' | 'activate' | 'reject' | 'freeze' | 'unfreeze' | 'close' | 'deposit' | 'withdraw' | 'statement' | 'placeHold' | 'releaseHold' | 'reactivate' | null;
+type ModalType = 'approve' | 'activate' | 'reject' | 'freeze' | 'unfreeze' | 'close' | 'deposit' | 'withdraw' | 'statement' | 'placeHold' | 'releaseHold' | 'reactivate' | 'postInterest' | null;
 
 @Component({
   selector: 'app-account-detail',
@@ -61,6 +61,10 @@ export class AccountDetailComponent implements OnInit {
   intLoading    = false;
   intLoaded     = false;
   readonly intPageSize = 20;
+
+  // Interest actions
+  interestPreview: InterestCalculation | null = null;
+  interestPreviewLoading = false;
 
   // Holds tab (lazy-loaded)
   holds: AccountHold[]    = [];
@@ -304,6 +308,32 @@ export class AccountDetailComponent implements OnInit {
     this.svc.reactivate(this.account.id).subscribe({
       next: a  => { this.account = a; this.modalWorking = false; this.activeModal = null; },
       error: () => { this.modalError = 'Reactivation failed.'; this.modalWorking = false; },
+    });
+  }
+
+  openPostInterestModal(): void {
+    if (!this.account) return;
+    this.interestPreview = null;
+    this.interestPreviewLoading = true;
+    this.openModal('postInterest');
+    this.svc.calculateInterest(this.account.id).subscribe({
+      next:  calc => { this.interestPreview = calc; this.interestPreviewLoading = false; },
+      error: ()   => { this.interestPreviewLoading = false; this.modalError = 'Could not fetch interest preview.'; },
+    });
+  }
+
+  doPostInterest(): void {
+    if (!this.account) return;
+    this.modalWorking = true;
+    this.svc.postInterest(this.account.id).subscribe({
+      next: a => {
+        this.account = a;
+        this.modalWorking = false;
+        this.activeModal = null;
+        this.intLoaded = false;
+        this.loadIntTxns();
+      },
+      error: () => { this.modalError = 'Interest posting failed.'; this.modalWorking = false; },
     });
   }
 

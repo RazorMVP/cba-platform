@@ -991,6 +991,42 @@ Where:
 { "data": { "id": "hold-uuid", "status": "RELEASED", "releasedAt": "2026-04-18T14:00:00Z" } }</pre>
   </div>
 </details>
+
+<details class="endpoint">
+  <summary>
+    <span class="method get">GET</span>
+    <span class="endpoint-path">/api/v1/accounts/{id}/interest/calculate</span>
+    <span class="endpoint-summary">Preview daily interest that would be posted (dry-run)</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Roles: ADMIN, TELLER. Returns the daily interest amount that would be credited if <code>postInterest</code> were invoked now. No DB writes. Account must be ACTIVE.</p>
+    <p>Formula: <code>balance × annualRate / (100 × 365)</code> — same as the nightly CoB <code>InterestAccrualJob</code>.</p>
+    <pre>GET /api/v1/accounts/acct-uuid/interest/calculate
+{ "data": {
+    "accountId": "acct-uuid",
+    "accountNumber": "001-SAV-0001234",
+    "currentBalance": 10000.00,
+    "annualInterestRate": 3.50,
+    "projectedDailyInterest": 0.9589
+} }</pre>
+    <p><strong>Errors:</strong> <code>ACCOUNT_NOT_ACTIVE</code> — account must be in ACTIVE status.</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary>
+    <span class="method post">POST</span>
+    <span class="endpoint-path">/api/v1/accounts/{id}?command=postInterest</span>
+    <span class="endpoint-summary">Manually post daily interest to an account</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Roles: ADMIN, TELLER. Credits the computed daily interest to the account balance and creates an immutable <code>INTEREST_CREDIT</code> transaction record. Account must be ACTIVE. Useful for ad-hoc corrections or after system downtime during a nightly CoB window.</p>
+    <pre>POST /api/v1/accounts/acct-uuid?command=postInterest
+{ "data": { "id": "acct-uuid", "accountNumber": "001-SAV-0001234",
+            "balance": 10000.9589, "status": "ACTIVE", ... } }</pre>
+    <p><strong>Errors:</strong> <code>ACCOUNT_NOT_ACTIVE</code> — account is not ACTIVE. <code>NO_INTEREST_DUE</code> — balance is zero or product has no interest rate.</p>
+  </div>
+</details>
 </section>
 
 <!-- GLOBAL TRANSACTIONS ──────────────────────────────────────────────────── -->
@@ -2646,6 +2682,8 @@ Content-Type: application/json
 <tr><td>GET</td><td>/api/v1/accounts/{id}/holds</td><td>List funds holds (ACTIVE/RELEASED/EXPIRED)</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/accounts/{id}/holds</td><td>Place a funds hold; reduces availableBalance</td><td>ADMIN, TELLER</td></tr>
 <tr><td>DELETE</td><td>/api/v1/accounts/{id}/holds/{holdId}</td><td>Release hold; restores availableBalance</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/accounts/{id}/interest/calculate</td><td>Preview daily interest (dry-run, no DB write)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/accounts/{id}?command=postInterest</td><td>Manually credit daily interest; writes INTEREST_CREDIT transaction</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/transactions</td><td>All transactions paginated — dashboard recent activity</td><td>ADMIN, TELLER</td></tr>
 <!-- Loans -->
 <tr><td>GET</td><td>/api/v1/loans</td><td>List loans</td><td>ADMIN, TELLER</td></tr>

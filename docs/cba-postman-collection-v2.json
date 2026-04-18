@@ -1724,6 +1724,68 @@
               "body": "{\n  \"data\": {\n    \"id\": \"hold-uuid\",\n    \"status\": \"RELEASED\",\n    \"releasedAt\": \"2026-04-18T14:00:00Z\",\n    \"releasedBy\": \"teller@cba.com\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
             }
           ]
+        },
+        {
+          "name": "Calculate Interest (Preview)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/:id/interest/calculate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", ":id", "interest", "calculate"],
+              "variable": [{ "key": "id", "value": "account-uuid" }]
+            },
+            "description": "Dry-run preview of daily interest. No DB writes. Account must be ACTIVE. Returns projectedDailyInterest using formula: balance × annualRate / (100 × 365). Roles: ADMIN, TELLER."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"accountId\": \"acct-uuid\",\n    \"accountNumber\": \"001-SAV-0001234\",\n    \"currentBalance\": 10000.00,\n    \"annualInterestRate\": 3.50,\n    \"projectedDailyInterest\": 0.9589\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            },
+            {
+              "name": "400 — Account Not Active",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{\"code\": \"ACCOUNT_NOT_ACTIVE\", \"message\": \"Interest can only be calculated on ACTIVE accounts\"}]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Post Interest",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/:id?command=postInterest",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "accounts", ":id"],
+              "query": [{ "key": "command", "value": "postInterest" }],
+              "variable": [{ "key": "id", "value": "account-uuid" }]
+            },
+            "description": "Manually credits daily interest to the account balance and creates an INTEREST_CREDIT transaction. Account must be ACTIVE with a non-zero balance and product interest rate. Roles: ADMIN, TELLER."
+          },
+          "response": [
+            {
+              "name": "200 OK \u2014 Interest Posted",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": \"acct-uuid\",\n    \"accountNumber\": \"001-SAV-0001234\",\n    \"balance\": 10000.9589,\n    \"status\": \"ACTIVE\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            },
+            {
+              "name": "400 \u2014 No Interest Due",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{\"code\": \"NO_INTEREST_DUE\", \"message\": \"No interest to post \u2014 zero balance or zero rate\"}]\n}"
+            }
+          ]
         }
       ]
     },

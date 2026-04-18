@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 88 — 2026-04-18)
+## Confirmed Platform Versions (Session 89 — 2026-04-18)
 
 These are the verified-working versions for both production components. Update this table whenever a dependency is upgraded.
 
@@ -20,7 +20,7 @@ These are the verified-working versions for both production components. Update t
 | **Lombok** | 1.18.38 | Minimum for Java 25 `TypeTag` fix; also works on Java 21 |
 | **PostgreSQL** | 16 | Via Docker; schema managed by Flyway |
 | **AWS SDK v2 S3** | 2.26.12 | Optional — for S3/MinIO/GCS image storage |
-| **Last git commit** | `28816a3` | `feat(accounts): min balance/overdraft enforcement, INTEREST_CREDIT tx records, account template endpoint` |
+| **Last git commit** | `3a07437` | `feat(accounts): overdraft/min-balance UI indicator, product dropdown in open-account form, ?template=true Mifos endpoint` |
 
 ### Angular Web App (`web/`)
 
@@ -33,7 +33,7 @@ These are the verified-working versions for both production components. Update t
 | **TypeScript** | 5.9.x | `~5.9.2` pinned |
 | **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma) |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `28816a3` | `feat(accounts): min balance/overdraft enforcement, INTEREST_CREDIT tx records, account template endpoint` |
+| **Last git commit** | `3a07437` | `feat(accounts): overdraft/min-balance UI indicator, product dropdown in open-account form, ?template=true Mifos endpoint` |
 
 > **Session 66 CI fixes**: Angular 21 uses Vitest (not Karma) — `--browsers=ChromeHeadless` and `--code-coverage` are invalid flags. `vercel deploy --prebuilt` requires `.vercel/output/` from `vercel build`, not `dist/` from `ng build`. All three issues fixed; CI pipeline and Vercel production deployment now fully green.
 
@@ -207,7 +207,7 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 - Closed accounts are read-only; balance must be zero first
 - Deposit/withdraw guarded by `validateAccountActive()` — only ACTIVE accounts accept teller transactions
 - All debits/credits produce an immutable `Transaction` record
-- Interest calculated via daily scheduled job
+- Interest calculated via daily scheduled job; manual posting via `?command=postInterest` (ADMIN/TELLER); preview via `GET /{id}/interest/calculate` _(Session 89)_
 
 ### 3. Loan Module
 - Full lifecycle: origination → disbursement → repayment → collections → close
@@ -2451,7 +2451,7 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Customers list | `CustomersListComponent` | `OperationsModule`  | ✅ Built — debounced search, KYC filter tabs, pagination |
 | Customer detail | `CustomerDetailComponent` | `OperationsModule`  | ✅ Built — 7 tabs (Overview/Accounts/Loans/Staff/Transfer + KYC state machine); 12 command modals; `PUT /{id}` profile edit _(Session 49)_ |
 | Accounts list | `AccountsListComponent` | `OperationsModule`  | ✅ Built — type filter, pagination |
-| Account detail | `AccountDetailComponent` | `OperationsModule`  | ✅ Built — header card, overview/transactions/interest/holds tabs, freeze/unfreeze/close/deposit/withdraw modals, Statement modal; Interest tab filters by `INTEREST_CREDIT` (4dp amounts, CoB reference); `isNew` mode: product dropdown + account-type dropdown from `/accounts/template`; overdraft (blue) + min-balance (muted) indicators in header _(Session 88)_ |
+| Account detail | `AccountDetailComponent` | `OperationsModule`  | ✅ Built — header card, overview/transactions/interest/holds tabs, freeze/unfreeze/close/deposit/withdraw modals, Statement modal; Interest tab: filters by `INTEREST_CREDIT` (4dp amounts, CoB reference) + **"Post Interest" button** with preview modal (calculate → confirm) _(Session 89)_; `isNew` mode: product dropdown + account-type dropdown from `/accounts/template`; overdraft (blue) + min-balance (muted) indicators in header _(Session 88)_ |
 | Payments list | `PaymentsListComponent` | `OperationsModule`  | ✅ Built — account context picker, paginated payment history, 3-step transfer wizard modal, standing order modal |
 | Payment detail | `PaymentDetailComponent` | `OperationsModule`  | ✅ Built — status band with FX details, transfer route card, payment details card, reverse modal |
 | Teller list | `TellerListComponent` | `OperationsModule`  | ✅ Built — search + status filter, create teller modal |
@@ -2984,7 +2984,7 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | Unblock account | ✅ Unfreeze modal | ✅ Unfreeze button | — |
 | Close account | ✅ Close modal | ✅ Close button | — |
 | Dormancy detection (nightly CoB job) | ✅ `DormancyClassificationJob` at 23:56; 90-day cutoff; expires holds on dormancy | ✅ Reactivate button for DORMANT accounts _(Session 80)_ | — |
-| Interest posting (daily accrual, periodic posting) | ⚠️ `interestAccrualJob` exists (CoB) | ❌ No interest posting UI | ⚠️ |
+| Interest posting (daily accrual, periodic posting) | ✅ `interestAccrualJob` (CoB) + `?command=postInterest` + `GET /{id}/interest/calculate` _(Session 89)_ | ✅ "Post Interest" button + preview modal on Interest tab _(Session 89)_ | ✅ |
 | Account transfers (internal) | ✅ Via payment service | ✅ Transfer wizard modal | — |
 | Statement download | ✅ Statement modal with date filter | ✅ Statement modal | — |
 | Savings account template (`?template=true`) | ❌ No template endpoint | ❌ Missing | ❌ |

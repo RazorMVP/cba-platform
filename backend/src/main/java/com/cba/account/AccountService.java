@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -354,6 +355,59 @@ public class AccountService {
             throw CbaException.badRequest("ACCOUNT_NOT_ACTIVE",
                 "Account " + account.getAccountNumber() + " is " + account.getStatus());
         }
+    }
+
+    // ── Interest operations ───────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> calculateInterest(UUID id) {
+        Account account = findById(id);
+        if (account.getStatus() != AccountStatus.ACTIVE)
+            throw CbaException.badRequest("ACCOUNT_NOT_ACTIVE",
+                "Interest can only be calculated on ACTIVE accounts");
+        BigDecimal rate = account.getProduct() != null ? account.getProduct().getInterestRate() : BigDecimal.ZERO;
+        BigDecimal interest = computeDailyInterest(account);
+        return Map.of(
+            "accountId",             id,
+            "accountNumber",         account.getAccountNumber(),
+            "currentBalance",        account.getBalance(),
+            "annualInterestRate",    rate != null ? rate : BigDecimal.ZERO,
+            "projectedDailyInterest", interest
+        );
+    }
+
+    @Transactional
+    public AccountResponse postInterest(UUID id) {
+        Account account = accountRepository.findByIdWithLock(id)
+            .orElseThrow(() -> CbaException.notFound("Account", id));
+        if (account.getStatus() != AccountStatus.ACTIVE)
+            throw CbaException.badRequest("ACCOUNT_NOT_ACTIVE",
+                "Interest can only be posted to ACTIVE accounts");
+        BigDecimal interest = computeDailyInterest(account);
+        if (interest.compareTo(BigDecimal.ZERO) <= 0)
+            throw CbaException.badRequest("NO_INTEREST_DUE",
+                "No interest to post — zero balance or zero rate");
+        account.setBalance(account.getBalance().add(interest));
+        accountRepository.save(account);
+        transactionRepository.save(Transaction.of(
+            account, TransactionType.INTEREST_CREDIT, interest,
+            account.getBalance(), "Manual interest posting",
+            "INT-MANUAL-" + System.currentTimeMillis() + "-" + id.toString().substring(0, 8),
+            "system"
+        ));
+        auditLogService.log("ACCOUNT", id.toString(), "POST_INTEREST",
+            "MANUAL", interest.toPlainString());
+        return toResponse(account);
+    }
+
+    private BigDecimal computeDailyInterest(Account account) {
+        if (account.getProduct() == null) return BigDecimal.ZERO;
+        BigDecimal rate = account.getProduct().getInterestRate();
+        if (rate == null || rate.compareTo(BigDecimal.ZERO) == 0) return BigDecimal.ZERO;
+        if (account.getBalance().compareTo(BigDecimal.ZERO) <= 0) return BigDecimal.ZERO;
+        return account.getBalance()
+            .multiply(rate)
+            .divide(BigDecimal.valueOf(100L * 365), 4, RoundingMode.HALF_UP);
     }
 
     private String generateReference() {

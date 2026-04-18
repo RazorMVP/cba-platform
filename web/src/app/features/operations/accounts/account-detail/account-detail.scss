@@ -625,3 +625,39 @@
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
+
+// ── Interest preview ───────────────────────────────────────────────────────────
+
+.interest-preview {
+  background: var(--bg-card, #f9f9f9);
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+
+  &__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+    border-bottom: 1px solid #f3f4f6;
+
+    &:last-child { border-bottom: none; }
+
+    &--highlight {
+      background: #f0fdf4;
+      font-weight: 600;
+    }
+  }
+}
+
+.btn-primary--sm {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+
+  .material-icons { font-size: 1rem; }
+}
+

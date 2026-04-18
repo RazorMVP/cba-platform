@@ -153,6 +153,10 @@ details.endpoint[open] .endpoint-body{display:block}
     <a href="#roles">Roles &amp; Permissions</a>
     <a href="#client-ext">Client Identifiers/Addresses</a>
     <a href="#audit-rest">Audit Search</a>
+    <div class="section-head">Treasury</div>
+    <a href="#treasury-placements">Placements</a>
+    <a href="#treasury-interbank">Interbank Positions</a>
+    <a href="#treasury-liquidity">Liquidity Management</a>
     <div class="section-head">Card Platform</div>
     <a href="#card-service">Card Service Overview</a>
     <a href="#interchange-management">Interchange Management</a>
@@ -2112,6 +2116,117 @@ Content-Type: application/json
 </table>
 </section>
 
+<!-- TREASURY ─────────────────────────────────────────────────────────────── -->
+
+<section id="treasury-placements">
+<h2>Treasury — Placements <span style="font-size:.75rem;font-weight:400;color:#065f46;background:#d1fae5;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Live</span></h2>
+<p>Short- and medium-term investment of surplus funds. Types: <code>FIXED_DEPOSIT</code>, <code>TREASURY_BILL</code>, <code>BOND</code>, <code>CALL_MONEY</code>, <code>REPO</code>. Lifecycle: <code>PENDING → ACTIVE → MATURED | CANCELLED</code>. Reference must be unique.</p>
+<div class="callout success">Implemented in <code>com.cba.treasury.TreasuryController</code>. Flyway: <code>V37__treasury_module.sql</code>.</div>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/treasury/placements</td><td>List all placements</td><td>Authenticated</td></tr>
+<tr><td>GET</td><td>/api/v1/treasury/placements/{id}</td><td>Get placement by UUID</td><td>Authenticated</td></tr>
+<tr><td>POST</td><td>/api/v1/treasury/placements</td><td>Create placement (status PENDING)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/api/v1/treasury/placements/{id}</td><td>Update PENDING placement</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/treasury/placements/{id}?command=activate</td><td>PENDING → ACTIVE (funds deployed)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/treasury/placements/{id}?command=mature</td><td>ACTIVE → MATURED (records actualReturn)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/treasury/placements/{id}?command=cancel</td><td>PENDING or ACTIVE → CANCELLED</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/treasury/placements/{id}</td><td>Hard-delete placement</td><td>ADMIN</td></tr>
+</table>
+
+<h3>Request Body — Create/Update Placement</h3>
+<table>
+<tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr>
+<tr><td><code>reference</code></td><td>string</td><td>✓</td><td>Unique reference code (e.g. <code>PL-2026-001</code>)</td></tr>
+<tr><td><code>counterpartyName</code></td><td>string</td><td>✓</td><td>Counterparty institution name</td></tr>
+<tr><td><code>counterpartyBic</code></td><td>string</td><td></td><td>SWIFT/BIC code</td></tr>
+<tr><td><code>placementType</code></td><td>enum</td><td>✓</td><td><code>FIXED_DEPOSIT | TREASURY_BILL | BOND | CALL_MONEY | REPO</code></td></tr>
+<tr><td><code>principal</code></td><td>decimal</td><td>✓</td><td>Principal amount &gt; 0 (NUMERIC 19,4)</td></tr>
+<tr><td><code>interestRate</code></td><td>decimal</td><td>✓</td><td>Annual rate as decimal (e.g. <code>5.75</code> = 5.75%)</td></tr>
+<tr><td><code>currencyCode</code></td><td>string</td><td></td><td>ISO 4217 (default <code>USD</code>)</td></tr>
+<tr><td><code>startDate</code></td><td>date</td><td>✓</td><td>ISO 8601 (<code>YYYY-MM-DD</code>)</td></tr>
+<tr><td><code>maturityDate</code></td><td>date</td><td>✓</td><td>ISO 8601; must be after startDate</td></tr>
+<tr><td><code>expectedReturn</code></td><td>decimal</td><td></td><td>Calculated expected interest income</td></tr>
+<tr><td><code>glSourceAccount</code></td><td>UUID</td><td></td><td>GL account from which funds are deployed</td></tr>
+<tr><td><code>glIncomeAccount</code></td><td>UUID</td><td></td><td>GL account for interest income posting</td></tr>
+<tr><td><code>notes</code></td><td>string</td><td></td><td>Free text</td></tr>
+</table>
+</section>
+
+<section id="treasury-interbank">
+<h2>Treasury — Interbank Positions <span style="font-size:.75rem;font-weight:400;color:#065f46;background:#d1fae5;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Live</span></h2>
+<p>Interbank lending and borrowing positions. <code>LENDING</code> = bank placed funds with another institution; <code>BORROWING</code> = bank received funds. <code>maturityDate</code> is optional (null = open-ended facility). Lifecycle: <code>ACTIVE → SETTLED | CANCELLED</code>.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/treasury/positions</td><td>List all interbank positions</td><td>Authenticated</td></tr>
+<tr><td>GET</td><td>/api/v1/treasury/positions/{id}</td><td>Get position by UUID</td><td>Authenticated</td></tr>
+<tr><td>POST</td><td>/api/v1/treasury/positions</td><td>Create position (status ACTIVE)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/api/v1/treasury/positions/{id}</td><td>Update active position</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/treasury/positions/{id}?command=settle</td><td>ACTIVE → SETTLED (principal + interest repaid)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/treasury/positions/{id}?command=cancel</td><td>ACTIVE → CANCELLED</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/treasury/positions/{id}</td><td>Hard-delete position</td><td>ADMIN</td></tr>
+</table>
+
+<h3>Request Body — Create/Update Position</h3>
+<table>
+<tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr>
+<tr><td><code>reference</code></td><td>string</td><td>✓</td><td>Unique reference code</td></tr>
+<tr><td><code>counterpartyName</code></td><td>string</td><td>✓</td><td>Counterparty bank name</td></tr>
+<tr><td><code>counterpartyBic</code></td><td>string</td><td></td><td>SWIFT/BIC code</td></tr>
+<tr><td><code>direction</code></td><td>enum</td><td>✓</td><td><code>LENDING | BORROWING</code></td></tr>
+<tr><td><code>amount</code></td><td>decimal</td><td>✓</td><td>Principal amount &gt; 0</td></tr>
+<tr><td><code>currencyCode</code></td><td>string</td><td></td><td>ISO 4217 (default <code>USD</code>)</td></tr>
+<tr><td><code>interestRate</code></td><td>decimal</td><td>✓</td><td>Annual interest rate %</td></tr>
+<tr><td><code>startDate</code></td><td>date</td><td>✓</td><td>ISO 8601</td></tr>
+<tr><td><code>maturityDate</code></td><td>date</td><td></td><td>Optional — null = open-ended facility</td></tr>
+<tr><td><code>settlementGl</code></td><td>UUID</td><td></td><td>GL account for settlement posting</td></tr>
+<tr><td><code>notes</code></td><td>string</td><td></td><td>Free text</td></tr>
+</table>
+</section>
+
+<section id="treasury-liquidity">
+<h2>Treasury — Liquidity Management <span style="font-size:.75rem;font-weight:400;color:#065f46;background:#d1fae5;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Live</span></h2>
+<p>Live liquidity position, cash flow forecast, reserve requirements, and CoB snapshot history. Implemented in <code>com.cba.treasury.LiquidityService</code>. Snapshots are taken automatically at 23:50 nightly via <code>@Scheduled</code>. Flyway: <code>V38__liquidity_module.sql</code>.</p>
+<div class="callout info">Alert levels — <strong>OK</strong>: above alert threshold; <strong>WARN</strong>: between reserve floor and alert threshold; <strong>BREACH</strong>: below minimum reserve requirement.</div>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/treasury/liquidity/positions</td><td>Live position for all currencies</td><td>Authenticated</td></tr>
+<tr><td>GET</td><td>/api/v1/treasury/liquidity/positions/{currency}</td><td>Live position for one currency</td><td>Authenticated</td></tr>
+<tr><td>GET</td><td>/api/v1/treasury/liquidity/cashflow?currency=&amp;days=</td><td>Cash flow forecast (30/60/90 days)</td><td>Authenticated</td></tr>
+<tr><td>GET</td><td>/api/v1/treasury/liquidity/reserves</td><td>List reserve requirements</td><td>Authenticated</td></tr>
+<tr><td>POST</td><td>/api/v1/treasury/liquidity/reserves</td><td>Create reserve requirement</td><td>ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/api/v1/treasury/liquidity/reserves/{id}</td><td>Update reserve requirement</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/treasury/liquidity/reserves/{id}</td><td>Delete reserve requirement</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/treasury/liquidity/snapshots?currency=&amp;limit=</td><td>CoB snapshot history</td><td>Authenticated</td></tr>
+<tr><td>POST</td><td>/api/v1/treasury/liquidity/snapshots/take</td><td>Manually trigger snapshot (all currencies)</td><td>ADMIN</td></tr>
+</table>
+
+<h3>Liquidity Position Response Fields</h3>
+<table>
+<tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+<tr><td><code>currencyCode</code></td><td>string</td><td>ISO 4217</td></tr>
+<tr><td><code>totalDeposits</code></td><td>decimal</td><td>Sum of all active account balances in currency</td></tr>
+<tr><td><code>totalLoansOutstanding</code></td><td>decimal</td><td>Sum of outstanding loan balances</td></tr>
+<tr><td><code>activePlacements</code></td><td>decimal</td><td>Total principal in ACTIVE placements</td></tr>
+<tr><td><code>interbankLending</code></td><td>decimal</td><td>Total ACTIVE LENDING positions</td></tr>
+<tr><td><code>interbankBorrowing</code></td><td>decimal</td><td>Total ACTIVE BORROWING positions</td></tr>
+<tr><td><code>netLiquidityPosition</code></td><td>decimal</td><td>totalDeposits − totalLoansOutstanding − activePlacements − interbankLending + interbankBorrowing</td></tr>
+<tr><td><code>requiredReserve</code></td><td>decimal</td><td>MAX(minimumBalance, totalDeposits × minimumRatioPercent / 100)</td></tr>
+<tr><td><code>alertLevel</code></td><td>enum</td><td><code>OK | WARN | BREACH</code></td></tr>
+<tr><td><code>asOf</code></td><td>timestamp</td><td>Computation timestamp</td></tr>
+</table>
+
+<h3>Reserve Requirement Request Fields</h3>
+<table>
+<tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr>
+<tr><td><code>currencyCode</code></td><td>string</td><td>✓</td><td>ISO 4217 — UNIQUE per currency</td></tr>
+<tr><td><code>minimumBalance</code></td><td>decimal</td><td>✓</td><td>Absolute floor balance ≥ 0</td></tr>
+<tr><td><code>minimumRatioPercent</code></td><td>decimal</td><td></td><td>% of total deposits (0–100)</td></tr>
+<tr><td><code>alertThresholdPercent</code></td><td>decimal</td><td></td><td>% of total deposits — triggers WARN before BREACH (0–100)</td></tr>
+<tr><td><code>regulatoryReference</code></td><td>string</td><td></td><td>Regulatory basis (e.g. <code>BOG Primary Reserve Requirement</code>)</td></tr>
+</table>
+</section>
+
 <!-- CARD SERVICE ────────────────────────────────────────────────────────── -->
 <section id="card-service">
 <h2>Card Service (port 8081)</h2>
@@ -2720,6 +2835,32 @@ Content-Type: application/json
 <p><strong>Delivery methods:</strong> <code>EMAIL</code>, <code>SMS</code> — <strong>Log statuses:</strong> <code>SENT</code>, <code>FAILED</code>, <code>SKIPPED</code> — <strong>Masking:</strong> emails masked to <code>a***@domain.com</code>; phones to <code>****1234</code></p>
 <p><strong>Flyway:</strong> <code>V22__notification_admin.sql</code> — seeds 7 standard templates (ACCOUNT_OPENED, ACCOUNT_CLOSED, LOAN_APPROVED, LOAN_DISBURSED, LOAN_DUE, LARGE_TRANSACTION, LOGIN_FAILED)</p>
 </section>
+
+<!-- Treasury -->
+<tr><td colspan="4" style="background:#f8f9fa;font-weight:600">Treasury — Placements</td></tr>
+<tr><td>GET</td><td>/api/v1/treasury/placements</td><td>List treasury placements</td><td>Authenticated</td></tr>
+<tr><td>GET</td><td>/api/v1/treasury/placements/{id}</td><td>Get placement</td><td>Authenticated</td></tr>
+<tr><td>POST</td><td>/api/v1/treasury/placements</td><td>Create placement</td><td>ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/api/v1/treasury/placements/{id}</td><td>Update placement</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/treasury/placements/{id}?command=activate|mature|cancel</td><td>Placement lifecycle command</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/treasury/placements/{id}</td><td>Delete placement</td><td>ADMIN</td></tr>
+<tr><td colspan="4" style="background:#f8f9fa;font-weight:600">Treasury — Interbank Positions</td></tr>
+<tr><td>GET</td><td>/api/v1/treasury/positions</td><td>List interbank positions</td><td>Authenticated</td></tr>
+<tr><td>GET</td><td>/api/v1/treasury/positions/{id}</td><td>Get position</td><td>Authenticated</td></tr>
+<tr><td>POST</td><td>/api/v1/treasury/positions</td><td>Create position</td><td>ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/api/v1/treasury/positions/{id}</td><td>Update position</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/treasury/positions/{id}?command=settle|cancel</td><td>Position lifecycle command</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/treasury/positions/{id}</td><td>Delete position</td><td>ADMIN</td></tr>
+<tr><td colspan="4" style="background:#f8f9fa;font-weight:600">Treasury — Liquidity Management</td></tr>
+<tr><td>GET</td><td>/api/v1/treasury/liquidity/positions</td><td>Live position (all currencies)</td><td>Authenticated</td></tr>
+<tr><td>GET</td><td>/api/v1/treasury/liquidity/positions/{currency}</td><td>Live position by currency</td><td>Authenticated</td></tr>
+<tr><td>GET</td><td>/api/v1/treasury/liquidity/cashflow</td><td>Cash flow forecast (?currency&amp;days=30)</td><td>Authenticated</td></tr>
+<tr><td>GET</td><td>/api/v1/treasury/liquidity/reserves</td><td>List reserve requirements</td><td>Authenticated</td></tr>
+<tr><td>POST</td><td>/api/v1/treasury/liquidity/reserves</td><td>Create reserve requirement</td><td>ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/api/v1/treasury/liquidity/reserves/{id}</td><td>Update reserve requirement</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/treasury/liquidity/reserves/{id}</td><td>Delete reserve requirement</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/treasury/liquidity/snapshots</td><td>CoB snapshot history (?currency&amp;limit)</td><td>Authenticated</td></tr>
+<tr><td>POST</td><td>/api/v1/treasury/liquidity/snapshots/take</td><td>Manual snapshot trigger</td><td>ADMIN</td></tr>
 
 <!-- Card Service — /api/v1/ (card-service :8081) -->
 <tr><td>GET</td><td>/api/v1/cards/products</td><td>List card products</td><td>ADMIN, TELLER</td></tr>

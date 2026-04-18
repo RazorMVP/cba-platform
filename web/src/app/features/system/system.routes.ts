@@ -12,6 +12,7 @@ import { AccountNumberFormatsComponent } from './account-number-formats';
 import { DataTablesComponent } from './datatables';
 import { SurveysComponent } from './surveys';
 import { CreditBureauComponent } from './credit-bureau';
+import { FieldConfigurationComponent } from './field-configuration';
 
 export const SYSTEM_ROUTES: Routes = [
   { path: 'codes', component: CodesComponent },
@@ -27,4 +28,5 @@ export const SYSTEM_ROUTES: Routes = [
   { path: 'datatables', component: DataTablesComponent },
   { path: 'surveys', component: SurveysComponent },
   { path: 'credit-bureau', component: CreditBureauComponent },
+  { path: 'field-configuration', component: FieldConfigurationComponent },
 ];

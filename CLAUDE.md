@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 89 — 2026-04-18)
+## Confirmed Platform Versions (Session 91 — 2026-04-18)
 
 These are the verified-working versions for both production components. Update this table whenever a dependency is upgraded.
 
@@ -20,7 +20,8 @@ These are the verified-working versions for both production components. Update t
 | **Lombok** | 1.18.38 | Minimum for Java 25 `TypeTag` fix; also works on Java 21 |
 | **PostgreSQL** | 16 | Via Docker; schema managed by Flyway |
 | **AWS SDK v2 S3** | 2.26.12 | Optional — for S3/MinIO/GCS image storage |
-| **Last git commit** | `37345c1` | Session 90 — minRequiredOpeningBalance + lock-in enforcement (GlobalConfig-gated) |
+| **thumbnailator** | 0.4.20 | Server-side image resize for `ClientImageService` — max 500×500, JPEG output |
+| **Last git commit** | `f12f21e` | Session 91 — client photo resize + FieldConfiguration module |
 
 ### Angular Web App (`web/`)
 
@@ -33,7 +34,7 @@ These are the verified-working versions for both production components. Update t
 | **TypeScript** | 5.9.x | `~5.9.2` pinned |
 | **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma) |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `37345c1` | Session 90 — minRequiredOpeningBalance + lock-in enforcement (GlobalConfig-gated) |
+| **Last git commit** | `f12f21e` | Session 91 — client photo resize + FieldConfiguration module |
 
 > **Session 66 CI fixes**: Angular 21 uses Vitest (not Karma) — `--browsers=ChromeHeadless` and `--code-coverage` are invalid flags. `vercel deploy --prebuilt` requires `.vercel/output/` from `vercel build`, not `dist/` from `ng build`. All three issues fixed; CI pipeline and Vercel production deployment now fully green.
 
@@ -2511,6 +2512,7 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | DataTables | `DataTablesComponent` | `SystemModule`  | ✅ Built — accordion listing; dynamic column builder; canSave validation; delete confirm _(Session 77)_ |
 | Surveys | `SurveysComponent` | `SystemModule`  | ✅ Built — accordion; survey metadata + questions/responses; create/edit/delete modals; countryCode badge _(Session 77)_ |
 | Credit Bureau | `CreditBureauComponent` | `SystemModule`  | ✅ Built — accordion with StatusBadge; lazy-loaded mappings; activate/deactivate/edit/delete _(Session 77)_ |
+| Field Configuration | `FieldConfigurationComponent` | `SystemModule` | ✅ Built — entity-type tabs (CLIENT/ADDRESS/LOAN), inline edit (label/enabled/mandatory/order), add/delete modals _(Session 91)_ |
 | Card List | `CardListComponent` | `CardsModule`  | ✅ Built — search by PAN suffix/customer, type + status filters, issue card modal |
 | Card Detail | `CardDetailComponent` | `CardsModule`  | ✅ Built — 3 tabs (overview/authorizations/limits), block/unblock/cancel/activate commands, edit limits modal |
 | Card Products | `CardProductsComponent` | `CardsModule`  | ✅ Built — product list with BIN range display, create product modal |
@@ -2956,8 +2958,8 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | Withdraw transfer proposal | ✅ `?command=withdrawTransfer` | ✅ Transfer tab button | — |
 | Update customer profile (`PUT /{id}`) | ✅ `PUT /customers/{id}` | ✅ Edit form in Overview tab | — |
 | Delete pending customer (`DELETE /{id}`) | ✅ `DELETE /customers/{id}` | ✅ Delete confirm modal | — |
-| Client photo upload / resize | ❌ Binary handling stub only | ❌ No photo upload UI | ❌ |
-| Field configuration viewer (`/fieldconfiguration/ADDRESS`) | ❌ Not implemented | ❌ Not implemented | ❌ |
+| Client photo upload / resize | ✅ `ClientImageService.resize()` — thumbnailator 500×500 JPEG _(Session 91)_ | ✅ Upload UI in customer detail (existing) | ✅ |
+| Field configuration viewer (`/fieldconfiguration/ADDRESS`) | ✅ `FieldConfigurationController` — CRUD, seeded CLIENT/ADDRESS/LOAN fields _(Session 91)_ | ✅ `FieldConfigurationComponent` in SystemModule _(Session 91)_ | ✅ |
 | KycStatus: `REJECTED`, `WITHDRAWN`, `TRANSFER_IN_PROGRESS` | ✅ Built Session 49 | ✅ Shown in transitions | — |
 | Lifecycle fields on `Customer` entity (dates, reasons, staffId, officeId, transfer fields) | ✅ Built Session 49 | ✅ Surfaced in Staff + Transfer tabs | — |
 | `CustomerResponse` DTO with all lifecycle fields | ✅ Built Session 49 | — | — |
@@ -2965,7 +2967,7 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | `UpdateCustomerRequest` DTO + `CustomerMapper` | ✅ Built Session 49 | — | — |
 | `V23__customer_lifecycle_extensions.sql` Flyway migration | ✅ Built Session 49 | — | — |
 
-**Status**: ✅ Fully closed in Session 49 (commit `b0f8695`). Remaining gaps: client photo upload (binary storage), field configuration viewer.
+**Status**: ✅ Fully closed. Client photo resize added Session 91 (thumbnailator). Field configuration viewer added Session 91. Module 1 is complete.
 
 ---
 

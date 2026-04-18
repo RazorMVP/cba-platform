@@ -59,6 +59,60 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 91 — 2026-04-18
+**Module 1 gap closure: client photo server-side resize + FieldConfiguration module.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/pom.xml` | Added `net.coobird:thumbnailator:0.4.20` dependency |
+| `backend/…/customer/ClientImageService.java` | Added `resize()` helper — thumbnailator 500×500, JPEG 85% quality; always outputs `image/jpeg` regardless of input format |
+| `backend/…/system/FieldConfiguration.java` | NEW entity — `entity_type` + `field_name` UNIQUE; `enabled`, `mandatory`, `displayOrder` |
+| `backend/…/system/FieldConfigurationRepository.java` | NEW — `findByEntityTypeOrderByDisplayOrderAsc`, `findByEntityTypeAndFieldName` |
+| `backend/…/system/FieldConfigurationController.java` | NEW — `GET/PUT/POST/DELETE /api/v1/fieldconfiguration`; ADMIN for writes |
+| `backend/…/db/migration/V41__field_configuration.sql` | NEW — `field_configurations` table; seeds CLIENT (12 fields), ADDRESS (7 fields), LOAN (4 fields) |
+| `web/…/system/field-configuration.ts` | NEW Angular component — entity-type tabs, inline row edit, add/delete modals |
+| `web/…/system/field-configuration.html` | NEW template |
+| `web/…/system/field-configuration.scss` | NEW styles |
+| `web/…/system/system.routes.ts` | Added `field-configuration` route |
+| `web/…/system/system.service.ts` | Added `FieldConfiguration`, `UpdateFieldConfigRequest`, `CreateFieldConfigRequest` interfaces + 5 service methods |
+| `web/…/layout/sidebar/sidebar.ts` | Added "Field Configuration" nav item under System |
+| `CLAUDE.md` | Session 91 versions; Module 1 gap table closed; Angular Component Map updated |
+
+#### Key Patterns / Decisions
+
+- **thumbnailator single-pass**: `Thumbnails.of(input).size(500,500).keepAspectRatio(true).outputFormat("jpeg").outputQuality(0.85)` — handles PNG→JPEG conversion transparently; always writes `image/jpeg` content type regardless of input
+- **FieldConfiguration as reference data**: Seeded via Flyway, modified at runtime via REST — no redeployment needed to toggle fields. Separate from GlobalConfiguration (boolean flags) — this table carries richer schema metadata (label, order, mandatory).
+
+#### Build Verification
+- `cd backend && ./mvnw compile` → BUILD SUCCESS (0 errors)
+- `cd web && npx tsc --noEmit` → 0 errors
+
+#### Confirmed Platform Versions
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `f12f21e` |
+| Java | 21 | `f12f21e` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `f12f21e` |
+| Keycloak admin client | 26.0.5 | `f12f21e` |
+| springdoc-openapi | 2.8.6 | `f12f21e` |
+| Lombok | 1.18.38 | `f12f21e` |
+| thumbnailator | 0.4.20 | `f12f21e` |
+| PostgreSQL | 16 (Docker) | `f12f21e` |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `f12f21e` |
+| Angular CLI | 21.2.7 | `f12f21e` |
+| PrimeNG | 21.0.x | `f12f21e` |
+| RxJS | 7.8.x | `f12f21e` |
+| TypeScript | 5.9.x | `f12f21e` |
+| Production URL | cba-web-nine.vercel.app | `f12f21e` |
+
+---
+
 ### Session 90 — 2026-04-18
 **Module 2 Account Management — minRequiredOpeningBalance enforcement at activation + lock-in period withdrawal block; both gates controlled by runtime GlobalConfiguration flags.**
 

@@ -2217,12 +2217,35 @@ Content-Type: application/json
 <!-- CLIENT IMAGES ───────────────────────────────────────────────────────── -->
 <section id="client-images">
 <h2>Client Images</h2>
-<p>Customer profile image management. One image record per customer (UNIQUE on customer_id). PUT performs an upsert — creates if missing, replaces if exists. Stores metadata only (location, storage_type, content_type, size); actual binary is handled by external storage (FILE_SYSTEM or S3).</p>
+<p>Customer profile image management. One image record per customer (UNIQUE on customer_id). PUT performs an upsert — creates if missing, replaces if exists. Uploaded images are automatically resized server-side to a maximum of 500×500 px (aspect-ratio preserved) and converted to JPEG at 85% quality using thumbnailator before storage. Content type is always <code>image/jpeg</code> after upload regardless of the input format.</p>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
 <tr><td>GET</td><td>/api/v1/clients/{customerId}/images</td><td>Get client image metadata</td><td>ADMIN, TELLER</td></tr>
-<tr><td>PUT</td><td>/api/v1/clients/{customerId}/images</td><td>Upload / replace image (upsert)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/clients/{customerId}/images/data</td><td>Get raw image bytes (Content-Type: image/jpeg)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/api/v1/clients/{customerId}/images</td><td>Upload / replace image — resized to max 500×500 JPEG</td><td>ADMIN, TELLER</td></tr>
 <tr><td>DELETE</td><td>/api/v1/clients/{customerId}/images</td><td>Delete image record</td><td>ADMIN</td></tr>
+</table>
+</section>
+
+<!-- FIELD CONFIGURATION ─────────────────────────────────────────────────── -->
+<section id="field-configuration">
+<h2>Field Configuration</h2>
+<p>Mifos-compatible schema metadata table. Controls which fields are visible, enabled, and mandatory for each entity type (CLIENT, ADDRESS, LOAN) on data-entry forms. Seeded with standard fields via Flyway; modified at runtime without redeployment. Reads are open to all authenticated roles; writes require ADMIN.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/fieldconfiguration</td><td>List all field configs across entity types</td><td>Any</td></tr>
+<tr><td>GET</td><td>/api/v1/fieldconfiguration/{entityType}</td><td>List fields for a specific entity type (CLIENT, ADDRESS, LOAN…)</td><td>Any</td></tr>
+<tr><td>GET</td><td>/api/v1/fieldconfiguration/{entityType}/{fieldName}</td><td>Get a single field config</td><td>Any</td></tr>
+<tr><td>POST</td><td>/api/v1/fieldconfiguration</td><td>Add a custom field configuration entry</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/fieldconfiguration/{id}</td><td>Update label / enabled / mandatory / displayOrder</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/fieldconfiguration/{id}</td><td>Remove a field configuration entry</td><td>ADMIN</td></tr>
+</table>
+<h3>Seeded Entity Types &amp; Fields</h3>
+<table>
+<tr><th>Entity Type</th><th>Fields</th></tr>
+<tr><td>CLIENT</td><td>firstName, lastName, middleName, dateOfBirth, gender, email, phoneNumber, nationalId, externalId, staffId, officeId, activationDate</td></tr>
+<tr><td>ADDRESS</td><td>addressLine1, addressLine2, city, stateProvince, postalCode, countryCode, addressType</td></tr>
+<tr><td>LOAN</td><td>loanPurpose, externalId, linkAccountId, expectedDisbDate</td></tr>
 </table>
 </section>
 
@@ -2978,6 +3001,13 @@ Content-Type: application/json
 <tr><td>GET</td><td>/api/v1/creditbureaus/{id}/mappings</td><td>List product mappings</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/creditbureaus/{id}/mappings</td><td>Add product mapping</td><td>ADMIN</td></tr>
 <tr><td>DELETE</td><td>/api/v1/creditbureaus/{id}/mappings/{mId}</td><td>Remove product mapping</td><td>ADMIN</td></tr>
+<!-- Field Configuration -->
+<tr><td>GET</td><td>/api/v1/fieldconfiguration</td><td>List all field configs</td><td>Any</td></tr>
+<tr><td>GET</td><td>/api/v1/fieldconfiguration/{entityType}</td><td>Fields for entity type</td><td>Any</td></tr>
+<tr><td>GET</td><td>/api/v1/fieldconfiguration/{entityType}/{fieldName}</td><td>Single field config</td><td>Any</td></tr>
+<tr><td>POST</td><td>/api/v1/fieldconfiguration</td><td>Create field config</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/fieldconfiguration/{id}</td><td>Update field config</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/fieldconfiguration/{id}</td><td>Delete field config</td><td>ADMIN</td></tr>
 <!-- Surveys -->
 <tr><td>GET</td><td>/api/v1/surveys</td><td>List surveys</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/surveys/{id}</td><td>Get survey</td><td>ADMIN, TELLER</td></tr>

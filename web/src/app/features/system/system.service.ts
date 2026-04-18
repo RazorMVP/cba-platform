@@ -291,6 +291,37 @@ export interface ExchangeRateRequest {
   rate: number;
 }
 
+// ── Field Configuration ───────────────────────────────────────────────────
+export interface FieldConfiguration {
+  id: string;
+  entityType: string;
+  fieldName: string;
+  fieldLabel: string;
+  enabled: boolean;
+  mandatory: boolean;
+  displayOrder: number;
+  description: string | null;
+  updatedAt: string;
+}
+
+export interface UpdateFieldConfigRequest {
+  fieldLabel?: string;
+  enabled?: boolean;
+  mandatory?: boolean;
+  displayOrder?: number;
+  description?: string;
+}
+
+export interface CreateFieldConfigRequest {
+  entityType: string;
+  fieldName: string;
+  fieldLabel: string;
+  enabled?: boolean;
+  mandatory?: boolean;
+  displayOrder?: number;
+  description?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SystemService {
   private readonly api = inject(ApiService);
@@ -530,5 +561,26 @@ export class SystemService {
 
   deactivateExchangeRate(from: string, to: string): Observable<void> {
     return this.api.delete<void>(`/exchange-rates/${from}/${to}`);
+  }
+
+  // ── Field Configuration ────────────────────────────────────────────────────
+  listFieldConfigurations(): Observable<FieldConfiguration[]> {
+    return this.api.get<FieldConfiguration[]>('/fieldconfiguration');
+  }
+
+  listFieldConfigsByEntity(entityType: string): Observable<FieldConfiguration[]> {
+    return this.api.get<FieldConfiguration[]>(`/fieldconfiguration/${entityType}`);
+  }
+
+  updateFieldConfig(id: string, req: UpdateFieldConfigRequest): Observable<FieldConfiguration> {
+    return this.api.put<FieldConfiguration>(`/fieldconfiguration/${id}`, req);
+  }
+
+  createFieldConfig(req: CreateFieldConfigRequest): Observable<FieldConfiguration> {
+    return this.api.post<FieldConfiguration>('/fieldconfiguration', req);
+  }
+
+  deleteFieldConfig(id: string): Observable<void> {
+    return this.api.delete<void>(`/fieldconfiguration/${id}`);
   }
 }

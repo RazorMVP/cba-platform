@@ -1,0 +1,201 @@
+<div class="page">
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">tune</span>
+      Field Configuration
+    </div>
+    <button class="btn-primary" (click)="openCreate()">
+      <span class="material-icons">add</span> Add Field
+    </button>
+  </div>
+
+  @if (loading) {
+    <div class="card skeleton-card">
+      @for (i of [1,2,3,4,5]; track i) { <div class="skeleton skeleton--row"></div> }
+    </div>
+  } @else if (error) {
+    <div class="card"><div class="empty-state"><span class="material-icons">error_outline</span><p>{{ error }}</p></div></div>
+  } @else {
+    <!-- Entity type tabs -->
+    <div class="tab-bar">
+      @for (et of entityTypes; track et) {
+        <button class="tab-btn" [class.tab-btn--active]="activeEntity === et" (click)="selectEntity(et)">
+          {{ et }}
+        </button>
+      }
+    </div>
+
+    <div class="card">
+      @if (fields.length === 0) {
+        <div class="empty-state">
+          <span class="material-icons">tune</span>
+          <p>No fields configured for {{ activeEntity }}.</p>
+        </div>
+      } @else {
+        <table class="config-table">
+          <thead>
+            <tr>
+              <th style="width:32px">#</th>
+              <th>Field Name</th>
+              <th>Label</th>
+              <th>Enabled</th>
+              <th>Mandatory</th>
+              <th>Description</th>
+              <th class="action-cell"></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (f of fields; track f.id) {
+              @if (editingId === f.id) {
+                <tr class="edit-row">
+                  <td class="muted">{{ f.displayOrder }}</td>
+                  <td><code>{{ f.fieldName }}</code></td>
+                  <td>
+                    <input class="form-input form-input--sm" [(ngModel)]="editForm.fieldLabel"
+                           placeholder="Label">
+                  </td>
+                  <td>
+                    <label class="toggle">
+                      <input type="checkbox" [(ngModel)]="editForm.enabled">
+                      <span class="toggle__track"></span>
+                    </label>
+                  </td>
+                  <td>
+                    <label class="toggle">
+                      <input type="checkbox" [(ngModel)]="editForm.mandatory">
+                      <span class="toggle__track"></span>
+                    </label>
+                  </td>
+                  <td>
+                    <input class="form-input form-input--sm" [(ngModel)]="editForm.description"
+                           placeholder="Description">
+                  </td>
+                  <td class="action-cell">
+                    <div class="edit-actions">
+                      <button class="btn-primary btn--xs" (click)="saveEdit(f)" [disabled]="editWorking">
+                        @if (editWorking) { <span class="spinner"></span> } Save
+                      </button>
+                      <button class="btn-secondary btn--xs" (click)="cancelEdit()">Cancel</button>
+                    </div>
+                    @if (editError) { <div class="inline-error">{{ editError }}</div> }
+                  </td>
+                </tr>
+              } @else {
+                <tr class="config-row" (click)="startEdit(f)">
+                  <td class="muted tabular-nums">{{ f.displayOrder }}</td>
+                  <td><code>{{ f.fieldName }}</code></td>
+                  <td>{{ f.fieldLabel }}</td>
+                  <td>
+                    <span class="enabled-badge" [class.enabled-badge--on]="f.enabled"
+                          [class.enabled-badge--off]="!f.enabled">
+                      {{ f.enabled ? 'On' : 'Off' }}
+                    </span>
+                  </td>
+                  <td>
+                    @if (f.mandatory) {
+                      <span class="badge badge--error">Required</span>
+                    } @else {
+                      <span class="muted">Optional</span>
+                    }
+                  </td>
+                  <td class="muted">{{ f.description || '—' }}</td>
+                  <td class="action-cell">
+                    <button class="btn-icon" (click)="$event.stopPropagation(); startEdit(f)" title="Edit">
+                      <span class="material-icons">edit</span>
+                    </button>
+                    <button class="btn-icon btn-icon--danger"
+                            (click)="$event.stopPropagation(); confirmDelete(f.id)" title="Delete">
+                      <span class="material-icons">delete</span>
+                    </button>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      }
+    </div>
+  }
+</div>
+
+<!-- Create modal -->
+@if (showCreate) {
+  <div class="modal-backdrop" (click)="showCreate = false">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h3>Add Field Configuration</h3>
+        <button class="btn-icon" (click)="showCreate = false"><span class="material-icons">close</span></button>
+      </div>
+      <div class="modal__body">
+        <div class="form-group">
+          <label class="form-label">Entity Type</label>
+          <input class="form-input" [(ngModel)]="createForm.entityType"
+                 placeholder="CLIENT, ADDRESS, LOAN…" style="text-transform:uppercase">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Field Name</label>
+          <input class="form-input" [(ngModel)]="createForm.fieldName"
+                 placeholder="camelCase field name, e.g. middleName">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Label</label>
+          <input class="form-input" [(ngModel)]="createForm.fieldLabel"
+                 placeholder="Display label, e.g. Middle Name">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <input class="form-input" [(ngModel)]="createForm.description"
+                 placeholder="Optional description">
+        </div>
+        <div class="form-row">
+          <div class="form-group form-group--inline">
+            <label class="form-label">Display Order</label>
+            <input class="form-input form-input--xs" type="number" [(ngModel)]="createForm.displayOrder">
+          </div>
+          <div class="form-group form-group--inline">
+            <label class="form-label">Enabled</label>
+            <label class="toggle">
+              <input type="checkbox" [(ngModel)]="createForm.enabled">
+              <span class="toggle__track"></span>
+            </label>
+          </div>
+          <div class="form-group form-group--inline">
+            <label class="form-label">Mandatory</label>
+            <label class="toggle">
+              <input type="checkbox" [(ngModel)]="createForm.mandatory">
+              <span class="toggle__track"></span>
+            </label>
+          </div>
+        </div>
+        @if (createError) { <div class="inline-error">{{ createError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="showCreate = false">Cancel</button>
+        <button class="btn-primary" (click)="submitCreate()" [disabled]="createWorking || !createForm.fieldName || !createForm.fieldLabel">
+          @if (createWorking) { <span class="spinner"></span> } Add Field
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Delete confirm modal -->
+@if (deletingId) {
+  <div class="modal-backdrop" (click)="cancelDelete()">
+    <div class="modal modal--sm" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h3>Delete Field Configuration</h3>
+        <button class="btn-icon" (click)="cancelDelete()"><span class="material-icons">close</span></button>
+      </div>
+      <div class="modal__body">
+        <p>Remove this field configuration? This cannot be undone.</p>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="cancelDelete()">Cancel</button>
+        <button class="btn-danger" (click)="doDelete()" [disabled]="deleteWorking">
+          @if (deleteWorking) { <span class="spinner"></span> } Delete
+        </button>
+      </div>
+    </div>
+  </div>
+}

@@ -3,10 +3,12 @@ package com.cba.customer;
 import com.cba.common.exception.CbaException;
 import com.cba.customer.storage.StorageProvider;
 import lombok.RequiredArgsConstructor;
+import net.coobird.thumbnailator.Thumbnails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
@@ -40,7 +42,7 @@ public class ClientImageService {
     public ClientImage saveImage(UUID customerId, MultipartFile file) {
         validate(file);
         try {
-            byte[] bytes = file.getBytes();
+            byte[] bytes = resize(file.getBytes());
             String originalName = file.getOriginalFilename() != null ? file.getOriginalFilename() : "image";
 
             StorageProvider.StorageResult result =
@@ -62,8 +64,8 @@ public class ClientImageService {
             img.setFileName(originalName);
             img.setLocation(result.location());
             img.setStorageType(ClientImage.StorageType.valueOf(result.storageType()));
-            img.setContentType(file.getContentType());
-            img.setSize(file.getSize());
+            img.setContentType("image/jpeg");
+            img.setSize((long) bytes.length);
             img.setData("DATABASE".equals(result.storageType()) ? bytes : null);
 
             return imageRepository.save(img);
@@ -95,6 +97,17 @@ public class ClientImageService {
             try { storageProvider.delete(img.getLocation()); } catch (Exception ignored) {}
         }
         imageRepository.delete(img);
+    }
+
+    private byte[] resize(byte[] original) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        Thumbnails.of(new java.io.ByteArrayInputStream(original))
+                .size(500, 500)
+                .keepAspectRatio(true)
+                .outputFormat("jpeg")
+                .outputQuality(0.85)
+                .toOutputStream(out);
+        return out.toByteArray();
     }
 
     private void validate(MultipartFile file) {

@@ -91,7 +91,8 @@ export class SidebarComponent {
         { label: 'Acct No. Formats',   icon: 'pin',               route: '/system/account-number-formats' },
         { label: 'DataTables',         icon: 'table_chart',       route: '/system/datatables' },
         { label: 'Surveys',            icon: 'quiz',              route: '/system/surveys' },
-        { label: 'Credit Bureau',      icon: 'verified_user',     route: '/system/credit-bureau' },
+        { label: 'Credit Bureau',       icon: 'verified_user',     route: '/system/credit-bureau' },
+        { label: 'Field Configuration', icon: 'tune',              route: '/system/field-configuration' },
       ],
     },
     {

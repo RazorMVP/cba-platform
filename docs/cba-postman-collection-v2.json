@@ -15370,6 +15370,111 @@
       ]
     },
     {
+      "name": "37b \u00b7 Field Configuration",
+      "description": "Mifos-compatible schema metadata. Controls which entity fields are enabled, mandatory, and their display order. Seeded for CLIENT, ADDRESS, LOAN. Read-only for all authenticated roles; writes require ADMIN.",
+      "item": [
+        {
+          "name": "List All Field Configs",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/fieldconfiguration",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "fieldconfiguration"]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "[{\"id\":\"uuid\",\"entityType\":\"CLIENT\",\"fieldName\":\"firstName\",\"fieldLabel\":\"First Name\",\"enabled\":true,\"mandatory\":true,\"displayOrder\":1,\"description\":\"Customer first name\",\"updatedAt\":\"2026-04-18T10:00:00Z\"},{\"id\":\"uuid\",\"entityType\":\"ADDRESS\",\"fieldName\":\"city\",\"fieldLabel\":\"City\",\"enabled\":true,\"mandatory\":true,\"displayOrder\":3,\"description\":\"City or town\",\"updatedAt\":\"2026-04-18T10:00:00Z\"}]"
+            }
+          ]
+        },
+        {
+          "name": "List Fields by Entity Type",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/fieldconfiguration/CLIENT",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "fieldconfiguration", "CLIENT"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Single Field Config",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/fieldconfiguration/CLIENT/firstName",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "fieldconfiguration", "CLIENT", "firstName"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Field Config",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"fieldLabel\":\"First Name\",\"enabled\":true,\"mandatory\":true,\"displayOrder\":1,\"description\":\"Customer first name\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/fieldconfiguration/{{fieldConfigId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "fieldconfiguration", "{{fieldConfigId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Field Config",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"entityType\":\"CLIENT\",\"fieldName\":\"occupation\",\"fieldLabel\":\"Occupation\",\"enabled\":true,\"mandatory\":false,\"displayOrder\":13,\"description\":\"Customer's occupation or job title\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/fieldconfiguration",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "fieldconfiguration"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Field Config",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/fieldconfiguration/{{fieldConfigId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "fieldconfiguration", "{{fieldConfigId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "38 \u00b7 Surveys",
       "description": "Progress out of poverty / welfare survey engine (Mifos-compatible)",
       "item": [

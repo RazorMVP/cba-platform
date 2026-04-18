@@ -5,6 +5,34 @@ description: Core Banking Application (CBA) builder for Java. Use this skill whe
 
 # Core Banking Application (CBA) Skill
 
+---
+
+## ⛔ SESSION COMPLETION GATE — READ THIS BEFORE SAYING "DONE"
+
+**You MUST NOT close a session, summarise completion, or push to GitHub until every item below is checked. This is a hard stop, not a suggestion.**
+
+### Mandatory End-of-Session Checklist
+
+Run through this list in order after every feature, fix, or refactor — even tiny ones:
+
+- [ ] **1. `cba-log.md`** — New session entry added at the top. Must include: session number, date, one-line summary, New/Updated Files table, Key Patterns/Decisions, Build Verification, and Confirmed Platform Versions block. Run `git log --oneline -1 -- backend/` and `git log --oneline -1 -- web/` to get SHAs.
+- [ ] **2. `CLAUDE.md`** — Updated: Confirmed Platform Versions table at top; Angular Component Map (new components ✅); any new module catalogue entries; new gotchas. The version table SHA must match the most recent commit.
+- [ ] **3. `docs/api-reference.html`** — If ANY backend file was touched this session: grep the modified Java files for `@GetMapping`, `@PostMapping`, `@PutMapping`, `@DeleteMapping`, `@PatchMapping`, `@RequestMapping`. For every new or changed endpoint found, update or add the corresponding entry in `api-reference.html` AND the full API matrix table. Do not skip this even for "minor" param additions.
+- [ ] **4. `docs/cba-postman-collection-v2.json`** — Same rule as above. Every new or changed endpoint needs a matching request item with query params, headers, example response, and code samples. Updating an existing endpoint's params counts — add a `"disabled": true` entry for optional params.
+- [ ] **5. Commit and push** — `git add cba-log.md CLAUDE.md docs/api-reference.html docs/cba-postman-collection-v2.json && git commit && git push origin main`. The pre-push hook will block if `Confirmed Platform Versions` is missing from either doc file.
+
+### Rationalisation Traps — These Are Not Valid Reasons to Skip
+
+| Thought | Why it's wrong |
+|---------|---------------|
+| "It was just a param addition, not a new endpoint" | Param additions break API consumers who don't know they exist. Document them. |
+| "The frontend-only change didn't touch the backend" | `CLAUDE.md` and `cba-log.md` still need updating. |
+| "I'll do the docs in the next session" | The next session starts cold. The missing docs will be missed again. |
+| "The docs were updated last session" | Last session's docs don't cover this session's changes. |
+| "The session ran long, I'll commit without the docs" | The pre-push hook will block the push anyway. Fix it now. |
+
+---
+
 You are building a **production-grade Core Banking Application** from scratch. This skill guides you through scaffolding and explaining every layer of a full-stack banking system:
 
 - **Backend**: Java 21 + Spring Boot 3 + PostgreSQL + Keycloak (FAPI 2.0)
@@ -191,6 +219,8 @@ Read `references/deployment.md` before starting.
 
 ## Mandatory Documentation Updates
 
+> **See the SESSION COMPLETION GATE at the top of this skill for the quick checklist. The steps below are the detailed execution instructions for each checklist item.**
+
 **After every change, addition, or fix — no exceptions — you MUST complete ALL of the following steps before finishing:**
 
 ### Step 1 — Update `cba-log.md` (Change Log)
@@ -250,25 +280,28 @@ Read `references/deployment.md` before starting.
 - For completed backend build order steps: mark them `✅` with the commit SHA.
 - For completed React phases: mark the Phase 2R phase entry `✅ Complete — Session N, commit SHA`.
 
-### Step 3 — Check and update API documentation (if applicable)
-After any backend change, ask: **did this session add, remove, or modify any REST endpoints?**
+### Step 3 — Update API documentation (mandatory for any backend touch)
 
-If **yes**, update both of these files before committing:
+**Do not use judgment to decide whether to update API docs. Follow this mechanical process instead:**
+
+1. Run: `git diff HEAD~1 HEAD --name-only | grep -E '\.java$'` to list Java files changed this session.
+2. For each changed Java file, run: `grep -n '@GetMapping\|@PostMapping\|@PutMapping\|@DeleteMapping\|@PatchMapping\|@RequestMapping\|@RequestParam\|@PathVariable' <file>` to list all endpoint annotations.
+3. For every annotation found — whether it's a new endpoint, a changed URL, a new query param, or a changed response shape — update **both** doc files.
+
+**There is no "skip" path.** If any Java file was changed, at minimum verify that every existing endpoint in that file is correctly represented. Only sessions that touched zero Java files may skip this step.
+
+#### `docs/api-reference.html`
+- Add a `<details class="endpoint">` block for each new endpoint
+- Update existing entries for changed signatures, added query params, changed response shapes
+- Update the full API matrix table at the top
+- Keep the HTML self-contained (no external CDN links)
 
 #### `docs/cba-postman-collection-v2.json`
 - Add new request items for every new endpoint (method, URL, headers, example body, example response)
-- Remove or update items for any endpoints that changed signature or were deleted
-- Maintain the existing Mifos-style folder structure — group by module (e.g. `Card Service / Cards`, `Card Service / Fraud Rules`)
-- Include all supported query params, path params, and request body fields
-- Add at least one example response per request (approved + declined where relevant for card endpoints)
-- Include 8-language code samples (`cURL`, `Java`, `JavaScript`, `Python`, `Go`, `PHP`, `Ruby`, `C#`) on each request
-
-#### `docs/api-reference.html`
-- Mirror the Mifos `apiLive.htm` structure: add a new section anchor for the module, list all endpoints with method badge, path, description, request/response schema tables
-- Update the full API matrix table at the top with new endpoint rows
-- Keep the standalone HTML self-contained (no external CDN dependencies that could break offline)
-
-If **no new endpoints** were added (e.g. build fixes, Flyway migrations only, Angular-only changes), skip this step — do not update the API docs unnecessarily.
+- Update existing items for changed params — add `"disabled": true` entries for optional params so they're discoverable
+- Maintain the Mifos-style folder structure — group by module
+- Include all supported query params with descriptions
+- Include 6+ language code samples per request (`cURL`, `Java`, `JavaScript`, `Python`, `Go`, `Ruby`)
 
 ### Step 4 — Record platform versions in both `cba-log.md` and `CLAUDE.md`
 

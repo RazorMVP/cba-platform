@@ -59,6 +59,73 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 100 — 2026-04-19
+**Module 10 gap closure: Core Banking Fraud & Risk Management — velocity limits, AML monitoring, blacklist/sanctions, fraud alerts/cases, per-customer risk scoring; 4 Angular fraud admin screens.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/…/fraud/FraudRule.java` | NEW — JPA entity; `ruleType` enum (VELOCITY/BLACKLIST/STRUCTURING/AML/CUSTOM); `params JSONB` for per-currency thresholds |
+| `backend/…/fraud/FraudAlert.java` | NEW — JPA entity; `status` enum (OPEN/REVIEWING/CLOSED_FALSE_POSITIVE/CLOSED_CONFIRMED/SUPPRESSED) |
+| `backend/…/fraud/FraudCase.java` | NEW — JPA entity; `caseNumber` CASE-000NNN; `riskLevel` enum; `@ManyToMany alerts` |
+| `backend/…/fraud/BlacklistEntry.java` | NEW — JPA entity; 7 entityTypes (CUSTOMER/ACCOUNT_NUMBER/NATIONAL_ID/NAME/PHONE/EMAIL/IP_ADDRESS); `expiresAt` nullable |
+| `backend/…/fraud/CustomerRiskScore.java` | NEW — JPA entity; composite score 0–100; `riskLevel` LOW/MEDIUM/HIGH/CRITICAL |
+| `backend/…/fraud/TransactionFraudEvent.java` | NEW — Spring application event record (customerId, accountId, transactionId, amount, currencyCode, transactionType) |
+| `backend/…/fraud/FraudRuleRepository.java` | NEW — `findByEnabledTrueOrderByNameAsc()`, blocking-filter query |
+| `backend/…/fraud/FraudAlertRepository.java` | NEW — `findFiltered(status, severity, customerId, pageable)` JPQL |
+| `backend/…/fraud/FraudCaseRepository.java` | NEW — `findByCaseNumber()`, `findFiltered()` |
+| `backend/…/fraud/BlacklistEntryRepository.java` | NEW — `searchActive(query, now)` case-insensitive LIKE; `findActiveByTypeAndValue()` |
+| `backend/…/fraud/CustomerRiskScoreRepository.java` | NEW — `findByCustomerId()`, `findByRiskLevelOrderByScoreDesc()` |
+| `backend/…/fraud/FraudEngineService.java` | NEW — pre-commit blocking checks (velocity + blacklist); `@Async @TransactionalEventListener(AFTER_COMMIT)` monitoring (structuring + AML); `recalculateRiskScore()` REQUIRES_NEW upsert |
+| `backend/…/fraud/FraudAlertService.java` | NEW — alert workflow (OPEN→REVIEWING→CLOSED_*); case CRUD; `AtomicInteger` case seq |
+| `backend/…/fraud/BlacklistService.java` | NEW — add/update/deactivate/search/list blacklist entries |
+| `backend/…/fraud/FraudController.java` | NEW — 16 endpoints across fraud/rules, fraud/alerts, fraud/cases, fraud/blacklist, fraud/risk-scores |
+| `backend/…/payment/PaymentService.java` | MODIFIED — `@Lazy @Autowired FraudEngineService`; `ApplicationEventPublisher` publish post-commit fraud event |
+| `web/…/admin/fraud-alerts.ts/.html/.scss` | NEW — `FraudAlertsComponent`; status/severity filter, paginated table, slide-in detail, review/close/case modals |
+| `web/…/admin/fraud-cases.ts/.html/.scss` | NEW — `FraudCasesComponent`; status/risk filter, create/update case modals |
+| `web/…/admin/blacklist.ts/.html/.scss` | NEW — `BlacklistComponent`; entity-type filter, debounced search, add/edit/deactivate modals |
+| `web/…/admin/fraud-rules-admin.ts/.html/.scss` | NEW — `FraudRulesAdminComponent`; inline toggle, JSON params editor modal |
+| `web/…/admin/admin.routes.ts` | MODIFIED — 4 new routes (fraud-alerts, fraud-cases, blacklist, fraud-rules) |
+| `web/…/admin/admin.service.ts` | MODIFIED — 5 new interfaces (FraudRule/FraudAlert/FraudCase/BlacklistEntry/CustomerRiskScore); 16 new service methods |
+| `web/…/layout/sidebar/sidebar.ts` | MODIFIED — new "Fraud & Risk" sidebar group (4 items) |
+| `docs/api-reference.html` | MODIFIED — new `#fraud-risk` section (16 endpoint details + engine explanation table); sidebar nav link; 5 matrix rows |
+| `docs/cba-postman-collection-v2.json` | MODIFIED — new `43 · Fraud & Risk Management` folder (18 requests) |
+
+#### Key Patterns / Decisions
+- **Two-phase fraud check**: Pre-commit blocking (velocity + blacklist) runs synchronously inside `PaymentService.transfer()`; post-commit monitoring (structuring + AML) runs via `@Async @TransactionalEventListener(AFTER_COMMIT)` — prevents deadlocking the payment transaction.
+- **`@Lazy @Autowired(required=false)` for circular-dependency-safe injection**: Same pattern used in card-service's `WebhookService`/`CardAuthorizationService` wiring.
+- **Per-currency thresholds in JSONB**: `{"thresholds":{"840":100000,"404":13000000,"default":50000}}` — consistent with card-service fraud engine; resolves via `resolveThreshold(paramsJson, currencyCode, defaultThreshold)`.
+- **Risk score formula**: `min(100, openAlerts×10 + confirmedCases×25 + blacklistHits×50)`. Thresholds: LOW<25, MEDIUM<50, HIGH<75, CRITICAL≥75. Persisted as `@Transactional(REQUIRES_NEW)` upsert.
+- **JdbcTemplate in FraudEngineService**: Avoids importing repositories from `payment` or `account` packages — same cross-package isolation pattern as GlobalSearchModule.
+- **`FraudRulesAdminComponent` vs card-service `FraudRulesComponent`**: Core banking fraud lives at `/admin/fraud-rules`; card fraud lives at `/cards/fraud` — two separate components for two separate rule engines.
+
+#### Build Verification
+- Backend: `./mvnw compile -q` → BUILD SUCCESS (0 errors)
+- Angular: `npx ng build --configuration production` → BUILD SUCCESS (0 errors, 4 pre-existing budget/deprecation warnings only)
+- Angular: `Output location: /Users/razormvp/CoreBanking/web/dist/cba-web` ✅
+
+#### Confirmed Platform Versions
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | pending |
+| Java | 21 | pending |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | pending |
+| Keycloak admin client | 26.0.5 | pending |
+| springdoc-openapi | 2.8.6 | pending |
+| Lombok | 1.18.38 | pending |
+| PostgreSQL | 16 (Docker) | pending |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | pending |
+| Angular CLI | 21.2.7 | pending |
+| PrimeNG | 21.0.x | pending |
+| RxJS | 7.8.x | pending |
+| TypeScript | 5.9.x | pending |
+| Vercel deployment | cba-web-nine.vercel.app | pending |
+
 ### Session 99 — 2026-04-19
 **Module 8 gap closure: Bulk Import + Security Policy — CSV upload for customers/loans with per-row error reporting; Keycloak realm security settings read/write; Angular BulkImportComponent + SecurityPolicyComponent.**
 

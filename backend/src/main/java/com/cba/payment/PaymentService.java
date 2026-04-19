@@ -9,6 +9,11 @@ import com.cba.account.TransactionRepository;
 import com.cba.account.TransactionType;
 import com.cba.account.algorithm.AccountNumberAlgorithmService;
 import com.cba.audit.AuditLogService;
+import com.cba.fraud.FraudEngineService;
+import com.cba.fraud.TransactionFraudEvent;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Lazy;
 import com.cba.common.exception.CbaException;
 import com.cba.currency.ExchangeRateService;
 import com.cba.currency.dto.ConversionResult;
@@ -41,6 +46,11 @@ public class PaymentService {
     private final AuditLogService               auditLogService;
     private final ExchangeRateService           exchangeRateService;
     private final StandingOrderRepository       standingOrderRepository;
+    private final ApplicationEventPublisher     eventPublisher;
+
+    @Lazy
+    @Autowired(required = false)
+    private FraudEngineService fraudEngineService;
 
     /**
      * Double-entry internal transfer with cross-currency support.
@@ -139,6 +149,10 @@ public class PaymentService {
         payment.setExecutedDate(Instant.now());
         Payment completed = paymentRepository.save(payment);
 
+        UUID sourceCustomerId = source.getCustomer() != null ? source.getCustomer().getId() : null;
+        eventPublisher.publishEvent(new TransactionFraudEvent(
+            sourceCustomerId, source.getId(), completed.getId(),
+            request.amount(), srcCcy, "TRANSFER"));
         auditLogService.log("PAYMENT", completed.getId().toString(), "TRANSFER_EXECUTED", null, request);
         log.info("Transfer completed: {} — {} {} → {} {} from {} to {}",
             ref, request.amount(), srcCcy, creditAmount, dstCcy,

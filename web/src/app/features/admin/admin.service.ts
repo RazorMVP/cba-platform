@@ -390,6 +390,77 @@ export interface SecurityPolicy {
   rawPasswordPolicy: string;
 }
 
+// ── Fraud & Risk ──────────────────────────────────────────────────────────────
+export interface FraudRule {
+  id: string;
+  name: string;
+  ruleType: string;
+  enabled: boolean;
+  blocking: boolean;
+  severity: string;
+  params: string;
+  description?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface FraudAlert {
+  id: string;
+  ruleId?: string;
+  ruleName?: string;
+  customerId?: string;
+  accountId?: string;
+  transactionId?: string;
+  severity: string;
+  status: string;
+  alertType: string;
+  details?: string;
+  caseId?: string;
+  reviewedBy?: string;
+  resolvedAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface FraudCase {
+  id: string;
+  caseNumber: string;
+  title: string;
+  customerId?: string;
+  status: string;
+  riskLevel: string;
+  assignedTo?: string;
+  resolutionNotes?: string;
+  resolvedAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface BlacklistEntry {
+  id: string;
+  entityType: string;
+  entityValue: string;
+  reason?: string;
+  source: string;
+  active: boolean;
+  addedBy?: string;
+  expiresAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface CustomerRiskScore {
+  id?: string;
+  customerId: string;
+  score: number;
+  riskLevel: string;
+  factors?: string;
+  openAlertsCount: number;
+  confirmedCasesCount: number;
+  blacklistHits: number;
+  calculatedAt?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AdminService {
   private readonly api = inject(ApiService);
@@ -680,5 +751,88 @@ export class AdminService {
 
   updateSecurityPolicy(req: Partial<SecurityPolicy>): Observable<SecurityPolicy> {
     return this.api.put<SecurityPolicy>('/security-policy', req);
+  }
+
+  // ── Fraud & Risk ──────────────────────────────────────────────────────────
+  listFraudRules(page = 0, size = 50): Observable<PageResponse<FraudRule>> {
+    return this.api.getPage<FraudRule>('/fraud/rules', page, size);
+  }
+
+  updateFraudRule(id: string, req: Partial<FraudRule>): Observable<FraudRule> {
+    return this.api.put<FraudRule>(`/fraud/rules/${id}`, req);
+  }
+
+  listFraudAlerts(status?: string, severity?: string, page = 0, size = 20): Observable<PageResponse<FraudAlert>> {
+    const p: Record<string, string> = {};
+    if (status) p['status'] = status;
+    if (severity) p['severity'] = severity;
+    return this.api.getPage<FraudAlert>('/fraud/alerts', page, size, p);
+  }
+
+  reviewFraudAlert(id: string, reviewedBy: string): Observable<FraudAlert> {
+    return this.api.post<FraudAlert>(`/fraud/alerts/${id}/review`, { reviewedBy });
+  }
+
+  closeFraudAlert(id: string, status: string, reviewedBy: string): Observable<FraudAlert> {
+    return this.api.post<FraudAlert>(`/fraud/alerts/${id}/close`, { status, reviewedBy });
+  }
+
+  linkAlertToCase(alertId: string, caseId: string): Observable<FraudCase> {
+    return this.api.post<FraudCase>(`/fraud/cases/${caseId}/alerts/${alertId}`, {});
+  }
+
+  listFraudCases(status?: string, riskLevel?: string, page = 0, size = 20): Observable<PageResponse<FraudCase>> {
+    const p: Record<string, string> = {};
+    if (status) p['status'] = status;
+    if (riskLevel) p['riskLevel'] = riskLevel;
+    return this.api.getPage<FraudCase>('/fraud/cases', page, size, p);
+  }
+
+  createFraudCase(title: string, customerId?: string, riskLevel = 'MEDIUM', assignedTo = ''): Observable<FraudCase> {
+    return this.api.post<FraudCase>('/fraud/cases', { title, customerId, riskLevel, assignedTo });
+  }
+
+  updateFraudCase(id: string, status: string, assignedTo: string, resolutionNotes: string): Observable<FraudCase> {
+    return this.api.put<FraudCase>(`/fraud/cases/${id}`, { status, assignedTo, resolutionNotes });
+  }
+
+  listBlacklist(entityType?: string, active?: boolean, page = 0, size = 20): Observable<PageResponse<BlacklistEntry>> {
+    const p: Record<string, string> = {};
+    if (entityType) p['entityType'] = entityType;
+    if (active !== undefined) p['active'] = String(active);
+    return this.api.getPage<BlacklistEntry>('/fraud/blacklist', page, size, p);
+  }
+
+  searchBlacklist(q: string): Observable<BlacklistEntry[]> {
+    return this.api.get<BlacklistEntry[]>('/fraud/blacklist/search', { q });
+  }
+
+  addBlacklistEntry(req: {
+    entityType: string; entityValue: string; reason: string;
+    source: string; expiresAt: string; addedBy: string;
+  }): Observable<BlacklistEntry> {
+    return this.api.post<BlacklistEntry>('/fraud/blacklist', req);
+  }
+
+  updateBlacklistEntry(id: string, reason: string, expiresAt?: string): Observable<BlacklistEntry> {
+    return this.api.put<BlacklistEntry>(`/fraud/blacklist/${id}`, { reason, expiresAt });
+  }
+
+  deactivateBlacklistEntry(id: string): Observable<BlacklistEntry> {
+    return this.api.delete<BlacklistEntry>(`/fraud/blacklist/${id}`);
+  }
+
+  listRiskScores(riskLevel?: string, page = 0, size = 20): Observable<PageResponse<CustomerRiskScore>> {
+    const p: Record<string, string> = {};
+    if (riskLevel) p['riskLevel'] = riskLevel;
+    return this.api.getPage<CustomerRiskScore>('/fraud/risk-scores', page, size, p);
+  }
+
+  getRiskScore(customerId: string): Observable<CustomerRiskScore> {
+    return this.api.get<CustomerRiskScore>(`/fraud/risk-scores/${customerId}`);
+  }
+
+  recalculateRiskScore(customerId: string): Observable<unknown> {
+    return this.api.post(`/fraud/risk-scores/${customerId}/recalculate`, {});
   }
 }

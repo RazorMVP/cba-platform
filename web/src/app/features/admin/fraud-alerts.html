@@ -1,0 +1,190 @@
+<div class="page-shell">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Fraud Alerts</h1>
+      <p class="page-subtitle">Transaction monitoring alerts raised by the fraud rule engine</p>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="card mb-4 p-4 flex gap-3 flex-wrap items-center">
+    <select class="form-input w-48" [(ngModel)]="filterStatus" (change)="applyFilters()">
+      <option value="">All Statuses</option>
+      <option value="OPEN">Open</option>
+      <option value="REVIEWING">Reviewing</option>
+      <option value="CLOSED_FALSE_POSITIVE">False Positive</option>
+      <option value="CLOSED_CONFIRMED">Confirmed</option>
+      <option value="SUPPRESSED">Suppressed</option>
+    </select>
+    <select class="form-input w-40" [(ngModel)]="filterSeverity" (change)="applyFilters()">
+      <option value="">All Severities</option>
+      <option value="LOW">Low</option>
+      <option value="MEDIUM">Medium</option>
+      <option value="HIGH">High</option>
+      <option value="CRITICAL">Critical</option>
+    </select>
+    <button class="btn-secondary text-sm" (click)="clearFilters()">Clear</button>
+  </div>
+
+  <!-- Table -->
+  <div class="card overflow-hidden">
+    @if (loading) {
+      <div class="p-8 text-center text-muted">Loading alerts…</div>
+    } @else if (alerts.length === 0) {
+      <div class="p-8 text-center text-muted">No alerts found.</div>
+    } @else {
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Rule</th>
+            <th>Alert Type</th>
+            <th>Severity</th>
+            <th>Status</th>
+            <th>Customer ID</th>
+            <th>Created</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (a of alerts; track a.id) {
+            <tr class="cursor-pointer" (click)="openPanel(a)">
+              <td class="font-medium">{{ a.ruleName }}</td>
+              <td>{{ a.alertType }}</td>
+              <td><span class="badge" [ngClass]="severityClass(a.severity)">{{ a.severity }}</span></td>
+              <td><span class="badge badge-neutral">{{ a.status }}</span></td>
+              <td class="text-muted tabular-nums text-xs">{{ a.customerId ?? '—' }}</td>
+              <td class="text-muted tabular-nums text-xs">{{ a.createdAt | date:'short' }}</td>
+              <td><button class="btn-ghost text-xs" (click)="$event.stopPropagation(); openPanel(a)">View</button></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <!-- Pagination -->
+      <div class="flex items-center justify-between px-4 py-3 border-t border-neutral-100">
+        <span class="text-sm text-muted">{{ total }} total</span>
+        <div class="flex gap-2">
+          <button class="btn-ghost text-sm" [disabled]="page === 0" (click)="prevPage()">Previous</button>
+          <span class="text-sm text-muted">{{ page + 1 }} / {{ totalPages() }}</span>
+          <button class="btn-ghost text-sm" [disabled]="(page + 1) * pageSize >= total" (click)="nextPage()">Next</button>
+        </div>
+      </div>
+    }
+  </div>
+</div>
+
+<!-- Slide-in Detail Panel -->
+@if (panelOpen && selected) {
+  <div class="modal-backdrop" (click)="closePanel()"></div>
+  <div class="fixed top-0 right-0 h-full w-[480px] bg-white shadow-xl z-50 overflow-y-auto p-6">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-lg font-semibold">Alert Detail</h2>
+      <button class="btn-ghost" (click)="closePanel()">✕</button>
+    </div>
+
+    <div class="space-y-3 text-sm mb-6">
+      <div class="flex justify-between"><span class="text-muted">Rule</span><span>{{ selected.ruleName }}</span></div>
+      <div class="flex justify-between"><span class="text-muted">Type</span><span>{{ selected.alertType }}</span></div>
+      <div class="flex justify-between"><span class="text-muted">Severity</span>
+        <span class="badge" [ngClass]="severityClass(selected.severity)">{{ selected.severity }}</span></div>
+      <div class="flex justify-between"><span class="text-muted">Status</span><span class="badge badge-neutral">{{ selected.status }}</span></div>
+      <div class="flex justify-between"><span class="text-muted">Customer</span><span class="tabular-nums text-xs">{{ selected.customerId ?? '—' }}</span></div>
+      <div class="flex justify-between"><span class="text-muted">Account</span><span class="tabular-nums text-xs">{{ selected.accountId ?? '—' }}</span></div>
+      <div class="flex justify-between"><span class="text-muted">Transaction</span><span class="tabular-nums text-xs">{{ selected.transactionId ?? '—' }}</span></div>
+      <div class="flex justify-between"><span class="text-muted">Case</span><span class="tabular-nums text-xs">{{ selected.caseId ?? 'None' }}</span></div>
+      <div class="flex justify-between"><span class="text-muted">Reviewed By</span><span>{{ selected.reviewedBy ?? '—' }}</span></div>
+    </div>
+
+    @if (selected.status === 'OPEN') {
+      <div class="flex gap-2 flex-wrap">
+        <button class="btn-primary text-sm" (click)="openReview()">Mark Under Review</button>
+        <button class="btn-secondary text-sm" (click)="openLink()">Link to Case</button>
+        <button class="btn-secondary text-sm" (click)="openCreateCase()">Create Case</button>
+        <button class="btn-secondary text-sm" (click)="openClose()">Close Alert</button>
+      </div>
+    } @else if (selected.status === 'REVIEWING') {
+      <div class="flex gap-2">
+        <button class="btn-primary text-sm" (click)="openClose()">Close Alert</button>
+        <button class="btn-secondary text-sm" (click)="openLink()">Link to Case</button>
+      </div>
+    }
+  </div>
+}
+
+<!-- Review Modal -->
+@if (showReviewModal) {
+  <div class="modal-backdrop" (click)="showReviewModal = false"></div>
+  <div class="modal">
+    <div class="modal-header"><h3>Mark Under Review</h3><button class="btn-ghost" (click)="showReviewModal = false">✕</button></div>
+    <div class="modal-body space-y-3">
+      <label class="block text-sm font-medium">Reviewed By</label>
+      <input class="form-input w-full" [(ngModel)]="reviewedBy" placeholder="Username or email" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" (click)="showReviewModal = false">Cancel</button>
+      <button class="btn-primary" (click)="confirmReview()" [disabled]="!reviewedBy">Confirm</button>
+    </div>
+  </div>
+}
+
+<!-- Close Modal -->
+@if (showCloseModal) {
+  <div class="modal-backdrop" (click)="showCloseModal = false"></div>
+  <div class="modal">
+    <div class="modal-header"><h3>Close Alert</h3><button class="btn-ghost" (click)="showCloseModal = false">✕</button></div>
+    <div class="modal-body space-y-3">
+      <label class="block text-sm font-medium">Resolution</label>
+      <select class="form-input w-full" [(ngModel)]="closeStatus">
+        <option value="CLOSED_FALSE_POSITIVE">False Positive</option>
+        <option value="CLOSED_CONFIRMED">Confirmed Fraud</option>
+        <option value="SUPPRESSED">Suppressed</option>
+      </select>
+      <input class="form-input w-full" [(ngModel)]="reviewedBy" placeholder="Reviewed by (name/email)" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" (click)="showCloseModal = false">Cancel</button>
+      <button class="btn-primary" (click)="confirmClose()" [disabled]="!reviewedBy">Confirm</button>
+    </div>
+  </div>
+}
+
+<!-- Link to Case Modal -->
+@if (showLinkModal) {
+  <div class="modal-backdrop" (click)="showLinkModal = false"></div>
+  <div class="modal">
+    <div class="modal-header"><h3>Link to Case</h3><button class="btn-ghost" (click)="showLinkModal = false">✕</button></div>
+    <div class="modal-body">
+      <label class="block text-sm font-medium mb-2">Select Case</label>
+      <select class="form-input w-full" [(ngModel)]="selectedCaseId">
+        <option value="">— Select —</option>
+        @for (c of cases; track c.id) {
+          <option [value]="c.id">{{ c.caseNumber }} — {{ c.title }}</option>
+        }
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" (click)="showLinkModal = false">Cancel</button>
+      <button class="btn-primary" (click)="confirmLink()" [disabled]="!selectedCaseId">Link</button>
+    </div>
+  </div>
+}
+
+<!-- Create Case Modal -->
+@if (showCreateCaseModal) {
+  <div class="modal-backdrop" (click)="showCreateCaseModal = false"></div>
+  <div class="modal">
+    <div class="modal-header"><h3>Create Fraud Case</h3><button class="btn-ghost" (click)="showCreateCaseModal = false">✕</button></div>
+    <div class="modal-body space-y-3">
+      <input class="form-input w-full" [(ngModel)]="newCaseTitle" placeholder="Case title" />
+      <select class="form-input w-full" [(ngModel)]="newCaseRisk">
+        <option value="LOW">Low</option>
+        <option value="MEDIUM">Medium</option>
+        <option value="HIGH">High</option>
+        <option value="CRITICAL">Critical</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" (click)="showCreateCaseModal = false">Cancel</button>
+      <button class="btn-primary" (click)="confirmCreateCase()" [disabled]="!newCaseTitle">Create</button>
+    </div>
+  </div>
+}

@@ -14,6 +14,10 @@ import { LoginHistoryComponent } from './login-history';
 import { ComplianceReportComponent } from './compliance-report';
 import { BulkImportComponent } from './bulk-import';
 import { SecurityPolicyComponent } from './security-policy';
+import { FraudAlertsComponent } from './fraud-alerts';
+import { FraudCasesComponent } from './fraud-cases';
+import { BlacklistComponent } from './blacklist';
+import { FraudRulesAdminComponent } from './fraud-rules-admin';
 
 export const ADMIN_ROUTES: Routes = [
   { path: 'users', component: UsersComponent },
@@ -31,4 +35,8 @@ export const ADMIN_ROUTES: Routes = [
   { path: 'compliance', component: ComplianceReportComponent },
   { path: 'bulk-import', component: BulkImportComponent },
   { path: 'security-policy', component: SecurityPolicyComponent },
+  { path: 'fraud-alerts', component: FraudAlertsComponent },
+  { path: 'fraud-cases', component: FraudCasesComponent },
+  { path: 'blacklist', component: BlacklistComponent },
+  { path: 'fraud-rules', component: FraudRulesAdminComponent },
 ];

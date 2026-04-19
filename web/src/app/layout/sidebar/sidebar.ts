@@ -139,6 +139,15 @@ export class SidebarComponent {
         { label: 'Security Policy',       icon: 'security',          route: '/admin/security-policy' },
       ],
     },
+    {
+      label: 'Fraud & Risk',
+      items: [
+        { label: 'Fraud Alerts',   icon: 'warning',           route: '/admin/fraud-alerts' },
+        { label: 'Fraud Cases',    icon: 'gavel',             route: '/admin/fraud-cases' },
+        { label: 'Blacklist',      icon: 'block',             route: '/admin/blacklist' },
+        { label: 'Fraud Rules',    icon: 'rule',              route: '/admin/fraud-rules' },
+      ],
+    },
   ];
 
   toggleGroup(label: string): void {

@@ -1,0 +1,138 @@
+<div class="page-shell">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Fraud Cases</h1>
+      <p class="page-subtitle">Investigation cases grouping one or more fraud alerts</p>
+    </div>
+    <button class="btn-primary" (click)="openCreate()">+ New Case</button>
+  </div>
+
+  <!-- Filters -->
+  <div class="card mb-4 p-4 flex gap-3 flex-wrap items-center">
+    <select class="form-input w-48" [(ngModel)]="filterStatus" (change)="applyFilters()">
+      <option value="">All Statuses</option>
+      <option value="OPEN">Open</option>
+      <option value="UNDER_INVESTIGATION">Under Investigation</option>
+      <option value="CLOSED">Closed</option>
+    </select>
+    <select class="form-input w-40" [(ngModel)]="filterRisk" (change)="applyFilters()">
+      <option value="">All Risk Levels</option>
+      <option value="LOW">Low</option>
+      <option value="MEDIUM">Medium</option>
+      <option value="HIGH">High</option>
+      <option value="CRITICAL">Critical</option>
+    </select>
+    <button class="btn-secondary text-sm" (click)="clearFilters()">Clear</button>
+  </div>
+
+  <div class="card overflow-hidden">
+    @if (loading) {
+      <div class="p-8 text-center text-muted">Loading cases…</div>
+    } @else if (cases.length === 0) {
+      <div class="p-8 text-center text-muted">No cases found.</div>
+    } @else {
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Case No.</th>
+            <th>Title</th>
+            <th>Risk Level</th>
+            <th>Status</th>
+            <th>Assigned To</th>
+            <th>Created</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (c of cases; track c.id) {
+            <tr class="cursor-pointer" (click)="openPanel(c)">
+              <td class="tabular-nums font-mono text-xs">{{ c.caseNumber }}</td>
+              <td class="font-medium">{{ c.title }}</td>
+              <td><span class="badge" [ngClass]="riskClass(c.riskLevel)">{{ c.riskLevel }}</span></td>
+              <td><span class="badge" [ngClass]="statusClass(c.status)">{{ c.status }}</span></td>
+              <td>{{ c.assignedTo ?? '—' }}</td>
+              <td class="text-muted tabular-nums text-xs">{{ c.createdAt | date:'short' }}</td>
+              <td><button class="btn-ghost text-xs" (click)="$event.stopPropagation(); openPanel(c)">View</button></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <div class="flex items-center justify-between px-4 py-3 border-t border-neutral-100">
+        <span class="text-sm text-muted">{{ total }} total</span>
+        <div class="flex gap-2">
+          <button class="btn-ghost text-sm" [disabled]="page === 0" (click)="prevPage()">Previous</button>
+          <span class="text-sm text-muted">{{ page + 1 }} / {{ totalPages() }}</span>
+          <button class="btn-ghost text-sm" [disabled]="(page + 1) * pageSize >= total" (click)="nextPage()">Next</button>
+        </div>
+      </div>
+    }
+  </div>
+</div>
+
+<!-- Detail Panel -->
+@if (panelOpen && selected) {
+  <div class="modal-backdrop" (click)="closePanel()"></div>
+  <div class="fixed top-0 right-0 h-full w-[480px] bg-white shadow-xl z-50 overflow-y-auto p-6">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-lg font-semibold">{{ selected.caseNumber }}</h2>
+      <button class="btn-ghost" (click)="closePanel()">✕</button>
+    </div>
+    <div class="space-y-3 text-sm mb-6">
+      <div class="flex justify-between"><span class="text-muted">Title</span><span>{{ selected.title }}</span></div>
+      <div class="flex justify-between"><span class="text-muted">Status</span>
+        <span class="badge" [ngClass]="statusClass(selected.status)">{{ selected.status }}</span></div>
+      <div class="flex justify-between"><span class="text-muted">Risk</span>
+        <span class="badge" [ngClass]="riskClass(selected.riskLevel)">{{ selected.riskLevel }}</span></div>
+      <div class="flex justify-between"><span class="text-muted">Assigned To</span><span>{{ selected.assignedTo ?? '—' }}</span></div>
+      <div class="flex justify-between"><span class="text-muted">Customer</span><span class="text-xs tabular-nums">{{ selected.customerId ?? '—' }}</span></div>
+      <div class="flex justify-between"><span class="text-muted">Resolved At</span><span>{{ (selected.resolvedAt | date:'short') ?? '—' }}</span></div>
+      @if (selected.resolutionNotes) {
+        <div><p class="text-muted mb-1">Notes</p><p class="text-sm">{{ selected.resolutionNotes }}</p></div>
+      }
+    </div>
+    @if (selected.status !== 'CLOSED') {
+      <button class="btn-primary text-sm" (click)="openEdit()">Update Case</button>
+    }
+  </div>
+}
+
+<!-- Create Modal -->
+@if (showCreateModal) {
+  <div class="modal-backdrop" (click)="showCreateModal = false"></div>
+  <div class="modal">
+    <div class="modal-header"><h3>New Fraud Case</h3><button class="btn-ghost" (click)="showCreateModal = false">✕</button></div>
+    <div class="modal-body space-y-3">
+      <input class="form-input w-full" [(ngModel)]="newTitle" placeholder="Case title" />
+      <select class="form-input w-full" [(ngModel)]="newRisk">
+        <option value="LOW">Low</option><option value="MEDIUM">Medium</option>
+        <option value="HIGH">High</option><option value="CRITICAL">Critical</option>
+      </select>
+      <input class="form-input w-full" [(ngModel)]="newAssignedTo" placeholder="Assigned to (optional)" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" (click)="showCreateModal = false">Cancel</button>
+      <button class="btn-primary" (click)="confirmCreate()" [disabled]="!newTitle">Create</button>
+    </div>
+  </div>
+}
+
+<!-- Edit Modal -->
+@if (showEditModal && selected) {
+  <div class="modal-backdrop" (click)="showEditModal = false"></div>
+  <div class="modal">
+    <div class="modal-header"><h3>Update Case</h3><button class="btn-ghost" (click)="showEditModal = false">✕</button></div>
+    <div class="modal-body space-y-3">
+      <select class="form-input w-full" [(ngModel)]="editStatus">
+        <option value="OPEN">Open</option>
+        <option value="UNDER_INVESTIGATION">Under Investigation</option>
+        <option value="CLOSED">Closed</option>
+      </select>
+      <input class="form-input w-full" [(ngModel)]="editAssignedTo" placeholder="Assigned to" />
+      <textarea class="form-input w-full h-24" [(ngModel)]="editNotes" placeholder="Resolution notes"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" (click)="showEditModal = false">Cancel</button>
+      <button class="btn-primary" (click)="confirmEdit()">Save</button>
+    </div>
+  </div>
+}

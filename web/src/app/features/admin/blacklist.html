@@ -1,0 +1,138 @@
+<div class="page-shell">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Blacklist / Sanctions</h1>
+      <p class="page-subtitle">Blocked entities — customers, accounts, IDs, names, phones, emails</p>
+    </div>
+    <button class="btn-primary" (click)="openAdd()">+ Add Entry</button>
+  </div>
+
+  <!-- Filters -->
+  <div class="card mb-4 p-4 flex gap-3 flex-wrap items-center">
+    <input class="form-input w-56" [(ngModel)]="searchQuery"
+           (ngModelChange)="onSearch($event)" placeholder="Search by value…" />
+    <select class="form-input w-48" [(ngModel)]="filterEntityType" (change)="applyFilters()">
+      <option value="">All Entity Types</option>
+      @for (t of entityTypes; track t) { <option [value]="t">{{ t }}</option> }
+    </select>
+    <select class="form-input w-32" [(ngModel)]="filterActive" (change)="applyFilters()">
+      <option value="">All</option>
+      <option value="true">Active</option>
+      <option value="false">Inactive</option>
+    </select>
+    <button class="btn-secondary text-sm" (click)="clearFilters()">Clear</button>
+  </div>
+
+  <div class="card overflow-hidden">
+    @if (loading) {
+      <div class="p-8 text-center text-muted">Loading…</div>
+    } @else if (entries.length === 0) {
+      <div class="p-8 text-center text-muted">No blacklist entries found.</div>
+    } @else {
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Entity Type</th>
+            <th>Value</th>
+            <th>Source</th>
+            <th>Status</th>
+            <th>Added By</th>
+            <th>Expires</th>
+            <th>Reason</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (e of entries; track e.id) {
+            <tr>
+              <td><span class="badge badge-neutral">{{ e.entityType }}</span></td>
+              <td class="font-mono text-xs">{{ e.entityValue }}</td>
+              <td class="text-muted text-xs">{{ e.source }}</td>
+              <td>
+                @if (e.active) {
+                  <span class="badge badge-error">Active</span>
+                } @else {
+                  <span class="badge badge-neutral">Inactive</span>
+                }
+              </td>
+              <td class="text-muted text-xs">{{ e.addedBy ?? '—' }}</td>
+              <td class="text-muted tabular-nums text-xs">{{ (e.expiresAt | date:'mediumDate') ?? 'Never' }}</td>
+              <td class="text-muted text-xs max-w-[200px] truncate">{{ e.reason ?? '—' }}</td>
+              <td>
+                <div class="flex gap-1">
+                  <button class="btn-ghost text-xs" (click)="openEdit(e)">Edit</button>
+                  @if (e.active) {
+                    <button class="btn-ghost text-xs text-red-600" (click)="openDeactivate(e)">Deactivate</button>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <div class="flex items-center justify-between px-4 py-3 border-t border-neutral-100">
+        <span class="text-sm text-muted">{{ total }} total</span>
+        <div class="flex gap-2">
+          <button class="btn-ghost text-sm" [disabled]="page === 0" (click)="prevPage()">Previous</button>
+          <span class="text-sm text-muted">{{ page + 1 }} / {{ totalPages() }}</span>
+          <button class="btn-ghost text-sm" [disabled]="(page + 1) * pageSize >= total" (click)="nextPage()">Next</button>
+        </div>
+      </div>
+    }
+  </div>
+</div>
+
+<!-- Add Modal -->
+@if (showAddModal) {
+  <div class="modal-backdrop" (click)="showAddModal = false"></div>
+  <div class="modal">
+    <div class="modal-header"><h3>Add Blacklist Entry</h3><button class="btn-ghost" (click)="showAddModal = false">✕</button></div>
+    <div class="modal-body space-y-3">
+      <select class="form-input w-full" [(ngModel)]="form.entityType">
+        @for (t of entityTypes; track t) { <option [value]="t">{{ t }}</option> }
+      </select>
+      <input class="form-input w-full" [(ngModel)]="form.entityValue" placeholder="Entity value (ID / name / phone…)" />
+      <select class="form-input w-full" [(ngModel)]="form.source">
+        @for (s of sources; track s) { <option [value]="s">{{ s }}</option> }
+      </select>
+      <textarea class="form-input w-full h-20" [(ngModel)]="form.reason" placeholder="Reason for blacklisting"></textarea>
+      <input class="form-input w-full" type="datetime-local" [(ngModel)]="form.expiresAt" placeholder="Expiry date (optional)" />
+      <input class="form-input w-full" [(ngModel)]="form.addedBy" placeholder="Added by (username)" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" (click)="showAddModal = false">Cancel</button>
+      <button class="btn-primary" (click)="confirmAdd()" [disabled]="!form.entityValue">Add</button>
+    </div>
+  </div>
+}
+
+<!-- Edit Modal -->
+@if (showEditModal && selected) {
+  <div class="modal-backdrop" (click)="showEditModal = false"></div>
+  <div class="modal">
+    <div class="modal-header"><h3>Edit Entry</h3><button class="btn-ghost" (click)="showEditModal = false">✕</button></div>
+    <div class="modal-body space-y-3">
+      <textarea class="form-input w-full h-20" [(ngModel)]="editReason" placeholder="Reason"></textarea>
+      <input class="form-input w-full" type="datetime-local" [(ngModel)]="editExpiresAt" placeholder="Expiry date (optional)" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" (click)="showEditModal = false">Cancel</button>
+      <button class="btn-primary" (click)="confirmEdit()">Save</button>
+    </div>
+  </div>
+}
+
+<!-- Deactivate Confirm -->
+@if (showDeactivateConfirm && selected) {
+  <div class="modal-backdrop" (click)="showDeactivateConfirm = false"></div>
+  <div class="modal">
+    <div class="modal-header"><h3>Deactivate Entry</h3><button class="btn-ghost" (click)="showDeactivateConfirm = false">✕</button></div>
+    <div class="modal-body">
+      <p>Deactivate blacklist entry for <strong>{{ selected.entityValue }}</strong>? The entity will no longer be blocked.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" (click)="showDeactivateConfirm = false">Cancel</button>
+      <button class="btn-primary" style="background:#dc2626" (click)="confirmDeactivate()">Deactivate</button>
+    </div>
+  </div>
+}

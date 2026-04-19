@@ -1,0 +1,12 @@
+@use 'assets/styles/design-system' as *;
+
+pre.params-block {
+  background: #f8f9fa;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 11px;
+  max-height: 120px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}

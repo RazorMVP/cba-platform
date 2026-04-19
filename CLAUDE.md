@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 99 — 2026-04-19)
+## Confirmed Platform Versions (Session 100 — 2026-04-19)
 
 These are the verified-working versions for both production components. Update this table whenever a dependency is upgraded.
 
@@ -2497,6 +2497,10 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Compliance Reports | `ComplianceReportComponent` | `AdminModule` | ✅ Built — 4-tab layout (Audit Summary / Failed Logins / User Activity / Data Access), days-range selector, CSV export per tab _(Session 98)_ |
 | Bulk Import | `BulkImportComponent` | `AdminModule` | ✅ Built — drag-and-drop CSV upload for customers and loans; 4 stat cards (Status/Total/Succeeded/Failed); per-row error table; collapsible import history; template download _(Session 99)_ |
 | Security Policy | `SecurityPolicyComponent` | `AdminModule` | ✅ Built — 3-card grid (Brute-Force/Password Policy/Sessions); view/edit toggle with toggle switches and number inputs; warning banner on save; graceful fallback when Keycloak unreachable _(Session 99)_ |
+| Fraud Alerts | `FraudAlertsComponent` | `AdminModule` | ✅ Built — status/severity filter bar, paginated table, slide-in detail panel, review/close modals, link-to-case + create-case modals _(Session 100)_ |
+| Fraud Cases | `FraudCasesComponent` | `AdminModule` | ✅ Built — status/risk-level filter, paginated table, slide-in detail panel, create/update case modals _(Session 100)_ |
+| Blacklist | `BlacklistComponent` | `AdminModule` | ✅ Built — entity-type filter, debounced search (min 2 chars), add/edit/deactivate modals, 7 entity types + 5 sources _(Session 100)_ |
+| Fraud Rules (Core Banking) | `FraudRulesAdminComponent` | `AdminModule` | ✅ Built — score legend, inline enable/disable toggle, edit modal (severity/blocking/JSON params), hard-block indicator _(Session 100)_ |
 | Groups list | `GroupsListComponent` | `GroupsModule`  | ✅ Built — status filter + search, create modal, routerLink to detail |
 | Group detail | `GroupDetailComponent` | `GroupsModule`  | ✅ Built — 4 tabs: Members (add/remove), Collection Sheet, GLIM Accounts, Staff |
 | Centers list | `CentersListComponent` | `GroupsModule`  | ✅ Built — status filter + search, create modal, routerLink to detail |
@@ -2936,7 +2940,7 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | 7 | Audit & Internal Control | ⚠️ Partial | ❌ Missing | ⚠️ Gap |
 | 8 | System Administrator | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
 | 9 | Notification & Messaging | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
-| 10 | Fraud & Risk Management | ⚠️ Card only | ❌ Core banking | ⚠️ Gap |
+| 10 | Fraud & Risk Management | ✅ Built | ✅ Built | ✅ Done |
 | 11 | Business Intelligence | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
 
 ---
@@ -3130,11 +3134,11 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | PRD Feature | Backend Status | Angular Status | Gap |
 |-------------|---------------|----------------|-----|
 | Card fraud rules engine | ✅ `card-service` FraudEngine | ✅ FraudRulesComponent | — |
-| Core banking transaction velocity limits (non-card) | ❌ No fraud engine in backend monolith | ❌ Missing | ❌ |
-| Customer blacklist / sanctions screening | ❌ Not implemented | ❌ Missing | ❌ |
-| Fraud alerts / case management | ❌ Not implemented | ❌ Missing | ❌ |
-| Risk score per customer | ❌ Not implemented | ❌ Missing | ❌ |
-| AML transaction monitoring | ❌ Not implemented | ❌ Missing | ❌ |
+| Core banking transaction velocity limits (non-card) | ✅ `FraudEngineService.preTransactionCheck()` — blocking, synchronous inside `PaymentService.transfer()` _(Session 100)_ | ✅ FraudRulesAdminComponent at `/admin/fraud-rules` | — |
+| Customer blacklist / sanctions screening | ✅ `BlacklistEntryRepository.findActiveByTypeAndValue()` + `isBlacklisted(customerId)` + `isValueBlacklisted()` — checked pre-commit _(Session 100)_ | ✅ BlacklistComponent at `/admin/blacklist` | — |
+| Fraud alerts / case management | ✅ `FraudAlert` entity, `FraudCase` entity, `FraudAlertService`, case number `CASE-000NNN` seq _(Session 100)_ | ✅ FraudAlertsComponent + FraudCasesComponent | — |
+| Risk score per customer | ✅ `CustomerRiskScore`: `min(100, openAlerts×10 + confirmedCases×25 + blacklistHits×50)`; `REQUIRES_NEW` upsert _(Session 100)_ | ✅ Risk score shown in slide-in panels; recalculate endpoint | — |
+| AML transaction monitoring | ✅ Structuring + rapid-fund-movement checks via `@TransactionalEventListener(AFTER_COMMIT)` — async, never blocks _(Session 100)_ | ✅ Monitoring alerts surface in FraudAlertsComponent | — |
 
 ---
 
@@ -3169,7 +3173,7 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | Audit & Internal Control | 🔲 Queued | — |
 | System Administrator | 🔲 Queued | — |
 | Notification & Messaging | 🔲 Queued | — |
-| Fraud & Risk Management | 🔲 Queued | — |
+| Fraud & Risk Management | ✅ Done | Session 100 |
 | Business Intelligence | 🔲 Queued | — |
 
 ---

@@ -2941,7 +2941,7 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | 8 | System Administrator | ✅ Built | ✅ Built | ✅ Done |
 | 9 | Notification & Messaging | ✅ Built | ⚠️ Partial (Flutter push pending Phase 3) | ⚠️ Partial |
 | 10 | Fraud & Risk Management | ✅ Built | ✅ Built | ✅ Done |
-| 11 | Business Intelligence | ⚠️ Partial | ⚠️ Partial | ⚠️ Partial (deposit/repayment analytics pending) |
+| 11 | Business Intelligence | ✅ Built | ✅ Built | ✅ Done |
 
 ---
 
@@ -3151,8 +3151,8 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | Dynamic report engine | ✅ Module 15 (SQL-based) | ✅ ReportsListComponent | — |
 | Dashboard KPIs (total loans, deposits, customers) | ✅ `GET /api/v1/dashboard` — 7 KPIs in one call _(Session 94)_ | ✅ Live data: deposit balance + arrears sub-count _(Session 94)_ | ✅ |
 | Loan portfolio breakdown chart | ✅ `GET /api/v1/dashboard/analytics/loans` — 4 aging buckets _(Session 94)_ | ✅ Real % + count badges per bucket _(Session 94)_ | ✅ |
-| Deposit analytics | ❌ No analytics endpoint | ❌ Missing | ❌ |
-| Repayment performance metrics | ❌ No analytics endpoint | ❌ Missing | ❌ |
+| Deposit analytics | ✅ `GET /api/v1/dashboard/analytics/deposits` _(Session 94)_ | ✅ Wired in `DashboardComponent` | ✅ |
+| Repayment performance metrics | ✅ `GET /api/v1/dashboard/analytics/repayments` _(Session 94)_ | ✅ Wired in `DashboardComponent` | ✅ |
 | CoB job history / scheduler UI | ✅ `CobJobHistory` entity | ✅ CobSchedulerComponent | — |
 | Report mailing scheduler | ✅ Module 34 | ✅ ReportMailingComponent | — |
 | Export (CSV / XLS / PDF) | ✅ `GET /runreports/{name}/export?format=csv\|xlsx\|pdf`; Apache POI XLSX + PDFBox PDF _(Session 102)_ | ✅ Format dropdown + Export button in reports list _(Session 102)_ | ✅ |
@@ -3174,7 +3174,7 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | System Administrator | ✅ Done | Session 99 |
 | Notification & Messaging | ⚠️ Partial | Sessions 73, 97 (Flutter push pending Phase 3) |
 | Fraud & Risk Management | ✅ Done | Session 100 |
-| Business Intelligence | ⚠️ Partial | Sessions 94, 102 (deposit/repayment analytics pending) |
+| Business Intelligence | ✅ Done | Session 94 (all 3 analytics endpoints + Angular wired) |
 
 ---
 

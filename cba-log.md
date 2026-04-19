@@ -47,9 +47,9 @@ _None — all Phase 1 backend modules are now complete._
 
 ### ❌ Not Yet Built
 
-| Component | Required by CLAUDE.md | Priority |
-|-----------|----------------------|----------|
-| **Mobile Frontend — Flutter** | Customer mobile app (auth, dashboard, accounts, loans, payments, profile). `mobile/` directory is empty. Push notification backend (FCM token registry, `push_devices` table) is ready and waiting. | Phase 3 |
+| Component                     | Required by CLAUDE.md                                                                                                                                                                               | Priority |
+|-------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|
+| **Mobile Frontend — Flutter** | Customer mobile app (auth, dashboard, accounts, loans, payments, profile). `mobile/` directory is empty. Push notification backend (FCM token registry, `push_devices` table) is ready and waiting. | Phase 3  |
 
 > **Previously listed items now complete:** Infrastructure — Docker Compose ✅ (Session 42), Kubernetes ✅ (Session 42), Keycloak Realm ✅ (Session 42). Angular Operations + Products ✅ (Sessions 47–103, 100+ screens).
 
@@ -4901,9 +4901,8 @@ Single `:root {}` block in `styles.scss` bridging SCSS → CSS custom properties
 
 ### Not Yet Built
 
-| Item | Status | Notes |
-|------|--------|-------|
-| Docker Compose | ❌ | Phase 4 — postgres, keycloak, backend, web, mailhog |
-| Kubernetes manifests | ❌ | Phase 4 — namespace `cba-platform`, HPA, Sealed Secrets |
-| Keycloak realm JSON | ❌ | Phase 4 — `cba` realm, FAPI 2.0, demo users |
-| Flutter mobile app | ❌ | Phase 3 — `mobile/` directory is empty |
+| Component                     | Required by CLAUDE.md                                                                                                                                                                               | Priority |
+|-------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|
+| **Mobile Frontend — Flutter** | Customer mobile app (auth, dashboard, accounts, loans, payments, profile). `mobile/` directory is empty. Push notification backend (FCM token registry, `push_devices` table) is ready and waiting. | Phase 3  |
+
+> **Previously listed items now complete:** Infrastructure — Docker Compose ✅ (Session 42), Kubernetes ✅ (Session 42), Keycloak Realm ✅ (Session 42). Angular Operations + Products ✅ (Sessions 47–103, 100+ screens).

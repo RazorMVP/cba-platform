@@ -117,6 +117,13 @@ export class ReportService {
     return this.api.get<Record<string, unknown>[]>(`/runreports/${encodeURIComponent(reportName)}`, params);
   }
 
+  // Export report — triggers browser file download via URL navigation
+  getExportUrl(reportName: string, format: 'csv' | 'xlsx' | 'pdf', params: Record<string, string>): string {
+    const base = this.api['base'] as string;
+    const query = new URLSearchParams({ ...params, format }).toString();
+    return `${base}/runreports/${encodeURIComponent(reportName)}/export?${query}`;
+  }
+
   // CoB Scheduler
   listJobs(): Observable<CobJob[]> {
     return this.api.get<CobJob[]>('/jobs');

@@ -28,5 +28,15 @@ public record PaymentResponse(
         BigDecimal sourceAmount,
         String destinationCurrency,
         BigDecimal destinationAmount,
-        BigDecimal exchangeRateUsed
+        BigDecimal exchangeRateUsed,
+
+        // External / SWIFT / SEPA fields (null for internal transfers)
+        String externalNetwork,
+        String beneficiaryName,
+        String beneficiaryIban,
+        String beneficiaryBic,
+        String beneficiaryBankName,
+        String beneficiaryCountryCode,
+        String externalReference,
+        String chargeType
 ) {}

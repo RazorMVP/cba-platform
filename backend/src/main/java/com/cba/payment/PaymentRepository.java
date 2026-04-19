@@ -11,4 +11,5 @@ import java.util.UUID;
 public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     Page<Payment> findBySourceAccountId(UUID accountId, Pageable pageable);
     Page<Payment> findBySourceAccountIdOrDestinationAccountId(UUID srcId, UUID dstId, Pageable pageable);
+    Page<Payment> findByPaymentType(PaymentType paymentType, Pageable pageable);
 }

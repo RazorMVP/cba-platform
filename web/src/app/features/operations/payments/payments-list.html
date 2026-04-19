@@ -10,6 +10,9 @@
       <button class="btn-outline" (click)="openSOModal()">
         <span class="material-icons">repeat</span> Standing Order
       </button>
+      <button class="btn-outline" (click)="openExternalModal()">
+        <span class="material-icons">public</span> Send Abroad
+      </button>
       <button class="btn-primary" (click)="openTransferModal()">
         <span class="material-icons">add</span> New Transfer
       </button>
@@ -468,6 +471,123 @@
         </button>
       </div>
 
+    </div>
+  </div>
+}
+
+<!-- ── External / SWIFT / SEPA Payment Modal ── -->
+@if (activeModal === 'external') {
+  <div class="modal-backdrop" (click)="closeModal()">
+    <div class="modal" style="max-width:600px" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">public</span>
+        Send Abroad (SWIFT / SEPA / ACH)
+      </div>
+      <div class="modal__body">
+
+        <!-- Source account -->
+        <div class="form-field">
+          <label class="form-label">Debit Account <span class="required">*</span></label>
+          @if (!extSrcAccount) {
+            <input class="form-input" type="text" placeholder="Search account…"
+                   [(ngModel)]="extSrcQuery" (ngModelChange)="onExtSrcQueryChange()" />
+            @if (extSrcResults.length > 0) {
+              <ul class="autocomplete-list">
+                @for (a of extSrcResults; track a.id) {
+                  <li class="autocomplete-item" (click)="selectExtSrc(a)">
+                    <span class="autocomplete-item__number">{{ a.accountNumber }}</span>
+                    <span class="autocomplete-item__name">{{ a.customerName ?? '' }}</span>
+                  </li>
+                }
+              </ul>
+            }
+          } @else {
+            <div style="display:flex;align-items:center;gap:.5rem">
+              <span class="form-input" style="flex:1;background:var(--bg-surface)">{{ extSrcAccount.accountNumber }}</span>
+              <button class="btn-ghost" style="font-size:.75rem" (click)="extSrcAccount = null; extSrcQuery = ''">Change</button>
+            </div>
+          }
+        </div>
+
+        <!-- Network + currency row -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+          <div class="form-field">
+            <label class="form-label">Network <span class="required">*</span></label>
+            <select class="form-input" [(ngModel)]="extNetwork">
+              @for (n of networks; track n) { <option [value]="n">{{ n }}</option> }
+            </select>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Currency <span class="required">*</span></label>
+            <input class="form-input" [(ngModel)]="extCurrency" placeholder="USD" maxlength="3" style="text-transform:uppercase" />
+          </div>
+        </div>
+
+        <!-- Amount -->
+        <div class="form-field">
+          <label class="form-label">Amount <span class="required">*</span></label>
+          <input class="form-input" type="number" min="0.01" step="0.01" [(ngModel)]="extAmount" placeholder="0.00" />
+        </div>
+
+        <!-- Beneficiary details -->
+        <div class="form-field">
+          <label class="form-label">Beneficiary Name <span class="required">*</span></label>
+          <input class="form-input" [(ngModel)]="extBeneficiaryName" placeholder="Full legal name" />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+          <div class="form-field">
+            <label class="form-label">IBAN</label>
+            <input class="form-input" [(ngModel)]="extBeneficiaryIban" placeholder="GB29 NWBK…" maxlength="34" />
+          </div>
+          <div class="form-field">
+            <label class="form-label">BIC / SWIFT Code</label>
+            <input class="form-input" [(ngModel)]="extBeneficiaryBic" placeholder="NWBKGB2L" maxlength="11" />
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+          <div class="form-field">
+            <label class="form-label">Beneficiary Bank</label>
+            <input class="form-input" [(ngModel)]="extBeneficiaryBank" placeholder="NatWest Bank" />
+          </div>
+          <div class="form-field">
+            <label class="form-label">Country (ISO 3)</label>
+            <input class="form-input" [(ngModel)]="extBeneficiaryCountry" placeholder="GBR" maxlength="3" style="text-transform:uppercase" />
+          </div>
+        </div>
+
+        <!-- Charge type + reference row -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem">
+          <div class="form-field">
+            <label class="form-label">SWIFT Charge Bearer</label>
+            <select class="form-input" [(ngModel)]="extChargeType">
+              <option value="SHA">SHA — Shared</option>
+              <option value="OUR">OUR — Sender pays all</option>
+              <option value="BEN">BEN — Beneficiary pays all</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label class="form-label">External Reference</label>
+            <input class="form-input" [(ngModel)]="extReference" placeholder="INV-12345" />
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Description</label>
+          <input class="form-input" [(ngModel)]="extDescription" placeholder="Payment purpose" />
+        </div>
+
+        @if (modalError) {
+          <p style="color:#dc2626;font-size:.8rem;margin-top:.5rem">{{ modalError }}</p>
+        }
+
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitExternalPayment()" [disabled]="!extFormValid || modalWorking">
+          @if (modalWorking) { <span class="spinner"></span> }
+          Send Payment
+        </button>
+      </div>
     </div>
   </div>
 }

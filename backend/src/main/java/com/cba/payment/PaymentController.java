@@ -5,6 +5,7 @@ import com.cba.payment.dto.PaymentResponse;
 import com.cba.payment.dto.ReversePaymentRequest;
 import com.cba.payment.dto.StandingOrderRequest;
 import com.cba.payment.dto.StandingOrderResponse;
+import com.cba.payment.dto.ExternalPaymentRequest;
 import com.cba.payment.dto.TransferRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -87,6 +88,31 @@ public class PaymentController {
     public ResponseEntity<ApiResponse<StandingOrderResponse>> cancelStandingOrder(
             @PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(paymentService.cancelStandingOrder(id)));
+    }
+
+    // ── External / SWIFT / SEPA Payments ────────────────────────────────────
+
+    @PostMapping("/external")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
+    @Operation(summary = "Initiate an external SWIFT or SEPA payment",
+               description = "Debits the source account and records the outbound payment. " +
+                             "Actual network transmission is handled by the external payments gateway.")
+    public ResponseEntity<ApiResponse<PaymentResponse>> initiateExternalPayment(
+            @Valid @RequestBody ExternalPaymentRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        String actor = jwt.getClaimAsString("preferred_username");
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.ok(paymentService.initiateExternalPayment(request, actor)));
+    }
+
+    @GetMapping("/external")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
+    @Operation(summary = "List all external payments (SWIFT/SEPA/ACH)")
+    public ResponseEntity<ApiResponse<Page<PaymentResponse>>> listExternalPayments(
+            @PageableDefault(size = 20) Pageable pageable) {
+        Page<PaymentResponse> page = paymentService.listExternalPayments(pageable);
+        return ResponseEntity.ok(ApiResponse.ok(page,
+                ApiResponse.PageMeta.of(page.getNumber(), page.getSize(), page.getTotalElements())));
     }
 
     // ── Payment Reversal ─────────────────────────────────────────────────────

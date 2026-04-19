@@ -6,10 +6,10 @@ import { Subject } from 'rxjs';
 import { debounceTime, distinctUntilChanged, switchMap, takeUntil } from 'rxjs/operators';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge';
 import { AccountService, Account } from '../accounts/account.service';
-import { PaymentService, Payment, TransferRequest, StandingOrderRequest, SOFrequency } from './payment.service';
+import { PaymentService, Payment, TransferRequest, StandingOrderRequest, SOFrequency, ExternalPaymentRequest } from './payment.service';
 import { PageResponse } from '../../../core/models/api-response.model';
 
-type ModalType = 'transfer' | 'standing-order' | null;
+type ModalType = 'transfer' | 'standing-order' | 'external' | null;
 type TransferStep = 1 | 2 | 3;   // 1=accounts, 2=amount+desc, 3=confirm
 
 @Component({
@@ -127,6 +127,13 @@ export class PaymentsListComponent implements OnInit, OnDestroy {
       takeUntil(this.destroy$),
     ).subscribe({ next: p => { this.dstResults = p.content.filter(a => this.matchAcct(a, this.dstQuery)); this.dstSearching = false; },
                   error: () => { this.dstSearching = false; } });
+
+    // External payment source search stream
+    this.extSrcSearch$.pipe(debounceTime(250), distinctUntilChanged(),
+      switchMap(() => { this.extSrcSearching = true; return this.accountSvc.list(0, 8); }),
+      takeUntil(this.destroy$),
+    ).subscribe({ next: p => { this.extSrcResults = p.content.filter(a => this.matchAcct(a, this.extSrcQuery)); this.extSrcSearching = false; },
+                  error: () => { this.extSrcSearching = false; } });
 
     // Standing Order source/destination search streams
     this.soSrcSearch$.pipe(debounceTime(250), distinctUntilChanged(),
@@ -291,6 +298,87 @@ export class PaymentsListComponent implements OnInit, OnDestroy {
     this.paymentSvc.createStandingOrder(req).subscribe({
       next: () => { this.modalWorking = false; this.activeModal = null; },
       error: () => { this.modalError = 'Could not create standing order. Please check the details.'; this.modalWorking = false; },
+    });
+  }
+
+  // ── External Payment modal ─────────────────────────────────────────────────
+
+  extSrcAccount: Account | null = null;
+  extSrcQuery   = '';
+  extSrcResults: Account[] = [];
+  extSrcSearching = false;
+  private readonly extSrcSearch$ = new Subject<string>();
+
+  extAmount      = 0;
+  extCurrency    = 'USD';
+  extNetwork: 'SWIFT' | 'SEPA' | 'ACH' = 'SWIFT';
+  extBeneficiaryName    = '';
+  extBeneficiaryIban    = '';
+  extBeneficiaryBic     = '';
+  extBeneficiaryBank    = '';
+  extBeneficiaryCountry = '';
+  extChargeType: 'SHA' | 'OUR' | 'BEN' = 'SHA';
+  extDescription        = '';
+  extReference          = '';
+
+  readonly networks  = ['SWIFT', 'SEPA', 'ACH'];
+  readonly chargeTypes = ['SHA', 'OUR', 'BEN'];
+
+  openExternalModal(): void {
+    this.activeModal        = 'external';
+    this.extSrcAccount      = this.selectedAccount ?? null;
+    this.extSrcQuery        = this.selectedAccount?.accountNumber ?? '';
+    this.extSrcResults      = [];
+    this.extAmount          = 0;
+    this.extCurrency        = 'USD';
+    this.extNetwork         = 'SWIFT';
+    this.extBeneficiaryName = '';
+    this.extBeneficiaryIban = '';
+    this.extBeneficiaryBic  = '';
+    this.extBeneficiaryBank = '';
+    this.extBeneficiaryCountry = '';
+    this.extChargeType      = 'SHA';
+    this.extDescription     = '';
+    this.extReference       = '';
+    this.modalWorking       = false;
+    this.modalError         = '';
+  }
+
+  onExtSrcQueryChange(): void { this.extSrcSearch$.next(this.extSrcQuery); }
+  selectExtSrc(a: Account): void { this.extSrcAccount = a; this.extSrcQuery = a.accountNumber; this.extSrcResults = []; }
+
+  get extFormValid(): boolean {
+    return !!this.extSrcAccount && this.extAmount > 0 && !!this.extBeneficiaryName;
+  }
+
+  submitExternalPayment(): void {
+    if (!this.extFormValid) return;
+    this.modalWorking = true;
+    this.modalError   = '';
+    const req: ExternalPaymentRequest = {
+      sourceAccountId:       this.extSrcAccount!.id,
+      amount:                this.extAmount,
+      currencyCode:          this.extCurrency,
+      network:               this.extNetwork,
+      beneficiaryName:       this.extBeneficiaryName,
+      beneficiaryIban:       this.extBeneficiaryIban   || undefined,
+      beneficiaryBic:        this.extBeneficiaryBic    || undefined,
+      beneficiaryBankName:   this.extBeneficiaryBank   || undefined,
+      beneficiaryCountryCode: this.extBeneficiaryCountry || undefined,
+      chargeType:            this.extChargeType,
+      description:           this.extDescription       || undefined,
+      externalReference:     this.extReference         || undefined,
+    };
+    this.paymentSvc.initiateExternalPayment(req).subscribe({
+      next: p => {
+        this.modalWorking = false;
+        this.activeModal  = null;
+        if (this.selectedAccount && p.sourceAccountId === this.selectedAccount.id) {
+          this.page = 0;
+          this.loadPayments();
+        }
+      },
+      error: () => { this.modalError = 'External payment failed. Check the details and try again.'; this.modalWorking = false; },
     });
   }
 

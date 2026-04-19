@@ -311,7 +311,72 @@ public class PaymentService {
             p.getAmount(), p.getCurrencyCode(), p.getDescription(),
             p.getStatus(), p.getExecutedDate(), p.getCreatedAt(),
             p.isCrossCurrency(), p.getSourceCurrency(), p.getSourceAmount(),
-            p.getDestinationCurrency(), p.getDestinationAmount(), p.getExchangeRateUsed()
+            p.getDestinationCurrency(), p.getDestinationAmount(), p.getExchangeRateUsed(),
+            p.getExternalNetwork(), p.getBeneficiaryName(), p.getBeneficiaryIban(),
+            p.getBeneficiaryBic(), p.getBeneficiaryBankName(), p.getBeneficiaryCountryCode(),
+            p.getExternalReference(), p.getChargeType()
         );
+    }
+
+    // ── External / SWIFT / SEPA Payments ─────────────────────────────────────
+
+    @Transactional
+    public PaymentResponse initiateExternalPayment(
+            com.cba.payment.dto.ExternalPaymentRequest req, String actor) {
+
+        Account source = accountRepository.findById(req.sourceAccountId())
+                .orElseThrow(() -> CbaException.notFound("Account", req.sourceAccountId().toString()));
+        validateAccountActive(source);
+
+        if (source.getBalance().compareTo(req.amount()) < 0) {
+            throw CbaException.badRequest("INSUFFICIENT_FUNDS",
+                    "Insufficient funds for external payment");
+        }
+
+        // Debit source account
+        BigDecimal holdSum = accountHoldRepository.sumActiveHoldsByAccount(source.getId());
+        BigDecimal available = source.getBalance().subtract(holdSum).subtract(source.computeEffectiveFloor());
+        source.debit(req.amount(), available);
+        accountRepository.save(source);
+
+        String ref = "EXT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        transactionRepository.save(Transaction.of(source, TransactionType.TRANSFER_DEBIT,
+                req.amount(), source.getBalance(),
+                "External " + req.network() + " payment to " + req.beneficiaryName(), ref, actor));
+
+        Payment payment = new Payment();
+        payment.setPaymentType(PaymentType.EXTERNAL_PAYMENT);
+        payment.setSourceAccount(source);
+        payment.setAmount(req.amount());
+        payment.setCurrencyCode(req.currencyCode());
+        payment.setDescription(req.description());
+        payment.setStatus(PaymentStatus.COMPLETED);
+        payment.setExecutedDate(Instant.now());
+        payment.setReferenceNumber(ref);
+        payment.setCreatedBy(actor);
+
+        // External fields
+        payment.setExternalNetwork(req.network().toUpperCase());
+        payment.setBeneficiaryName(req.beneficiaryName());
+        payment.setBeneficiaryIban(req.beneficiaryIban());
+        payment.setBeneficiaryBic(req.beneficiaryBic());
+        payment.setBeneficiaryBankName(req.beneficiaryBankName());
+        payment.setBeneficiaryCountryCode(req.beneficiaryCountryCode());
+        payment.setExternalReference(req.externalReference());
+        payment.setChargeType(req.chargeType() != null ? req.chargeType().toUpperCase() : "SHA");
+
+        Payment saved = paymentRepository.save(payment);
+
+        auditLogService.log("PAYMENT", saved.getId().toString(), "EXTERNAL_PAYMENT_INITIATED",
+                null, "network=" + req.network() + ",beneficiary=" + req.beneficiaryName());
+
+        return toResponse(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<PaymentResponse> listExternalPayments(
+            org.springframework.data.domain.Pageable pageable) {
+        return paymentRepository.findByPaymentType(PaymentType.EXTERNAL_PAYMENT, pageable)
+                .map(this::toResponse);
     }
 }

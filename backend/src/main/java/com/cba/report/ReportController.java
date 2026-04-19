@@ -4,10 +4,14 @@ import com.cba.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -18,6 +22,7 @@ import java.util.UUID;
 public class ReportController {
 
     private final ReportService reportService;
+    private final ReportExportService reportExportService;
 
     @GetMapping("/api/v1/reports")
     @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
@@ -55,5 +60,51 @@ public class ReportController {
             @PathVariable String reportName,
             @RequestParam Map<String, String> params) {
         return ResponseEntity.ok(ApiResponse.ok(reportService.runReport(reportName, params)));
+    }
+
+    @GetMapping("/api/v1/runreports/{reportName}/export")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
+    @Operation(
+        summary = "Export a report as CSV, XLSX, or PDF",
+        description = "Pass report parameters as query params. Use ?format=csv|xlsx|pdf (default: csv)."
+    )
+    public ResponseEntity<byte[]> exportReport(
+            @PathVariable String reportName,
+            @RequestParam(defaultValue = "csv") String format,
+            @RequestParam Map<String, String> params) throws IOException {
+
+        // Remove 'format' from params so it isn't passed to the SQL engine
+        Map<String, String> reportParams = new java.util.HashMap<>(params);
+        reportParams.remove("format");
+
+        List<Map<String, Object>> rows = reportService.runReport(reportName, reportParams);
+
+        return switch (format.toLowerCase()) {
+            case "xlsx" -> {
+                byte[] data = reportExportService.exportToXlsx(reportName, rows);
+                yield ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_DISPOSITION,
+                                ContentDisposition.attachment().filename(reportName + ".xlsx").build().toString())
+                        .contentType(MediaType.parseMediaType(
+                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                        .body(data);
+            }
+            case "pdf" -> {
+                byte[] data = reportExportService.exportToPdf(reportName, rows);
+                yield ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_DISPOSITION,
+                                ContentDisposition.attachment().filename(reportName + ".pdf").build().toString())
+                        .contentType(MediaType.APPLICATION_PDF)
+                        .body(data);
+            }
+            default -> {
+                byte[] data = reportExportService.exportToCsv(rows);
+                yield ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_DISPOSITION,
+                                ContentDisposition.attachment().filename(reportName + ".csv").build().toString())
+                        .contentType(MediaType.parseMediaType("text/csv"))
+                        .body(data);
+            }
+        };
     }
 }

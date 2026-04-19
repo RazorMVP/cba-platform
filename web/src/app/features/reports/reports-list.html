@@ -154,11 +154,16 @@
               <span class="results-title">
                 {{ results.length }} row{{ results.length === 1 ? '' : 's' }} returned
               </span>
-              @if (results.length > 0) {
-                <button class="btn-export" (click)="exportCsv()">
-                  <span class="material-icons">download</span> Export CSV
+              <div style="display:flex;align-items:center;gap:.5rem">
+                <select class="form-input" style="width:90px;font-size:.8rem;padding:.3rem .5rem" [(ngModel)]="exportFormat">
+                  <option value="csv">CSV</option>
+                  <option value="xlsx">XLSX</option>
+                  <option value="pdf">PDF</option>
+                </select>
+                <button class="btn-export" (click)="exportReport()">
+                  <span class="material-icons">download</span> Export
                 </button>
-              }
+              </div>
             </div>
             @if (results.length === 0) {
               <div class="results-empty">No data returned for these parameters.</div>

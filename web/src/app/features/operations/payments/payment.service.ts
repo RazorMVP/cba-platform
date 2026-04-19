@@ -65,6 +65,21 @@ export interface StandingOrderRequest {
   description?: string;
 }
 
+export interface ExternalPaymentRequest {
+  sourceAccountId: string;
+  amount: number;
+  currencyCode: string;
+  network: string;
+  beneficiaryName: string;
+  beneficiaryIban?: string;
+  beneficiaryBic?: string;
+  beneficiaryBankName?: string;
+  beneficiaryCountryCode?: string;
+  chargeType?: string;
+  description?: string;
+  externalReference?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class PaymentService {
   private readonly api = inject(ApiService);
@@ -102,5 +117,10 @@ export class PaymentService {
   /** DELETE /payments/standing-orders/{id} */
   cancelStandingOrder(id: string): Observable<StandingOrder> {
     return this.api.delete<StandingOrder>(`/payments/standing-orders/${id}`);
+  }
+
+  /** POST /payments/external */
+  initiateExternalPayment(body: ExternalPaymentRequest): Observable<Payment> {
+    return this.api.post<Payment>('/payments/external', body);
   }
 }

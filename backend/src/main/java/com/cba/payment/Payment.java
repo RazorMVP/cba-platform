@@ -87,6 +87,32 @@ public class Payment {
     @Column(name = "failure_reason", columnDefinition = "TEXT")
     private String failureReason;
 
+    // External / SWIFT / SEPA fields (V46 migration — null for internal transfers)
+    @Column(name = "external_network", length = 10)
+    private String externalNetwork;   // SWIFT | SEPA | ACH
+
+    @Column(name = "beneficiary_name", length = 200)
+    private String beneficiaryName;
+
+    @Column(name = "beneficiary_iban", length = 34)
+    private String beneficiaryIban;
+
+    @Column(name = "beneficiary_bic", length = 11)
+    private String beneficiaryBic;
+
+    @Column(name = "beneficiary_bank_name", length = 200)
+    private String beneficiaryBankName;
+
+    @Column(name = "beneficiary_country_code", length = 3)
+    private String beneficiaryCountryCode;
+
+    @Column(name = "external_reference", length = 100)
+    private String externalReference;
+
+    /** SWIFT charge-bearer: SHA (shared), OUR (sender pays all), BEN (beneficiary pays all) */
+    @Column(name = "charge_type", length = 5)
+    private String chargeType;
+
     // Reversal tracking (V10 migration)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reversal_of")

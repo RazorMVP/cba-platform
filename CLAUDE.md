@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 101 — 2026-04-19)
+## Confirmed Platform Versions (Session 102 — 2026-04-19)
 
 These are the verified-working versions for both production components. Update this table whenever a dependency is upgraded.
 
@@ -858,15 +858,15 @@ All tables: UUID PKs, `version BIGINT` for optimistic locking, `created_at`/`upd
 
 | Component | Route | Auth Required | Status |
 |-----------|-------|--------------|--------|
-| `CardListComponent` | `/cards` | ADMIN/TELLER | 🔲 Planned |
-| `CardDetailComponent` | `/cards/:id` | ADMIN/TELLER | 🔲 Planned |
-| `CardProductsComponent` | `/cards/products` | ADMIN | 🔲 Planned |
-| `FraudRulesComponent` | `/cards/fraud` | ADMIN | 🔲 Planned |
-| `SettlementComponent` | `/cards/settlement` | ADMIN | 🔲 Planned |
-| `DisputesComponent` | `/cards/disputes` | ADMIN/TELLER | 🔲 Planned |
-| `TerminalSimulatorComponent` | `/cards/terminal` | ADMIN/TELLER | 🔲 Planned |
-| `ApiKeysComponent` | `/cards/api-keys` | ADMIN | 🔲 Planned |
-| `WebhooksComponent` | `/cards/webhooks` | ADMIN | 🔲 Planned |
+| `CardListComponent` | `/cards` | ADMIN/TELLER | ✅ Built _(Session 41)_ |
+| `CardDetailComponent` | `/cards/:id` | ADMIN/TELLER | ✅ Built _(Session 41)_ |
+| `CardProductsComponent` | `/cards/products` | ADMIN | ✅ Built _(Session 41)_ |
+| `FraudRulesComponent` | `/cards/fraud` | ADMIN | ✅ Built _(Session 41)_ |
+| `SettlementComponent` | `/cards/settlement` | ADMIN | ✅ Built _(Session 41)_ |
+| `DisputesComponent` | `/cards/disputes` | ADMIN/TELLER | ✅ Built _(Session 41)_ |
+| `TerminalSimulatorComponent` | `/cards/terminal` | ADMIN/TELLER | ✅ Built _(Session 41)_ |
+| `ApiKeysComponent` | `/cards/api-keys` | ADMIN | ✅ Built _(Session 41)_ |
+| `WebhooksComponent` | `/cards/webhooks` | ADMIN | ✅ Built _(Session 41)_ |
 
 ---
 
@@ -1329,18 +1329,18 @@ RAISED → RETRIEVAL_REQUESTED → CHARGEBACK_INITIATED
 
 | Component | Route | Auth | Status |
 |-----------|-------|------|--------|
-| `CardListComponent` | `/cards` | ADMIN/TELLER | 🔲 Planned |
-| `CardDetailComponent` | `/cards/:id` | ADMIN/TELLER | 🔲 Planned |
-| `CardProductsComponent` | `/cards/products` | ADMIN | 🔲 Planned |
-| `FraudRulesComponent` | `/cards/fraud` | ADMIN | 🔲 Planned |
-| `SettlementComponent` | `/cards/settlement` | ADMIN | 🔲 Planned |
-| `DisputesComponent` | `/cards/disputes` | ADMIN/TELLER | 🔲 Planned |
-| `TerminalSimulatorComponent` | `/cards/terminal` | ADMIN/TELLER | 🔲 Planned |
-| `ApiKeysComponent` | `/cards/api-keys` | ADMIN | 🔲 Planned |
-| `WebhooksComponent` | `/cards/webhooks` | ADMIN | 🔲 Planned |
-| `BinManagementComponent` | `/cards/bins` | ADMIN | 🔲 Planned |
-| `SchemeConfigComponent` | `/cards/schemes` | ADMIN | 🔲 Planned |
-| `InterchangeComponent` | `/cards/interchange` | ADMIN | 🔲 Planned |
+| `CardListComponent` | `/cards` | ADMIN/TELLER | ✅ Built _(Session 41)_ |
+| `CardDetailComponent` | `/cards/:id` | ADMIN/TELLER | ✅ Built _(Session 41)_ |
+| `CardProductsComponent` | `/cards/products` | ADMIN | ✅ Built _(Session 41)_ |
+| `FraudRulesComponent` | `/cards/fraud` | ADMIN | ✅ Built _(Session 41)_ |
+| `SettlementComponent` | `/cards/settlement` | ADMIN | ✅ Built _(Session 41)_ |
+| `DisputesComponent` | `/cards/disputes` | ADMIN/TELLER | ✅ Built _(Session 41)_ |
+| `TerminalSimulatorComponent` | `/cards/terminal` | ADMIN/TELLER | ✅ Built _(Session 41)_ |
+| `ApiKeysComponent` | `/cards/api-keys` | ADMIN | ✅ Built _(Session 41)_ |
+| `WebhooksComponent` | `/cards/webhooks` | ADMIN | ✅ Built _(Session 41)_ |
+| `BinManagementComponent` | `/cards/bins` | ADMIN | ✅ Built _(Session 41)_ |
+| `SchemeConfigComponent` | `/cards/schemes` | ADMIN | ✅ Built _(Session 41)_ |
+| `InterchangeComponent` | `/cards/interchange` | ADMIN | ✅ Built _(Session 41)_ |
 
 ---
 
@@ -2936,12 +2936,12 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | 3 | Loan Management | ✅ Built | ✅ Built | ✅ Done |
 | 4 | Fees & Charges | ✅ Built | ✅ Built | ✅ Done |
 | 5 | GL Accounting | ✅ Built | ✅ Built | ✅ Done |
-| 6 | Treasury | ❌ Missing | ❌ Missing | ❌ Gap |
-| 7 | Audit & Internal Control | ⚠️ Partial | ❌ Missing | ⚠️ Gap |
-| 8 | System Administrator | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
-| 9 | Notification & Messaging | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
+| 6 | Treasury | ✅ Built | ✅ Built | ✅ Done |
+| 7 | Audit & Internal Control | ✅ Built | ✅ Built | ✅ Done |
+| 8 | System Administrator | ✅ Built | ✅ Built | ✅ Done |
+| 9 | Notification & Messaging | ✅ Built | ⚠️ Partial (Flutter push pending Phase 3) | ⚠️ Partial |
 | 10 | Fraud & Risk Management | ✅ Built | ✅ Built | ✅ Done |
-| 11 | Business Intelligence | ⚠️ Partial | ⚠️ Partial | ⚠️ Gap |
+| 11 | Business Intelligence | ⚠️ Partial | ⚠️ Partial | ⚠️ Partial (deposit/repayment analytics pending) |
 
 ---
 
@@ -3073,7 +3073,7 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | Interbank positions (lending/borrowing) | ✅ `TreasuryInterbankPosition` entity + service + controller; ACTIVE→SETTLED/CANCELLED _(Session 84)_ | ✅ `TreasuryInterbankComponent` — direction chips (LENDING/BORROWING), Settle/Cancel commands, CRUD modals _(Session 84)_ | — |
 | Fund management (track sources of capital) | ⚠️ `Funds` entity in SystemModule | ✅ `FundsComponent` _(Session 77)_ | ⚠️ |
 | Liquidity management / cash position | ✅ `LiquidityService` (computed position + cash flow forecast + reserve CRUD + CoB snapshot) _(Session 85)_ | ✅ `TreasuryLiquidityComponent` _(Session 85)_ | ✅ |
-| Inter-bank transfers (SWIFT/SEPA) | ❌ Stub only in payment module | ❌ Missing | ❌ |
+| Inter-bank transfers (SWIFT/SEPA) | ✅ `POST /api/v1/payments/external`; `GET /api/v1/payments/external`; V46 migration; `ExternalPaymentRequest` DTO; charge-bearer SHA/OUR/BEN _(Session 102)_ | ✅ "Send Abroad" modal with network/beneficiary/IBAN/BIC/charge-bearer fields _(Session 102)_ | ✅ |
 
 ---
 
@@ -3155,7 +3155,7 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | Repayment performance metrics | ❌ No analytics endpoint | ❌ Missing | ❌ |
 | CoB job history / scheduler UI | ✅ `CobJobHistory` entity | ✅ CobSchedulerComponent | — |
 | Report mailing scheduler | ✅ Module 34 | ✅ ReportMailingComponent | — |
-| Export (CSV / XLS / PDF) | ⚠️ CSV export in Reports UI | ⚠️ Only CSV; XLS/PDF not wired | ⚠️ |
+| Export (CSV / XLS / PDF) | ✅ `GET /runreports/{name}/export?format=csv\|xlsx\|pdf`; Apache POI XLSX + PDFBox PDF _(Session 102)_ | ✅ Format dropdown + Export button in reports list _(Session 102)_ | ✅ |
 | Real-time dashboard API | ✅ `GET /api/v1/dashboard` covers core KPIs _(Session 94)_ | ✅ Angular wired with graceful fallback | ✅ |
 
 ---
@@ -3169,12 +3169,12 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | Loan Management | ✅ Done | Session 93 |
 | Fees & Charges | ✅ Done | Session 68 |
 | GL Accounting | ✅ Done | Prior sessions |
-| Treasury | 🔲 Queued | — |
-| Audit & Internal Control | 🔲 Queued | — |
-| System Administrator | 🔲 Queued | — |
-| Notification & Messaging | 🔲 Queued | — |
+| Treasury | ✅ Done | Sessions 84, 85, 102 |
+| Audit & Internal Control | ✅ Done | Sessions 70, 98 |
+| System Administrator | ✅ Done | Session 99 |
+| Notification & Messaging | ⚠️ Partial | Sessions 73, 97 (Flutter push pending Phase 3) |
 | Fraud & Risk Management | ✅ Done | Session 100 |
-| Business Intelligence | 🔲 Queued | — |
+| Business Intelligence | ⚠️ Partial | Sessions 94, 102 (deposit/repayment analytics pending) |
 
 ---
 

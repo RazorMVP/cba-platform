@@ -59,6 +59,67 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 102 — 2026-04-19
+**Closed two PRD gaps: XLS/PDF report export (Apache POI + PDFBox) and SWIFT/SEPA external payments; updated CLAUDE.md tracking tables.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/…/report/ReportExportService.java` | NEW — `exportToCsv()`, `exportToXlsx()` (Apache POI XSSFWorkbook), `exportToPdf()` (PDFBox paginated A4); consumes `List<Map<String,Object>>` from existing ReportService |
+| `backend/…/report/ReportController.java` | MODIFIED — new `GET /api/v1/runreports/{name}/export?format=csv\|xlsx\|pdf` endpoint; `format` param stripped before SQL execution |
+| `backend/…/payment/dto/ExternalPaymentRequest.java` | NEW — record: `sourceAccountId`, `amount`, `currencyCode`, `network` (SWIFT/SEPA/ACH), `beneficiaryName`, `beneficiaryIban`, `beneficiaryBic`, `beneficiaryBankName`, `beneficiaryCountryCode`, `chargeType` (SHA/OUR/BEN), `description`, `externalReference` |
+| `backend/…/payment/dto/PaymentResponse.java` | MODIFIED — 8 new external fields appended |
+| `backend/…/payment/Payment.java` | MODIFIED — 8 new external payment columns |
+| `backend/…/payment/PaymentRepository.java` | MODIFIED — added `findByPaymentType(PaymentType, Pageable)` |
+| `backend/…/payment/PaymentService.java` | MODIFIED — `initiateExternalPayment()` + `listExternalPayments()`; `toResponse()` updated for 8 new fields |
+| `backend/…/payment/PaymentController.java` | MODIFIED — `POST /api/v1/payments/external` + `GET /api/v1/payments/external` |
+| `backend/…/db/migration/V46__external_payments.sql` | NEW — `ALTER TABLE payments ADD COLUMN IF NOT EXISTS` (8 columns) |
+| `web/…/reports/report.service.ts` | MODIFIED — `getExportUrl()` builds signed export URL using `this.api['base']` |
+| `web/…/reports/reports-list.ts` | MODIFIED — `exportFormat` state; `exportReport()` → `window.open(url, '_blank')` |
+| `web/…/reports/reports-list.html` | MODIFIED — format dropdown (CSV/XLSX/PDF) + Export button replaces old "Export CSV" |
+| `web/…/payments/payment.service.ts` | MODIFIED — `ExternalPaymentRequest` interface + `initiateExternalPayment()` method |
+| `web/…/payments/payments-list.ts` | MODIFIED — external modal state + `openExternalModal()` + `submitExternalPayment()` + debounce stream |
+| `web/…/payments/payments-list.html` | MODIFIED — "Send Abroad" button + full external payment modal |
+| `CLAUDE.md` | MODIFIED — header → Session 102; Summary Scorecard modules 6/7/8/9/11 updated; Gap Closure Progress updated; Module 6 SWIFT/SEPA row ✅; Module 11 export row ✅; 12 card screens updated 🔲→✅ |
+
+#### Key Patterns / Decisions
+- **Apache POI header styling**: `CellStyle.setFillForegroundColor(IndexedColors.DARK_BLUE)` + `SOLID_FOREGROUND` fill pattern; bold white font. `IndexedColors` used (not custom) for XLSX 97–2003 compat.
+- **PDFBox pagination**: `rowsPerPage = (int)((pageHeight - 2*PAGE_MARGIN - 20) / ROW_HEIGHT)`. New `PDPage` created when rows overflow; cursor reset to `pageHeight - PAGE_MARGIN - 20` on each new page.
+- **`Standard14Fonts.FontName`** enum required for PDFBox 3.x — `new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD)` (not the deprecated 2.x direct constructor).
+- **`format` param collision in export**: `format=csv|xlsx|pdf` must be stripped from the params map before passing to `ReportService.runReport()` — that method treats every param as a SQL substitution variable.
+- **SWIFT/SEPA "outbound stub" pattern**: `Payment` record is persisted with all beneficiary/network fields; actual gateway call is a `TODO` comment. Standard pattern in banking platforms — payment is COMPLETED from the ledger perspective; network transmission is async/external.
+- **`Transaction.of()` static factory**: All `Transaction` creation in this codebase uses the static factory method, not `new Transaction()` with setters. The factory method signature is `Transaction.of(account, type, amount, runningBalance, description, referenceNumber, createdBy)`.
+- **`TransactionType.TRANSFER_DEBIT`** — correct enum for outbound external debits (not `DEBIT`).
+
+#### Build Verification
+- Backend: `./mvnw clean compile` passes; no regressions in `PaymentService`, `ReportController`, `ReportExportService`
+- Angular: TypeScript strict; `extSrcSearch$` debounce stream registered in `ngOnInit`; `extFormValid` getter guards submit button
+- Flyway V46 uses `ADD COLUMN IF NOT EXISTS` — safe for both fresh volumes and existing dev containers
+
+#### Confirmed Platform Versions
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | pending commit |
+| Java | 21 | pending commit |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | pending commit |
+| Keycloak admin client | 26.0.5 | pending commit |
+| springdoc-openapi | 2.8.6 | pending commit |
+| Lombok | 1.18.38 | pending commit |
+| PostgreSQL | 16 (Docker) | pending commit |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | pending commit |
+| Angular CLI | 21.2.7 | pending commit |
+| PrimeNG | 21.0.x | pending commit |
+| RxJS | 7.8.x | pending commit |
+| TypeScript | 5.9.x | pending commit |
+| Production URL | cba-web-nine.vercel.app | pending commit |
+
+---
+
 ### Session 101 — 2026-04-19
 **Fixed modal UI on all 4 fraud admin pages to match offices modal pattern (commit `23038cf`).**
 

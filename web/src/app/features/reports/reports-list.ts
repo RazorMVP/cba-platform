@@ -122,16 +122,16 @@ export class ReportsListComponent implements OnInit {
     });
   }
 
-  exportCsv(): void {
-    if (!this.results.length) return;
-    const header = this.resultCols.join(',');
-    const rows   = this.results.map(r => this.resultCols.map(c => `"${String(r[c] ?? '').replace(/"/g, '""')}"`).join(','));
-    const csv    = [header, ...rows].join('\n');
-    const blob   = new Blob([csv], { type: 'text/csv' });
-    const url    = URL.createObjectURL(blob);
-    const a      = document.createElement('a');
-    a.href = url; a.download = `${this.selectedReport?.reportName ?? 'report'}.csv`;
-    a.click(); URL.revokeObjectURL(url);
+  exportFormat: 'csv' | 'xlsx' | 'pdf' = 'csv';
+
+  exportReport(): void {
+    if (!this.selectedReport) return;
+    const params: Record<string, string> = {};
+    for (const e of this.paramEntries) {
+      if (e.value.trim()) params[e.param.parameterName] = e.value.trim();
+    }
+    const url = this.svc.getExportUrl(this.selectedReport.reportName, this.exportFormat, params);
+    window.open(url, '_blank');
   }
 
   closeRunModal(): void {

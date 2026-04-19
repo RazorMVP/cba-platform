@@ -127,6 +127,7 @@ export class SidebarComponent {
         { label: 'Offices & Staff',    icon: 'corporate_fare',    route: '/admin/offices' },
         { label: 'Staff',              icon: 'badge',             route: '/admin/staff' },
         { label: 'Open Banking',       icon: 'open_in_new',       route: '/admin/open-banking' },
+        { label: 'Consents',           icon: 'verified_user',     route: '/open-banking' },
         { label: 'Hooks',              icon: 'webhook',           route: '/admin/hooks' },
         { label: 'Maker-Checker',      icon: 'verified',          route: '/admin/maker-checker' },
         { label: 'Notifications',      icon: 'notifications',     route: '/admin/notifications' },

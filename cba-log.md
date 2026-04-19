@@ -49,11 +49,9 @@ _None — all Phase 1 backend modules are now complete._
 
 | Component | Required by CLAUDE.md | Priority |
 |-----------|----------------------|----------|
-| **Infrastructure — Docker Compose** | `infrastructure/docker-compose.yml` with postgres, keycloak, backend, web, mailhog | Phase 4 |
-| **Infrastructure — Kubernetes** | `infrastructure/k8s/` namespace, deployments, services, ingress, HPA, sealed secrets | Phase 4 |
-| **Infrastructure — Keycloak Realm** | `infrastructure/keycloak/cba-realm.json` with cba realm, 3 clients, FAPI 2.0, demo users | Phase 4 |
-| **Web Frontend — Angular (Operations + Products)** | Dashboard, Customers, Accounts, Loans, Loan Detail, Customer Detail, Loan Products, Deposit Products — all wired to backend API with view/edit CRUD | Phase 2 (partial) |
-| **Mobile Frontend — Flutter** | Customer mobile app (auth, dashboard, accounts, loans, payments, profile) | Phase 3 |
+| **Mobile Frontend — Flutter** | Customer mobile app (auth, dashboard, accounts, loans, payments, profile). `mobile/` directory is empty. Push notification backend (FCM token registry, `push_devices` table) is ready and waiting. | Phase 3 |
+
+> **Previously listed items now complete:** Infrastructure — Docker Compose ✅ (Session 42), Kubernetes ✅ (Session 42), Keycloak Realm ✅ (Session 42). Angular Operations + Products ✅ (Sessions 47–103, 100+ screens).
 
 ---
 

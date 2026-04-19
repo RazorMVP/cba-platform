@@ -59,6 +59,52 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 101 — 2026-04-19
+**Fixed modal UI on all 4 fraud admin pages to match offices modal pattern (commit `23038cf`).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/src/app/features/admin/fraud-alerts.html` | Converted Review, Close, Link-to-Case, Create Case modals to nested modal-backdrop pattern |
+| `web/src/app/features/admin/fraud-cases.html` | Converted New Fraud Case and Update Case modals |
+| `web/src/app/features/admin/blacklist.html` | Converted Add Blacklist Entry, Edit Entry, Deactivate Confirm modals |
+| `web/src/app/features/admin/fraud-rules-admin.html` | Converted Edit Rule modal |
+
+#### Key Patterns / Decisions
+- **Old (bad) modal pattern**: `modal-backdrop` and `modal` as siblings; `modal-header` with h3 + X button; `modal-body`; `modal-footer`; `w-full` class on inputs
+- **New (offices) modal pattern**: `modal` nested inside `modal-backdrop`; `(click)="$event.stopPropagation()"` on modal; `modal__header` with material icon (no X button); `modal__body` with `form-field` wrappers; `modal__footer`
+- All `modal__header`, `modal__icon`, `modal__body`, `modal__footer`, `form-field`, `required` classes confirmed to be global in `_design-system.scss` — component SCSSes need no changes
+- Removed `w-full` from all `form-input` elements inside modals — `.form-field input/select/textarea` already gets full width from global styles
+
+#### Build Verification
+- No backend changes — Angular-only session
+- 4 HTML files edited; 0 SCSS files changed; 0 TypeScript files changed
+- `git push origin main` succeeded, Vercel deploy triggered automatically
+
+#### Confirmed Platform Versions
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `09dc9d0` |
+| Java | 21 | `09dc9d0` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `09dc9d0` |
+| Keycloak admin client | 26.0.5 | `09dc9d0` |
+| springdoc-openapi | 2.8.6 | `09dc9d0` |
+| Lombok | 1.18.38 | `09dc9d0` |
+| PostgreSQL | 16 (Docker) | `09dc9d0` |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `23038cf` |
+| Angular CLI | 21.2.7 | `23038cf` |
+| PrimeNG | 21.0.x | `23038cf` |
+| RxJS | 7.8.x | `23038cf` |
+| TypeScript | 5.9.x | `23038cf` |
+| Production URL | cba-web-nine.vercel.app | `23038cf` |
+
+---
+
 ### Session 100 — 2026-04-19
 **Module 10 gap closure: Core Banking Fraud & Risk Management — velocity limits, AML monitoring, blacklist/sanctions, fraud alerts/cases, per-customer risk scoring; 4 Angular fraud admin screens.**
 

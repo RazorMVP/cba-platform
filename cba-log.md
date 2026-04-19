@@ -100,23 +100,23 @@ _None — all Phase 1 backend modules are now complete._
 **Backend (`backend/`):**
 | Component | Version | Git ref |
 |-----------|---------|---------|
-| Spring Boot | 3.5.0 | pending commit |
-| Java | 21 | pending commit |
-| Application artifact | cba-backend 0.1.0-SNAPSHOT | pending commit |
-| Keycloak admin client | 26.0.5 | pending commit |
-| springdoc-openapi | 2.8.6 | pending commit |
-| Lombok | 1.18.38 | pending commit |
-| PostgreSQL | 16 (Docker) | pending commit |
+| Spring Boot | 3.5.0 | `96929c6` |
+| Java | 21 | `96929c6` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `96929c6` |
+| Keycloak admin client | 26.0.5 | `96929c6` |
+| springdoc-openapi | 2.8.6 | `96929c6` |
+| Lombok | 1.18.38 | `96929c6` |
+| PostgreSQL | 16 (Docker) | `96929c6` |
 
 **Angular Web App (`web/`):**
 | Component | Version | Git ref |
 |-----------|---------|---------|
-| Angular | 21.2.x | pending commit |
-| Angular CLI | 21.2.7 | pending commit |
-| PrimeNG | 21.0.x | pending commit |
-| RxJS | 7.8.x | pending commit |
-| TypeScript | 5.9.x | pending commit |
-| Production URL | cba-web-nine.vercel.app | pending commit |
+| Angular | 21.2.x | `96929c6` |
+| Angular CLI | 21.2.7 | `96929c6` |
+| PrimeNG | 21.0.x | `96929c6` |
+| RxJS | 7.8.x | `96929c6` |
+| TypeScript | 5.9.x | `96929c6` |
+| Production URL | cba-web-nine.vercel.app | `96929c6` |
 
 ---
 

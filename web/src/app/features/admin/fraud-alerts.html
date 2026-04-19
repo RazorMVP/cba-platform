@@ -119,82 +119,110 @@
 
 <!-- Review Modal -->
 @if (showReviewModal) {
-  <div class="modal-backdrop" (click)="showReviewModal = false"></div>
-  <div class="modal">
-    <div class="modal-header"><h3>Mark Under Review</h3><button class="btn-ghost" (click)="showReviewModal = false">✕</button></div>
-    <div class="modal-body">
-      <label class="form-label">Reviewed By</label>
-      <input class="form-input w-full" [(ngModel)]="reviewedBy" placeholder="Username or email" />
-    </div>
-    <div class="modal-footer">
-      <button class="btn-secondary" (click)="showReviewModal = false">Cancel</button>
-      <button class="btn-primary" (click)="confirmReview()" [disabled]="!reviewedBy">Confirm</button>
+  <div class="modal-backdrop" (click)="showReviewModal = false">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">rate_review</span>
+        Mark Under Review
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Reviewed By <span class="required">*</span></label>
+          <input class="form-input" [(ngModel)]="reviewedBy" placeholder="Username or email" />
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="showReviewModal = false">Cancel</button>
+        <button class="btn-primary" (click)="confirmReview()" [disabled]="!reviewedBy">Confirm</button>
+      </div>
     </div>
   </div>
 }
 
 <!-- Close Modal -->
 @if (showCloseModal) {
-  <div class="modal-backdrop" (click)="showCloseModal = false"></div>
-  <div class="modal">
-    <div class="modal-header"><h3>Close Alert</h3><button class="btn-ghost" (click)="showCloseModal = false">✕</button></div>
-    <div class="modal-body">
-      <label class="form-label">Resolution</label>
-      <select class="form-input w-full" [(ngModel)]="closeStatus">
-        <option value="CLOSED_FALSE_POSITIVE">False Positive</option>
-        <option value="CLOSED_CONFIRMED">Confirmed Fraud</option>
-        <option value="SUPPRESSED">Suppressed</option>
-      </select>
-      <label class="form-label" style="margin-top:.75rem">Reviewed By</label>
-      <input class="form-input w-full" [(ngModel)]="reviewedBy" placeholder="Name or email" />
-    </div>
-    <div class="modal-footer">
-      <button class="btn-secondary" (click)="showCloseModal = false">Cancel</button>
-      <button class="btn-primary" (click)="confirmClose()" [disabled]="!reviewedBy">Confirm</button>
+  <div class="modal-backdrop" (click)="showCloseModal = false">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">cancel</span>
+        Close Alert
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Resolution <span class="required">*</span></label>
+          <select class="form-input" [(ngModel)]="closeStatus">
+            <option value="CLOSED_FALSE_POSITIVE">False Positive</option>
+            <option value="CLOSED_CONFIRMED">Confirmed Fraud</option>
+            <option value="SUPPRESSED">Suppressed</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Reviewed By <span class="required">*</span></label>
+          <input class="form-input" [(ngModel)]="reviewedBy" placeholder="Name or email" />
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="showCloseModal = false">Cancel</button>
+        <button class="btn-primary" (click)="confirmClose()" [disabled]="!reviewedBy">Confirm</button>
+      </div>
     </div>
   </div>
 }
 
 <!-- Link to Case Modal -->
 @if (showLinkModal) {
-  <div class="modal-backdrop" (click)="showLinkModal = false"></div>
-  <div class="modal">
-    <div class="modal-header"><h3>Link to Case</h3><button class="btn-ghost" (click)="showLinkModal = false">✕</button></div>
-    <div class="modal-body">
-      <label class="form-label">Select Case</label>
-      <select class="form-input w-full" [(ngModel)]="selectedCaseId">
-        <option value="">— Select —</option>
-        @for (c of cases; track c.id) {
-          <option [value]="c.id">{{ c.caseNumber }} — {{ c.title }}</option>
-        }
-      </select>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-secondary" (click)="showLinkModal = false">Cancel</button>
-      <button class="btn-primary" (click)="confirmLink()" [disabled]="!selectedCaseId">Link</button>
+  <div class="modal-backdrop" (click)="showLinkModal = false">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">link</span>
+        Link to Case
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Select Case <span class="required">*</span></label>
+          <select class="form-input" [(ngModel)]="selectedCaseId">
+            <option value="">— Select —</option>
+            @for (c of cases; track c.id) {
+              <option [value]="c.id">{{ c.caseNumber }} — {{ c.title }}</option>
+            }
+          </select>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="showLinkModal = false">Cancel</button>
+        <button class="btn-primary" (click)="confirmLink()" [disabled]="!selectedCaseId">Link</button>
+      </div>
     </div>
   </div>
 }
 
 <!-- Create Case Modal -->
 @if (showCreateCaseModal) {
-  <div class="modal-backdrop" (click)="showCreateCaseModal = false"></div>
-  <div class="modal">
-    <div class="modal-header"><h3>Create Fraud Case</h3><button class="btn-ghost" (click)="showCreateCaseModal = false">✕</button></div>
-    <div class="modal-body">
-      <label class="form-label">Case Title</label>
-      <input class="form-input w-full" [(ngModel)]="newCaseTitle" placeholder="Case title" />
-      <label class="form-label" style="margin-top:.75rem">Risk Level</label>
-      <select class="form-input w-full" [(ngModel)]="newCaseRisk">
-        <option value="LOW">Low</option>
-        <option value="MEDIUM">Medium</option>
-        <option value="HIGH">High</option>
-        <option value="CRITICAL">Critical</option>
-      </select>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-secondary" (click)="showCreateCaseModal = false">Cancel</button>
-      <button class="btn-primary" (click)="confirmCreateCase()" [disabled]="!newCaseTitle">Create</button>
+  <div class="modal-backdrop" (click)="showCreateCaseModal = false">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">add_box</span>
+        Create Fraud Case
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Case Title <span class="required">*</span></label>
+          <input class="form-input" [(ngModel)]="newCaseTitle" placeholder="Case title" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Risk Level</label>
+          <select class="form-input" [(ngModel)]="newCaseRisk">
+            <option value="LOW">Low</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="HIGH">High</option>
+            <option value="CRITICAL">Critical</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="showCreateCaseModal = false">Cancel</button>
+        <button class="btn-primary" (click)="confirmCreateCase()" [disabled]="!newCaseTitle">Create</button>
+      </div>
     </div>
   </div>
 }

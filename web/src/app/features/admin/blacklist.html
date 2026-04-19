@@ -88,63 +88,91 @@
 
 <!-- Add Modal -->
 @if (showAddModal) {
-  <div class="modal-backdrop" (click)="showAddModal = false"></div>
-  <div class="modal">
-    <div class="modal-header"><h3>Add Blacklist Entry</h3><button class="btn-ghost" (click)="showAddModal = false">✕</button></div>
-    <div class="modal-body">
-      <label class="form-label">Entity Type</label>
-      <select class="form-input w-full" [(ngModel)]="form.entityType">
-        @for (t of entityTypes; track t) { <option [value]="t">{{ t }}</option> }
-      </select>
-      <label class="form-label" style="margin-top:.75rem">Entity Value</label>
-      <input class="form-input w-full" [(ngModel)]="form.entityValue" placeholder="ID / name / phone / email…" />
-      <label class="form-label" style="margin-top:.75rem">Source</label>
-      <select class="form-input w-full" [(ngModel)]="form.source">
-        @for (s of sources; track s) { <option [value]="s">{{ s }}</option> }
-      </select>
-      <label class="form-label" style="margin-top:.75rem">Reason</label>
-      <textarea class="form-input w-full" style="height:4rem" [(ngModel)]="form.reason" placeholder="Reason for blacklisting"></textarea>
-      <label class="form-label" style="margin-top:.75rem">Expiry Date (optional)</label>
-      <input class="form-input w-full" type="datetime-local" [(ngModel)]="form.expiresAt" />
-      <label class="form-label" style="margin-top:.75rem">Added By</label>
-      <input class="form-input w-full" [(ngModel)]="form.addedBy" placeholder="Username" />
-    </div>
-    <div class="modal-footer">
-      <button class="btn-secondary" (click)="showAddModal = false">Cancel</button>
-      <button class="btn-primary" (click)="confirmAdd()" [disabled]="!form.entityValue">Add</button>
+  <div class="modal-backdrop" (click)="showAddModal = false">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">block</span>
+        Add Blacklist Entry
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Entity Type <span class="required">*</span></label>
+          <select class="form-input" [(ngModel)]="form.entityType">
+            @for (t of entityTypes; track t) { <option [value]="t">{{ t }}</option> }
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Entity Value <span class="required">*</span></label>
+          <input class="form-input" [(ngModel)]="form.entityValue" placeholder="ID / name / phone / email…" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Source</label>
+          <select class="form-input" [(ngModel)]="form.source">
+            @for (s of sources; track s) { <option [value]="s">{{ s }}</option> }
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Reason</label>
+          <textarea class="form-input" style="height:4rem" [(ngModel)]="form.reason" placeholder="Reason for blacklisting"></textarea>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Expiry Date (optional)</label>
+          <input class="form-input" type="datetime-local" [(ngModel)]="form.expiresAt" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">Added By</label>
+          <input class="form-input" [(ngModel)]="form.addedBy" placeholder="Username" />
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="showAddModal = false">Cancel</button>
+        <button class="btn-primary" (click)="confirmAdd()" [disabled]="!form.entityValue">Add</button>
+      </div>
     </div>
   </div>
 }
 
 <!-- Edit Modal -->
 @if (showEditModal && selected) {
-  <div class="modal-backdrop" (click)="showEditModal = false"></div>
-  <div class="modal">
-    <div class="modal-header"><h3>Edit Entry</h3><button class="btn-ghost" (click)="showEditModal = false">✕</button></div>
-    <div class="modal-body">
-      <label class="form-label">Reason</label>
-      <textarea class="form-input w-full" style="height:4rem" [(ngModel)]="editReason" placeholder="Reason"></textarea>
-      <label class="form-label" style="margin-top:.75rem">Expiry Date (optional)</label>
-      <input class="form-input w-full" type="datetime-local" [(ngModel)]="editExpiresAt" />
-    </div>
-    <div class="modal-footer">
-      <button class="btn-secondary" (click)="showEditModal = false">Cancel</button>
-      <button class="btn-primary" (click)="confirmEdit()">Save</button>
+  <div class="modal-backdrop" (click)="showEditModal = false">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">edit</span>
+        Edit Entry
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Reason</label>
+          <textarea class="form-input" style="height:4rem" [(ngModel)]="editReason" placeholder="Reason"></textarea>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Expiry Date (optional)</label>
+          <input class="form-input" type="datetime-local" [(ngModel)]="editExpiresAt" />
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="showEditModal = false">Cancel</button>
+        <button class="btn-primary" (click)="confirmEdit()">Save</button>
+      </div>
     </div>
   </div>
 }
 
 <!-- Deactivate Confirm -->
 @if (showDeactivateConfirm && selected) {
-  <div class="modal-backdrop" (click)="showDeactivateConfirm = false"></div>
-  <div class="modal">
-    <div class="modal-header"><h3>Deactivate Entry</h3><button class="btn-ghost" (click)="showDeactivateConfirm = false">✕</button></div>
-    <div class="modal-body">
-      <p>Deactivate blacklist entry for <strong>{{ selected.entityValue }}</strong>? The entity will no longer be blocked.</p>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-secondary" (click)="showDeactivateConfirm = false">Cancel</button>
-      <button class="btn-danger" (click)="confirmDeactivate()">Deactivate</button>
+  <div class="modal-backdrop" (click)="showDeactivateConfirm = false">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">warning</span>
+        Deactivate Entry
+      </div>
+      <div class="modal__body">
+        <p style="font-size:.9rem">Deactivate blacklist entry for <strong>{{ selected.entityValue }}</strong>? The entity will no longer be blocked.</p>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="showDeactivateConfirm = false">Cancel</button>
+        <button class="btn-danger" (click)="confirmDeactivate()">Deactivate</button>
+      </div>
     </div>
   </div>
 }

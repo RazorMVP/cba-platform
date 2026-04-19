@@ -79,27 +79,37 @@
 
 <!-- Edit Modal -->
 @if (showEditModal && editRule) {
-  <div class="modal-backdrop" (click)="showEditModal = false"></div>
-  <div class="modal" style="max-width:560px">
-    <div class="modal-header"><h3>Edit Rule: {{ editRule.name }}</h3><button class="btn-ghost" (click)="showEditModal = false">✕</button></div>
-    <div class="modal-body">
-      <label class="form-label">Severity</label>
-      <select class="form-input w-full" [(ngModel)]="editSeverity">
-        @for (s of severityOptions; track s) { <option [value]="s">{{ s }}</option> }
-      </select>
-      <label class="form-label" style="margin-top:.75rem;display:flex;align-items:center;gap:.5rem;cursor:pointer">
-        <input type="checkbox" [(ngModel)]="editBlocking" />
-        <span>Blocking (rejects transaction)</span>
-      </label>
-      <p class="muted" style="font-size:.75rem;margin-top:.25rem">When unchecked, a monitoring alert is raised but the transaction proceeds.</p>
-      <label class="form-label" style="margin-top:.75rem">Rule Parameters (JSON)</label>
-      <p class="muted" style="font-size:.75rem;margin-bottom:.4rem">Thresholds use ISO 4217 numeric currency codes as keys (e.g. "840"=USD, "404"=KES). Include a "default" key for fallback.</p>
-      <textarea class="form-input w-full" style="font-family:monospace;font-size:.75rem;height:14rem"
-                [(ngModel)]="editParams"></textarea>
-    </div>
-    <div class="modal-footer">
-      <button class="btn-secondary" (click)="showEditModal = false">Cancel</button>
-      <button class="btn-primary" (click)="confirmEdit()">Save Changes</button>
+  <div class="modal-backdrop" (click)="showEditModal = false">
+    <div class="modal" style="max-width:560px" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">tune</span>
+        Edit Rule: {{ editRule.name }}
+      </div>
+      <div class="modal__body">
+        <div class="form-field">
+          <label class="form-label">Severity</label>
+          <select class="form-input" [(ngModel)]="editSeverity">
+            @for (s of severityOptions; track s) { <option [value]="s">{{ s }}</option> }
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label" style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
+            <input type="checkbox" [(ngModel)]="editBlocking" />
+            <span>Blocking (rejects transaction)</span>
+          </label>
+          <p class="muted" style="font-size:.75rem;margin-top:.25rem">When unchecked, a monitoring alert is raised but the transaction proceeds.</p>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Rule Parameters (JSON)</label>
+          <p class="muted" style="font-size:.75rem;margin-bottom:.4rem">Thresholds use ISO 4217 numeric currency codes as keys (e.g. "840"=USD, "404"=KES). Include a "default" key for fallback.</p>
+          <textarea class="form-input" style="font-family:monospace;font-size:.75rem;height:14rem"
+                    [(ngModel)]="editParams"></textarea>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="showEditModal = false">Cancel</button>
+        <button class="btn-primary" (click)="confirmEdit()">Save Changes</button>
+      </div>
     </div>
   </div>
 }

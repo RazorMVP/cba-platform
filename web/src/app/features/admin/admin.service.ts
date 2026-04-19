@@ -298,6 +298,68 @@ export interface RegisterTppRequest {
   certificateExpiry?: string;
 }
 
+// ── Login History ─────────────────────────────────────────────────────────────
+export type LoginStatus = 'SUCCESS' | 'FAILURE' | 'LOCKED' | 'LOGOUT';
+
+export interface LoginHistoryEvent {
+  id: string;
+  userId: string;
+  username: string;
+  ipAddress: string;
+  userAgent: string;
+  status: LoginStatus;
+  failureReason?: string;
+  sessionRef?: string;
+  createdAt: string;
+}
+
+export interface LoginHistoryFilter {
+  status?: string;
+  username?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+}
+
+export interface LoginEventSummary {
+  periodDays: number;
+  successLogins: number;
+  failedLogins: number;
+  lockedAccounts: number;
+  uniqueUsers: number;
+  topFailedUsers: { username: string; failureCount: number }[];
+}
+
+// ── Compliance Reports ────────────────────────────────────────────────────────
+export interface ComplianceRow {
+  action: string;
+  entity_type: string;
+  event_count: number;
+  unique_actors: number;
+}
+
+export interface FailedLoginRow {
+  username: string;
+  ip_address: string;
+  status: string;
+  attempt_count: number;
+  last_attempt: string;
+}
+
+export interface UserActivityRow {
+  user_id: string;
+  total_actions: number;
+  entity_types_touched: number;
+  last_action: string;
+}
+
+export interface DataAccessRow {
+  entity_id: string;
+  action: string;
+  changed_by: string;
+  changed_at: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AdminService {
   private readonly api = inject(ApiService);
@@ -522,5 +584,43 @@ export class AdminService {
 
   enableStandingInstruction(id: string): Observable<StandingInstruction> {
     return this.api.command<StandingInstruction>(`/standinginstructions/${id}`, 'enable');
+  }
+
+  // ── Login History ──────────────────────────────────────────────────────────
+  recordLoginEvent(status: string, sessionRef?: string): Observable<LoginHistoryEvent> {
+    return this.api.post<LoginHistoryEvent>('/auth/events', { status, sessionRef });
+  }
+
+  listLoginEvents(params: LoginHistoryFilter): Observable<PageResponse<LoginHistoryEvent>> {
+    const p: Record<string, string> = {
+      page: String(params.page ?? 0),
+      size: '20',
+    };
+    if (params.status)   p['status']   = params.status;
+    if (params.username) p['username'] = params.username;
+    if (params.from)     p['from']     = params.from;
+    if (params.to)       p['to']       = params.to;
+    return this.api.getPage<LoginHistoryEvent>('/auth/events', params.page ?? 0, 20, p);
+  }
+
+  loginEventSummary(days = 30): Observable<LoginEventSummary> {
+    return this.api.get<LoginEventSummary>('/auth/events/summary', { days });
+  }
+
+  // ── Compliance Reports ─────────────────────────────────────────────────────
+  complianceAuditSummary(days = 30): Observable<ComplianceRow[]> {
+    return this.api.get<ComplianceRow[]>('/compliance/reports/audit-summary', { days });
+  }
+
+  complianceFailedLogins(days = 30): Observable<FailedLoginRow[]> {
+    return this.api.get<FailedLoginRow[]>('/compliance/reports/failed-logins', { days });
+  }
+
+  complianceUserActivity(days = 30): Observable<UserActivityRow[]> {
+    return this.api.get<UserActivityRow[]>('/compliance/reports/user-activity', { days });
+  }
+
+  complianceDataAccess(days = 30, entityType = 'LOAN'): Observable<DataAccessRow[]> {
+    return this.api.get<DataAccessRow[]>('/compliance/reports/data-access', { days, entityType });
   }
 }

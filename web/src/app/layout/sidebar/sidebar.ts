@@ -133,6 +133,8 @@ export class SidebarComponent {
         { label: 'Audit Log',          icon: 'manage_search',     route: '/admin/audit-log' },
         { label: 'SMS Campaigns',      icon: 'sms',               route: '/admin/sms-campaigns' },
         { label: 'Standing Instructions', icon: 'repeat',         route: '/admin/standing-instructions' },
+        { label: 'Login History',         icon: 'login',             route: '/admin/login-history' },
+        { label: 'Compliance Reports',    icon: 'policy',            route: '/admin/compliance' },
       ],
     },
   ];

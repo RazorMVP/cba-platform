@@ -59,6 +59,64 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 98 — 2026-04-19
+**Module 7 gap closure: Login History + Compliance Reports — immutable login event log, 3 backend endpoints, Angular LoginHistoryComponent + ComplianceReportComponent, 4 compliance report endpoints.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/…/audit/LoginHistory.java` | NEW — JPA entity; `Status` enum (SUCCESS/FAILURE/LOCKED/LOGOUT); append-only (no `@Version`) |
+| `backend/…/audit/LoginHistoryRepository.java` | NEW — native query `search()` with CAST-based null-safe filtering; `countByStatusSince`; `countDistinctUsersLoginSince`; `topFailedUsernames` (native, Timestamp param) |
+| `backend/…/audit/LoginHistoryService.java` | NEW — `record()` REQUIRES_NEW; `search()` with `Timestamp.from()` conversion; `summary()` with top failed usernames |
+| `backend/…/audit/LoginHistoryController.java` | NEW — `POST /api/v1/auth/events`, `GET /events`, `GET /events/summary` |
+| `backend/…/audit/ComplianceReportController.java` | NEW — `@PreAuthorize("hasRole('ADMIN')")`; 4 JdbcTemplate reports; `Timestamp.from()` for JDBC type safety; injection guard on `entityType` param |
+| `backend/…/db/migration/V43__login_history_compliance.sql` | NEW — `login_history` table + 4 indexes + 7 demo seed rows |
+| `web/…/admin/login-history.ts` | NEW — `LoginHistoryComponent`; summary KPIs; events table with filters + pagination |
+| `web/…/admin/login-history.html` | NEW — KPI grid, top-failed usernames, filter bar, paginated events table |
+| `web/…/admin/login-history.scss` | NEW — KPI grid styles, status variants |
+| `web/…/admin/compliance-report.ts` | NEW — `ComplianceReportComponent`; 4 lazy-loaded tabs; shared period selector |
+| `web/…/admin/compliance-report.html` | NEW — period selector, 4 tab panels (skeleton/error/empty/table states) |
+| `web/…/admin/compliance-report.scss` | NEW — action-chip, status-chip, num-col right-align |
+| `web/…/admin/admin.service.ts` | MODIFIED — 7 new service methods; 8 new interfaces (LoginHistoryEvent, filters, compliance row types) |
+| `web/…/admin/admin.routes.ts` | MODIFIED — added `login-history` + `compliance` routes |
+| `web/…/layout/sidebar/sidebar.ts` | MODIFIED — added "Login History" + "Compliance Reports" nav items in Admin group |
+| `docs/api-reference.html` | MODIFIED — new `#login-history` + `#compliance-reports` sections; sidebar links; 2 matrix rows |
+| `docs/cba-postman-collection-v2.json` | MODIFIED — folders `41d · Login History` (3 requests) + `41e · Compliance Reports` (4 requests) |
+
+#### Key Patterns / Decisions
+- **JPQL null param + `LOWER()` → `lower(bytea)` failure**: when a JPQL optional-filter query has a null `String` param inside `LOWER(CONCAT('%', :param, '%'))`, PostgreSQL cannot infer the type and emits `function lower(bytea) does not exist`. Fix: convert to a `nativeQuery = true` query and use `CAST(:param AS varchar)` / `CAST(:param AS text)` to provide explicit type hints.
+- **`::` cast operator captured by Spring as param name suffix**: `WHERE :status::varchar IS NULL` causes Spring Data to resolve param name `status::varchar` (not found → error). Use `CAST(:status AS varchar)` instead — this is standard SQL and Spring parses it correctly.
+- **`java.time.Instant` with `JdbcTemplate.queryForList()` → `PSQLException: Can't infer SQL type`**: JDBC doesn't know Instant. Wrap all `Instant` args as `java.sql.Timestamp.from(instant)` before passing to any native/JDBC call.
+- **`Timestamp` param in `@Param` of native `@Query`**: works; JDBC knows the SQL type. The service converts `Instant → Timestamp` before invoking the repository.
+- **`REQUIRES_NEW` for login history**: consistent with `AuditLogService` — the event write commits even if the outer request rolls back.
+
+#### Build Verification
+- Backend: `./mvnw compile -q` → BUILD SUCCESS (0 errors, 0 warnings)
+- Angular: `ng build --production` → 0 errors (pre-existing loan-detail.scss budget warning only)
+- All 5 new endpoints smoke-tested against running backend with demo seed data
+
+#### Confirmed Platform Versions
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | pending push |
+| Java | 21 | pending push |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | pending push |
+| Keycloak admin client | 26.0.5 | pending push |
+| springdoc-openapi | 2.8.6 | pending push |
+| Lombok | 1.18.38 | pending push |
+| PostgreSQL | 16 (Docker) | pending push |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | pending push |
+| Angular CLI | 21.2.7 | pending push |
+| PrimeNG | 21.0.x | pending push |
+| RxJS | 7.8.x | pending push |
+| TypeScript | 5.9.x | pending push |
+| Vercel deployment | cba-web-nine.vercel.app | pending push |
+
 ### Session 97 — 2026-04-19
 **Module 9 gap closure: in-app notification feed + push device registry — global feed table, per-user read horizon, bell icon component in topbar, admin "In-App Feed" tab. (commit `171a1ac`)**
 

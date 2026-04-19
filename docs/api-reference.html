@@ -154,6 +154,8 @@ details.endpoint[open] .endpoint-body{display:block}
     <a href="#roles">Roles &amp; Permissions</a>
     <a href="#client-ext">Client Identifiers/Addresses</a>
     <a href="#audit-rest">Audit Search</a>
+    <a href="#login-history">Login History</a>
+    <a href="#compliance-reports">Compliance Reports</a>
     <div class="section-head">Treasury</div>
     <a href="#treasury-placements">Placements</a>
     <a href="#treasury-interbank">Interbank Positions</a>
@@ -3207,6 +3209,66 @@ Content-Type: application/json
 <p><strong>Notification Types:</strong> <code>LOAN_APPROVED</code>, <code>LOAN_DISBURSED</code>, <code>LOAN_IN_ARREARS</code>, <code>LOAN_WRITTEN_OFF</code>, <code>ACCOUNT_OPENED</code>, <code>ACCOUNT_CLOSED</code>, <code>ACCOUNT_FROZEN</code>, <code>KYC_APPROVED</code>, <code>KYC_REJECTED</code>, <code>LARGE_TRANSACTION</code>, <code>PAYMENT_COMPLETED</code>, <code>PAYMENT_FAILED</code>, <code>SYSTEM_ALERT</code> — <strong>Severity:</strong> <code>INFO</code>, <code>WARNING</code>, <code>ERROR</code></p>
 </section>
 
+<!-- Login History — Session 98 -->
+<section id="login-history">
+<h2>Login History <span style="font-size:.75rem;font-weight:400;color:#1d4ed8;background:#dbeafe;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Session 98</span></h2>
+<p>Immutable login event log. The Angular app posts a <code>POST /api/v1/auth/events</code> on every app initialisation to record the session. Because Keycloak owns credential validation, the backend cannot intercept authentication directly — the Angular client bridges the gap.</p>
+<p><strong>Statuses:</strong> <code>SUCCESS</code> — authenticated session; <code>FAILURE</code> — wrong credentials; <code>LOCKED</code> — account locked after repeated failures (Keycloak brute-force); <code>LOGOUT</code> — explicit sign-out event.</p>
+<p><strong>Flyway:</strong> <code>V43__login_history_compliance.sql</code> — creates <code>login_history</code> table with 4 indexes; seeds 7 demo rows.</p>
+<p><strong>REQUIRES_NEW propagation:</strong> <code>LoginHistoryService.record()</code> uses <code>@Transactional(REQUIRES_NEW)</code> — the audit write commits even if the outer request transaction rolls back, identical to <code>AuditLogService</code>.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr>
+<tr><td>POST</td><td>/api/v1/auth/events</td><td>Any authenticated</td><td>Record a login event. Body: <code>{ userId, username, status, failureReason, sessionRef }</code>. IP extracted from <code>X-Forwarded-For</code> header. userId falls back to <code>"anonymous"</code> when JWT sub is absent.</td></tr>
+<tr><td>GET</td><td>/api/v1/auth/events</td><td>ADMIN</td><td>Paginated login history. Query params: <code>?status=FAILURE</code>, <code>?username=john</code>, <code>?from=2026-01-01T00:00:00Z</code>, <code>?to=2026-04-01T00:00:00Z</code>, <code>?page=0&amp;size=20</code>.</td></tr>
+<tr><td>GET</td><td>/api/v1/auth/events/summary</td><td>ADMIN</td><td>Aggregated summary for the last N days. Query: <code>?days=30</code>. Returns <code>{ periodDays, successLogins, failedLogins, lockedAccounts, uniqueUsers, topFailedUsers[] }</code>.</td></tr>
+</table>
+<h4>Example — Login Event Body</h4>
+<pre><code>{
+  "userId": "abc-123",
+  "username": "teller@cba.com",
+  "status": "SUCCESS",
+  "failureReason": null,
+  "sessionRef": "kc-session-xyz"
+}</code></pre>
+<h4>Example — Summary Response</h4>
+<pre><code>{
+  "data": {
+    "periodDays": 30,
+    "successLogins": 142,
+    "failedLogins": 18,
+    "lockedAccounts": 3,
+    "uniqueUsers": 12,
+    "topFailedUsers": [
+      { "username": "badactor@test.com", "failureCount": 9 },
+      { "username": "unknown@domain.io", "failureCount": 5 }
+    ]
+  }
+}</code></pre>
+</section>
+
+<!-- Compliance Reports — Session 98 -->
+<section id="compliance-reports">
+<h2>Compliance Reports <span style="font-size:.75rem;font-weight:400;color:#1d4ed8;background:#dbeafe;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Session 98</span></h2>
+<p>Pre-built regulatory reporting endpoints for the ADMIN role. All queries run directly via <code>JdbcTemplate</code> to avoid ORM overhead on aggregate queries. All <code>Instant</code> date params are converted to <code>java.sql.Timestamp</code> before passing to JDBC to avoid PostgreSQL type-inference failure.</p>
+<p><strong>Injection guard on <code>entityType</code>:</strong> <code>safeEntity = entityType.replaceAll("[^A-Z_]", "")</code> — strips everything except uppercase letters and underscores before embedding in SQL.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr>
+<tr><td>GET</td><td>/api/v1/compliance/reports/audit-summary</td><td>ADMIN</td><td>Audit events grouped by <code>(action, entity_type)</code> with event count + unique actor count. Query: <code>?days=30</code>. Ordered by <code>event_count DESC</code>, limit 50.</td></tr>
+<tr><td>GET</td><td>/api/v1/compliance/reports/failed-logins</td><td>ADMIN</td><td>Failed login summary grouped by <code>(username, ip_address, status)</code> where status is <code>FAILURE</code> or <code>LOCKED</code>. Returns attempt count + last attempt timestamp. Query: <code>?days=30</code>. Limit 50.</td></tr>
+<tr><td>GET</td><td>/api/v1/compliance/reports/user-activity</td><td>ADMIN</td><td>Per-user action counts from audit log. Returns <code>user_id, total_actions, entity_types_touched, last_action</code>. Query: <code>?days=30</code>. Limit 50.</td></tr>
+<tr><td>GET</td><td>/api/v1/compliance/reports/data-access</td><td>ADMIN</td><td>Entity access log for a specific entity type. Query: <code>?days=30&amp;entityType=LOAN</code> (valid values: <code>LOAN</code>, <code>ACCOUNT</code>, <code>CUSTOMER</code>, <code>PAYMENT</code>, <code>USER</code>). Returns <code>entity_id, action, changed_by, changed_at</code>. Limit 200.</td></tr>
+</table>
+<h4>Angular UI</h4>
+<p><strong>Route:</strong> <code>/admin/compliance</code> — <code>ComplianceReportComponent</code>. Tabs: Audit Summary, Failed Logins, User Activity, Data Access. Shared period selector (7/30/90/180/365 days). Data-access tab has additional entity-type filter dropdown. Each tab lazy-loads on first switch.</p>
+<h4>Example — Audit Summary Response</h4>
+<pre><code>{
+  "data": [
+    { "action": "CREATE", "entity_type": "LOAN",     "event_count": 84, "unique_actors": 3 },
+    { "action": "UPDATE", "entity_type": "CUSTOMER", "event_count": 61, "unique_actors": 5 }
+  ]
+}</code></pre>
+</section>
+
 <!-- Treasury -->
 <tr><td colspan="4" style="background:#f8f9fa;font-weight:600">Treasury — Placements</td></tr>
 <tr><td>GET</td><td>/api/v1/treasury/placements</td><td>List treasury placements</td><td>Authenticated</td></tr>
@@ -3342,6 +3404,8 @@ Content-Type: application/json
 <tr><td>Notifications Admin</td><td>/api/v1/notifications/*</td><td>Templates CRUD, test send, delivery history — Session 46</td></tr>
 <tr><td>In-App Notification Feed</td><td>/api/v1/notifications/inbox, /inbox/unread-count, /inbox/read-all</td><td>Global feed + per-user read horizon — Session 97</td></tr>
 <tr><td>Push Device Registry</td><td>/api/v1/notifications/devices, /devices/{id}</td><td>FCM token register / deregister / list — Session 97</td></tr>
+<tr><td>Login History</td><td>/api/v1/auth/events, /auth/events/summary</td><td>Immutable login event log; aggregated summary with top failed usernames — Session 98</td></tr>
+<tr><td>Compliance Reports</td><td>/api/v1/compliance/reports/audit-summary, /failed-logins, /user-activity, /data-access</td><td>Pre-built regulatory reports over audit_log + login_history — Session 98</td></tr>
 <tr><td>Bulk Loan Import</td><td>/api/v1/loans/batch</td><td>Planned Phase 4</td></tr>
 <tr><td>Standing Orders Extended</td><td>/api/v1/standingorders/{id}/pause|resume</td><td>Planned Phase 4 — note: disable/enable for Standing Instructions is implemented at <code>/api/v1/standinginstructions/{id}?command=disable|enable</code></td></tr>
 <tr><td>Self Service — Account Transfers</td><td>/api/v1/self/accounttransfers</td><td>Planned — customer-initiated transfers between own accounts</td></tr>

@@ -10,6 +10,8 @@ import { AuditLogComponent } from './audit-log';
 import { SmsCampaignsComponent } from './sms-campaigns';
 import { StaffComponent } from './staff';
 import { StandingInstructionsComponent } from './standing-instructions';
+import { LoginHistoryComponent } from './login-history';
+import { ComplianceReportComponent } from './compliance-report';
 
 export const ADMIN_ROUTES: Routes = [
   { path: 'users', component: UsersComponent },
@@ -23,4 +25,6 @@ export const ADMIN_ROUTES: Routes = [
   { path: 'audit-log', component: AuditLogComponent },
   { path: 'sms-campaigns', component: SmsCampaignsComponent },
   { path: 'standing-instructions', component: StandingInstructionsComponent },
+  { path: 'login-history', component: LoginHistoryComponent },
+  { path: 'compliance', component: ComplianceReportComponent },
 ];

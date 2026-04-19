@@ -16886,6 +16886,190 @@
       ]
     },
     {
+      "name": "41d \u00b7 Login History",
+      "description": "Immutable login event log. POST records events from the Angular client on app init. GET endpoints are ADMIN-only for security investigation. Flyway: V43__login_history_compliance.sql.",
+      "item": [
+        {
+          "name": "Record Login Event",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"abc-123\",\n  \"username\": \"teller@cba.com\",\n  \"status\": \"SUCCESS\",\n  \"failureReason\": null,\n  \"sessionRef\": \"kc-session-xyz\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/events",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "events"]
+            },
+            "description": "Record a login event. Called by Angular app on init. Status: SUCCESS | FAILURE | LOCKED | LOGOUT. IP extracted from X-Forwarded-For header. Persisted in REQUIRES_NEW transaction — survives outer rollback."
+          },
+          "response": [
+            {
+              "name": "200 OK — Event Recorded",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": \"uuid\",\n    \"userId\": \"abc-123\",\n    \"username\": \"teller@cba.com\",\n    \"ipAddress\": \"192.168.1.50\",\n    \"status\": \"SUCCESS\",\n    \"createdAt\": \"2026-04-19T10:00:00Z\"\n  },\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Login Events (Paginated)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/events?status=FAILURE&page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "events"],
+              "query": [
+                { "key": "status", "value": "FAILURE", "description": "SUCCESS | FAILURE | LOCKED | LOGOUT", "disabled": false },
+                { "key": "username", "value": "", "description": "Partial match (case-insensitive)", "disabled": true },
+                { "key": "from", "value": "2026-01-01T00:00:00Z", "description": "ISO-8601 start of range", "disabled": true },
+                { "key": "to", "value": "2026-04-19T00:00:00Z", "description": "ISO-8601 end of range", "disabled": true },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            },
+            "description": "ADMIN only. Paginated login history with optional filters on status, username, and date range. Ordered by createdAt DESC."
+          },
+          "response": [
+            {
+              "name": "200 OK — Page of Events",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"content\": [\n      { \"id\": \"uuid\", \"userId\": \"admin-1\", \"username\": \"admin@cba.com\", \"ipAddress\": \"10.0.0.1\", \"status\": \"FAILURE\", \"failureReason\": \"Bad credentials\", \"createdAt\": \"2026-04-19T09:30:00Z\" }\n    ],\n    \"totalElements\": 18,\n    \"totalPages\": 1,\n    \"number\": 0\n  },\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Login Event Summary",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/events/summary?days=30",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "auth", "events", "summary"],
+              "query": [
+                { "key": "days", "value": "30", "description": "Look-back window in days (default 30)" }
+              ]
+            },
+            "description": "ADMIN only. Returns aggregated counts and top 10 failed usernames for the given period."
+          },
+          "response": [
+            {
+              "name": "200 OK — Summary",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"periodDays\": 30,\n    \"successLogins\": 142,\n    \"failedLogins\": 18,\n    \"lockedAccounts\": 3,\n    \"uniqueUsers\": 12,\n    \"topFailedUsers\": [\n      { \"username\": \"badactor@test.com\", \"failureCount\": 9 },\n      { \"username\": \"unknown@domain.io\", \"failureCount\": 5 }\n    ]\n  },\n  \"errors\": []\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "41e \u00b7 Compliance Reports",
+      "description": "Pre-built regulatory reporting endpoints. All ADMIN-only. JdbcTemplate queries with Timestamp.from(Instant) to avoid JDBC type-inference failure. entityType param sanitised with replaceAll(\"[^A-Z_]\", \"\"). Flyway: V43__login_history_compliance.sql.",
+      "item": [
+        {
+          "name": "Audit Event Summary",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/compliance/reports/audit-summary?days=30",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "compliance", "reports", "audit-summary"],
+              "query": [{ "key": "days", "value": "30" }]
+            },
+            "description": "Groups audit_log by (action, entity_type) with event_count and unique_actors. Ordered by event_count DESC. Limit 50."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    { \"action\": \"CREATE\", \"entity_type\": \"LOAN\", \"event_count\": 84, \"unique_actors\": 3 },\n    { \"action\": \"UPDATE\", \"entity_type\": \"CUSTOMER\", \"event_count\": 61, \"unique_actors\": 5 }\n  ],\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Failed Logins Report",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/compliance/reports/failed-logins?days=30",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "compliance", "reports", "failed-logins"],
+              "query": [{ "key": "days", "value": "30" }]
+            },
+            "description": "login_history WHERE status IN ('FAILURE','LOCKED') grouped by (username, ip_address, status). Returns attempt_count and last_attempt. Limit 50."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    { \"username\": \"badactor@test.com\", \"ip_address\": \"192.168.1.5\", \"status\": \"FAILURE\", \"attempt_count\": 9, \"last_attempt\": \"2026-04-18T15:22:00Z\" }\n  ],\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "User Activity Report",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/compliance/reports/user-activity?days=30",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "compliance", "reports", "user-activity"],
+              "query": [{ "key": "days", "value": "30" }]
+            },
+            "description": "Per-user action counts from audit_log. Fields: user_id, total_actions, entity_types_touched, last_action. Ordered by total_actions DESC. Limit 50."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    { \"user_id\": \"admin-1\", \"total_actions\": 312, \"entity_types_touched\": 7, \"last_action\": \"2026-04-19T10:00:00Z\" }\n  ],\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Data Access Report",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/compliance/reports/data-access?days=30&entityType=LOAN",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "compliance", "reports", "data-access"],
+              "query": [
+                { "key": "days", "value": "30" },
+                { "key": "entityType", "value": "LOAN", "description": "LOAN | ACCOUNT | CUSTOMER | PAYMENT | USER" }
+              ]
+            },
+            "description": "Raw audit_log access trail for a specific entity type. entityType sanitised server-side (replaceAll \"[^A-Z_]\"). Returns entity_id, action, changed_by, changed_at. Ordered by changed_at DESC. Limit 200."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    { \"entity_id\": \"uuid-loan\", \"action\": \"DISBURSE\", \"changed_by\": \"teller@cba.com\", \"changed_at\": \"2026-04-19T09:15:00Z\" }\n  ],\n  \"errors\": []\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "42 \u00b7 Treasury",
       "item": [
         {

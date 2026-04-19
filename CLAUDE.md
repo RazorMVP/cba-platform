@@ -2493,6 +2493,8 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | TPP Management | `OpenBankingComponent` | `AdminModule`  | ✅ Built — TPP registry: clientId, country, scope chips, cert expiry; register/activate/revoke |
 | SMS Campaigns | `SmsCampaignsComponent` | `AdminModule`  | ✅ Built — paginated list, campaign type chips, RRULE recurrence presets, activate command, slide-in messages panel _(Session 73)_ |
 | Standing Instructions | `StandingInstructionsComponent` | `AdminModule`  | ✅ Built — priority/type/status chips; FIXED/OUTSTANDING_BALANCE conditional amount field _(Session 75)_ |
+| Login History | `LoginHistoryComponent` | `AdminModule`  | ✅ Built — status filter tabs (ALL/SUCCESS/FAILURE/LOCKED), username + date range filters, summary KPI cards (successes/failures/locked/unique users), top-failed-users table _(Session 98)_ |
+| Compliance Reports | `ComplianceReportComponent` | `AdminModule` | ✅ Built — 4-tab layout (Audit Summary / Failed Logins / User Activity / Data Access), days-range selector, CSV export per tab _(Session 98)_ |
 | Groups list | `GroupsListComponent` | `GroupsModule`  | ✅ Built — status filter + search, create modal, routerLink to detail |
 | Group detail | `GroupDetailComponent` | `GroupsModule`  | ✅ Built — 4 tabs: Members (add/remove), Collection Sheet, GLIM Accounts, Staff |
 | Centers list | `CentersListComponent` | `GroupsModule`  | ✅ Built — status filter + search, create modal, routerLink to detail |
@@ -3078,8 +3080,8 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | Audit log (append-only, 10-year retention) | ✅ Module 8 | ✅ `AuditLogComponent` _(Session 70)_ | ✅ |
 | Audit search (`GET /api/v1/audits`) | ✅ `AuditController` | ✅ 5-filter search bar _(Session 70)_ | ✅ |
 | Maker-Checker workflow | ✅ Module 29 | ✅ MakerCheckerComponent | — |
-| System access logs / login history | ❌ No login history tracking | ❌ Missing | ❌ |
-| Compliance / audit report | ⚠️ Reports module with TrialBalance seed | ❌ No dedicated compliance report UI | ⚠️ |
+| System access logs / login history | ✅ `LoginHistory` entity + service + controller; `POST /auth/events`, `GET /auth/events` (paginated, filterable), `GET /auth/events/summary`; native query with `CAST(:param AS timestamptz)` for null-safe Timestamp handling _(Session 98)_ | ✅ `LoginHistoryComponent` — status filter tabs, username/date search, summary KPI cards _(Session 98)_ | ✅ |
+| Compliance / audit report | ✅ `ComplianceReportController` — 4 pre-built regulatory reports: audit-summary, failed-logins, user-activity, data-access; SQL injection guard; `Timestamp.from(Instant)` for JDBC type safety _(Session 98)_ | ✅ `ComplianceReportComponent` — tabbed layout, date-range filter, CSV export _(Session 98)_ | ✅ |
 
 ---
 

@@ -1,0 +1,122 @@
+<div class="page">
+  <div class="page-header">
+    <div class="page-header__title">
+      <span class="material-icons">login</span>
+      Login History
+    </div>
+  </div>
+
+  <!-- ── Summary KPIs ─────────────────────────────────────────────────────── -->
+  @if (summary) {
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <span class="kpi-label">Successful Logins (30d)</span>
+        <span class="kpi-value kpi-value--success">{{ summary.successLogins | number }}</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Failed Attempts (30d)</span>
+        <span class="kpi-value kpi-value--danger">{{ summary.failedLogins | number }}</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Accounts Locked (30d)</span>
+        <span class="kpi-value kpi-value--warning">{{ summary.lockedAccounts | number }}</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-label">Unique Users (30d)</span>
+        <span class="kpi-value">{{ summary.uniqueUsers | number }}</span>
+      </div>
+    </div>
+
+    @if (summary.topFailedUsers.length > 0) {
+      <div class="card card--compact" style="margin-bottom:1.5rem">
+        <div class="card-header-row">
+          <span class="material-icons">warning</span>
+          <strong>Top Failed Usernames (30d)</strong>
+        </div>
+        <div class="top-failed-list">
+          @for (u of summary.topFailedUsers; track u.username) {
+            <div class="top-failed-item">
+              <span class="mono">{{ u.username }}</span>
+              <app-status-badge [label]="u.failureCount + ' failures'" variant="error" />
+            </div>
+          }
+        </div>
+      </div>
+    }
+  }
+
+  <!-- ── Filter Bar ────────────────────────────────────────────────────────── -->
+  <div class="filter-bar">
+    <select class="form-input filter-select" [(ngModel)]="filterStatus">
+      <option value="">All Statuses</option>
+      <option value="SUCCESS">Success</option>
+      <option value="FAILURE">Failure</option>
+      <option value="LOCKED">Locked</option>
+      <option value="LOGOUT">Logout</option>
+    </select>
+    <input class="form-input filter-input" placeholder="Username…"
+           [(ngModel)]="filterUsername" (keyup.enter)="applyFilter()" />
+    <input class="form-input filter-input" type="date" [(ngModel)]="filterFrom" title="From date" />
+    <input class="form-input filter-input" type="date" [(ngModel)]="filterTo" title="To date" />
+    <button class="btn-primary" (click)="applyFilter()">Search</button>
+    <button class="btn-secondary" (click)="resetFilter()">Reset</button>
+  </div>
+
+  <!-- ── Table ─────────────────────────────────────────────────────────────── -->
+  <div class="card">
+    @if (loading) {
+      <div class="skeleton-card">
+        @for (i of [1,2,3,4,5]; track i) { <div class="skeleton skeleton--row"></div> }
+      </div>
+    } @else if (error) {
+      <div class="empty-state">
+        <span class="material-icons">error_outline</span>
+        <p>{{ error }}</p>
+      </div>
+    } @else if (events.length === 0) {
+      <div class="empty-state">
+        <span class="material-icons">login</span>
+        <p>No login events found.</p>
+      </div>
+    } @else {
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Username</th>
+            <th>IP Address</th>
+            <th>Status</th>
+            <th>Reason</th>
+            <th>User Agent</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (e of events; track e.id) {
+            <tr class="table-row">
+              <td class="muted small">{{ e.createdAt | date:'dd MMM yyyy HH:mm:ss' }}</td>
+              <td class="mono">{{ e.username }}</td>
+              <td class="mono muted small">{{ e.ipAddress }}</td>
+              <td>
+                <app-status-badge [label]="e.status" [variant]="statusVariant(e.status)" />
+              </td>
+              <td class="muted small">{{ e.failureReason ?? '—' }}</td>
+              <td class="muted small ua-cell">{{ e.userAgent ?? '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <div class="table-footer">
+        <span>{{ totalItems }} event(s)</span>
+        <div class="pagination">
+          <button class="btn-icon" [disabled]="page === 0" (click)="prevPage()">
+            <span class="material-icons">chevron_left</span>
+          </button>
+          <span class="muted small">Page {{ page + 1 }} of {{ totalPages() }}</span>
+          <button class="btn-icon" [disabled]="(page + 1) * pageSize >= totalItems" (click)="nextPage()">
+            <span class="material-icons">chevron_right</span>
+          </button>
+        </div>
+      </div>
+    }
+  </div>
+</div>

@@ -3,8 +3,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AdminService, NotificationTemplate, NotificationLog, CreateTemplateRequest } from './admin.service';
 import { StatusBadgeComponent } from '../../shared/components/status-badge/status-badge';
+import { NotificationBellService, InAppNotification } from '../../layout/notification-bell/notification-bell.service';
 
-type Tab = 'templates' | 'history';
+type Tab = 'templates' | 'history' | 'feed';
 
 @Component({
   selector: 'app-notifications',
@@ -14,7 +15,8 @@ type Tab = 'templates' | 'history';
   styleUrl: './notifications.scss',
 })
 export class NotificationsComponent implements OnInit {
-  private readonly svc = inject(AdminService);
+  private readonly svc     = inject(AdminService);
+  private readonly bellSvc = inject(NotificationBellService);
 
   activeTab: Tab = 'templates';
 
@@ -40,6 +42,12 @@ export class NotificationsComponent implements OnInit {
     name: '', eventType: '', deliveryMethod: 'EMAIL', subject: '', body: '',
   };
 
+  // In-app feed
+  feed:        InAppNotification[] = [];
+  feedLoading  = false;
+  feedLoaded   = false;
+  feedError    = '';
+
   // Test modal
   showTest    = false;
   testTplId   = '';
@@ -54,9 +62,22 @@ export class NotificationsComponent implements OnInit {
 
   switchTab(tab: Tab): void {
     this.activeTab = tab;
-    if (tab === 'history' && !this.histLoaded) {
-      this.loadHistory();
-    }
+    if (tab === 'history' && !this.histLoaded) this.loadHistory();
+    if (tab === 'feed'    && !this.feedLoaded) this.loadFeed();
+  }
+
+  loadFeed(): void {
+    this.feedLoading = true;
+    this.bellSvc.getInbox(0, 50).subscribe({
+      next:  items => { this.feed = items; this.feedLoaded = true; this.feedLoading = false; },
+      error: ()    => { this.feedError = 'Failed to load feed.'; this.feedLoading = false; },
+    });
+  }
+
+  feedSeverityVariant(severity: string): 'success' | 'warning' | 'error' | 'info' | 'neutral' {
+    if (severity === 'ERROR')   return 'error';
+    if (severity === 'WARNING') return 'warning';
+    return 'info';
   }
 
   // ── Templates ────────────────────────────────────────────────────────────────

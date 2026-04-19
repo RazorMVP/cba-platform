@@ -1,0 +1,143 @@
+@use 'assets/styles/design-system' as *;
+
+.bell-wrap {
+  position: relative;
+}
+
+.bell-btn {
+  position: relative;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: $radius-sm;
+  color: $color-text-muted;
+  display: flex;
+  align-items: center;
+  transition: background 0.15s;
+
+  &:hover, &--active {
+    background: $color-grey-100;
+    color: $color-text-primary;
+  }
+}
+
+.bell-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: $color-error-600;
+  color: white;
+  font-size: 10px;
+  font-weight: $font-weight-semibold;
+  min-width: 16px;
+  height: 16px;
+  border-radius: $radius-full;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  line-height: 1;
+}
+
+.notif-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 340px;
+  background: $color-bg-card;
+  border: 1px solid $color-border-default;
+  border-radius: $radius-md;
+  box-shadow: $shadow-card;
+  z-index: 1000;
+  overflow: hidden;
+
+  &__header {
+    padding: $space-3 $space-4;
+    border-bottom: 1px solid $color-border-default;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  &__title {
+    font-size: $text-sm;
+    font-weight: $font-weight-semibold;
+    color: $color-text-primary;
+  }
+
+  &__mark-read {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: $text-xs;
+    font-weight: $font-weight-medium;
+    color: $color-info-600;
+    padding: 0;
+
+    &:hover { text-decoration: underline; }
+  }
+
+  &__loading, &__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: $space-2;
+    padding: $space-8;
+    color: $color-text-muted;
+    font-size: $text-sm;
+
+    .material-icons { font-size: 28px; }
+    p { margin: 0; }
+  }
+
+  &__list {
+    max-height: 380px;
+    overflow-y: auto;
+  }
+}
+
+.notif-item {
+  display: flex;
+  gap: $space-3;
+  padding: $space-3 $space-4;
+  border-bottom: 1px solid rgba(0,0,0,0.04);
+  align-items: flex-start;
+
+  &:last-child { border-bottom: none; }
+  &:hover { background: $color-grey-50; }
+
+  &--warning .notif-item__icon { color: $color-warning-600; }
+  &--error   .notif-item__icon { color: $color-error-600; }
+
+  &__icon { font-size: 18px; color: $color-info-600; margin-top: 1px; flex-shrink: 0; }
+
+  &__body { flex: 1; min-width: 0; }
+
+  &__title {
+    font-size: $text-sm;
+    font-weight: $font-weight-medium;
+    color: $color-text-primary;
+    margin: 0 0 2px;
+  }
+
+  &__msg {
+    font-size: $text-xs;
+    color: $color-text-muted;
+    margin: 0 0 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__time {
+    font-size: 11px;
+    color: $color-text-muted;
+    margin: 0;
+  }
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}

@@ -20,14 +20,36 @@ import org.springframework.stereotype.Component;
 public class NotificationEventListener {
 
     private final JavaMailSender mailSender;
+    private final InAppNotificationService inAppService;
 
     @EventListener
     @Async
     public void onAccountOpened(AccountEvent event) {
         if (event.getType() == AccountEvent.Type.OPENED) {
             log.info("Notification: account opened — accountId={}", event.getAccountId());
-            // In production: look up customer email and send welcome email
-            // Omitted here to avoid a circular dependency via AccountRepository
+            inAppService.push(
+                InAppNotification.Type.ACCOUNT_OPENED,
+                InAppNotification.Severity.INFO,
+                "Account opened",
+                "A new savings account has been opened.",
+                "ACCOUNT", event.getAccountId()
+            );
+        } else if (event.getType() == AccountEvent.Type.CLOSED) {
+            inAppService.push(
+                InAppNotification.Type.ACCOUNT_CLOSED,
+                InAppNotification.Severity.INFO,
+                "Account closed",
+                "Account has been closed successfully.",
+                "ACCOUNT", event.getAccountId()
+            );
+        } else if (event.getType() == AccountEvent.Type.FROZEN) {
+            inAppService.push(
+                InAppNotification.Type.ACCOUNT_FROZEN,
+                InAppNotification.Severity.WARNING,
+                "Account frozen",
+                "Account has been frozen pending review.",
+                "ACCOUNT", event.getAccountId()
+            );
         }
     }
 
@@ -36,11 +58,26 @@ public class NotificationEventListener {
     public void onLoanApproved(LoanEvent event) {
         if (event.getType() == LoanEvent.Type.APPROVED) {
             log.info("Notification: loan approved — loanId={}", event.getLoanId());
+            inAppService.push(
+                InAppNotification.Type.LOAN_APPROVED,
+                InAppNotification.Severity.INFO,
+                "Loan approved",
+                "Loan application has been approved and is ready for disbursement.",
+                "LOAN", event.getLoanId()
+            );
             sendSimpleMail(
                 "noreply@cba.com",
                 "customer@cba.com", // TODO: resolve from customerId
                 "Your loan has been approved",
                 "Congratulations! Your loan application has been approved."
+            );
+        } else if (event.getType() == LoanEvent.Type.DISBURSED) {
+            inAppService.push(
+                InAppNotification.Type.LOAN_DISBURSED,
+                InAppNotification.Severity.INFO,
+                "Loan disbursed",
+                "Loan funds have been disbursed to the linked account.",
+                "LOAN", event.getLoanId()
             );
         }
     }
@@ -50,6 +87,13 @@ public class NotificationEventListener {
     public void onLoanInArrears(LoanEvent event) {
         if (event.getType() == LoanEvent.Type.IN_ARREARS) {
             log.warn("Notification: loan in arrears — loanId={}", event.getLoanId());
+            inAppService.push(
+                InAppNotification.Type.LOAN_IN_ARREARS,
+                InAppNotification.Severity.WARNING,
+                "Loan overdue",
+                "A loan has overdue installments. Action required.",
+                "LOAN", event.getLoanId()
+            );
         }
     }
 

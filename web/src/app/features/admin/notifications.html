@@ -15,6 +15,7 @@
   <div class="tab-bar">
     <button class="tab-item" [class.tab-item--active]="activeTab === 'templates'" (click)="switchTab('templates')">Templates</button>
     <button class="tab-item" [class.tab-item--active]="activeTab === 'history'"   (click)="switchTab('history')">Delivery History</button>
+    <button class="tab-item" [class.tab-item--active]="activeTab === 'feed'"      (click)="switchTab('feed')">In-App Feed</button>
   </div>
 
   <!-- ── Templates ────────────────────────────────────────────────────────── -->
@@ -222,5 +223,53 @@
         </button>
       </div>
     </div>
+  </div>
+}
+
+<!-- ── In-App Feed ──────────────────────────────────────────────────────── -->
+@if (activeTab === 'feed') {
+  <div class="card">
+    @if (feedLoading) {
+      <div class="skeleton-card">
+        @for (i of [1,2,3,4,5]; track i) { <div class="skeleton skeleton--row"></div> }
+      </div>
+    } @else if (feedError) {
+      <div class="empty-state">
+        <span class="material-icons">error_outline</span>
+        <p>{{ feedError }}</p>
+      </div>
+    } @else if (feed.length === 0) {
+      <div class="empty-state">
+        <span class="material-icons">notifications_off</span>
+        <p>No notifications in the feed.</p>
+      </div>
+    } @else {
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Severity</th>
+              <th>Type</th>
+              <th>Title</th>
+              <th>Message</th>
+              <th>Entity</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (n of feed; track n.id) {
+              <tr>
+                <td><app-status-badge [label]="n.severity" [variant]="feedSeverityVariant(n.severity)" /></td>
+                <td class="mono">{{ n.type }}</td>
+                <td>{{ n.title }}</td>
+                <td class="muted">{{ n.message }}</td>
+                <td class="mono">{{ n.entityType ?? '—' }}</td>
+                <td class="muted">{{ n.createdAt | date:'short' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
   </div>
 }

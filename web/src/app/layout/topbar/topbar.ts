@@ -1,11 +1,12 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import Keycloak from 'keycloak-js';
+import { NotificationBellComponent } from '../notification-bell/notification-bell';
 
 @Component({
   selector: 'app-topbar',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, NotificationBellComponent],
   templateUrl: './topbar.html',
   styleUrl: './topbar.scss',
 })

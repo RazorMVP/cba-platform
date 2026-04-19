@@ -1,0 +1,43 @@
+<div class="bell-wrap">
+  <button class="bell-btn" (click)="togglePanel()" [class.bell-btn--active]="open" title="Notifications">
+    <span class="material-icons">notifications_none</span>
+    @if (unreadCount > 0) {
+      <span class="bell-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+    }
+  </button>
+
+  @if (open) {
+    <div class="notif-panel">
+      <div class="notif-panel__header">
+        <span class="notif-panel__title">Notifications</span>
+        @if (unreadCount > 0) {
+          <button class="notif-panel__mark-read" (click)="markAllRead()">Mark all read</button>
+        }
+      </div>
+
+      @if (loading) {
+        <div class="notif-panel__loading">
+          <span class="material-icons spinning">refresh</span>
+        </div>
+      } @else if (notifications.length === 0) {
+        <div class="notif-panel__empty">
+          <span class="material-icons">notifications_off</span>
+          <p>No notifications</p>
+        </div>
+      } @else {
+        <div class="notif-panel__list">
+          @for (n of notifications; track n.id) {
+            <div class="notif-item" [class.notif-item--warning]="n.severity === 'WARNING'" [class.notif-item--error]="n.severity === 'ERROR'">
+              <span class="material-icons notif-item__icon">{{ severityIcon(n.severity) }}</span>
+              <div class="notif-item__body">
+                <p class="notif-item__title">{{ n.title }}</p>
+                <p class="notif-item__msg">{{ n.message }}</p>
+                <p class="notif-item__time">{{ timeAgo(n.createdAt) }}</p>
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  }
+</div>

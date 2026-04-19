@@ -2218,11 +2218,13 @@ Content-Type: application/json
 <!-- GLOBAL SEARCH ───────────────────────────────────────────────────────── -->
 <section id="dashboard">
 <h2>Dashboard &amp; Analytics</h2>
-<p>Real-time KPI and loan portfolio analytics endpoints. All data is computed server-side from live database counts — no caching layer. Replaces the previous pattern of 3 separate paginated queries from the frontend.</p>
+<p>Real-time KPI and analytics endpoints. All data is computed server-side from live database counts — no caching layer. Four endpoints cover the full BI dashboard: KPIs, loan portfolio aging, deposit breakdown by type, and repayment collection performance.</p>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
 <tr><td>GET</td><td>/api/v1/dashboard</td><td>All KPIs in one call</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/dashboard/analytics/loans</td><td>Loan portfolio aging breakdown</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/dashboard/analytics/deposits</td><td>Deposit portfolio by account type</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/dashboard/analytics/repayments</td><td>Repayment collection performance (current month)</td><td>ADMIN, TELLER</td></tr>
 </table>
 
 <details class="endpoint">
@@ -2258,6 +2260,45 @@ Content-Type: application/json
     "countActive": 315,
     "countInArrears": 22,
     "countWrittenOff": 5
+  },
+  "meta": null,
+  "errors": []
+}</code></pre>
+</details>
+
+<details class="endpoint">
+<summary><span class="method get">GET</span> /api/v1/dashboard/analytics/deposits</summary>
+<p>Returns active account counts and total balances grouped by account type (SAVINGS, CHECKING, FIXED_DEPOSIT), plus accounts opened this calendar month and the average balance across all active accounts. Uses a single JPQL GROUP BY query on <code>AccountRepository</code>.</p>
+<h4>Response — 200 OK</h4>
+<pre><code>{
+  "data": {
+    "savingsCount": 612,
+    "savingsBalance": 3200000.00,
+    "checkingCount": 198,
+    "checkingBalance": 980000.00,
+    "fixedDepositCount": 80,
+    "fixedDepositBalance": 570000.00,
+    "newThisMonth": 34,
+    "averageBalance": 5117.98
+  },
+  "meta": null,
+  "errors": []
+}</code></pre>
+</details>
+
+<details class="endpoint">
+<summary><span class="method get">GET</span> /api/v1/dashboard/analytics/repayments</summary>
+<p>Returns repayment collection performance for the current calendar month. Queries <code>LoanRepaymentScheduleRepository</code> for installments whose <code>dueDate</code> falls within the month. <code>collectionRate</code> = <code>amountCollected / amountDue × 100</code>, rounded to 1 decimal place. <code>overdueInstallmentCount</code> and <code>overdueBalance</code> are computed across all time (not just this month) from installments with status <code>OVERDUE</code>.</p>
+<h4>Response — 200 OK</h4>
+<pre><code>{
+  "data": {
+    "installmentsDueThisMonth": 280,
+    "installmentsPaidThisMonth": 241,
+    "amountDueThisMonth": 142000.00,
+    "amountCollectedThisMonth": 128300.00,
+    "collectionRate": 90.4,
+    "overdueInstallmentCount": 39,
+    "overdueBalance": 18750.00
   },
   "meta": null,
   "errors": []
@@ -3071,6 +3112,8 @@ Content-Type: application/json
 <!-- Dashboard / Analytics -->
 <tr><td>GET</td><td>/api/v1/dashboard</td><td>All KPIs in one call (customers, loans, deposits, arrears, today's txns)</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/dashboard/analytics/loans</td><td>Loan portfolio aging breakdown (0-30, 30-60, 60-90, 90+ day buckets)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/dashboard/analytics/deposits</td><td>Deposit portfolio by type: counts, balances, new-this-month, avg balance</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/dashboard/analytics/repayments</td><td>Repayment collection rate, amounts due/collected, overdue count and balance</td><td>ADMIN, TELLER</td></tr>
 <!-- Search -->
 <tr><td>GET</td><td>/api/v1/search?query={q}</td><td>Global entity search</td><td>ADMIN, TELLER</td></tr>
 <!-- Two-Factor Auth -->

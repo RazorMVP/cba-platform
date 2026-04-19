@@ -59,6 +59,42 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 96 — 2026-04-19
+**Module 11 BI gap closure: deposit portfolio analytics + repayment collection performance — two new backend endpoints and two new Angular dashboard cards. All four dashboard analytics endpoints now live.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/…/loan/LoanRepaymentScheduleRepository.java` | NEW — 6 JPQL aggregate queries (countDueBetween, countPaidBetween, sumDueBetween, sumCollectedBetween, countOverdue, sumOverdueBalance) |
+| `backend/…/account/AccountRepository.java` | Added `countAndSumByType()` GROUP BY query, `countOpenedBetween()`, `avgActiveBalance()` |
+| `backend/…/common/DashboardController.java` | Added `GET /api/v1/dashboard/analytics/deposits` + `GET /api/v1/dashboard/analytics/repayments`; `DepositAnalyticsResponse` and `RepaymentAnalyticsResponse` records; injected `LoanRepaymentScheduleRepository` |
+| `web/…/dashboard/dashboard.service.ts` | Added `DepositAnalytics` + `RepaymentAnalytics` interfaces; `getDepositAnalytics()` + `getRepaymentAnalytics()` methods with catchError fallbacks |
+| `web/…/dashboard/dashboard.ts` | Added `depositAnalytics` + `repaymentAnalytics` properties; `fmt()` currency helper; `collectionBarColor()` threshold helper; two new service subscriptions in `ngOnInit` |
+| `web/…/dashboard/dashboard.html` | Added `analytics-grid` row with Deposit Portfolio card (3-column type grid + stats) and Repayment Performance card (collection-rate progress bar + overdue banner) |
+| `web/…/dashboard/dashboard.scss` | Added `.analytics-grid`, `.deposit-type-grid`, `.deposit-type-cell`, `.analytics-stats`, `.collection-rate-row`, `.overdue-banner` |
+| `docs/api-reference.html` | Dashboard section updated with two new endpoint detail blocks; full API matrix updated |
+
+#### Key Patterns / Decisions
+
+- `countAndSumByType()` uses JPQL `GROUP BY a.accountType` returning `List<Object[]>` — single query for all three account types; Java switch unpacks into named fields on the response record
+- Collection rate uses `BigDecimal.divide(..., 1, RoundingMode.HALF_UP)` — avoids `ArithmeticException` on non-terminating decimals from percentage calculation
+- `collectionBarColor()` in Angular: green ≥ 90%, amber ≥ 70%, red below — mirrors standard banking collection thresholds
+- Overdue banner uses conditional CSS class `overdue-banner--warn` (red tint) only when `overdueInstallmentCount > 0` — stays neutral when clean
+- `TemporalAdjusters.firstDayOfMonth()` / `lastDayOfMonth()` used for repayment window — handles month-end edge cases correctly
+- `LoanRepaymentScheduleRepository` is new (no prior repository existed for this entity) — queries are all aggregate with no entity loading
+
+#### Build Verification
+
+- `cd backend && ./mvnw compile -q` → BUILD SUCCESS (0 errors)
+- `cd web && npx ng build --configuration production` → BUILD SUCCESS (pre-existing warnings only: treasury liquidity ternary, loan-detail.scss budget)
+
+#### Confirmed Platform Versions
+See Session 92 for full version table — no dependency changes this session.
+**Backend last commit:** `99189e4`
+**Web last commit:** `99189e4`
+
+---
+
 ### Session 95 — 2026-04-18
 **Swagger UI completeness: added `@Tag` + `@Operation` annotations to all remaining unannotated backend controllers — every endpoint now has a named group and summary in Swagger UI.**
 

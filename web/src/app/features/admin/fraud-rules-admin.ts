@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject } from 'rxjs';
@@ -13,7 +13,8 @@ import { AdminService, FraudRule } from './admin.service';
   styleUrl: './fraud-rules-admin.scss',
 })
 export class FraudRulesAdminComponent implements OnInit, OnDestroy {
-  private destroy$ = new Subject<void>();
+  private readonly svc = inject(AdminService);
+  private readonly destroy$ = new Subject<void>();
 
   rules: FraudRule[] = [];
   loading = false;
@@ -26,11 +27,10 @@ export class FraudRulesAdminComponent implements OnInit, OnDestroy {
   editBlocking = false;
 
   readonly severityOptions = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
-  readonly severityColors: Record<string, string> = {
-    LOW: 'badge-success', MEDIUM: 'badge-warning', HIGH: 'badge-error', CRITICAL: 'badge-error',
-  };
 
-  constructor(private svc: AdminService) {}
+  private readonly severityVariants: Record<string, string> = {
+    LOW: 'success', MEDIUM: 'warning', HIGH: 'error', CRITICAL: 'critical',
+  };
 
   ngOnInit() { this.loadRules(); }
   ngOnDestroy() { this.destroy$.next(); this.destroy$.complete(); }
@@ -39,15 +39,19 @@ export class FraudRulesAdminComponent implements OnInit, OnDestroy {
     this.loading = true;
     this.svc.listFraudRules(0, 50)
       .pipe(takeUntil(this.destroy$))
-      .subscribe({ next: r => { this.rules = r.content; this.loading = false; },
-                   error: () => { this.loading = false; } });
+      .subscribe({
+        next: r => { this.rules = r.content; this.loading = false; },
+        error: () => { this.loading = false; },
+      });
   }
 
   toggleEnabled(rule: FraudRule) {
     this.saving = rule.id;
     this.svc.updateFraudRule(rule.id, { enabled: !rule.enabled })
-      .subscribe({ next: updated => { Object.assign(rule, updated); this.saving = null; },
-                   error: () => { this.saving = null; } });
+      .subscribe({
+        next: updated => { Object.assign(rule, updated); this.saving = null; },
+        error: () => { this.saving = null; },
+      });
   }
 
   openEdit(rule: FraudRule) {
@@ -70,6 +74,6 @@ export class FraudRulesAdminComponent implements OnInit, OnDestroy {
     }});
   }
 
-  severityClass(s: string) { return this.severityColors[s] ?? 'badge-neutral'; }
+  severityChip(s: string) { return this.severityVariants[s] ?? 'neutral'; }
   formatParams(p: string) { try { return JSON.stringify(JSON.parse(p), null, 2); } catch { return p; } }
 }

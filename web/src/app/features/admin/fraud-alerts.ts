@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject } from 'rxjs';
@@ -13,7 +13,8 @@ import { AdminService, FraudAlert, FraudCase } from './admin.service';
   styleUrl: './fraud-alerts.scss',
 })
 export class FraudAlertsComponent implements OnInit, OnDestroy {
-  private destroy$ = new Subject<void>();
+  private readonly svc = inject(AdminService);
+  private readonly destroy$ = new Subject<void>();
 
   alerts: FraudAlert[] = [];
   cases: FraudCase[] = [];
@@ -39,11 +40,13 @@ export class FraudAlertsComponent implements OnInit, OnDestroy {
   newCaseTitle = '';
   newCaseRisk = 'MEDIUM';
 
-  readonly severityColors: Record<string, string> = {
-    LOW: 'badge-info', MEDIUM: 'badge-warning', HIGH: 'badge-error', CRITICAL: 'badge-critical',
+  private readonly severityVariants: Record<string, string> = {
+    LOW: 'success', MEDIUM: 'warning', HIGH: 'error', CRITICAL: 'critical',
   };
-
-  constructor(private svc: AdminService) {}
+  private readonly statusVariants: Record<string, string> = {
+    OPEN: 'warning', REVIEWING: 'info',
+    CLOSED_FALSE_POSITIVE: 'neutral', CLOSED_CONFIRMED: 'error', SUPPRESSED: 'neutral',
+  };
 
   ngOnInit() { this.loadAlerts(); this.loadCases(); }
   ngOnDestroy() { this.destroy$.next(); this.destroy$.complete(); }
@@ -52,8 +55,10 @@ export class FraudAlertsComponent implements OnInit, OnDestroy {
     this.loading = true;
     this.svc.listFraudAlerts(this.filterStatus || undefined, this.filterSeverity || undefined, this.page, this.pageSize)
       .pipe(takeUntil(this.destroy$))
-      .subscribe({ next: r => { this.alerts = r.content; this.total = r.totalElements; this.loading = false; },
-                   error: () => { this.loading = false; } });
+      .subscribe({
+        next: r => { this.alerts = r.content; this.total = r.totalElements; this.loading = false; },
+        error: () => { this.loading = false; },
+      });
   }
 
   loadCases() {
@@ -94,11 +99,11 @@ export class FraudAlertsComponent implements OnInit, OnDestroy {
   openCreateCase() { this.newCaseTitle = ''; this.newCaseRisk = 'MEDIUM'; this.showCreateCaseModal = true; }
   confirmCreateCase() {
     if (!this.newCaseTitle) return;
-    const customerId = this.selected?.customerId;
-    this.svc.createFraudCase(this.newCaseTitle, customerId, this.newCaseRisk, '')
+    this.svc.createFraudCase(this.newCaseTitle, this.selected?.customerId, this.newCaseRisk, '')
       .subscribe({ next: () => { this.showCreateCaseModal = false; this.loadCases(); } });
   }
 
-  severityClass(s: string) { return this.severityColors[s] ?? 'badge-neutral'; }
-  totalPages() { return Math.ceil(this.total / this.pageSize); }
+  severityChip(s: string) { return this.severityVariants[s] ?? 'neutral'; }
+  statusChip(s: string)   { return this.statusVariants[s]   ?? 'neutral'; }
+  totalPages() { return Math.ceil(this.total / this.pageSize) || 1; }
 }

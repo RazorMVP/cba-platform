@@ -1,33 +1,39 @@
-<div class="page-shell">
+<div class="page">
   <div class="page-header">
-    <div>
-      <h1 class="page-title">Blacklist / Sanctions</h1>
-      <p class="page-subtitle">Blocked entities — customers, accounts, IDs, names, phones, emails</p>
+    <div class="page-header__title">
+      <span class="material-icons">block</span>
+      Blacklist / Sanctions
     </div>
-    <button class="btn-primary" (click)="openAdd()">+ Add Entry</button>
+    <div class="page-header__actions">
+      <button class="btn-primary" (click)="openAdd()">+ Add Entry</button>
+    </div>
   </div>
 
-  <!-- Filters -->
-  <div class="card mb-4 p-4 flex gap-3 flex-wrap items-center">
-    <input class="form-input w-56" [(ngModel)]="searchQuery"
+  <div class="filter-bar">
+    <input class="form-input filter-input" [(ngModel)]="searchQuery"
            (ngModelChange)="onSearch($event)" placeholder="Search by value…" />
-    <select class="form-input w-48" [(ngModel)]="filterEntityType" (change)="applyFilters()">
+    <select class="form-input" style="width:200px" [(ngModel)]="filterEntityType" (change)="applyFilters()">
       <option value="">All Entity Types</option>
       @for (t of entityTypes; track t) { <option [value]="t">{{ t }}</option> }
     </select>
-    <select class="form-input w-32" [(ngModel)]="filterActive" (change)="applyFilters()">
+    <select class="form-input" style="width:120px" [(ngModel)]="filterActive" (change)="applyFilters()">
       <option value="">All</option>
       <option value="true">Active</option>
       <option value="false">Inactive</option>
     </select>
-    <button class="btn-secondary text-sm" (click)="clearFilters()">Clear</button>
+    <button class="btn-secondary" (click)="clearFilters()">Clear</button>
   </div>
 
-  <div class="card overflow-hidden">
+  <div class="card">
     @if (loading) {
-      <div class="p-8 text-center text-muted">Loading…</div>
+      <div class="skeleton-card">
+        @for (i of [1,2,3,4,5]; track i) { <div class="skeleton skeleton--row"></div> }
+      </div>
     } @else if (entries.length === 0) {
-      <div class="p-8 text-center text-muted">No blacklist entries found.</div>
+      <div class="empty-state">
+        <span class="material-icons">check_circle</span>
+        <p>No blacklist entries found.</p>
+      </div>
     } @else {
       <table class="data-table">
         <thead>
@@ -44,38 +50,36 @@
         </thead>
         <tbody>
           @for (e of entries; track e.id) {
-            <tr>
-              <td><span class="badge badge-neutral">{{ e.entityType }}</span></td>
-              <td class="font-mono text-xs">{{ e.entityValue }}</td>
-              <td class="text-muted text-xs">{{ e.source }}</td>
+            <tr class="table-row">
+              <td><span class="status-chip status-chip--neutral">{{ e.entityType }}</span></td>
+              <td class="mono small">{{ e.entityValue }}</td>
+              <td class="muted small">{{ e.source }}</td>
               <td>
                 @if (e.active) {
-                  <span class="badge badge-error">Active</span>
+                  <span class="status-chip status-chip--error">Active</span>
                 } @else {
-                  <span class="badge badge-neutral">Inactive</span>
+                  <span class="status-chip status-chip--neutral">Inactive</span>
                 }
               </td>
-              <td class="text-muted text-xs">{{ e.addedBy ?? '—' }}</td>
-              <td class="text-muted tabular-nums text-xs">{{ (e.expiresAt | date:'mediumDate') ?? 'Never' }}</td>
-              <td class="text-muted text-xs max-w-[200px] truncate">{{ e.reason ?? '—' }}</td>
-              <td>
-                <div class="flex gap-1">
-                  <button class="btn-ghost text-xs" (click)="openEdit(e)">Edit</button>
-                  @if (e.active) {
-                    <button class="btn-ghost text-xs text-red-600" (click)="openDeactivate(e)">Deactivate</button>
-                  }
-                </div>
+              <td class="muted small">{{ e.addedBy ?? '—' }}</td>
+              <td class="muted small tabular-nums">{{ (e.expiresAt | date:'d MMM yyyy') ?? 'Never' }}</td>
+              <td class="muted small" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ e.reason ?? '—' }}</td>
+              <td class="action-cell">
+                <button class="btn-ghost" style="font-size:.75rem" (click)="openEdit(e)">Edit</button>
+                @if (e.active) {
+                  <button class="btn-ghost btn-ghost--danger" style="font-size:.75rem;margin-left:.25rem" (click)="openDeactivate(e)">Deactivate</button>
+                }
               </td>
             </tr>
           }
         </tbody>
       </table>
-      <div class="flex items-center justify-between px-4 py-3 border-t border-neutral-100">
-        <span class="text-sm text-muted">{{ total }} total</span>
-        <div class="flex gap-2">
-          <button class="btn-ghost text-sm" [disabled]="page === 0" (click)="prevPage()">Previous</button>
-          <span class="text-sm text-muted">{{ page + 1 }} / {{ totalPages() }}</span>
-          <button class="btn-ghost text-sm" [disabled]="(page + 1) * pageSize >= total" (click)="nextPage()">Next</button>
+      <div class="table-footer table-footer--paged">
+        <span>{{ total }} entry/entries</span>
+        <div class="table-footer__nav">
+          <button class="btn-ghost" style="font-size:.8rem" [disabled]="page === 0" (click)="prevPage()">← Prev</button>
+          <span>{{ page + 1 }} / {{ totalPages() }}</span>
+          <button class="btn-ghost" style="font-size:.8rem" [disabled]="(page + 1) * pageSize >= total" (click)="nextPage()">Next →</button>
         </div>
       </div>
     }
@@ -87,17 +91,23 @@
   <div class="modal-backdrop" (click)="showAddModal = false"></div>
   <div class="modal">
     <div class="modal-header"><h3>Add Blacklist Entry</h3><button class="btn-ghost" (click)="showAddModal = false">✕</button></div>
-    <div class="modal-body space-y-3">
+    <div class="modal-body">
+      <label class="form-label">Entity Type</label>
       <select class="form-input w-full" [(ngModel)]="form.entityType">
         @for (t of entityTypes; track t) { <option [value]="t">{{ t }}</option> }
       </select>
-      <input class="form-input w-full" [(ngModel)]="form.entityValue" placeholder="Entity value (ID / name / phone…)" />
+      <label class="form-label" style="margin-top:.75rem">Entity Value</label>
+      <input class="form-input w-full" [(ngModel)]="form.entityValue" placeholder="ID / name / phone / email…" />
+      <label class="form-label" style="margin-top:.75rem">Source</label>
       <select class="form-input w-full" [(ngModel)]="form.source">
         @for (s of sources; track s) { <option [value]="s">{{ s }}</option> }
       </select>
-      <textarea class="form-input w-full h-20" [(ngModel)]="form.reason" placeholder="Reason for blacklisting"></textarea>
-      <input class="form-input w-full" type="datetime-local" [(ngModel)]="form.expiresAt" placeholder="Expiry date (optional)" />
-      <input class="form-input w-full" [(ngModel)]="form.addedBy" placeholder="Added by (username)" />
+      <label class="form-label" style="margin-top:.75rem">Reason</label>
+      <textarea class="form-input w-full" style="height:4rem" [(ngModel)]="form.reason" placeholder="Reason for blacklisting"></textarea>
+      <label class="form-label" style="margin-top:.75rem">Expiry Date (optional)</label>
+      <input class="form-input w-full" type="datetime-local" [(ngModel)]="form.expiresAt" />
+      <label class="form-label" style="margin-top:.75rem">Added By</label>
+      <input class="form-input w-full" [(ngModel)]="form.addedBy" placeholder="Username" />
     </div>
     <div class="modal-footer">
       <button class="btn-secondary" (click)="showAddModal = false">Cancel</button>
@@ -111,9 +121,11 @@
   <div class="modal-backdrop" (click)="showEditModal = false"></div>
   <div class="modal">
     <div class="modal-header"><h3>Edit Entry</h3><button class="btn-ghost" (click)="showEditModal = false">✕</button></div>
-    <div class="modal-body space-y-3">
-      <textarea class="form-input w-full h-20" [(ngModel)]="editReason" placeholder="Reason"></textarea>
-      <input class="form-input w-full" type="datetime-local" [(ngModel)]="editExpiresAt" placeholder="Expiry date (optional)" />
+    <div class="modal-body">
+      <label class="form-label">Reason</label>
+      <textarea class="form-input w-full" style="height:4rem" [(ngModel)]="editReason" placeholder="Reason"></textarea>
+      <label class="form-label" style="margin-top:.75rem">Expiry Date (optional)</label>
+      <input class="form-input w-full" type="datetime-local" [(ngModel)]="editExpiresAt" />
     </div>
     <div class="modal-footer">
       <button class="btn-secondary" (click)="showEditModal = false">Cancel</button>
@@ -132,7 +144,7 @@
     </div>
     <div class="modal-footer">
       <button class="btn-secondary" (click)="showDeactivateConfirm = false">Cancel</button>
-      <button class="btn-primary" style="background:#dc2626" (click)="confirmDeactivate()">Deactivate</button>
+      <button class="btn-danger" (click)="confirmDeactivate()">Deactivate</button>
     </div>
   </div>
 }

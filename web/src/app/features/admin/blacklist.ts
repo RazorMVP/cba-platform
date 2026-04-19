@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject } from 'rxjs';
@@ -13,8 +13,9 @@ import { AdminService, BlacklistEntry } from './admin.service';
   styleUrl: './blacklist.scss',
 })
 export class BlacklistComponent implements OnInit, OnDestroy {
-  private destroy$ = new Subject<void>();
-  private search$ = new Subject<string>();
+  private readonly svc = inject(AdminService);
+  private readonly destroy$ = new Subject<void>();
+  private readonly search$ = new Subject<string>();
 
   entries: BlacklistEntry[] = [];
   total = 0;
@@ -38,14 +39,12 @@ export class BlacklistComponent implements OnInit, OnDestroy {
   readonly entityTypes = ['CUSTOMER', 'ACCOUNT_NUMBER', 'NATIONAL_ID', 'NAME', 'PHONE', 'EMAIL', 'IP_ADDRESS'];
   readonly sources = ['INTERNAL', 'OFAC', 'UN', 'EU', 'LOCAL_PEP'];
 
-  constructor(private svc: AdminService) {}
-
   ngOnInit() {
     this.loadEntries();
     this.search$.pipe(
       debounceTime(300), distinctUntilChanged(),
       switchMap(q => this.svc.searchBlacklist(q)),
-      takeUntil(this.destroy$)
+      takeUntil(this.destroy$),
     ).subscribe(r => { this.entries = r; this.total = r.length; });
   }
   ngOnDestroy() { this.destroy$.next(); this.destroy$.complete(); }
@@ -55,8 +54,10 @@ export class BlacklistComponent implements OnInit, OnDestroy {
     const active = this.filterActive === '' ? undefined : this.filterActive === 'true';
     this.svc.listBlacklist(this.filterEntityType || undefined, active, this.page, this.pageSize)
       .pipe(takeUntil(this.destroy$))
-      .subscribe({ next: r => { this.entries = r.content; this.total = r.totalElements; this.loading = false; },
-                   error: () => { this.loading = false; } });
+      .subscribe({
+        next: r => { this.entries = r.content; this.total = r.totalElements; this.loading = false; },
+        error: () => { this.loading = false; },
+      });
   }
 
   onSearch(q: string) { if (q.length >= 2) { this.search$.next(q); } else if (q.length === 0) { this.loadEntries(); } }
@@ -91,5 +92,5 @@ export class BlacklistComponent implements OnInit, OnDestroy {
       .subscribe({ next: () => { this.showDeactivateConfirm = false; this.loadEntries(); } });
   }
 
-  totalPages() { return Math.ceil(this.total / this.pageSize); }
+  totalPages() { return Math.ceil(this.total / this.pageSize) || 1; }
 }

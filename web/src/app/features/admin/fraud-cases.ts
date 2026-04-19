@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject } from 'rxjs';
@@ -13,7 +13,8 @@ import { AdminService, FraudCase } from './admin.service';
   styleUrl: './fraud-cases.scss',
 })
 export class FraudCasesComponent implements OnInit, OnDestroy {
-  private destroy$ = new Subject<void>();
+  private readonly svc = inject(AdminService);
+  private readonly destroy$ = new Subject<void>();
 
   cases: FraudCase[] = [];
   total = 0;
@@ -37,16 +38,12 @@ export class FraudCasesComponent implements OnInit, OnDestroy {
   newRisk = 'MEDIUM';
   newAssignedTo = '';
 
-  readonly statusColors: Record<string, string> = {
-    OPEN: 'badge-warning',
-    UNDER_INVESTIGATION: 'badge-info',
-    CLOSED: 'badge-success',
+  private readonly statusVariants: Record<string, string> = {
+    OPEN: 'warning', UNDER_INVESTIGATION: 'info', CLOSED: 'neutral',
   };
-  readonly riskColors: Record<string, string> = {
-    LOW: 'badge-success', MEDIUM: 'badge-warning', HIGH: 'badge-error', CRITICAL: 'badge-error',
+  private readonly riskVariants: Record<string, string> = {
+    LOW: 'success', MEDIUM: 'warning', HIGH: 'error', CRITICAL: 'critical',
   };
-
-  constructor(private svc: AdminService) {}
 
   ngOnInit() { this.loadCases(); }
   ngOnDestroy() { this.destroy$.next(); this.destroy$.complete(); }
@@ -55,8 +52,10 @@ export class FraudCasesComponent implements OnInit, OnDestroy {
     this.loading = true;
     this.svc.listFraudCases(this.filterStatus || undefined, this.filterRisk || undefined, this.page, this.pageSize)
       .pipe(takeUntil(this.destroy$))
-      .subscribe({ next: r => { this.cases = r.content; this.total = r.totalElements; this.loading = false; },
-                   error: () => { this.loading = false; } });
+      .subscribe({
+        next: r => { this.cases = r.content; this.total = r.totalElements; this.loading = false; },
+        error: () => { this.loading = false; },
+      });
   }
 
   applyFilters() { this.page = 0; this.loadCases(); }
@@ -87,7 +86,7 @@ export class FraudCasesComponent implements OnInit, OnDestroy {
       .subscribe({ next: () => { this.showCreateModal = false; this.loadCases(); } });
   }
 
-  statusClass(s: string) { return this.statusColors[s] ?? 'badge-neutral'; }
-  riskClass(r: string) { return this.riskColors[r] ?? 'badge-neutral'; }
-  totalPages() { return Math.ceil(this.total / this.pageSize); }
+  statusChip(s: string) { return this.statusVariants[s] ?? 'neutral'; }
+  riskChip(r: string)   { return this.riskVariants[r]   ?? 'neutral'; }
+  totalPages() { return Math.ceil(this.total / this.pageSize) || 1; }
 }

@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 97 — 2026-04-19)
+## Confirmed Platform Versions (Session 98 — 2026-04-19)
 
 These are the verified-working versions for both production components. Update this table whenever a dependency is upgraded.
 
@@ -21,7 +21,7 @@ These are the verified-working versions for both production components. Update t
 | **PostgreSQL** | 16 | Via Docker; schema managed by Flyway |
 | **AWS SDK v2 S3** | 2.26.12 | Optional — for S3/MinIO/GCS image storage |
 | **thumbnailator** | 0.4.20 | Server-side image resize for `ClientImageService` — max 500×500, JPEG output |
-| **Last git commit** | `171a1ac` | Session 97 — in-app notifications + push device registry |
+| **Last git commit** | `b7cf39c` | Session 98 — login history + compliance reports (Module 7) |
 
 ### Angular Web App (`web/`)
 
@@ -34,7 +34,7 @@ These are the verified-working versions for both production components. Update t
 | **TypeScript** | 5.9.x | `~5.9.2` pinned |
 | **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma) |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `171a1ac` | Session 97 — in-app notifications + push device registry |
+| **Last git commit** | `b7cf39c` | Session 98 — login history + compliance reports (Module 7) |
 
 > **Session 66 CI fixes**: Angular 21 uses Vitest (not Karma) — `--browsers=ChromeHeadless` and `--code-coverage` are invalid flags. `vercel deploy --prebuilt` requires `.vercel/output/` from `vercel build`, not `dist/` from `ng build`. All three issues fixed; CI pipeline and Vercel production deployment now fully green.
 

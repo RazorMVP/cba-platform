@@ -99,23 +99,23 @@ _None — all Phase 1 backend modules are now complete._
 **Backend (`backend/`):**
 | Component | Version | Git ref |
 |-----------|---------|---------|
-| Spring Boot | 3.5.0 | pending push |
-| Java | 21 | pending push |
-| Application artifact | cba-backend 0.1.0-SNAPSHOT | pending push |
-| Keycloak admin client | 26.0.5 | pending push |
-| springdoc-openapi | 2.8.6 | pending push |
-| Lombok | 1.18.38 | pending push |
-| PostgreSQL | 16 (Docker) | pending push |
+| Spring Boot | 3.5.0 | `b7cf39c` |
+| Java | 21 | `b7cf39c` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `b7cf39c` |
+| Keycloak admin client | 26.0.5 | `b7cf39c` |
+| springdoc-openapi | 2.8.6 | `b7cf39c` |
+| Lombok | 1.18.38 | `b7cf39c` |
+| PostgreSQL | 16 (Docker) | `b7cf39c` |
 
 **Angular Web App (`web/`):**
 | Component | Version | Git ref |
 |-----------|---------|---------|
-| Angular | 21.2.x | pending push |
-| Angular CLI | 21.2.7 | pending push |
-| PrimeNG | 21.0.x | pending push |
-| RxJS | 7.8.x | pending push |
-| TypeScript | 5.9.x | pending push |
-| Vercel deployment | cba-web-nine.vercel.app | pending push |
+| Angular | 21.2.x | `b7cf39c` |
+| Angular CLI | 21.2.7 | `b7cf39c` |
+| PrimeNG | 21.0.x | `b7cf39c` |
+| RxJS | 7.8.x | `b7cf39c` |
+| TypeScript | 5.9.x | `b7cf39c` |
+| Vercel deployment | cba-web-nine.vercel.app | `b7cf39c` |
 
 ### Session 97 — 2026-04-19
 **Module 9 gap closure: in-app notification feed + push device registry — global feed table, per-user read horizon, bell icon component in topbar, admin "In-App Feed" tab. (commit `171a1ac`)**

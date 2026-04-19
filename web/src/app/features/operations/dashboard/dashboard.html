@@ -150,4 +150,104 @@
     </div>
   </div>
 
+  <!-- Analytics row: Deposits + Repayments -->
+  <div class="analytics-grid">
+
+    <!-- Deposit Analytics -->
+    <div class="card">
+      <div class="card__header">
+        <div>
+          <div class="card__title">Deposit Portfolio</div>
+          <div class="card__subtitle">Active accounts by type — current month</div>
+        </div>
+        <a routerLink="/operations/accounts" class="card__action">View accounts →</a>
+      </div>
+      <div class="card__body">
+        @if (depositAnalytics) {
+          <div class="deposit-type-grid">
+            <div class="deposit-type-cell">
+              <span class="deposit-type-label">Savings</span>
+              <span class="deposit-type-count">{{ depositAnalytics.savingsCount }}</span>
+              <span class="deposit-type-balance muted">{{ fmt(depositAnalytics.savingsBalance) }}</span>
+            </div>
+            <div class="deposit-type-cell">
+              <span class="deposit-type-label">Checking</span>
+              <span class="deposit-type-count">{{ depositAnalytics.checkingCount }}</span>
+              <span class="deposit-type-balance muted">{{ fmt(depositAnalytics.checkingBalance) }}</span>
+            </div>
+            <div class="deposit-type-cell">
+              <span class="deposit-type-label">Fixed Deposit</span>
+              <span class="deposit-type-count">{{ depositAnalytics.fixedDepositCount }}</span>
+              <span class="deposit-type-balance muted">{{ fmt(depositAnalytics.fixedDepositBalance) }}</span>
+            </div>
+          </div>
+          <div class="analytics-stats">
+            <div class="analytics-stat">
+              <span class="analytics-stat-label">New this month</span>
+              <span class="analytics-stat-value">{{ depositAnalytics.newThisMonth }}</span>
+            </div>
+            <div class="analytics-stat">
+              <span class="analytics-stat-label">Avg balance</span>
+              <span class="analytics-stat-value">{{ fmt(depositAnalytics.averageBalance) }}</span>
+            </div>
+          </div>
+        } @else {
+          <p class="empty-list">Loading deposit analytics…</p>
+        }
+      </div>
+    </div>
+
+    <!-- Repayment Analytics -->
+    <div class="card">
+      <div class="card__header">
+        <div>
+          <div class="card__title">Repayment Performance</div>
+          <div class="card__subtitle">Collection metrics — current month</div>
+        </div>
+        <a routerLink="/operations/loans" class="card__action">View loans →</a>
+      </div>
+      <div class="card__body">
+        @if (repaymentAnalytics) {
+          <div class="collection-rate-row">
+            <span class="collection-rate-label">Collection rate</span>
+            <span class="collection-rate-value" [style.color]="collectionBarColor(repaymentAnalytics.collectionRate)">
+              {{ repaymentAnalytics.collectionRate }}%
+            </span>
+          </div>
+          <div class="progress-track" style="margin-bottom: 16px;">
+            <div class="progress-fill"
+              [style.width.%]="repaymentAnalytics.collectionRate"
+              [style.background]="collectionBarColor(repaymentAnalytics.collectionRate)">
+            </div>
+          </div>
+          <div class="analytics-stats">
+            <div class="analytics-stat">
+              <span class="analytics-stat-label">Installments due</span>
+              <span class="analytics-stat-value">{{ repaymentAnalytics.installmentsDueThisMonth }}</span>
+            </div>
+            <div class="analytics-stat">
+              <span class="analytics-stat-label">Paid</span>
+              <span class="analytics-stat-value">{{ repaymentAnalytics.installmentsPaidThisMonth }}</span>
+            </div>
+            <div class="analytics-stat">
+              <span class="analytics-stat-label">Amount due</span>
+              <span class="analytics-stat-value">{{ fmt(repaymentAnalytics.amountDueThisMonth) }}</span>
+            </div>
+            <div class="analytics-stat">
+              <span class="analytics-stat-label">Collected</span>
+              <span class="analytics-stat-value">{{ fmt(repaymentAnalytics.amountCollectedThisMonth) }}</span>
+            </div>
+          </div>
+          <div class="overdue-banner" [class.overdue-banner--warn]="repaymentAnalytics.overdueInstallmentCount > 0">
+            <span>Overdue installments</span>
+            <span><strong>{{ repaymentAnalytics.overdueInstallmentCount }}</strong> · {{ fmt(repaymentAnalytics.overdueBalance) }}</span>
+          </div>
+        } @else {
+          <p class="empty-list">Loading repayment analytics…</p>
+        }
+      </div>
+    </div>
+
+  </div>
+
 </div>

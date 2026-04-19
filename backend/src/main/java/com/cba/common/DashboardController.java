@@ -2,10 +2,12 @@ package com.cba.common;
 
 import com.cba.account.AccountRepository;
 import com.cba.account.AccountStatus;
+import com.cba.account.AccountType;
 import com.cba.account.TransactionRepository;
 import com.cba.common.response.ApiResponse;
 import com.cba.customer.CustomerRepository;
 import com.cba.customer.KycStatus;
+import com.cba.loan.LoanRepaymentScheduleRepository;
 import com.cba.loan.LoanRepository;
 import com.cba.loan.LoanStatus;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,26 +20,32 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.temporal.TemporalAdjusters;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/dashboard")
 @Tag(name = "Dashboard", description = "Real-time KPI and analytics endpoints")
 public class DashboardController {
 
-    private final CustomerRepository    customerRepo;
-    private final LoanRepository        loanRepo;
-    private final AccountRepository     accountRepo;
-    private final TransactionRepository transactionRepo;
+    private final CustomerRepository               customerRepo;
+    private final LoanRepository                   loanRepo;
+    private final AccountRepository                accountRepo;
+    private final TransactionRepository            transactionRepo;
+    private final LoanRepaymentScheduleRepository  scheduleRepo;
 
     public DashboardController(CustomerRepository customerRepo,
                                LoanRepository loanRepo,
                                AccountRepository accountRepo,
-                               TransactionRepository transactionRepo) {
+                               TransactionRepository transactionRepo,
+                               LoanRepaymentScheduleRepository scheduleRepo) {
         this.customerRepo    = customerRepo;
         this.loanRepo        = loanRepo;
         this.accountRepo     = accountRepo;
         this.transactionRepo = transactionRepo;
+        this.scheduleRepo    = scheduleRepo;
     }
 
     @GetMapping
@@ -117,6 +125,80 @@ public class DashboardController {
         return ResponseEntity.ok(ApiResponse.ok(portfolio));
     }
 
+    @GetMapping("/analytics/deposits")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
+    @Transactional(readOnly = true)
+    @Operation(summary = "Deposit portfolio breakdown by account type with balance totals")
+    public ResponseEntity<ApiResponse<DepositAnalyticsResponse>> getDepositAnalytics() {
+
+        LocalDate today     = LocalDate.now();
+        LocalDate monthStart = today.with(TemporalAdjusters.firstDayOfMonth());
+
+        List<Object[]> rows = accountRepo.countAndSumByType();
+
+        long savingsCount = 0, checkingCount = 0, fixedCount = 0;
+        BigDecimal savingsBalance = BigDecimal.ZERO,
+                   checkingBalance = BigDecimal.ZERO,
+                   fixedBalance = BigDecimal.ZERO;
+
+        for (Object[] row : rows) {
+            AccountType type    = (AccountType) row[0];
+            long        count   = (Long) row[1];
+            BigDecimal  balance = (BigDecimal) row[2];
+            switch (type) {
+                case SAVINGS       -> { savingsCount = count;  savingsBalance = balance; }
+                case CHECKING      -> { checkingCount = count; checkingBalance = balance; }
+                case FIXED_DEPOSIT -> { fixedCount = count;    fixedBalance = balance; }
+            }
+        }
+
+        long       newThisMonth  = accountRepo.countOpenedBetween(monthStart, today);
+        BigDecimal avgBalance    = accountRepo.avgActiveBalance();
+
+        var response = new DepositAnalyticsResponse(
+                savingsCount, savingsBalance,
+                checkingCount, checkingBalance,
+                fixedCount, fixedBalance,
+                newThisMonth,
+                avgBalance != null ? avgBalance.setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO
+        );
+        return ResponseEntity.ok(ApiResponse.ok(response));
+    }
+
+    @GetMapping("/analytics/repayments")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
+    @Transactional(readOnly = true)
+    @Operation(summary = "Repayment collection performance metrics for the current month")
+    public ResponseEntity<ApiResponse<RepaymentAnalyticsResponse>> getRepaymentAnalytics() {
+
+        LocalDate today      = LocalDate.now();
+        LocalDate monthStart = today.with(TemporalAdjusters.firstDayOfMonth());
+        LocalDate monthEnd   = today.with(TemporalAdjusters.lastDayOfMonth());
+
+        long       totalDue       = scheduleRepo.countDueBetween(monthStart, monthEnd);
+        long       totalPaid      = scheduleRepo.countPaidBetween(monthStart, monthEnd);
+        BigDecimal amountDue      = scheduleRepo.sumDueBetween(monthStart, monthEnd);
+        BigDecimal amountCollected= scheduleRepo.sumCollectedBetween(monthStart, monthEnd);
+        long       overdueCount   = scheduleRepo.countOverdue();
+        BigDecimal overdueBalance = scheduleRepo.sumOverdueBalance();
+
+        double collectionRate = (amountDue.compareTo(BigDecimal.ZERO) == 0)
+                ? 0.0
+                : amountCollected.multiply(BigDecimal.valueOf(100))
+                                 .divide(amountDue, 1, RoundingMode.HALF_UP)
+                                 .doubleValue();
+
+        var response = new RepaymentAnalyticsResponse(
+                totalDue, totalPaid,
+                amountDue.setScale(2, RoundingMode.HALF_UP),
+                amountCollected.setScale(2, RoundingMode.HALF_UP),
+                collectionRate,
+                overdueCount,
+                overdueBalance.setScale(2, RoundingMode.HALF_UP)
+        );
+        return ResponseEntity.ok(ApiResponse.ok(response));
+    }
+
     private double round(double v) {
         return Math.round(v * 10.0) / 10.0;
     }
@@ -140,5 +222,26 @@ public class DashboardController {
             long countActive,
             long countInArrears,
             long countWrittenOff
+    ) {}
+
+    public record DepositAnalyticsResponse(
+            long savingsCount,
+            BigDecimal savingsBalance,
+            long checkingCount,
+            BigDecimal checkingBalance,
+            long fixedDepositCount,
+            BigDecimal fixedDepositBalance,
+            long newThisMonth,
+            BigDecimal averageBalance
+    ) {}
+
+    public record RepaymentAnalyticsResponse(
+            long installmentsDueThisMonth,
+            long installmentsPaidThisMonth,
+            BigDecimal amountDueThisMonth,
+            BigDecimal amountCollectedThisMonth,
+            double collectionRate,
+            long overdueInstallmentCount,
+            BigDecimal overdueBalance
     ) {}
 }

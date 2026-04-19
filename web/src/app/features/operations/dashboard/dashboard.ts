@@ -3,7 +3,7 @@ import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { KpiCardComponent } from '../../../shared/components/kpi-card/kpi-card';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge';
-import { DashboardService, DashboardKpi, LoanPortfolioItem, RecentTransaction, KycPendingCustomer } from './dashboard.service';
+import { DashboardService, DashboardKpi, LoanPortfolioItem, RecentTransaction, KycPendingCustomer, DepositAnalytics, RepaymentAnalytics } from './dashboard.service';
 
 const AVATAR_COLORS = ['#3b82f6','#16a34a','#7c3aed','#ea580c','#db2777','#0891b2'];
 
@@ -20,6 +20,8 @@ export class DashboardComponent implements OnInit {
   kpis: Partial<DashboardKpi> = {};
   recentTransactions: RecentTransaction[] = [];
   kycPending: KycPendingCustomer[] = [];
+  depositAnalytics: DepositAnalytics | null = null;
+  repaymentAnalytics: RepaymentAnalytics | null = null;
   loading = true;
 
   readonly today = new Date();
@@ -39,6 +41,8 @@ export class DashboardComponent implements OnInit {
     this.svc.getLoanPortfolio().subscribe(p => this.loanPortfolio = p);
     this.svc.getRecentTransactions().subscribe(txns => this.recentTransactions = txns);
     this.svc.getKycPendingCustomers().subscribe(list => this.kycPending = list);
+    this.svc.getDepositAnalytics().subscribe(d => this.depositAnalytics = d);
+    this.svc.getRepaymentAnalytics().subscribe(r => this.repaymentAnalytics = r);
   }
 
   avatarColor(index: number): string {
@@ -60,6 +64,16 @@ export class DashboardComponent implements OnInit {
   get depositBalanceFormatted(): string {
     const bal = (this.kpis as DashboardKpi).depositBalance;
     if (!bal) return '—';
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(bal));
+    return this.fmt(Number(bal));
+  }
+
+  fmt(v: number): string {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v);
+  }
+
+  collectionBarColor(rate: number): string {
+    if (rate >= 90) return '#16a34a';
+    if (rate >= 70) return '#ca8a04';
+    return '#dc2626';
   }
 }

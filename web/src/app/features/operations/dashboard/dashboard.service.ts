@@ -29,6 +29,27 @@ export interface RecentTransaction {
   createdAt: string;
 }
 
+export interface DepositAnalytics {
+  savingsCount: number;
+  savingsBalance: number;
+  checkingCount: number;
+  checkingBalance: number;
+  fixedDepositCount: number;
+  fixedDepositBalance: number;
+  newThisMonth: number;
+  averageBalance: number;
+}
+
+export interface RepaymentAnalytics {
+  installmentsDueThisMonth: number;
+  installmentsPaidThisMonth: number;
+  amountDueThisMonth: number;
+  amountCollectedThisMonth: number;
+  collectionRate: number;
+  overdueInstallmentCount: number;
+  overdueBalance: number;
+}
+
 export interface KycPendingCustomer {
   id: string;
   fullName: string;
@@ -81,6 +102,27 @@ export class DashboardService {
         { label: '60–90 days past due',  pct: 0, color: '#ea580c' },
         { label: '90+ days / Write-off', pct: 0, color: '#dc2626' },
       ]))
+    );
+  }
+
+  getDepositAnalytics(): Observable<DepositAnalytics> {
+    return this.api.get<DepositAnalytics>('/dashboard/analytics/deposits').pipe(
+      catchError(() => of({
+        savingsCount: 0, savingsBalance: 0,
+        checkingCount: 0, checkingBalance: 0,
+        fixedDepositCount: 0, fixedDepositBalance: 0,
+        newThisMonth: 0, averageBalance: 0,
+      }))
+    );
+  }
+
+  getRepaymentAnalytics(): Observable<RepaymentAnalytics> {
+    return this.api.get<RepaymentAnalytics>('/dashboard/analytics/repayments').pipe(
+      catchError(() => of({
+        installmentsDueThisMonth: 0, installmentsPaidThisMonth: 0,
+        amountDueThisMonth: 0, amountCollectedThisMonth: 0,
+        collectionRate: 0, overdueInstallmentCount: 0, overdueBalance: 0,
+      }))
     );
   }
 

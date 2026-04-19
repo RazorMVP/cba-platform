@@ -43,4 +43,15 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
            "AND (a.lastTransactionDate IS NULL OR a.lastTransactionDate < :cutoffDate) " +
            "AND a.openedDate < :cutoffDate")
     Page<Account> findCandidatesForDormancy(LocalDate cutoffDate, Pageable pageable);
+
+    // ── Deposit analytics ─────────────────────────────────────────────
+
+    @Query("SELECT a.accountType, COUNT(a), COALESCE(SUM(a.balance), 0) FROM Account a WHERE a.status = 'ACTIVE' GROUP BY a.accountType")
+    java.util.List<Object[]> countAndSumByType();
+
+    @Query("SELECT COUNT(a) FROM Account a WHERE a.openedDate >= :start AND a.openedDate <= :end")
+    long countOpenedBetween(LocalDate start, LocalDate end);
+
+    @Query("SELECT COALESCE(AVG(a.balance), 0) FROM Account a WHERE a.status = 'ACTIVE'")
+    java.math.BigDecimal avgActiveBalance();
 }

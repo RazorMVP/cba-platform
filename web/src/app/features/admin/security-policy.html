@@ -104,13 +104,13 @@
               <span class="field-label">{{ rule.label }}</span>
               @if (editMode()) {
                 <label class="toggle-switch">
-                  <input type="checkbox" [checked]="form()[rule.key]"
+                  <input type="checkbox" [checked]="$any(form())[rule.key]"
                          (change)="setForm($any(rule.key), $any($event.target).checked)">
                   <span class="slider"></span>
                 </label>
               } @else {
-                <span class="badge" [class.success]="p[rule.key]" [class.neutral]="!p[rule.key]">
-                  {{ p[rule.key] ? 'Required' : 'Optional' }}
+                <span class="badge" [class.success]="$any(p)[rule.key]" [class.neutral]="!$any(p)[rule.key]">
+                  {{ $any(p)[rule.key] ? 'Required' : 'Optional' }}
                 </span>
               }
             </div>

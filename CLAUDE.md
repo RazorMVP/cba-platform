@@ -173,7 +173,12 @@ fineract-cob            — Close of Business batch processing
 - Lazy-loaded feature modules with resolvers (see `openMF/web-app` for patterns)
 - Chart.js / ng2-charts for dashboards
 
-### Mobile Frontend — Flutter 3+
+### Mobile Frontend — Flutter 3+ ❌ NOT YET BUILT (Phase 3)
+
+> **Status:** The `mobile/` directory is empty. Flutter Phase 3 has not been started.
+> The backend is fully ready: push notification registry (`push_devices` table, FCM token endpoints), self-service API (`/api/v1/self/*`), and Keycloak mobile client (`cba-mobile`, public + PKCE) are all live.
+
+**Planned stack when Phase 3 begins:**
 - Feature-first folder structure: `features/{auth,dashboard,accounts,loans,payments,profile}/`
 - Riverpod 2.x for state management
 - flutter_appauth for OIDC / Keycloak
@@ -2598,12 +2603,11 @@ http://localhost:8025          # MailHog (dev email)
 # Customer: customer@cba.com / Customer@123
 ```
 
-### Flutter Mobile
-```bash
-cd mobile
-flutter pub get
-flutter run    # Connects to localhost:8080 in dev mode
-```
+### Flutter Mobile — ❌ NOT YET BUILT
+
+> The `mobile/` directory is empty. Phase 3 has not been started.
+> Do not attempt `flutter pub get` or `flutter run` — there is no app to run.
+> Start Phase 3 by reading `.claude/skills/cba/references/stack.md` (Flutter section) and scaffolding with `flutter create cba_mobile --org com.cba --platforms android,ios`.
 
 ---
 

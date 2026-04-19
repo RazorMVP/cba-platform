@@ -57,6 +57,52 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 104 — 2026-04-19
+**Documentation housekeeping: Flutter mobile app status clearly marked as ❌ NOT YET BUILT in CLAUDE.md and cba-log.md; stale Not Yet Built table corrected.**
+
+#### New/Updated Files
+
+| File         | Change                                                                      |
+|--------------|-----------------------------------------------------------------------------|
+| `CLAUDE.md`  | Flutter Mobile section annotated NOT YET BUILT; Phase 3 start guide added   |
+| `cba-log.md` | Not Yet Built table corrected; only Flutter remains as unbuilt Phase 3 item |
+
+#### Key Patterns / Decisions
+
+- **Only one item is genuinely unbuilt**: Docker Compose, Kubernetes manifests, and Keycloak realm were all completed in Session 42. The only outstanding Phase 3 item is the Flutter mobile app.
+- **Backend is Phase 3 ready**: `push_devices` table + FCM token endpoints (Session 97), `/api/v1/self/*` self-service API, and `cba-mobile` Keycloak client are all live and waiting.
+- **Phase 3 entry point**: `flutter create cba_mobile --org com.cba --platforms android,ios` then follow `.claude/skills/cba/references/stack.md` Flutter section.
+
+#### Build Verification
+
+- No code changes — documentation only
+- `git push` unblocked (no Java or Angular files modified)
+
+#### Confirmed Platform Versions
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `96929c6` |
+| Java | 21 | `96929c6` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `96929c6` |
+| Keycloak admin client | 26.0.5 | `96929c6` |
+| springdoc-openapi | 2.8.6 | `96929c6` |
+| Lombok | 1.18.38 | `96929c6` |
+| PostgreSQL | 16 (Docker) | `96929c6` |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `b83cf61` |
+| Angular CLI | 21.2.7 | `b83cf61` |
+| PrimeNG | 21.0.x | `b83cf61` |
+| RxJS | 7.8.x | `b83cf61` |
+| TypeScript | 5.9.x | `b83cf61` |
+| Vercel deployment ID | `dpl_EBVqJXFjBNTrHE8kpQVGRUdPPK9e` | `b83cf61` |
+| Production URL | cba-web-nine.vercel.app | `b83cf61` |
+
+---
+
 ### Session 103 — 2026-04-19
 **Two Angular UI layout fixes: loans pipeline cards forced into a single row; dashboard KPI card height reduced via dashboard-scoped override.**
 

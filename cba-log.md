@@ -59,6 +59,62 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 97 — 2026-04-19
+**Module 9 gap closure: in-app notification feed + push device registry — global feed table, per-user read horizon, bell icon component in topbar, admin "In-App Feed" tab. (commit `171a1ac`)**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/…/notification/InAppNotification.java` | NEW — JPA entity; `Type` enum (13 values); `Severity` enum |
+| `backend/…/notification/UserNotificationPref.java` | NEW — per-user `lastReadAt` horizon entity |
+| `backend/…/notification/PushDevice.java` | NEW — FCM device token entity; Platform enum (ANDROID/IOS/WEB) |
+| `backend/…/notification/InAppNotificationRepository.java` | NEW — paginated query + `countByCreatedAtAfter` |
+| `backend/…/notification/UserNotificationPrefRepository.java` | NEW |
+| `backend/…/notification/PushDeviceRepository.java` | NEW |
+| `backend/…/notification/InAppNotificationService.java` | NEW — push, getNotifications, getUnreadCount, markAllRead, device CRUD |
+| `backend/…/notification/InAppNotificationController.java` | NEW — 6 endpoints: inbox, unread-count, read-all, devices CRUD |
+| `backend/…/notification/NotificationEventListener.java` | MODIFIED — wired `inAppService.push()` for all account + loan events |
+| `backend/…/db/migration/V42__in_app_push_notifications.sql` | NEW — 3 tables + 4 seed notifications |
+| `web/…/layout/notification-bell/notification-bell.ts` | NEW — bell + dropdown; 30s polling; mark-all-read |
+| `web/…/layout/notification-bell/notification-bell.html` | NEW |
+| `web/…/layout/notification-bell/notification-bell.scss` | NEW |
+| `web/…/layout/notification-bell/notification-bell.service.ts` | NEW — getUnreadCount, getInbox, markAllRead |
+| `web/…/layout/topbar/topbar.ts` | MODIFIED — imports NotificationBellComponent |
+| `web/…/layout/topbar/topbar.html` | MODIFIED — replaces static button with `<app-notification-bell />` |
+| `web/…/features/admin/notifications.ts` | MODIFIED — added "feed" tab + InAppNotificationService injection |
+| `web/…/features/admin/notifications.html` | MODIFIED — "In-App Feed" tab panel with severity badges |
+
+#### Key Patterns / Decisions
+- **Global feed + `lastReadAt` horizon**: O(1) writes per event; no fan-out. Unread count = `COUNT WHERE createdAt > lastReadAt`. Mark-all-read = upsert `lastReadAt = now()`.
+- **30-second poll**: `interval(30_000).pipe(startWith(0), switchMap(...))` in bell component — no WebSocket needed for backoffice.
+- **`@keyframes spin`** not declared in component SCSS — already in `_design-system.scss`; avoids `ViewEncapsulation.Emulated` escape.
+
+#### Build Verification
+- `./mvnw compile -q` → clean (0 errors)
+- `npx ng build --configuration=production` → success (pre-existing loan-detail.scss budget warning only)
+
+#### Confirmed Platform Versions
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `171a1ac` |
+| Java | 21 | `171a1ac` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `171a1ac` |
+| Keycloak admin client | 26.0.5 | `171a1ac` |
+| springdoc-openapi | 2.8.6 | `171a1ac` |
+| Lombok | 1.18.38 | `171a1ac` |
+| PostgreSQL | 16 (Docker) | `171a1ac` |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `171a1ac` |
+| Angular CLI | 21.2.7 | `171a1ac` |
+| PrimeNG | 21.0.x | `171a1ac` |
+| RxJS | 7.8.x | `171a1ac` |
+| TypeScript | 5.9.x | `171a1ac` |
+| Production URL | cba-web-nine.vercel.app | `171a1ac` |
+
 ### Session 96 — 2026-04-19
 **Module 11 BI gap closure: deposit portfolio analytics + repayment collection performance — two new backend endpoints and two new Angular dashboard cards. All four dashboard analytics endpoints now live.**
 

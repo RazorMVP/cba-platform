@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 94 — 2026-04-18)
+## Confirmed Platform Versions (Session 97 — 2026-04-19)
 
 These are the verified-working versions for both production components. Update this table whenever a dependency is upgraded.
 
@@ -21,7 +21,7 @@ These are the verified-working versions for both production components. Update t
 | **PostgreSQL** | 16 | Via Docker; schema managed by Flyway |
 | **AWS SDK v2 S3** | 2.26.12 | Optional — for S3/MinIO/GCS image storage |
 | **thumbnailator** | 0.4.20 | Server-side image resize for `ClientImageService` — max 500×500, JPEG output |
-| **Last git commit** | `4a7bbdf` | Session 94 — DashboardController + repository count queries |
+| **Last git commit** | `171a1ac` | Session 97 — in-app notifications + push device registry |
 
 ### Angular Web App (`web/`)
 
@@ -34,7 +34,7 @@ These are the verified-working versions for both production components. Update t
 | **TypeScript** | 5.9.x | `~5.9.2` pinned |
 | **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma) |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `4a7bbdf` | Session 94 — DashboardController + repository count queries |
+| **Last git commit** | `171a1ac` | Session 97 — in-app notifications + push device registry |
 
 > **Session 66 CI fixes**: Angular 21 uses Vitest (not Karma) — `--browsers=ChromeHeadless` and `--code-coverage` are invalid flags. `vercel deploy --prebuilt` requires `.vercel/output/` from `vercel build`, not `dist/` from `ng build`. All three issues fixed; CI pipeline and Vercel production deployment now fully green.
 
@@ -3114,8 +3114,8 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | SMS Campaigns | ✅ Module 33 | ✅ `SmsCampaignsComponent` _(Session 73)_ | — |
 | Report Mailing Jobs | ✅ Module 34 | ✅ ReportMailingComponent | — |
 | Hooks (web / SMS webhook) | ✅ Module 28 | ✅ HooksComponent | — |
-| In-app notification center | ❌ Not implemented | ❌ Missing | ❌ |
-| Push notifications (mobile) | ❌ Not implemented | ❌ Missing (mobile only) | ❌ |
+| In-app notification center | ✅ Global feed + `lastReadAt` horizon; `InAppNotificationController` (inbox/unread-count/read-all); wired to loan+account events _(Session 97)_ | ✅ `NotificationBellComponent` in topbar (30s poll, mark-all-read); "In-App Feed" tab in admin Notifications _(Session 97)_ | ✅ |
+| Push notifications (mobile) | ✅ `push_devices` table + `PushDevice` entity + register/deregister/list endpoints; FCM token registry _(Session 97)_ | ❌ Mobile Flutter app not yet wired | ⚠️ |
 
 ---
 

@@ -16734,6 +16734,158 @@
       ]
     },
     {
+      "name": "41b \u00b7 In-App Notification Feed",
+      "item": [
+        {
+          "name": "Get Inbox (paginated)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/inbox?page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "notifications", "inbox"],
+              "query": [
+                { "key": "page", "value": "0", "description": "Page index (0-based)" },
+                { "key": "size", "value": "20", "description": "Page size" }
+              ]
+            },
+            "description": "Returns paginated list of in-app notifications (newest first). All authenticated roles."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\n      \"type\": \"LOAN_IN_ARREARS\",\n      \"severity\": \"WARNING\",\n      \"title\": \"Loan overdue — LN-000003\",\n      \"message\": \"Loan LN-000003 has overdue installments. Action required.\",\n      \"entityType\": \"LOAN\",\n      \"entityId\": \"uuid-of-loan\",\n      \"createdAt\": \"2026-04-19T08:00:00Z\"\n    }\n  ],\n  \"meta\": { \"page\": 0, \"size\": 20, \"total\": 4, \"totalPages\": 1 },\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Unread Count",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/inbox/unread-count",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "notifications", "inbox", "unread-count"]
+            },
+            "description": "Returns unread count for the calling user based on their lastReadAt horizon. Polled every 30 s by the topbar bell."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": { \"count\": 3 },\n  \"meta\": null,\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Mark All Read",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/inbox/read-all",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "notifications", "inbox", "read-all"]
+            },
+            "description": "Upserts user_notification_prefs.last_read_at = now(). Next unread-count call will return 0."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": null,\n  \"meta\": null,\n  \"errors\": []\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "41c \u00b7 Push Device Registry",
+      "item": [
+        {
+          "name": "Register / Refresh Device Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fcmToken\": \"fcm-token-string-from-firebase\",\n  \"platform\": \"ANDROID\",\n  \"deviceLabel\": \"Samsung Galaxy S24\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/devices",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "notifications", "devices"]
+            },
+            "description": "Upserts a device token by fcmToken (UNIQUE). Platform: ANDROID | IOS | WEB. Re-registering a known token refreshes lastSeenAt without creating duplicates."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": \"uuid\",\n    \"userId\": \"dev-bypass-admin\",\n    \"fcmToken\": \"fcm-token-string\",\n    \"platform\": \"ANDROID\",\n    \"deviceLabel\": \"Samsung Galaxy S24\",\n    \"active\": true,\n    \"registeredAt\": \"2026-04-19T09:00:00Z\",\n    \"lastSeenAt\": \"2026-04-19T09:00:00Z\"\n  },\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "List My Devices",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/devices",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "notifications", "devices"]
+            },
+            "description": "Lists all devices (active and inactive) registered by the calling user."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"uuid\",\n      \"userId\": \"dev-bypass-admin\",\n      \"platform\": \"ANDROID\",\n      \"deviceLabel\": \"Samsung Galaxy S24\",\n      \"active\": true,\n      \"registeredAt\": \"2026-04-19T09:00:00Z\"\n    }\n  ],\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Deregister Device",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/devices/:deviceId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "notifications", "devices", ":deviceId"],
+              "variable": [{ "key": "deviceId", "value": "uuid-of-device" }]
+            },
+            "description": "Soft-deletes device (active = false). Only the owning user can deregister their own device."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": null,\n  \"meta\": null,\n  \"errors\": []\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "42 \u00b7 Treasury",
       "item": [
         {

@@ -1,6 +1,8 @@
 package com.cba.system;
 
 import com.cba.common.exception.CbaException;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -10,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 
+@Tag(name = "Field Configuration", description = "Per-entity field visibility and validation rules — enable, disable or make fields mandatory for CLIENT, ADDRESS and LOAN entity types")
 @RestController
 @RequestMapping("/api/v1/fieldconfiguration")
 @RequiredArgsConstructor
@@ -17,14 +20,14 @@ public class FieldConfigurationController {
 
     private final FieldConfigurationRepository repo;
 
-    // GET /api/v1/fieldconfiguration — list all entity types with their field configs
+    @Operation(summary = "List all field configurations across all entity types")
     @GetMapping
     @Transactional(readOnly = true)
     public ResponseEntity<List<FieldConfiguration>> listAll() {
         return ResponseEntity.ok(repo.findAll());
     }
 
-    // GET /api/v1/fieldconfiguration/{entityType} — fields for a specific entity type
+    @Operation(summary = "List field configurations for a specific entity type")
     @GetMapping("/{entityType}")
     @Transactional(readOnly = true)
     public ResponseEntity<List<FieldConfiguration>> listByEntity(@PathVariable String entityType) {
@@ -33,7 +36,7 @@ public class FieldConfigurationController {
         );
     }
 
-    // GET /api/v1/fieldconfiguration/{entityType}/{fieldName}
+    @Operation(summary = "Get field configuration for a specific entity type and field name")
     @GetMapping("/{entityType}/{fieldName}")
     @Transactional(readOnly = true)
     public ResponseEntity<FieldConfiguration> getField(
@@ -46,7 +49,7 @@ public class FieldConfigurationController {
         );
     }
 
-    // PUT /api/v1/fieldconfiguration/{id} — update enabled/mandatory/label/order
+    @Operation(summary = "Update a field configuration entry (label, enabled, mandatory, order)")
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
@@ -63,7 +66,7 @@ public class FieldConfigurationController {
         return ResponseEntity.ok(repo.save(fc));
     }
 
-    // POST /api/v1/fieldconfiguration — add a custom field config entry (ADMIN)
+    @Operation(summary = "Add a custom field configuration entry")
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional
@@ -83,7 +86,7 @@ public class FieldConfigurationController {
         return ResponseEntity.status(201).body(repo.save(fc));
     }
 
-    // DELETE /api/v1/fieldconfiguration/{id} — remove a custom entry (ADMIN; seeded entries can also be removed)
+    @Operation(summary = "Delete a field configuration entry")
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional

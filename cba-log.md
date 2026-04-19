@@ -103,23 +103,23 @@ _None — all Phase 1 backend modules are now complete._
 **Backend (`backend/`):**
 | Component | Version | Git ref |
 |-----------|---------|---------|
-| Spring Boot | 3.5.0 | `pending-99` |
-| Java | 21 | `pending-99` |
-| Application artifact | cba-backend 0.1.0-SNAPSHOT | `pending-99` |
-| Keycloak admin client | 26.0.5 | `pending-99` |
-| springdoc-openapi | 2.8.6 | `pending-99` |
-| Lombok | 1.18.38 | `pending-99` |
-| PostgreSQL | 16 (Docker) | `pending-99` |
+| Spring Boot | 3.5.0 | `1ce9ef7` |
+| Java | 21 | `1ce9ef7` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `1ce9ef7` |
+| Keycloak admin client | 26.0.5 | `1ce9ef7` |
+| springdoc-openapi | 2.8.6 | `1ce9ef7` |
+| Lombok | 1.18.38 | `1ce9ef7` |
+| PostgreSQL | 16 (Docker) | `1ce9ef7` |
 
 **Angular Web App (`web/`):**
 | Component | Version | Git ref |
 |-----------|---------|---------|
-| Angular | 21.2.x | `pending-99` |
-| Angular CLI | 21.2.7 | `pending-99` |
-| PrimeNG | 21.0.x | `pending-99` |
-| RxJS | 7.8.x | `pending-99` |
-| TypeScript | 5.9.x | `pending-99` |
-| Vercel deployment | cba-web-nine.vercel.app | `pending-99` |
+| Angular | 21.2.x | `1ce9ef7` |
+| Angular CLI | 21.2.7 | `1ce9ef7` |
+| PrimeNG | 21.0.x | `1ce9ef7` |
+| RxJS | 7.8.x | `1ce9ef7` |
+| TypeScript | 5.9.x | `1ce9ef7` |
+| Vercel deployment | cba-web-nine.vercel.app | `1ce9ef7` |
 
 ### Session 98 — 2026-04-19
 **Module 7 gap closure: Login History + Compliance Reports — immutable login event log, 3 backend endpoints, Angular LoginHistoryComponent + ComplianceReportComponent, 4 compliance report endpoints.**

@@ -3219,6 +3219,125 @@
               "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/api/v1/payments/{{paymentId}}/reverse')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Post.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq.body = \"{\\\"reason\\\": \\\"Duplicate payment \\\\u2014 customer request\\\"}\"\nputs http.request(req).body"
             }
           ]
+        },
+        {
+          "name": "Get Account Payment History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/payments/accounts/:accountId?page=0&size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                "accounts",
+                ":accountId"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0",
+                  "description": "Page number (0-based)"
+                },
+                {
+                  "key": "size",
+                  "value": "20",
+                  "description": "Page size"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "accountId",
+                  "value": "{{account_id}}",
+                  "description": "Account UUID"
+                }
+              ]
+            },
+            "description": "Paginated list of all payments where the account is source or destination."
+          },
+          "response": []
+        },
+        {
+          "name": "Initiate External Payment (SWIFT/SEPA/ACH)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/payments/external",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                "external"
+              ]
+            },
+            "description": "Debits source account and records outbound external payment. Supports SWIFT, SEPA, and ACH networks. Actual network transmission is handled by the external payments gateway.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceAccountId\": \"{{account_id}}\",\n  \"amount\": 1500.0,\n  \"currencyCode\": \"USD\",\n  \"network\": \"SWIFT\",\n  \"beneficiaryName\": \"John Doe\",\n  \"beneficiaryIban\": \"GB29NWBK60161331926819\",\n  \"beneficiaryBic\": \"NWBKGB2L\",\n  \"beneficiaryBankName\": \"NatWest\",\n  \"beneficiaryCountryCode\": \"GB\",\n  \"chargeType\": \"SHA\",\n  \"description\": \"Invoice settlement\",\n  \"externalReference\": \"INV-2026-042\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List External Payments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/payments/external?page=0&size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                "external"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0",
+                  "description": "Page number (0-based)"
+                },
+                {
+                  "key": "size",
+                  "value": "20",
+                  "description": "Page size"
+                }
+              ]
+            },
+            "description": "Paginated list of all EXTERNAL_PAYMENT type records (SWIFT/SEPA/ACH), including full beneficiary detail fields."
+          },
+          "response": []
         }
       ]
     },
@@ -10333,6 +10452,57 @@
                 }
               ]
             }
+          },
+          "response": []
+        },
+        {
+          "name": "Export Report (CSV / XLSX / PDF)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/runreports/:reportName/export?format=xlsx&dateFrom=2026-01-01&dateTo=2026-04-19",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "runreports",
+                ":reportName",
+                "export"
+              ],
+              "query": [
+                {
+                  "key": "format",
+                  "value": "xlsx",
+                  "description": "Output format: csv | xlsx | pdf"
+                },
+                {
+                  "key": "dateFrom",
+                  "value": "2026-01-01",
+                  "description": "Example report param (varies per report)"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "2026-04-19",
+                  "description": "Example report param (varies per report)"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "reportName",
+                  "value": "ActiveLoans",
+                  "description": "Report name from /api/v1/reports"
+                }
+              ]
+            },
+            "description": "Exports the named report in the requested format. The 'format' param is stripped before SQL execution so it does not conflict with report parameters. Returns binary file with appropriate Content-Disposition header."
           },
           "response": []
         },

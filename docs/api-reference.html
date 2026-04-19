@@ -1228,7 +1228,129 @@ Where:
   </summary>
   <div class="endpoint-body">
     <pre>{ "sourceAccountId": "...", "destinationAccountId": "...", "amount": "500.00", "currencyCode": "USD", "description": "Rent payment" }</pre>
+    <p><strong>Roles:</strong> ADMIN, TELLER, CUSTOMER</p>
     <p>Supports same-currency and cross-currency transfers. Both accounts use <code>SELECT FOR UPDATE</code> locking to prevent race conditions.</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/payments/{id}</span>
+    <span class="endpoint-summary">Get payment by ID</span>
+  </summary>
+  <div class="endpoint-body">
+    <p><strong>Roles:</strong> ADMIN, TELLER, CUSTOMER</p>
+    <p>Returns full payment detail including cross-currency fields (<code>sourceCurrency</code>, <code>destinationCurrency</code>, <code>exchangeRateUsed</code>) and external beneficiary fields when applicable.</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/payments/accounts/{accountId}</span>
+    <span class="endpoint-summary">Payment history for an account</span>
+  </summary>
+  <div class="endpoint-body">
+    <p><strong>Roles:</strong> ADMIN, TELLER, CUSTOMER</p>
+    <p><strong>Query params:</strong> <code>page</code> (default 0), <code>size</code> (default 20)</p>
+    <p>Paginated list of all payments where the account is source or destination.</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/payments/{id}/reverse</span>
+    <span class="endpoint-summary">Reverse a completed payment</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "reason": "Duplicate transaction" }</pre>
+    <p><strong>Roles:</strong> ADMIN, TELLER</p>
+    <p>Reverses a <code>COMPLETED</code> payment — debits destination, credits source. Creates a new payment record with status <code>REVERSED</code>.</p>
+  </div>
+</details>
+
+<h3>Standing Orders</h3>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/payments/standing-orders</span>
+    <span class="endpoint-summary">List standing orders for an account</span>
+  </summary>
+  <div class="endpoint-body">
+    <p><strong>Roles:</strong> ADMIN, TELLER</p>
+    <p><strong>Query params:</strong> <code>accountId</code> (UUID, required)</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/payments/standing-orders</span>
+    <span class="endpoint-summary">Create a recurring standing order</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "sourceAccountId": "...", "destinationAccountId": "...", "amount": "200.00", "frequency": "MONTHLY", "startDate": "2026-05-01", "description": "Monthly savings" }</pre>
+    <p><strong>Roles:</strong> ADMIN, TELLER</p>
+    <p><strong>frequency</strong> values: <code>DAILY</code> | <code>WEEKLY</code> | <code>MONTHLY</code> | <code>QUARTERLY</code> | <code>ANNUALLY</code></p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method DELETE">DELETE</span>
+    <span class="endpoint-path">/api/v1/payments/standing-orders/{id}</span>
+    <span class="endpoint-summary">Cancel a standing order</span>
+  </summary>
+  <div class="endpoint-body">
+    <p><strong>Roles:</strong> ADMIN, TELLER</p>
+  </div>
+</details>
+
+<h3>External Payments (SWIFT / SEPA / ACH)</h3>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/payments/external</span>
+    <span class="endpoint-summary">Initiate an external SWIFT or SEPA payment</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "sourceAccountId": "...", "amount": "1500.00", "currencyCode": "USD", "network": "SWIFT", "beneficiaryName": "John Doe", "beneficiaryIban": "GB29NWBK60161331926819", "beneficiaryBic": "NWBKGB2L", "beneficiaryBankName": "NatWest", "beneficiaryCountryCode": "GB", "chargeType": "SHA", "description": "Invoice payment", "externalReference": "INV-2026-042" }</pre>
+    <p><strong>Roles:</strong> ADMIN, TELLER</p>
+    <table class="field-table">
+      <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>sourceAccountId</code></td><td>UUID</td><td>✓</td><td>Debited account — must be ACTIVE with sufficient balance</td></tr>
+        <tr><td><code>amount</code></td><td>decimal</td><td>✓</td><td>Transaction amount (positive)</td></tr>
+        <tr><td><code>currencyCode</code></td><td>string(3)</td><td>✓</td><td>ISO 4217 currency code</td></tr>
+        <tr><td><code>network</code></td><td>enum</td><td>✓</td><td><code>SWIFT</code> | <code>SEPA</code> | <code>ACH</code></td></tr>
+        <tr><td><code>beneficiaryName</code></td><td>string(200)</td><td>✓</td><td>Full legal name of recipient</td></tr>
+        <tr><td><code>beneficiaryIban</code></td><td>string(34)</td><td></td><td>IBAN (required for SEPA)</td></tr>
+        <tr><td><code>beneficiaryBic</code></td><td>string(11)</td><td></td><td>BIC/SWIFT code (required for SWIFT)</td></tr>
+        <tr><td><code>beneficiaryBankName</code></td><td>string(200)</td><td></td><td>Correspondent bank name</td></tr>
+        <tr><td><code>beneficiaryCountryCode</code></td><td>string(3)</td><td></td><td>ISO 3166-1 alpha-2 country code</td></tr>
+        <tr><td><code>chargeType</code></td><td>enum</td><td></td><td><code>SHA</code> (shared, default) | <code>OUR</code> (sender pays all) | <code>BEN</code> (beneficiary pays all)</td></tr>
+        <tr><td><code>description</code></td><td>string</td><td></td><td>Payment narrative</td></tr>
+        <tr><td><code>externalReference</code></td><td>string(100)</td><td></td><td>Caller's reference (invoice no., etc.)</td></tr>
+      </tbody>
+    </table>
+    <p>Debits the source account immediately. Actual network transmission to the SWIFT/SEPA gateway is handled externally. Reference is auto-generated as <code>EXT-XXXXXXXX</code>.</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/payments/external</span>
+    <span class="endpoint-summary">List all external payments (SWIFT/SEPA/ACH)</span>
+  </summary>
+  <div class="endpoint-body">
+    <p><strong>Roles:</strong> ADMIN, TELLER</p>
+    <p><strong>Query params:</strong> <code>page</code> (default 0), <code>size</code> (default 20)</p>
+    <p>Returns all payments of type <code>EXTERNAL_PAYMENT</code> ordered by creation date descending, including full beneficiary detail fields.</p>
   </div>
 </details>
 </section>
@@ -2888,10 +3010,15 @@ Content-Type: application/json
 <tr><td>GET</td><td>/api/v1/loans/{id}/reamortization</td><td>List re-amortization requests</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/loans/{id}/reamortization</td><td>Submit re-amortization</td><td>ADMIN</td></tr>
 <!-- Payments -->
-<tr><td>POST</td><td>/api/v1/payments/transfer</td><td>Internal transfer</td><td>ADMIN, TELLER</td></tr>
-<tr><td>GET</td><td>/api/v1/payments</td><td>List payments</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/payments/transfer</td><td>Internal transfer</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>GET</td><td>/api/v1/payments/{id}</td><td>Get payment by ID</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>GET</td><td>/api/v1/payments/accounts/{accountId}</td><td>Payment history for account</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>POST</td><td>/api/v1/payments/{id}/reverse</td><td>Reverse payment</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/payments/standing-orders</td><td>List standing orders</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/payments/standing-orders</td><td>Create standing order</td><td>ADMIN, TELLER</td></tr>
-<tr><td>POST</td><td>/api/v1/payments/{id}/reverse</td><td>Reverse payment</td><td>ADMIN</td></tr>
+<tr><td>DELETE</td><td>/api/v1/payments/standing-orders/{id}</td><td>Cancel standing order</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/payments/external</td><td>Initiate external SWIFT/SEPA/ACH payment</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/payments/external</td><td>List external payments</td><td>ADMIN, TELLER</td></tr>
 <!-- Products -->
 <tr><td>GET</td><td>/api/v1/loan-products</td><td>List loan products</td><td>All roles</td></tr>
 <tr><td>GET</td><td>/api/v1/loan-products/{id}</td><td>Get loan product</td><td>All roles</td></tr>
@@ -2997,7 +3124,8 @@ Content-Type: application/json
 <tr><td>GET</td><td>/api/v1/reports</td><td>List reports</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/api/v1/reports/{id}</td><td>Get report definition</td><td>ADMIN</td></tr>
 <tr><td>DELETE</td><td>/api/v1/reports/{id}</td><td>Delete report</td><td>ADMIN</td></tr>
-<tr><td>GET</td><td>/api/v1/runreports/{reportName}</td><td>Run report</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/runreports/{reportName}</td><td>Run report with params</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/runreports/{reportName}/export</td><td>Export report (CSV/XLSX/PDF)</td><td>ADMIN, TELLER</td></tr>
 <!-- CoB Scheduler -->
 <tr><td>GET</td><td>/api/v1/jobs</td><td>List CoB jobs</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/jobs/{jobName}/run</td><td>Trigger CoB job</td><td>ADMIN</td></tr>

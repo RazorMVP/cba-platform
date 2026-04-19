@@ -59,6 +59,49 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 103 — 2026-04-19
+**Two Angular UI layout fixes: loans pipeline cards forced into a single row; dashboard KPI card height reduced via dashboard-scoped override.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/src/app/features/operations/loans/loans-list.scss` | MODIFIED — pipeline grid `repeat(5,1fr)` → `repeat(6,1fr)`; gap `$space-4` → `$space-3`; responsive breakpoint 900px → 1100px |
+| `web/src/app/features/operations/dashboard/dashboard.scss` | MODIFIED — added `:host ::ng-deep .kpi-card { padding: $space-4; }` inside `.kpi-grid` block; scopes padding reduction to dashboard only |
+
+#### Key Patterns / Decisions
+- **Grid column count must match item count**: `repeat(5,1fr)` with 6 pipeline stages caused the 6th card to wrap onto a second row. Always count items and match the `repeat()` argument.
+- **Dashboard-scoped KPI override via `::ng-deep`**: The shared `KpiCardComponent` uses `padding: $space-6`. Reducing it globally would affect every screen. Placing `:host ::ng-deep .kpi-card { padding: $space-4 }` inside `.kpi-grid` in `dashboard.scss` narrows the scope to the dashboard grid only.
+- **`@keyframes` warning still applies**: No new `@keyframes` were added in component SCSS — consistent with the CLAUDE.md guideline to declare animations in the global design system only.
+
+#### Build Verification
+- Angular: `ng build --configuration=production` passes; only pre-existing `loan-detail.scss` budget warning (21.54 kB vs 20 kB limit)
+- Deployed to Vercel: `dpl_EBVqJXFjBNTrHE8kpQVGRUdPPK9e` → `cba-web-nine.vercel.app`
+- Local dev server (PID 36354) picks up SCSS change automatically via file watcher — no restart needed
+
+#### Confirmed Platform Versions
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `70ad76b` |
+| Java | 21 | `70ad76b` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `70ad76b` |
+| Keycloak admin client | 26.0.5 | `70ad76b` |
+| springdoc-openapi | 2.8.6 | `70ad76b` |
+| Lombok | 1.18.38 | `70ad76b` |
+| PostgreSQL | 16 (Docker) | `70ad76b` |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `70ad76b` |
+| Angular CLI | 21.2.7 | `70ad76b` |
+| PrimeNG | 21.0.x | `70ad76b` |
+| RxJS | 7.8.x | `70ad76b` |
+| TypeScript | 5.9.x | `70ad76b` |
+| Production URL | cba-web-nine.vercel.app | `70ad76b` |
+
+---
+
 ### Session 102 — 2026-04-19
 **Closed two PRD gaps: XLS/PDF report export (Apache POI + PDFBox) and SWIFT/SEPA external payments; updated CLAUDE.md tracking tables.**
 

@@ -82,13 +82,13 @@ _None — all Phase 1 backend modules are now complete._
 **Backend (`backend/`):**
 | Component | Version | Git ref |
 |-----------|---------|---------|
-| Spring Boot | 3.5.0 | `70ad76b` |
-| Java | 21 | `70ad76b` |
-| Application artifact | cba-backend 0.1.0-SNAPSHOT | `70ad76b` |
-| Keycloak admin client | 26.0.5 | `70ad76b` |
-| springdoc-openapi | 2.8.6 | `70ad76b` |
-| Lombok | 1.18.38 | `70ad76b` |
-| PostgreSQL | 16 (Docker) | `70ad76b` |
+| Spring Boot | 3.5.0 | `96929c6` |
+| Java | 21 | `96929c6` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `96929c6` |
+| Keycloak admin client | 26.0.5 | `96929c6` |
+| springdoc-openapi | 2.8.6 | `96929c6` |
+| Lombok | 1.18.38 | `96929c6` |
+| PostgreSQL | 16 (Docker) | `96929c6` |
 
 **Angular Web App (`web/`):**
 | Component | Version | Git ref |
@@ -98,6 +98,7 @@ _None — all Phase 1 backend modules are now complete._
 | PrimeNG | 21.0.x | `70ad76b` |
 | RxJS | 7.8.x | `70ad76b` |
 | TypeScript | 5.9.x | `70ad76b` |
+| Vercel deployment ID | `dpl_EBVqJXFjBNTrHE8kpQVGRUdPPK9e` | `70ad76b` |
 | Production URL | cba-web-nine.vercel.app | `70ad76b` |
 
 ---

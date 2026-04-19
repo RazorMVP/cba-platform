@@ -108,23 +108,23 @@ _None — all Phase 1 backend modules are now complete._
 **Backend (`backend/`):**
 | Component | Version | Git ref |
 |-----------|---------|---------|
-| Spring Boot | 3.5.0 | pending |
-| Java | 21 | pending |
-| Application artifact | cba-backend 0.1.0-SNAPSHOT | pending |
-| Keycloak admin client | 26.0.5 | pending |
-| springdoc-openapi | 2.8.6 | pending |
-| Lombok | 1.18.38 | pending |
-| PostgreSQL | 16 (Docker) | pending |
+| Spring Boot | 3.5.0 | `09dc9d0` |
+| Java | 21 | `09dc9d0` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `09dc9d0` |
+| Keycloak admin client | 26.0.5 | `09dc9d0` |
+| springdoc-openapi | 2.8.6 | `09dc9d0` |
+| Lombok | 1.18.38 | `09dc9d0` |
+| PostgreSQL | 16 (Docker) | `09dc9d0` |
 
 **Angular Web App (`web/`):**
 | Component | Version | Git ref |
 |-----------|---------|---------|
-| Angular | 21.2.x | pending |
-| Angular CLI | 21.2.7 | pending |
-| PrimeNG | 21.0.x | pending |
-| RxJS | 7.8.x | pending |
-| TypeScript | 5.9.x | pending |
-| Vercel deployment | cba-web-nine.vercel.app | pending |
+| Angular | 21.2.x | `09dc9d0` |
+| Angular CLI | 21.2.7 | `09dc9d0` |
+| PrimeNG | 21.0.x | `09dc9d0` |
+| RxJS | 7.8.x | `09dc9d0` |
+| TypeScript | 5.9.x | `09dc9d0` |
+| Vercel deployment | cba-web-nine.vercel.app | `09dc9d0` |
 
 ### Session 99 — 2026-04-19
 **Module 8 gap closure: Bulk Import + Security Policy — CSV upload for customers/loans with per-row error reporting; Keycloak realm security settings read/write; Angular BulkImportComponent + SecurityPolicyComponent.**

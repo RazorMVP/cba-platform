@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 98 — 2026-04-19)
+## Confirmed Platform Versions (Session 99 — 2026-04-19)
 
 These are the verified-working versions for both production components. Update this table whenever a dependency is upgraded.
 
@@ -21,7 +21,7 @@ These are the verified-working versions for both production components. Update t
 | **PostgreSQL** | 16 | Via Docker; schema managed by Flyway |
 | **AWS SDK v2 S3** | 2.26.12 | Optional — for S3/MinIO/GCS image storage |
 | **thumbnailator** | 0.4.20 | Server-side image resize for `ClientImageService` — max 500×500, JPEG output |
-| **Last git commit** | `b7cf39c` | Session 98 — login history + compliance reports (Module 7) |
+| **Last git commit** | `pending-99` | Session 99 — bulk import + security policy (Module 8) |
 
 ### Angular Web App (`web/`)
 
@@ -34,7 +34,7 @@ These are the verified-working versions for both production components. Update t
 | **TypeScript** | 5.9.x | `~5.9.2` pinned |
 | **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma) |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `b7cf39c` | Session 98 — login history + compliance reports (Module 7) |
+| **Last git commit** | `pending-99` | Session 99 — bulk import + security policy (Module 8) |
 
 > **Session 66 CI fixes**: Angular 21 uses Vitest (not Karma) — `--browsers=ChromeHeadless` and `--code-coverage` are invalid flags. `vercel deploy --prebuilt` requires `.vercel/output/` from `vercel build`, not `dist/` from `ng build`. All three issues fixed; CI pipeline and Vercel production deployment now fully green.
 
@@ -2495,6 +2495,8 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Standing Instructions | `StandingInstructionsComponent` | `AdminModule`  | ✅ Built — priority/type/status chips; FIXED/OUTSTANDING_BALANCE conditional amount field _(Session 75)_ |
 | Login History | `LoginHistoryComponent` | `AdminModule`  | ✅ Built — status filter tabs (ALL/SUCCESS/FAILURE/LOCKED), username + date range filters, summary KPI cards (successes/failures/locked/unique users), top-failed-users table _(Session 98)_ |
 | Compliance Reports | `ComplianceReportComponent` | `AdminModule` | ✅ Built — 4-tab layout (Audit Summary / Failed Logins / User Activity / Data Access), days-range selector, CSV export per tab _(Session 98)_ |
+| Bulk Import | `BulkImportComponent` | `AdminModule` | ✅ Built — drag-and-drop CSV upload for customers and loans; 4 stat cards (Status/Total/Succeeded/Failed); per-row error table; collapsible import history; template download _(Session 99)_ |
+| Security Policy | `SecurityPolicyComponent` | `AdminModule` | ✅ Built — 3-card grid (Brute-Force/Password Policy/Sessions); view/edit toggle with toggle switches and number inputs; warning banner on save; graceful fallback when Keycloak unreachable _(Session 99)_ |
 | Groups list | `GroupsListComponent` | `GroupsModule`  | ✅ Built — status filter + search, create modal, routerLink to detail |
 | Group detail | `GroupDetailComponent` | `GroupsModule`  | ✅ Built — 4 tabs: Members (add/remove), Collection Sheet, GLIM Accounts, Staff |
 | Centers list | `CentersListComponent` | `GroupsModule`  | ✅ Built — status filter + search, create modal, routerLink to detail |
@@ -3101,8 +3103,8 @@ Gap closures are being done **one module at a time, sequentially**. Update this 
 | Account Number Formats | ✅ Module 26 | ✅ `AccountNumberFormatsComponent` _(Session 77)_ | — |
 | Funds management | ✅ Module 26 | ✅ `FundsComponent` _(Session 77)_ | — |
 | Holidays management | ✅ Module 28 | ✅ `HolidaysComponent` _(Session 74)_ | — |
-| Bulk import (customers / loans) | ❌ Not implemented | ❌ Missing | ❌ |
-| Password / security policy | ❌ Delegated to Keycloak | ❌ No admin UI for Keycloak policies | ⚠️ |
+| Bulk import (customers / loans) | ✅ `POST /api/v1/bulkimport/customers`, `/bulkimport/loans`, `GET /bulkimport/jobs`, `GET /bulkimport/templates/{type}`; Apache Commons CSV; `BulkImportJob` audit entity; `V44__bulk_import.sql` _(Session 99)_ | ✅ `BulkImportComponent` — drag-and-drop, stat cards, per-row error table, history _(Session 99)_ | ✅ |
+| Password / security policy | ✅ `GET/PUT /api/v1/security-policy`; reads/writes Keycloak `RealmRepresentation`; graceful default on `ConnectException` _(Session 99)_ | ✅ `SecurityPolicyComponent` — 3-card grid, view/edit toggle, warning banner _(Session 99)_ | ✅ |
 
 ---
 

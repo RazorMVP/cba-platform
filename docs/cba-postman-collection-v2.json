@@ -17070,6 +17070,107 @@
       ]
     },
     {
+      "name": "41f \u00b7 Bulk Import",
+      "item": [
+        {
+          "name": "Upload Customers CSV",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "file", "type": "file", "src": "customers.csv", "description": "CSV with headers: firstName,lastName,email,phone,nationalId,dateOfBirth,notes" }]
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/bulkimport/customers", "host": ["{{baseUrl}}"], "path": ["api","v1","bulkimport","customers"] },
+            "description": "Upload CSV to create customers in bulk. Required: firstName, lastName, email. Returns BulkImportResult with per-row errors."
+          },
+          "response": [
+            { "name": "200 OK (PARTIAL)", "status": "OK", "code": 200, "body": "{\"data\":{\"jobId\":\"uuid\",\"entityType\":\"CUSTOMERS\",\"totalRows\":50,\"successCount\":48,\"failureCount\":2,\"status\":\"PARTIAL\",\"errors\":[{\"row\":12,\"field\":\"email\",\"message\":\"Email already exists\"},{\"row\":31,\"field\":\"dateOfBirth\",\"message\":\"Invalid date format, expected yyyy-MM-dd\"}]},\"errors\":[]}" },
+            { "name": "200 OK (COMPLETED)", "status": "OK", "code": 200, "body": "{\"data\":{\"jobId\":\"uuid\",\"entityType\":\"CUSTOMERS\",\"totalRows\":10,\"successCount\":10,\"failureCount\":0,\"status\":\"COMPLETED\",\"errors\":[]},\"errors\":[]}" }
+          ]
+        },
+        {
+          "name": "Upload Loans CSV",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "file", "type": "file", "src": "loans.csv", "description": "CSV with headers: customerId,productId,linkedAccountId,principalAmount,termMonths,notes" }]
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/bulkimport/loans", "host": ["{{baseUrl}}"], "path": ["api","v1","bulkimport","loans"] },
+            "description": "Upload CSV to create loan applications in bulk. Required: customerId, productId, linkedAccountId, principalAmount."
+          },
+          "response": [
+            { "name": "200 OK", "status": "OK", "code": 200, "body": "{\"data\":{\"jobId\":\"uuid\",\"entityType\":\"LOANS\",\"totalRows\":5,\"successCount\":5,\"failureCount\":0,\"status\":\"COMPLETED\",\"errors\":[]},\"errors\":[]}" }
+          ]
+        },
+        {
+          "name": "List Import Jobs",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bulkimport/jobs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","v1","bulkimport","jobs"],
+              "query": [{ "key": "entityType", "value": "CUSTOMERS", "description": "CUSTOMERS | LOANS — omit for all", "disabled": true }]
+            },
+            "description": "Last 20 import jobs ordered by createdAt DESC. Optional entityType filter."
+          },
+          "response": [
+            { "name": "200 OK", "status": "OK", "code": 200, "body": "{\"data\":[{\"id\":\"uuid\",\"entityType\":\"CUSTOMERS\",\"fileName\":\"customers.csv\",\"totalRows\":50,\"successCount\":48,\"failureCount\":2,\"status\":\"PARTIAL\",\"importedBy\":\"admin@cba.com\",\"createdAt\":\"2026-04-19T10:00:00Z\"}],\"errors\":[]}" }
+          ]
+        },
+        {
+          "name": "Download CSV Template",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/bulkimport/templates/CUSTOMERS", "host": ["{{baseUrl}}"], "path": ["api","v1","bulkimport","templates","CUSTOMERS"] },
+            "description": "Returns a CSV template with correct headers and one sample row. entityType: CUSTOMERS or LOANS. Response Content-Type: text/csv."
+          },
+          "response": [
+            { "name": "200 OK (CUSTOMERS)", "status": "OK", "code": 200, "body": "firstName,lastName,email,phone,nationalId,dateOfBirth,notes\nJohn,Doe,john.doe@example.com,+254712345678,ID123456,1990-05-15," },
+            { "name": "200 OK (LOANS)", "status": "OK", "code": 200, "body": "customerId,productId,linkedAccountId,principalAmount,termMonths,notes\n<uuid>,<uuid>,<uuid>,50000.00,24," }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "41g \u00b7 Security Policy",
+      "item": [
+        {
+          "name": "Get Security Policy",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/api/v1/security-policy", "host": ["{{baseUrl}}"], "path": ["api","v1","security-policy"] },
+            "description": "Returns Keycloak cba realm security settings. Falls back to safe defaults when Keycloak is unreachable."
+          },
+          "response": [
+            { "name": "200 OK", "status": "OK", "code": 200, "body": "{\"data\":{\"bruteForceProtected\":true,\"maxLoginFailures\":5,\"lockoutDurationSeconds\":900,\"failureResetWindowSeconds\":43200,\"minPasswordLength\":8,\"requireUppercase\":true,\"requireLowercase\":true,\"requireDigits\":true,\"requireSpecialChars\":false,\"passwordHistoryCount\":0,\"ssoSessionIdleTimeoutSeconds\":1800,\"ssoSessionMaxLifespanSeconds\":36000,\"accessTokenLifespanSeconds\":300,\"rawPasswordPolicy\":\"length(8) and upperCase and lowerCase and digits\"},\"errors\":[]}" }
+          ]
+        },
+        {
+          "name": "Update Security Policy",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }, { "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bruteForceProtected\": true,\n  \"maxLoginFailures\": 3,\n  \"lockoutDurationSeconds\": 1800,\n  \"failureResetWindowSeconds\": 3600,\n  \"minPasswordLength\": 12,\n  \"requireUppercase\": true,\n  \"requireLowercase\": true,\n  \"requireDigits\": true,\n  \"requireSpecialChars\": true,\n  \"passwordHistoryCount\": 5,\n  \"ssoSessionIdleTimeoutSeconds\": 900,\n  \"ssoSessionMaxLifespanSeconds\": 28800,\n  \"accessTokenLifespanSeconds\": 300\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/v1/security-policy", "host": ["{{baseUrl}}"], "path": ["api","v1","security-policy"] },
+            "description": "Partial update — only supplied fields are changed. Takes effect immediately for all users on the cba realm. Rebuilds Keycloak password policy string from individual boolean flags."
+          },
+          "response": [
+            { "name": "200 OK", "status": "OK", "code": 200, "body": "{\"data\":{\"bruteForceProtected\":true,\"maxLoginFailures\":3,\"lockoutDurationSeconds\":1800,\"failureResetWindowSeconds\":3600,\"minPasswordLength\":12,\"requireUppercase\":true,\"requireLowercase\":true,\"requireDigits\":true,\"requireSpecialChars\":true,\"passwordHistoryCount\":5,\"ssoSessionIdleTimeoutSeconds\":900,\"ssoSessionMaxLifespanSeconds\":28800,\"accessTokenLifespanSeconds\":300,\"rawPasswordPolicy\":\"length(12) and upperCase and lowerCase and digits and specialChars and passwordHistory(5)\"},\"errors\":[]}" }
+          ]
+        }
+      ]
+    },
+    {
       "name": "42 \u00b7 Treasury",
       "item": [
         {

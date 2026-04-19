@@ -1,0 +1,153 @@
+<div class="page-shell">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Bulk Import</h1>
+      <p class="page-subtitle">Upload a CSV file to create multiple customers or loan applications at once.</p>
+    </div>
+  </div>
+
+  <div class="import-layout">
+    <!-- ── Left: Upload panel ─────────────────────────────────────── -->
+    <div class="card upload-card">
+      <!-- Entity selector -->
+      <div class="field-group">
+        <label class="field-label">Entity Type</label>
+        <div class="toggle-row">
+          <button class="toggle-btn" [class.active]="entityType === 'CUSTOMERS'"
+                  (click)="entityType = 'CUSTOMERS'; selectedFile = null; result.set(null)">
+            Customers
+          </button>
+          <button class="toggle-btn" [class.active]="entityType === 'LOANS'"
+                  (click)="entityType = 'LOANS'; selectedFile = null; result.set(null)">
+            Loans
+          </button>
+        </div>
+      </div>
+
+      <!-- Template download -->
+      <div class="template-hint">
+        <span class="material-icons hint-icon">download</span>
+        <span>Need the format?</span>
+        <button class="link-btn" (click)="downloadTemplate()">Download CSV template</button>
+      </div>
+
+      <!-- Drop zone -->
+      <div class="dropzone" (drop)="onDrop($event)" (dragover)="onDragOver($event)"
+           [class.has-file]="!!selectedFile">
+        <span class="material-icons drop-icon">upload_file</span>
+        @if (selectedFile) {
+          <p class="drop-filename">{{ selectedFile.name }}</p>
+          <p class="drop-sub">{{ (selectedFile.size / 1024).toFixed(1) }} KB</p>
+        } @else {
+          <p class="drop-text">Drag &amp; drop your CSV here</p>
+          <p class="drop-sub">or</p>
+        }
+        <label class="btn-secondary file-label">
+          {{ selectedFile ? 'Change file' : 'Browse' }}
+          <input type="file" accept=".csv,text/csv" (change)="onFileSelected($event)" hidden>
+        </label>
+      </div>
+
+      <!-- Upload button -->
+      <button class="btn-primary upload-btn" [disabled]="!selectedFile || uploading()"
+              (click)="upload()">
+        @if (uploading()) {
+          <span class="material-icons spin">sync</span> Importing…
+        } @else {
+          <span class="material-icons">cloud_upload</span> Import {{ entityType | titlecase }}
+        }
+      </button>
+
+      @if (error()) {
+        <div class="error-banner">
+          <span class="material-icons">error_outline</span>{{ error() }}
+        </div>
+      }
+    </div>
+
+    <!-- ── Right: Result panel ────────────────────────────────────── -->
+    <div class="right-col">
+      @if (result(); as r) {
+        <!-- Summary cards -->
+        <div class="result-summary">
+          <div class="stat-card" [class]="statusClass(r.status)">
+            <span class="stat-label">Status</span>
+            <span class="stat-value">{{ r.status }}</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Total Rows</span>
+            <span class="stat-value">{{ r.totalRows }}</span>
+          </div>
+          <div class="stat-card success">
+            <span class="stat-label">Succeeded</span>
+            <span class="stat-value">{{ r.successCount }}</span>
+          </div>
+          <div class="stat-card" [class.error]="r.failureCount > 0">
+            <span class="stat-label">Failed</span>
+            <span class="stat-value">{{ r.failureCount }}</span>
+          </div>
+        </div>
+
+        <!-- Error table -->
+        @if (r.errors.length > 0) {
+          <div class="card error-table-card">
+            <h3 class="section-title">Row Errors</h3>
+            <table class="data-table">
+              <thead>
+                <tr><th>Row</th><th>Field</th><th>Error</th></tr>
+              </thead>
+              <tbody>
+                @for (e of r.errors; track e.row) {
+                  <tr>
+                    <td class="tabular-nums">{{ e.row }}</td>
+                    <td><code>{{ e.field }}</code></td>
+                    <td class="error-msg">{{ e.message }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      } @else if (!uploading()) {
+        <div class="card empty-result">
+          <span class="material-icons empty-icon">inbox</span>
+          <p>Upload a file to see results here.</p>
+        </div>
+      }
+
+      <!-- Import history -->
+      <div class="card history-card">
+        <button class="history-toggle" (click)="toggleHistory()">
+          <span class="material-icons">history</span>
+          Recent Imports
+          <span class="material-icons chevron">
+            {{ showHistory() ? 'expand_less' : 'expand_more' }}
+          </span>
+        </button>
+        @if (showHistory()) {
+          <table class="data-table history-table">
+            <thead>
+              <tr><th>File</th><th>Type</th><th>Rows</th><th>OK</th><th>Fail</th><th>Status</th><th>By</th><th>Date</th></tr>
+            </thead>
+            <tbody>
+              @for (j of jobs(); track j.id) {
+                <tr>
+                  <td class="filename-cell">{{ j.fileName }}</td>
+                  <td>{{ j.entityType }}</td>
+                  <td class="tabular-nums">{{ j.totalRows }}</td>
+                  <td class="tabular-nums success-text">{{ j.successCount }}</td>
+                  <td class="tabular-nums" [class.error-text]="j.failureCount > 0">{{ j.failureCount }}</td>
+                  <td><span class="badge" [class]="statusClass(j.status)">{{ j.status }}</span></td>
+                  <td>{{ j.importedBy }}</td>
+                  <td class="tabular-nums muted">{{ j.createdAt | date:'dd MMM HH:mm' }}</td>
+                </tr>
+              } @empty {
+                <tr><td colspan="8" class="empty-row">No imports yet.</td></tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+    </div>
+  </div>
+</div>

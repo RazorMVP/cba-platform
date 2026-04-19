@@ -59,6 +59,68 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 99 — 2026-04-19
+**Module 8 gap closure: Bulk Import + Security Policy — CSV upload for customers/loans with per-row error reporting; Keycloak realm security settings read/write; Angular BulkImportComponent + SecurityPolicyComponent.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/pom.xml` | MODIFIED — added `commons-csv:1.11.0` dependency |
+| `backend/…/db/migration/V44__bulk_import.sql` | NEW — `bulk_import_jobs` table + index on `(entity_type, created_at DESC)` |
+| `backend/…/bulkimport/BulkImportJob.java` | NEW — JPA entity; `status` COMPLETED/PARTIAL/FAILED |
+| `backend/…/bulkimport/BulkImportJobRepository.java` | NEW — `findTop20ByOrderByCreatedAtDesc()` + entity-type variant |
+| `backend/…/bulkimport/BulkImportResult.java` | NEW — record with `List<RowError>` inner record; `of()` factory |
+| `backend/…/bulkimport/BulkImportService.java` | NEW — Apache Commons CSV parsing; customer + loan import with row-level error collection; job persistence |
+| `backend/…/bulkimport/BulkImportController.java` | NEW — `POST /api/v1/bulkimport/customers`, `/loans`; `GET /bulkimport/jobs`, `/templates/{type}` |
+| `backend/…/system/SecurityPolicyService.java` | NEW — `SecurityPolicy` record (14 fields); `UpdateSecurityPolicyRequest`; Keycloak `RealmRepresentation` read/write; `defaultPolicy()` fallback on `ConnectException` |
+| `backend/…/system/SecurityPolicyController.java` | NEW — `GET/PUT /api/v1/security-policy` (ADMIN only) |
+| `web/…/core/api/api.service.ts` | MODIFIED — added `postForm<T>()` method for multipart uploads |
+| `web/…/admin/admin.service.ts` | MODIFIED — 5 new methods; 4 new interfaces (BulkImportRowError, BulkImportResult, BulkImportJob, SecurityPolicy) |
+| `web/…/admin/bulk-import.ts` | NEW — `BulkImportComponent`; drag-and-drop CSV; stat cards; error table; history panel; template download |
+| `web/…/admin/bulk-import.html` | NEW — two-column grid; drop zone; result summary; collapsible history |
+| `web/…/admin/bulk-import.scss` | NEW |
+| `web/…/admin/security-policy.ts` | NEW — `SecurityPolicyComponent`; signal-based view/edit toggle; `setForm()` partial update helper |
+| `web/…/admin/security-policy.html` | NEW — 3-card grid; toggle switches; number inputs; warning banner |
+| `web/…/admin/security-policy.scss` | NEW — pure CSS toggle switch |
+| `web/…/admin/admin.routes.ts` | MODIFIED — added `bulk-import` + `security-policy` routes |
+| `web/…/layout/sidebar/sidebar.ts` | MODIFIED — added "Bulk Import" + "Security Policy" nav items |
+| `docs/api-reference.html` | MODIFIED — new `#bulk-import` + `#security-policy` sections; sidebar links; 2 matrix rows |
+| `docs/cba-postman-collection-v2.json` | MODIFIED — folders `41f · Bulk Import` (4 requests) + `41g · Security Policy` (2 requests) |
+
+#### Key Patterns / Decisions
+- **Apache Commons CSV `setHeader().setSkipHeaderRecord(true)`**: cleanest way to parse CSV with named columns — `record.get("firstName")` with automatic null-safety on missing columns.
+- **`BulkImportResult` not HTTP 207**: returns a single 200 with `status: PARTIAL` and `errors[]` array rather than multi-status — consistent with how Mifos handles batch results and simpler to consume in Angular.
+- **Keycloak `ConnectException` fallback**: `getPolicy()` wraps Keycloak call in try-catch and returns `defaultPolicy()` — dev environments without Keycloak get sensible defaults instead of a 500. `updatePolicy()` does NOT have a fallback (write ops should fail loudly).
+- **Password policy string rebuild**: Keycloak stores rules as `"length(8) and upperCase and lowerCase"`. On update we parse into a `LinkedHashMap`, apply overrides, then rejoin — preserves unknown clauses that weren't in our request.
+- **`postForm<T>()` on ApiService**: separate method from `post<T>()` because `HttpClient` handles `FormData` differently — no `Content-Type` header should be set manually (browser sets the multipart boundary automatically).
+
+#### Build Verification
+- Backend: `./mvnw compile -q` → BUILD SUCCESS (0 errors)
+- Angular: `npx tsc --noEmit` → 0 errors
+- Endpoints smoke-tested: `GET /api/v1/bulkimport/templates/CUSTOMERS` → CSV ✅; `GET /api/v1/bulkimport/jobs` → [] ✅; `GET /api/v1/security-policy` → default policy JSON ✅
+
+#### Confirmed Platform Versions
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `pending-99` |
+| Java | 21 | `pending-99` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `pending-99` |
+| Keycloak admin client | 26.0.5 | `pending-99` |
+| springdoc-openapi | 2.8.6 | `pending-99` |
+| Lombok | 1.18.38 | `pending-99` |
+| PostgreSQL | 16 (Docker) | `pending-99` |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `pending-99` |
+| Angular CLI | 21.2.7 | `pending-99` |
+| PrimeNG | 21.0.x | `pending-99` |
+| RxJS | 7.8.x | `pending-99` |
+| TypeScript | 5.9.x | `pending-99` |
+| Vercel deployment | cba-web-nine.vercel.app | `pending-99` |
+
 ### Session 98 — 2026-04-19
 **Module 7 gap closure: Login History + Compliance Reports — immutable login event log, 3 backend endpoints, Angular LoginHistoryComponent + ComplianceReportComponent, 4 compliance report endpoints.**
 

@@ -12,6 +12,8 @@ import { StaffComponent } from './staff';
 import { StandingInstructionsComponent } from './standing-instructions';
 import { LoginHistoryComponent } from './login-history';
 import { ComplianceReportComponent } from './compliance-report';
+import { BulkImportComponent } from './bulk-import';
+import { SecurityPolicyComponent } from './security-policy';
 
 export const ADMIN_ROUTES: Routes = [
   { path: 'users', component: UsersComponent },
@@ -27,4 +29,6 @@ export const ADMIN_ROUTES: Routes = [
   { path: 'standing-instructions', component: StandingInstructionsComponent },
   { path: 'login-history', component: LoginHistoryComponent },
   { path: 'compliance', component: ComplianceReportComponent },
+  { path: 'bulk-import', component: BulkImportComponent },
+  { path: 'security-policy', component: SecurityPolicyComponent },
 ];

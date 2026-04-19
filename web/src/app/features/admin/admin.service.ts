@@ -360,6 +360,36 @@ export interface DataAccessRow {
   changed_at: string;
 }
 
+export interface BulkImportRowError { row: number; field: string; message: string; }
+export interface BulkImportResult {
+  jobId: string; entityType: string;
+  totalRows: number; successCount: number; failureCount: number;
+  status: 'COMPLETED' | 'PARTIAL' | 'FAILED';
+  errors: BulkImportRowError[];
+}
+export interface BulkImportJob {
+  id: string; entityType: string; fileName: string;
+  totalRows: number; successCount: number; failureCount: number;
+  status: string; errorSummary?: string; importedBy?: string; createdAt: string;
+}
+
+export interface SecurityPolicy {
+  bruteForceProtected: boolean;
+  maxLoginFailures: number;
+  lockoutDurationSeconds: number;
+  failureResetWindowSeconds: number;
+  minPasswordLength: number;
+  requireUppercase: boolean;
+  requireLowercase: boolean;
+  requireDigits: boolean;
+  requireSpecialChars: boolean;
+  passwordHistoryCount: number;
+  ssoSessionIdleTimeoutSeconds: number;
+  ssoSessionMaxLifespanSeconds: number;
+  accessTokenLifespanSeconds: number;
+  rawPasswordPolicy: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AdminService {
   private readonly api = inject(ApiService);
@@ -622,5 +652,33 @@ export class AdminService {
 
   complianceDataAccess(days = 30, entityType = 'LOAN'): Observable<DataAccessRow[]> {
     return this.api.get<DataAccessRow[]>('/compliance/reports/data-access', { days, entityType });
+  }
+
+  // ── Bulk Import ───────────────────────────────────────────────────────────
+  importCustomers(file: File): Observable<BulkImportResult> {
+    const fd = new FormData();
+    fd.append('file', file);
+    return this.api.postForm<BulkImportResult>('/bulkimport/customers', fd);
+  }
+
+  importLoans(file: File): Observable<BulkImportResult> {
+    const fd = new FormData();
+    fd.append('file', file);
+    return this.api.postForm<BulkImportResult>('/bulkimport/loans', fd);
+  }
+
+  bulkImportJobs(entityType?: string): Observable<BulkImportJob[]> {
+    const p: Record<string, string> = {};
+    if (entityType) p['entityType'] = entityType;
+    return this.api.get<BulkImportJob[]>('/bulkimport/jobs', p);
+  }
+
+  // ── Security Policy ───────────────────────────────────────────────────────
+  getSecurityPolicy(): Observable<SecurityPolicy> {
+    return this.api.get<SecurityPolicy>('/security-policy');
+  }
+
+  updateSecurityPolicy(req: Partial<SecurityPolicy>): Observable<SecurityPolicy> {
+    return this.api.put<SecurityPolicy>('/security-policy', req);
   }
 }

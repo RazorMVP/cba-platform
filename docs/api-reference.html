@@ -156,6 +156,8 @@ details.endpoint[open] .endpoint-body{display:block}
     <a href="#audit-rest">Audit Search</a>
     <a href="#login-history">Login History</a>
     <a href="#compliance-reports">Compliance Reports</a>
+    <a href="#bulk-import">Bulk Import</a>
+    <a href="#security-policy">Security Policy</a>
     <div class="section-head">Treasury</div>
     <a href="#treasury-placements">Placements</a>
     <a href="#treasury-interbank">Interbank Positions</a>
@@ -3406,7 +3408,102 @@ Content-Type: application/json
 <tr><td>Push Device Registry</td><td>/api/v1/notifications/devices, /devices/{id}</td><td>FCM token register / deregister / list — Session 97</td></tr>
 <tr><td>Login History</td><td>/api/v1/auth/events, /auth/events/summary</td><td>Immutable login event log; aggregated summary with top failed usernames — Session 98</td></tr>
 <tr><td>Compliance Reports</td><td>/api/v1/compliance/reports/audit-summary, /failed-logins, /user-activity, /data-access</td><td>Pre-built regulatory reports over audit_log + login_history — Session 98</td></tr>
-<tr><td>Bulk Loan Import</td><td>/api/v1/loans/batch</td><td>Planned Phase 4</td></tr>
+<tr><td>Bulk Import</td><td>/api/v1/bulkimport/customers, /bulkimport/loans, /bulkimport/jobs, /bulkimport/templates/{type}</td><td>CSV upload for customers and loans with per-row error reporting — Session 99</td></tr>
+<tr><td>Security Policy</td><td>/api/v1/security-policy</td><td>Keycloak realm brute-force, password rules, session timeouts — Session 99</td></tr>
+<!-- Bulk Import — Session 99 -->
+
+<section id="bulk-import">
+<h2>Bulk Import <span style="font-size:.75rem;font-weight:400;color:#1d4ed8;background:#dbeafe;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Session 99</span></h2>
+<p>CSV-based mass import for customers and loans. Returns a <code>BulkImportResult</code> with per-row error details. Import jobs are persisted for audit purposes.</p>
+<details class="endpoint">
+<summary><span class="badge post">POST</span> /api/v1/bulkimport/customers</summary>
+<p>Upload a CSV file to create customers in bulk. Required columns: <code>firstName, lastName, email</code>. Optional: <code>phone, nationalId, dateOfBirth, notes</code>.</p>
+<p><strong>Auth:</strong> ADMIN &nbsp;|&nbsp; <strong>Content-Type:</strong> multipart/form-data (field name: <code>file</code>)</p>
+<pre>Response 200:
+{
+  "data": {
+    "jobId": "uuid",
+    "entityType": "CUSTOMERS",
+    "totalRows": 50,
+    "successCount": 48,
+    "failureCount": 2,
+    "status": "PARTIAL",
+    "errors": [
+      { "row": 12, "field": "email", "message": "Email already exists" },
+      { "row": 31, "field": "dateOfBirth", "message": "Invalid date format, expected yyyy-MM-dd" }
+    ]
+  }
+}</pre>
+</details>
+<details class="endpoint">
+<summary><span class="badge post">POST</span> /api/v1/bulkimport/loans</summary>
+<p>Upload a CSV file to create loan applications in bulk. Required columns: <code>customerId, productId, linkedAccountId, principalAmount</code>. Optional: <code>termMonths, notes</code>.</p>
+<p><strong>Auth:</strong> ADMIN &nbsp;|&nbsp; <strong>Content-Type:</strong> multipart/form-data (field name: <code>file</code>)</p>
+</details>
+<details class="endpoint">
+<summary><span class="badge get">GET</span> /api/v1/bulkimport/jobs</summary>
+<p>List the last 20 import jobs. Optional query param: <code>?entityType=CUSTOMERS|LOANS</code>.</p>
+<p><strong>Auth:</strong> ADMIN</p>
+</details>
+<details class="endpoint">
+<summary><span class="badge get">GET</span> /api/v1/bulkimport/templates/{entityType}</summary>
+<p>Download a CSV template with correct headers and one sample row. <code>entityType</code>: <code>CUSTOMERS</code> or <code>LOANS</code>.</p>
+<p><strong>Auth:</strong> ADMIN &nbsp;|&nbsp; <strong>Response Content-Type:</strong> text/csv</p>
+</details>
+</section>
+
+<!-- Security Policy — Session 99 -->
+
+<section id="security-policy">
+<h2>Security Policy <span style="font-size:.75rem;font-weight:400;color:#1d4ed8;background:#dbeafe;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Session 99</span></h2>
+<p>Read and update Keycloak realm security settings: brute-force protection, password complexity rules, and session/token lifespans. When Keycloak is unreachable the GET returns safe defaults.</p>
+<details class="endpoint">
+<summary><span class="badge get">GET</span> /api/v1/security-policy</summary>
+<p>Returns the current security policy from the Keycloak <code>cba</code> realm.</p>
+<p><strong>Auth:</strong> ADMIN</p>
+<pre>Response 200:
+{
+  "data": {
+    "bruteForceProtected": true,
+    "maxLoginFailures": 5,
+    "lockoutDurationSeconds": 900,
+    "failureResetWindowSeconds": 43200,
+    "minPasswordLength": 8,
+    "requireUppercase": true,
+    "requireLowercase": true,
+    "requireDigits": true,
+    "requireSpecialChars": false,
+    "passwordHistoryCount": 0,
+    "ssoSessionIdleTimeoutSeconds": 1800,
+    "ssoSessionMaxLifespanSeconds": 36000,
+    "accessTokenLifespanSeconds": 300,
+    "rawPasswordPolicy": "length(8) and upperCase and lowerCase and digits"
+  }
+}</pre>
+</details>
+<details class="endpoint">
+<summary><span class="badge put">PUT</span> /api/v1/security-policy</summary>
+<p>Partial update — only supplied fields are changed. Changes take effect immediately for all users on the <code>cba</code> realm.</p>
+<p><strong>Auth:</strong> ADMIN</p>
+<pre>Request body (all fields optional):
+{
+  "bruteForceProtected": true,
+  "maxLoginFailures": 3,
+  "lockoutDurationSeconds": 1800,
+  "failureResetWindowSeconds": 3600,
+  "minPasswordLength": 12,
+  "requireUppercase": true,
+  "requireLowercase": true,
+  "requireDigits": true,
+  "requireSpecialChars": true,
+  "passwordHistoryCount": 5,
+  "ssoSessionIdleTimeoutSeconds": 900,
+  "ssoSessionMaxLifespanSeconds": 28800,
+  "accessTokenLifespanSeconds": 300
+}</pre>
+</details>
+</section>
+
 <tr><td>Standing Orders Extended</td><td>/api/v1/standingorders/{id}/pause|resume</td><td>Planned Phase 4 — note: disable/enable for Standing Instructions is implemented at <code>/api/v1/standinginstructions/{id}?command=disable|enable</code></td></tr>
 <tr><td>Self Service — Account Transfers</td><td>/api/v1/self/accounttransfers</td><td>Planned — customer-initiated transfers between own accounts</td></tr>
 <tr><td>Self Service — Loan Applications</td><td>/api/v1/self/loanapplications</td><td>Planned — customer-facing loan origination</td></tr>

@@ -61,4 +61,9 @@ export class ApiService {
     return this.http.post<ApiResponse<T>>(`${this.base}${path}?command=${command}`, body ?? {})
       .pipe(map(r => r.data));
   }
+
+  postForm<T>(path: string, formData: FormData): Observable<T> {
+    return this.http.post<ApiResponse<T>>(`${this.base}${path}`, formData)
+      .pipe(map(r => r.data));
+  }
 }

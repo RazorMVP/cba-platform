@@ -135,6 +135,8 @@ export class SidebarComponent {
         { label: 'Standing Instructions', icon: 'repeat',         route: '/admin/standing-instructions' },
         { label: 'Login History',         icon: 'login',             route: '/admin/login-history' },
         { label: 'Compliance Reports',    icon: 'policy',            route: '/admin/compliance' },
+        { label: 'Bulk Import',           icon: 'upload_file',       route: '/admin/bulk-import' },
+        { label: 'Security Policy',       icon: 'security',          route: '/admin/security-policy' },
       ],
     },
   ];

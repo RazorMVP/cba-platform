@@ -1876,8 +1876,46 @@ difference = actual_cash - closing_balance</pre>
 <tr><td>GET</td><td>/api/v1/self/beneficiaries</td><td>List own active transfer beneficiaries</td></tr>
 <tr><td>POST</td><td>/api/v1/self/beneficiaries</td><td>Add a beneficiary — body: <code>{ nickname, accountNumber, bankCode, transferLimit }</code></td></tr>
 <tr><td>DELETE</td><td>/api/v1/self/beneficiaries/{id}</td><td>Remove a beneficiary (soft-delete, sets active=false)</td></tr>
+<tr><td>GET</td><td>/api/v1/self/pockets</td><td>List own active pockets with linked accounts and aggregate balance</td></tr>
+<tr><td>POST</td><td>/api/v1/self/pockets</td><td>Create a pocket — body: <code>{ name, description, accountIds }</code></td></tr>
+<tr><td>POST</td><td>/api/v1/self/pockets/{id}/link</td><td>Link additional savings accounts to own pocket — body: <code>{ accountIds }</code></td></tr>
+<tr><td>POST</td><td>/api/v1/self/pockets/{id}/delink</td><td>Remove accounts from own pocket — body: <code>{ accountIds }</code></td></tr>
+<tr><td>GET</td><td>/api/v1/self/accounts/{accountId}/qr</td><td>Generate QR code for own account. Returns base64 PNG + token. Optional params: <code>presetAmount</code>, <code>reference</code>, <code>expiryMinutes</code></td></tr>
+<tr><td>POST</td><td>/api/v1/self/payments/scan-and-pay</td><td>Scan a QR token and pay from own account — body: <code>{ token, payerAccountId, amount }</code>. Amount required only when QR has no preset amount</td></tr>
 </table>
 <p><strong>Ownership enforcement:</strong> JWT <code>sub</code> → <code>Customer.keycloakId</code>. All resource lookups validate ownership and return 404 (not 403) when the resource belongs to another customer — prevents enumeration attacks.</p>
+</section>
+
+<!-- POCKETS / QR PAYMENTS ────────────────────────────────────────────────── -->
+<section id="wallet">
+<h2>Pockets &amp; QR Payments <span style="font-size:.75rem;font-weight:400;color:#065f46;background:#d1fae5;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Live</span></h2>
+<p>Wallet sub-features: <strong>Pockets</strong> group savings accounts into named envelopes (presentation layer — no new ledger accounts). <strong>QR Payments</strong> encode account details into a server-generated PNG and process single-use payments via token validation.</p>
+<div class="callout success">Implemented in <code>com.cba.wallet</code>. Flyway migration: <code>V47__wallet_module.sql</code>. ZXing 3.5.3 for QR rendering.</div>
+
+<h3>Pockets — Teller/Admin API</h3>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/pockets?customerId={id}</td><td>List active pockets for a customer with linked account summary and aggregate balance</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/pockets/{id}?customerId={id}</td><td>Get pocket detail</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/pockets</td><td>Create pocket — body: <code>{ customerId, name, description, accountIds[] }</code></td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/pockets/{id}/link?customerId={id}</td><td>Link additional savings accounts — body: <code>{ accountIds[] }</code>. One-account-per-pocket enforced.</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/pockets/{id}/delink?customerId={id}</td><td>Delink accounts from pocket — body: <code>{ accountIds[] }</code></td><td>ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/api/v1/pockets/{id}?customerId={id}</td><td>Rename or update description — body: <code>{ name, description }</code></td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/pockets/{id}?customerId={id}</td><td>Close pocket (delinks all accounts, sets status CLOSED)</td><td>ADMIN, TELLER</td></tr>
+</table>
+
+<h3>QR Payments — Teller/Admin API</h3>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>POST</td><td>/api/v1/payments/qr/generate</td><td>Generate QR for account — body: <code>{ accountId, presetAmount?, reference?, expiryMinutes? }</code>. Returns <code>{ tokenId, qrBase64, payload, accountNumber, accountName, presetAmount, currency, expiresAt }</code>. Use <code>data:image/png;base64,{qrBase64}</code> in an img tag.</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/payments/qr/decode-and-pay</td><td>Scan QR and execute payment — body: <code>{ token, payerAccountId, amount? }</code>. Token marked used before transfer to prevent replay.</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>GET</td><td>/api/v1/accounts/{accountId}/qr?expiryMinutes={n}</td><td>Convenience — refresh/generate QR for a specific account. Default expiry 60 min.</td><td>ADMIN, TELLER</td></tr>
+</table>
+
+<h3>QR Payload Format</h3>
+<pre><code>{ "v": "1", "bank": "NUBBANK", "accountId": "uuid", "accountNumber": "001-SAV-0000001",
+  "currency": "USD", "amount": 50.00, "ref": "Invoice #123" }</code></pre>
+<p>The payload JSON is stored as the token string. <code>amount</code> and <code>ref</code> are optional. Single-use: once decoded-and-paid, the token <code>used=true</code> and cannot be replayed.</p>
 </section>
 
 <!-- GROUPS ─────────────────────────────────────────────────────────────── -->

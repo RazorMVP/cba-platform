@@ -2,6 +2,7 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule, CurrencyPipe, DatePipe, TitleCasePipe } from '@angular/common';
 import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge';
 import {
   CustomerService, Customer, KycStatus,
@@ -11,6 +12,7 @@ import {
 } from '../customer.service';
 import { AccountService, Account } from '../../accounts/account.service';
 import { LoanService, Loan } from '../../loans/loan.service';
+import { environment } from '../../../../../environments/environment';
 
 export type DetailTab =
   | 'overview'
@@ -19,7 +21,8 @@ export type DetailTab =
   | 'identifiers'
   | 'beneficiaries'
   | 'staff'
-  | 'transfer';
+  | 'transfer'
+  | 'pockets';
 
 const AVATAR_COLORS = ['#3b82f6','#16a34a','#7c3aed','#ea580c','#db2777','#0891b2'];
 
@@ -36,6 +39,8 @@ export class CustomerDetailComponent implements OnInit {
   private readonly custSvc  = inject(CustomerService);
   private readonly accSvc   = inject(AccountService);
   private readonly loanSvc  = inject(LoanService);
+  private readonly http     = inject(HttpClient);
+  private readonly apiBase  = environment.apiBaseUrl;
 
   customer: Customer | null = null;
   loading = true;
@@ -62,6 +67,7 @@ export class CustomerDetailComponent implements OnInit {
     { id: 'loans',         label: 'Loans',         icon: 'payments' },
     { id: 'identifiers',   label: 'ID & Address',  icon: 'badge' },
     { id: 'beneficiaries', label: 'Beneficiaries', icon: 'group' },
+    { id: 'pockets',       label: 'Pockets',       icon: 'folder_open' },
     { id: 'staff',         label: 'Staff',         icon: 'manage_accounts' },
     { id: 'transfer',      label: 'Transfer',      icon: 'swap_horiz' },
   ];
@@ -86,6 +92,15 @@ export class CustomerDetailComponent implements OnInit {
   beneficiaries: Beneficiary[] = [];
   beneficiariesLoaded = false;
   beneficiariesLoading = false;
+
+  // ── Pockets tab ──────────────────────────────────────────────────────────
+  pockets: any[] = [];
+  pocketsLoaded = false;
+  pocketsLoading = false;
+  showCreatePocketModal = false;
+  pocketForm = { name: '', description: '' };
+  pocketSaving = false;
+  pocketError = '';
 
   // ── KYC dropdown (legacy transitions) ───────────────────────────────────
   showKycDropdown = false;
@@ -240,6 +255,63 @@ export class CustomerDetailComponent implements OnInit {
         error: () => { this.beneficiariesLoading = false; },
       });
     }
+    if (tab === 'pockets' && !this.pocketsLoaded) {
+      this.loadPockets();
+    }
+  }
+
+  // ── Pockets ───────────────────────────────────────────────────────────────
+
+  loadPockets(): void {
+    const id = this.customer?.id;
+    if (!id) return;
+    this.pocketsLoading = true;
+    this.http.get<any>(`${this.apiBase}/api/v1/pockets?customerId=${id}`).subscribe({
+      next: r => {
+        this.pockets = r?.data ?? r ?? [];
+        this.pocketsLoaded = true;
+        this.pocketsLoading = false;
+      },
+      error: () => { this.pocketsLoading = false; },
+    });
+  }
+
+  openCreatePocketModal(): void {
+    this.pocketForm = { name: '', description: '' };
+    this.pocketError = '';
+    this.showCreatePocketModal = true;
+  }
+
+  savePocket(): void {
+    const id = this.customer?.id;
+    if (!id || !this.pocketForm.name.trim()) return;
+    this.pocketSaving = true;
+    this.pocketError = '';
+    this.http.post<any>(`${this.apiBase}/api/v1/pockets`, {
+      customerId: id,
+      name: this.pocketForm.name,
+      description: this.pocketForm.description || null,
+      accountIds: [],
+    }).subscribe({
+      next: r => {
+        const pocket = r?.data ?? r;
+        this.pockets = [pocket, ...this.pockets];
+        this.pocketSaving = false;
+        this.showCreatePocketModal = false;
+      },
+      error: err => {
+        this.pocketError = err?.error?.errors?.[0]?.message ?? 'Failed to create pocket';
+        this.pocketSaving = false;
+      },
+    });
+  }
+
+  closePocket(pocketId: string): void {
+    const customerId = this.customer?.id;
+    if (!customerId) return;
+    this.http.delete<any>(`${this.apiBase}/api/v1/pockets/${pocketId}?customerId=${customerId}`).subscribe({
+      next: () => { this.pockets = this.pockets.filter(p => p.id !== pocketId); },
+    });
   }
 
   // ── KYC dropdown (legacy) ─────────────────────────────────────────────────

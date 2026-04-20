@@ -2,12 +2,14 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge';
 import { AccountService, Account, Transaction, AccountCreateRequest, AccountHold, AccountHoldRequest, DepositProductSummary, InterestCalculation } from '../account.service';
 import { CustomerService, ImageMeta } from '../../customers/customer.service';
 import { PageResponse } from '../../../../core/models/api-response.model';
+import { environment } from '../../../../../environments/environment';
 
-type ActiveTab = 'overview' | 'transactions' | 'interest' | 'holds';
+type ActiveTab = 'overview' | 'transactions' | 'interest' | 'holds' | 'qr';
 type ModalType = 'approve' | 'activate' | 'reject' | 'freeze' | 'unfreeze' | 'close' | 'deposit' | 'withdraw' | 'statement' | 'placeHold' | 'releaseHold' | 'reactivate' | 'postInterest' | null;
 
 @Component({
@@ -22,6 +24,8 @@ export class AccountDetailComponent implements OnInit {
   private readonly router     = inject(Router);
   private readonly svc        = inject(AccountService);
   private readonly custSvc    = inject(CustomerService);
+  private readonly http       = inject(HttpClient);
+  private readonly apiBase    = environment.apiBaseUrl;
 
   account: Account | null = null;
   loading = true;
@@ -72,6 +76,12 @@ export class AccountDetailComponent implements OnInit {
   holdsLoaded             = false;
   holdToRelease: AccountHold | null = null;
   holdForm: AccountHoldRequest = { amount: 0, reason: '' };
+
+  // QR tab (lazy-loaded)
+  qrData: any = null;
+  qrLoading   = false;
+  qrLoaded    = false;
+  qrError     = '';
 
   // Modal state
   activeModal: ModalType = null;
@@ -188,6 +198,28 @@ export class AccountDetailComponent implements OnInit {
     if (tab === 'transactions' && !this.txnLoaded) this.loadTxns();
     if (tab === 'interest'     && !this.intLoaded) this.loadIntTxns();
     if (tab === 'holds' && !this.holdsLoaded)       this.loadHolds();
+    if (tab === 'qr'    && !this.qrLoaded)          this.loadQr();
+  }
+
+  // ── QR Payment ──────────────────────────────────────────────────────────────
+
+  loadQr(): void {
+    if (!this.account) return;
+    this.qrLoading = true;
+    this.qrError   = '';
+    this.http.get<any>(`${this.apiBase}/api/v1/accounts/${this.account.id}/qr`).subscribe({
+      next: r  => { this.qrData = r?.data ?? r; this.qrLoaded = true; this.qrLoading = false; },
+      error: err => {
+        this.qrError = err?.error?.errors?.[0]?.message ?? 'Failed to generate QR code';
+        this.qrLoading = false;
+      },
+    });
+  }
+
+  refreshQr(): void {
+    this.qrLoaded = false;
+    this.qrData   = null;
+    this.loadQr();
   }
 
   // ── Transactions ────────────────────────────────────────────────────────────

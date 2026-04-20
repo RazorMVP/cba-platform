@@ -57,6 +57,79 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 105 — 2026-04-20
+**Wallet module: Pockets + QR Payment + Self-Service extensions + Angular UI (Pockets tab on Customer Detail, QR Pay tab on Account Detail). Favicon fix (transparent ICO overrides .png in Safari).**
+
+#### New/Updated Files
+
+| File | Change |
+|------|--------|
+| `backend/pom.xml` | Added ZXing 3.5.3 (`core` + `javase`) for server-side QR PNG generation |
+| `backend/src/main/resources/db/migration/V47__wallet_module.sql` | New: `pockets`, `pocket_accounts`, `qr_payment_tokens` tables |
+| `backend/src/main/java/com/cba/wallet/Pocket.java` | New: JPA entity, `PocketStatus` enum (ACTIVE/CLOSED) |
+| `backend/src/main/java/com/cba/wallet/PocketAccount.java` | New: join entity linking Pocket ↔ Account |
+| `backend/src/main/java/com/cba/wallet/PocketRepository.java` | New: `findActiveByCustomerId` JPQL |
+| `backend/src/main/java/com/cba/wallet/PocketAccountRepository.java` | New: `findByAccountId`, `existsByAccountId` |
+| `backend/src/main/java/com/cba/wallet/PocketService.java` | New: full CRUD with ownership validation and aggregate balance |
+| `backend/src/main/java/com/cba/wallet/PocketController.java` | New: REST at `/api/v1/pockets` (7 endpoints) |
+| `backend/src/main/java/com/cba/wallet/QrPaymentToken.java` | New: single-use token entity |
+| `backend/src/main/java/com/cba/wallet/QrPaymentTokenRepository.java` | New: `findByToken` |
+| `backend/src/main/java/com/cba/wallet/QrPaymentService.java` | New: ZXing QR generation (300×300 PNG → base64), decode-and-pay with double-spend prevention |
+| `backend/src/main/java/com/cba/wallet/QrPaymentController.java` | New: REST — `POST /qr/generate`, `POST /qr/decode-and-pay`, `GET /accounts/{id}/qr` |
+| `backend/src/main/java/com/cba/selfservice/SelfServiceFacade.java` | Extended: pocket CRUD + QR generation/scan-and-pay with ownership enforcement |
+| `backend/src/main/java/com/cba/selfservice/SelfServiceController.java` | Extended: `/self/pockets/**` + `/self/accounts/{id}/qr` + `/self/payments/scan-and-pay` |
+| `web/src/app/features/operations/customers/customer-detail/customer-detail.ts` | Added Pockets tab + lazy-load + create/close pocket methods |
+| `web/src/app/features/operations/customers/customer-detail/customer-detail.html` | Added Pockets tab content + Create Pocket modal |
+| `web/src/app/features/operations/customers/customer-detail/customer-detail.scss` | Added pocket card styles |
+| `web/src/app/features/operations/accounts/account-detail/account-detail.ts` | Added QR tab + `loadQr()` / `refreshQr()` methods |
+| `web/src/app/features/operations/accounts/account-detail/account-detail.html` | Added QR Pay tab with base64 image display + metadata |
+| `web/src/app/features/operations/accounts/account-detail/account-detail.scss` | Added QR tab styles |
+| `web/public/favicon.ico` | Replaced with PIL-generated transparent ICO (Nubeero N logo, 32×32 + 16×16) |
+| `web/public/favicon.png` | New: transparent PNG favicon |
+| `web/src/index.html` | Cache-bust `?v=2` on favicon links |
+
+#### Key Patterns / Decisions
+
+- **Pockets are presentation-only**: No new ledger accounts created. Funds stay in underlying savings accounts; `totalBalance` is computed on read by summing `account.balance` across all linked accounts.
+- **One-account-per-pocket constraint**: `UNIQUE (account_id)` in `pocket_accounts` enforces that each savings account belongs to at most one pocket. `delinkAccounts` required before re-linking elsewhere.
+- **QR double-spend prevention**: `QrPaymentToken.used = true` is written BEFORE `PaymentService.transfer()` is called. Even if the transfer fails, the token cannot be replayed — intentional replay-attack prevention.
+- **QR payload is the DB token**: The raw JSON payload `{"v":"1","bank":"NUBBANK",...}` is stored as the token string. `findByToken(payload)` resolves it at decode time without a separate token ID in the QR.
+- **ZXing server-side rendering**: QR PNG generated at 300×300 via `QRCodeWriter` + `MatrixToImageWriter`, returned as base64. Frontend uses `<img src="data:image/png;base64,{qrBase64}">` — no npm QR library required.
+- **Self-service ownership enforcement**: All self-service wallet methods re-validate ownership via `resolveCustomer(keycloakSub)` before delegating to `PocketService`/`QrPaymentService`. The underlying services enforce `customerId` at the domain level.
+- **Anti-enumeration**: Pocket ownership check returns 404 not 403 (prevents resource enumeration).
+- **Favicon ICO override**: Browsers always prefer `.ico` over `.png`. Old Angular `favicon.ico` was overriding the new PNG. Fixed by overwriting `favicon.ico` with a transparent ICO + `?v=2` cache-bust query param on `<link>` hrefs.
+
+#### Build Verification
+
+- `cd backend && ./mvnw clean compile` → **BUILD SUCCESS** (0 errors)
+- `cd web && npx ng build --configuration production` → **BUILD SUCCESS** (pre-existing warnings only)
+
+#### Confirmed Platform Versions
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `96929c6` |
+| Java | 21 | `96929c6` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `96929c6` |
+| Keycloak admin client | 26.0.5 | `96929c6` |
+| springdoc-openapi | 2.8.6 | `96929c6` |
+| Lombok | 1.18.38 | `96929c6` |
+| PostgreSQL | 16 (Docker) | `96929c6` |
+| ZXing (QR) | 3.5.3 | new this session |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `fa52b4d` |
+| Angular CLI | 21.2.7 | `fa52b4d` |
+| PrimeNG | 21.0.x | `fa52b4d` |
+| RxJS | 7.8.x | `fa52b4d` |
+| TypeScript | 5.9.x | `fa52b4d` |
+| Vercel deployment ID | `dpl_EBVqJXFjBNTrHE8kpQVGRUdPPK9e` | `fa52b4d` |
+| Production URL | cba-web-nine.vercel.app | `fa52b4d` |
+
+---
+
 ### Session 104 — 2026-04-19
 **Documentation housekeeping: Flutter mobile app status clearly marked as ❌ NOT YET BUILT in CLAUDE.md and cba-log.md; stale Not Yet Built table corrected.**
 

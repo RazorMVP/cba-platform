@@ -11130,6 +11130,126 @@
             "description": "Soft-deletes a beneficiary (sets active=false)."
           },
           "response": []
+        },
+        {
+          "name": "List Pockets (Self)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization","value": "Bearer {{accessToken}}"},{"key": "X-Tenant-ID","value": "{{tenantId}}"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/self/pockets","host": ["{{baseUrl}}"],"path": ["api","v1","self","pockets"]},
+            "description": "Returns active pockets for the authenticated customer with linked accounts and aggregate balance."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Pocket (Self)",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization","value": "Bearer {{accessToken}}"},{"key": "X-Tenant-ID","value": "{{tenantId}}"},{"key": "Content-Type","value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/self/pockets","host": ["{{baseUrl}}"],"path": ["api","v1","self","pockets"]},
+            "body": {"mode": "raw","raw": "{\n  \"name\": \"Holiday Fund\",\n  \"description\": \"Saving for Ibiza 2026\",\n  \"accountIds\": []\n}"},
+            "description": "Creates a pocket for the authenticated customer. accountIds links savings accounts at creation time."
+          },
+          "response": []
+        },
+        {
+          "name": "Link Accounts to Pocket (Self)",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization","value": "Bearer {{accessToken}}"},{"key": "X-Tenant-ID","value": "{{tenantId}}"},{"key": "Content-Type","value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/self/pockets/:pocketId/link","host": ["{{baseUrl}}"],"path": ["api","v1","self","pockets",":pocketId","link"]},
+            "body": {"mode": "raw","raw": "{\n  \"accountIds\": [\"{{accountId}}\"]\n}"},
+            "description": "Links additional savings accounts to an existing pocket. One-account-per-pocket enforced — delink first if already in another pocket."
+          },
+          "response": []
+        },
+        {
+          "name": "Generate QR for Own Account (Self)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization","value": "Bearer {{accessToken}}"},{"key": "X-Tenant-ID","value": "{{tenantId}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/self/accounts/{{accountId}}/qr?presetAmount=50&expiryMinutes=60",
+              "host": ["{{baseUrl}}"],"path": ["api","v1","self","accounts","{{accountId}}","qr"],
+              "query": [
+                {"key": "presetAmount","value": "50","description": "Optional fixed amount encoded into QR"},
+                {"key": "reference","value": "Invoice #123","description": "Optional label shown to payer","disabled": true},
+                {"key": "expiryMinutes","value": "60","description": "Token expiry window in minutes (default 60)"}
+              ]
+            },
+            "description": "Generates a QR code PNG (base64) for the authenticated customer's account. Render with: <img src='data:image/png;base64,{qrBase64}'>. Token is single-use."
+          },
+          "response": []
+        },
+        {
+          "name": "Scan & Pay (Self)",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization","value": "Bearer {{accessToken}}"},{"key": "X-Tenant-ID","value": "{{tenantId}}"},{"key": "Content-Type","value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/self/payments/scan-and-pay","host": ["{{baseUrl}}"],"path": ["api","v1","self","payments","scan-and-pay"]},
+            "body": {"mode": "raw","raw": "{\n  \"token\": \"{\\\"v\\\":\\\"1\\\",\\\"bank\\\":\\\"NUBBANK\\\",...}\",\n  \"payerAccountId\": \"{{payerAccountId}}\",\n  \"amount\": null\n}"},
+            "description": "Decodes QR token and executes a payment from the payer's own account. amount required only if QR has no preset amount. Token is marked used before transfer to prevent replay."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Pockets & QR Payments",
+      "description": "Teller/Admin wallet endpoints. For customer self-service wallet, see the Self Service folder.",
+      "item": [
+        {
+          "name": "List Pockets",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization","value": "Bearer {{accessToken}}"},{"key": "X-Tenant-ID","value": "{{tenantId}}"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/pockets?customerId={{customerId}}","host": ["{{baseUrl}}"],"path": ["api","v1","pockets"],"query": [{"key": "customerId","value": "{{customerId}}"}]},
+            "description": "List active pockets for a customer."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Pocket",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization","value": "Bearer {{accessToken}}"},{"key": "X-Tenant-ID","value": "{{tenantId}}"},{"key": "Content-Type","value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/pockets","host": ["{{baseUrl}}"],"path": ["api","v1","pockets"]},
+            "body": {"mode": "raw","raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"name\": \"Emergency Fund\",\n  \"description\": \"3-month buffer\",\n  \"accountIds\": []\n}"},
+            "description": "Creates a named pocket for a customer."
+          },
+          "response": []
+        },
+        {
+          "name": "Generate QR Code",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization","value": "Bearer {{accessToken}}"},{"key": "X-Tenant-ID","value": "{{tenantId}}"},{"key": "Content-Type","value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/payments/qr/generate","host": ["{{baseUrl}}"],"path": ["api","v1","payments","qr","generate"]},
+            "body": {"mode": "raw","raw": "{\n  \"accountId\": \"{{accountId}}\",\n  \"presetAmount\": 150.00,\n  \"reference\": \"Invoice #INV-2026-001\",\n  \"expiryMinutes\": 60\n}"},
+            "description": "Generates a QR code PNG for an account. Response includes qrBase64 (use as data:image/png;base64,{qrBase64} in an img tag), tokenId, expiresAt. Token is single-use."
+          },
+          "response": []
+        },
+        {
+          "name": "Decode & Pay QR",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization","value": "Bearer {{accessToken}}"},{"key": "X-Tenant-ID","value": "{{tenantId}}"},{"key": "Content-Type","value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/payments/qr/decode-and-pay","host": ["{{baseUrl}}"],"path": ["api","v1","payments","qr","decode-and-pay"]},
+            "body": {"mode": "raw","raw": "{\n  \"token\": \"{\\\"v\\\":\\\"1\\\",\\\"bank\\\":\\\"NUBBANK\\\",\\\"accountId\\\":\\\"...\\\",\\\"accountNumber\\\":\\\"001-SAV-0000001\\\",\\\"currency\\\":\\\"USD\\\"}\",\n  \"payerAccountId\": \"{{payerAccountId}}\",\n  \"amount\": null\n}"},
+            "description": "Validates QR token (checks expiry and not-already-used), marks token used, then executes transfer from payerAccountId to the account encoded in the QR. amount is required when QR has no preset amount."
+          },
+          "response": []
+        },
+        {
+          "name": "Get QR for Account (Convenience)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization","value": "Bearer {{accessToken}}"},{"key": "X-Tenant-ID","value": "{{tenantId}}"}],
+            "url": {"raw": "{{baseUrl}}/api/v1/accounts/{{accountId}}/qr?expiryMinutes=60","host": ["{{baseUrl}}"],"path": ["api","v1","accounts","{{accountId}}","qr"],"query": [{"key": "expiryMinutes","value": "60"}]},
+            "description": "Shortcut to generate/refresh a QR for a specific account. Same response shape as POST /generate."
+          },
+          "response": []
         }
       ]
     },

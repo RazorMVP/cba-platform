@@ -211,6 +211,9 @@
           <span class="tab-badge">{{ holds.length }}</span>
         }
       </button>
+      <button class="tab-item" [class.tab-item--active]="activeTab === 'qr'" (click)="setTab('qr')">
+        <span class="material-icons">qr_code_2</span> QR Pay
+      </button>
     </div>
 
     <!-- ── OVERVIEW TAB ── -->
@@ -462,6 +465,61 @@
           }
         </div>
       }
+    }
+
+    <!-- ── QR TAB ── -->
+    @if (activeTab === 'qr') {
+      <div class="card qr-card">
+        <div class="card__header">
+          <div class="card__title">QR Payment Code</div>
+          <button class="btn-outline btn--sm" (click)="refreshQr()" [disabled]="qrLoading">
+            <span class="material-icons">refresh</span> Refresh
+          </button>
+        </div>
+        <div class="card__body qr-body">
+          @if (qrLoading) {
+            <div class="qr-placeholder">
+              <span class="material-icons spin" style="font-size:40px;color:#ccc">qr_code_2</span>
+              <p class="muted" style="margin-top:8px">Generating QR code…</p>
+            </div>
+          } @else if (qrError) {
+            <div class="qr-placeholder">
+              <span class="material-icons" style="color:#dc2626;font-size:36px">error_outline</span>
+              <p style="color:#dc2626;margin-top:8px">{{ qrError }}</p>
+              <button class="btn-outline btn--sm" style="margin-top:12px" (click)="refreshQr()">Try Again</button>
+            </div>
+          } @else if (qrData) {
+            <div class="qr-image-wrap">
+              <img [src]="'data:image/png;base64,' + qrData.qrBase64"
+                   alt="QR Payment Code"
+                   class="qr-image" />
+            </div>
+            <div class="qr-meta">
+              <div class="qr-row">
+                <span class="qr-label">Account</span>
+                <span class="qr-value mono">{{ qrData.accountNumber }}</span>
+              </div>
+              <div class="qr-row">
+                <span class="qr-label">Currency</span>
+                <span class="qr-value">{{ qrData.currency }}</span>
+              </div>
+              @if (qrData.presetAmount) {
+                <div class="qr-row">
+                  <span class="qr-label">Preset Amount</span>
+                  <span class="qr-value tabular-nums">{{ qrData.presetAmount | number:'1.2-2' }}</span>
+                </div>
+              }
+              <div class="qr-row">
+                <span class="qr-label">Expires</span>
+                <span class="qr-value">{{ qrData.expiresAt | date:'medium' }}</span>
+              </div>
+            </div>
+            <p class="muted qr-hint">
+              Scan this code with the Nubbank app or share it with a payer. Each code is single-use.
+            </p>
+          }
+        </div>
+      </div>
     }
 
   }

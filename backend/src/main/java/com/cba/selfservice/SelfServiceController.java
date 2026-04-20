@@ -9,16 +9,21 @@ import com.cba.customer.BeneficiaryService;
 import com.cba.customer.dto.CustomerResponse;
 import com.cba.loan.dto.LoanResponse;
 import com.cba.loan.dto.RepaymentScheduleResponse;
+import com.cba.wallet.PocketService;
+import com.cba.wallet.QrPaymentService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -123,6 +128,79 @@ public class SelfServiceController {
             @AuthenticationPrincipal Jwt jwt) {
         selfServiceFacade.removeBeneficiary(sub(jwt), id);
         return ResponseEntity.ok(ApiResponse.ok(null));
+    }
+
+    // ── Self-Service Pockets ──────────────────────────────────────────────────
+
+    public record SelfCreatePocketRequest(String name, String description, List<UUID> accountIds) {}
+    public record SelfLinkRequest(@NotNull List<UUID> accountIds) {}
+
+    @GetMapping("/pockets")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "List own pockets")
+    public ResponseEntity<ApiResponse<List<PocketService.PocketResponse>>> getMyPockets(
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(ApiResponse.ok(selfServiceFacade.getMyPockets(sub(jwt))));
+    }
+
+    @PostMapping("/pockets")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Create a pocket")
+    public ResponseEntity<ApiResponse<PocketService.PocketResponse>> createPocket(
+            @Valid @RequestBody SelfCreatePocketRequest req,
+            @AuthenticationPrincipal Jwt jwt) {
+        var created = selfServiceFacade.createPocket(sub(jwt),
+                new PocketService.CreatePocketRequest(null, req.name(), req.description(), req.accountIds()));
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(created));
+    }
+
+    @PostMapping("/pockets/{id}/link")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Link savings accounts to a pocket")
+    public ResponseEntity<ApiResponse<PocketService.PocketResponse>> linkAccounts(
+            @PathVariable UUID id,
+            @Valid @RequestBody SelfLinkRequest req,
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                selfServiceFacade.linkAccountsToPocket(sub(jwt), id, req.accountIds())));
+    }
+
+    @PostMapping("/pockets/{id}/delink")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Remove savings accounts from a pocket")
+    public ResponseEntity<ApiResponse<PocketService.PocketResponse>> delinkAccounts(
+            @PathVariable UUID id,
+            @Valid @RequestBody SelfLinkRequest req,
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                selfServiceFacade.delinkAccountsFromPocket(sub(jwt), id, req.accountIds())));
+    }
+
+    // ── Self-Service QR Payments ──────────────────────────────────────────────
+
+    @GetMapping("/accounts/{accountId}/qr")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Generate a QR code for own account — returns base64 PNG")
+    public ResponseEntity<ApiResponse<QrPaymentService.QrResponse>> generateQr(
+            @PathVariable UUID accountId,
+            @RequestParam(required = false) BigDecimal presetAmount,
+            @RequestParam(required = false) String reference,
+            @RequestParam(required = false) Integer expiryMinutes,
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                selfServiceFacade.generateQrForAccount(sub(jwt), accountId, presetAmount, reference, expiryMinutes)));
+    }
+
+    public record SelfScanAndPayRequest(@NotNull String token, @NotNull UUID payerAccountId, BigDecimal amount) {}
+
+    @PostMapping("/payments/scan-and-pay")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Scan a QR code and pay from own account")
+    public ResponseEntity<ApiResponse<Object>> scanAndPay(
+            @Valid @RequestBody SelfScanAndPayRequest req,
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                selfServiceFacade.scanAndPay(sub(jwt), req.token(), req.payerAccountId(), req.amount())));
     }
 
     private String sub(Jwt jwt) {

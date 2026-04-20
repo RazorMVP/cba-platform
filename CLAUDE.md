@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 103 — 2026-04-19)
+## Confirmed Platform Versions (Session 105 — 2026-04-20)
 
 These are the verified-working versions for both production components. Update this table whenever a dependency is upgraded.
 
@@ -21,7 +21,8 @@ These are the verified-working versions for both production components. Update t
 | **PostgreSQL** | 16 | Via Docker; schema managed by Flyway |
 | **AWS SDK v2 S3** | 2.26.12 | Optional — for S3/MinIO/GCS image storage |
 | **thumbnailator** | 0.4.20 | Server-side image resize for `ClientImageService` — max 500×500, JPEG output |
-| **Last git commit** | `70ad76b` | Session 103 — loans pipeline 1-row fix + dashboard KPI height reduction |
+| **ZXing** | 3.5.3 | Server-side QR PNG generation (`core` + `javase`) — Session 105 |
+| **Last git commit** | `96929c6` | Session 102 — backend last changed (wallet module not yet pushed) |
 
 ### Angular Web App (`web/`)
 
@@ -34,7 +35,7 @@ These are the verified-working versions for both production components. Update t
 | **TypeScript** | 5.9.x | `~5.9.2` pinned |
 | **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma) |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `70ad76b` | Session 103 — loans pipeline 1-row fix + dashboard KPI height reduction |
+| **Last git commit** | `fa52b4d` | Session 104 — web last changed (wallet UI not yet pushed) |
 
 > **Session 66 CI fixes**: Angular 21 uses Vitest (not Karma) — `--browsers=ChromeHeadless` and `--code-coverage` are invalid flags. `vercel deploy --prebuilt` requires `.vercel/output/` from `vercel build`, not `dist/` from `ng build`. All three issues fixed; CI pipeline and Vercel production deployment now fully green.
 

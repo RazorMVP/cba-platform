@@ -1,8 +1,10 @@
 import { Routes } from '@angular/router';
 import { ShellComponent } from './layout/shell/shell';
+import { LoginComponent } from './features/auth/login';
 import { isAuthenticated } from './core/auth/auth.guard';
 
 export const routes: Routes = [
+  { path: 'login', component: LoginComponent },
   {
     path: '',
     component: ShellComponent,

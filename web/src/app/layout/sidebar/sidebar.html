@@ -1,9 +1,9 @@
 <aside class="sidebar" [class.sidebar--collapsed]="collapsed">
   <!-- Logo -->
   <div class="sidebar__logo">
-    <span class="sidebar__logo-icon material-icons">account_balance</span>
+    <img class="sidebar__logo-icon" src="newNubeero_NLogo.png" alt="Nubbank">
     @if (!collapsed) {
-      <span class="sidebar__logo-text">CBA Portal</span>
+      <span class="sidebar__logo-text">Nubbank</span>
     }
     <button class="sidebar__toggle" (click)="sidebarToggle.emit()">
       <span class="material-icons">{{ collapsed ? 'menu' : 'menu_open' }}</span>

@@ -661,3 +661,15 @@
   .material-icons { font-size: 1rem; }
 }
 
+// ── QR tab ────────────────────────────────────────────────────────────────────
+.qr-card { max-width: 480px; }
+.qr-body { display: flex; flex-direction: column; align-items: center; gap: $space-5; padding: $space-6; }
+.qr-placeholder { display: flex; flex-direction: column; align-items: center; padding: $space-8 0; }
+.qr-image-wrap { padding: $space-3; border: 2px solid $color-border-default; border-radius: $radius-md; background: #fff; }
+.qr-image { display: block; width: 240px; height: 240px; }
+.qr-meta { width: 100%; display: flex; flex-direction: column; gap: $space-2; }
+.qr-row { display: flex; justify-content: space-between; font-size: $text-sm; }
+.qr-label { color: $color-text-muted; }
+.qr-value { font-weight: $font-weight-medium; }
+.qr-hint { font-size: $text-xs; color: $color-text-muted; text-align: center; line-height: 1.6; max-width: 320px; }
+

@@ -602,12 +602,101 @@
         </div>
       }
 
+      <!-- POCKETS TAB -->
+      @if (activeTab === 'pockets') {
+        <div class="card">
+          <div class="card__header">
+            <div class="card__title">Pockets</div>
+            <button class="btn-primary btn-sm" (click)="openCreatePocketModal()">
+              <span class="material-icons">add</span> New Pocket
+            </button>
+          </div>
+          <div class="card__body">
+            @if (pocketsLoading) {
+              <div class="tab-empty"><span class="material-icons spin">refresh</span><p>Loading pockets…</p></div>
+            } @else if (pockets.length === 0) {
+              <div class="tab-empty">
+                <span class="material-icons">folder_open</span>
+                <p>No pockets yet. Create one to group savings accounts into named envelopes.</p>
+              </div>
+            } @else {
+              <div class="pocket-list">
+                @for (pocket of pockets; track pocket.id) {
+                  <div class="pocket-card">
+                    <div class="pocket-card__head">
+                      <div>
+                        <div class="pocket-name">{{ pocket.name }}</div>
+                        @if (pocket.description) {
+                          <div class="pocket-desc">{{ pocket.description }}</div>
+                        }
+                      </div>
+                      <div class="pocket-meta">
+                        <div class="pocket-balance">{{ pocket.totalBalance | currency:'USD':'symbol':'1.2-2' }}</div>
+                        <app-status-badge [label]="pocket.status" [variant]="pocket.status === 'ACTIVE' ? 'success' : 'neutral'" />
+                      </div>
+                    </div>
+                    @if (pocket.accounts?.length) {
+                      <div class="pocket-accounts">
+                        @for (acc of pocket.accounts; track acc.accountId) {
+                          <div class="pocket-account-row">
+                            <span class="mono">{{ acc.accountNumber }}</span>
+                            <span class="pocket-acc-type muted">{{ acc.accountType }}</span>
+                            <span class="pocket-acc-balance">{{ acc.balance | currency:'USD':'symbol':'1.2-2' }}</span>
+                          </div>
+                        }
+                      </div>
+                    } @else {
+                      <p class="muted" style="font-size:12px;margin:8px 0 0">No accounts linked yet.</p>
+                    }
+                    <div class="pocket-actions">
+                      <button class="btn-ghost btn-sm" style="color:var(--color-danger,#dc2626)"
+                              (click)="closePocket(pocket.id)">Close Pocket</button>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      }
+
     </div>
   }
 
 </div>
 
 <!-- ═══════════════════════ MODALS ═══════════════════════════════════════════ -->
+
+<!-- Create pocket modal -->
+@if (showCreatePocketModal) {
+  <div class="modal-backdrop" (click)="showCreatePocketModal = false">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <h3 class="modal__title">New Pocket</h3>
+        <button class="modal__close" (click)="showCreatePocketModal = false">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+      <div class="modal__body">
+        @if (pocketError) { <p class="form-error">{{ pocketError }}</p> }
+        <div class="form-group">
+          <label class="form-label">Name *</label>
+          <input class="form-input" [(ngModel)]="pocketForm.name" placeholder="e.g. Holiday Fund" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description</label>
+          <input class="form-input" [(ngModel)]="pocketForm.description" placeholder="Optional description" />
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button class="btn-ghost" (click)="showCreatePocketModal = false">Cancel</button>
+        <button class="btn-primary" [disabled]="pocketSaving || !pocketForm.name.trim()" (click)="savePocket()">
+          {{ pocketSaving ? 'Creating…' : 'Create Pocket' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
 
 <!-- Reject modal -->
 @if (showRejectModal) {

@@ -15,6 +15,8 @@ import com.cba.loan.LoanService;
 import com.cba.loan.dto.LoanApplicationRequest;
 import com.cba.loan.dto.LoanResponse;
 import com.cba.loan.dto.RepaymentScheduleResponse;
+import com.cba.wallet.PocketService;
+import com.cba.wallet.QrPaymentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -41,6 +43,8 @@ public class SelfServiceFacade {
     private final AccountRepository accountRepository;
     private final LoanService loanService;
     private final BeneficiaryService beneficiaryService;
+    private final PocketService pocketService;
+    private final QrPaymentService qrPaymentService;
 
     @Transactional(readOnly = true)
     public CustomerResponse getProfile(String keycloakSub) {
@@ -133,6 +137,59 @@ public class SelfServiceFacade {
     @Transactional
     public void removeBeneficiary(String keycloakSub, UUID beneficiaryId) {
         beneficiaryService.deactivate(resolveCustomer(keycloakSub).getId(), beneficiaryId);
+    }
+
+    // ── Self-Service Pockets ──────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<PocketService.PocketResponse> getMyPockets(String keycloakSub) {
+        return pocketService.listPockets(resolveCustomer(keycloakSub).getId());
+    }
+
+    @Transactional
+    public PocketService.PocketResponse createPocket(String keycloakSub,
+            PocketService.CreatePocketRequest req) {
+        UUID customerId = resolveCustomer(keycloakSub).getId();
+        return pocketService.createPocket(new PocketService.CreatePocketRequest(
+                customerId, req.name(), req.description(), req.accountIds()));
+    }
+
+    @Transactional
+    public PocketService.PocketResponse linkAccountsToPocket(String keycloakSub,
+            UUID pocketId, List<UUID> accountIds) {
+        return pocketService.linkAccounts(pocketId, resolveCustomer(keycloakSub).getId(), accountIds);
+    }
+
+    @Transactional
+    public PocketService.PocketResponse delinkAccountsFromPocket(String keycloakSub,
+            UUID pocketId, List<UUID> accountIds) {
+        return pocketService.delinkAccounts(pocketId, resolveCustomer(keycloakSub).getId(), accountIds);
+    }
+
+    // ── Self-Service QR Payments ──────────────────────────────────────────────
+
+    @Transactional
+    public QrPaymentService.QrResponse generateQrForAccount(String keycloakSub,
+            UUID accountId, BigDecimal presetAmount, String reference, Integer expiryMinutes) {
+        // Ownership check — account must belong to this customer
+        Customer customer = resolveCustomer(keycloakSub);
+        accountRepository.findById(accountId)
+                .filter(a -> a.getCustomer().getId().equals(customer.getId()))
+                .orElseThrow(() -> CbaException.notFound("Account", accountId.toString()));
+        return qrPaymentService.generateQr(
+                new QrPaymentService.GenerateQrRequest(accountId, presetAmount, reference, expiryMinutes));
+    }
+
+    @Transactional
+    public Object scanAndPay(String keycloakSub, String token, UUID payerAccountId, BigDecimal amount) {
+        // Ownership check — payer account must belong to this customer
+        Customer customer = resolveCustomer(keycloakSub);
+        accountRepository.findById(payerAccountId)
+                .filter(a -> a.getCustomer().getId().equals(customer.getId()))
+                .orElseThrow(() -> CbaException.notFound("Account", payerAccountId.toString()));
+        return qrPaymentService.decodeAndPay(
+                new QrPaymentService.DecodeAndPayRequest(token, payerAccountId, amount),
+                customer.getId().toString());
     }
 
     private Customer resolveCustomer(String keycloakSub) {

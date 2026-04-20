@@ -1,6 +1,7 @@
 package com.cba.card.config;
 
 import com.cba.card.openbanking.apikey.ApiKeyAuthFilter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -14,21 +15,23 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.reactive.function.client.WebClient;
 
 /**
- * Triple security filter chain:
+ * Multi-chain security config for card-service:
  *
  * <ol>
- *   <li>Order 0 — 3DS ACS endpoints ({@code /3ds/acs/**}): open to Directory Server
- *       (mTLS in prod) and cardholder browsers. No JWT.</li>
- *   <li>Order 1 — Internal endpoints ({@code /api/v1/internal/**}): open to
- *       network-isolated callers (FEP). No JWT required. In production this path
- *       is protected at the network/ingress level, not at the application layer.</li>
- *   <li>Order 2 — All other endpoints: require valid JWT from Keycloak realm "cba".</li>
+ *   <li>Order 0 — 3DS ACS ({@code /3ds/acs/**}): open, no JWT, no rate limit</li>
+ *   <li>Order 1 — Internal FEP ({@code /api/v1/internal/**}): open, no JWT, no rate limit</li>
+ *   <li>Order 2 — Card API ({@code /card-api/v1/**}): ApiKey or JWT + rate limiting</li>
+ *   <li>Order 3 — All others: JWT + rate limiting</li>
  * </ol>
  */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
+
+    /** Rate limiting runs on chains 2 and 3 — before auth so unauthenticated abuse is still throttled. */
+    @Autowired
+    private RateLimitFilter rateLimitFilter;
 
     /**
      * WebClient bean used by {@link com.cba.card.openbanking.webhook.WebhookDeliveryService}
@@ -89,6 +92,7 @@ public class SecurityConfig {
             throws Exception {
         http
             .securityMatcher("/card-api/v1/**")
+            .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(apiKeyAuthFilter, UsernamePasswordAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
             .csrf(csrf -> csrf.disable())
@@ -97,11 +101,12 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /** All other endpoints — JWT required. */
+    /** All other endpoints — JWT required + rate limited. */
     @Bean
     @Order(3)
     public SecurityFilterChain publicChain(HttpSecurity http) throws Exception {
         http
+            .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                 // OpenAPI / Swagger UI — documentation is always public

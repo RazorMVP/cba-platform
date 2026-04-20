@@ -29,8 +29,15 @@ public class SecurityConfig {
     @Autowired(required = false)
     private DevAuthBypassFilter devAuthBypassFilter;
 
+    /** Rate limit filter — runs before any auth filter on every request. */
+    @Autowired
+    private RateLimitFilter rateLimitFilter;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        // Rate limiting runs first — before auth so we can still throttle unauthenticated abuse
+        http.addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class);
+
         if (devAuthBypassFilter != null) {
             http.addFilterBefore(devAuthBypassFilter, UsernamePasswordAuthenticationFilter.class);
         }

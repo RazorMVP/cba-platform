@@ -5,6 +5,15 @@ import { CardsService, ApiKey, IssueApiKeyRequest, IssueApiKeyResponse } from '.
 
 const ALL_SCOPES = ['cards:read', 'cards:write', 'analytics:read', 'webhooks:manage', 'disputes:read', 'settlement:read'];
 
+type Tier = 'SANDBOX' | 'BASIC' | 'PRO' | 'ENTERPRISE';
+
+const TIER_LABELS: Record<Tier, string> = {
+  SANDBOX: 'Sandbox — 30 req/min',
+  BASIC: 'Basic — 100 req/min',
+  PRO: 'Pro — 500 req/min',
+  ENTERPRISE: 'Enterprise — 2,000 req/min',
+};
+
 @Component({
   selector: 'app-api-keys',
   standalone: true,
@@ -21,8 +30,10 @@ export class ApiKeysComponent implements OnInit {
   newKeyResult: IssueApiKeyResponse | null = null;
   copiedKey = false;
 
-  form: IssueApiKeyRequest = { name: '', scopes: [] };
+  form: IssueApiKeyRequest = { name: '', scopes: [], tier: 'BASIC' };
   readonly allScopes = ALL_SCOPES;
+  readonly tiers: Tier[] = ['SANDBOX', 'BASIC', 'PRO', 'ENTERPRISE'];
+  readonly tierLabels = TIER_LABELS;
 
   ngOnInit(): void { this.load(); }
 
@@ -31,7 +42,7 @@ export class ApiKeysComponent implements OnInit {
     this.svc.listApiKeys().subscribe({ next: k => { this.keys = k; this.loading = false; }, error: () => { this.loading = false; } });
   }
 
-  openCreate(): void { this.form = { name: '', scopes: [] }; this.newKeyResult = null; this.showModal = true; }
+  openCreate(): void { this.form = { name: '', scopes: [], tier: 'BASIC' }; this.newKeyResult = null; this.showModal = true; }
   closeModal(): void { this.showModal = false; this.newKeyResult = null; if (this.copiedKey) this.load(); this.copiedKey = false; }
 
   toggleScope(scope: string): void {

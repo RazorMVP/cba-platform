@@ -279,6 +279,7 @@ export interface ApiKey {
   keyHash: string;
   active: boolean;
   scopes: string[];
+  tier: 'SANDBOX' | 'BASIC' | 'PRO' | 'ENTERPRISE';
   lastUsedAt: string | null;
   createdAt: string;
 }
@@ -286,6 +287,7 @@ export interface ApiKey {
 export interface IssueApiKeyRequest {
   name: string;
   scopes: string[];
+  tier: 'SANDBOX' | 'BASIC' | 'PRO' | 'ENTERPRISE';
 }
 
 export interface IssueApiKeyResponse {

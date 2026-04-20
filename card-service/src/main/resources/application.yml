@@ -37,7 +37,18 @@ spring:
           issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/cba}
 
   cache:
-    type: simple
+    type: redis
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 4
+          min-idle: 1
 
   jackson:
     default-property-inclusion: non_null

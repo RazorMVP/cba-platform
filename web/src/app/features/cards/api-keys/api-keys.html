@@ -23,12 +23,13 @@
     } @else {
       <table class="data-table">
         <thead>
-          <tr><th>Name</th><th>Scopes</th><th>Last Used</th><th>Created</th><th></th></tr>
+          <tr><th>Name</th><th>Tier</th><th>Scopes</th><th>Last Used</th><th>Created</th><th></th></tr>
         </thead>
         <tbody>
           @for (key of keys; track key.id) {
             <tr class="table-row">
               <td><strong>{{ key.name }}</strong></td>
+              <td><span class="tier-badge tier-badge--{{ key.tier?.toLowerCase() }}">{{ key.tier ?? 'BASIC' }}</span></td>
               <td>
                 <div class="scopes">
                   @for (s of key.scopes; track s) {
@@ -62,6 +63,14 @@
           <div class="form-field">
             <label class="form-label">Key Name</label>
             <input class="form-input" [(ngModel)]="form.name" placeholder="e.g. Payment Processor" />
+          </div>
+          <div class="form-field">
+            <label class="form-label">Rate Limit Tier</label>
+            <select class="form-input" [(ngModel)]="form.tier">
+              @for (t of tiers; track t) {
+                <option [value]="t">{{ tierLabels[t] }}</option>
+              }
+            </select>
           </div>
           <div class="scope-section">
             <p class="scope-label">Scopes</p>

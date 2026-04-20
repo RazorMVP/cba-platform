@@ -57,6 +57,73 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 106 — 2026-04-20
+**Rate limiting: Redis fixed-window counters (Lua INCR+EXPIRE) wired into backend and card-service; tier-aware limits (SANDBOX 30 / BASIC 100 / PRO 500 / ENTERPRISE 2 000 req/min); API key Tier field + Angular dropdown.**
+
+#### New/Updated Files
+
+| File | Change |
+|------|--------|
+| `backend/pom.xml` | Added `spring-boot-starter-data-redis` + `bucket4j-core 8.10.1` |
+| `card-service/pom.xml` | Added `spring-boot-starter-data-redis` + `bucket4j-core 8.10.1` |
+| `backend/src/main/resources/db/migration/V48__rate_limiting.sql` | New: seeds `rate_limit_{sandbox,basic,pro,enterprise}` rows in `global_configurations` |
+| `card-service/src/main/resources/db/migration/V8__rate_limiting.sql` | New: `ALTER TABLE api_keys ADD COLUMN tier VARCHAR(20) DEFAULT 'BASIC'`; auto-tags sandbox/test keys |
+| `backend/src/main/java/com/cba/config/RateLimitResult.java` | New: record `(allowed, limit, remaining)` with factory methods |
+| `backend/src/main/java/com/cba/config/RateLimitService.java` | New: Redis Lua INCR+EXPIRE script; `Tier` enum (SANDBOX/BASIC/PRO/ENTERPRISE); `checkBySubject`, `checkByIp`, `checkByKeyHash` |
+| `backend/src/main/java/com/cba/config/RateLimitFilter.java` | New: `OncePerRequestFilter`; rate-limits `/open-banking/v3.1/**` + `/api/v1/**`; X-RateLimit-* headers; 429 JSON envelope |
+| `backend/src/main/java/com/cba/config/SecurityConfig.java` | Wired `RateLimitFilter` before `UsernamePasswordAuthenticationFilter` |
+| `card-service/src/main/java/com/cba/card/config/RateLimitResult.java` | New: record for card-service rate limit outcome |
+| `card-service/src/main/java/com/cba/card/config/RateLimitService.java` | New: `checkByKeyHash` (reads `api_keys.tier`), `checkBySubject`, `checkByIp` |
+| `card-service/src/main/java/com/cba/card/config/RateLimitFilter.java` | New: filter for `/card-api/v1/**`; `ApiKey` hash → tier; JWT sub; IP fallback |
+| `card-service/src/main/java/com/cba/card/config/SecurityConfig.java` | Wired `RateLimitFilter` into chain Order 2 (card-api) and Order 3 (public) |
+| `card-service/src/main/java/com/cba/card/openbanking/apikey/ApiKey.java` | Added `tier VARCHAR(20) DEFAULT 'BASIC'` field |
+| `card-service/src/main/resources/application.yml` | `spring.cache.type: redis`; added `spring.data.redis` config block |
+| `infrastructure/docker-compose.yml` | `card-service` env: added `SPRING_DATA_REDIS_HOST/PORT`; depends_on `redis: service_healthy` |
+| `web/src/app/features/cards/cards.service.ts` | Added `tier` field to `ApiKey` and `IssueApiKeyRequest` interfaces |
+| `web/src/app/features/cards/api-keys/api-keys.ts` | `TIER_LABELS` map; `tiers` array; `form.tier` default BASIC; `openCreate` reset includes tier |
+| `web/src/app/features/cards/api-keys/api-keys.html` | Tier column in table; Tier `<select>` in create modal |
+| `web/src/app/features/cards/api-keys/api-keys.scss` | `.tier-badge` with SANDBOX/BASIC/PRO/ENTERPRISE colour variants |
+
+#### Key Patterns / Decisions
+
+- **Redis Lua INCR+EXPIRE over Bucket4j-Redis**: Bucket4j's Redis module requires direct `StatefulRedisConnection<String, byte[]>` which conflicts with Spring Data Redis connection pooling. Lua script is a single atomic operation with no library impedance mismatch.
+- **Fail-open**: Both filters catch all `Exception` from Redis and return `allowed` — rate limiting degrades gracefully; it never becomes a point of failure.
+- **Tier resolution order (card-service)**: `ApiKey` hash → DB lookup for tier → falls back to BASIC if key not found. `Bearer` JWT always gets BASIC. Unauthenticated IP gets SANDBOX (most restrictive).
+- **JWT sub extraction without signature verification**: Safe in the filter because full JWT verification happens downstream in the Spring Security resource server filter chain. The filter only needs a stable identity string, not a verified principal.
+- **SHA-256 key hash in filter**: Raw key from `Authorization: ApiKey {key}` header is SHA-256 hashed before Redis and DB lookup. Raw key never touches Redis.
+- **Redis key namespace**: `rl:card:{keyHash[:16]}` for API keys; `rl:card:jwt:{sub}` for JWT; `rl:card:ip:{ip}` for fallback — avoids collision with backend rate limit keys.
+
+#### Build Verification
+
+- `cd backend && ./mvnw clean compile` → **BUILD SUCCESS** (0 errors)
+- `cd card-service && ./mvnw clean compile` → **BUILD SUCCESS** (0 errors)
+
+#### Confirmed Platform Versions
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `fd775c9` |
+| Java | 21 | `fd775c9` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `fd775c9` |
+| Keycloak admin client | 26.0.5 | `fd775c9` |
+| springdoc-openapi | 2.8.6 | `fd775c9` |
+| Lombok | 1.18.38 | `fd775c9` |
+| PostgreSQL | 16 (Docker) | `fd775c9` |
+| spring-boot-starter-data-redis | 3.5.0 (managed) | new this session |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `565c32b` |
+| Angular CLI | 21.2.7 | `565c32b` |
+| PrimeNG | 21.0.x | `565c32b` |
+| RxJS | 7.8.x | `565c32b` |
+| TypeScript | 5.9.x | `565c32b` |
+| Vercel deployment ID | pending this push | — |
+| Production URL | cba-web-nine.vercel.app | — |
+
+---
+
 ### Session 105 — 2026-04-20
 **Wallet module: Pockets + QR Payment + Self-Service extensions + Angular UI (Pockets tab on Customer Detail, QR Pay tab on Account Detail). Favicon fix (transparent ICO overrides .png in Safari).**
 

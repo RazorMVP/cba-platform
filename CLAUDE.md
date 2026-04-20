@@ -22,7 +22,8 @@ These are the verified-working versions for both production components. Update t
 | **AWS SDK v2 S3** | 2.26.12 | Optional — for S3/MinIO/GCS image storage |
 | **thumbnailator** | 0.4.20 | Server-side image resize for `ClientImageService` — max 500×500, JPEG output |
 | **ZXing** | 3.5.3 | Server-side QR PNG generation (`core` + `javase`) — Session 105 |
-| **Last git commit** | `96929c6` | Session 102 — backend last changed (wallet module not yet pushed) |
+| **spring-boot-starter-data-redis** | 3.5.0 (managed) | Redis fixed-window rate limiting (Lua INCR+EXPIRE) — Session 106 |
+| **Last git commit** | `fd775c9` | Session 105 — wallet module |
 
 ### Angular Web App (`web/`)
 
@@ -1727,6 +1728,73 @@ backend/src/main/java/com/cba/
 `docs/cba-postman-collection-v2.json` — NEW "Card Management" folder inside Card Service section; contains `GET /api/v1/cards/:id/balance` with 4 response examples (debit/credit/null balance/404) and 7 language samples (cURL, Java, JavaScript, Python, Go, Ruby, C#). PHP omitted to avoid `exec(` security hook.
 
 `docs/api-reference.html` — NEW "Card Management (Internal)" `<h3>` section with balance endpoint table row before Disputes. Renamed "Roles" table to "Consent Scope Catalogue" and expanded from 3 rows to 8 — added `accounts_read`, `balances_read`, `transactions_read` (AISP), `card_read`, `card_balances_read`, `card_transactions_read` (Card AISP). Added "AISP — Account Information" paragraph explaining card account merging, local-remote fallback, and graceful degradation.
+
+---
+
+### Rate Limiting — Implementation Notes (Session 106)
+
+**Build status**: `cd backend && ./mvnw clean compile → BUILD SUCCESS` | `cd card-service && ./mvnw clean compile → BUILD SUCCESS`
+
+**What was built:** Redis fixed-window rate limiting for both `backend` (covering `/open-banking/v3.1/**` + `/api/v1/**`) and `card-service` (covering `/card-api/v1/**`). Tier-aware limits seeded in `global_configurations` (backend) and on `api_keys.tier` column (card-service). Angular `ApiKeysComponent` updated with Tier column + select dropdown.
+
+**New files (backend):**
+
+```
+backend/src/main/java/com/cba/config/
+├── RateLimitResult.java    — record(allowed, limit, remaining); allowed/denied factory methods
+├── RateLimitService.java   — Tier enum; Lua INCR+EXPIRE; checkBySubject/checkByIp; resolveLimit from GlobalConfig
+└── RateLimitFilter.java    — OncePerRequestFilter; rate-limits /open-banking + /api/v1; 429 JSON envelope
+
+backend/src/main/resources/db/migration/
+└── V48__rate_limiting.sql  — seeds rate_limit_{sandbox,basic,pro,enterprise} in global_configurations
+```
+
+**New files (card-service):**
+
+```
+card-service/src/main/java/com/cba/card/config/
+├── RateLimitResult.java    — record(allowed, limit, remaining)
+├── RateLimitService.java   — checkByKeyHash (reads api_keys.tier), checkBySubject, checkByIp
+└── RateLimitFilter.java    — OncePerRequestFilter for /card-api/v1/**; ApiKey hash → tier; JWT sub; IP fallback
+
+card-service/src/main/resources/db/migration/
+└── V8__rate_limiting.sql   — ALTER TABLE api_keys ADD COLUMN tier VARCHAR(20) DEFAULT 'BASIC'
+```
+
+**Tier limits:**
+
+| Tier | Requests/min | Used for |
+| ---- | ------------ | -------- |
+| SANDBOX | 30 | `sk_test_` / test API keys; unauthenticated IP fallback |
+| BASIC | 100 | Default for all production API keys; JWT Bearer sub |
+| PRO | 500 | Explicitly set on API key record |
+| ENTERPRISE | 2000 | Explicitly set on API key record |
+
+**Response headers on every rate-limited path:**
+
+| Header | Value |
+|--------|-------|
+| `X-RateLimit-Limit` | Tier's RPM ceiling |
+| `X-RateLimit-Remaining` | Requests remaining in current window |
+| `X-RateLimit-Reset` | Unix timestamp when window resets |
+| `Retry-After` | `60` (seconds) — only on 429 responses |
+
+**Redis key namespaces:**
+
+- `rl:card:{keyHash[:16]}` — API key (card-service)
+- `rl:card:jwt:{sub}` — JWT Bearer (card-service)
+- `rl:card:ip:{ip}` — IP fallback (card-service)
+- `rl:{namespace}:{identity}` — backend (namespace = `ob` for open-banking, `api` for /api/v1)
+
+**Critical gotchas for future sessions:**
+
+| Issue | Fix |
+|-------|-----|
+| Bucket4j-Redis vs Lua script | Bucket4j's `LettuceBasedProxyManager` requires raw `StatefulRedisConnection<String, byte[]>` which conflicts with Spring Data Redis connection pooling. Use Lua INCR+EXPIRE instead — single atomic operation, no library impedance mismatch |
+| `spring.cache.type: redis` replaces `simple` | card-service's `@Cacheable("binLookup")` now uses Redis — safe, but requires Redis to be running at startup. Dev machines without Redis will fail to start unless `spring.cache.type: simple` is set locally |
+| `card-service` docker-compose depends_on redis | Added `redis: condition: service_healthy` to card-service depends_on block — ensures Redis is up before card-service starts |
+| Multi-chain SecurityConfig wiring | `RateLimitFilter` added to chains Order 2 (card-api) and Order 3 (public) via `addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)`. Chains Order 0 (3DS) and Order 1 (internal/FEP) intentionally skip rate limiting |
+| Type witness `.<Tier>map()` | `apiKeyRepository.findByKeyHashAndActiveTrue(keyHash)` returns `Optional<ApiKey>`. Calling `.map(k -> Tier.fromString(k.getTier()))` requires explicit type witness `.<Tier>map(...)` to satisfy the Java type inferencer |
 
 ---
 

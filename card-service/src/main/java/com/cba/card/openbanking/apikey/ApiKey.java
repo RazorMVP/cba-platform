@@ -54,6 +54,10 @@ public class ApiKey {
     @Column(name = "last_used_at")
     private OffsetDateTime lastUsedAt;
 
+    /** Rate limit tier: SANDBOX, BASIC, PRO, ENTERPRISE. */
+    @Column(nullable = false, length = 20)
+    private String tier = "BASIC";
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
 }

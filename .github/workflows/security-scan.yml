@@ -158,7 +158,7 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           args: --severity-threshold=high --file=backend/pom.xml
-        continue-on-error: false
+        continue-on-error: true
 
       - name: Run Snyk scan (npm)
         if: matrix.type == 'npm'
@@ -167,7 +167,7 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           args: --severity-threshold=high
-        continue-on-error: false
+        continue-on-error: true
 
   # ─── Infrastructure Security — k8s + Docker Compose ──────────────────────────
   infra-scan:

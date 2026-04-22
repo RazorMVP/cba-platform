@@ -33,10 +33,16 @@ public class SecurityConfig {
     @Autowired
     private RateLimitFilter rateLimitFilter;
 
+    /** Partner JWT filter — validates HMAC partner tokens for /api/v1/partners/** */
+    @Autowired
+    private com.cba.partner.PartnerJwtFilter partnerJwtFilter;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         // Rate limiting runs first — before auth so we can still throttle unauthenticated abuse
         http.addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class);
+        // Partner JWT filter runs before Keycloak JWT processing
+        http.addFilterBefore(partnerJwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         if (devAuthBypassFilter != null) {
             http.addFilterBefore(devAuthBypassFilter, UsernamePasswordAuthenticationFilter.class);
@@ -49,6 +55,12 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // CORS preflight — must be permitted before any auth check
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                // Partner portal public endpoints
+                .requestMatchers(
+                    "/api/v1/partners/register",
+                    "/api/v1/partners/auth/login"
+                ).permitAll()
 
                 // Public endpoints — health, docs
                 .requestMatchers(
@@ -114,6 +126,7 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOriginPatterns(List.of(
             "http://localhost:4200",    // Angular dev server (legacy)
+            "http://localhost:3000",    // Partner portal dev server (Vite)
             "http://localhost:5173",    // React dev server (Vite)
             "https://*.cba.com",       // Production domains
             "https://*.vercel.app"     // Vercel preview deployments

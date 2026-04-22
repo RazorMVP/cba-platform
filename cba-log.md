@@ -57,6 +57,98 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 108 — 2026-04-22
+**Phase 2 complete — NubBank Partner Portal fully built: React 19 + Vite frontend (11 pages, dual-persona RBAC), backend partner module (V49 migration, 6 entities, JWT auth, 12 REST endpoints), deployment-agnostic infrastructure (Dockerfile + nginx.conf + vercel.json + docker-compose), CI pipeline.**
+
+#### New/Updated Files
+
+| File | Change |
+|------|--------|
+| `backend/src/main/resources/db/migration/V49__partner_module.sql` | 7 tables: partner_organizations, partner_users, partner_applications, partner_api_keys, partner_webhooks, partner_webhook_deliveries, partner_usage_snapshots |
+| `backend/src/main/java/com/cba/partner/PartnerStatus.java` | Enum: SANDBOX, PENDING_REVIEW, PRODUCTION, SUSPENDED |
+| `backend/src/main/java/com/cba/partner/PartnerEnvironment.java` | Enum: SANDBOX, PRODUCTION |
+| `backend/src/main/java/com/cba/partner/PartnerOrganization.java` | JPA entity extending `AuditableEntity`; tier, applicationStatus, approvedBy/At fields |
+| `backend/src/main/java/com/cba/partner/PartnerUser.java` | JPA entity; passwordHash; @ManyToOne org; role (DEVELOPER/ADMIN) |
+| `backend/src/main/java/com/cba/partner/PartnerApplication.java` | Production upgrade request entity |
+| `backend/src/main/java/com/cba/partner/PartnerApiKey.java` | API key entity; keyHash UNIQUE; scopes JSONB; tier; lastUsedAt |
+| `backend/src/main/java/com/cba/partner/PartnerJwtService.java` | HMAC-SHA256 JWT via Nimbus JOSE MACSigner/MACVerifier; 24h expiry; orgId/role/tier claims |
+| `backend/src/main/java/com/cba/partner/PartnerService.java` | register, login (BCrypt), issueApiKey (SecureRandom 32-byte → `cba_` prefix), listApiKeys, revokeApiKey, listAll, approveProduction, rejectApplication, submitApplication |
+| `backend/src/main/java/com/cba/partner/PartnerController.java` | 12 endpoints: register, login, api-key CRUD, submitApplication, getUsage (stub), listAll (ADMIN), getAllUsage (ADMIN), approve (ADMIN), reject (ADMIN) |
+| `backend/src/main/java/com/cba/partner/PartnerConfig.java` | NEW — @Bean BCryptPasswordEncoder (partnerPasswordEncoder) |
+| `backend/src/main/java/com/cba/partner/PartnerJwtFilter.java` | NEW — OncePerRequestFilter; validates HMAC partner JWTs; sets SecurityContext for /api/v1/partners/** |
+| `backend/src/main/java/com/cba/config/SecurityConfig.java` | Permit /partners/register + /partners/auth/login; wire PartnerJwtFilter; add localhost:3000 to CORS |
+| `partner-portal/` | NEW — full React 19 + Vite 6 + TypeScript + Tailwind CSS v4 frontend |
+| `partner-portal/src/styles/globals.css` | Nubeero design tokens in @theme block |
+| `partner-portal/src/app/api/apiClient.ts` | Axios instance; partner_token injector; 401 redirect |
+| `partner-portal/src/app/context/AuthContext.tsx` | PartnerUser interface; login/logout; localStorage persistence |
+| `partner-portal/src/app/router.tsx` | 11 lazy-loaded routes; AuthGuard; StaffGuard for admin-only pages |
+| `partner-portal/src/shared/components/AppShell.tsx` | Nubeero dark sidebar; environment badge (amber/green); NavLink active state |
+| `partner-portal/src/features/auth/LoginPage.tsx` | Email + password form |
+| `partner-portal/src/features/auth/RegisterPage.tsx` | Self-registration with org name; success screen |
+| `partner-portal/src/features/dashboard/DashboardPage.tsx` | 4 KPI cards; sandbox banner; top endpoints table |
+| `partner-portal/src/features/api-keys/ApiKeysPage.tsx` | Issue/revoke; one-time key reveal with copy; scope checkboxes |
+| `partner-portal/src/features/webhooks/WebhooksPage.tsx` | Register webhooks; delivery log side panel |
+| `partner-portal/src/features/consents/ConsentsPage.tsx` | AISP/PISP/CBPII filter tabs; revoke action |
+| `partner-portal/src/features/sandbox/SandboxPage.tsx` | Pre-seeded test data table; cURL quick-start samples |
+| `partner-portal/src/features/apply/ApplyPage.tsx` | Production application form; post-submit state |
+| `partner-portal/src/features/partner-mgmt/PartnerMgmtPage.tsx` | Admin: list all partners; approve/reject; slide-in panel |
+| `partner-portal/src/features/usage-analytics/UsageAnalyticsPage.tsx` | Admin: per-partner breakdown; success rate bars; day-range selector |
+| `partner-portal/src/features/settings/SettingsPage.tsx` | 3-tab (Profile/Organization/Security); save mutations |
+| `partner-portal/Dockerfile` | Multi-stage: node:22-alpine builder → nginx:1.27-alpine runtime |
+| `partner-portal/nginx.conf` | SPA routing; security headers; gzip; asset caching |
+| `partner-portal/vercel.json` | SPA rewrites; security headers; asset cache headers |
+| `infrastructure/docker-compose.yml` | Added partner-portal service (port 3000, profile: app) |
+| `.github/workflows/partner-portal-ci.yml` | lint → build → docker → Vercel deploy; injection-safe env pattern |
+
+#### Key Patterns / Decisions
+
+- Partner JWT is a separate HMAC-SHA256 token (not Keycloak) — developers don't need FAPI 2.0 to use the portal
+- `PartnerJwtFilter` runs before Keycloak JWT processing; admin endpoints still require Keycloak ADMIN role (bank staff use main backoffice)
+- `BCryptPasswordEncoder` declared as `@Bean partnerPasswordEncoder` in `PartnerConfig` — separate from any future Keycloak `PasswordEncoder` bean to avoid name collision
+- CORS updated to include `localhost:3000` for partner portal dev server
+- `StaffGuard` in React router restricts `/partner-management` and `/usage-analytics` to role=ADMIN
+
+#### Build Verification
+
+- `cd backend && ./mvnw clean compile` → **BUILD SUCCESS** (0 errors)
+- `cd partner-portal && npm run build` → **✓ built in 284ms** — 11 lazy-loaded page chunks
+
+#### Confirmed Platform Versions
+
+**Backend (`backend/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `706fd15` |
+| Java | 21 | `706fd15` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `706fd15` |
+| Keycloak admin client | 26.0.5 | `706fd15` |
+| springdoc-openapi | 2.8.6 | `706fd15` |
+| Lombok | 1.18.38 | `706fd15` |
+| PostgreSQL | 16 (Docker) | `706fd15` |
+
+**Angular Web App (`web/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `ac49929` |
+| Angular CLI | 21.2.7 | `ac49929` |
+| PrimeNG | 21.0.x | `ac49929` |
+| RxJS | 7.8.x | `ac49929` |
+| TypeScript | 5.9.x | `ac49929` |
+
+**Partner Portal (`partner-portal/`):**
+
+| Component | Version |
+|-----------|---------|
+| React | 19.x |
+| Vite | 6.x |
+| TypeScript | 5.x |
+| Tailwind CSS | 4.x |
+| TanStack Query | 5.x |
+| React Router | 6.x |
+| Axios | 1.x |
+
 ### Session 107 — 2026-04-21
 **Phase 1 complete — NubBank Developer Guide (Docusaurus 3.10.0) fully built: 13 doc pages, NubBank branding, deployment-agnostic (Dockerfile + nginx.conf + docker-compose entry + Vercel), CI pipeline, clean production build.**
 

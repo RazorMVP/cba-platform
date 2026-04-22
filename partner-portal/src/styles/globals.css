@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg-app: #040609;
+  --color-bg-sidebar: #0a1628;
+  --color-bg-card: #ffffff;
+  --color-primary: #1e2833;
+  --color-accent: #3b82f6;
+  --color-text: #000314;
+  --color-muted: #888888;
+  --color-border: #e5e7eb;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --font-sans: 'Instrument Sans', system-ui, sans-serif;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-bg-app);
+  color: var(--color-text);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+@font-face {
+  font-family: 'Instrument Sans';
+  src: url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap');
+}

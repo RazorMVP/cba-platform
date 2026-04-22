@@ -274,6 +274,19 @@ services:
     networks:
       - cba-network
 
+  partner-portal:
+    image: ghcr.io/${GITHUB_ORG:-razormvp}/cba-platform/cba-partner-portal:${VERSION:-latest}
+    container_name: cba-partner-portal
+    profiles: [app]
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - cba-network
+
   docs:
     image: ghcr.io/${GITHUB_ORG:-razormvp}/cba-platform/cba-docs:${VERSION:-latest}
     container_name: cba-docs

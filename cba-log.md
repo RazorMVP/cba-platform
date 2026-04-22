@@ -134,6 +134,8 @@ _None — all Phase 1 backend modules are now complete._
 | Docusaurus | 3.10.0 |
 | Node.js | 22 (Docker build) |
 | Pages | 13 |
+| Vercel deployment ID | `dpl_9Bh1cyYAW9YcmA3WS2G758jYqwLs` |
+| Production URL | `docs-site-five-dusky.vercel.app` |
 
 ---
 

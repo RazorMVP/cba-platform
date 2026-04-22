@@ -37,7 +37,6 @@ const config: Config = {
           sidebarPath: './sidebars.ts',
           editUrl: 'https://github.com/RazorMVP/cba-platform/edit/main/docs-site/',
           routeBasePath: 'docs',
-          showLastUpdateTime: true,
         },
         blog: false,
         theme: {

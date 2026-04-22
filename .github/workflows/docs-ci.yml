@@ -52,6 +52,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set lowercase owner
+        run: echo "OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -65,8 +68,8 @@ jobs:
           context: docs-site
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/cba-platform/cba-docs:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/cba-platform/cba-docs:${{ github.ref_name }}
+            ghcr.io/${{ env.OWNER }}/cba-platform/cba-docs:${{ github.sha }}
+            ghcr.io/${{ env.OWNER }}/cba-platform/cba-docs:${{ github.ref_name }}
 
   deploy:
     name: Deploy to Vercel

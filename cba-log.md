@@ -148,6 +148,8 @@ _None — all Phase 1 backend modules are now complete._
 | TanStack Query | 5.x |
 | React Router | 6.x |
 | Axios | 1.x |
+| Vercel deployment ID | `dpl_7ACjBtYA4oWM4CmEesDNZ8Qgtphm` |
+| Production URL | `partner-portal-omega-two.vercel.app` |
 
 ### Session 107 — 2026-04-21
 **Phase 1 complete — NubBank Developer Guide (Docusaurus 3.10.0) fully built: 13 doc pages, NubBank branding, deployment-agnostic (Dockerfile + nginx.conf + docker-compose entry + Vercel), CI pipeline, clean production build.**

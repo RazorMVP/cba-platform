@@ -15,7 +15,9 @@ Resources to accelerate your NubBank integration.
 
 The NubBank Postman Collection contains all implemented endpoints with pre-filled request bodies, headers, and multi-language code samples.
 
-**Download:** [NubBank API Collection v2 (JSON)](https://github.com/RazorMVP/cba-platform/raw/main/docs/cba-postman-collection-v2.json)
+**Download:** [NubBank API Collection v2 (JSON)](pathname:///postman/cba-postman-collection-v2.json)
+
+**API Reference:** [Full API Reference](pathname:///api-reference.html) · [Card API Reference](pathname:///card-api-reference.html)
 
 ### Import into Postman
 

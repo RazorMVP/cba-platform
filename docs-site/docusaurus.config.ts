@@ -67,7 +67,8 @@ const config: Config = {
       title: 'NubBank',
       logo: {
         alt: 'NubBank Logo',
-        src: 'img/logo.svg',
+        src: 'img/nubeero-logo.png',
+        style: { borderRadius: '50%', background: '#0a1628', padding: '2px' },
       },
       items: [
         {

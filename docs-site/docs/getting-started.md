@@ -2,7 +2,7 @@
 id: getting-started
 title: Getting Started
 sidebar_position: 1
-description: Create your sandbox account, get API credentials, and make your first NubBank API call end-to-end.
+description: Create your sandbox account, get API credentials, and make your first NubBank API call — end-to-end in under 10 minutes.
 ---
 
 # Getting Started

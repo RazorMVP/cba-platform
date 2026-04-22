@@ -11135,8 +11135,28 @@
           "name": "List Pockets (Self)",
           "request": {
             "method": "GET",
-            "header": [{"key": "Authorization","value": "Bearer {{accessToken}}"},{"key": "X-Tenant-ID","value": "{{tenantId}}"}],
-            "url": {"raw": "{{baseUrl}}/api/v1/self/pockets","host": ["{{baseUrl}}"],"path": ["api","v1","self","pockets"]},
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/self/pockets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "self",
+                "pockets"
+              ]
+            },
             "description": "Returns active pockets for the authenticated customer with linked accounts and aggregate balance."
           },
           "response": []
@@ -11145,9 +11165,36 @@
           "name": "Create Pocket (Self)",
           "request": {
             "method": "POST",
-            "header": [{"key": "Authorization","value": "Bearer {{accessToken}}"},{"key": "X-Tenant-ID","value": "{{tenantId}}"},{"key": "Content-Type","value": "application/json"}],
-            "url": {"raw": "{{baseUrl}}/api/v1/self/pockets","host": ["{{baseUrl}}"],"path": ["api","v1","self","pockets"]},
-            "body": {"mode": "raw","raw": "{\n  \"name\": \"Holiday Fund\",\n  \"description\": \"Saving for Ibiza 2026\",\n  \"accountIds\": []\n}"},
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/self/pockets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "self",
+                "pockets"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Holiday Fund\",\n  \"description\": \"Saving for Ibiza 2026\",\n  \"accountIds\": []\n}"
+            },
             "description": "Creates a pocket for the authenticated customer. accountIds links savings accounts at creation time."
           },
           "response": []
@@ -11156,10 +11203,39 @@
           "name": "Link Accounts to Pocket (Self)",
           "request": {
             "method": "POST",
-            "header": [{"key": "Authorization","value": "Bearer {{accessToken}}"},{"key": "X-Tenant-ID","value": "{{tenantId}}"},{"key": "Content-Type","value": "application/json"}],
-            "url": {"raw": "{{baseUrl}}/api/v1/self/pockets/:pocketId/link","host": ["{{baseUrl}}"],"path": ["api","v1","self","pockets",":pocketId","link"]},
-            "body": {"mode": "raw","raw": "{\n  \"accountIds\": [\"{{accountId}}\"]\n}"},
-            "description": "Links additional savings accounts to an existing pocket. One-account-per-pocket enforced — delink first if already in another pocket."
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/self/pockets/:pocketId/link",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "self",
+                "pockets",
+                ":pocketId",
+                "link"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountIds\": [\"{{accountId}}\"]\n}"
+            },
+            "description": "Links additional savings accounts to an existing pocket. One-account-per-pocket enforced \u2014 delink first if already in another pocket."
           },
           "response": []
         },
@@ -11167,14 +11243,46 @@
           "name": "Generate QR for Own Account (Self)",
           "request": {
             "method": "GET",
-            "header": [{"key": "Authorization","value": "Bearer {{accessToken}}"},{"key": "X-Tenant-ID","value": "{{tenantId}}"}],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/api/v1/self/accounts/{{accountId}}/qr?presetAmount=50&expiryMinutes=60",
-              "host": ["{{baseUrl}}"],"path": ["api","v1","self","accounts","{{accountId}}","qr"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "self",
+                "accounts",
+                "{{accountId}}",
+                "qr"
+              ],
               "query": [
-                {"key": "presetAmount","value": "50","description": "Optional fixed amount encoded into QR"},
-                {"key": "reference","value": "Invoice #123","description": "Optional label shown to payer","disabled": true},
-                {"key": "expiryMinutes","value": "60","description": "Token expiry window in minutes (default 60)"}
+                {
+                  "key": "presetAmount",
+                  "value": "50",
+                  "description": "Optional fixed amount encoded into QR"
+                },
+                {
+                  "key": "reference",
+                  "value": "Invoice #123",
+                  "description": "Optional label shown to payer",
+                  "disabled": true
+                },
+                {
+                  "key": "expiryMinutes",
+                  "value": "60",
+                  "description": "Token expiry window in minutes (default 60)"
+                }
               ]
             },
             "description": "Generates a QR code PNG (base64) for the authenticated customer's account. Render with: <img src='data:image/png;base64,{qrBase64}'>. Token is single-use."
@@ -11185,9 +11293,37 @@
           "name": "Scan & Pay (Self)",
           "request": {
             "method": "POST",
-            "header": [{"key": "Authorization","value": "Bearer {{accessToken}}"},{"key": "X-Tenant-ID","value": "{{tenantId}}"},{"key": "Content-Type","value": "application/json"}],
-            "url": {"raw": "{{baseUrl}}/api/v1/self/payments/scan-and-pay","host": ["{{baseUrl}}"],"path": ["api","v1","self","payments","scan-and-pay"]},
-            "body": {"mode": "raw","raw": "{\n  \"token\": \"{\\\"v\\\":\\\"1\\\",\\\"bank\\\":\\\"NUBBANK\\\",...}\",\n  \"payerAccountId\": \"{{payerAccountId}}\",\n  \"amount\": null\n}"},
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/self/payments/scan-and-pay",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "self",
+                "payments",
+                "scan-and-pay"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{\\\"v\\\":\\\"1\\\",\\\"bank\\\":\\\"NUBBANK\\\",...}\",\n  \"payerAccountId\": \"{{payerAccountId}}\",\n  \"amount\": null\n}"
+            },
             "description": "Decodes QR token and executes a payment from the payer's own account. amount required only if QR has no preset amount. Token is marked used before transfer to prevent replay."
           },
           "response": []
@@ -11202,8 +11338,33 @@
           "name": "List Pockets",
           "request": {
             "method": "GET",
-            "header": [{"key": "Authorization","value": "Bearer {{accessToken}}"},{"key": "X-Tenant-ID","value": "{{tenantId}}"}],
-            "url": {"raw": "{{baseUrl}}/api/v1/pockets?customerId={{customerId}}","host": ["{{baseUrl}}"],"path": ["api","v1","pockets"],"query": [{"key": "customerId","value": "{{customerId}}"}]},
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/pockets?customerId={{customerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "pockets"
+              ],
+              "query": [
+                {
+                  "key": "customerId",
+                  "value": "{{customerId}}"
+                }
+              ]
+            },
             "description": "List active pockets for a customer."
           },
           "response": []
@@ -11212,9 +11373,35 @@
           "name": "Create Pocket",
           "request": {
             "method": "POST",
-            "header": [{"key": "Authorization","value": "Bearer {{accessToken}}"},{"key": "X-Tenant-ID","value": "{{tenantId}}"},{"key": "Content-Type","value": "application/json"}],
-            "url": {"raw": "{{baseUrl}}/api/v1/pockets","host": ["{{baseUrl}}"],"path": ["api","v1","pockets"]},
-            "body": {"mode": "raw","raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"name\": \"Emergency Fund\",\n  \"description\": \"3-month buffer\",\n  \"accountIds\": []\n}"},
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/pockets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "pockets"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"name\": \"Emergency Fund\",\n  \"description\": \"3-month buffer\",\n  \"accountIds\": []\n}"
+            },
             "description": "Creates a named pocket for a customer."
           },
           "response": []
@@ -11223,9 +11410,37 @@
           "name": "Generate QR Code",
           "request": {
             "method": "POST",
-            "header": [{"key": "Authorization","value": "Bearer {{accessToken}}"},{"key": "X-Tenant-ID","value": "{{tenantId}}"},{"key": "Content-Type","value": "application/json"}],
-            "url": {"raw": "{{baseUrl}}/api/v1/payments/qr/generate","host": ["{{baseUrl}}"],"path": ["api","v1","payments","qr","generate"]},
-            "body": {"mode": "raw","raw": "{\n  \"accountId\": \"{{accountId}}\",\n  \"presetAmount\": 150.00,\n  \"reference\": \"Invoice #INV-2026-001\",\n  \"expiryMinutes\": 60\n}"},
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/qr/generate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                "qr",
+                "generate"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"{{accountId}}\",\n  \"presetAmount\": 150.00,\n  \"reference\": \"Invoice #INV-2026-001\",\n  \"expiryMinutes\": 60\n}"
+            },
             "description": "Generates a QR code PNG for an account. Response includes qrBase64 (use as data:image/png;base64,{qrBase64} in an img tag), tokenId, expiresAt. Token is single-use."
           },
           "response": []
@@ -11234,9 +11449,37 @@
           "name": "Decode & Pay QR",
           "request": {
             "method": "POST",
-            "header": [{"key": "Authorization","value": "Bearer {{accessToken}}"},{"key": "X-Tenant-ID","value": "{{tenantId}}"},{"key": "Content-Type","value": "application/json"}],
-            "url": {"raw": "{{baseUrl}}/api/v1/payments/qr/decode-and-pay","host": ["{{baseUrl}}"],"path": ["api","v1","payments","qr","decode-and-pay"]},
-            "body": {"mode": "raw","raw": "{\n  \"token\": \"{\\\"v\\\":\\\"1\\\",\\\"bank\\\":\\\"NUBBANK\\\",\\\"accountId\\\":\\\"...\\\",\\\"accountNumber\\\":\\\"001-SAV-0000001\\\",\\\"currency\\\":\\\"USD\\\"}\",\n  \"payerAccountId\": \"{{payerAccountId}}\",\n  \"amount\": null\n}"},
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments/qr/decode-and-pay",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                "qr",
+                "decode-and-pay"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{\\\"v\\\":\\\"1\\\",\\\"bank\\\":\\\"NUBBANK\\\",\\\"accountId\\\":\\\"...\\\",\\\"accountNumber\\\":\\\"001-SAV-0000001\\\",\\\"currency\\\":\\\"USD\\\"}\",\n  \"payerAccountId\": \"{{payerAccountId}}\",\n  \"amount\": null\n}"
+            },
             "description": "Validates QR token (checks expiry and not-already-used), marks token used, then executes transfer from payerAccountId to the account encoded in the QR. amount is required when QR has no preset amount."
           },
           "response": []
@@ -11245,8 +11488,35 @@
           "name": "Get QR for Account (Convenience)",
           "request": {
             "method": "GET",
-            "header": [{"key": "Authorization","value": "Bearer {{accessToken}}"},{"key": "X-Tenant-ID","value": "{{tenantId}}"}],
-            "url": {"raw": "{{baseUrl}}/api/v1/accounts/{{accountId}}/qr?expiryMinutes=60","host": ["{{baseUrl}}"],"path": ["api","v1","accounts","{{accountId}}","qr"],"query": [{"key": "expiryMinutes","value": "60"}]},
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/{{accountId}}/qr?expiryMinutes=60",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts",
+                "{{accountId}}",
+                "qr"
+              ],
+              "query": [
+                {
+                  "key": "expiryMinutes",
+                  "value": "60"
+                }
+              ]
+            },
             "description": "Shortcut to generate/refresh a QR for a specific account. Same response shape as POST /generate."
           },
           "response": []
@@ -23165,6 +23435,412 @@
           }
         ]
       }
+    },
+    {
+      "name": "44 \u00b7 Partner Portal API",
+      "item": [
+        {
+          "name": "Register Partner Organisation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partners/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationName\": \"FinTech Ltd\",\n  \"email\": \"dev@fintech.io\",\n  \"password\": \"Str0ng!Pass1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Self-register a new partner organisation. Sandbox access granted immediately. No auth required."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\"data\":null,\"meta\":{},\"errors\":[]}"
+            }
+          ]
+        },
+        {
+          "name": "Partner Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partners/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"dev@fintech.io\",\n  \"password\": \"Str0ng!Pass1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Returns a HMAC-SHA256 partner JWT (24 h expiry). Store as {{partnerToken}}."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\"data\":{\"token\":\"eyJ...\",\"user\":{\"id\":\"uuid\",\"email\":\"dev@fintech.io\",\"role\":\"DEVELOPER\",\"organizationId\":\"uuid\",\"organizationName\":\"FinTech Ltd\",\"status\":\"SANDBOX\",\"tier\":\"BASIC\",\"environment\":\"SANDBOX\"}},\"meta\":{},\"errors\":[]}"
+            }
+          ]
+        },
+        {
+          "name": "List API Keys",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{partnerToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partners/{{orgId}}/api-keys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "{{orgId}}",
+                "api-keys"
+              ]
+            },
+            "description": "List active API keys for the organisation. Raw key value is never returned after creation."
+          },
+          "response": []
+        },
+        {
+          "name": "Issue API Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{partnerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partners/{{orgId}}/api-keys",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "{{orgId}}",
+                "api-keys"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Production Key\",\n  \"scopes\": [\"payments:read\", \"accounts:read\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Issue a new API key. Raw key (cba_ prefix + Base64URL 32 bytes) returned ONCE \u2014 store it immediately."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\"data\":{\"key\":\"cba_ABC123XYZ...\"},\"meta\":{},\"errors\":[]}"
+            }
+          ]
+        },
+        {
+          "name": "Revoke API Key",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{partnerToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partners/{{orgId}}/api-keys/{{keyId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "{{orgId}}",
+                "api-keys",
+                "{{keyId}}"
+              ]
+            },
+            "description": "Revoke an API key immediately (soft-delete via active=false)."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\"data\":null,\"meta\":{},\"errors\":[]}"
+            }
+          ]
+        },
+        {
+          "name": "Submit Production Application",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{partnerToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partners/{{orgId}}/applications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "{{orgId}}",
+                "applications"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessType\": \"Payments Processor\",\n  \"useCase\": \"B2B payroll disbursement\",\n  \"estimatedMonthlyCalls\": \"50000\",\n  \"website\": \"https://fintech.io\",\n  \"technicalContact\": \"cto@fintech.io\",\n  \"complianceNotes\": \"PCI DSS Level 1 certified\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Submit application to upgrade from SANDBOX to PRODUCTION. Sets org status to PENDING_REVIEW."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\"data\":null,\"meta\":{},\"errors\":[]}"
+            }
+          ]
+        },
+        {
+          "name": "Get Usage Statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{partnerToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partners/{{orgId}}/usage",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "{{orgId}}",
+                "usage"
+              ]
+            },
+            "description": "Get API call statistics for the organisation (totalRequests, successRequests, failedRequests, webhookDeliveryRate, dailyCalls, topEndpoints)."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\"data\":{\"totalRequests\":0,\"successRequests\":0,\"failedRequests\":0,\"webhookDeliveryRate\":0,\"dailyCalls\":[],\"topEndpoints\":[]},\"meta\":{},\"errors\":[]}"
+            }
+          ]
+        },
+        {
+          "name": "[ADMIN] List All Partners",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{keycloakAdminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partners",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners"
+              ]
+            },
+            "description": "List all registered partner organisations. Requires Keycloak ADMIN role (bank staff)."
+          },
+          "response": []
+        },
+        {
+          "name": "[ADMIN] Get All Usage",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{keycloakAdminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partners/usage?days=30",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "usage"
+              ],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "30",
+                  "description": "Lookback window in days (default 30)"
+                }
+              ]
+            },
+            "description": "Aggregate usage statistics across all partner organisations."
+          },
+          "response": []
+        },
+        {
+          "name": "[ADMIN] Approve Production",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{keycloakAdminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partners/{{orgId}}/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "{{orgId}}",
+                "approve"
+              ]
+            },
+            "description": "Approve a partner's production upgrade request. Sets status to PRODUCTION and records approvedBy from JWT principal."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\"data\":null,\"meta\":{},\"errors\":[]}"
+            }
+          ]
+        },
+        {
+          "name": "[ADMIN] Reject Application",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{keycloakAdminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partners/{{orgId}}/reject",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "{{orgId}}",
+                "reject"
+              ]
+            },
+            "description": "Reject a partner's production application. Sets applicationStatus=REJECTED."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\"data\":null,\"meta\":{},\"errors\":[]}"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

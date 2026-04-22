@@ -3565,6 +3565,18 @@ Content-Type: application/json
 <tr><td>GET</td><td>/card-api/v1/webhooks</td><td>List active webhooks</td><td>API_KEY, ADMIN</td></tr>
 <tr><td>DELETE</td><td>/card-api/v1/webhooks/{id}</td><td>Deregister webhook</td><td>API_KEY, ADMIN</td></tr>
 <tr><td>GET</td><td>/card-api/v1/webhooks/{id}/deliveries</td><td>Webhook delivery log (last 100 attempts)</td><td>API_KEY, ADMIN</td></tr>
+<!-- Partner Portal API — Session 108 -->
+<tr><td>POST</td><td>/api/v1/partners/register</td><td>Self-register partner org; grants sandbox access immediately</td><td>Public</td></tr>
+<tr><td>POST</td><td>/api/v1/partners/auth/login</td><td>Partner login; returns HMAC-SHA256 JWT (24 h)</td><td>Public</td></tr>
+<tr><td>GET</td><td>/api/v1/partners/{orgId}/api-keys</td><td>List active API keys (hashed)</td><td>Partner JWT</td></tr>
+<tr><td>POST</td><td>/api/v1/partners/{orgId}/api-keys</td><td>Issue API key; raw value shown once</td><td>Partner JWT</td></tr>
+<tr><td>DELETE</td><td>/api/v1/partners/{orgId}/api-keys/{keyId}</td><td>Revoke API key</td><td>Partner JWT</td></tr>
+<tr><td>POST</td><td>/api/v1/partners/{orgId}/applications</td><td>Submit production upgrade application</td><td>Partner JWT</td></tr>
+<tr><td>GET</td><td>/api/v1/partners/{orgId}/usage</td><td>Usage statistics for the organisation</td><td>Partner JWT</td></tr>
+<tr><td>GET</td><td>/api/v1/partners</td><td>List all partner organisations</td><td>ADMIN (Keycloak)</td></tr>
+<tr><td>GET</td><td>/api/v1/partners/usage</td><td>Aggregate usage across all partners; ?days=30</td><td>ADMIN (Keycloak)</td></tr>
+<tr><td>POST</td><td>/api/v1/partners/{orgId}/approve</td><td>Approve production promotion</td><td>ADMIN (Keycloak)</td></tr>
+<tr><td>POST</td><td>/api/v1/partners/{orgId}/reject</td><td>Reject production application</td><td>ADMIN (Keycloak)</td></tr>
 </table>
 
 <h3>Planned (Not Yet Implemented)</h3>
@@ -3816,6 +3828,86 @@ Content-Type: application/json
 <tr><td>Self Service — Account Transfers</td><td>/api/v1/self/accounttransfers</td><td>Planned — customer-initiated transfers between own accounts</td></tr>
 <tr><td>Self Service — Loan Applications</td><td>/api/v1/self/loanapplications</td><td>Planned — customer-facing loan origination</td></tr>
 </table>
+</section>
+
+<!-- Partner Portal API — Session 108 -->
+<section id="partner-api">
+<h2>Partner Portal API <span style="font-size:.75rem;font-weight:400;color:#1d4ed8;background:#dbeafe;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Session 108</span></h2>
+<p>Self-serve partner (fintech developer) registration and management. Partners authenticate with a dedicated HMAC-SHA256 JWT (separate from Keycloak). Admin endpoints require a Keycloak ADMIN role (bank staff).</p>
+
+<h3>Authentication</h3>
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Auth</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/register</code></td><td>Public</td><td>Self-register a new partner organisation; sandbox access granted immediately</td></tr>
+<tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/auth/login</code></td><td>Public</td><td>Login with email + password; returns a signed partner JWT (24 h expiry)</td></tr>
+</tbody>
+</table>
+
+<h3>API Keys</h3>
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Auth</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners/{orgId}/api-keys</code></td><td>Partner JWT</td><td>List active API keys for the organisation (hashed — raw value never shown again)</td></tr>
+<tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/{orgId}/api-keys</code></td><td>Partner JWT</td><td>Issue a new API key; raw key returned <strong>once</strong> in response (<code>cba_</code> + Base64URL(32 bytes))</td></tr>
+<tr><td><span class="badge badge-delete">DELETE</span></td><td><code>/api/v1/partners/{orgId}/api-keys/{keyId}</code></td><td>Partner JWT</td><td>Revoke an API key immediately (soft-delete via <code>active=false</code>)</td></tr>
+</tbody>
+</table>
+
+<h3>Production Application</h3>
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Auth</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/{orgId}/applications</code></td><td>Partner JWT</td><td>Submit production upgrade application (businessType, useCase, website, etc.); sets org status to <code>PENDING_REVIEW</code></td></tr>
+</tbody>
+</table>
+
+<h3>Usage</h3>
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Auth</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners/{orgId}/usage</code></td><td>Partner JWT</td><td>Usage statistics for the organisation (totalRequests, successRequests, failedRequests, webhookDeliveryRate, dailyCalls, topEndpoints)</td></tr>
+</tbody>
+</table>
+
+<h3>Admin — Bank Staff Only (Keycloak ADMIN role)</h3>
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Auth</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners</code></td><td>ADMIN</td><td>List all registered partner organisations</td></tr>
+<tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners/usage</code></td><td>ADMIN</td><td>Aggregate usage across all partners; <code>?days=30</code> (default)</td></tr>
+<tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/{orgId}/approve</code></td><td>ADMIN</td><td>Approve production promotion; sets status to <code>PRODUCTION</code>, records approvedBy from JWT principal</td></tr>
+<tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/{orgId}/reject</code></td><td>ADMIN</td><td>Reject production application; sets <code>applicationStatus=REJECTED</code></td></tr>
+</tbody>
+</table>
+
+<h3>Request / Response Shapes</h3>
+<h4>POST /register</h4>
+<pre><code>// Request
+{ "organizationName": "FinTech Ltd", "email": "dev@fintech.io", "password": "Str0ng!" }
+// Response 201
+{ "data": null, "meta": {}, "errors": [] }</code></pre>
+
+<h4>POST /auth/login → LoginResult</h4>
+<pre><code>// Request
+{ "email": "dev@fintech.io", "password": "Str0ng!" }
+// Response 200
+{
+  "data": {
+    "token": "eyJ...",
+    "user": {
+      "id": "uuid", "email": "dev@fintech.io", "role": "DEVELOPER",
+      "organizationId": "uuid", "organizationName": "FinTech Ltd",
+      "status": "SANDBOX", "tier": "BASIC", "environment": "SANDBOX"
+    }
+  }
+}</code></pre>
+
+<h4>POST /api-keys → key shown once</h4>
+<pre><code>// Request
+{ "name": "Production Key", "scopes": ["payments:read", "accounts:read"] }
+// Response 201
+{ "data": { "key": "cba_ABC123..." } }</code></pre>
 </section>
 
 </main>

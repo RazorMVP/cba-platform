@@ -23,7 +23,7 @@ These are the verified-working versions for both production components. Update t
 | **thumbnailator** | 0.4.20 | Server-side image resize for `ClientImageService` — max 500×500, JPEG output |
 | **ZXing** | 3.5.3 | Server-side QR PNG generation (`core` + `javase`) — Session 105 |
 | **spring-boot-starter-data-redis** | 3.5.0 (managed) | Redis fixed-window rate limiting (Lua INCR+EXPIRE) — Session 106 |
-| **Last git commit** | `706fd15` | Session 106 — rate limiting |
+| **Last git commit** | `a7e7f08` | Session 108 — partner portal + partner module |
 
 ### Angular Web App (`web/`)
 

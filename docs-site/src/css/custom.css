@@ -1,0 +1,210 @@
+/* NubBank Design Tokens — mirrors Nubeero design system */
+:root {
+  --ifm-color-primary: #1e2833;
+  --ifm-color-primary-dark: #1a2229;
+  --ifm-color-primary-darker: #181f27;
+  --ifm-color-primary-darkest: #131920;
+  --ifm-color-primary-light: #222e3d;
+  --ifm-color-primary-lighter: #26343f;
+  --ifm-color-primary-lightest: #2c3d4a;
+
+  --ifm-code-font-size: 90%;
+  --ifm-font-family-base: 'Inter', system-ui, -apple-system, sans-serif;
+  --ifm-heading-font-family: 'Instrument Sans', 'Inter', system-ui, sans-serif;
+  --ifm-navbar-background-color: #0a1628;
+  --ifm-navbar-link-color: #e2e8f0;
+  --ifm-navbar-link-hover-color: #ffffff;
+  --ifm-footer-background-color: #0a1628;
+  --ifm-footer-color: #94a3b8;
+  --ifm-footer-link-color: #94a3b8;
+  --ifm-footer-link-hover-color: #ffffff;
+
+  --docusaurus-highlighted-code-line-bg: rgba(30, 40, 51, 0.08);
+
+  /* NubBank brand colors */
+  --nb-navy: #0a1628;
+  --nb-blue: #1e2833;
+  --nb-blue-light: #2c3e50;
+  --nb-accent: #3b82f6;
+  --nb-accent-hover: #2563eb;
+  --nb-success: #10b981;
+  --nb-warning: #f59e0b;
+  --nb-error: #ef4444;
+  --nb-muted: #64748b;
+  --nb-border: #e2e8f0;
+  --nb-bg-light: #f8fafc;
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #60a5fa;
+  --ifm-color-primary-dark: #3b82f6;
+  --ifm-color-primary-darker: #2563eb;
+  --ifm-color-primary-darkest: #1d4ed8;
+  --ifm-color-primary-light: #93c5fd;
+  --ifm-color-primary-lighter: #bfdbfe;
+  --ifm-color-primary-lightest: #dbeafe;
+
+  --ifm-background-color: #0f172a;
+  --ifm-background-surface-color: #1e293b;
+  --docusaurus-highlighted-code-line-bg: rgba(96, 165, 250, 0.12);
+}
+
+/* Navbar */
+.navbar {
+  box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+.navbar__brand {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #ffffff !important;
+}
+
+.navbar__logo {
+  height: 28px;
+}
+
+/* Hero banner */
+.hero--primary {
+  background: linear-gradient(135deg, #0a1628 0%, #1e2833 60%, #0f2744 100%);
+  color: white;
+}
+
+.hero__title {
+  font-size: 3rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.hero__subtitle {
+  font-size: 1.25rem;
+  color: rgba(255, 255, 255, 0.75);
+  max-width: 600px;
+  margin: 0 auto 2rem;
+}
+
+/* Buttons */
+.button--primary {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.button--primary:hover {
+  background-color: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.button--secondary {
+  background-color: transparent;
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #ffffff;
+}
+
+.button--secondary:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+/* API method badges */
+.badge--get    { background: #dbeafe; color: #1d4ed8; }
+.badge--post   { background: #d1fae5; color: #065f46; }
+.badge--put    { background: #fef3c7; color: #92400e; }
+.badge--delete { background: #fee2e2; color: #991b1b; }
+.badge--patch  { background: #ede9fe; color: #5b21b6; }
+
+/* Response code badges */
+.badge--200 { background: #d1fae5; color: #065f46; }
+.badge--201 { background: #d1fae5; color: #065f46; }
+.badge--400 { background: #fef3c7; color: #92400e; }
+.badge--401 { background: #fee2e2; color: #991b1b; }
+.badge--404 { background: #fce7f3; color: #9d174d; }
+.badge--429 { background: #ede9fe; color: #5b21b6; }
+.badge--500 { background: #fee2e2; color: #991b1b; }
+
+/* Feature cards */
+.feature-card {
+  background: var(--nb-bg-light);
+  border: 1px solid var(--nb-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.feature-card:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+[data-theme='dark'] .feature-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+/* Admonition styling */
+.alert--info    { border-left: 4px solid #3b82f6; }
+.alert--success { border-left: 4px solid #10b981; }
+.alert--warning { border-left: 4px solid #f59e0b; }
+.alert--danger  { border-left: 4px solid #ef4444; }
+
+/* Code blocks */
+.prism-code {
+  font-size: 0.875rem !important;
+  border-radius: 8px !important;
+}
+
+/* Sidebar */
+.menu__link--active {
+  font-weight: 600;
+  color: var(--ifm-color-primary);
+}
+
+/* Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+th {
+  background: var(--nb-bg-light);
+  font-weight: 600;
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid var(--nb-border);
+}
+
+[data-theme='dark'] th {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--nb-border);
+  vertical-align: top;
+}
+
+[data-theme='dark'] td {
+  border-color: #334155;
+}
+
+/* Announcement bar */
+.announcementBar_mb4j {
+  font-weight: 500;
+}
+
+/* Footer */
+.footer {
+  padding: 3rem 0 2rem;
+}
+
+.footer__title {
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}

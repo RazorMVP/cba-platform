@@ -27,6 +27,7 @@ name: cba-platform
 #   FEP HTTP        : http://localhost:8082
 #   FEP TCP (8583)  : localhost:8583
 #   Web Portal      : http://localhost:4200
+#   Developer Docs  : http://localhost:3001
 # ============================================================
 
 services:
@@ -270,6 +271,17 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    networks:
+      - cba-network
+
+  docs:
+    image: ghcr.io/${GITHUB_ORG:-razormvp}/cba-platform/cba-docs:${VERSION:-latest}
+    container_name: cba-docs
+    profiles: [app]
+    restart: unless-stopped
+    # Docusaurus static site served by nginx; no runtime env vars needed
+    ports:
+      - "3001:80"
     networks:
       - cba-network
 

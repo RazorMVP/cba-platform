@@ -19,7 +19,12 @@ Run through this list in order after every feature, fix, or refactor — even ti
 - [ ] **2. `CLAUDE.md`** — Updated: Confirmed Platform Versions table at top; Angular Component Map (new components ✅); any new module catalogue entries; new gotchas. The version table SHA must match the most recent commit.
 - [ ] **3. `docs/api-reference.html`** — If ANY backend file was touched this session: grep the modified Java files for `@GetMapping`, `@PostMapping`, `@PutMapping`, `@DeleteMapping`, `@PatchMapping`, `@RequestMapping`. For every new or changed endpoint found, update or add the corresponding entry in `api-reference.html` AND the full API matrix table. Do not skip this even for "minor" param additions.
 - [ ] **4. `docs/cba-postman-collection-v2.json`** — Same rule as above. Every new or changed endpoint needs a matching request item with query params, headers, example response, and code samples. Updating an existing endpoint's params counts — add a `"disabled": true` entry for optional params.
-- [ ] **5. Commit and push** — `git add cba-log.md CLAUDE.md docs/api-reference.html docs/cba-postman-collection-v2.json && git commit && git push origin main`. The pre-push hook will block if `Confirmed Platform Versions` is missing from either doc file.
+- [ ] **5. Deployment-agnostic check** — If ANY new frontend app or service was added this session, verify all four criteria before pushing:
+  - [ ] `Dockerfile` committed and tested (`docker build` succeeds locally)
+  - [ ] `nginx.conf` committed (SPA routing + security headers; mirrors `vercel.json` rules)
+  - [ ] `docker-compose.yml` entry added for the new app
+  - [ ] Build step in CI uses only standard CLI (`npm run build`, `ng build`, `docusaurus build`) — no Vercel CLI in the build step; deploy step is clearly separated and labelled as swappable
+- [ ] **6. Commit and push** — `git add cba-log.md CLAUDE.md docs/api-reference.html docs/cba-postman-collection-v2.json && git commit && git push origin main`. The pre-push hook will block if `Confirmed Platform Versions` is missing from either doc file.
 
 ### Rationalisation Traps — These Are Not Valid Reasons to Skip
 
@@ -30,6 +35,8 @@ Run through this list in order after every feature, fix, or refactor — even ti
 | "I'll do the docs in the next session" | The next session starts cold. The missing docs will be missed again. |
 | "The docs were updated last session" | Last session's docs don't cover this session's changes. |
 | "The session ran long, I'll commit without the docs" | The pre-push hook will block the push anyway. Fix it now. |
+| "It's just a frontend app, Dockerfile can come later" | Later never comes. A frontend without a Dockerfile is not deployment-agnostic. Add it before the commit. |
+| "Vercel already handles the deploy, Dockerfile is redundant" | Vercel is one target. The Dockerfile is the contract that makes the app portable. Both must exist. |
 
 ---
 

@@ -165,6 +165,8 @@ jobs:
             -DfailBuildOnCVSS=7 \
             -DsuppressionsLocation=../docs/owasp-suppressions.xml \
             -DnvdApiKey="${NVD_API_KEY}" \
+            -DnvdMaxRetryCount=5 \
+            -DnvdApiDelay=2000 \
             --no-transfer-progress
 
       - name: Upload OWASP report

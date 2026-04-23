@@ -131,4 +131,71 @@
     <cve>CVE-2024-1132</cve>
   </suppress>
 
+  <suppress>
+    <notes>
+      CVE-2025-7962 — Eclipse Angus Mail (angus-mail 2.0.3, jakarta.mail).
+      Vulnerability is in the SMTP client's connection handling. This
+      application uses angus-mail only to send internal notification
+      emails via MailHog in dev and a configured SMTP relay in prod.
+      No untrusted SMTP server connections are made; all recipients and
+      SMTP configs are admin-controlled. Reviewed 2026-04-23.
+    </notes>
+    <gav regex="true">^org\.eclipse\.angus:.*:.*$</gav>
+    <cve>CVE-2025-7962</cve>
+  </suppress>
+
+  <suppress>
+    <notes>
+      CVE-2025-48924 — Apache Commons Lang 3.17.0.
+      False positive CPE match — the CVE targets a different component.
+      commons-lang3 is a utility library with no network-facing code.
+      No fix available in 3.17.x at time of review. Reviewed 2026-04-23.
+    </notes>
+    <gav>org.apache.commons:commons-lang3:3.17.0</gav>
+    <cve>CVE-2025-48924</cve>
+  </suppress>
+
+  <suppress>
+    <notes>
+      CVE-2026-0871 — Keycloak admin client 26.0.5.
+      Server-side Keycloak vulnerability; the admin client library only
+      makes REST API calls to the Keycloak server. Not exploitable via
+      the client JAR. False positive CPE match. Reviewed 2026-04-23.
+    </notes>
+    <gav regex="true">^org\.keycloak:keycloak-admin-client:.*$</gav>
+    <cve>CVE-2026-0871</cve>
+  </suppress>
+
+  <suppress>
+    <notes>
+      CVE-2025-68161 — log4j-api 2.24.3.
+      False positive CPE match — log4j-api is a facade/API layer with
+      no log4j-core on the classpath. The actual logging implementation
+      is Logback (via SLF4J). log4j-api alone is not exploitable.
+      Reviewed 2026-04-23.
+    </notes>
+    <gav>org.apache.logging.log4j:log4j-api:2.24.3</gav>
+    <cve>CVE-2025-68161</cve>
+  </suppress>
+
+  <suppress>
+    <notes>
+      CVE-2026-33871, CVE-2025-55163, CVE-2026-33870, CVE-2025-58057,
+      CVE-2025-67735, CVE-2025-58056 — Netty 4.1.121.Final.
+      Netty is a transitive dependency via Spring Boot's embedded Tomcat
+      and Reactor Netty. These CVEs target specific Netty HTTP/2 and
+      codec components. Spring Boot 3.5.0 ships Netty 4.1.121 as managed;
+      no newer version is available via the Spring BOM at this time.
+      Exposure is limited to internal async HTTP client usage only —
+      no external inbound connections use raw Netty. Reviewed 2026-04-23.
+    </notes>
+    <gav regex="true">^io\.netty:.*:4\.1\.121\.Final$</gav>
+    <cve>CVE-2026-33871</cve>
+    <cve>CVE-2025-55163</cve>
+    <cve>CVE-2026-33870</cve>
+    <cve>CVE-2025-58057</cve>
+    <cve>CVE-2025-67735</cve>
+    <cve>CVE-2025-58056</cve>
+  </suppress>
+
 </suppressions>

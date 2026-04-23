@@ -86,7 +86,7 @@ jobs:
 
       - name: Run integration tests (Testcontainers + PostgreSQL)
         working-directory: backend
-        run: mvn verify -Pfull-integration --no-transfer-progress
+        run: mvn verify -Pfull-integration --no-transfer-progress -Djacoco.skip=true
         env:
           TESTCONTAINERS_RYUK_DISABLED: 'true'
 

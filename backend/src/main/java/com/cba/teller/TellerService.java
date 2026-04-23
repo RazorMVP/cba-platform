@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -139,7 +140,7 @@ public class TellerService {
         session.setCashier(cashier);
         session.setSessionDate(today);
         session.setOpeningBalance(request.openingBalance());
-        session.setCurrencyCode(request.currencyCode() != null ? request.currencyCode().toUpperCase() : "USD");
+        session.setCurrencyCode(request.currencyCode() != null ? request.currencyCode().toUpperCase(Locale.ROOT) : "USD");
         session.setStatus(SessionStatus.OPEN);
 
         TellerSession saved = sessionRepository.save(session);
@@ -228,9 +229,9 @@ public class TellerService {
         tx.setAccount(account);
         tx.setTransactionType(request.transactionType());
         tx.setAmount(request.amount());
-        tx.setCurrencyCode(request.currencyCode() != null ? request.currencyCode().toUpperCase() : session.getCurrencyCode());
+        tx.setCurrencyCode(request.currencyCode() != null ? request.currencyCode().toUpperCase(Locale.ROOT) : session.getCurrencyCode());
         tx.setDescription(request.description());
-        tx.setReferenceNumber("CASH-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase());
+        tx.setReferenceNumber("CASH-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase(Locale.ROOT));
 
         CashTransaction saved = cashTransactionRepository.save(tx);
         auditLogService.log("CashTransaction", saved.getId().toString(), "RECORD", null, saved);
@@ -272,7 +273,7 @@ public class TellerService {
 
     private void recordAccountTransaction(Account account, TransactionType type,
                                           BigDecimal amount, String description) {
-        String ref = "CASH-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
+        String ref = "CASH-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase(Locale.ROOT);
         Transaction tx = Transaction.of(account, type, amount, account.getBalance(),
                 description, ref, "teller");
         transactionRepository.save(tx);

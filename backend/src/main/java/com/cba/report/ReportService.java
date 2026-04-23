@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -123,7 +124,7 @@ public class ReportService {
 
     /** Reject any non-SELECT SQL to prevent destructive report execution. */
     private void validateSelectOnly(String sql) {
-        String trimmed = sql.trim().toUpperCase();
+        String trimmed = sql.trim().toUpperCase(Locale.ROOT);
         if (!trimmed.startsWith("SELECT") && !trimmed.startsWith("WITH")) {
             throw CbaException.badRequest("INVALID_REPORT_SQL",
                     "Report SQL must start with SELECT or WITH");

@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -53,7 +54,7 @@ public class LiquidityService {
 
     @Transactional(readOnly = true)
     public LiquidityPositionDto getPosition(String currency) {
-        return computePosition(currency.toUpperCase());
+        return computePosition(currency.toUpperCase(Locale.ROOT));
     }
 
     private LiquidityPositionDto computePosition(String currency) {
@@ -194,7 +195,7 @@ public class LiquidityService {
 
     @Transactional
     public LiquidityReserveRequirement createReserve(LiquidityReserveRequest req) {
-        if (reserveRepo.findByCurrencyCode(req.currencyCode().toUpperCase()).isPresent()) {
+        if (reserveRepo.findByCurrencyCode(req.currencyCode().toUpperCase(Locale.ROOT)).isPresent()) {
             throw CbaException.conflict("RESERVE_EXISTS",
                     "Reserve requirement for " + req.currencyCode() + " already exists");
         }
@@ -220,7 +221,7 @@ public class LiquidityService {
     }
 
     private void applyReserveRequest(LiquidityReserveRequirement r, LiquidityReserveRequest req) {
-        r.setCurrencyCode(req.currencyCode().toUpperCase());
+        r.setCurrencyCode(req.currencyCode().toUpperCase(Locale.ROOT));
         r.setMinimumBalance(req.minimumBalance());
         r.setMinimumRatioPercent(req.minimumRatioPercent());
         r.setAlertThresholdPercent(req.alertThresholdPercent());
@@ -232,7 +233,7 @@ public class LiquidityService {
     @Transactional(readOnly = true)
     public List<LiquiditySnapshot> getSnapshots(String currency, int limit) {
         List<LiquiditySnapshot> all =
-                snapshotRepo.findByCurrencyCodeOrderBySnapshotDateDesc(currency.toUpperCase());
+                snapshotRepo.findByCurrencyCodeOrderBySnapshotDateDesc(currency.toUpperCase(Locale.ROOT));
         return all.stream().limit(limit).toList();
     }
 

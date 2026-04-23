@@ -1,7 +1,7 @@
 # UAT Test Plan: Core Banking Application (CBA) — Full Platform
 
-**Version:** v1.0  
-**Date:** 2026-04-19  
+**Version:** v1.1  
+**Date:** 2026-04-20  
 **Prepared by:** Claude (UAT Script Generator)  
 **Environment:** Staging / UAT (`http://localhost:4200` + `http://localhost:8080`)  
 **Tester:** QA Engineer / Business Stakeholder  
@@ -12,7 +12,7 @@
 ## Scope
 
 **In scope:** All Angular UI screens and backend REST endpoints for all 11 PRD modules:
-Customer Onboarding, Account Management, Loan Management, Fees & Charges, Payments, GL Accounting, Treasury, Teller/Cash, Products, Reports & BI, Audit & Internal Control, System Administration, Fraud & Risk, Open Banking, Card Management, Groups & Centers, Notifications & Messaging, CoB Scheduler.
+Customer Onboarding, Account Management, Loan Management, Fees & Charges, Payments, GL Accounting, Treasury, Teller/Cash, Products, Reports & BI, Audit & Internal Control, System Administration, Fraud & Risk, Open Banking, Card Management, Groups & Centers, Notifications & Messaging, CoB Scheduler, **Wallet Module (Pockets + QR Payments — Session 105)**.
 
 **Out of scope:**
 - Flutter mobile app (Phase 3 — not yet built)
@@ -28,7 +28,7 @@ Customer Onboarding, Account Management, Loan Management, Fees & Charges, Paymen
 | # | Assumption / Gap |
 |---|-----------------|
 | A1 | Backend running on `localhost:8080`; Angular on `localhost:4200`; auth bypass enabled. |
-| A2 | Flyway migrations V1–V46 applied; demo data from V2/V4 seeded. |
+| A2 | Flyway migrations V1–V47 applied (V47 = wallet_module); demo data from V2/V4 seeded. |
 | A3 | Demo accounts exist: admin@cba.com (ADMIN), teller@cba.com (TELLER), customer@cba.com (CUSTOMER). |
 | A4 | card-service running on `localhost:8081`; fep-service on `localhost:8082` / TCP 8583 if card scenarios tested. |
 | A5 | Any test that creates a customer or account should use unique identifiers (append timestamp to email). |
@@ -55,6 +55,8 @@ Customer Onboarding, Account Management, Loan Management, Fees & Charges, Paymen
 | Teller | At least 1 teller with an ACTIVE cashier |
 | Report | "ActiveLoans" seed report available |
 | BIN ranges | Visa (400000–499999), Mastercard (500000–559999) seeded |
+| Pocket test data | At least 2 ACTIVE savings accounts available to link into pockets |
+| QR test data | At least 1 ACTIVE savings account to generate QR codes against |
 
 ---
 
@@ -646,6 +648,89 @@ Customer Onboarding, Account Management, Loan Management, Fees & Charges, Paymen
 
 ---
 
+### Scenario 24: Wallet Module — Pockets
+
+*Covers: Session 105 — PocketController, PocketService, V47 migration; Angular Pockets tab on CustomerDetail*
+
+#### 24.1 Happy Path — Create and Manage a Pocket
+
+| # | Test Case | Preconditions | Steps | Expected Result | Pass/Fail | Notes |
+|---|-----------|--------------|-------|-----------------|-----------|-------|
+| TC-24.1.1 | Create pocket via UI | Customer detail open; customer has ≥1 ACTIVE savings account | 1. Navigate to **Customers** → select any ACTIVE customer. 2. Click **Pockets** tab. 3. Click **+ Create Pocket**. 4. Enter Name=`Holiday Fund`, Description=`Summer 2026 savings`. 5. Click **Save Pocket**. | Pocket card appears with name "Holiday Fund"; status `ACTIVE`; aggregate balance `$0.00`; no linked accounts yet. | ☐ | |
+| TC-24.1.2 | Link savings account to pocket | Pocket exists (TC-24.1.1); ≥1 ACTIVE savings account exists | 1. On Pockets tab, click **Link Accounts** on the pocket card. 2. Enter a valid savings account UUID. 3. Confirm. | Account row appears under pocket card; aggregate balance updates to reflect the account's balance. | ☐ | |
+| TC-24.1.3 | Link second account to pocket | Pocket has 1 account linked | 1. Link a second ACTIVE savings account to the same pocket. | Pocket shows 2 linked account rows; `totalBalance` = sum of both account balances. | ☐ | |
+| TC-24.1.4 | View pocket detail via API | Pocket with 2 linked accounts | API: `GET /api/v1/pockets/{id}` | 200; `totalBalance` equals sum of linked account balances; `accounts` array has 2 entries each with `accountNumber`, `balance`, `accountType`. | ☐ | |
+| TC-24.1.5 | Rename pocket | Pocket in ACTIVE state | 1. API: `PUT /api/v1/pockets/{id}` body `{"name":"Emergency Fund","description":"Updated"}`. | 200; name updated to "Emergency Fund"; description updated. | ☐ | |
+| TC-24.1.6 | List all pockets for customer | Customer has 2 pockets | API: `GET /api/v1/pockets?customerId={id}` | 200; array of 2 pocket objects; each includes `totalBalance`, `accountCount`. | ☐ | |
+
+#### 24.2 Delink and Close
+
+| # | Test Case | Preconditions | Steps | Expected Result | Pass/Fail | Notes |
+|---|-----------|--------------|-------|-----------------|-----------|-------|
+| TC-24.2.1 | Delink account from pocket | Pocket has 2 linked accounts | 1. API: `POST /api/v1/pockets/{id}/delink` body `{"accountIds":["{accountId}"]}`. | 200; linked account removed; `accountCount` decremented by 1; `totalBalance` recalculated. | ☐ | |
+| TC-24.2.2 | Close pocket via UI | Pocket in ACTIVE state with ≥1 linked account | 1. On Pockets tab, click **Close Pocket** button. 2. Confirm in dialog. | Pocket status changes to `CLOSED`; pocket card no longer shown (active-only filter); all accounts delinked automatically. | ☐ | |
+| TC-24.2.3 | Close pocket via API | Pocket in ACTIVE state | API: `DELETE /api/v1/pockets/{id}` | 200; status = `CLOSED`; all pocket_accounts records removed. | ☐ | |
+| TC-24.2.4 | Closed pocket excluded from list | Pocket just closed | API: `GET /api/v1/pockets?customerId={id}` | Closed pocket not in results (endpoint returns active only). | ☐ | |
+
+#### 24.3 Self-Service Pocket Endpoints (CUSTOMER role)
+
+| # | Test Case | Preconditions | Steps | Expected Result | Pass/Fail | Notes |
+|---|-----------|--------------|-------|-----------------|-----------|-------|
+| TC-24.3.1 | Customer lists own pockets | Customer has ≥1 pocket | API: `GET /api/v1/self/pockets` (CUSTOMER JWT) | 200; only pockets belonging to the authenticated customer's accounts returned. | ☐ | |
+| TC-24.3.2 | Customer creates own pocket | Authenticated as CUSTOMER | API: `POST /api/v1/self/pockets` body `{"name":"Rent","description":"Monthly rent"}` | 201; pocket created and linked to customer derived from JWT `sub`. | ☐ | |
+| TC-24.3.3 | Customer links own account | Customer owns account being linked | API: `POST /api/v1/self/pockets/{id}/link` body `{"accountIds":["{ownAccountId}"]}` | 200; account linked; pocket balance updated. | ☐ | |
+
+#### 24.4 Negative / Error Cases
+
+| # | Test Case | Preconditions | Steps | Expected Result | Pass/Fail | Notes |
+|---|-----------|--------------|-------|-----------------|-----------|-------|
+| TC-24.4.1 | Link same account to two pockets | Account already linked to a pocket | API: `POST /api/v1/pockets/{id2}/link` with the same accountId | 409 Conflict; "Account already belongs to a pocket" (UNIQUE constraint on `pocket_accounts.account_id`). | ☐ | |
+| TC-24.4.2 | Create pocket with blank name | — | API: `POST /api/v1/pockets` body `{"name":"","customerId":"{id}"}` | 400; validation error on `name` field. | ☐ | |
+| TC-24.4.3 | Get non-existent pocket | — | API: `GET /api/v1/pockets/{randomUUID}` | 404; "POCKET_NOT_FOUND". | ☐ | |
+| TC-24.4.4 | Delink account not in pocket | Pocket exists; account not linked | API: `POST /api/v1/pockets/{id}/delink` with unlinked accountId | 400 or no-op; pocket unchanged. | ☐ | |
+| TC-24.4.5 | Close already-closed pocket | Pocket in CLOSED state | API: `DELETE /api/v1/pockets/{id}` | 400; "POCKET_ALREADY_CLOSED". | ☐ | |
+
+---
+
+### Scenario 25: Wallet Module — QR Payments
+
+*Covers: Session 105 — QrPaymentController, QrPaymentService, ZXing 3.5.3 PNG generation, V47 migration; Angular QR Pay tab on AccountDetail*
+
+#### 25.1 Happy Path — Generate and Redeem QR Code
+
+| # | Test Case | Preconditions | Steps | Expected Result | Pass/Fail | Notes |
+|---|-----------|--------------|-------|-----------------|-----------|-------|
+| TC-25.1.1 | View QR tab on account detail | ACTIVE savings account exists | 1. Navigate to **Accounts** → select an ACTIVE account. 2. Click **QR Pay** tab. | QR code PNG displayed (black-and-white matrix image); metadata shown: account number, currency, expiry time. | ☐ | |
+| TC-25.1.2 | Generate QR via GET endpoint | ACTIVE account exists | API: `GET /api/v1/accounts/{accountId}/qr` | 200; response contains `qrBase64` (non-empty string), `token`, `accountNumber`, `expiresAt`, `used: false`. | ☐ | |
+| TC-25.1.3 | Generate QR with preset amount | ACTIVE account | API: `GET /api/v1/accounts/{accountId}/qr?presetAmount=50.00` | 200; `presetAmount: 50.00` in response; QR encodes amount. | ☐ | |
+| TC-25.1.4 | Generate QR with custom expiry | ACTIVE account | API: `GET /api/v1/accounts/{accountId}/qr?expiryMinutes=30` | 200; `expiresAt` is ~30 minutes from now. | ☐ | |
+| TC-25.1.5 | Generate QR via POST (teller) | ADMIN/TELLER role; ACTIVE account | API: `POST /api/v1/payments/qr/generate` body `{"accountId":"{id}","amount":100.00,"reference":"INV-001","expiryMinutes":60}` | 200; `qrBase64` non-null; 300×300 PNG decodable; `token` UUID returned; `reference: "INV-001"`. | ☐ | |
+| TC-25.1.6 | Decode-and-pay QR — full flow | QR token generated; payer has ACTIVE account with sufficient balance | 1. Generate QR for account A (payee). 2. API: `POST /api/v1/payments/qr/decode-and-pay` body `{"token":"{token}","payerAccountId":"{accountB}","amount":50.00}`. | 200; payment created; payee account credited $50; payer account debited $50; `token.used = true`. | ☐ | |
+| TC-25.1.7 | QR image renders in browser | QR tab open on ACTIVE account | Observe the QR image element on the QR Pay tab. | `<img>` src starts with `data:image/png;base64,`; image is visible (not broken); Refresh button present. | ☐ | |
+| TC-25.1.8 | Refresh QR code | QR tab open | Click **Refresh QR** button. | New QR image loads; previous token is still valid until expiry (not revoked); new `token` UUID generated. | ☐ | |
+
+#### 25.2 Self-Service QR (CUSTOMER role)
+
+| # | Test Case | Preconditions | Steps | Expected Result | Pass/Fail | Notes |
+|---|-----------|--------------|-------|-----------------|-----------|-------|
+| TC-25.2.1 | Customer generates QR for own account | CUSTOMER JWT; owns ≥1 ACTIVE savings account | API: `GET /api/v1/self/accounts/{accountId}/qr` | 200; QR generated; account ownership enforced (derived from JWT sub). | ☐ | |
+| TC-25.2.2 | Customer generates QR for another's account | CUSTOMER JWT; accountId belongs to different customer | API: `GET /api/v1/self/accounts/{otherAccountId}/qr` | 404 (not 403) — anti-enumeration. | ☐ | |
+| TC-25.2.3 | Customer scans and pays | CUSTOMER JWT; valid QR token; own payer account has balance | API: `POST /api/v1/self/payments/scan-and-pay` body `{"token":"{token}","payerAccountId":"{ownAccountId}","amount":25.00}` | 200; payment executed; payer account debited; payee credited. | ☐ | |
+
+#### 25.3 Replay Prevention and Edge Cases
+
+| # | Test Case | Preconditions | Steps | Expected Result | Pass/Fail | Notes |
+|---|-----------|--------------|-------|-----------------|-----------|-------|
+| TC-25.3.1 | Replay — use same token twice | QR token already used (TC-25.1.6) | API: `POST /api/v1/payments/qr/decode-and-pay` with same `token` again | 400; "QR_TOKEN_ALREADY_USED"; no payment created; double-spend prevented. | ☐ | |
+| TC-25.3.2 | Expired QR token rejected | QR token past `expiresAt` (use `expiryMinutes=0` or manipulate DB) | API: `POST /api/v1/payments/qr/decode-and-pay` with expired token | 400; "QR_TOKEN_EXPIRED". | ☐ | |
+| TC-25.3.3 | Invalid / unknown token | Random UUID as token | API: `POST /api/v1/payments/qr/decode-and-pay` body `{"token":"00000000-0000-0000-0000-000000000000","payerAccountId":"{id}","amount":10.00}` | 404; "QR_TOKEN_NOT_FOUND". | ☐ | |
+| TC-25.3.4 | Insufficient payer balance | Payer account balance < payment amount | API: decode-and-pay with amount exceeding payer balance | 400; "INSUFFICIENT_BALANCE"; token NOT marked used (payment never started). | ☐ | |
+| TC-25.3.5 | Payer = payee (self-payment) | Same account as both payer and payee | API: `POST /api/v1/payments/qr/decode-and-pay` with `payerAccountId` = QR's `accountId` | 400; "CANNOT_TRANSFER_TO_SAME_ACCOUNT". | ☐ | |
+| TC-25.3.6 | QR amount override — preset vs actual | QR generated with `presetAmount=100`; decode-and-pay sends `amount=50` | API: decode-and-pay with mismatched amount | Verify business rule: does system honour preset or actual? Document result. | ☐ | Clarify intended rule with BA |
+| TC-25.3.7 | QR base64 is valid PNG | QR generated via API | Save `qrBase64` from response; decode from base64; open as image. | Valid PNG file; 300×300 px; scannable with any QR reader app decoding to the account number. | ☐ | |
+
+---
+
 ## Defect Log
 
 | Defect ID | Test Case | Description | Severity | Status | Assigned To | Resolution |
@@ -675,4 +760,5 @@ Customer Onboarding, Account Management, Loan Management, Fees & Charges, Paymen
 
 ---
 
-*Generated by Claude UAT Script Generator — CBA Platform v1.0 — Session 103 — 2026-04-19*
+*Generated by Claude UAT Script Generator — CBA Platform v1.1 — Session 105 — 2026-04-20*  
+*v1.1 additions: Scenario 24 (Pockets — 14 test cases) + Scenario 25 (QR Payments — 15 test cases)*

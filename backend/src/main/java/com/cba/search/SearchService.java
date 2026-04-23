@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Locale;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -26,11 +27,11 @@ public class SearchService {
     @Transactional(readOnly = true)
     public List<SearchResult> search(String query, String resource) {
         if (query == null || query.isBlank()) return List.of();
-        if (resource != null && !resource.isBlank() && !ALLOWED_RESOURCES.contains(resource.toUpperCase())) {
+        if (resource != null && !resource.isBlank() && !ALLOWED_RESOURCES.contains(resource.toUpperCase(Locale.ROOT))) {
             throw new com.cba.common.exception.CbaException("INVALID_RESOURCE",
                 "resource must be one of: " + ALLOWED_RESOURCES, org.springframework.http.HttpStatus.BAD_REQUEST);
         }
-        String like = "%" + query.toLowerCase() + "%";
+        String like = "%" + query.toLowerCase(Locale.ROOT) + "%";
         List<SearchResult> results = new ArrayList<>();
 
         boolean all = resource == null || resource.isBlank();

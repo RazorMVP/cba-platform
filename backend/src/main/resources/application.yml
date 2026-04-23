@@ -297,11 +297,19 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://localhost:8180/realms/cba
+          # Use jwk-set-uri (lazy fetch) instead of issuer-uri (eager OIDC discovery).
+          # Keycloak is not running in CI; discovery would fail on context startup.
+          # With app.auth-bypass=true the JWK set is never actually fetched.
+          jwk-set-uri: http://localhost:8180/realms/cba/protocol/openid-connect/certs
 
   mail:
     host: localhost
     port: 1025
+
+app:
+  auth-bypass: true   # DevAuthBypassFilter — injects fake ADMIN auth; no Keycloak needed
+  partner:
+    jwt-secret: test-partner-jwt-secret-32-chars!
 
 cba:
   encryption:

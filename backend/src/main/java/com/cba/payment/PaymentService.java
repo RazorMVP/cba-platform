@@ -32,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -192,7 +193,7 @@ public class PaymentService {
         so.setSourceAccount(source);
         so.setDestinationAccount(dest);
         so.setAmount(request.amount());
-        so.setCurrencyCode(request.currencyCode() != null ? request.currencyCode().toUpperCase() : source.getCurrencyCode());
+        so.setCurrencyCode(request.currencyCode() != null ? request.currencyCode().toUpperCase(Locale.ROOT) : source.getCurrencyCode());
         so.setFrequency(request.frequency());
         so.setStartDate(request.startDate());
         so.setEndDate(request.endDate());
@@ -339,7 +340,7 @@ public class PaymentService {
         source.debit(req.amount(), available);
         accountRepository.save(source);
 
-        String ref = "EXT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        String ref = "EXT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
         transactionRepository.save(Transaction.of(source, TransactionType.TRANSFER_DEBIT,
                 req.amount(), source.getBalance(),
                 "External " + req.network() + " payment to " + req.beneficiaryName(), ref, actor));
@@ -356,14 +357,14 @@ public class PaymentService {
         payment.setCreatedBy(actor);
 
         // External fields
-        payment.setExternalNetwork(req.network().toUpperCase());
+        payment.setExternalNetwork(req.network().toUpperCase(Locale.ROOT));
         payment.setBeneficiaryName(req.beneficiaryName());
         payment.setBeneficiaryIban(req.beneficiaryIban());
         payment.setBeneficiaryBic(req.beneficiaryBic());
         payment.setBeneficiaryBankName(req.beneficiaryBankName());
         payment.setBeneficiaryCountryCode(req.beneficiaryCountryCode());
         payment.setExternalReference(req.externalReference());
-        payment.setChargeType(req.chargeType() != null ? req.chargeType().toUpperCase() : "SHA");
+        payment.setChargeType(req.chargeType() != null ? req.chargeType().toUpperCase(Locale.ROOT) : "SHA");
 
         Payment saved = paymentRepository.save(payment);
 

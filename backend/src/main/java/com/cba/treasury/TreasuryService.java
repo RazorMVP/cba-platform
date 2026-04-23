@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -48,7 +49,7 @@ public class TreasuryService {
     @Transactional
     public TreasuryPlacement commandPlacement(UUID id, String command) {
         var p = getPlacement(id);
-        switch (command.toLowerCase()) {
+        switch (command.toLowerCase(Locale.ROOT)) {
             case "activate" -> {
                 if (p.getStatus() != TreasuryPlacement.Status.PENDING)
                     throw CbaException.badRequest("INVALID_STATE", "Only PENDING placements can be activated");
@@ -110,7 +111,7 @@ public class TreasuryService {
     @Transactional
     public TreasuryInterbankPosition commandPosition(UUID id, String command) {
         var pos = getPosition(id);
-        switch (command.toLowerCase()) {
+        switch (command.toLowerCase(Locale.ROOT)) {
             case "settle" -> {
                 if (pos.getStatus() != TreasuryInterbankPosition.Status.ACTIVE)
                     throw CbaException.badRequest("INVALID_STATE", "Only ACTIVE positions can be settled");

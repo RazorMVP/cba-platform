@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -126,9 +127,9 @@ public class ProductService {
 
     private void applyLoanProductFields(LoanProduct p, LoanProductRequest r) {
         p.setName(r.name());
-        p.setShortName(r.shortName().toUpperCase());
+        p.setShortName(r.shortName().toUpperCase(Locale.ROOT));
         p.setDescription(r.description());
-        p.setCurrencyCode(r.currencyCode() != null ? r.currencyCode().toUpperCase() : "USD");
+        p.setCurrencyCode(r.currencyCode() != null ? r.currencyCode().toUpperCase(Locale.ROOT) : "USD");
 
         // Fund linkage
         p.setFund(r.fundId() != null ? requireFund(r.fundId()) : null);
@@ -205,10 +206,10 @@ public class ProductService {
 
     private void applyDepositProductFields(DepositProduct p, DepositProductRequest r) {
         p.setName(r.name());
-        p.setShortName(r.shortName().toUpperCase());
+        p.setShortName(r.shortName().toUpperCase(Locale.ROOT));
         p.setDescription(r.description());
         p.setAccountType(r.accountType());
-        p.setCurrencyCode(r.currencyCode() != null ? r.currencyCode().toUpperCase() : "USD");
+        p.setCurrencyCode(r.currencyCode() != null ? r.currencyCode().toUpperCase(Locale.ROOT) : "USD");
 
         // Balance
         p.setMinimumBalance(r.minimumBalance() != null ? r.minimumBalance() : BigDecimal.ZERO);

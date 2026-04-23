@@ -9,6 +9,7 @@ import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Applies a fixed-window rate limit using an atomic Redis Lua script.
@@ -79,7 +80,7 @@ public class RateLimitService {
      * Falls back to the Tier default if no DB override is present.
      */
     private long resolveLimit(Tier tier) {
-        String configKey = "rate_limit_" + tier.name().toLowerCase();
+        String configKey = "rate_limit_" + tier.name().toLowerCase(Locale.ROOT);
         try {
             return globalConfigRepo.findByName(configKey)
                     .map(gc -> gc.getNumericValue() != null ? gc.getNumericValue() : tier.defaultRpm())

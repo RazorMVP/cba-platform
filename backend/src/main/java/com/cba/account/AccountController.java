@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Map;
+import java.util.Locale;
 import java.util.UUID;
 
 @RestController
@@ -83,7 +84,7 @@ public class AccountController {
     public ResponseEntity<ApiResponse<AccountResponse>> executeCommand(
             @PathVariable UUID id,
             @RequestParam String command) {
-        AccountResponse response = switch (command.toLowerCase()) {
+        AccountResponse response = switch (command.toLowerCase(Locale.ROOT)) {
             case "approve"      -> accountService.approveAccount(id);
             case "activate"     -> accountService.activateAccount(id);
             case "reject"       -> accountService.rejectAccount(id);

@@ -27,6 +27,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -66,7 +67,7 @@ public class AccountService {
         account.setProduct(product);
         account.setAccountType(request.accountType());
         String resolvedCurrency = request.currencyCode() != null
-            ? request.currencyCode().toUpperCase()
+            ? request.currencyCode().toUpperCase(Locale.ROOT)
             : tenantService.getBaseCurrency(TenantContext.getTenant());
         account.setCurrencyCode(resolvedCurrency);
 

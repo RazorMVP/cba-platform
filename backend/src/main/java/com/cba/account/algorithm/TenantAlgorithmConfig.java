@@ -4,6 +4,7 @@ import com.cba.account.AccountType;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import java.util.Map;
+import java.util.Locale;
 
 /**
  * Typed view of a tenant's {@code country_params} JSONB column.
@@ -43,7 +44,7 @@ public record TenantAlgorithmConfig(
         if (algorithms == null || algorithms.isEmpty()) return AlgorithmType.MIFOS;
         String raw = algorithms.getOrDefault(accountType.name(), "MIFOS");
         try {
-            return AlgorithmType.valueOf(raw.toUpperCase());
+            return AlgorithmType.valueOf(raw.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             return AlgorithmType.MIFOS;
         }
@@ -55,9 +56,9 @@ public record TenantAlgorithmConfig(
      */
     public AlgorithmType algorithmForName(String accountTypeName) {
         if (algorithms == null || algorithms.isEmpty()) return AlgorithmType.MIFOS;
-        String raw = algorithms.getOrDefault(accountTypeName.toUpperCase(), "MIFOS");
+        String raw = algorithms.getOrDefault(accountTypeName.toUpperCase(Locale.ROOT), "MIFOS");
         try {
-            return AlgorithmType.valueOf(raw.toUpperCase());
+            return AlgorithmType.valueOf(raw.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             return AlgorithmType.MIFOS;
         }

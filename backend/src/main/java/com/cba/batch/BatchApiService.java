@@ -17,6 +17,7 @@ import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -86,7 +87,7 @@ public class BatchApiService {
         }
 
         HttpEntity<String> entity = new HttpEntity<>(body, headers);
-        HttpMethod httpMethod = HttpMethod.valueOf(method.toUpperCase());
+        HttpMethod httpMethod = HttpMethod.valueOf(method.toUpperCase(Locale.ROOT));
 
         try {
             ResponseEntity<String> resp = restTemplate.exchange(fullUrl, httpMethod, entity, String.class);

@@ -17,6 +17,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Map;
+import java.util.Locale;
 
 @Tag(name = "Login History", description = "System access log — every login, logout and authentication failure")
 @RestController
@@ -46,7 +47,7 @@ public class LoginHistoryController {
 
         LoginHistory.Status status;
         try {
-            status = LoginHistory.Status.valueOf(req.status().toUpperCase());
+            status = LoginHistory.Status.valueOf(req.status().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             status = LoginHistory.Status.SUCCESS;
         }
@@ -68,7 +69,7 @@ public class LoginHistoryController {
 
         LoginHistory.Status statusEnum = null;
         if (status != null && !status.isBlank()) {
-            try { statusEnum = LoginHistory.Status.valueOf(status.toUpperCase()); }
+            try { statusEnum = LoginHistory.Status.valueOf(status.toUpperCase(Locale.ROOT)); }
             catch (IllegalArgumentException ignored) {}
         }
 

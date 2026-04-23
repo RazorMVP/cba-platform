@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Locale;
 
 @Tag(name = "Bulk Import", description = "Batch CSV ingestion for customers and loans")
 @RestController
@@ -50,7 +51,7 @@ public class BulkImportController {
                description = "entityType: CUSTOMERS or LOANS")
     @GetMapping(value = "/templates/{entityType}", produces = "text/csv")
     public String downloadTemplate(@PathVariable String entityType) {
-        return switch (entityType.toUpperCase()) {
+        return switch (entityType.toUpperCase(Locale.ROOT)) {
             case "CUSTOMERS" -> "firstName,lastName,email,phone,nationalId,dateOfBirth,notes\n" +
                                 "John,Doe,john.doe@example.com,+254712345678,ID123456,1990-05-15,\n";
             case "LOANS"     -> "customerId,productId,linkedAccountId,principalAmount,termMonths,notes\n" +

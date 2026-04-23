@@ -15,6 +15,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 
@@ -135,7 +136,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         // API key lookup. For now all callers use BASIC.
         String tierHeader = request.getHeader("X-Rate-Tier");
         if (tierHeader != null) {
-            try { return RateLimitService.Tier.valueOf(tierHeader.toUpperCase()); }
+            try { return RateLimitService.Tier.valueOf(tierHeader.toUpperCase(Locale.ROOT)); }
             catch (IllegalArgumentException ignored) { }
         }
         return RateLimitService.Tier.BASIC;

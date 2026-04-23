@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -79,7 +80,7 @@ public class ReportController {
 
         List<Map<String, Object>> rows = reportService.runReport(reportName, reportParams);
 
-        return switch (format.toLowerCase()) {
+        return switch (format.toLowerCase(Locale.ROOT)) {
             case "xlsx" -> {
                 byte[] data = reportExportService.exportToXlsx(reportName, rows);
                 yield ResponseEntity.ok()

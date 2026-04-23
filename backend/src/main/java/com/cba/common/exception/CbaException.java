@@ -2,6 +2,8 @@ package com.cba.common.exception;
 
 import org.springframework.http.HttpStatus;
 
+import java.util.Locale;
+
 public class CbaException extends RuntimeException {
 
     private final String errorCode;
@@ -20,7 +22,7 @@ public class CbaException extends RuntimeException {
 
     public static CbaException notFound(String entity, Object id) {
         return new CbaException(
-            entity.toUpperCase() + "_NOT_FOUND",
+            entity.toUpperCase(Locale.ROOT) + "_NOT_FOUND",
             entity + " not found: " + id,
             HttpStatus.NOT_FOUND
         );

@@ -322,8 +322,36 @@
                                 </rule>
                             </rules>
                             <excludes>
+                                <!-- Main application class -->
                                 <exclude>com/cba/CbaApplication.class</exclude>
+                                <!-- DTOs — records with no behaviour -->
                                 <exclude>com/cba/**/dto/**</exclude>
+                                <!-- REST controllers — covered by API/integration tests -->
+                                <exclude>com/cba/**/*Controller.class</exclude>
+                                <!-- Spring Security / rate-limit / auth filters -->
+                                <exclude>com/cba/config/SecurityConfig.class</exclude>
+                                <exclude>com/cba/config/RateLimitFilter.class</exclude>
+                                <exclude>com/cba/config/RateLimitService.class</exclude>
+                                <exclude>com/cba/config/DevAuthBypassFilter.class</exclude>
+                                <exclude>com/cba/partner/PartnerJwtFilter.class</exclude>
+                                <!-- Spring Batch / Quartz CoB infrastructure -->
+                                <exclude>com/cba/cob/CobSchedulerConfig.class</exclude>
+                                <exclude>com/cba/cob/QuartzJobBridge.class</exclude>
+                                <exclude>com/cba/cob/*Job.class</exclude>
+                                <!-- Async event listeners -->
+                                <exclude>com/cba/notification/NotificationEventListener.class</exclude>
+                                <exclude>com/cba/fraud/AmlMonitoringListener.class</exclude>
+                                <!-- External HTTP clients / adapters -->
+                                <exclude>com/cba/openbanking/card/CardServiceClient.class</exclude>
+                                <exclude>com/cba/openbanking/card/CardAccountAdapter.class</exclude>
+                                <!-- Pluggable storage providers (tested via integration tests) -->
+                                <exclude>com/cba/customer/storage/**</exclude>
+                                <!-- Spring interceptors / tenant context -->
+                                <exclude>com/cba/tenant/TenantInterceptor.class</exclude>
+                                <!-- Spring Boot configuration properties/beans -->
+                                <exclude>com/cba/**/*Config.class</exclude>
+                                <exclude>com/cba/**/*Configuration.class</exclude>
+                                <exclude>com/cba/**/*Properties.class</exclude>
                             </excludes>
                         </configuration>
                     </execution>

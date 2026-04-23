@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 109 — 2026-04-23)
+## Confirmed Platform Versions (Session 110 — 2026-04-23)
 
 These are the verified-working versions for both production components. Update this table whenever a dependency is upgraded.
 
@@ -23,7 +23,7 @@ These are the verified-working versions for both production components. Update t
 | **thumbnailator** | 0.4.20 | Server-side image resize for `ClientImageService` — max 500×500, JPEG output |
 | **ZXing** | 3.5.3 | Server-side QR PNG generation (`core` + `javase`) — Session 105 |
 | **spring-boot-starter-data-redis** | 3.5.0 (managed) | Redis fixed-window rate limiting (Lua INCR+EXPIRE) — Session 106 |
-| **Last git commit** | `a7e7f08` | Session 109 — JaCoCo 70% coverage gate cleared |
+| **Last git commit** | `9d2d011` | Session 110 — CI pipeline fully green (Test ✅ SpotBugs ✅ OWASP ✅) |
 
 ### Angular Web App (`web/`)
 

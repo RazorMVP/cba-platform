@@ -143,6 +143,9 @@ jobs:
             --no-transfer-progress
 
   # ─── Security — OWASP Dependency Check ───────────────────────────────────────
+  # NOTE: First run downloads ~346K NVD records (~70 min locally, ~3h in CI).
+  # Subsequent runs do a delta update (seconds) using the owasp-nvd-* cache key.
+  # timeout-minutes: 180 covers the worst-case first-time download.
   owasp-check:
     name: OWASP Dependency Check
     runs-on: ubuntu-latest

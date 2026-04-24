@@ -83,7 +83,7 @@ _None — all Phase 1 backend modules are now complete._
 ✅ Test (Java 21 + Testcontainers): success
 ✅ SpotBugs Static Analysis: success
 ✅ Backend Tests: success
-⏳ OWASP Dependency Check: in_progress (OWASP scanner typically ~15 min)
+⏳ OWASP Dependency Check: timed_out at 180 min on first NVD download (346K records); cache saved — re-running with warm cache
 ❌ SonarCloud Analysis: failure (SONAR_TOKEN secret not configured — expected)
 ```
 

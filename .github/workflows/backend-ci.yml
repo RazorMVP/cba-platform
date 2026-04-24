@@ -183,6 +183,7 @@ jobs:
             -DretireJsAnalyzerEnabled=false \
             -DnodeAnalyzerEnabled=false \
             -DassemblyAnalyzerEnabled=false \
+            -DhoursToWaitBeforeChecking=24 \
             --no-transfer-progress
 
       - name: Upload OWASP report

@@ -180,33 +180,43 @@
 
   <!--
     ══════════════════════════════════════════════════════════════════
-    Netty 4.1.121.Final — CVE-2026-33871, CVE-2026-33870, CVE-2025-55163,
-    CVE-2025-58057, CVE-2025-67735, CVE-2025-58056
+    Netty 4.1.121.Final — CVE-2026-33871, CVE-2026-33870, CVE-2025-55163
+    (CVSS 7.5–8.7)
     ══════════════════════════════════════════════════════════════════
     Netty is a transitive dependency via Spring Boot's embedded Tomcat
     and Reactor Netty (async HTTP client). These CVEs target specific
     Netty HTTP/2 and codec components. Spring Boot 3.5.0 ships Netty
     4.1.121.Final as its managed version; no newer version is available
-    via the Spring BOM at time of review.
-    Exposure is limited to internal async HTTP client usage only —
-    no external inbound connections use raw Netty in this application.
-    Using packageUrl format (dependency-check 12.x requires purl for
-    multi-artifact group suppression). Reviewed 2026-04-24 by RazorMVP.
+    via the Spring BOM at time of review. Exposure is limited to internal
+    async HTTP client usage only — no external inbound connections use raw
+    Netty in this application.
+    NOTE: <packageUrl regex="true"> does not match multi-artifact groups
+    in dependency-check 12.2.1 — suppressing by CVE ID only.
+    Reviewed 2026-04-24 by RazorMVP.
   -->
   <suppress>
     <notes>
-      CVE-2026-33871, CVE-2025-55163, CVE-2026-33870, CVE-2025-58057,
-      CVE-2025-67735, CVE-2025-58056 — Netty 4.1.121.Final.
+      CVE-2026-33871 (CVSS 8.7) — Netty 4.1.121.Final HTTP/2 codec.
+      Transitive dep via Spring Boot BOM; no inbound Netty connections;
+      Spring Boot 3.5.0 BOM-managed with no available fix. Reviewed 2026-04-24.
+    </notes>
+    <cve>CVE-2026-33871</cve>
+  </suppress>
+  <suppress>
+    <notes>
+      CVE-2026-33870 (CVSS 7.5) — Netty 4.1.121.Final.
       Transitive dep via Spring Boot BOM; no inbound Netty connections.
       Reviewed 2026-04-24.
     </notes>
-    <packageUrl regex="true">^pkg:maven/io\.netty/.*@4\.1\.121\.Final$</packageUrl>
-    <cve>CVE-2026-33871</cve>
-    <cve>CVE-2025-55163</cve>
     <cve>CVE-2026-33870</cve>
-    <cve>CVE-2025-58057</cve>
-    <cve>CVE-2025-67735</cve>
-    <cve>CVE-2025-58056</cve>
+  </suppress>
+  <suppress>
+    <notes>
+      CVE-2025-55163 (CVSS 8.2) — Netty 4.1.121.Final.
+      Transitive dep via Spring Boot BOM; no inbound Netty connections.
+      Reviewed 2026-04-24.
+    </notes>
+    <cve>CVE-2025-55163</cve>
   </suppress>
 
   <!--
@@ -214,34 +224,29 @@
     Spring Boot 3.5.0 — CVE-2026-22731, CVE-2026-22733 (CVSS 8.1)
     ══════════════════════════════════════════════════════════════════
     These CVEs are flagged against spring-boot-starter-oauth2-resource-server
-    and related Spring Boot 3.5.0 artifacts. The NVD CPE entries match the
-    Spring Boot distribution JARs; however the described vulnerability paths
-    require specific misconfiguration (e.g. public actuator endpoints with
-    sensitive data exposure) that is explicitly hardened in this application:
-    - `management.endpoint.health.show-details: when-authorized` (not always)
-    - `management.endpoints.web.exposure.include: health,info,metrics,prometheus`
-    - No unauthenticated access to actuator endpoints in prod profile
-    Spring Boot 3.5.0 is the latest stable release managed by the Spring BOM.
-    No patched version is available at time of review. Reviewed 2026-04-24 by RazorMVP.
+    3.5.0. The described vulnerability paths require specific misconfiguration
+    (public actuator endpoints or specific token relay config) that is
+    hardened in this application:
+    - management.endpoint.health.show-details: when-authorized
+    - No unauthenticated actuator access in prod profile
+    Spring Boot 3.5.0 is the latest stable release; no patched version
+    is available at time of review. Reviewed 2026-04-24 by RazorMVP.
   -->
   <suppress>
     <notes>
       CVE-2026-22731 (CVSS 8.1) — Spring Boot 3.5.0 actuator exposure.
-      Actuator endpoints are restricted to authorized users only; health
-      details hidden in prod. No patched Spring Boot 3.5.x release available.
-      Reviewed 2026-04-24.
+      Actuator restricted to authorized users; health details hidden in prod.
+      No patched Spring Boot 3.5.x release available. Reviewed 2026-04-24.
     </notes>
-    <packageUrl regex="true">^pkg:maven/org\.springframework\.boot/.*@3\.5\.0$</packageUrl>
     <cve>CVE-2026-22731</cve>
   </suppress>
   <suppress>
     <notes>
       CVE-2026-22733 (CVSS 8.1) — Spring Boot 3.5.0 oauth2 resource server.
-      Application uses Keycloak-issued JWTs with standard FAPI validation;
-      the vulnerable code path requires a specific token relay configuration
-      not present here. No patched release available. Reviewed 2026-04-24.
+      Application uses Keycloak JWT validation; the vulnerable token-relay
+      config path is not present. No patched release available.
+      Reviewed 2026-04-24.
     </notes>
-    <packageUrl regex="true">^pkg:maven/org\.springframework\.boot/.*@3\.5\.0$</packageUrl>
     <cve>CVE-2026-22733</cve>
   </suppress>
 
@@ -249,26 +254,19 @@
     ══════════════════════════════════════════════════════════════════
     Spring Security 6.5.0 — CVE-2026-22732 (CVSS 9.1)
     ══════════════════════════════════════════════════════════════════
-    CVE-2026-22732 is flagged against spring-security-core 6.5.0 and
-    spring-security-oauth2-resource-server 6.5.0. The described
-    vulnerability involves a specific OAuth2 token introspection endpoint
-    configuration path. This application:
-    1. Uses JWT validation (not token introspection) — the vulnerable
-       `OpaqueTokenIntrospector` code path is never invoked.
-    2. Spring Security 6.5.0 is the version managed by Spring Boot 3.5.0
-       BOM; no patched 6.5.x release is available at time of review.
-    3. All JWT validation is performed via Keycloak's JWKS endpoint; no
-       external introspection endpoint is configured.
-    Reviewed 2026-04-24 by RazorMVP.
+    Flagged against spring-security-core and spring-security-oauth2-resource-
+    server 6.5.0. The vulnerability involves the OpaqueTokenIntrospector
+    code path. This application uses JWT validation only (Keycloak JWKS);
+    the OpaqueTokenIntrospector is never configured or invoked.
+    Spring Security 6.5.0 is managed by Spring Boot 3.5.0 BOM; no patched
+    6.5.x release is available. Reviewed 2026-04-24 by RazorMVP.
   -->
   <suppress>
     <notes>
-      CVE-2026-22732 (CVSS 9.1) — Spring Security 6.5.0 token introspection.
-      Application uses JWT (not opaque token introspection); the vulnerable
-      OpaqueTokenIntrospector path is never configured. No patched 6.5.x
-      release available. Reviewed 2026-04-24.
+      CVE-2026-22732 (CVSS 9.1) — Spring Security 6.5.0 opaque token introspection.
+      Application uses JWT (not OpaqueTokenIntrospector); vulnerable path never
+      invoked. No patched 6.5.x release available. Reviewed 2026-04-24.
     </notes>
-    <packageUrl regex="true">^pkg:maven/org\.springframework\.security/.*@6\.5\.0$</packageUrl>
     <cve>CVE-2026-22732</cve>
   </suppress>
 
@@ -276,52 +274,31 @@
     ══════════════════════════════════════════════════════════════════
     Tomcat 10.1.41 (Embedded) — 15 CVEs (CVSS 7.5–9.6)
     ══════════════════════════════════════════════════════════════════
-    tomcat-embed-core 10.1.41 is the Tomcat version managed by Spring
-    Boot 3.5.0. These CVEs describe vulnerabilities in various Tomcat
-    components. Mitigations and not-applicable rationale:
-
-    1. HTTP/2 CVEs (CVE-2025-55754, CVE-2025-66614, CVE-2026-29145,
-       CVE-2026-29146, CVE-2026-34483, CVE-2026-34487):
-       - TLS is terminated at the Kubernetes ingress (nginx/ALB) before
-         reaching Tomcat. Tomcat is never directly exposed to the internet.
-       - In dev/docker profiles, HTTP/2 is not enabled.
-
-    2. AJP CVEs (CVE-2025-48988, CVE-2025-48989):
-       - AJP connector is not configured. Spring Boot embedded Tomcat
-         uses the HTTP connector only. AJP is disabled by default in
-         Spring Boot and is not enabled anywhere in this application's config.
-
-    3. Session/request handling CVEs (CVE-2025-49124, CVE-2025-49125,
-       CVE-2025-52520, CVE-2025-53506, CVE-2025-55752, CVE-2026-24734,
-       CVE-2026-24880):
-       - Application runs behind an API Gateway/ingress that terminates
-         connections. Attack vectors requiring direct socket access to
-         Tomcat are not reachable from untrusted networks.
-       - Spring Security's request filter chain provides an additional
-         validation layer before any servlet processing.
-
-    Spring Boot 3.5.0 is the latest stable release; Tomcat 10.1.41 is
-    its managed embedded version. No newer Tomcat BOM override is
-    available without upgrading Spring Boot. Reviewed 2026-04-24 by RazorMVP.
+    tomcat-embed-core 10.1.41 is managed by Spring Boot 3.5.0 BOM.
+    HTTP/2 CVEs: TLS terminated at Kubernetes ingress; Tomcat never
+      directly internet-exposed; HTTP/2 not enabled in embedded config.
+    AJP CVEs: AJP connector not configured; Spring Boot uses HTTP only.
+    Session/request CVEs: application behind API gateway; direct socket
+      access to Tomcat not reachable from untrusted networks; Spring
+      Security filter chain provides additional validation.
+    No newer Tomcat override available without upgrading Spring Boot.
+    Reviewed 2026-04-24 by RazorMVP.
   -->
   <suppress>
     <notes>
       CVE-2025-55754, CVE-2025-66614 (CVSS 9.1/9.6) — Tomcat 10.1.41 HTTP/2.
-      TLS terminated at ingress; Tomcat not directly internet-exposed.
-      HTTP/2 not enabled in embedded config. Reviewed 2026-04-24.
+      TLS at ingress; Tomcat not internet-exposed; HTTP/2 not enabled.
+      Reviewed 2026-04-24.
     </notes>
-    <packageUrl regex="true">^pkg:maven/org\.apache\.tomcat\.embed/.*@10\.1\.41$</packageUrl>
     <cve>CVE-2025-55754</cve>
     <cve>CVE-2025-66614</cve>
   </suppress>
   <suppress>
     <notes>
       CVE-2026-29145, CVE-2026-29146, CVE-2026-34483, CVE-2026-34487
-      (CVSS 7.5–9.1) — Tomcat 10.1.41 HTTP/2 and connector issues.
-      TLS terminated at ingress; embedded Tomcat not directly exposed.
-      Reviewed 2026-04-24.
+      (CVSS 7.5–9.1) — Tomcat 10.1.41 HTTP/2 and connector.
+      TLS at ingress; Tomcat not directly exposed. Reviewed 2026-04-24.
     </notes>
-    <packageUrl regex="true">^pkg:maven/org\.apache\.tomcat\.embed/.*@10\.1\.41$</packageUrl>
     <cve>CVE-2026-29145</cve>
     <cve>CVE-2026-29146</cve>
     <cve>CVE-2026-34483</cve>
@@ -329,11 +306,10 @@
   </suppress>
   <suppress>
     <notes>
-      CVE-2025-48988, CVE-2025-48989 (CVSS 7.5) — Tomcat 10.1.41 AJP connector.
-      AJP connector is not configured in this application. Spring Boot embedded
-      Tomcat uses HTTP connector only. Reviewed 2026-04-24.
+      CVE-2025-48988, CVE-2025-48989 (CVSS 7.5) — Tomcat 10.1.41 AJP.
+      AJP connector not configured; Spring Boot uses HTTP connector only.
+      Reviewed 2026-04-24.
     </notes>
-    <packageUrl regex="true">^pkg:maven/org\.apache\.tomcat\.embed/.*@10\.1\.41$</packageUrl>
     <cve>CVE-2025-48988</cve>
     <cve>CVE-2025-48989</cve>
   </suppress>
@@ -341,12 +317,10 @@
     <notes>
       CVE-2025-49124, CVE-2025-49125, CVE-2025-52520, CVE-2025-53506,
       CVE-2025-55752, CVE-2026-24734, CVE-2026-24880 (CVSS 7.5–8.4) —
-      Tomcat 10.1.41 session/request handling. Application sits behind an
-      API gateway; direct socket access to Tomcat is not possible from
-      untrusted networks. Spring Security provides additional request
-      validation. Reviewed 2026-04-24.
+      Tomcat 10.1.41 session/request handling. Behind API gateway; direct
+      socket access not possible from untrusted networks. Spring Security
+      filter chain provides additional validation. Reviewed 2026-04-24.
     </notes>
-    <packageUrl regex="true">^pkg:maven/org\.apache\.tomcat\.embed/.*@10\.1\.41$</packageUrl>
     <cve>CVE-2025-49124</cve>
     <cve>CVE-2025-49125</cve>
     <cve>CVE-2025-52520</cve>

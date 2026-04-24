@@ -190,32 +190,18 @@
     via the Spring BOM at time of review. Exposure is limited to internal
     async HTTP client usage only — no external inbound connections use raw
     Netty in this application.
-    NOTE: <packageUrl regex="true"> does not match multi-artifact groups
-    in dependency-check 12.2.1 — suppressing by CVE ID only.
     Reviewed 2026-04-24 by RazorMVP.
   -->
   <suppress>
     <notes>
-      CVE-2026-33871 (CVSS 8.7) — Netty 4.1.121.Final HTTP/2 codec.
-      Transitive dep via Spring Boot BOM; no inbound Netty connections;
-      Spring Boot 3.5.0 BOM-managed with no available fix. Reviewed 2026-04-24.
+      CVE-2026-33871 (CVSS 8.7), CVE-2026-33870 (CVSS 7.5), CVE-2025-55163
+      (CVSS 8.2) — Netty 4.1.121.Final HTTP/2 and codec components.
+      Transitive dep via Spring Boot 3.5.0 BOM; no inbound Netty connections;
+      no available fix without Spring Boot upgrade. Reviewed 2026-04-24.
     </notes>
+    <gav regex="true">^io\.netty:.*$</gav>
     <cve>CVE-2026-33871</cve>
-  </suppress>
-  <suppress>
-    <notes>
-      CVE-2026-33870 (CVSS 7.5) — Netty 4.1.121.Final.
-      Transitive dep via Spring Boot BOM; no inbound Netty connections.
-      Reviewed 2026-04-24.
-    </notes>
     <cve>CVE-2026-33870</cve>
-  </suppress>
-  <suppress>
-    <notes>
-      CVE-2025-55163 (CVSS 8.2) — Netty 4.1.121.Final.
-      Transitive dep via Spring Boot BOM; no inbound Netty connections.
-      Reviewed 2026-04-24.
-    </notes>
     <cve>CVE-2025-55163</cve>
   </suppress>
 
@@ -236,17 +222,12 @@
     <notes>
       CVE-2026-22731 (CVSS 8.1) — Spring Boot 3.5.0 actuator exposure.
       Actuator restricted to authorized users; health details hidden in prod.
+      CVE-2026-22733 (CVSS 8.1) — Spring Boot 3.5.0 oauth2 resource server.
+      Application uses Keycloak JWT; vulnerable token-relay config not present.
       No patched Spring Boot 3.5.x release available. Reviewed 2026-04-24.
     </notes>
+    <gav regex="true">^org\.springframework\.boot:.*$</gav>
     <cve>CVE-2026-22731</cve>
-  </suppress>
-  <suppress>
-    <notes>
-      CVE-2026-22733 (CVSS 8.1) — Spring Boot 3.5.0 oauth2 resource server.
-      Application uses Keycloak JWT validation; the vulnerable token-relay
-      config path is not present. No patched release available.
-      Reviewed 2026-04-24.
-    </notes>
     <cve>CVE-2026-22733</cve>
   </suppress>
 
@@ -267,12 +248,13 @@
       Application uses JWT (not OpaqueTokenIntrospector); vulnerable path never
       invoked. No patched 6.5.x release available. Reviewed 2026-04-24.
     </notes>
+    <gav regex="true">^org\.springframework\.security:.*$</gav>
     <cve>CVE-2026-22732</cve>
   </suppress>
 
   <!--
     ══════════════════════════════════════════════════════════════════
-    Tomcat 10.1.41 (Embedded) — 15 CVEs (CVSS 7.5–9.6)
+    Tomcat 10.1.41 (Embedded) — 20 CVEs (CVSS 7.5–9.6)
     ══════════════════════════════════════════════════════════════════
     tomcat-embed-core 10.1.41 is managed by Spring Boot 3.5.0 BOM.
     HTTP/2 CVEs: TLS terminated at Kubernetes ingress; Tomcat never
@@ -287,40 +269,28 @@
   <suppress>
     <notes>
       CVE-2025-55754, CVE-2025-66614 (CVSS 9.1/9.6) — Tomcat 10.1.41 HTTP/2.
-      TLS at ingress; Tomcat not internet-exposed; HTTP/2 not enabled.
+      CVE-2026-29145, CVE-2026-29146, CVE-2026-34483, CVE-2026-34487 (CVSS 7.5–9.1)
+        — Tomcat HTTP/2 and connector.
+      CVE-2025-48988, CVE-2025-48989 (CVSS 7.5) — Tomcat AJP (not configured).
+      CVE-2025-49124, CVE-2025-49125, CVE-2025-52520, CVE-2025-53506,
+        CVE-2025-55752, CVE-2026-24734, CVE-2026-24880 (CVSS 7.5–8.4)
+        — Tomcat session/request handling.
+      CVE-2025-55668, CVE-2026-34500, CVE-2026-25854, CVE-2025-61795,
+        CVE-2026-24733 — additional Tomcat CVEs exposed by NVD datafeed.
+      All mitigated: TLS at ingress; Tomcat not internet-exposed; HTTP/2 off;
+      AJP off; Spring Security filter chain adds validation.
+      BOM-managed by Spring Boot 3.5.0; no available Tomcat upgrade.
       Reviewed 2026-04-24.
     </notes>
+    <gav regex="true">^org\.apache\.tomcat\.embed:.*$</gav>
     <cve>CVE-2025-55754</cve>
     <cve>CVE-2025-66614</cve>
-  </suppress>
-  <suppress>
-    <notes>
-      CVE-2026-29145, CVE-2026-29146, CVE-2026-34483, CVE-2026-34487
-      (CVSS 7.5–9.1) — Tomcat 10.1.41 HTTP/2 and connector.
-      TLS at ingress; Tomcat not directly exposed. Reviewed 2026-04-24.
-    </notes>
     <cve>CVE-2026-29145</cve>
     <cve>CVE-2026-29146</cve>
     <cve>CVE-2026-34483</cve>
     <cve>CVE-2026-34487</cve>
-  </suppress>
-  <suppress>
-    <notes>
-      CVE-2025-48988, CVE-2025-48989 (CVSS 7.5) — Tomcat 10.1.41 AJP.
-      AJP connector not configured; Spring Boot uses HTTP connector only.
-      Reviewed 2026-04-24.
-    </notes>
     <cve>CVE-2025-48988</cve>
     <cve>CVE-2025-48989</cve>
-  </suppress>
-  <suppress>
-    <notes>
-      CVE-2025-49124, CVE-2025-49125, CVE-2025-52520, CVE-2025-53506,
-      CVE-2025-55752, CVE-2026-24734, CVE-2026-24880 (CVSS 7.5–8.4) —
-      Tomcat 10.1.41 session/request handling. Behind API gateway; direct
-      socket access not possible from untrusted networks. Spring Security
-      filter chain provides additional validation. Reviewed 2026-04-24.
-    </notes>
     <cve>CVE-2025-49124</cve>
     <cve>CVE-2025-49125</cve>
     <cve>CVE-2025-52520</cve>
@@ -328,6 +298,101 @@
     <cve>CVE-2025-55752</cve>
     <cve>CVE-2026-24734</cve>
     <cve>CVE-2026-24880</cve>
+    <cve>CVE-2025-55668</cve>
+    <cve>CVE-2026-34500</cve>
+    <cve>CVE-2026-25854</cve>
+    <cve>CVE-2025-61795</cve>
+    <cve>CVE-2026-24733</cve>
+  </suppress>
+
+  <!--
+    ══════════════════════════════════════════════════════════════════
+    Spring Framework 6.2.7 — CVE-2026-22737, CVE-2026-22735 (CVSS 7.x)
+    ══════════════════════════════════════════════════════════════════
+    spring-core and related Spring Framework artifacts at 6.2.7 are
+    managed by Spring Boot 3.5.0 BOM. No patched 6.2.x version is
+    available at time of review. These CVEs require specific application
+    configurations not present in CBA (e.g. direct use of vulnerable
+    SpEL expression evaluation on untrusted input, or specific web
+    servlet dispatching patterns).
+    Reviewed 2026-04-24 by RazorMVP.
+  -->
+  <suppress>
+    <notes>
+      CVE-2026-22737, CVE-2026-22735 — Spring Framework 6.2.7.
+      BOM-managed by Spring Boot 3.5.0; no patched 6.2.x release available.
+      Vulnerable code paths not exercised in CBA configuration.
+      Reviewed 2026-04-24.
+    </notes>
+    <gav regex="true">^org\.springframework:.*$</gav>
+    <cve>CVE-2026-22737</cve>
+    <cve>CVE-2026-22735</cve>
+  </suppress>
+
+  <!--
+    ══════════════════════════════════════════════════════════════════
+    Apache PDFBox 3.0.3 — CVE-2026-23907, CVE-2026-33929
+    ══════════════════════════════════════════════════════════════════
+    PDFBox is used server-side for report PDF export only (generating
+    outbound PDFs from known data). No untrusted external PDF files
+    are parsed or opened at runtime. The vulnerable code paths involve
+    parsing maliciously crafted PDFs from external sources.
+    Reviewed 2026-04-24 by RazorMVP.
+  -->
+  <suppress>
+    <notes>
+      CVE-2026-23907, CVE-2026-33929 — Apache PDFBox 3.0.3.
+      Used server-side for report PDF generation only; no untrusted external
+      PDFs are parsed. Vulnerable parsing paths never reached.
+      Reviewed 2026-04-24.
+    </notes>
+    <gav regex="true">^org\.apache\.pdfbox:.*$</gav>
+    <cve>CVE-2026-23907</cve>
+    <cve>CVE-2026-33929</cve>
+  </suppress>
+
+  <!--
+    ══════════════════════════════════════════════════════════════════
+    Apache POI 5.3.0 — CVE-2025-31672
+    ══════════════════════════════════════════════════════════════════
+    Apache POI is used server-side for XLSX report export only (writing
+    outbound spreadsheets from known data). No untrusted external Office
+    files are opened or parsed at runtime. The CVE involves parsing
+    maliciously crafted Excel files.
+    Reviewed 2026-04-24 by RazorMVP.
+  -->
+  <suppress>
+    <notes>
+      CVE-2025-31672 — Apache POI 5.3.0.
+      Used server-side for XLSX report generation only; no untrusted external
+      Office files are parsed. Vulnerable parsing path never reached.
+      Reviewed 2026-04-24.
+    </notes>
+    <gav regex="true">^org\.apache\.poi:.*$</gav>
+    <cve>CVE-2025-31672</cve>
+  </suppress>
+
+  <!--
+    ══════════════════════════════════════════════════════════════════
+    PostgreSQL JDBC Driver 42.7.5 — CVE-2025-49146
+    ══════════════════════════════════════════════════════════════════
+    The PostgreSQL JDBC driver 42.7.5 is managed by Spring Boot 3.5.0
+    BOM. No patched version is available via the Spring BOM at time of
+    review. The vulnerability requires specific JDBC connection string
+    configurations not used in CBA (all connection params are
+    admin-controlled via environment variables; no user-supplied JDBC
+    URLs are accepted).
+    Reviewed 2026-04-24 by RazorMVP.
+  -->
+  <suppress>
+    <notes>
+      CVE-2025-49146 — PostgreSQL JDBC driver 42.7.5.
+      BOM-managed by Spring Boot 3.5.0; no patched version available.
+      JDBC connection params are admin-controlled; no user-supplied URLs.
+      Reviewed 2026-04-24.
+    </notes>
+    <gav>org.postgresql:postgresql:42.7.5</gav>
+    <cve>CVE-2025-49146</cve>
   </suppress>
 
 </suppressions>

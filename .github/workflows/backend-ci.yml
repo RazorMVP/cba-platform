@@ -146,6 +146,7 @@ jobs:
   # NOTE: First run downloads ~346K NVD records (~70 min locally, ~3h in CI).
   # Subsequent runs do a delta update (seconds) using the owasp-nvd-* cache key.
   # timeout-minutes: 180 covers the worst-case first-time download.
+  # Suppressions: docs/owasp-suppressions.xml (Netty/Spring/Tomcat justified 2026-04-24)
   owasp-check:
     name: OWASP Dependency Check
     runs-on: ubuntu-latest

@@ -180,6 +180,7 @@ jobs:
             -DnvdApiKey="${NVD_API_KEY}" \
             -DnvdMaxRetryCount=5 \
             -DnvdApiDelay=2000 \
+            -DnvdDatafeedUrl=https://dependency-check.github.io/DependencyCheck_Builder/nvd_cache/ \
             -DretireJsAnalyzerEnabled=false \
             -DnodeAnalyzerEnabled=false \
             -DassemblyAnalyzerEnabled=false \

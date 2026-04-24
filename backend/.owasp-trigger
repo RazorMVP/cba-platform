@@ -1,0 +1,3 @@
+# This file exists solely to allow suppression-only commits to re-trigger backend-ci.yml.
+# Touch it (update the timestamp line below) when docs/owasp-suppressions.xml changes.
+# Last updated: 2026-04-24

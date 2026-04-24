@@ -146,6 +146,7 @@ jobs:
   owasp-check:
     name: OWASP Dependency Check
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -155,6 +156,14 @@ jobs:
           java-version: '21'
           distribution: temurin
           cache: maven
+
+      - name: Cache NVD database
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/owasp/dependency-check-data
+          key: owasp-nvd-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            owasp-nvd-${{ runner.os }}-
 
       - name: Run OWASP Dependency Check
         working-directory: backend

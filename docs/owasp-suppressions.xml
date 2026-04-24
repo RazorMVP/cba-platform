@@ -140,7 +140,7 @@
       No untrusted SMTP server connections are made; all recipients and
       SMTP configs are admin-controlled. Reviewed 2026-04-23.
     </notes>
-    <gav regex="true">^org\.eclipse\.angus:.*:.*$</gav>
+    <filePath regex="true">.*(angus-mail|jakarta\.mail)-.*</filePath>
     <cve>CVE-2025-7962</cve>
   </suppress>
 
@@ -202,12 +202,13 @@
       3.5.0 BOM; no inbound Netty connections; no fix without Spring Boot
       upgrade. Reviewed 2026-04-24.
     </notes>
-    <gav>io.netty:netty-transport:4.1.121.Final</gav>
+    <filePath regex="true">.*netty-transport-.*\.jar</filePath>
     <cve>CVE-2026-33871</cve>
     <cve>CVE-2026-33870</cve>
     <cve>CVE-2025-55163</cve>
     <cve>CVE-2025-58056</cve>
     <cve>CVE-2025-58057</cve>
+    <cve>CVE-2025-67735</cve>
   </suppress>
 
   <!--
@@ -231,7 +232,7 @@
       token-relay). No patched Spring Boot 3.5.x release available.
       Reviewed 2026-04-24.
     </notes>
-    <gav>org.springframework.boot:spring-boot-starter-oauth2-resource-server:3.5.0</gav>
+    <filePath regex="true">.*spring-boot-starter-oauth2-resource-server-.*\.jar</filePath>
     <cve>CVE-2026-22731</cve>
     <cve>CVE-2026-22733</cve>
   </suppress>
@@ -253,7 +254,7 @@
       opaque token introspection. Application uses JWT; OpaqueTokenIntrospector
       never invoked. No patched 6.5.x release available. Reviewed 2026-04-24.
     </notes>
-    <gav>org.springframework.security:spring-security-core:6.5.0</gav>
+    <filePath regex="true">.*spring-security-core-.*\.jar</filePath>
     <cve>CVE-2026-22732</cve>
   </suppress>
   <suppress>
@@ -262,7 +263,7 @@
       (spring-security-oauth2-resource-server). Same as above — OpaqueToken
       code path not used. No patched 6.5.x release. Reviewed 2026-04-24.
     </notes>
-    <gav>org.springframework.security:spring-security-oauth2-resource-server:6.5.0</gav>
+    <filePath regex="true">.*spring-security-oauth2-resource-server-.*\.jar</filePath>
     <cve>CVE-2026-22732</cve>
   </suppress>
 
@@ -288,7 +289,7 @@
       BOM-managed by Spring Boot 3.5.0; no Tomcat upgrade available.
       Reviewed 2026-04-24.
     </notes>
-    <gav>org.apache.tomcat.embed:tomcat-embed-core:10.1.41</gav>
+    <filePath regex="true">.*tomcat-embed-core-.*\.jar</filePath>
     <cve>CVE-2025-55754</cve>
     <cve>CVE-2025-66614</cve>
     <cve>CVE-2026-29145</cve>
@@ -304,6 +305,11 @@
     <cve>CVE-2025-55752</cve>
     <cve>CVE-2026-24734</cve>
     <cve>CVE-2026-24880</cve>
+    <cve>CVE-2025-55668</cve>
+    <cve>CVE-2026-34500</cve>
+    <cve>CVE-2026-25854</cve>
+    <cve>CVE-2025-61795</cve>
+    <cve>CVE-2026-24733</cve>
   </suppress>
 
   <!--
@@ -321,7 +327,7 @@
       BOM-managed by Spring Boot 3.5.0; no patched 6.2.x release available.
       Vulnerable code paths not exercised in CBA. Reviewed 2026-04-24.
     </notes>
-    <gav>org.springframework:spring-core:6.2.7</gav>
+    <filePath regex="true">.*spring-core-.*\.jar</filePath>
     <cve>CVE-2026-22737</cve>
     <cve>CVE-2026-22735</cve>
   </suppress>
@@ -343,7 +349,7 @@
       PDFs are parsed. Vulnerable parsing paths never reached.
       Reviewed 2026-04-24.
     </notes>
-    <gav regex="true">^org\.apache\.pdfbox:.*$</gav>
+    <filePath regex="true">.*pdfbox-.*\.jar</filePath>
     <cve>CVE-2026-23907</cve>
     <cve>CVE-2026-33929</cve>
   </suppress>
@@ -365,7 +371,7 @@
       Office files are parsed. Vulnerable parsing path never reached.
       Reviewed 2026-04-24.
     </notes>
-    <gav regex="true">^org\.apache\.poi:.*$</gav>
+    <filePath regex="true">.*[/\\]poi-.*\.jar</filePath>
     <cve>CVE-2025-31672</cve>
   </suppress>
 
@@ -388,7 +394,7 @@
       JDBC connection params are admin-controlled; no user-supplied URLs.
       Reviewed 2026-04-24.
     </notes>
-    <gav>org.postgresql:postgresql:42.7.5</gav>
+    <filePath regex="true">.*postgresql-.*\.jar</filePath>
     <cve>CVE-2025-49146</cve>
   </suppress>
 

@@ -57,6 +57,73 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 113 — 2026-04-25
+**Trial balance — dedicated `GET /api/v1/accounting/trial-balance` endpoint + Angular `TrialBalanceComponent` at `/accounting/trial-balance` (commit `ca3d883`).**
+
+#### New/Updated Files
+
+| File | Change |
+|------|--------|
+| `backend/src/main/java/com/cba/accounting/GlAccountingService.java` | UPDATED — `JdbcTemplate` injected; `getTrialBalance(fromDate, toDate)` method; inner records `TrialBalanceRow` + `TrialBalanceResponse`; single SQL aggregation with opening/movement/closing breakdown |
+| `backend/src/main/java/com/cba/accounting/GlAccountingController.java` | UPDATED — `GET /api/v1/accounting/trial-balance?fromDate=&toDate=` endpoint; ADMIN/TELLER access; OpenAPI annotated |
+| `web/src/app/features/accounting/trial-balance.ts` | NEW — `TrialBalanceComponent`; default period first-of-month → today; `groupedRows()` by account type; CSV export; `subtotal()` helper |
+| `web/src/app/features/accounting/trial-balance.html` | NEW — date range filter bar, balanced/imbalanced badge, 4-column summary cards, per-type sections with subtotal `<tfoot>`, grand total row, CSV export button, imbalance warning banner |
+| `web/src/app/features/accounting/trial-balance.scss` | NEW — dark-shell/white-card design; navy grand total row; green/red balance badge; tabular-nums on numeric columns |
+| `web/src/app/features/accounting/accounting.service.ts` | UPDATED — `TrialBalanceRow` + `TrialBalanceResponse` interfaces; `getTrialBalance(fromDate, toDate)` service method |
+| `web/src/app/features/accounting/accounting.routes.ts` | UPDATED — added `{ path: 'trial-balance', component: TrialBalanceComponent }` |
+| `web/src/app/layout/sidebar/sidebar.ts` | UPDATED — added "Trial Balance" nav item (icon: `balance`) to Accounting group |
+
+#### Key Patterns / Decisions
+
+- **JdbcTemplate for aggregation queries**: `GlAccountingService` previously had no JdbcTemplate. A trial balance is a GROUP BY aggregation across all accounts — using JPA entity loading would require N+1 queries (one per account). JdbcTemplate with a single SQL query is both simpler and faster here. The query uses CASE WHEN to separate opening (before fromDate) from movement (within period) in a single pass.
+- **`balanced` flag**: Computed as `totalDebitMovement.compareTo(totalCreditMovement) == 0`. Only period movements are compared (not opening balances) since opening balance parity depends on all historical entries being correct — the flag surfaces same-period anomalies.
+- **Closing balance formula**: `closingBalance = openingBalance + debitMovement − creditMovement`. Opening balance is net (positive = net debit, negative = net credit). A zero grand total of all closing balances is the mathematical proof of a balanced set of books.
+- **`totalsClosingDebit/Credit` split**: Accounts with positive closing balance contribute to `totalClosingDebit`; negative closing balance contributes (negated) to `totalClosingCredit`. A balanced trial balance has `totalClosingDebit == totalClosingCredit`.
+
+#### Build Verification
+
+```text
+Backend:  ./mvnw compile → BUILD SUCCESS (0 errors, 0 warnings in accounting package)
+Angular:  npx tsc --noEmit → 0 errors in trial-balance files
+```
+
+#### Confirmed Platform Versions
+
+**Backend (`backend/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `ca3d883` |
+| Java | 21 | `ca3d883` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `ca3d883` |
+| Keycloak admin client | 26.0.5 | `ca3d883` |
+| springdoc-openapi | 2.8.6 | `ca3d883` |
+| Lombok | 1.18.38 | `ca3d883` |
+| PostgreSQL | 16 (Docker) | `ca3d883` |
+
+**Angular Web App (`web/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `ca3d883` |
+| Angular CLI | 21.2.7 | `ca3d883` |
+| PrimeNG | 21.0.x | `ca3d883` |
+| RxJS | 7.8.x | `ca3d883` |
+| TypeScript | 5.9.x | `ca3d883` |
+| Production URL | cba-web-nine.vercel.app | `ca3d883` |
+
+**Partner Portal (`partner-portal/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| React | 19.2.5 | `999a4e0` |
+| Vite | 8.0.9 | `999a4e0` |
+| Tailwind CSS | 4.2.4 | `999a4e0` |
+| TanStack Query | 5.99.2 | `999a4e0` |
+| Production URL | partner-portal-omega-two.vercel.app | `999a4e0` |
+
+---
+
 ### Session 112 — 2026-04-25
 **Partner portal code review fixes + 9 new backend endpoints: webhooks CRUD, consents stubs, org/user/password update. CI green (commit `999a4e0`).**
 

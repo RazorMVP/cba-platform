@@ -10305,6 +10305,51 @@
             "description": ""
           },
           "response": []
+        },
+        {
+          "name": "Trial Balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/accounting/trial-balance?fromDate=2026-04-01&toDate=2026-04-25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounting",
+                "trial-balance"
+              ],
+              "query": [
+                {
+                  "key": "fromDate",
+                  "value": "2026-04-01",
+                  "description": "Period start date (YYYY-MM-DD)"
+                },
+                {
+                  "key": "toDate",
+                  "value": "2026-04-25",
+                  "description": "Period end date (YYYY-MM-DD)"
+                }
+              ]
+            },
+            "description": "Generate a trial balance for a date range. Returns opening balance (movements before fromDate), debit/credit movements within the period, and closing balance per GL account, grouped by account type (ASSET\u2192LIABILITY\u2192EQUITY\u2192INCOME\u2192EXPENSE). The `balanced` flag confirms \u03a3 debits = \u03a3 credits."
+          },
+          "response": [
+            {
+              "name": "200 OK \u2014 Balanced trial balance",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"fromDate\": \"2026-04-01\",\n    \"toDate\": \"2026-04-25\",\n    \"rows\": [\n      {\n        \"glCode\": \"1001\",\n        \"accountName\": \"Cash at Bank\",\n        \"accountType\": \"ASSET\",\n        \"openingBalance\": 1500000.0,\n        \"debitMovement\": 250000.0,\n        \"creditMovement\": 80000.0,\n        \"closingBalance\": 1670000.0\n      },\n      {\n        \"glCode\": \"4001\",\n        \"accountName\": \"Interest Income\",\n        \"accountType\": \"INCOME\",\n        \"openingBalance\": -120000.0,\n        \"debitMovement\": 0.0,\n        \"creditMovement\": 50000.0,\n        \"closingBalance\": -170000.0\n      }\n    ],\n    \"totalDebitMovement\": 250000.0,\n    \"totalCreditMovement\": 250000.0,\n    \"totalClosingDebit\": 1670000.0,\n    \"totalClosingCredit\": 1670000.0,\n    \"balanced\": true\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            }
+          ]
         }
       ]
     },

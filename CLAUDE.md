@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 111 — 2026-04-25)
+## Confirmed Platform Versions (Session 113 — 2026-04-25)
 
 These are the verified-working versions for all production components. Update this table whenever a dependency is upgraded.
 
@@ -23,7 +23,7 @@ These are the verified-working versions for all production components. Update th
 | **thumbnailator** | 0.4.20 | Server-side image resize for `ClientImageService` — max 500×500, JPEG output |
 | **ZXing** | 3.5.3 | Server-side QR PNG generation (`core` + `javase`) — Session 105 |
 | **spring-boot-starter-data-redis** | 3.5.0 (managed) | Redis fixed-window rate limiting (Lua INCR+EXPIRE) — Session 106 |
-| **Last git commit** | `bdeee0b` | Session 110 — CI pipeline fully green (Test ✅ SpotBugs ✅ OWASP ✅) |
+| **Last git commit** | `ca3d883` | Session 113 — trial balance endpoint + Angular screen |
 
 ### Angular Web App (`web/`)
 
@@ -36,7 +36,7 @@ These are the verified-working versions for all production components. Update th
 | **TypeScript** | 5.9.x | `~5.9.2` pinned |
 | **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma) |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `ac49929` | Session 111 — favicon branding update |
+| **Last git commit** | `ca3d883` | Session 113 — TrialBalanceComponent + accounting route |
 
 ### Partner Portal (`partner-portal/`)
 
@@ -2581,6 +2581,7 @@ Use `@Scheduled` + Spring Batch or Quartz for CBA equivalent.
 | Charges list | `ChargesComponent` | `ProductsModule`  | ✅ Built — server-paginated CRUD; applies-to colour badges; penalty/fee chips _(Session 68)_ |
 | GL accounts | `GlAccountsComponent` | `AccountingModule`  | ✅ Built — type filter tabs, search, enable/disable, create/edit modal |
 | Journal entries | `JournalEntriesComponent` | `AccountingModule`  | ✅ Built — T-ledger grouped view, date filter, manual entry modal with balance validation, reversal |
+| Trial Balance | `TrialBalanceComponent` | `AccountingModule`  | ✅ Built — date range filters, accounts grouped by type, subtotals per group, grand total row, balanced/imbalanced badge, CSV export _(Session 113)_ |
 | Provisioning criteria | `ProvisioningComponent` | `AccountingModule`  | ✅ Built — IFRS 9 age bands, create/edit/delete, GL account dropdowns by type |
 | Financial Activity Accounts | `FinancialActivityAccountsComponent` | `AccountingModule`  | ✅ Built — maps abstract activities to GL account codes; create/edit/delete |
 | Accounting Rules | `AccountingRulesComponent` | `AccountingModule`  | ✅ Built — GL account dropdown pickers; `glLabel()` helper; allowMultipleDebits/Credits checkboxes _(Session 75)_ |

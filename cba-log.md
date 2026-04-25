@@ -79,12 +79,18 @@ _None — all Phase 1 backend modules are now complete._
 #### Build Verification
 
 ```bash
-# CI run 24857099587 (commit 9d2d011)
+# CI run 24857099587 (commit 9d2d011) — initial Session 110 run
 ✅ Test (Java 21 + Testcontainers): success
 ✅ SpotBugs Static Analysis: success
 ✅ Backend Tests: success
 ⏳ OWASP Dependency Check: timed_out at 180 min on first NVD download (346K records); cache saved — re-running with warm cache
 ❌ SonarCloud Analysis: failure (SONAR_TOKEN secret not configured — expected)
+
+# CI run 24927676872 (commit bdeee0b) — Session 110 OWASP fix confirmed ✅
+✅ Test (Java 21 + Testcontainers): success
+✅ SpotBugs Static Analysis: success
+✅ OWASP Dependency Check: success (attempt 11 — group-level PURL wildcards)
+❌ SonarCloud Analysis: failure (SONAR_TOKEN secret not configured — expected, not blocking)
 ```
 
 #### Confirmed Platform Versions

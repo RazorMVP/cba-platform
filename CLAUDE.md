@@ -49,7 +49,7 @@ These are the verified-working versions for all production components. Update th
 | **React Router** | 6.30.3 | SPA routing |
 | **TypeScript** | 6.0.x | `~6.0.2` |
 | **Vercel deployment** | `partner-portal-omega-two.vercel.app` | Production — Session 111 ✅ |
-| **Last git commit** | `d40204d` | Session 111 — eslint fix; CI green |
+| **Last git commit** | `f045aca` | Session 111 — all 4 CI jobs green (Lint ✅ Build ✅ Docker ✅ Vercel ✅) |
 
 > **Session 66 CI fixes**: Angular 21 uses Vitest (not Karma) — `--browsers=ChromeHeadless` and `--code-coverage` are invalid flags. `vercel deploy --prebuilt` requires `.vercel/output/` from `vercel build`, not `dist/` from `ng build`. All three issues fixed; CI pipeline and Vercel production deployment now fully green.
 

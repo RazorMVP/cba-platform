@@ -136,6 +136,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [test, owasp-check, api-doc-check]
     if: >-
+      always() &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') &&
       needs.test.result == 'success' &&
       needs.owasp-check.result == 'success' &&

@@ -7,7 +7,15 @@ import { Plus, Trash2, ChevronRight, CheckCircle2, XCircle, Clock } from 'lucide
 interface Webhook { id: string; name: string; callbackUrl: string; events: string[]; active: boolean; createdAt: string }
 interface Delivery { id: string; deliveryUuid: string; eventType: string; httpStatus: number; status: 'PENDING' | 'DELIVERED' | 'FAILED'; attemptCount: number; lastAttemptAt: string }
 
-const EVENTS = ['AUTHORIZATION.APPROVED', 'AUTHORIZATION.DECLINED', 'CARD.ISSUED', 'CARD.BLOCKED', 'CARD.ACTIVATED', 'DISPUTE.RAISED', 'DISPUTE.RESOLVED']
+const EVENTS = [
+  'CONSENT.CREATED', 'CONSENT.AUTHORISED', 'CONSENT.REVOKED', 'CONSENT.EXPIRED',
+  'PAYMENT.INITIATED', 'PAYMENT.COMPLETED', 'PAYMENT.FAILED', 'PAYMENT.REVERSED',
+  'FUNDS.CONFIRMED',
+  'ACCOUNT.ACCESS_GRANTED', 'ACCOUNT.BALANCE_UPDATED',
+  'APPLICATION.APPROVED', 'APPLICATION.REJECTED',
+  'API_KEY.CREATED', 'API_KEY.REVOKED',
+  'RATE_LIMIT.WARNING', 'RATE_LIMIT.EXCEEDED',
+]
 
 export default function WebhooksPage() {
   const { user } = useAuth()
@@ -31,11 +39,13 @@ export default function WebhooksPage() {
   const create = useMutation({
     mutationFn: () => apiClient.post(`/partners/${user?.organizationId}/webhooks`, form),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['webhooks'] }); setShowModal(false); setForm({ name: '', callbackUrl: '', secret: '', events: [] }) },
+    onError: (err: unknown) => console.error('Failed to create webhook', err),
   })
 
   const remove = useMutation({
     mutationFn: (id: string) => apiClient.delete(`/partners/${user?.organizationId}/webhooks/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['webhooks'] }); if (selectedId === remove.variables) setSelectedId(null) },
+    onError: (err: unknown) => console.error('Failed to delete webhook', err),
   })
 
   const toggleEvent = (e: string) => setForm(p => ({ ...p, events: p.events.includes(e) ? p.events.filter(x => x !== e) : [...p.events, e] }))
@@ -124,6 +134,9 @@ export default function WebhooksPage() {
                 </div>
               </div>
             </div>
+            {create.isError && (
+              <p className="px-6 pb-2 text-xs text-red-600">Failed to register webhook. Please try again.</p>
+            )}
             <div className="px-6 py-4 bg-gray-50 rounded-b-2xl flex gap-3 justify-end">
               <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Cancel</button>
               <button onClick={() => create.mutate()} disabled={!form.name || !form.callbackUrl || !form.events.length || create.isPending} className="px-4 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-60" style={{ background: '#1e2833' }}>

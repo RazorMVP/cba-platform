@@ -15,6 +15,7 @@ export default function ApplyPage() {
   const apply = useMutation({
     mutationFn: () => apiClient.post(`/partners/${user?.organizationId}/applications`, form),
     onSuccess: () => setSubmitted(true),
+    onError: (err: unknown) => console.error('Failed to submit application', err),
   })
 
   if (user?.environment === 'PRODUCTION') {
@@ -105,6 +106,9 @@ export default function ApplyPage() {
           </div>
         </div>
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end">
+          {apply.isError && (
+            <p className="text-xs text-red-600 mr-auto self-center">Submission failed. Please try again.</p>
+          )}
           <button
             onClick={() => apply.mutate()}
             disabled={!form.businessType || !form.useCase || !form.estimatedMonthlyCalls || apply.isPending}

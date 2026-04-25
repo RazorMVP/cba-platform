@@ -35,11 +35,13 @@ export default function ApiKeysPage() {
   const issue = useMutation({
     mutationFn: () => apiClient.post<{ data: { key: string } }>(`/partners/${user?.organizationId}/api-keys`, { name: keyName, scopes }),
     onSuccess: (res) => { setNewKey(res.data.data.key); qc.invalidateQueries({ queryKey: ['api-keys'] }) },
+    onError: (err: unknown) => console.error('Failed to issue API key', err),
   })
 
   const revoke = useMutation({
     mutationFn: (id: string) => apiClient.delete(`/partners/${user?.organizationId}/api-keys/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['api-keys'] }),
+    onError: (err: unknown) => console.error('Failed to revoke API key', err),
   })
 
   const copy = (text: string) => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000) }
@@ -139,6 +141,9 @@ export default function ApiKeysPage() {
                 </div>
               </div>
             </div>
+            {issue.isError && (
+              <p className="px-6 pb-2 text-xs text-red-600">Failed to issue key. Please try again.</p>
+            )}
             <div className="px-6 py-4 bg-gray-50 rounded-b-2xl flex gap-3 justify-end">
               <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">Cancel</button>
               <button onClick={() => issue.mutate()} disabled={!keyName || !scopes.length || issue.isPending} className="px-4 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-60" style={{ background: '#1e2833' }}>

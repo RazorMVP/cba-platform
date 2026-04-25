@@ -17,16 +17,19 @@ export default function SettingsPage() {
   const saveProfile = useMutation({
     mutationFn: () => apiClient.put(`/partners/users/${user?.id}`, profileForm),
     onSuccess: showSaved,
+    onError: (err: unknown) => console.error('Failed to save profile', err),
   })
 
   const saveOrg = useMutation({
     mutationFn: () => apiClient.put(`/partners/${user?.organizationId}`, orgForm),
     onSuccess: showSaved,
+    onError: (err: unknown) => console.error('Failed to save organization', err),
   })
 
   const changePassword = useMutation({
     mutationFn: () => apiClient.post(`/partners/users/${user?.id}/change-password`, { currentPassword: pwForm.current, newPassword: pwForm.next }),
     onSuccess: () => { showSaved(); setPwForm({ current: '', next: '', confirm: '' }) },
+    onError: (err: unknown) => console.error('Failed to change password', err),
   })
 
   const tabs = [
@@ -74,6 +77,7 @@ export default function SettingsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Role</label>
                   <input readOnly value={user?.role ?? ''} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-500" />
                 </div>
+                {saveProfile.isError && <p className="text-xs text-red-600">Save failed. Please try again.</p>}
                 <button onClick={() => saveProfile.mutate()} disabled={saveProfile.isPending} className="px-5 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-60" style={{ background: '#1e2833' }}>
                   {saveProfile.isPending ? 'Saving…' : 'Save Profile'}
                 </button>
@@ -103,6 +107,7 @@ export default function SettingsPage() {
                     <div className="px-3 py-2 rounded-lg text-sm font-medium text-center bg-gray-100 text-gray-700">{user?.tier ?? 'BASIC'}</div>
                   </div>
                 </div>
+                {saveOrg.isError && <p className="text-xs text-red-600">Save failed. Please try again.</p>}
                 <button onClick={() => saveOrg.mutate()} disabled={saveOrg.isPending} className="px-5 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-60" style={{ background: '#1e2833' }}>
                   {saveOrg.isPending ? 'Saving…' : 'Save Organization'}
                 </button>
@@ -124,6 +129,7 @@ export default function SettingsPage() {
                     <input type="password" value={pwForm[f.key]} onChange={e => setPwForm(p => ({ ...p, [f.key]: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                 ))}
+                {changePassword.isError && <p className="text-xs text-red-600">Password change failed. Check your current password.</p>}
                 <button
                   onClick={() => changePassword.mutate()}
                   disabled={!pwForm.current || !pwForm.next || pwForm.next !== pwForm.confirm || changePassword.isPending}

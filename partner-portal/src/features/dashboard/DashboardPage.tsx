@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { apiClient } from '../../app/api/apiClient'
 import { useAuth } from '../../app/context/AuthContext'
 import { TrendingUp, Activity, AlertTriangle, CheckCircle2, Key, Webhook } from 'lucide-react'
@@ -59,9 +60,9 @@ export default function DashboardPage() {
             <AlertTriangle size={15} />
             <span className="font-medium">Sandbox Mode</span> — All transactions use test data. No real money moves.
           </div>
-          <a href="/apply" className="text-sm font-medium text-amber-700 hover:text-amber-900 underline">
+          <Link to="/apply" className="text-sm font-medium text-amber-700 hover:text-amber-900 underline">
             Apply for Production →
-          </a>
+          </Link>
         </div>
       )}
 
@@ -75,7 +76,7 @@ export default function DashboardPage() {
 
       {/* Quick links */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        <a href="/api-keys" className="bg-white rounded-xl p-5 border border-gray-100 hover:border-blue-300 transition-colors group">
+        <Link to="/api-keys" className="bg-white rounded-xl p-5 border border-gray-100 hover:border-blue-300 transition-colors group">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-blue-50 rounded-lg text-blue-600 group-hover:bg-blue-100 transition-colors">
               <Key size={18} />
@@ -85,8 +86,8 @@ export default function DashboardPage() {
               <p className="text-gray-400 text-xs">Issue, view, and revoke your keys</p>
             </div>
           </div>
-        </a>
-        <a href="/webhooks" className="bg-white rounded-xl p-5 border border-gray-100 hover:border-purple-300 transition-colors group">
+        </Link>
+        <Link to="/webhooks" className="bg-white rounded-xl p-5 border border-gray-100 hover:border-purple-300 transition-colors group">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-purple-50 rounded-lg text-purple-600 group-hover:bg-purple-100 transition-colors">
               <Webhook size={18} />
@@ -96,7 +97,7 @@ export default function DashboardPage() {
               <p className="text-gray-400 text-xs">Register endpoints and view delivery logs</p>
             </div>
           </div>
-        </a>
+        </Link>
       </div>
 
       {/* Top endpoints */}

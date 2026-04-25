@@ -21,9 +21,34 @@ interface AuthCtx {
 
 const AuthContext = createContext<AuthCtx | null>(null)
 
+function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    return typeof payload.exp === 'number' && payload.exp * 1000 < Date.now()
+  } catch {
+    return true
+  }
+}
+
+function loadStoredUser(): PartnerUser | null {
+  try {
+    const token = localStorage.getItem('partner_token')
+    if (!token || isTokenExpired(token)) {
+      localStorage.removeItem('partner_token')
+      localStorage.removeItem('partner_user')
+      return null
+    }
+    const raw = localStorage.getItem('partner_user')
+    return raw ? (JSON.parse(raw) as PartnerUser) : null
+  } catch {
+    localStorage.removeItem('partner_token')
+    localStorage.removeItem('partner_user')
+    return null
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const stored = localStorage.getItem('partner_user')
-  const [user, setUser] = useState<PartnerUser | null>(stored ? JSON.parse(stored) : null)
+  const [user, setUser] = useState<PartnerUser | null>(loadStoredUser)
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await apiClient.post<{ data: { token: string; user: PartnerUser } }>(
@@ -39,7 +64,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('partner_token')
     localStorage.removeItem('partner_user')
     setUser(null)
-    window.location.href = '/login'
   }, [])
 
   return (

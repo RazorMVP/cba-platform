@@ -25,7 +25,4 @@ body {
   box-sizing: border-box;
 }
 
-@font-face {
-  font-family: 'Instrument Sans';
-  src: url('https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap');
-}
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');

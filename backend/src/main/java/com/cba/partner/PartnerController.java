@@ -61,6 +61,58 @@ public class PartnerController {
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
 
+    // ── Webhooks ──────────────────────────────────────────────────────────────
+
+    @GetMapping("/{orgId}/webhooks")
+    public ResponseEntity<ApiResponse<List<WebhookResponse>>> listWebhooks(@PathVariable UUID orgId) {
+        List<WebhookResponse> hooks = partnerService.listWebhooks(orgId).stream()
+                .map(w -> new WebhookResponse(
+                        w.getId().toString(),
+                        w.getName(),
+                        w.getCallbackUrl(),
+                        w.getEvents(),
+                        w.isActive(),
+                        w.getCreatedAt() != null ? w.getCreatedAt().toString() : null))
+                .toList();
+        return ResponseEntity.ok(ApiResponse.ok(hooks));
+    }
+
+    @PostMapping("/{orgId}/webhooks")
+    public ResponseEntity<ApiResponse<WebhookResponse>> createWebhook(@PathVariable UUID orgId, @RequestBody WebhookRequest req) {
+        PartnerWebhook w = partnerService.createWebhook(orgId, req.name(), req.callbackUrl(), req.secret(), req.events());
+        return ResponseEntity.status(201).body(ApiResponse.ok(new WebhookResponse(
+                w.getId().toString(), w.getName(), w.getCallbackUrl(), w.getEvents(), w.isActive(),
+                w.getCreatedAt() != null ? w.getCreatedAt().toString() : null)));
+    }
+
+    @DeleteMapping("/{orgId}/webhooks/{webhookId}")
+    public ResponseEntity<ApiResponse<Void>> deleteWebhook(@PathVariable UUID orgId, @PathVariable UUID webhookId) {
+        partnerService.deleteWebhook(orgId, webhookId);
+        return ResponseEntity.ok(ApiResponse.ok(null));
+    }
+
+    @GetMapping("/{orgId}/webhooks/{webhookId}/deliveries")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> listDeliveries(
+            @PathVariable UUID orgId, @PathVariable UUID webhookId) {
+        // Delivery log stub — returns empty list until async delivery service is wired
+        return ResponseEntity.ok(ApiResponse.ok(List.of()));
+    }
+
+    // ── Consents ──────────────────────────────────────────────────────────────
+
+    @GetMapping("/{orgId}/consents")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> listConsents(@PathVariable UUID orgId) {
+        // Returns empty list — consents are created by end-users via the partner's app;
+        // a TPP-to-partner mapping table is needed for filtered consent view (future work)
+        return ResponseEntity.ok(ApiResponse.ok(List.of()));
+    }
+
+    @DeleteMapping("/{orgId}/consents/{consentId}")
+    public ResponseEntity<ApiResponse<Void>> revokeConsent(@PathVariable UUID orgId, @PathVariable UUID consentId) {
+        // Revoke stub — full impl requires linking consentId back to the partner's org
+        return ResponseEntity.ok(ApiResponse.ok(null));
+    }
+
     // ── Production Application ────────────────────────────────────────────────
 
     @PostMapping("/{orgId}/applications")
@@ -69,7 +121,7 @@ public class PartnerController {
         return ResponseEntity.status(201).body(ApiResponse.ok(null));
     }
 
-    // ── Usage (stub — returns empty placeholder) ──────────────────────────────
+    // ── Usage ─────────────────────────────────────────────────────────────────
 
     @GetMapping("/{orgId}/usage")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getUsage(@PathVariable UUID orgId) {
@@ -83,7 +135,27 @@ public class PartnerController {
         )));
     }
 
-    // ── Admin — list all partners ─────────────────────────────────────────────
+    // ── Partner user settings ─────────────────────────────────────────────────
+
+    @PutMapping("/users/{userId}")
+    public ResponseEntity<ApiResponse<Void>> updateUser(@PathVariable UUID userId, @RequestBody UpdateUserRequest req) {
+        partnerService.updateUserEmail(userId, req.email());
+        return ResponseEntity.ok(ApiResponse.ok(null));
+    }
+
+    @PostMapping("/users/{userId}/change-password")
+    public ResponseEntity<ApiResponse<Void>> changePassword(@PathVariable UUID userId, @RequestBody ChangePasswordRequest req) {
+        partnerService.changePassword(userId, req.currentPassword(), req.newPassword());
+        return ResponseEntity.ok(ApiResponse.ok(null));
+    }
+
+    @PutMapping("/{orgId}")
+    public ResponseEntity<ApiResponse<Void>> updateOrg(@PathVariable UUID orgId, @RequestBody UpdateOrgRequest req) {
+        partnerService.updateOrg(orgId, req.organizationName(), req.website());
+        return ResponseEntity.ok(ApiResponse.ok(null));
+    }
+
+    // ── Admin ─────────────────────────────────────────────────────────────────
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -126,10 +198,18 @@ public class PartnerController {
     public record RegisterRequest(String organizationName, String email, String password) {}
     public record LoginRequest(String email, String password) {}
     public record IssueKeyRequest(String name, List<String> scopes) {}
+    public record WebhookRequest(String name, String callbackUrl, String secret, List<String> events) {}
+    public record UpdateUserRequest(String email) {}
+    public record UpdateOrgRequest(String organizationName, String website) {}
+    public record ChangePasswordRequest(String currentPassword, String newPassword) {}
 
     public record ApiKeyResponse(
             String id, String name, String keyPrefix, List<String> scopes,
             String tier, String lastUsedAt, String createdAt, boolean active) {}
+
+    public record WebhookResponse(
+            String id, String name, String callbackUrl, List<String> events,
+            boolean active, String createdAt) {}
 
     public record OrgResponse(
             String id, String organizationName, String status, String tier,

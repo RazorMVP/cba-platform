@@ -34,6 +34,7 @@ export default function ConsentsPage() {
   const revoke = useMutation({
     mutationFn: (id: string) => apiClient.delete(`/open-banking/v3.1/account-access-consents/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['consents'] }),
+    onError: (err: unknown) => console.error('Failed to revoke consent', err),
   })
 
   const filtered = consents.filter(c =>

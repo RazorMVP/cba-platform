@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { router } from '../router'
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'https://sandbox.nubbank.com/api/v1'
 
@@ -18,7 +19,8 @@ apiClient.interceptors.response.use(
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem('partner_token')
-      window.location.href = '/login'
+      localStorage.removeItem('partner_user')
+      router.navigate('/login')
     }
     return Promise.reject(err)
   }

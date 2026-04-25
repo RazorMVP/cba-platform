@@ -20,6 +20,7 @@ public class PartnerService {
     private final PartnerUserRepository userRepo;
     private final PartnerApiKeyRepository apiKeyRepo;
     private final PartnerApplicationRepository applicationRepo;
+    private final PartnerWebhookRepository webhookRepo;
     private final BCryptPasswordEncoder passwordEncoder;
     private final PartnerJwtService jwtService;
 
@@ -100,6 +101,38 @@ public class PartnerService {
         apiKeyRepo.save(key);
     }
 
+    // ── Webhooks ──────────────────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public List<PartnerWebhook> listWebhooks(UUID orgId) {
+        return webhookRepo.findByOrganizationIdAndActiveTrueOrderByCreatedAtDesc(orgId);
+    }
+
+    @Transactional
+    public PartnerWebhook createWebhook(UUID orgId, String name, String callbackUrl, String secret, List<String> events) {
+        PartnerOrganization org = orgRepo.findById(orgId)
+                .orElseThrow(() -> CbaException.notFound("PARTNER_NOT_FOUND", "Partner not found"));
+        return webhookRepo.save(PartnerWebhook.builder()
+                .organization(org)
+                .name(name)
+                .callbackUrl(callbackUrl)
+                .secret(secret)
+                .events(events)
+                .active(true)
+                .build());
+    }
+
+    @Transactional
+    public void deleteWebhook(UUID orgId, UUID webhookId) {
+        PartnerWebhook webhook = webhookRepo.findById(webhookId)
+                .orElseThrow(() -> CbaException.notFound("WEBHOOK_NOT_FOUND", "Webhook not found"));
+        if (!webhook.getOrganization().getId().equals(orgId)) {
+            throw CbaException.notFound("WEBHOOK_NOT_FOUND", "Webhook not found");
+        }
+        webhook.setActive(false);
+        webhookRepo.save(webhook);
+    }
+
     // ── Organizations (admin) ─────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
@@ -110,6 +143,15 @@ public class PartnerService {
     @Transactional(readOnly = true)
     public PartnerOrganization getOrg(UUID id) {
         return orgRepo.findById(id).orElseThrow(() -> CbaException.notFound("PARTNER_NOT_FOUND", "Partner not found"));
+    }
+
+    @Transactional
+    public void updateOrg(UUID orgId, String name, String website) {
+        PartnerOrganization org = orgRepo.findById(orgId)
+                .orElseThrow(() -> CbaException.notFound("PARTNER_NOT_FOUND", "Partner not found"));
+        if (name != null && !name.isBlank()) org.setName(name);
+        if (website != null) org.setWebsite(website);
+        orgRepo.save(org);
     }
 
     @Transactional
@@ -151,6 +193,30 @@ public class PartnerService {
         org.setStatus(PartnerStatus.PENDING_REVIEW);
         org.setApplicationStatus("PENDING_REVIEW");
         orgRepo.save(org);
+    }
+
+    // ── Partner User settings ─────────────────────────────────────────────────
+
+    @Transactional
+    public void updateUserEmail(UUID userId, String email) {
+        PartnerUser user = userRepo.findById(userId)
+                .orElseThrow(() -> CbaException.notFound("USER_NOT_FOUND", "User not found"));
+        if (!user.getEmail().equals(email) && userRepo.existsByEmail(email)) {
+            throw CbaException.conflict("EMAIL_EXISTS", "Email already in use");
+        }
+        user.setEmail(email);
+        userRepo.save(user);
+    }
+
+    @Transactional
+    public void changePassword(UUID userId, String currentPassword, String newPassword) {
+        PartnerUser user = userRepo.findById(userId)
+                .orElseThrow(() -> CbaException.notFound("USER_NOT_FOUND", "User not found"));
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw CbaException.badRequest("INVALID_PASSWORD", "Current password is incorrect");
+        }
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepo.save(user);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

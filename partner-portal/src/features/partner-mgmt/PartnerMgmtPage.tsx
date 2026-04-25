@@ -35,11 +35,13 @@ export default function PartnerMgmtPage() {
   const approve = useMutation({
     mutationFn: (id: string) => apiClient.post(`/partners/${id}/approve`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['all-partners'] }); setSelected(null) },
+    onError: (err: unknown) => console.error('Failed to approve partner', err),
   })
 
   const reject = useMutation({
     mutationFn: (id: string) => apiClient.post(`/partners/${id}/reject`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['all-partners'] }); setSelected(null) },
+    onError: (err: unknown) => console.error('Failed to reject partner', err),
   })
 
   const filtered = partners.filter(p => {

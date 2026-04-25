@@ -17,7 +17,7 @@ The NubBank Postman Collection contains all implemented endpoints with pre-fille
 
 **Download:** [NubBank API Collection v2 (JSON)](pathname:///postman/cba-postman-collection-v2.json)
 
-**API Reference:** [Full API Reference](pathname:///api-reference.html) · [Card API Reference](pathname:///card-api-reference.html)
+**API Reference:** [Full API Reference](pathname:///api-reference.html) · [Card API Reference](pathname:///card-api-reference.html) · [Partner Portal API Reference](pathname:///partner-api-reference.html)
 
 ### Import into Postman
 

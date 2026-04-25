@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CBA Partner Portal — API Reference</title>
+<style>
+:root{
+  --bg-app:#040609;--bg-sidebar:#0a1628;--bg-card:#ffffff;
+  --color-primary:#1e2833;--color-text:#000314;--color-muted:#888888;
+  --color-accent:#2563eb;--color-success:#16a34a;--color-warning:#d97706;
+  --color-danger:#dc2626;--font:"Instrument Sans",system-ui,sans-serif;
+  --sidebar-w:270px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg-app);color:var(--color-text);display:flex;min-height:100vh}
+a{color:var(--color-accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,pre{font-family:"JetBrains Mono","Fira Code",monospace;font-size:.875rem}
+pre{background:#0d1117;color:#e6edf3;border-radius:8px;padding:1rem;overflow-x:auto;margin:.75rem 0}
+pre code{background:none;padding:0;color:inherit}
+code{background:#f0f0f0;padding:.1em .3em;border-radius:3px;color:#c7254e}
+#sidebar{position:fixed;top:0;left:0;width:var(--sidebar-w);height:100vh;background:var(--bg-sidebar);overflow-y:auto;padding:1.5rem 0;z-index:100}
+#sidebar .logo{padding:.5rem 1.5rem 1.5rem;border-bottom:1px solid #1e3a5f}
+#sidebar .logo h1{color:#fff;font-size:1.1rem;font-weight:700;line-height:1.3}
+#sidebar .logo span{color:#5b8db8;font-size:.75rem}
+#sidebar nav{padding:.5rem 0}
+#sidebar nav a{display:block;padding:.45rem 1.5rem;color:#94afc7;font-size:.83rem;border-left:3px solid transparent;transition:all .15s}
+#sidebar nav a:hover{color:#fff;background:rgba(255,255,255,.06);text-decoration:none}
+#sidebar nav a.active{color:#60a5fa;border-left-color:#60a5fa;background:rgba(96,165,250,.08)}
+#sidebar nav .section-head{padding:.6rem 1.5rem .2rem;color:#3d6080;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+#main{margin-left:var(--sidebar-w);flex:1;background:#f8fafc;min-height:100vh}
+.page-header{background:var(--color-primary);color:#fff;padding:3rem 3rem 2rem;border-bottom:4px solid #2563eb}
+.page-header h1{font-size:2rem;font-weight:800;margin-bottom:.5rem}
+.page-header p{color:#94a3b8;font-size:1rem}
+.badge{display:inline-block;padding:.2em .6em;border-radius:999px;font-size:.72rem;font-weight:600;text-transform:uppercase}
+.badge-get{background:#dbeafe;color:#1d4ed8}
+.badge-post{background:#dcfce7;color:#15803d}
+.badge-put{background:#fef9c3;color:#92400e}
+.badge-delete{background:#fee2e2;color:#b91c1c}
+section{padding:3rem;border-bottom:1px solid #e2e8f0;scroll-margin-top:1rem}
+section:last-child{border-bottom:none}
+h2{font-size:1.5rem;font-weight:700;color:var(--color-primary);margin-bottom:1rem;padding-bottom:.5rem;border-bottom:2px solid #e2e8f0}
+h3{font-size:1.1rem;font-weight:600;color:#1e40af;margin:1.5rem 0 .5rem}
+h4{font-size:.95rem;font-weight:600;color:#374151;margin:1rem 0 .35rem}
+p{color:#374151;line-height:1.7;margin-bottom:.75rem}
+ul,ol{margin:.5rem 0 .75rem 1.5rem;color:#374151;line-height:1.8}
+table{border-collapse:collapse;width:100%;margin:.75rem 0 1rem;font-size:.875rem}
+th{background:#f1f5f9;text-align:left;padding:.6rem .85rem;border:1px solid #e2e8f0;font-weight:600;color:#1e3a5f}
+td{padding:.55rem .85rem;border:1px solid #e2e8f0;color:#374151;vertical-align:top}
+tr:nth-child(even) td{background:#f8fafc}
+.endpoint{background:#fff;border:1px solid #e2e8f0;border-radius:10px;margin:.85rem 0;overflow:hidden}
+.endpoint-header{display:flex;align-items:center;gap:.75rem;padding:.8rem 1rem;cursor:pointer;user-select:none}
+.endpoint-header:hover{background:#f8fafc}
+.method{font-weight:700;font-size:.78rem;padding:.25em .7em;border-radius:5px;text-transform:uppercase;min-width:58px;text-align:center}
+.method.GET{background:#dbeafe;color:#1d4ed8}
+.method.POST{background:#dcfce7;color:#15803d}
+.method.PUT{background:#fef9c3;color:#92400e}
+.method.DELETE{background:#fee2e2;color:#b91c1c}
+.endpoint-path{font-family:monospace;font-size:.9rem;font-weight:600;color:#111827;flex:1}
+.endpoint-summary{color:#6b7280;font-size:.82rem}
+.endpoint-body{padding:1rem 1.1rem;border-top:1px solid #e2e8f0;display:none}
+details.endpoint[open] .endpoint-body{display:block}
+.callout{border-left:4px solid;border-radius:0 6px 6px 0;padding:.75rem 1rem;margin:.75rem 0;font-size:.875rem}
+.callout.info{border-color:#3b82f6;background:#eff6ff;color:#1e40af}
+.callout.warning{border-color:#f59e0b;background:#fffbeb;color:#92400e}
+.callout.success{border-color:#10b981;background:#ecfdf5;color:#065f46}
+.callout.danger{border-color:#ef4444;background:#fef2f2;color:#991b1b}
+.status-flow{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:.5rem 0 1rem;padding:.75rem 1rem;background:#f1f5f9;border-radius:8px}
+.status-pill{padding:.25em .8em;border-radius:999px;font-size:.78rem;font-weight:600;background:#e2e8f0;color:#374151}
+.arrow{color:#94a3b8;font-size:.85rem}
+.auth-chip{display:inline-block;padding:.15em .55em;border-radius:5px;font-size:.72rem;font-weight:600}
+.auth-public{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0}
+.auth-partner{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
+.auth-admin{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+</style>
+</head>
+<body>
+
+<nav id="sidebar">
+  <div class="logo">
+    <h1>CBA Partner Portal</h1>
+    <span>API Reference v1 · /api/v1/partners</span>
+  </div>
+  <nav>
+    <div class="section-head">Overview</div>
+    <a href="#overview">Introduction</a>
+    <a href="#authentication">Authentication</a>
+    <a href="#errors">Errors &amp; Codes</a>
+
+    <div class="section-head">Partner Self-Serve</div>
+    <a href="#registration">Registration &amp; Login</a>
+    <a href="#api-keys">API Keys</a>
+    <a href="#webhooks">Webhooks</a>
+    <a href="#webhook-events">Webhook Events</a>
+    <a href="#consents">Consents (Open Banking)</a>
+    <a href="#applications">Production Application</a>
+    <a href="#usage">Usage &amp; Analytics</a>
+    <a href="#settings">Org &amp; User Settings</a>
+
+    <div class="section-head">Bank Admin</div>
+    <a href="#admin">Admin Endpoints</a>
+
+    <div class="section-head">Reference</div>
+    <a href="#data-models">Data Models</a>
+    <a href="#full-matrix">Full API Matrix</a>
+  </nav>
+</nav>
+
+<main id="main">
+  <div class="page-header">
+    <h1>Partner Portal API Reference</h1>
+    <p>Self-serve partner registration, API key management, webhook delivery, Open Banking consent access, and production upgrade workflow. Backend base path: <code>/api/v1/partners</code> · port 8080</p>
+  </div>
+
+<!-- ── Overview ──────────────────────────────────────────────────────── -->
+<section id="overview">
+<h2>Introduction</h2>
+<p>The CBA Partner Portal API enables fintech developers and third-party providers (TPPs) to self-register, receive sandbox access immediately, and manage their integration with the CBA platform. The frontend partner portal (<code>partner-portal.vercel.app</code>) is built on top of these endpoints.</p>
+
+<h3>Three-Principal Model</h3>
+<table>
+<thead><tr><th>Principal</th><th>Auth Method</th><th>Header</th><th>Scope</th></tr></thead>
+<tbody>
+<tr><td><span class="auth-public">Public</span></td><td>None</td><td>—</td><td>Registration and login only</td></tr>
+<tr><td><span class="auth-partner">Partner JWT</span></td><td>HMAC-SHA256 JWT issued by CBA backend</td><td><code>Authorization: Bearer {token}</code></td><td>All self-serve partner endpoints</td></tr>
+<tr><td><span class="auth-admin">ADMIN</span></td><td>Keycloak JWT (bank staff, <code>ROLE_ADMIN</code>)</td><td><code>Authorization: Bearer {keycloak_token}</code></td><td>Partner approval, rejection, and aggregate views</td></tr>
+</tbody>
+</table>
+
+<div class="callout warning">
+<strong>Two separate JWT systems.</strong> Partner JWTs are issued by the CBA backend using HMAC-SHA256 and are <strong>not</strong> Keycloak tokens. Admin endpoints require a valid Keycloak token with <code>ROLE_ADMIN</code>. The backend validates the token type before routing — passing a partner JWT to an admin endpoint will return 403.
+</div>
+
+<h3>Partner Status Lifecycle</h3>
+<div class="status-flow">
+  <span class="status-pill" style="background:#dcfce7;color:#166534">SANDBOX</span>
+  <span class="arrow">→ (submit application) →</span>
+  <span class="status-pill" style="background:#fef9c3;color:#92400e">PENDING_REVIEW</span>
+  <span class="arrow">→ (approved) →</span>
+  <span class="status-pill" style="background:#dbeafe;color:#1e40af">PRODUCTION</span>
+</div>
+<div class="status-flow">
+  <span class="status-pill" style="background:#fef9c3;color:#92400e">PENDING_REVIEW</span>
+  <span class="arrow">→ (rejected) →</span>
+  <span class="status-pill" style="background:#fee2e2;color:#991b1b">SUSPENDED</span>
+</div>
+
+<h3>Environments</h3>
+<table>
+<thead><tr><th>Environment</th><th>Status</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>SANDBOX</code></td><td>All new partners start here</td><td>Immediate access; no approval required; test data only</td></tr>
+<tr><td><code>PRODUCTION</code></td><td>After admin approval</td><td>Requires a submitted <code>PartnerApplication</code></td></tr>
+</tbody>
+</table>
+
+<h3>Tier Limits (Rate Limiting)</h3>
+<table>
+<thead><tr><th>Tier</th><th>Requests / min</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>BASIC</code></td><td>100</td><td>Default for all partners</td></tr>
+<tr><td><code>PRO</code></td><td>500</td><td>Set by bank admin on the API key</td></tr>
+<tr><td><code>ENTERPRISE</code></td><td>2 000</td><td>Set by bank admin on the API key</td></tr>
+</tbody>
+</table>
+<p>All rate-limited paths return <code>X-RateLimit-Limit</code>, <code>X-RateLimit-Remaining</code>, <code>X-RateLimit-Reset</code> headers. A <code>429 Too Many Requests</code> response includes <code>Retry-After: 60</code>.</p>
+</section>
+
+<!-- ── Authentication ─────────────────────────────────────────────────── -->
+<section id="authentication">
+<h2>Authentication</h2>
+<p>Partner JWTs are signed with HMAC-SHA256. The token carries these claims:</p>
+<table>
+<thead><tr><th>Claim</th><th>Type</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>sub</code></td><td>UUID</td><td>Partner user ID</td></tr>
+<tr><td><code>email</code></td><td>String</td><td>Partner user email</td></tr>
+<tr><td><code>role</code></td><td>String</td><td><code>DEVELOPER</code> or <code>ADMIN</code></td></tr>
+<tr><td><code>orgId</code></td><td>UUID</td><td>Organisation ID — used as path param in all org-scoped endpoints</td></tr>
+<tr><td><code>orgName</code></td><td>String</td><td>Organisation display name</td></tr>
+<tr><td><code>status</code></td><td>String</td><td>Current org status: <code>SANDBOX</code> / <code>PENDING_REVIEW</code> / <code>PRODUCTION</code> / <code>SUSPENDED</code></td></tr>
+<tr><td><code>tier</code></td><td>String</td><td><code>BASIC</code> / <code>PRO</code> / <code>ENTERPRISE</code></td></tr>
+<tr><td><code>environment</code></td><td>String</td><td><code>SANDBOX</code> or <code>PRODUCTION</code></td></tr>
+<tr><td><code>exp</code></td><td>Unix timestamp</td><td>24 h from issuance</td></tr>
+</tbody>
+</table>
+
+<h4>Using the token</h4>
+<pre><code>Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1dWlkIiwiZW1haWwiOiJkZXZAZmlu...</code></pre>
+
+<div class="callout info">
+Tokens expire after 24 hours. Call <code>POST /api/v1/partners/auth/login</code> to obtain a fresh token. There is no refresh endpoint — just re-login.
+</div>
+</section>
+
+<!-- ── Errors ──────────────────────────────────────────────────────────── -->
+<section id="errors">
+<h2>Errors &amp; Codes</h2>
+<p>All error responses use the standard CBA envelope:</p>
+<pre><code>{
+  "data": null,
+  "meta": {},
+  "errors": [{ "code": "ERROR_CODE", "message": "Human-readable description", "field": null }]
+}</code></pre>
+
+<h3>Partner-Specific Error Codes</h3>
+<table>
+<thead><tr><th>Code</th><th>HTTP</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>PARTNER_NOT_FOUND</code></td><td>404</td><td>Organisation with given <code>orgId</code> does not exist</td></tr>
+<tr><td><code>PARTNER_USER_NOT_FOUND</code></td><td>404</td><td>Partner user with given <code>userId</code> does not exist</td></tr>
+<tr><td><code>EMAIL_ALREADY_REGISTERED</code></td><td>409</td><td>Email address is already in use</td></tr>
+<tr><td><code>INVALID_CREDENTIALS</code></td><td>401</td><td>Email or password is incorrect</td></tr>
+<tr><td><code>INVALID_PASSWORD</code></td><td>400</td><td>Current password verification failed on change-password</td></tr>
+<tr><td><code>PARTNER_SUSPENDED</code></td><td>403</td><td>Organisation is suspended — contact bank admin</td></tr>
+<tr><td><code>WEBHOOK_NOT_FOUND</code></td><td>404</td><td>Webhook ID does not exist or belongs to a different org</td></tr>
+<tr><td><code>CONSENT_NOT_FOUND</code></td><td>404</td><td>Consent ID does not exist or <code>tppClientId</code> does not match <code>orgId</code></td></tr>
+<tr><td><code>API_KEY_NOT_FOUND</code></td><td>404</td><td>API key ID does not exist</td></tr>
+<tr><td><code>APPLICATION_ALREADY_PENDING</code></td><td>409</td><td>A production upgrade application is already under review</td></tr>
+<tr><td><code>RATE_LIMIT_EXCEEDED</code></td><td>429</td><td>Tier rate limit hit; see <code>Retry-After</code> header</td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- ── Registration & Login ──────────────────────────────────────────── -->
+<section id="registration">
+<h2>Registration &amp; Login</h2>
+<p>Both endpoints are public — no authentication required.</p>
+
+<details class="endpoint">
+<summary class="endpoint-header">
+  <span class="method POST">POST</span>
+  <span class="endpoint-path">/api/v1/partners/register</span>
+  <span class="endpoint-summary">Self-register a new partner organisation</span>
+</summary>
+<div class="endpoint-body">
+<p>Creates a new <code>PartnerOrganization</code> and an initial <code>PartnerUser</code> with role <code>DEVELOPER</code>. The organisation is placed in <code>SANDBOX</code> / <code>BASIC</code> tier immediately — no approval required.</p>
+<h4>Request</h4>
+<pre><code>{
+  "organizationName": "FinTech Ltd",
+  "email": "dev@fintech.io",
+  "password": "Str0ng@1"
+}</code></pre>
+<h4>Response 201</h4>
+<pre><code>{ "data": null, "meta": {}, "errors": [] }</code></pre>
+<h4>Errors</h4>
+<table>
+<thead><tr><th>Code</th><th>HTTP</th><th>Condition</th></tr></thead>
+<tbody>
+<tr><td><code>EMAIL_ALREADY_REGISTERED</code></td><td>409</td><td>Email is already in use</td></tr>
+</tbody>
+</table>
+<h4>Code samples</h4>
+<pre><code># cURL
+curl -X POST https://api.cba.com/api/v1/partners/register \
+  -H "Content-Type: application/json" \
+  -d '{"organizationName":"FinTech Ltd","email":"dev@fintech.io","password":"Str0ng@1"}'
+
+# JavaScript (fetch)
+await fetch('/api/v1/partners/register', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ organizationName: 'FinTech Ltd', email: 'dev@fintech.io', password: 'Str0ng@1' })
+});
+
+# Python (requests)
+import requests
+requests.post('https://api.cba.com/api/v1/partners/register', json={
+  'organizationName': 'FinTech Ltd', 'email': 'dev@fintech.io', 'password': 'Str0ng@1'
+})</code></pre>
+</div>
+</details>
+
+<details class="endpoint">
+<summary class="endpoint-header">
+  <span class="method POST">POST</span>
+  <span class="endpoint-path">/api/v1/partners/auth/login</span>
+  <span class="endpoint-summary">Login and receive a partner JWT</span>
+</summary>
+<div class="endpoint-body">
+<p>Authenticates with email + password and returns a signed HMAC-SHA256 JWT valid for 24 hours. Store the token and pass it as <code>Authorization: Bearer {token}</code> on all subsequent requests.</p>
+<h4>Request</h4>
+<pre><code>{ "email": "dev@fintech.io", "password": "Str0ng@1" }</code></pre>
+<h4>Response 200</h4>
+<pre><code>{
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiJ9...",
+    "user": {
+      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "email": "dev@fintech.io",
+      "role": "DEVELOPER",
+      "organizationId": "8d1e4b2a-...",
+      "organizationName": "FinTech Ltd",
+      "status": "SANDBOX",
+      "tier": "BASIC",
+      "environment": "SANDBOX"
+    }
+  }
+}</code></pre>
+<h4>Errors</h4>
+<table>
+<thead><tr><th>Code</th><th>HTTP</th><th>Condition</th></tr></thead>
+<tbody>
+<tr><td><code>INVALID_CREDENTIALS</code></td><td>401</td><td>Wrong email or password</td></tr>
+<tr><td><code>PARTNER_SUSPENDED</code></td><td>403</td><td>Organisation is suspended</td></tr>
+</tbody>
+</table>
+<h4>Code samples</h4>
+<pre><code># cURL
+curl -X POST https://api.cba.com/api/v1/partners/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"dev@fintech.io","password":"Str0ng@1"}'
+
+# JavaScript (fetch)
+const res = await fetch('/api/v1/partners/auth/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email: 'dev@fintech.io', password: 'Str0ng@1' })
+});
+const { data: { token } } = await res.json();
+
+# Go
+body, _ := json.Marshal(map[string]string{"email": "dev@fintech.io", "password": "Str0ng@1"})
+resp, _ := http.Post("https://api.cba.com/api/v1/partners/auth/login", "application/json", bytes.NewBuffer(body))</code></pre>
+</div>
+</details>
+</section>
+
+<!-- ── API Keys ───────────────────────────────────────────────────────── -->
+<section id="api-keys">
+<h2>API Keys</h2>
+<p>API keys are used for machine-to-machine access to protected CBA Open Banking APIs. Each key has a <strong>scope list</strong> and a <strong>tier</strong> that determines rate limits. The raw key value is returned exactly once at creation and is never retrievable again — the backend stores only a BCrypt hash with a 12-character display prefix.</p>
+
+<div class="callout info">
+<strong>Key format:</strong> <code>cba_</code> + Base64URL(32 random bytes). Example: <code>cba_Zm9vYmFyYmF6cXV4...</code>
+</div>
+
+<details class="endpoint">
+<summary class="endpoint-header">
+  <span class="method GET">GET</span>
+  <span class="endpoint-path">/api/v1/partners/{orgId}/api-keys</span>
+  <span class="endpoint-summary">List active API keys (hashed — raw value never returned)</span>
+</summary>
+<div class="endpoint-body">
+<p>Returns all active API keys for the organisation. The <code>keyPrefix</code> field shows the first 12 characters of the key for identification. The full key is never returned after creation.</p>
+<h4>Response 200</h4>
+<pre><code>{
+  "data": [
+    {
+      "id": "uuid",
+      "name": "Production Key",
+      "keyPrefix": "cba_Zm9vYmFy",
+      "scopes": ["payments:read", "accounts:read"],
+      "tier": "BASIC",
+      "active": true,
+      "lastUsedAt": "2026-04-25T09:00:00Z",
+      "createdAt": "2026-04-01T08:00:00Z"
+    }
+  ]
+}</code></pre>
+</div>
+</details>
+
+<details class="endpoint">
+<summary class="endpoint-header">
+  <span class="method POST">POST</span>
+  <span class="endpoint-path">/api/v1/partners/{orgId}/api-keys</span>
+  <span class="endpoint-summary">Issue a new API key — raw value shown once</span>
+</summary>
+<div class="endpoint-body">
+<p>Issues a new API key. <strong>Copy the <code>key</code> field from the response immediately</strong> — it cannot be recovered. Only the BCrypt hash and 12-char prefix are stored.</p>
+<h4>Request</h4>
+<pre><code>{
+  "name": "Production Key",
+  "scopes": ["payments:read", "accounts:read", "balances:read"]
+}</code></pre>
+<h4>Response 201</h4>
+<pre><code>{
+  "data": {
+    "key": "cba_Zm9vYmFyYmF6cXV4enF3ZXJ0eXVpb3BsYXNkZmdoamts",
+    "id": "uuid",
+    "name": "Production Key",
+    "keyPrefix": "cba_Zm9vYmFy",
+    "scopes": ["payments:read", "accounts:read", "balances:read"],
+    "tier": "BASIC"
+  }
+}</code></pre>
+<h4>Available Scopes</h4>
+<table>
+<thead><tr><th>Scope</th><th>Access</th></tr></thead>
+<tbody>
+<tr><td><code>accounts:read</code></td><td>Read Open Banking account information (AISP)</td></tr>
+<tr><td><code>balances:read</code></td><td>Read account balances</td></tr>
+<tr><td><code>transactions:read</code></td><td>Read account transactions</td></tr>
+<tr><td><code>payments:read</code></td><td>Read payment status and history</td></tr>
+<tr><td><code>payments:write</code></td><td>Initiate domestic payments (PISP)</td></tr>
+<tr><td><code>funds:confirm</code></td><td>Check funds availability (CBPII)</td></tr>
+</tbody>
+</table>
+<h4>Code samples</h4>
+<pre><code># cURL
+curl -X POST https://api.cba.com/api/v1/partners/{orgId}/api-keys \
+  -H "Authorization: Bearer {partner_jwt}" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Production Key","scopes":["accounts:read","payments:read"]}'
+
+# JavaScript
+const res = await fetch(`/api/v1/partners/${orgId}/api-keys`, {
+  method: 'POST',
+  headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: 'Production Key', scopes: ['accounts:read'] })
+});
+const { data: { key } } = await res.json(); // save this — shown once only</code></pre>
+</div>
+</details>
+
+<details class="endpoint">
+<summary class="endpoint-header">
+  <span class="method DELETE">DELETE</span>
+  <span class="endpoint-path">/api/v1/partners/{orgId}/api-keys/{keyId}</span>
+  <span class="endpoint-summary">Revoke an API key immediately</span>
+</summary>
+<div class="endpoint-body">
+<p>Soft-deletes the key by setting <code>active=false</code>. The key stops working immediately. This cannot be undone — issue a new key if needed.</p>
+<h4>Response 204 No Content</h4>
+<h4>Errors</h4>
+<table>
+<thead><tr><th>Code</th><th>HTTP</th><th>Condition</th></tr></thead>
+<tbody>
+<tr><td><code>API_KEY_NOT_FOUND</code></td><td>404</td><td>Key does not exist or belongs to a different org</td></tr>
+</tbody>
+</table>
+</div>
+</details>
+</section>
+
+<!-- ── Webhooks ───────────────────────────────────────────────────────── -->
+<section id="webhooks">
+<h2>Webhooks</h2>
+<p>Register HTTPS callback URLs to receive real-time event notifications. Payloads are signed with <code>X-CBA-Signature: sha256={HMAC-SHA256(payload, secret)}</code>. Your endpoint must return a 2xx status within 30 seconds or the delivery is marked failed.</p>
+
+<h3>Delivery Behaviour</h3>
+<ul>
+  <li>5 maximum attempts per delivery: backoff schedule <strong>15 s → 60 s → 5 min → 30 min → 2 h</strong></li>
+  <li>After 5 failures the delivery is marked <code>FAILED</code> — no further retries</li>
+  <li>Every delivery carries a unique <code>X-CBA-Delivery</code> UUID header for idempotency</li>
+  <li>The <code>X-CBA-Event</code> header contains the event type (e.g. <code>PAYMENT.COMPLETED</code>)</li>
+</ul>
+
+<h3>Signature Verification</h3>
+<pre><code># Python
+import hmac, hashlib
+def verify(secret: str, payload: bytes, header_sig: str) -> bool:
+    expected = "sha256=" + hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, header_sig)
+
+# JavaScript (Node)
+const crypto = require('crypto');
+function verify(secret, payload, headerSig) {
+  const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(payload).digest('hex');
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(headerSig));
+}</code></pre>
+
+<details class="endpoint">
+<summary class="endpoint-header">
+  <span class="method GET">GET</span>
+  <span class="endpoint-path">/api/v1/partners/{orgId}/webhooks</span>
+  <span class="endpoint-summary">List active webhooks for the organisation</span>
+</summary>
+<div class="endpoint-body">
+<h4>Response 200</h4>
+<pre><code>{
+  "data": [
+    {
+      "id": "uuid",
+      "name": "Payment Events",
+      "callbackUrl": "https://fintech.io/webhooks/cba",
+      "events": ["PAYMENT.COMPLETED", "PAYMENT.FAILED", "CONSENT.REVOKED"],
+      "active": true,
+      "createdAt": "2026-04-01T08:00:00Z"
+    }
+  ]
+}</code></pre>
+<p>Note: the <code>secret</code> field is never returned after creation.</p>
+</div>
+</details>
+
+<details class="endpoint">
+<summary class="endpoint-header">
+  <span class="method POST">POST</span>
+  <span class="endpoint-path">/api/v1/partners/{orgId}/webhooks</span>
+  <span class="endpoint-summary">Register a new webhook</span>
+</summary>
+<div class="endpoint-body">
+<h4>Request</h4>
+<pre><code>{
+  "name": "Payment Events",
+  "callbackUrl": "https://fintech.io/webhooks/cba",
+  "events": ["PAYMENT.COMPLETED", "PAYMENT.FAILED", "CONSENT.REVOKED"],
+  "secret": "my-hmac-secret-min-16-chars"
+}</code></pre>
+<h4>Response 201</h4>
+<pre><code>{
+  "data": {
+    "id": "uuid",
+    "name": "Payment Events",
+    "callbackUrl": "https://fintech.io/webhooks/cba",
+    "events": ["PAYMENT.COMPLETED", "PAYMENT.FAILED", "CONSENT.REVOKED"],
+    "active": true,
+    "createdAt": "2026-04-25T12:00:00Z"
+  }
+}</code></pre>
+<div class="callout warning">The <code>secret</code> is stored server-side for HMAC signing but is <strong>not returned</strong> in the response or any future list endpoint. Store it securely on your end.</div>
+<h4>Code samples</h4>
+<pre><code># cURL
+curl -X POST https://api.cba.com/api/v1/partners/{orgId}/webhooks \
+  -H "Authorization: Bearer {partner_jwt}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Payment Events",
+    "callbackUrl": "https://fintech.io/webhooks/cba",
+    "events": ["PAYMENT.COMPLETED","PAYMENT.FAILED"],
+    "secret": "my-hmac-secret"
+  }'</code></pre>
+</div>
+</details>
+
+<details class="endpoint">
+<summary class="endpoint-header">
+  <span class="method DELETE">DELETE</span>
+  <span class="endpoint-path">/api/v1/partners/{orgId}/webhooks/{webhookId}</span>
+  <span class="endpoint-summary">Deregister a webhook</span>
+</summary>
+<div class="endpoint-body">
+<p>Soft-deletes the webhook (<code>active=false</code>). In-flight deliveries already queued will still be attempted. Returns 204 No Content on success.</p>
+</div>
+</details>
+
+<details class="endpoint">
+<summary class="endpoint-header">
+  <span class="method GET">GET</span>
+  <span class="endpoint-path">/api/v1/partners/{orgId}/webhooks/{webhookId}/deliveries</span>
+  <span class="endpoint-summary">Delivery log — status, HTTP code, retry metadata</span>
+</summary>
+<div class="endpoint-body">
+<p>Returns all delivery attempts for the webhook, ordered by <code>createdAt DESC</code>.</p>
+<h4>Response 200</h4>
+<pre><code>{
+  "data": [
+    {
+      "id": "uuid",
+      "eventType": "PAYMENT.COMPLETED",
+      "deliveryUuid": "d3f1a2b4-...",
+      "status": "DELIVERED",
+      "httpStatus": 200,
+      "attemptCount": 1,
+      "lastAttemptAt": "2026-04-25T09:01:00Z",
+      "nextRetryAt": null,
+      "createdAt": "2026-04-25T09:00:55Z"
+    },
+    {
+      "id": "uuid",
+      "eventType": "PAYMENT.FAILED",
+      "deliveryUuid": "a1b2c3d4-...",
+      "status": "FAILED",
+      "httpStatus": 503,
+      "attemptCount": 5,
+      "lastAttemptAt": "2026-04-25T11:45:00Z",
+      "nextRetryAt": null,
+      "createdAt": "2026-04-25T09:30:00Z"
+    }
+  ]
+}</code></pre>
+<p><code>status</code> values: <code>PENDING</code> · <code>DELIVERED</code> · <code>FAILED</code></p>
+</div>
+</details>
+</section>
+
+<!-- ── Webhook Events ─────────────────────────────────────────────────── -->
+<section id="webhook-events">
+<h2>Webhook Event Catalogue</h2>
+<p>Subscribe to any combination of the events below when registering a webhook. Pass the event strings in the <code>events</code> array. Omitting the field (or passing an empty array) delivers <em>all</em> events.</p>
+
+<h3>Consent Events</h3>
+<table>
+<thead><tr><th>Event</th><th>Trigger</th></tr></thead>
+<tbody>
+<tr><td><code>CONSENT.CREATED</code></td><td>A new Open Banking consent is created by a PSU via the TPP</td></tr>
+<tr><td><code>CONSENT.AUTHORISED</code></td><td>The PSU has authorised the consent — access is now active</td></tr>
+<tr><td><code>CONSENT.REVOKED</code></td><td>Consent revoked by the PSU or by the TPP via <code>DELETE /consents/{id}</code></td></tr>
+<tr><td><code>CONSENT.EXPIRED</code></td><td>Consent reached its <code>expiryDate</code> — access has automatically ended</td></tr>
+</tbody>
+</table>
+
+<h3>Payment Events</h3>
+<table>
+<thead><tr><th>Event</th><th>Trigger</th></tr></thead>
+<tbody>
+<tr><td><code>PAYMENT.INITIATED</code></td><td>A PISP domestic payment initiation was accepted and is processing</td></tr>
+<tr><td><code>PAYMENT.COMPLETED</code></td><td>Payment settled successfully</td></tr>
+<tr><td><code>PAYMENT.FAILED</code></td><td>Payment failed (insufficient funds, timeout, scheme error)</td></tr>
+<tr><td><code>PAYMENT.REVERSED</code></td><td>Payment reversed after settlement</td></tr>
+</tbody>
+</table>
+
+<h3>Account &amp; Funds Events</h3>
+<table>
+<thead><tr><th>Event</th><th>Trigger</th></tr></thead>
+<tbody>
+<tr><td><code>FUNDS.CONFIRMED</code></td><td>A CBPII funds confirmation check was performed</td></tr>
+<tr><td><code>ACCOUNT.ACCESS_GRANTED</code></td><td>AISP consent granted — the TPP can now read account data</td></tr>
+<tr><td><code>ACCOUNT.BALANCE_UPDATED</code></td><td>Account balance changed materially (configurable threshold)</td></tr>
+</tbody>
+</table>
+
+<h3>Partner Lifecycle Events</h3>
+<table>
+<thead><tr><th>Event</th><th>Trigger</th></tr></thead>
+<tbody>
+<tr><td><code>APPLICATION.APPROVED</code></td><td>Bank admin approved the production upgrade application</td></tr>
+<tr><td><code>APPLICATION.REJECTED</code></td><td>Bank admin rejected the production upgrade application</td></tr>
+<tr><td><code>API_KEY.CREATED</code></td><td>A new API key was issued for the organisation</td></tr>
+<tr><td><code>API_KEY.REVOKED</code></td><td>An API key was revoked</td></tr>
+<tr><td><code>RATE_LIMIT.WARNING</code></td><td>Partner has used 80% of their tier rate limit in the current window</td></tr>
+<tr><td><code>RATE_LIMIT.EXCEEDED</code></td><td>Partner rate limit exceeded — requests returning 429</td></tr>
+</tbody>
+</table>
+
+<h3>Payload Envelope</h3>
+<pre><code>{
+  "event": "PAYMENT.COMPLETED",
+  "timestamp": "2026-04-25T09:01:00Z",
+  "data": { /* event-specific payload */ }
+}</code></pre>
+<h3>Delivery Headers</h3>
+<table>
+<thead><tr><th>Header</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><code>X-CBA-Event</code></td><td>Event type, e.g. <code>PAYMENT.COMPLETED</code></td></tr>
+<tr><td><code>X-CBA-Delivery</code></td><td>Unique UUID per delivery attempt — use for idempotency</td></tr>
+<tr><td><code>X-CBA-Signature</code></td><td><code>sha256={HMAC-SHA256(payload, secret)}</code></td></tr>
+<tr><td><code>Content-Type</code></td><td><code>application/json</code></td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- ── Consents ───────────────────────────────────────────────────────── -->
+<section id="consents">
+<h2>Consents (Open Banking)</h2>
+<p>Partners can view and revoke Open Banking consents that were initiated using their <code>orgId</code> as the <code>tppClientId</code>. When a PSU authorises your TPP application via the CBA Open Banking API, set <code>tppClientId = orgId</code> in the consent creation request — this links it to your partner account.</p>
+
+<div class="callout info">
+<strong>Linking mechanism:</strong> the <code>tppClientId</code> field on <code>OpenBankingConsent</code> must equal the partner's <code>orgId</code> (UUID string). Consents created without this are invisible to the partner API.
+</div>
+
+<details class="endpoint">
+<summary class="endpoint-header">
+  <span class="method GET">GET</span>
+  <span class="endpoint-path">/api/v1/partners/{orgId}/consents</span>
+  <span class="endpoint-summary">List all Open Banking consents linked to this partner</span>
+</summary>
+<div class="endpoint-body">
+<p>Returns consents where <code>tppClientId = orgId</code>, ordered by <code>createdAt DESC</code>.</p>
+<h4>Response 200</h4>
+<pre><code>{
+  "data": [
+    {
+      "id": "uuid",
+      "consentId": "ob-a3f8c12e...",
+      "status": "AUTHORISED",
+      "scopes": ["accounts_read", "balances_read", "transactions_read"],
+      "expiryDate": "2026-10-25T00:00:00Z",
+      "createdAt": "2026-04-25T10:00:00Z"
+    },
+    {
+      "id": "uuid",
+      "consentId": "ob-d9e7f1b2...",
+      "status": "REVOKED",
+      "scopes": ["payments"],
+      "expiryDate": null,
+      "createdAt": "2026-03-10T14:00:00Z"
+    }
+  ]
+}</code></pre>
+<p>Consent <code>status</code> values: <code>AWAITING_AUTHORISATION</code> · <code>AUTHORISED</code> · <code>REVOKED</code></p>
+</div>
+</details>
+
+<details class="endpoint">
+<summary class="endpoint-header">
+  <span class="method DELETE">DELETE</span>
+  <span class="endpoint-path">/api/v1/partners/{orgId}/consents/{consentId}</span>
+  <span class="endpoint-summary">Revoke a consent — sets status to REVOKED</span>
+</summary>
+<div class="endpoint-body">
+<p>Revokes the consent immediately. The PSU's access via this consent is terminated. Returns 404 if the consent does not exist or if the <code>tppClientId</code> does not match <code>orgId</code> (prevents enumeration).</p>
+<h4>Response 204 No Content</h4>
+<h4>Errors</h4>
+<table>
+<thead><tr><th>Code</th><th>HTTP</th><th>Condition</th></tr></thead>
+<tbody>
+<tr><td><code>CONSENT_NOT_FOUND</code></td><td>404</td><td>Consent does not exist or belongs to a different partner</td></tr>
+</tbody>
+</table>
+</div>
+</details>
+</section>
+
+<!-- ── Production Application ─────────────────────────────────────────── -->
+<section id="applications">
+<h2>Production Application</h2>
+<p>To move from <code>SANDBOX</code> to <code>PRODUCTION</code>, submit a production upgrade application. Bank staff review the application and approve or reject via the admin endpoints. Only one application may be pending at a time.</p>
+
+<details class="endpoint">
+<summary class="endpoint-header">
+  <span class="method POST">POST</span>
+  <span class="endpoint-path">/api/v1/partners/{orgId}/applications</span>
+  <span class="endpoint-summary">Submit a production upgrade application</span>
+</summary>
+<div class="endpoint-body">
+<p>Sets org status to <code>PENDING_REVIEW</code>. All fields are required unless noted.</p>
+<h4>Request</h4>
+<pre><code>{
+  "businessType": "PAYMENT_INSTITUTION",
+  "useCase": "We provide account aggregation for SME finance apps.",
+  "estimatedMonthlyCalls": 500000,
+  "website": "https://fintech.io",
+  "technicalContact": "cto@fintech.io",
+  "complianceNotes": "PSD2 licensed under FCA reference 123456."
+}</code></pre>
+<h4>Response 201</h4>
+<pre><code>{ "data": null, "meta": {}, "errors": [] }</code></pre>
+<h4>Errors</h4>
+<table>
+<thead><tr><th>Code</th><th>HTTP</th><th>Condition</th></tr></thead>
+<tbody>
+<tr><td><code>APPLICATION_ALREADY_PENDING</code></td><td>409</td><td>An application is already under review</td></tr>
+</tbody>
+</table>
+</div>
+</details>
+</section>
+
+<!-- ── Usage ──────────────────────────────────────────────────────────── -->
+<section id="usage">
+<h2>Usage &amp; Analytics</h2>
+
+<details class="endpoint">
+<summary class="endpoint-header">
+  <span class="method GET">GET</span>
+  <span class="endpoint-path">/api/v1/partners/{orgId}/usage</span>
+  <span class="endpoint-summary">Usage statistics for the organisation</span>
+</summary>
+<div class="endpoint-body">
+<h4>Response 200</h4>
+<pre><code>{
+  "data": {
+    "totalRequests": 12847,
+    "successRequests": 12610,
+    "failedRequests": 237,
+    "webhookDeliveryRate": 99.1,
+    "dailyCalls": [
+      { "date": "2026-04-25", "count": 1843 },
+      { "date": "2026-04-24", "count": 2011 }
+    ],
+    "topEndpoints": [
+      { "path": "/open-banking/v3.1/accounts", "count": 5320 },
+      { "path": "/open-banking/v3.1/accounts/{id}/transactions", "count": 4201 }
+    ]
+  }
+}</code></pre>
+</div>
+</details>
+</section>
+
+<!-- ── Org & User Settings ────────────────────────────────────────────── -->
+<section id="settings">
+<h2>Org &amp; User Settings</h2>
+
+<details class="endpoint">
+<summary class="endpoint-header">
+  <span class="method PUT">PUT</span>
+  <span class="endpoint-path">/api/v1/partners/{orgId}</span>
+  <span class="endpoint-summary">Update organisation name and website</span>
+</summary>
+<div class="endpoint-body">
+<h4>Request</h4>
+<pre><code>{ "organizationName": "FinTech Ltd v2", "website": "https://fintech.io" }</code></pre>
+<h4>Response 200</h4>
+<pre><code>{
+  "data": {
+    "id": "uuid",
+    "organizationName": "FinTech Ltd v2",
+    "website": "https://fintech.io"
+  }
+}</code></pre>
+</div>
+</details>
+
+<details class="endpoint">
+<summary class="endpoint-header">
+  <span class="method PUT">PUT</span>
+  <span class="endpoint-path">/api/v1/partners/users/{userId}</span>
+  <span class="endpoint-summary">Update partner user email address</span>
+</summary>
+<div class="endpoint-body">
+<h4>Request</h4>
+<pre><code>{ "email": "newdev@fintech.io" }</code></pre>
+<h4>Response 200</h4>
+<pre><code>{ "data": { "id": "uuid", "email": "newdev@fintech.io" } }</code></pre>
+<h4>Errors</h4>
+<table>
+<thead><tr><th>Code</th><th>HTTP</th><th>Condition</th></tr></thead>
+<tbody>
+<tr><td><code>EMAIL_ALREADY_REGISTERED</code></td><td>409</td><td>New email is already in use</td></tr>
+<tr><td><code>PARTNER_USER_NOT_FOUND</code></td><td>404</td><td>User not found</td></tr>
+</tbody>
+</table>
+</div>
+</details>
+
+<details class="endpoint">
+<summary class="endpoint-header">
+  <span class="method POST">POST</span>
+  <span class="endpoint-path">/api/v1/partners/users/{userId}/change-password</span>
+  <span class="endpoint-summary">Change partner user password</span>
+</summary>
+<div class="endpoint-body">
+<p>Requires the current password for verification before updating the BCrypt hash. There is no "forgot password" endpoint — contact bank admin to reset.</p>
+<h4>Request</h4>
+<pre><code>{ "currentPassword": "OldPass@1", "newPassword": "NewPass@2" }</code></pre>
+<h4>Response 200</h4>
+<pre><code>{ "data": null, "meta": {}, "errors": [] }</code></pre>
+<h4>Errors</h4>
+<table>
+<thead><tr><th>Code</th><th>HTTP</th><th>Condition</th></tr></thead>
+<tbody>
+<tr><td><code>INVALID_PASSWORD</code></td><td>400</td><td>Current password is incorrect</td></tr>
+<tr><td><code>PARTNER_USER_NOT_FOUND</code></td><td>404</td><td>User not found</td></tr>
+</tbody>
+</table>
+</div>
+</details>
+</section>
+
+<!-- ── Admin ──────────────────────────────────────────────────────────── -->
+<section id="admin">
+<h2>Admin Endpoints <span style="font-size:.75rem;font-weight:400;color:#92400e;background:#fef3c7;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Keycloak ADMIN role required</span></h2>
+<p>These endpoints are for bank staff only. They require a valid Keycloak JWT with <code>ROLE_ADMIN</code> — partner JWTs are rejected with 403.</p>
+
+<table>
+<thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners</code></td><td>List all registered partner organisations with status, tier, and application state</td></tr>
+<tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners/usage?days=30</code></td><td>Aggregate usage statistics across all partners; <code>days</code> defaults to 30</td></tr>
+<tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/{orgId}/approve</code></td><td>Approve production promotion — sets status to <code>PRODUCTION</code>; records <code>approvedBy</code> from JWT principal</td></tr>
+<tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/{orgId}/reject</code></td><td>Reject production application — sets <code>applicationStatus=REJECTED</code>, status reverts to <code>SANDBOX</code></td></tr>
+</tbody>
+</table>
+
+<h4>GET /api/v1/partners — example response</h4>
+<pre><code>{
+  "data": [
+    {
+      "id": "uuid",
+      "organizationName": "FinTech Ltd",
+      "status": "PRODUCTION",
+      "tier": "PRO",
+      "environment": "PRODUCTION",
+      "applicationStatus": "APPROVED",
+      "approvedBy": "admin@cba.com",
+      "approvedAt": "2026-04-01T09:00:00Z",
+      "createdAt": "2026-03-15T10:00:00Z"
+    }
+  ]
+}</code></pre>
+</section>
+
+<!-- ── Data Models ────────────────────────────────────────────────────── -->
+<section id="data-models">
+<h2>Data Models</h2>
+
+<h3>PartnerOrganization</h3>
+<table>
+<thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>id</code></td><td>UUID</td><td>Organisation ID — used as <code>orgId</code> in all paths</td></tr>
+<tr><td><code>organizationName</code></td><td>String</td><td>Display name</td></tr>
+<tr><td><code>status</code></td><td>Enum</td><td><code>SANDBOX</code> · <code>PENDING_REVIEW</code> · <code>PRODUCTION</code> · <code>SUSPENDED</code></td></tr>
+<tr><td><code>tier</code></td><td>Enum</td><td><code>BASIC</code> · <code>PRO</code> · <code>ENTERPRISE</code></td></tr>
+<tr><td><code>environment</code></td><td>Enum</td><td><code>SANDBOX</code> · <code>PRODUCTION</code></td></tr>
+<tr><td><code>applicationStatus</code></td><td>Enum</td><td><code>PENDING_REVIEW</code> · <code>APPROVED</code> · <code>REJECTED</code> · null</td></tr>
+<tr><td><code>website</code></td><td>String</td><td>Optional; set on registration or via <code>PUT /{orgId}</code></td></tr>
+<tr><td><code>approvedBy</code></td><td>String</td><td>Email of bank admin who approved; null until approved</td></tr>
+<tr><td><code>approvedAt</code></td><td>ISO 8601</td><td>Timestamp of approval; null until approved</td></tr>
+<tr><td><code>createdAt</code></td><td>ISO 8601</td><td>Registration timestamp</td></tr>
+</tbody>
+</table>
+
+<h3>PartnerUser</h3>
+<table>
+<thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>id</code></td><td>UUID</td><td>User ID — used in <code>/users/{userId}</code> paths</td></tr>
+<tr><td><code>email</code></td><td>String</td><td>Login email; unique across all partner users</td></tr>
+<tr><td><code>role</code></td><td>Enum</td><td><code>DEVELOPER</code> · <code>ADMIN</code></td></tr>
+<tr><td><code>organizationId</code></td><td>UUID</td><td>FK → <code>PartnerOrganization.id</code></td></tr>
+</tbody>
+</table>
+
+<h3>PartnerApiKey</h3>
+<table>
+<thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>id</code></td><td>UUID</td><td>Key ID — used in <code>DELETE /api-keys/{keyId}</code></td></tr>
+<tr><td><code>name</code></td><td>String</td><td>Human-readable label</td></tr>
+<tr><td><code>keyPrefix</code></td><td>String (12)</td><td>First 12 chars of the key for identification; safe to display</td></tr>
+<tr><td><code>scopes</code></td><td>String[]</td><td>Granted scope list</td></tr>
+<tr><td><code>tier</code></td><td>Enum</td><td>Rate-limit tier; set by admin</td></tr>
+<tr><td><code>active</code></td><td>Boolean</td><td><code>false</code> after revocation</td></tr>
+<tr><td><code>lastUsedAt</code></td><td>ISO 8601 · nullable</td><td>Updated on each authenticated request</td></tr>
+</tbody>
+</table>
+
+<h3>PartnerWebhook</h3>
+<table>
+<thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>id</code></td><td>UUID</td><td>Webhook ID</td></tr>
+<tr><td><code>name</code></td><td>String</td><td>Human-readable label</td></tr>
+<tr><td><code>callbackUrl</code></td><td>String</td><td>HTTPS endpoint; must be publicly reachable</td></tr>
+<tr><td><code>events</code></td><td>String[]</td><td>Subscribed event types; empty = all events</td></tr>
+<tr><td><code>active</code></td><td>Boolean</td><td><code>false</code> after deregistration</td></tr>
+<tr><td><code>createdAt</code></td><td>ISO 8601</td><td></td></tr>
+</tbody>
+</table>
+
+<h3>PartnerWebhookDelivery</h3>
+<table>
+<thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>id</code></td><td>UUID</td><td>Delivery record ID</td></tr>
+<tr><td><code>eventType</code></td><td>String</td><td>e.g. <code>PAYMENT.COMPLETED</code></td></tr>
+<tr><td><code>deliveryUuid</code></td><td>UUID (string)</td><td>Value of <code>X-CBA-Delivery</code> header — use for idempotency</td></tr>
+<tr><td><code>status</code></td><td>Enum</td><td><code>PENDING</code> · <code>DELIVERED</code> · <code>FAILED</code></td></tr>
+<tr><td><code>httpStatus</code></td><td>Integer · nullable</td><td>HTTP response code from your endpoint; null on connection failure</td></tr>
+<tr><td><code>attemptCount</code></td><td>Integer</td><td>Number of delivery attempts so far (max 5)</td></tr>
+<tr><td><code>lastAttemptAt</code></td><td>ISO 8601 · nullable</td><td>Timestamp of most recent attempt</td></tr>
+<tr><td><code>nextRetryAt</code></td><td>ISO 8601 · nullable</td><td>When the next retry is scheduled; null when delivered or exhausted</td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- ── Full API Matrix ────────────────────────────────────────────────── -->
+<section id="full-matrix">
+<h2>Full API Matrix</h2>
+<table>
+<thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/register</code></td><td><span class="auth-public">Public</span></td><td>Self-register partner organisation</td></tr>
+<tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/auth/login</code></td><td><span class="auth-public">Public</span></td><td>Login — returns partner JWT (24 h)</td></tr>
+<tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners/{orgId}/api-keys</code></td><td><span class="auth-partner">Partner JWT</span></td><td>List active API keys</td></tr>
+<tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/{orgId}/api-keys</code></td><td><span class="auth-partner">Partner JWT</span></td><td>Issue API key — raw value shown once</td></tr>
+<tr><td><span class="badge badge-delete">DELETE</span></td><td><code>/api/v1/partners/{orgId}/api-keys/{keyId}</code></td><td><span class="auth-partner">Partner JWT</span></td><td>Revoke API key</td></tr>
+<tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/{orgId}/applications</code></td><td><span class="auth-partner">Partner JWT</span></td><td>Submit production upgrade application</td></tr>
+<tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners/{orgId}/usage</code></td><td><span class="auth-partner">Partner JWT</span></td><td>Organisation usage statistics</td></tr>
+<tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners/{orgId}/webhooks</code></td><td><span class="auth-partner">Partner JWT</span></td><td>List active webhooks</td></tr>
+<tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/{orgId}/webhooks</code></td><td><span class="auth-partner">Partner JWT</span></td><td>Register webhook</td></tr>
+<tr><td><span class="badge badge-delete">DELETE</span></td><td><code>/api/v1/partners/{orgId}/webhooks/{webhookId}</code></td><td><span class="auth-partner">Partner JWT</span></td><td>Deregister webhook</td></tr>
+<tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners/{orgId}/webhooks/{webhookId}/deliveries</code></td><td><span class="auth-partner">Partner JWT</span></td><td>Webhook delivery log</td></tr>
+<tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners/{orgId}/consents</code></td><td><span class="auth-partner">Partner JWT</span></td><td>List linked Open Banking consents</td></tr>
+<tr><td><span class="badge badge-delete">DELETE</span></td><td><code>/api/v1/partners/{orgId}/consents/{consentId}</code></td><td><span class="auth-partner">Partner JWT</span></td><td>Revoke a consent</td></tr>
+<tr><td><span class="badge badge-put">PUT</span></td><td><code>/api/v1/partners/{orgId}</code></td><td><span class="auth-partner">Partner JWT</span></td><td>Update org name and website</td></tr>
+<tr><td><span class="badge badge-put">PUT</span></td><td><code>/api/v1/partners/users/{userId}</code></td><td><span class="auth-partner">Partner JWT</span></td><td>Update user email</td></tr>
+<tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/users/{userId}/change-password</code></td><td><span class="auth-partner">Partner JWT</span></td><td>Change user password</td></tr>
+<tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners</code></td><td><span class="auth-admin">ADMIN</span></td><td>List all partner organisations</td></tr>
+<tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners/usage?days=30</code></td><td><span class="auth-admin">ADMIN</span></td><td>Aggregate usage across all partners</td></tr>
+<tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/{orgId}/approve</code></td><td><span class="auth-admin">ADMIN</span></td><td>Approve production upgrade</td></tr>
+<tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/{orgId}/reject</code></td><td><span class="auth-admin">ADMIN</span></td><td>Reject production application</td></tr>
+</tbody>
+</table>
+</section>
+
+</main>
+
+<script>
+document.querySelectorAll('#sidebar a[href^="#"]').forEach(link => {
+  link.addEventListener('click', function(e) {
+    e.preventDefault();
+    const target = document.querySelector(this.getAttribute('href'));
+    if (target) {
+      target.scrollIntoView({behavior: 'smooth', block: 'start'});
+      document.querySelectorAll('#sidebar a').forEach(a => a.classList.remove('active'));
+      this.classList.add('active');
+    }
+  });
+});
+const sections = document.querySelectorAll('section[id]');
+const sideLinks = document.querySelectorAll('#sidebar a[href^="#"]');
+window.addEventListener('scroll', () => {
+  let current = '';
+  sections.forEach(s => { if (window.scrollY >= s.offsetTop - 100) current = s.id; });
+  sideLinks.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+  });
+}, {passive: true});
+</script>
+</body>
+</html>

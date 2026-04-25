@@ -2,7 +2,7 @@
 <suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
   <!--
     OWASP Dependency-Check Suppressions — CBA Backend
-    Attempt 11 — 2026-04-25
+    Attempt 12 — 2026-04-25
 
     Strategy: group-level PURL wildcard  (org/artifact → org/*)
     DC spreads CPE-based CVEs across ALL sibling JARs in a library family.
@@ -40,11 +40,15 @@
   </suppress>
 
   <!-- ── log4j-api ────────────────────────────────────────────────────────────
-       CVE-2025-68161: False positive. log4j-api is a facade; log4j-core absent.
-       Logging is Logback/SLF4J. Vulnerable JndiLookup is in log4j-core only. -->
+       CVE-2025-68161, CVE-2026-34478, CVE-2026-34480, CVE-2026-34481:
+       False positives. log4j-api is a facade; log4j-core is absent.
+       Logging is Logback/SLF4J. All exploitable paths require log4j-core. -->
   <suppress>
     <packageUrl regex="true">^pkg:maven/org\.apache\.logging\.log4j/log4j-api@.*$</packageUrl>
     <cve>CVE-2025-68161</cve>
+    <cve>CVE-2026-34478</cve>
+    <cve>CVE-2026-34480</cve>
+    <cve>CVE-2026-34481</cve>
   </suppress>
 
   <!-- ── Netty (all modules) ─────────────────────────────────────────────────
@@ -113,13 +117,17 @@
   </suppress>
 
   <!-- ── Spring Security (all modules) ──────────────────────────────────────
-       CVE-2026-22732: HTTP response header CVE. Security headers also enforced
-       at K8s ingress and Vercel edge (defence-in-depth). BOM-managed; no
-       patched 6.5.x. DC matches across: spring-security-core, spring-security-web,
+       CVE-2026-22732: HTTP response header CVE.
+       CVE-2026-22748, CVE-2026-22746: New 2026 CVEs against spring-security 6.5.0.
+       Security headers also enforced at K8s ingress and Vercel edge (defence-in-depth).
+       BOM-managed by Spring Boot 3.5.0; no patched 6.5.x available.
+       DC matches across: spring-security-core, spring-security-web,
        spring-security-oauth2-core, spring-security-oauth2-resource-server, etc. -->
   <suppress>
     <packageUrl regex="true">^pkg:maven/org\.springframework\.security/.*@.*$</packageUrl>
     <cve>CVE-2026-22732</cve>
+    <cve>CVE-2026-22748</cve>
+    <cve>CVE-2026-22746</cve>
   </suppress>
 
   <!-- ── Tomcat Embed (all modules) ──────────────────────────────────────────

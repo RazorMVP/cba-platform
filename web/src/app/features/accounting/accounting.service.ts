@@ -139,6 +139,29 @@ export interface ProvisioningCriteriaRequest {
   definitions: ProvisioningDefinition[];
 }
 
+// ── Trial Balance ─────────────────────────────────────────────────────────────
+
+export interface TrialBalanceRow {
+  glCode: string;
+  accountName: string;
+  accountType: GlAccountType;
+  openingBalance: number;
+  debitMovement: number;
+  creditMovement: number;
+  closingBalance: number;
+}
+
+export interface TrialBalanceResponse {
+  fromDate: string;
+  toDate: string;
+  rows: TrialBalanceRow[];
+  totalDebitMovement: number;
+  totalCreditMovement: number;
+  totalClosingDebit: number;
+  totalClosingCredit: number;
+  balanced: boolean;
+}
+
 // ── Accounting Rules ──────────────────────────────────────────────────────────
 export interface AccountingRule {
   id: string;
@@ -241,6 +264,11 @@ export class AccountingService {
   }
   deleteProvisioningCriteria(id: string): Observable<void> {
     return this.api.delete<void>(`/provisioningcriteria/${id}`);
+  }
+
+  // Trial Balance
+  getTrialBalance(fromDate: string, toDate: string): Observable<TrialBalanceResponse> {
+    return this.api.get<TrialBalanceResponse>('/accounting/trial-balance', { fromDate, toDate });
   }
 
   // Accounting Rules

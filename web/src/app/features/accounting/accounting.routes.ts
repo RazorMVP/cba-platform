@@ -5,6 +5,7 @@ import { ProvisioningComponent } from './provisioning';
 import { FinancialActivityAccountsComponent } from './financial-activity-accounts';
 import { GlClosuresComponent } from './gl-closures';
 import { AccountingRulesComponent } from './accounting-rules';
+import { TrialBalanceComponent } from './trial-balance';
 
 export const ACCOUNTING_ROUTES: Routes = [
   { path: 'gl-accounts', component: GlAccountsComponent },
@@ -13,4 +14,5 @@ export const ACCOUNTING_ROUTES: Routes = [
   { path: 'financial-activity', component: FinancialActivityAccountsComponent },
   { path: 'gl-closures', component: GlClosuresComponent },
   { path: 'accounting-rules', component: AccountingRulesComponent },
+  { path: 'trial-balance', component: TrialBalanceComponent },
 ];

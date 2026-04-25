@@ -94,6 +94,17 @@ public class GlAccountingController {
                 glClosureRepository.findByOfficeIdOrderByClosingDateDesc(officeId)));
     }
 
+    // ── Trial Balance ─────────────────────────────────────────────────────────
+
+    @GetMapping("/api/v1/accounting/trial-balance")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
+    @Operation(summary = "Generate a trial balance for a date range")
+    public ResponseEntity<ApiResponse<GlAccountingService.TrialBalanceResponse>> getTrialBalance(
+            @RequestParam LocalDate fromDate,
+            @RequestParam LocalDate toDate) {
+        return ResponseEntity.ok(ApiResponse.ok(glService.getTrialBalance(fromDate, toDate)));
+    }
+
     // ── Financial Activity Accounts ───────────────────────────────────────────
 
     record FinancialActivityRequest(

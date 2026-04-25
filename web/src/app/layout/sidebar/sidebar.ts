@@ -62,6 +62,7 @@ export class SidebarComponent {
       items: [
         { label: 'GL Accounts',        icon: 'menu_book',         route: '/accounting/gl-accounts' },
         { label: 'Journal Entries',    icon: 'receipt_long',      route: '/accounting/journal-entries' },
+        { label: 'Trial Balance',      icon: 'balance',           route: '/accounting/trial-balance' },
         { label: 'Provisioning',       icon: 'shield',            route: '/accounting/provisioning' },
         { label: 'Financial Activity', icon: 'account_tree',      route: '/accounting/financial-activity' },
         { label: 'GL Closures',        icon: 'lock_clock',        route: '/accounting/gl-closures' },

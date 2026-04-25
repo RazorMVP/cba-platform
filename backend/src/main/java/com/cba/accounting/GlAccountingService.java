@@ -4,6 +4,7 @@ import com.cba.audit.AuditLogService;
 import com.cba.common.exception.CbaException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ public class GlAccountingService {
     private final FinancialActivityAccountRepository financialActivityRepo;
     private final GlClosureRepository glClosureRepository;
     private final AuditLogService auditLogService;
+    private final JdbcTemplate jdbcTemplate;
 
     // ── Auto-posting (called by domain services) ──────────────────────────────
 
@@ -169,6 +171,71 @@ public class GlAccountingService {
     @Transactional(readOnly = true)
     public List<JournalEntry> getEntriesForEntity(JournalEntry.EntityType type, UUID entityId) {
         return journalEntryRepository.findByEntityTypeAndEntityId(type, entityId);
+    }
+
+    // ── Trial Balance ─────────────────────────────────────────────────────────
+
+    public record TrialBalanceRow(
+            String glCode,
+            String accountName,
+            String accountType,
+            BigDecimal openingBalance,
+            BigDecimal debitMovement,
+            BigDecimal creditMovement,
+            BigDecimal closingBalance) {}
+
+    public record TrialBalanceResponse(
+            LocalDate fromDate,
+            LocalDate toDate,
+            List<TrialBalanceRow> rows,
+            BigDecimal totalDebitMovement,
+            BigDecimal totalCreditMovement,
+            BigDecimal totalClosingDebit,
+            BigDecimal totalClosingCredit,
+            boolean balanced) {}
+
+    @Transactional(readOnly = true)
+    public TrialBalanceResponse getTrialBalance(LocalDate fromDate, LocalDate toDate) {
+        String sql = """
+                SELECT ga.gl_code,
+                       ga.name,
+                       ga.account_type,
+                       COALESCE(SUM(CASE WHEN je.transaction_date < ? AND je.entry_type = 'DEBIT'  THEN je.amount ELSE 0 END)
+                              - SUM(CASE WHEN je.transaction_date < ? AND je.entry_type = 'CREDIT' THEN je.amount ELSE 0 END), 0) AS opening_balance,
+                       COALESCE(SUM(CASE WHEN je.transaction_date BETWEEN ? AND ? AND je.entry_type = 'DEBIT'  THEN je.amount ELSE 0 END), 0) AS debit_movement,
+                       COALESCE(SUM(CASE WHEN je.transaction_date BETWEEN ? AND ? AND je.entry_type = 'CREDIT' THEN je.amount ELSE 0 END), 0) AS credit_movement
+                FROM gl_accounts ga
+                LEFT JOIN journal_entries je ON je.gl_account_id = ga.id AND je.is_reversed = FALSE
+                WHERE ga.usage = 'DETAIL' AND ga.disabled = FALSE
+                GROUP BY ga.id, ga.gl_code, ga.name, ga.account_type
+                ORDER BY ga.account_type, ga.gl_code
+                """;
+
+        List<TrialBalanceRow> rows = jdbcTemplate.query(
+                sql,
+                (rs, i) -> {
+                    BigDecimal opening = rs.getBigDecimal("opening_balance");
+                    BigDecimal debit   = rs.getBigDecimal("debit_movement");
+                    BigDecimal credit  = rs.getBigDecimal("credit_movement");
+                    BigDecimal closing = opening.add(debit).subtract(credit);
+                    return new TrialBalanceRow(
+                            rs.getString("gl_code"),
+                            rs.getString("name"),
+                            rs.getString("account_type"),
+                            opening, debit, credit, closing);
+                },
+                fromDate, fromDate, fromDate, toDate, fromDate, toDate);
+
+        BigDecimal totalDebit   = rows.stream().map(TrialBalanceRow::debitMovement).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalCredit  = rows.stream().map(TrialBalanceRow::creditMovement).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal closingDebit  = rows.stream().filter(r -> r.closingBalance().compareTo(BigDecimal.ZERO) > 0)
+                .map(TrialBalanceRow::closingBalance).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal closingCredit = rows.stream().filter(r -> r.closingBalance().compareTo(BigDecimal.ZERO) < 0)
+                .map(r -> r.closingBalance().negate()).reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return new TrialBalanceResponse(fromDate, toDate, rows,
+                totalDebit, totalCredit, closingDebit, closingCredit,
+                totalDebit.compareTo(totalCredit) == 0);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

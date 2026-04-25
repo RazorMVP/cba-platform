@@ -1,0 +1,148 @@
+<div class="page">
+  <!-- Header -->
+  <div class="page-header">
+    <div class="page-header__left">
+      <h1 class="page-title">Trial Balance</h1>
+      @if (report) {
+        <span class="balance-badge" [class.balance-badge--ok]="report.balanced" [class.balance-badge--err]="!report.balanced">
+          <span class="material-icons">{{ report.balanced ? 'check_circle' : 'error' }}</span>
+          {{ report.balanced ? 'Balanced' : 'OUT OF BALANCE' }}
+        </span>
+      }
+    </div>
+    <div class="page-header__actions">
+      <div class="filter-row">
+        <label>From
+          <input type="date" class="form-input" [(ngModel)]="fromDate">
+        </label>
+        <label>To
+          <input type="date" class="form-input" [(ngModel)]="toDate">
+        </label>
+        <button class="btn-primary" (click)="load()" [disabled]="loading">
+          <span class="material-icons">refresh</span> Run
+        </button>
+        @if (report) {
+          <button class="btn-secondary" (click)="exportCsv()">
+            <span class="material-icons">download</span> CSV
+          </button>
+        }
+      </div>
+    </div>
+  </div>
+
+  <!-- Error -->
+  @if (error) {
+    <div class="error-banner">{{ error }}</div>
+  }
+
+  <!-- Loading -->
+  @if (loading) {
+    <div class="loading-state">
+      <span class="material-icons spinning">sync</span>
+      Generating trial balance…
+    </div>
+  }
+
+  <!-- Report -->
+  @if (report && !loading) {
+    <!-- Totals summary -->
+    <div class="summary-row">
+      <div class="summary-card">
+        <span class="summary-label">Period Debits</span>
+        <span class="summary-value">{{ report.totalDebitMovement | number:'1.2-2' }}</span>
+      </div>
+      <div class="summary-card">
+        <span class="summary-label">Period Credits</span>
+        <span class="summary-value">{{ report.totalCreditMovement | number:'1.2-2' }}</span>
+      </div>
+      <div class="summary-card">
+        <span class="summary-label">Closing Debit Total</span>
+        <span class="summary-value">{{ report.totalClosingDebit | number:'1.2-2' }}</span>
+      </div>
+      <div class="summary-card">
+        <span class="summary-label">Closing Credit Total</span>
+        <span class="summary-value">{{ report.totalClosingCredit | number:'1.2-2' }}</span>
+      </div>
+    </div>
+
+    <!-- Account type sections -->
+    @for (group of groupedRows(); track group.type) {
+      <div class="section-card">
+        <div class="section-header">
+          <h3 class="section-title">{{ group.type }}</h3>
+          <span class="section-count">{{ group.rows.length }} accounts</span>
+        </div>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>GL Code</th>
+              <th>Account Name</th>
+              <th class="col-num">Opening Balance</th>
+              <th class="col-num">Debit Movement</th>
+              <th class="col-num">Credit Movement</th>
+              <th class="col-num">Closing Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of group.rows; track row.glCode) {
+              <tr>
+                <td class="gl-code">{{ row.glCode }}</td>
+                <td>{{ row.accountName }}</td>
+                <td class="col-num" [class.val-positive]="row.openingBalance > 0" [class.val-negative]="row.openingBalance < 0">
+                  {{ row.openingBalance | number:'1.2-2' }}
+                </td>
+                <td class="col-num">{{ row.debitMovement | number:'1.2-2' }}</td>
+                <td class="col-num">{{ row.creditMovement | number:'1.2-2' }}</td>
+                <td class="col-num" [class.val-positive]="row.closingBalance > 0" [class.val-negative]="row.closingBalance < 0">
+                  {{ row.closingBalance | number:'1.2-2' }}
+                </td>
+              </tr>
+            }
+          </tbody>
+          <tfoot>
+            <tr class="subtotal-row">
+              <td colspan="2">{{ group.type }} SUBTOTAL</td>
+              <td class="col-num">{{ subtotal(group.rows, 'openingBalance') | number:'1.2-2' }}</td>
+              <td class="col-num">{{ subtotal(group.rows, 'debitMovement') | number:'1.2-2' }}</td>
+              <td class="col-num">{{ subtotal(group.rows, 'creditMovement') | number:'1.2-2' }}</td>
+              <td class="col-num">{{ subtotal(group.rows, 'closingBalance') | number:'1.2-2' }}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    }
+
+    <!-- Grand total row -->
+    <div class="grand-total-card">
+      <table class="data-table">
+        <tfoot>
+          <tr class="grand-total-row">
+            <td colspan="2">GRAND TOTAL</td>
+            <td class="col-num">{{ subtotal(report.rows, 'openingBalance') | number:'1.2-2' }}</td>
+            <td class="col-num">{{ report.totalDebitMovement | number:'1.2-2' }}</td>
+            <td class="col-num">{{ report.totalCreditMovement | number:'1.2-2' }}</td>
+            <td class="col-num" [class.val-positive]="subtotal(report.rows, 'closingBalance') !== 0">
+              {{ subtotal(report.rows, 'closingBalance') | number:'1.2-2' }}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    @if (!report.balanced) {
+      <div class="imbalance-warning">
+        <span class="material-icons">warning</span>
+        Trial balance is out of balance — total debits ({{ report.totalDebitMovement | number:'1.2-2' }}) ≠ total credits ({{ report.totalCreditMovement | number:'1.2-2' }}). Check for missing journal entries.
+      </div>
+    }
+  }
+
+  <!-- Empty state -->
+  @if (!loading && !error && report && report.rows.length === 0) {
+    <div class="empty-state">
+      <span class="material-icons">receipt_long</span>
+      <p>No journal entries found for the selected period.</p>
+    </div>
+  }
+</div>

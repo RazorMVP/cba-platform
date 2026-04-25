@@ -1,0 +1,210 @@
+@use 'assets/styles/design-system' as *;
+
+.page {
+  padding: $space-6;
+  max-width: 1400px;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: $space-4;
+  margin-bottom: $space-6;
+}
+
+.page-header__left {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+}
+
+.page-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.balance-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: $space-1;
+  padding: $space-1 $space-3;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  .material-icons { font-size: 14px; }
+}
+
+.balance-badge--ok  { background: #d1fae5; color: #065f46; }
+.balance-badge--err { background: #fee2e2; color: #991b1b; }
+
+.filter-row {
+  display: flex;
+  align-items: flex-end;
+  gap: $space-3;
+  flex-wrap: wrap;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: $space-1;
+    font-size: 0.75rem;
+    color: var(--color-muted);
+    font-weight: 500;
+  }
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: $space-1;
+  padding: $space-2 $space-4;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: white;
+  color: var(--color-text);
+  font-size: 0.875rem;
+  cursor: pointer;
+  .material-icons { font-size: 16px; }
+  &:hover { background: #f9fafb; }
+}
+
+.summary-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: $space-4;
+  margin-bottom: $space-6;
+}
+
+.summary-card {
+  background: white;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  padding: $space-4;
+  display: flex;
+  flex-direction: column;
+  gap: $space-1;
+}
+
+.summary-label {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+  font-weight: 500;
+}
+
+.summary-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.section-card {
+  background: white;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  margin-bottom: $space-4;
+  overflow: hidden;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $space-3 $space-4;
+  border-bottom: 1px solid var(--color-border);
+  background: #f8fafc;
+}
+
+.section-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.section-count {
+  font-size: 0.75rem;
+  color: var(--color-muted);
+}
+
+.gl-code {
+  font-family: monospace;
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+}
+
+.col-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.val-positive { color: #065f46; font-weight: 500; }
+.val-negative { color: #991b1b; font-weight: 500; }
+
+.subtotal-row td {
+  font-weight: 600;
+  background: #f8fafc;
+  border-top: 2px solid var(--color-border);
+}
+
+.grand-total-card {
+  background: white;
+  border-radius: 8px;
+  border: 2px solid var(--color-primary);
+  overflow: hidden;
+  margin-bottom: $space-4;
+}
+
+.grand-total-row td {
+  font-weight: 700;
+  background: var(--color-primary);
+  color: white;
+  padding: $space-3 $space-4;
+  font-variant-numeric: tabular-nums;
+}
+
+.imbalance-warning {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  padding: $space-3 $space-4;
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  color: #991b1b;
+  font-size: 0.875rem;
+  .material-icons { font-size: 18px; }
+}
+
+.loading-state {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  padding: $space-8;
+  color: var(--color-muted);
+  font-size: 0.875rem;
+  .material-icons { animation: spin 1s linear infinite; }
+}
+
+.error-banner {
+  padding: $space-3 $space-4;
+  background: #fee2e2;
+  border-radius: 8px;
+  color: #991b1b;
+  margin-bottom: $space-4;
+  font-size: 0.875rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: $space-12;
+  color: var(--color-muted);
+  .material-icons { font-size: 48px; display: block; margin-bottom: $space-2; }
+}

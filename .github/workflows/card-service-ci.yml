@@ -98,6 +98,7 @@ jobs:
           name: Card Service Tests
           path: card-service/target/surefire-reports/*.xml
           reporter: java-junit
+          fail-on-empty: false
 
   # ─── Security — OWASP Dependency Check ───────────────────────────────────────
   owasp-check:

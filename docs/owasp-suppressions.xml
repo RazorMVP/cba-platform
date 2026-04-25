@@ -196,13 +196,16 @@
     <cve>CVE-2026-41240</cve>
   </suppress>
 
-  <!-- ── Tomcat embed — additional 2026 CVEs (card-service) ──────────────────
-       CVE-2025-31650, CVE-2025-31651: Request smuggling; TLS+ingress terminates
-       before Tomcat; no direct public TCP exposure. BOM-managed. -->
+  <!-- ── Tomcat embed — additional CVEs (card-service) ──────────────────────
+       CVE-2025-31650, CVE-2025-31651, CVE-2025-46701: Request smuggling and
+       HTTP/2 stream handling. TLS+ingress terminates before Tomcat; no direct
+       public TCP exposure. BOM-managed; no patched 10.1.x without Spring Boot
+       bump. -->
   <suppress>
     <packageUrl regex="true">^pkg:maven/org\.apache\.tomcat\.embed/.*@.*$</packageUrl>
     <cve>CVE-2025-31650</cve>
     <cve>CVE-2025-31651</cve>
+    <cve>CVE-2025-46701</cve>
   </suppress>
 
 </suppressions>

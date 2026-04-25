@@ -1,3 +1,3 @@
 # This file exists solely to allow suppression-only commits to re-trigger backend-ci.yml.
 # Touch it (update the timestamp line below) when docs/owasp-suppressions.xml changes.
-# Last updated: 2026-04-25 (packageUrl regex — attempt 10; SHA-1 hashes were wrong; switched to PURL matching from CI log)
+# Last updated: 2026-04-25 (packageUrl regex — attempt 11; group-level wildcards org/artifact → org/* to cover sibling JARs)

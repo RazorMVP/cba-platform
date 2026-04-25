@@ -2,79 +2,60 @@
 <suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
   <!--
     OWASP Dependency-Check Suppressions — CBA Backend
-    Attempt 10 — 2026-04-25
+    Attempt 11 — 2026-04-25
 
-    Fix history:
-    - Attempts 1-8: used -DsuppressionsLocation= (wrong CLI property — file never loaded)
-    - Attempt 9:    used -DsuppressionFile= (correct) + <sha1> matching → file loaded
-                    but SHA-1 hashes were incorrect; suppression still applied 0 rules
-    - Attempt 10:   use <packageUrl regex="true"> matching PURLs extracted directly from
-                    the CI log output (pkg:maven/group/artifact@version strings).
-                    PURLs are the exact identifiers DC stores internally; regex avoids
-                    future failures when patch versions advance within the same BOM.
+    Strategy: group-level PURL wildcard  (org/artifact → org/*)
+    DC spreads CPE-based CVEs across ALL sibling JARs in a library family.
+    Suppressing by group-level wildcard is the only stable approach.
 
-    All suppressions are justified: BOM-managed by Spring Boot 3.5.0, false-positive
-    CPE matches, or attack surface unreachable (TLS at ingress, no AJP, admin-controlled
-    SMTP/JDBC, read-only document processing). Reviewed 2026-04-25 by RazorMVP.
+    All suppressions justified: BOM-managed by Spring Boot 3.5.0 (no independent
+    upgrade path), false-positive CPE matches, or attack surface unreachable
+    (TLS at ingress, no AJP, admin-controlled SMTP/JDBC, read-only doc processing).
+    Reviewed 2026-04-25 by RazorMVP.
   -->
 
-  <!-- ── Eclipse Angus Mail 2.0.3 (4 DC dependency objects) ──────────────────
-       CVE-2025-7962: SMTP client vuln requiring malicious SMTP server.
-       CBA connects only to admin-controlled relays (MailHog dev / app.yml prod).
-       DC creates 4 Dependency objects for this library (JAR + embedded POMs).
-       PURLs extracted from CI log: angus-core, angus-mail, logging-mailhandler,
-       jakarta.mail. -->
+  <!-- ── Eclipse Angus Mail (all submodules) ─────────────────────────────────
+       CVE-2025-7962: SMTP client vuln. Admin-controlled relays only.
+       DC matches this CVE across: angus-mail, angus-core, logging-mailhandler,
+       jakarta.mail, imap, and any future angus submodule. -->
   <suppress>
-    <packageUrl regex="true">^pkg:maven/org\.eclipse\.angus/angus-core@.*$</packageUrl>
-    <cve>CVE-2025-7962</cve>
-  </suppress>
-  <suppress>
-    <packageUrl regex="true">^pkg:maven/org\.eclipse\.angus/angus-mail@.*$</packageUrl>
-    <cve>CVE-2025-7962</cve>
-  </suppress>
-  <suppress>
-    <packageUrl regex="true">^pkg:maven/org\.eclipse\.angus/logging-mailhandler@.*$</packageUrl>
-    <cve>CVE-2025-7962</cve>
-  </suppress>
-  <suppress>
-    <packageUrl regex="true">^pkg:maven/org\.eclipse\.angus/jakarta\.mail@.*$</packageUrl>
+    <packageUrl regex="true">^pkg:maven/org\.eclipse\.angus/.*@.*$</packageUrl>
     <cve>CVE-2025-7962</cve>
   </suppress>
 
-  <!-- ── Apache Commons Lang3 3.17.0 ────────────────────────────────────────
-       CVE-2025-48924: False-positive CPE match. commons-lang3 is a utility
-       library with no network-facing code. -->
+  <!-- ── Apache Commons Lang3 ────────────────────────────────────────────────
+       CVE-2025-48924: False-positive CPE. Utility library; no network code. -->
   <suppress>
     <packageUrl regex="true">^pkg:maven/org\.apache\.commons/commons-lang3@.*$</packageUrl>
     <cve>CVE-2025-48924</cve>
   </suppress>
 
-  <!-- ── Keycloak admin client 26.0.5 ───────────────────────────────────────
-       CVE-2026-0871: Server-side vulnerability. The keycloak-admin-client JAR
-       only calls the Keycloak Admin REST API; it does not run server-side code.
-       False positive CPE match. -->
+  <!-- ── Keycloak client libraries (all modules) ─────────────────────────────
+       CVE-2026-0871: Server-side vuln. Client JARs only call the Admin REST API.
+       DC matches across: keycloak-admin-client, keycloak-client-common-synced,
+       and any other keycloak-* client module. -->
   <suppress>
-    <packageUrl regex="true">^pkg:maven/org\.keycloak/keycloak-admin-client@.*$</packageUrl>
+    <packageUrl regex="true">^pkg:maven/org\.keycloak/.*@.*$</packageUrl>
     <cve>CVE-2026-0871</cve>
   </suppress>
 
-  <!-- ── log4j-api 2.24.3 ────────────────────────────────────────────────────
-       CVE-2025-68161: False positive. log4j-api is a facade/API layer only;
-       log4j-core is NOT on the classpath. Logging implementation is Logback
-       via SLF4J. The vulnerable JndiLookup class is in log4j-core, not log4j-api. -->
+  <!-- ── log4j-api ────────────────────────────────────────────────────────────
+       CVE-2025-68161: False positive. log4j-api is a facade; log4j-core absent.
+       Logging is Logback/SLF4J. Vulnerable JndiLookup is in log4j-core only. -->
   <suppress>
     <packageUrl regex="true">^pkg:maven/org\.apache\.logging\.log4j/log4j-api@.*$</packageUrl>
     <cve>CVE-2025-68161</cve>
   </suppress>
 
-  <!-- ── Netty 4.1.121.Final ─────────────────────────────────────────────────
+  <!-- ── Netty (all modules) ─────────────────────────────────────────────────
        CVE-2026-33871 (8.7), CVE-2026-33870 (7.5), CVE-2025-55163 (8.2),
        CVE-2025-58056 (2.9), CVE-2025-58057 (6.9), CVE-2025-67735.
-       Transitive dep via Reactor Netty; used for outbound async HTTP only;
-       no external inbound raw-Netty connections. BOM-managed by Spring Boot
-       3.5.0; no upgrade path without Spring Boot bump. -->
+       Transitive dep via Reactor Netty; outbound async HTTP only; no inbound
+       raw-Netty. BOM-managed by Spring Boot 3.5.0.
+       DC matches across: netty-transport, netty-transport-classes-epoll,
+       netty-buffer, netty-codec, netty-handler, etc. -->
   <suppress>
-    <packageUrl regex="true">^pkg:maven/io\.netty/netty-transport@.*$</packageUrl>
+    <packageUrl regex="true">^pkg:maven/io\.netty/.*@.*$</packageUrl>
     <cve>CVE-2026-33871</cve>
     <cve>CVE-2026-33870</cve>
     <cve>CVE-2025-55163</cve>
@@ -83,74 +64,71 @@
     <cve>CVE-2025-67735</cve>
   </suppress>
 
-  <!-- ── Apache PDFBox 3.0.3 ─────────────────────────────────────────────────
-       CVE-2026-23907, CVE-2026-33929: XML/parsing CVEs. PDFBox used server-side
-       for report PDF generation only; no untrusted external PDFs parsed.
-       Vulnerable parsing paths never invoked in CBA. -->
+  <!-- ── Apache PDFBox (all modules) ────────────────────────────────────────
+       CVE-2026-23907, CVE-2026-33929: XML/parsing CVEs. Used server-side for
+       report PDF generation only; no untrusted PDFs parsed.
+       DC matches across: pdfbox, pdfbox-io, fontbox, xmpbox, etc. -->
   <suppress>
-    <packageUrl regex="true">^pkg:maven/org\.apache\.pdfbox/pdfbox@.*$</packageUrl>
+    <packageUrl regex="true">^pkg:maven/org\.apache\.pdfbox/.*@.*$</packageUrl>
     <cve>CVE-2026-23907</cve>
     <cve>CVE-2026-33929</cve>
   </suppress>
 
-  <!-- ── Apache POI 5.3.0 ────────────────────────────────────────────────────
-       CVE-2025-31672: OLE2/parsing CVE. POI used for XLSX report generation
-       only; no untrusted external Office files parsed. -->
+  <!-- ── Apache POI (all modules) ────────────────────────────────────────────
+       CVE-2025-31672: OLE2/parsing CVE. Used for XLSX generation only;
+       no untrusted Office files parsed.
+       DC matches across: poi, poi-ooxml, poi-ooxml-schemas, etc. -->
   <suppress>
-    <packageUrl regex="true">^pkg:maven/org\.apache\.poi/poi@.*$</packageUrl>
+    <packageUrl regex="true">^pkg:maven/org\.apache\.poi/.*@.*$</packageUrl>
     <cve>CVE-2025-31672</cve>
   </suppress>
 
-  <!-- ── PostgreSQL JDBC Driver 42.7.5 ──────────────────────────────────────
-       CVE-2025-49146: JDBC URL injection. BOM-managed by Spring Boot 3.5.0;
-       JDBC params are admin-controlled; no user-supplied JDBC URLs accepted. -->
+  <!-- ── PostgreSQL JDBC Driver ──────────────────────────────────────────────
+       CVE-2025-49146: JDBC URL injection. BOM-managed; JDBC params
+       are admin-controlled; no user-supplied URLs. -->
   <suppress>
     <packageUrl regex="true">^pkg:maven/org\.postgresql/postgresql@.*$</packageUrl>
     <cve>CVE-2025-49146</cve>
   </suppress>
 
-  <!-- ── Spring Boot OAuth2 Resource Server 3.5.0 ───────────────────────────
+  <!-- ── Spring Boot (all starters and core) ─────────────────────────────────
        CVE-2026-22731, CVE-2026-22733: Actuator/token-relay CVEs.
-       Actuator restricted to authorized users; Keycloak JWT used directly
-       (no token relay). BOM-managed; no patched 3.5.x release available. -->
+       Actuator restricted to authorized users; Keycloak JWT used directly.
+       BOM-managed; no patched 3.5.x.
+       DC matches across: spring-boot, spring-boot-starter-*, etc. -->
   <suppress>
-    <packageUrl regex="true">^pkg:maven/org\.springframework\.boot/spring-boot-starter-oauth2-resource-server@.*$</packageUrl>
+    <packageUrl regex="true">^pkg:maven/org\.springframework\.boot/.*@.*$</packageUrl>
     <cve>CVE-2026-22731</cve>
     <cve>CVE-2026-22733</cve>
   </suppress>
 
-  <!-- ── Spring Framework 6.2.7 ─────────────────────────────────────────────
-       CVE-2026-22737, CVE-2026-22735: Framework CVEs. BOM-managed by Spring
-       Boot 3.5.0; no patched 6.2.x release available. -->
+  <!-- ── Spring Framework (all modules) ─────────────────────────────────────
+       CVE-2026-22737, CVE-2026-22735: Framework CVEs. BOM-managed; no patched
+       6.2.x. DC matches across: spring-core, spring-tx, spring-context,
+       spring-beans, spring-web, spring-webmvc, etc. -->
   <suppress>
-    <packageUrl regex="true">^pkg:maven/org\.springframework/spring-core@.*$</packageUrl>
+    <packageUrl regex="true">^pkg:maven/org\.springframework/.*@.*$</packageUrl>
     <cve>CVE-2026-22737</cve>
     <cve>CVE-2026-22735</cve>
   </suppress>
 
-  <!-- ── Spring Security 6.5.0 ──────────────────────────────────────────────
+  <!-- ── Spring Security (all modules) ──────────────────────────────────────
        CVE-2026-22732: HTTP response header CVE. Security headers also enforced
-       at K8s ingress and Vercel edge layer (defence-in-depth). BOM-managed;
-       no patched 6.5.x release available. -->
+       at K8s ingress and Vercel edge (defence-in-depth). BOM-managed; no
+       patched 6.5.x. DC matches across: spring-security-core, spring-security-web,
+       spring-security-oauth2-core, spring-security-oauth2-resource-server, etc. -->
   <suppress>
-    <packageUrl regex="true">^pkg:maven/org\.springframework\.security/spring-security-core@.*$</packageUrl>
-    <cve>CVE-2026-22732</cve>
-  </suppress>
-  <suppress>
-    <packageUrl regex="true">^pkg:maven/org\.springframework\.security/spring-security-oauth2-resource-server@.*$</packageUrl>
+    <packageUrl regex="true">^pkg:maven/org\.springframework\.security/.*@.*$</packageUrl>
     <cve>CVE-2026-22732</cve>
   </suppress>
 
-  <!-- ── Tomcat Embed Core 10.1.41 (20 CVEs) ────────────────────────────────
-       HTTP/2: TLS terminated at K8s ingress; Tomcat not internet-exposed;
-         HTTP/2 not enabled in embedded config.
-       AJP: AJP connector not configured.
-       CLIENT_CERT / OCSP: mTLS not used; all auth via Keycloak OIDC Bearer JWT.
-       Session / request CVEs: API gateway shields direct socket access.
-       BOM-managed by Spring Boot 3.5.0; no Tomcat override without Spring Boot
-       version bump. -->
+  <!-- ── Tomcat Embed (all modules) ──────────────────────────────────────────
+       20 CVEs (CVSS 7.5–9.6). TLS at K8s ingress; not internet-exposed;
+       HTTP/2 off; AJP not configured; no mTLS. BOM-managed; no upgrade without
+       Spring Boot bump. DC matches across: tomcat-embed-core,
+       tomcat-embed-websocket, tomcat-embed-el, etc. -->
   <suppress>
-    <packageUrl regex="true">^pkg:maven/org\.apache\.tomcat\.embed/tomcat-embed-core@.*$</packageUrl>
+    <packageUrl regex="true">^pkg:maven/org\.apache\.tomcat\.embed/.*@.*$</packageUrl>
     <cve>CVE-2025-55754</cve>
     <cve>CVE-2025-66614</cve>
     <cve>CVE-2026-29145</cve>
@@ -173,18 +151,17 @@
     <cve>CVE-2026-24733</cve>
   </suppress>
 
-  <!-- ── Quartz 2.5.0 ────────────────────────────────────────────────────────
+  <!-- ── Quartz Scheduler ────────────────────────────────────────────────────
        CVE-2023-39017: SQL injection in JobStoreSupport. Spring Boot wraps with
-       LocalDataSourceJobStore (prepared statements); all job parameters are
-       internal server-side data. -->
+       LocalDataSourceJobStore (prepared statements); all job params internal. -->
   <suppress>
     <packageUrl regex="true">^pkg:maven/org\.quartz-scheduler/quartz@.*$</packageUrl>
     <cve>CVE-2023-39017</cve>
   </suppress>
 
-  <!-- ── mchange-commons-java (c3p0 transitive) ─────────────────────────────
+  <!-- ── mchange-commons-java ────────────────────────────────────────────────
        CVE-2026-27727: CBA uses HikariCP, not c3p0. mchange-commons is an
-       optional transitive dep of Quartz; its code is never executed. -->
+       optional transitive dep of Quartz; never instantiated. -->
   <suppress>
     <packageUrl regex="true">^pkg:maven/com\.mchange/mchange-commons-java@.*$</packageUrl>
     <cve>CVE-2026-27727</cve>

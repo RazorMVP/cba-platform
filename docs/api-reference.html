@@ -3619,9 +3619,9 @@ Content-Type: application/json
 <tr><td>GET</td><td>/api/v1/partners/{orgId}/webhooks</td><td>List active webhooks for the organisation</td><td>Partner JWT</td></tr>
 <tr><td>POST</td><td>/api/v1/partners/{orgId}/webhooks</td><td>Register a new webhook (name, callbackUrl, events, secret)</td><td>Partner JWT</td></tr>
 <tr><td>DELETE</td><td>/api/v1/partners/{orgId}/webhooks/{webhookId}</td><td>Deregister (soft-delete) a webhook</td><td>Partner JWT</td></tr>
-<tr><td>GET</td><td>/api/v1/partners/{orgId}/webhooks/{webhookId}/deliveries</td><td>Delivery log for a webhook (stub — returns empty list)</td><td>Partner JWT</td></tr>
-<tr><td>GET</td><td>/api/v1/partners/{orgId}/consents</td><td>List Open Banking consents for the partner (stub)</td><td>Partner JWT</td></tr>
-<tr><td>DELETE</td><td>/api/v1/partners/{orgId}/consents/{consentId}</td><td>Revoke a consent (stub — 204)</td><td>Partner JWT</td></tr>
+<tr><td>GET</td><td>/api/v1/partners/{orgId}/webhooks/{webhookId}/deliveries</td><td>Delivery log for a webhook — real DELIVERED/FAILED records with retry metadata</td><td>Partner JWT</td></tr>
+<tr><td>GET</td><td>/api/v1/partners/{orgId}/consents</td><td>List Open Banking consents linked to partner (tppClientId = orgId)</td><td>Partner JWT</td></tr>
+<tr><td>DELETE</td><td>/api/v1/partners/{orgId}/consents/{consentId}</td><td>Revoke a partner consent (sets status = REVOKED)</td><td>Partner JWT</td></tr>
 <tr><td>PUT</td><td>/api/v1/partners/{orgId}</td><td>Update organisation name and website</td><td>Partner JWT</td></tr>
 <tr><td>PUT</td><td>/api/v1/partners/users/{userId}</td><td>Update partner user email address</td><td>Partner JWT</td></tr>
 <tr><td>POST</td><td>/api/v1/partners/users/{userId}/change-password</td><td>Change partner user password (requires current password)</td><td>Partner JWT</td></tr>
@@ -3936,7 +3936,7 @@ Content-Type: application/json
 <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners/{orgId}/webhooks</code></td><td>Partner JWT</td><td>List active webhooks for the organisation; includes name, callbackUrl, events array, createdAt</td></tr>
 <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/{orgId}/webhooks</code></td><td>Partner JWT</td><td>Register a new webhook; returns created entity with id — secret stored but not returned after creation</td></tr>
 <tr><td><span class="badge badge-delete">DELETE</span></td><td><code>/api/v1/partners/{orgId}/webhooks/{webhookId}</code></td><td>Partner JWT</td><td>Deregister webhook (sets <code>active=false</code>); returns 204 No Content</td></tr>
-<tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners/{orgId}/webhooks/{webhookId}/deliveries</code></td><td>Partner JWT</td><td>Delivery log for a webhook (stub — returns empty list; async delivery dispatch will be wired in a future session)</td></tr>
+<tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners/{orgId}/webhooks/{webhookId}/deliveries</code></td><td>Partner JWT</td><td>Delivery log for the webhook — returns list of <code>DeliveryResponse</code> records ordered by <code>createdAt DESC</code>; fields: <code>id, eventType, deliveryUuid, status (PENDING|DELIVERED|FAILED), httpStatus, attemptCount, lastAttemptAt, createdAt</code></td></tr>
 </tbody>
 </table>
 
@@ -3950,12 +3950,13 @@ Content-Type: application/json
 </tbody>
 </table>
 
-<h3>Consents (Open Banking) <span style="font-size:.75rem;font-weight:400;color:#888;background:#f3f4f6;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Stub</span></h3>
+<h3>Consents (Open Banking) <span style="font-size:.75rem;font-weight:400;color:#15803d;background:#dcfce7;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Session 115</span></h3>
+<p>Consents are linked to partner organisations by convention: the <code>tppClientId</code> field on <code>OpenBankingConsent</code> must equal the partner's <code>orgId</code> (UUID string). Partners set this when initiating consent via the Open Banking API.</p>
 <table>
 <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr></thead>
 <tbody>
-<tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners/{orgId}/consents</code></td><td>Partner JWT</td><td>List Open Banking consents for the partner organisation (stub — returns empty list until TPP-to-partner mapping is added to the consent model)</td></tr>
-<tr><td><span class="badge badge-delete">DELETE</span></td><td><code>/api/v1/partners/{orgId}/consents/{consentId}</code></td><td>Partner JWT</td><td>Revoke a consent on behalf of the partner (stub — returns 204; does not yet update the consent record)</td></tr>
+<tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners/{orgId}/consents</code></td><td>Partner JWT</td><td>List all Open Banking consents where <code>tppClientId = orgId</code>, ordered by <code>createdAt DESC</code>. Returns: <code>id, consentId, status, scopes[], expiryDate, createdAt</code>. Returns 404 if org not found.</td></tr>
+<tr><td><span class="badge badge-delete">DELETE</span></td><td><code>/api/v1/partners/{orgId}/consents/{consentId}</code></td><td>Partner JWT</td><td>Revoke a consent — sets <code>status = REVOKED</code>. Returns 404 if consent not found or <code>tppClientId</code> does not match <code>orgId</code> (prevents enumeration).</td></tr>
 </tbody>
 </table>
 

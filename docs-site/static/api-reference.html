@@ -2594,6 +2594,42 @@ Content-Type: application/json
 </table>
 </section>
 
+<!-- TRIAL BALANCE — Session 113 ─────────────────────────────────────────── -->
+<section id="trial-balance">
+<h2>Trial Balance <span style="font-size:.75rem;font-weight:400;color:#1d4ed8;background:#dbeafe;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Session 113</span></h2>
+<p>Generates a full trial balance for a given date range. Returns per-GL-account opening balance (movements before <code>fromDate</code>), debit movement, credit movement, and closing balance. Accounts are grouped by type (ASSET → LIABILITY → EQUITY → INCOME → EXPENSE). The <code>balanced</code> flag confirms Σ debits = Σ credits for the period — a mismatch indicates missing or asymmetric journal entries.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/accounting/trial-balance</td><td>Generate trial balance — query params: <code>fromDate</code> (YYYY-MM-DD), <code>toDate</code> (YYYY-MM-DD)</td><td>ADMIN, TELLER</td></tr>
+</table>
+<h4>Response shape</h4>
+<pre><code>{
+  "data": {
+    "fromDate": "2026-04-01",
+    "toDate": "2026-04-25",
+    "rows": [
+      {
+        "glCode": "1001",
+        "accountName": "Cash at Bank",
+        "accountType": "ASSET",
+        "openingBalance": 1500000.0000,
+        "debitMovement": 250000.0000,
+        "creditMovement": 80000.0000,
+        "closingBalance": 1670000.0000
+      }
+    ],
+    "totalDebitMovement": 250000.0000,
+    "totalCreditMovement": 250000.0000,
+    "totalClosingDebit": 1670000.0000,
+    "totalClosingCredit": 1670000.0000,
+    "balanced": true
+  },
+  "meta": {},
+  "errors": []
+}</code></pre>
+<p><strong>Notes:</strong> Only <code>DETAIL</code>-usage, non-disabled GL accounts appear. <code>openingBalance</code> is net (positive = net debit, negative = net credit) of all non-reversed journal entries before <code>fromDate</code>. <code>closingBalance = openingBalance + debitMovement − creditMovement</code>.</p>
+</section>
+
 <!-- PROVISIONING CRITERIA ───────────────────────────────────────────────── -->
 <section id="provisioning-criteria">
 <h2>Provisioning Criteria</h2>
@@ -3331,6 +3367,8 @@ Content-Type: application/json
 <tr><td>POST</td><td>/api/v1/accountingrules</td><td>Create accounting rule</td><td>ADMIN</td></tr>
 <tr><td>PUT</td><td>/api/v1/accountingrules/{id}</td><td>Update accounting rule</td><td>ADMIN</td></tr>
 <tr><td>DELETE</td><td>/api/v1/accountingrules/{id}</td><td>Delete accounting rule</td><td>ADMIN</td></tr>
+<!-- Trial Balance — Session 113 -->
+<tr><td>GET</td><td>/api/v1/accounting/trial-balance</td><td>Generate trial balance for date range</td><td>ADMIN, TELLER</td></tr>
 <!-- Provisioning Criteria -->
 <tr><td>GET</td><td>/api/v1/provisioningcriteria</td><td>List provisioning criteria</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/provisioningcriteria</td><td>Create criteria + definitions</td><td>ADMIN</td></tr>
@@ -3577,6 +3615,16 @@ Content-Type: application/json
 <tr><td>GET</td><td>/api/v1/partners/usage</td><td>Aggregate usage across all partners; ?days=30</td><td>ADMIN (Keycloak)</td></tr>
 <tr><td>POST</td><td>/api/v1/partners/{orgId}/approve</td><td>Approve production promotion</td><td>ADMIN (Keycloak)</td></tr>
 <tr><td>POST</td><td>/api/v1/partners/{orgId}/reject</td><td>Reject production application</td><td>ADMIN (Keycloak)</td></tr>
+<!-- Partner Portal API — Session 112 -->
+<tr><td>GET</td><td>/api/v1/partners/{orgId}/webhooks</td><td>List active webhooks for the organisation</td><td>Partner JWT</td></tr>
+<tr><td>POST</td><td>/api/v1/partners/{orgId}/webhooks</td><td>Register a new webhook (name, callbackUrl, events, secret)</td><td>Partner JWT</td></tr>
+<tr><td>DELETE</td><td>/api/v1/partners/{orgId}/webhooks/{webhookId}</td><td>Deregister (soft-delete) a webhook</td><td>Partner JWT</td></tr>
+<tr><td>GET</td><td>/api/v1/partners/{orgId}/webhooks/{webhookId}/deliveries</td><td>Delivery log for a webhook — real DELIVERED/FAILED records with retry metadata</td><td>Partner JWT</td></tr>
+<tr><td>GET</td><td>/api/v1/partners/{orgId}/consents</td><td>List Open Banking consents linked to partner (tppClientId = orgId)</td><td>Partner JWT</td></tr>
+<tr><td>DELETE</td><td>/api/v1/partners/{orgId}/consents/{consentId}</td><td>Revoke a partner consent (sets status = REVOKED)</td><td>Partner JWT</td></tr>
+<tr><td>PUT</td><td>/api/v1/partners/{orgId}</td><td>Update organisation name and website</td><td>Partner JWT</td></tr>
+<tr><td>PUT</td><td>/api/v1/partners/users/{userId}</td><td>Update partner user email address</td><td>Partner JWT</td></tr>
+<tr><td>POST</td><td>/api/v1/partners/users/{userId}/change-password</td><td>Change partner user password (requires current password)</td><td>Partner JWT</td></tr>
 </table>
 
 <h3>Planned (Not Yet Implemented)</h3>
@@ -3881,6 +3929,37 @@ Content-Type: application/json
 </tbody>
 </table>
 
+<h3>Webhook Management <span style="font-size:.75rem;font-weight:400;color:#1d4ed8;background:#dbeafe;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Session 112</span></h3>
+<table>
+<thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners/{orgId}/webhooks</code></td><td>Partner JWT</td><td>List active webhooks for the organisation; includes name, callbackUrl, events array, createdAt</td></tr>
+<tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/{orgId}/webhooks</code></td><td>Partner JWT</td><td>Register a new webhook; returns created entity with id — secret stored but not returned after creation</td></tr>
+<tr><td><span class="badge badge-delete">DELETE</span></td><td><code>/api/v1/partners/{orgId}/webhooks/{webhookId}</code></td><td>Partner JWT</td><td>Deregister webhook (sets <code>active=false</code>); returns 204 No Content</td></tr>
+<tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners/{orgId}/webhooks/{webhookId}/deliveries</code></td><td>Partner JWT</td><td>Delivery log for the webhook — returns list of <code>DeliveryResponse</code> records ordered by <code>createdAt DESC</code>; fields: <code>id, eventType, deliveryUuid, status (PENDING|DELIVERED|FAILED), httpStatus, attemptCount, lastAttemptAt, createdAt</code></td></tr>
+</tbody>
+</table>
+
+<h3>Organisation &amp; User Settings <span style="font-size:.75rem;font-weight:400;color:#1d4ed8;background:#dbeafe;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Session 112</span></h3>
+<table>
+<thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><span class="badge badge-put">PUT</span></td><td><code>/api/v1/partners/{orgId}</code></td><td>Partner JWT</td><td>Update organisation name and website URL</td></tr>
+<tr><td><span class="badge badge-put">PUT</span></td><td><code>/api/v1/partners/users/{userId}</code></td><td>Partner JWT</td><td>Update partner user email address</td></tr>
+<tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/users/{userId}/change-password</code></td><td>Partner JWT</td><td>Change partner user password; requires <code>currentPassword</code> for verification before updating BCrypt hash</td></tr>
+</tbody>
+</table>
+
+<h3>Consents (Open Banking) <span style="font-size:.75rem;font-weight:400;color:#15803d;background:#dcfce7;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Session 115</span></h3>
+<p>Consents are linked to partner organisations by convention: the <code>tppClientId</code> field on <code>OpenBankingConsent</code> must equal the partner's <code>orgId</code> (UUID string). Partners set this when initiating consent via the Open Banking API.</p>
+<table>
+<thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners/{orgId}/consents</code></td><td>Partner JWT</td><td>List all Open Banking consents where <code>tppClientId = orgId</code>, ordered by <code>createdAt DESC</code>. Returns: <code>id, consentId, status, scopes[], expiryDate, createdAt</code>. Returns 404 if org not found.</td></tr>
+<tr><td><span class="badge badge-delete">DELETE</span></td><td><code>/api/v1/partners/{orgId}/consents/{consentId}</code></td><td>Partner JWT</td><td>Revoke a consent — sets <code>status = REVOKED</code>. Returns 404 if consent not found or <code>tppClientId</code> does not match <code>orgId</code> (prevents enumeration).</td></tr>
+</tbody>
+</table>
+
 <h3>Request / Response Shapes</h3>
 <h4>POST /register</h4>
 <pre><code>// Request
@@ -3908,6 +3987,64 @@ Content-Type: application/json
 { "name": "Production Key", "scopes": ["payments:read", "accounts:read"] }
 // Response 201
 { "data": { "key": "cba_ABC123..." } }</code></pre>
+
+<h4>POST /webhooks → register webhook</h4>
+<pre><code>// Request
+{
+  "name": "Payment Events",
+  "callbackUrl": "https://fintech.io/webhooks/cba",
+  "events": ["PAYMENT.COMPLETED", "PAYMENT.FAILED", "CONSENT.REVOKED"],
+  "secret": "my-hmac-secret"
+}
+// Response 201
+{
+  "data": {
+    "id": "uuid",
+    "name": "Payment Events",
+    "callbackUrl": "https://fintech.io/webhooks/cba",
+    "events": ["PAYMENT.COMPLETED", "PAYMENT.FAILED", "CONSENT.REVOKED"],
+    "active": true,
+    "createdAt": "2026-04-25T12:00:00Z"
+  }
+}</code></pre>
+
+<h4>PUT /{orgId} → update organisation</h4>
+<pre><code>// Request
+{ "organizationName": "FinTech Ltd v2", "website": "https://fintech.io" }
+// Response 200
+{ "data": { "id": "uuid", "organizationName": "FinTech Ltd v2", "website": "https://fintech.io" } }</code></pre>
+
+<h4>POST /users/{userId}/change-password</h4>
+<pre><code>// Request
+{ "currentPassword": "OldPass@1", "newPassword": "NewPass@2" }
+// Response 200
+{ "data": null, "meta": {}, "errors": [] }
+// Error 400 — wrong current password
+{ "data": null, "errors": [{ "code": "INVALID_PASSWORD", "message": "Current password is incorrect" }] }</code></pre>
+
+<h4>Supported Partner Webhook Events</h4>
+<table>
+<thead><tr><th>Category</th><th>Event</th><th>Trigger</th></tr></thead>
+<tbody>
+<tr><td>Consent</td><td><code>CONSENT.CREATED</code></td><td>New Open Banking consent created</td></tr>
+<tr><td>Consent</td><td><code>CONSENT.AUTHORISED</code></td><td>Consent authorised by PSU</td></tr>
+<tr><td>Consent</td><td><code>CONSENT.REVOKED</code></td><td>Consent revoked by PSU or TPP</td></tr>
+<tr><td>Consent</td><td><code>CONSENT.EXPIRED</code></td><td>Consent reached expiry date</td></tr>
+<tr><td>Payment</td><td><code>PAYMENT.INITIATED</code></td><td>PISP payment initiation accepted</td></tr>
+<tr><td>Payment</td><td><code>PAYMENT.COMPLETED</code></td><td>Payment completed successfully</td></tr>
+<tr><td>Payment</td><td><code>PAYMENT.FAILED</code></td><td>Payment failed (insufficient funds, timeout, etc.)</td></tr>
+<tr><td>Payment</td><td><code>PAYMENT.REVERSED</code></td><td>Payment reversed</td></tr>
+<tr><td>Funds</td><td><code>FUNDS.CONFIRMED</code></td><td>CBPII funds confirmation check performed</td></tr>
+<tr><td>Account</td><td><code>ACCOUNT.ACCESS_GRANTED</code></td><td>AISP consent granted for account access</td></tr>
+<tr><td>Account</td><td><code>ACCOUNT.BALANCE_UPDATED</code></td><td>Account balance changed materially</td></tr>
+<tr><td>Application</td><td><code>APPLICATION.APPROVED</code></td><td>Production upgrade application approved</td></tr>
+<tr><td>Application</td><td><code>APPLICATION.REJECTED</code></td><td>Production upgrade application rejected</td></tr>
+<tr><td>API Key</td><td><code>API_KEY.CREATED</code></td><td>New API key issued</td></tr>
+<tr><td>API Key</td><td><code>API_KEY.REVOKED</code></td><td>API key revoked</td></tr>
+<tr><td>Rate Limit</td><td><code>RATE_LIMIT.WARNING</code></td><td>Partner approaching tier rate limit (80% threshold)</td></tr>
+<tr><td>Rate Limit</td><td><code>RATE_LIMIT.EXCEEDED</code></td><td>Partner rate limit exceeded; requests returning 429</td></tr>
+</tbody>
+</table>
 </section>
 
 </main>

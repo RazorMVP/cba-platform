@@ -24026,19 +24026,25 @@
                 "deliveries"
               ]
             },
-            "description": "Delivery log for a webhook. Stub \u2014 returns empty list. Async delivery dispatch will be wired in a future session."
+            "description": "Delivery log for a webhook. Returns list of delivery attempts ordered by createdAt DESC.\n\nEach record contains: id, eventType, deliveryUuid (idempotency key), status (PENDING|DELIVERED|FAILED), httpStatus (HTTP response code from partner endpoint), attemptCount, lastAttemptAt, createdAt.\n\nFailed deliveries are retried with exponential backoff: 15s → 60s → 5m → 30m → 2h (5 attempts max). After 5 failures the delivery is marked FAILED permanently."
           },
           "response": [
             {
-              "name": "200 OK (stub)",
+              "name": "200 OK",
               "status": "OK",
               "code": 200,
-              "body": "{\n  \"data\": [],\n  \"meta\": {},\n  \"errors\": []\n}"
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"a1b2c3d4-...\",\n      \"eventType\": \"CONSENT.AUTHORISED\",\n      \"deliveryUuid\": \"dlv_abc123\",\n      \"status\": \"DELIVERED\",\n      \"httpStatus\": 200,\n      \"attemptCount\": 1,\n      \"lastAttemptAt\": \"2026-04-25T14:00:00Z\",\n      \"createdAt\": \"2026-04-25T14:00:00Z\"\n    },\n    {\n      \"id\": \"b2c3d4e5-...\",\n      \"eventType\": \"PAYMENT.COMPLETED\",\n      \"deliveryUuid\": \"dlv_def456\",\n      \"status\": \"FAILED\",\n      \"httpStatus\": 503,\n      \"attemptCount\": 3,\n      \"lastAttemptAt\": \"2026-04-25T13:30:00Z\",\n      \"createdAt\": \"2026-04-25T13:00:00Z\"\n    }\n  ],\n  \"meta\": {},\n  \"errors\": []\n}"
+            },
+            {
+              "name": "404 Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{\"code\": \"WEBHOOK_NOT_FOUND\", \"message\": \"Webhook not found\"}]\n}"
             }
           ]
         },
         {
-          "name": "List Consents (stub)",
+          "name": "List Consents",
           "request": {
             "method": "GET",
             "header": [
@@ -24061,19 +24067,31 @@
                 "consents"
               ]
             },
-            "description": "List Open Banking consents for the partner organisation. Stub \u2014 returns empty list until TPP-to-partner mapping is added to the consent model."
+            "description": "List all Open Banking consents where tppClientId equals the partner orgId, ordered by createdAt DESC.\n\nLinking convention: when a partner initiates an Open Banking consent via /open-banking/v3.1/consents, they must set tppClientId = orgId (UUID string). The platform uses this field to associate consents with partner organisations.\n\nReturns: id, consentId, status (AWAITING_AUTHORISATION|AUTHORISED|REVOKED), scopes[], expiryDate, createdAt.\n\nReturns 404 if the partner organisation does not exist."
           },
           "response": [
             {
-              "name": "200 OK (stub)",
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"c3d4e5f6-...\",\n      \"consentId\": \"urn:cba:consent:abc123\",\n      \"status\": \"AUTHORISED\",\n      \"scopes\": [\"accounts_read\", \"transactions_read\"],\n      \"expiryDate\": \"2027-04-25T00:00:00Z\",\n      \"createdAt\": \"2026-04-25T10:00:00Z\"\n    }\n  ],\n  \"meta\": {},\n  \"errors\": []\n}"
+            },
+            {
+              "name": "200 OK (empty — no consents linked)",
               "status": "OK",
               "code": 200,
               "body": "{\n  \"data\": [],\n  \"meta\": {},\n  \"errors\": []\n}"
+            },
+            {
+              "name": "404 Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{\"code\": \"PARTNER_ORG_NOT_FOUND\", \"message\": \"Partner organisation not found\"}]\n}"
             }
           ]
         },
         {
-          "name": "Revoke Consent (stub)",
+          "name": "Revoke Consent",
           "request": {
             "method": "DELETE",
             "header": [
@@ -24097,14 +24115,20 @@
                 "{{consentId}}"
               ]
             },
-            "description": "Revoke a consent on behalf of the partner. Stub \u2014 returns 204 without updating the consent record."
+            "description": "Revoke a consent on behalf of the partner organisation. Sets consent status to REVOKED.\n\nSecurity: returns 404 (not 403) when the consent's tppClientId does not match orgId — prevents enumeration attacks.\n\nReturns 204 No Content on success."
           },
           "response": [
             {
-              "name": "204 No Content (stub)",
+              "name": "204 No Content",
               "status": "No Content",
               "code": 204,
               "body": ""
+            },
+            {
+              "name": "404 Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{\"code\": \"CONSENT_NOT_FOUND\", \"message\": \"Consent not found or does not belong to this organisation\"}]\n}"
             }
           ]
         },

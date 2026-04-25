@@ -10305,6 +10305,51 @@
             "description": ""
           },
           "response": []
+        },
+        {
+          "name": "Trial Balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/accounting/trial-balance?fromDate=2026-04-01&toDate=2026-04-25",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounting",
+                "trial-balance"
+              ],
+              "query": [
+                {
+                  "key": "fromDate",
+                  "value": "2026-04-01",
+                  "description": "Period start date (YYYY-MM-DD)"
+                },
+                {
+                  "key": "toDate",
+                  "value": "2026-04-25",
+                  "description": "Period end date (YYYY-MM-DD)"
+                }
+              ]
+            },
+            "description": "Generate a trial balance for a date range. Returns opening balance (movements before fromDate), debit/credit movements within the period, and closing balance per GL account, grouped by account type (ASSET\u2192LIABILITY\u2192EQUITY\u2192INCOME\u2192EXPENSE). The `balanced` flag confirms \u03a3 debits = \u03a3 credits."
+          },
+          "response": [
+            {
+              "name": "200 OK \u2014 Balanced trial balance",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"fromDate\": \"2026-04-01\",\n    \"toDate\": \"2026-04-25\",\n    \"rows\": [\n      {\n        \"glCode\": \"1001\",\n        \"accountName\": \"Cash at Bank\",\n        \"accountType\": \"ASSET\",\n        \"openingBalance\": 1500000.0,\n        \"debitMovement\": 250000.0,\n        \"creditMovement\": 80000.0,\n        \"closingBalance\": 1670000.0\n      },\n      {\n        \"glCode\": \"4001\",\n        \"accountName\": \"Interest Income\",\n        \"accountType\": \"INCOME\",\n        \"openingBalance\": -120000.0,\n        \"debitMovement\": 0.0,\n        \"creditMovement\": 50000.0,\n        \"closingBalance\": -170000.0\n      }\n    ],\n    \"totalDebitMovement\": 250000.0,\n    \"totalCreditMovement\": 250000.0,\n    \"totalClosingDebit\": 1670000.0,\n    \"totalClosingCredit\": 1670000.0,\n    \"balanced\": true\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            }
+          ]
         }
       ]
     },
@@ -23837,6 +23882,391 @@
               "status": "OK",
               "code": 200,
               "body": "{\"data\":null,\"meta\":{},\"errors\":[]}"
+            }
+          ]
+        },
+        {
+          "name": "List Webhooks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{partnerJwt}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/partners/{{orgId}}/webhooks",
+              "host": [
+                "http://localhost:8080"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "{{orgId}}",
+                "webhooks"
+              ]
+            },
+            "description": "List all active webhooks registered by the partner organisation."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"uuid\",\n      \"name\": \"Payment Events\",\n      \"callbackUrl\": \"https://fintech.io/webhooks/cba\",\n      \"events\": [\n        \"PAYMENT.COMPLETED\",\n        \"PAYMENT.FAILED\"\n      ],\n      \"active\": true,\n      \"createdAt\": \"2026-04-25T12:00:00Z\"\n    }\n  ],\n  \"meta\": {},\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Register Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{partnerJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Payment Events\",\n  \"callbackUrl\": \"https://fintech.io/webhooks/cba\",\n  \"events\": [\n    \"PAYMENT.COMPLETED\",\n    \"PAYMENT.FAILED\",\n    \"CONSENT.REVOKED\"\n  ],\n  \"secret\": \"my-hmac-secret\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/partners/{{orgId}}/webhooks",
+              "host": [
+                "http://localhost:8080"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "{{orgId}}",
+                "webhooks"
+              ]
+            },
+            "description": "Register a new webhook. The secret is stored server-side for HMAC delivery signing."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"data\": {\n    \"id\": \"uuid\",\n    \"name\": \"Payment Events\",\n    \"callbackUrl\": \"https://fintech.io/webhooks/cba\",\n    \"events\": [\n      \"PAYMENT.COMPLETED\",\n      \"PAYMENT.FAILED\",\n      \"CONSENT.REVOKED\"\n    ],\n    \"active\": true,\n    \"createdAt\": \"2026-04-25T12:00:00Z\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Deregister Webhook",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{partnerJwt}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/partners/{{orgId}}/webhooks/{{webhookId}}",
+              "host": [
+                "http://localhost:8080"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "{{orgId}}",
+                "webhooks",
+                "{{webhookId}}"
+              ]
+            },
+            "description": "Soft-delete a webhook (sets active=false). Returns 204 No Content."
+          },
+          "response": [
+            {
+              "name": "204 No Content",
+              "status": "No Content",
+              "code": 204,
+              "body": ""
+            }
+          ]
+        },
+        {
+          "name": "Get Webhook Deliveries",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{partnerJwt}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/partners/{{orgId}}/webhooks/{{webhookId}}/deliveries",
+              "host": [
+                "http://localhost:8080"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "{{orgId}}",
+                "webhooks",
+                "{{webhookId}}",
+                "deliveries"
+              ]
+            },
+            "description": "Delivery log for a webhook. Returns list of delivery attempts ordered by createdAt DESC.\n\nEach record contains: id, eventType, deliveryUuid (idempotency key), status (PENDING|DELIVERED|FAILED), httpStatus (HTTP response code from partner endpoint), attemptCount, lastAttemptAt, createdAt.\n\nFailed deliveries are retried with exponential backoff: 15s → 60s → 5m → 30m → 2h (5 attempts max). After 5 failures the delivery is marked FAILED permanently."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"a1b2c3d4-...\",\n      \"eventType\": \"CONSENT.AUTHORISED\",\n      \"deliveryUuid\": \"dlv_abc123\",\n      \"status\": \"DELIVERED\",\n      \"httpStatus\": 200,\n      \"attemptCount\": 1,\n      \"lastAttemptAt\": \"2026-04-25T14:00:00Z\",\n      \"createdAt\": \"2026-04-25T14:00:00Z\"\n    },\n    {\n      \"id\": \"b2c3d4e5-...\",\n      \"eventType\": \"PAYMENT.COMPLETED\",\n      \"deliveryUuid\": \"dlv_def456\",\n      \"status\": \"FAILED\",\n      \"httpStatus\": 503,\n      \"attemptCount\": 3,\n      \"lastAttemptAt\": \"2026-04-25T13:30:00Z\",\n      \"createdAt\": \"2026-04-25T13:00:00Z\"\n    }\n  ],\n  \"meta\": {},\n  \"errors\": []\n}"
+            },
+            {
+              "name": "404 Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{\"code\": \"WEBHOOK_NOT_FOUND\", \"message\": \"Webhook not found\"}]\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Consents",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{partnerJwt}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/partners/{{orgId}}/consents",
+              "host": [
+                "http://localhost:8080"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "{{orgId}}",
+                "consents"
+              ]
+            },
+            "description": "List all Open Banking consents where tppClientId equals the partner orgId, ordered by createdAt DESC.\n\nLinking convention: when a partner initiates an Open Banking consent via /open-banking/v3.1/consents, they must set tppClientId = orgId (UUID string). The platform uses this field to associate consents with partner organisations.\n\nReturns: id, consentId, status (AWAITING_AUTHORISATION|AUTHORISED|REVOKED), scopes[], expiryDate, createdAt.\n\nReturns 404 if the partner organisation does not exist."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"c3d4e5f6-...\",\n      \"consentId\": \"urn:cba:consent:abc123\",\n      \"status\": \"AUTHORISED\",\n      \"scopes\": [\"accounts_read\", \"transactions_read\"],\n      \"expiryDate\": \"2027-04-25T00:00:00Z\",\n      \"createdAt\": \"2026-04-25T10:00:00Z\"\n    }\n  ],\n  \"meta\": {},\n  \"errors\": []\n}"
+            },
+            {
+              "name": "200 OK (empty — no consents linked)",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [],\n  \"meta\": {},\n  \"errors\": []\n}"
+            },
+            {
+              "name": "404 Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{\"code\": \"PARTNER_ORG_NOT_FOUND\", \"message\": \"Partner organisation not found\"}]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Revoke Consent",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{partnerJwt}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/partners/{{orgId}}/consents/{{consentId}}",
+              "host": [
+                "http://localhost:8080"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "{{orgId}}",
+                "consents",
+                "{{consentId}}"
+              ]
+            },
+            "description": "Revoke a consent on behalf of the partner organisation. Sets consent status to REVOKED.\n\nSecurity: returns 404 (not 403) when the consent's tppClientId does not match orgId — prevents enumeration attacks.\n\nReturns 204 No Content on success."
+          },
+          "response": [
+            {
+              "name": "204 No Content",
+              "status": "No Content",
+              "code": 204,
+              "body": ""
+            },
+            {
+              "name": "404 Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{\"code\": \"CONSENT_NOT_FOUND\", \"message\": \"Consent not found or does not belong to this organisation\"}]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Organisation",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{partnerJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationName\": \"FinTech Ltd v2\",\n  \"website\": \"https://fintech.io\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/partners/{{orgId}}",
+              "host": [
+                "http://localhost:8080"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "{{orgId}}"
+              ]
+            },
+            "description": "Update organisation name and website URL."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": \"uuid\",\n    \"organizationName\": \"FinTech Ltd v2\",\n    \"website\": \"https://fintech.io\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update User Email",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{partnerJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"new@fintech.io\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/partners/users/{{userId}}",
+              "host": [
+                "http://localhost:8080"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "users",
+                "{{userId}}"
+              ]
+            },
+            "description": "Update the email address of a partner user."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": \"uuid\",\n    \"email\": \"new@fintech.io\",\n    \"role\": \"DEVELOPER\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{partnerJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"OldPass@1\",\n  \"newPassword\": \"NewPass@2\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/partners/users/{{userId}}/change-password",
+              "host": [
+                "http://localhost:8080"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "users",
+                "{{userId}}",
+                "change-password"
+              ]
+            },
+            "description": "Change partner user password. Requires correct currentPassword for verification before updating BCrypt hash."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": []\n}"
+            },
+            {
+              "name": "400 Wrong Current Password",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"INVALID_PASSWORD\",\n      \"message\": \"Current password is incorrect\"\n    }\n  ]\n}"
             }
           ]
         }

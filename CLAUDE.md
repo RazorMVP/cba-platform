@@ -4,9 +4,9 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 110 — 2026-04-23)
+## Confirmed Platform Versions (Session 111 — 2026-04-25)
 
-These are the verified-working versions for both production components. Update this table whenever a dependency is upgraded.
+These are the verified-working versions for all production components. Update this table whenever a dependency is upgraded.
 
 ### Backend (`backend/`)
 
@@ -36,7 +36,20 @@ These are the verified-working versions for both production components. Update t
 | **TypeScript** | 5.9.x | `~5.9.2` pinned |
 | **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma) |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `fa52b4d` | Session 104 — web last changed (wallet UI not yet pushed) |
+| **Last git commit** | `ac49929` | Session 111 — favicon branding update |
+
+### Partner Portal (`partner-portal/`)
+
+| Component | Version | Notes |
+|-----------|---------|-------|
+| **React** | 19.2.5 | `react` + `react-dom` |
+| **Vite** | 8.0.9 | Build tool; `@vitejs/plugin-react` |
+| **Tailwind CSS** | 4.2.4 | CSS-first config via `@tailwindcss/vite` |
+| **TanStack Query** | 5.99.2 | Server state management |
+| **React Router** | 6.30.3 | SPA routing |
+| **TypeScript** | 6.0.x | `~6.0.2` |
+| **Vercel deployment** | `partner-portal-omega-two.vercel.app` | Production — Session 111 ✅ |
+| **Last git commit** | `d40204d` | Session 111 — eslint fix; CI green |
 
 > **Session 66 CI fixes**: Angular 21 uses Vitest (not Karma) — `--browsers=ChromeHeadless` and `--code-coverage` are invalid flags. `vercel deploy --prebuilt` requires `.vercel/output/` from `vercel build`, not `dist/` from `ng build`. All three issues fixed; CI pipeline and Vercel production deployment now fully green.
 
@@ -2810,6 +2823,15 @@ ghcr.io/{github-org}/{repo}/cba-backend:main
 ghcr.io/{github-org}/{repo}/cba-backend:develop
 ```
 Images tagged with commit SHA — Kubernetes deployments reference SHA tags for deterministic rollouts.
+
+> **GHCR lowercase gotcha (Session 111):** `github.repository_owner` returns `RazorMVP` (mixed case). Docker OCI spec requires all-lowercase registry paths. Always lowercase the owner before building the tag:
+>
+> ```bash
+> LOWER_OWNER="${REPO_OWNER,,}"
+> echo "tags=ghcr.io/${LOWER_OWNER}/..." >> "$GITHUB_OUTPUT"
+> ```
+>
+> The backend/card-service workflows avoid this by using `docker/metadata-action@v5` which handles lowercasing automatically. Any new service added with a manual tag step must apply the bash lowercase expansion.
 
 ### Kubernetes Deployment Flow
 

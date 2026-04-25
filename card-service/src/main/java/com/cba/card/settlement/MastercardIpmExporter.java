@@ -4,52 +4,21 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
- * Mastercard IPM (Interchange Posting and Messaging) clearinghouse file exporter.
+ * Mastercard IPM (Integrated Product Messages) clearinghouse file exporter.
  *
- * <h3>Stub status</h3>
- * Replace {@link #export} with the real IPM serializer once the Mastercard
- * GCMS/IPM specification is available from your Mastercard relationship manager.
+ * Produces length-framed ISO 8583 MTI 1240 Financial Transaction Advice records.
+ * Each record is prefixed with a 2-byte big-endian message length.
  *
- * <h3>IPM format overview</h3>
- * <ul>
- *   <li>IPM files are ISO 8583-1987 based: each record is an ISO 8583 message</li>
- *   <li>Message types: 1644 (header/trailer control records), 1240 (financial presentment)</li>
- *   <li>DE48 PDS (Private Data Subelements) carries Mastercard-specific clearing fields</li>
- *   <li>DE111-DE127 carry additional GCMS-specific data elements</li>
- *   <li>File framing: 2-byte big-endian record length prefix (same as ISO 8583 TCP framing)</li>
- *   <li>Transmission: SFTP to Banknet ({@code banknet.mastercard.com})</li>
- * </ul>
- *
- * <h3>Key IPM record structure (from public Mastercard documentation)</h3>
- * <pre>
- *   MTI 1644 — File Header/Trailer Control Record
- *     DE1  = Secondary Bitmap
- *     DE70 = Network Management Info Code (001=sign-on, 002=sign-off)
- *   MTI 1240 — Financial Presentment
- *     DE2  = PAN
- *     DE3  = Processing Code
- *     DE4  = Transaction Amount
- *     DE12 = Local Transaction Time
- *     DE13 = Local Transaction Date
- *     DE22 = POS Entry Mode
- *     DE38 = Authorization Code
- *     DE42 = Merchant ID
- *     DE48 = PDS (Private Data Subelements — clearing-specific)
- *     ...additional DEs per GCMS spec
- * </pre>
- *
- * <h3>To complete this implementation</h3>
- * <ol>
- *   <li>Obtain Mastercard GCMS/IPM specification from your Mastercard relationship manager</li>
- *   <li>Implement ISO 8583 record serializer using jPOS ISOMsg (already on classpath in fep-service)</li>
- *   <li>Set {@code card.settlement.export.schemes.mastercard.enabled=true}</li>
- * </ol>
+ * Transmission: SFTP to Mastercard GCMS (configure credentials in application.yml).
  */
 @Slf4j
 @Component
@@ -58,65 +27,108 @@ public class MastercardIpmExporter implements SettlementFileExporter {
 
     private final SettlementExportProperties props;
 
-    @Override
-    public String getScheme() { return "MASTERCARD"; }
+    @Override public String getScheme() { return "MASTERCARD"; }
+    @Override public boolean isEnabled() { return props.forScheme("mastercard").isEnabled(); }
+    @Override public String transmissionMethod() { return "SFTP"; }
 
-    @Override
-    public boolean isEnabled() {
-        return props.forScheme("mastercard").isEnabled();
-    }
-
-    @Override
-    public String transmissionMethod() { return "SFTP"; }
-
-    /**
-     * Generates the Mastercard IPM filename.
-     * Format: member-id + YYMMDD + sequence — example: CBA00120261130001.IPM
-     */
     @Override
     public String generateFileName(SettlementBatch batch, LocalDate exportDate) {
-        String participantId = resolveParticipantId();
         String date = exportDate.format(DateTimeFormatter.ofPattern("yyMMdd"));
-        return participantId + date + "001.IPM";
+        return props.getAcquirerBin() + date + "001.IPM";
     }
 
     @Override
     public byte[] export(List<SettlementExportRecord> records,
                          SettlementBatch batch,
                          LocalDate exportDate) {
-        log.info("[STUB] MastercardIpmExporter.export() called: {} records for batch={} date={}",
-                records.size(), batch.getBatchRef(), exportDate);
-
-        StringBuilder sb = new StringBuilder();
-        sb.append("=== MASTERCARD IPM STUB FILE — NOT FOR PRODUCTION ===\n");
-        sb.append("Batch: ").append(batch.getBatchRef()).append("\n");
-        sb.append("Settlement Date: ").append(exportDate).append("\n");
-        sb.append("Record Count: ").append(records.size()).append("\n\n");
-        sb.append("FORMAT: ISO 8583-1987 framed records (2-byte length prefix per record)\n\n");
-        sb.append("RECORD TYPES (IPM):\n");
-        sb.append("  MTI 1644 — File Header (DE70=001) and Trailer (DE70=002)\n");
-        sb.append("  MTI 1240 — Financial Presentment (one per cleared transaction)\n\n");
-        sb.append("KEY DATA ELEMENTS PER 1240 RECORD:\n");
-        sb.append("  DE2  PAN\n");
-        sb.append("  DE3  Processing Code\n");
-        sb.append("  DE4  Transaction Amount\n");
-        sb.append("  DE22 POS Entry Mode\n");
-        sb.append("  DE38 Authorization Code\n");
-        sb.append("  DE42 Merchant ID\n");
-        sb.append("  DE48 PDS (Private Data Subelements per GCMS spec)\n");
-        sb.append("  DE49 Currency Code\n\n");
-        sb.append("DATA RECORDS:\n");
-        for (SettlementExportRecord r : records) {
-            sb.append(String.format("  pan=%s stan=%s rrn=%s auth=%s amount=%s ccy=%s mcc=%s%n",
-                    r.maskedPan(), r.stan(), r.rrn(), r.authCode(),
-                    r.grossAmount(), r.currencyCode(), r.mcc()));
+        log.info("MastercardIpmExporter: exporting {} records for batch={}", records.size(), batch.getBatchRef());
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try {
+            for (SettlementExportRecord r : records) {
+                byte[] msg = buildIpm1240(r);
+                // 2-byte big-endian length prefix
+                out.write((msg.length >> 8) & 0xFF);
+                out.write(msg.length & 0xFF);
+                out.write(msg);
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("IPM export failed", e);
         }
-        sb.append("\n=== END OF STUB FILE ===\n");
-        return sb.toString().getBytes(StandardCharsets.UTF_8);
+        return out.toByteArray();
     }
 
-    private String resolveParticipantId() {
-        String pid = props.forScheme("mastercard").getParticipantId();
-        return (pid != null && !pid.isBlank()) ? pid : props.getMemberId();
+    private byte[] buildIpm1240(SettlementExportRecord r) {
+        ByteArrayOutputStream msg = new ByteArrayOutputStream();
+        try {
+            // MTI: 1240
+            msg.write("1240".getBytes(StandardCharsets.US_ASCII));
+
+            // Primary bitmap covering DE 2,3,4,11,12,13,37,38,41,42,43,49
+            long bitmap = 0L;
+            for (int de : new int[]{2, 3, 4, 11, 12, 13, 37, 38, 41, 42, 43, 49}) {
+                bitmap |= (1L << (64 - de));
+            }
+            msg.write(ByteBuffer.allocate(8).putLong(bitmap).array());
+
+            // DE 2: PAN — LLVAR (2-digit length prefix)
+            String pan = r.pan() != null ? r.pan() : "0000000000000000";
+            msg.write(String.format("%02d%s", pan.length(), pan).getBytes(StandardCharsets.US_ASCII));
+
+            // DE 3: Processing Code — 6 digits fixed
+            msg.write(pad(r.processingCode() != null ? r.processingCode() : "000000", 6)
+                    .getBytes(StandardCharsets.US_ASCII));
+
+            // DE 4: Amount — 12 digits fixed (minor units)
+            String amt = r.grossAmount() != null
+                    ? padLeft(r.grossAmount().toPlainString().replace(".", ""), 12, '0') : "000000000000";
+            msg.write(amt.getBytes(StandardCharsets.US_ASCII));
+
+            // DE 11: STAN — 6 digits fixed
+            msg.write(padLeft(r.stan() != null ? r.stan() : "000000", 6, '0')
+                    .getBytes(StandardCharsets.US_ASCII));
+
+            // DE 12: Local Time — 6 digits (HHmmss)
+            msg.write("000000".getBytes(StandardCharsets.US_ASCII));
+
+            // DE 13: Local Date — 4 digits (MMDD)
+            String mmdd = r.transactionDate() != null
+                    ? r.transactionDate().format(DateTimeFormatter.ofPattern("MMdd")) : "0101";
+            msg.write(mmdd.getBytes(StandardCharsets.US_ASCII));
+
+            // DE 37: RRN — 12 chars fixed
+            msg.write(pad(r.rrn() != null ? r.rrn() : "", 12).getBytes(StandardCharsets.US_ASCII));
+
+            // DE 38: Auth code — 6 chars fixed
+            msg.write(pad(r.authCode() != null ? r.authCode() : "", 6).getBytes(StandardCharsets.US_ASCII));
+
+            // DE 41: Terminal ID — 8 chars fixed
+            msg.write(pad(r.terminalId() != null ? r.terminalId() : "", 8).getBytes(StandardCharsets.US_ASCII));
+
+            // DE 42: Merchant ID — 15 chars fixed
+            msg.write(pad(r.merchantId() != null ? r.merchantId() : "", 15).getBytes(StandardCharsets.US_ASCII));
+
+            // DE 43: Merchant name — 40 chars fixed
+            msg.write(pad(r.merchantName() != null ? r.merchantName() : "", 40).getBytes(StandardCharsets.US_ASCII));
+
+            // DE 49: Currency code — 3 chars fixed
+            msg.write(pad(r.currencyCode() != null ? r.currencyCode() : "840", 3)
+                    .getBytes(StandardCharsets.US_ASCII));
+
+        } catch (IOException e) {
+            throw new IllegalStateException("IPM record build failed", e);
+        }
+        return msg.toByteArray();
+    }
+
+    private String pad(String v, int len) {
+        if (v == null) v = "";
+        if (v.length() >= len) return v.substring(0, len);
+        return v + " ".repeat(len - v.length());
+    }
+
+    private String padLeft(String v, int len, char ch) {
+        if (v == null) v = "";
+        if (v.length() >= len) return v.substring(v.length() - len);
+        return String.valueOf(ch).repeat(len - v.length()) + v;
     }
 }

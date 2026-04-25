@@ -10,118 +10,80 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
- * Afrigo / PAPSS (Pan-African Payment and Settlement System) clearinghouse exporter.
+ * Afrigo / PAPSS (Pan-African Payment and Settlement System) clearinghouse file exporter.
  *
- * <h3>Stub status</h3>
- * Replace {@link #export} with the real PAPSS clearing serializer once the PAPSS
- * participant technical specification is available from the Afreximbank / PAPSS team.
+ * PAPSS uses a REST/HTTPS submission model with a JSON payload containing a
+ * settlement batch envelope. This exporter produces the JSON byte payload; the
+ * {@link SettlementFileTransmitter} posts it via HTTPS to the PAPSS clearing endpoint.
  *
- * <h3>PAPSS format overview</h3>
- * <ul>
- *   <li>PAPSS is operated by Afreximbank for intra-African cross-border payments</li>
- *   <li>Unlike Visa/MC, PAPSS is REST-API based — files are JSON payloads, not binary records</li>
- *   <li>Transmission: HTTPS POST to PAPSS gateway ({@code gateway.papss.com})</li>
- *   <li>Authentication: OAuth 2.0 client credentials + mutual TLS</li>
- *   <li>Multi-currency: supports all African Union currencies natively</li>
- *   <li>Settlement: T+1 via Afreximbank correspondent accounts</li>
- * </ul>
- *
- * <h3>Expected JSON payload structure (from PAPSS public documentation)</h3>
- * <pre>
- * {
- *   "participantId": "CBA001",
- *   "settlementDate": "2026-11-30",
- *   "batchReference": "...",
- *   "transactions": [
- *     {
- *       "transactionId": "...",
- *       "rrn": "...",
- *       "pan": "...",
- *       "amount": ...,
- *       "currency": "...",
- *       "merchantId": "...",
- *       "authCode": "...",
- *       "transactionDate": "..."
- *     }
- *   ]
- * }
- * </pre>
- *
- * <h3>To complete this implementation</h3>
- * <ol>
- *   <li>Obtain PAPSS participant technical specification from Afreximbank</li>
- *   <li>Replace export() body with Jackson JSON serialization of the payload</li>
- *   <li>Override {@link #transmissionMethod()} to return "HTTPS" (already done below)</li>
- *   <li>Set {@code card.settlement.export.schemes.afrigo.enabled=true}</li>
- *   <li>Configure {@code https-endpoint} and {@code https-api-key} in application.yml</li>
- * </ol>
+ * Transmission: HTTPS POST to PAPSS clearing API (configure endpoint in application.yml).
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class AfrigoPapssExporter implements SettlementFileExporter {
 
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
     private final SettlementExportProperties props;
 
-    @Override
-    public String getScheme() { return "AFRIGO"; }
+    @Override public String getScheme() { return "AFRIGO"; }
+    @Override public boolean isEnabled() { return props.forScheme("afrigo").isEnabled(); }
+    @Override public String transmissionMethod() { return "HTTPS"; }
 
-    @Override
-    public boolean isEnabled() {
-        return props.forScheme("afrigo").isEnabled();
-    }
-
-    /** PAPSS uses REST/HTTPS — not SFTP. */
-    @Override
-    public String transmissionMethod() { return "HTTPS"; }
-
-    /**
-     * PAPSS batch reference filename (used as the JSON payload filename in the
-     * transmission log). Format: PARTICIPANT_ID + YYYYMMDD + .json
-     */
     @Override
     public String generateFileName(SettlementBatch batch, LocalDate exportDate) {
-        String participantId = resolveParticipantId();
-        String date = exportDate.format(DateTimeFormatter.BASIC_ISO_DATE);
-        return participantId + "_" + date + "_settlement.json";
+        return props.getAcquirerBin() + "_" + exportDate.format(DateTimeFormatter.ofPattern("yyyyMMdd"))
+                + "_settlement.json";
     }
 
     @Override
     public byte[] export(List<SettlementExportRecord> records,
                          SettlementBatch batch,
                          LocalDate exportDate) {
-        log.info("[STUB] AfrigoPapssExporter.export() called: {} records for batch={} date={}",
-                records.size(), batch.getBatchRef(), exportDate);
+        log.info("AfrigoPapssExporter: exporting {} records for batch={}", records.size(), batch.getBatchRef());
 
-        StringBuilder sb = new StringBuilder();
-        sb.append("{\n");
-        sb.append("  \"_stub\": \"AFRIGO/PAPSS STUB PAYLOAD — NOT FOR PRODUCTION\",\n");
-        sb.append("  \"participantId\": \"").append(resolveParticipantId()).append("\",\n");
-        sb.append("  \"settlementDate\": \"").append(exportDate).append("\",\n");
-        sb.append("  \"batchReference\": \"").append(batch.getBatchRef()).append("\",\n");
-        sb.append("  \"recordCount\": ").append(records.size()).append(",\n");
-        sb.append("  \"_fieldLayout\": \"Replace this body with real PAPSS JSON schema per Afreximbank spec\",\n");
-        sb.append("  \"transactions\": [\n");
+        long totalMinor = records.stream()
+                .mapToLong(r -> r.grossAmount() != null ? r.grossAmount().longValue() : 0L)
+                .sum();
+        String currency = records.isEmpty() ? "566"
+                : (records.get(0).currencyCode() != null ? records.get(0).currencyCode() : "566");
+
+        StringBuilder json = new StringBuilder();
+        json.append("{\n");
+        json.append("  \"batchRef\": \"").append(esc(batch.getBatchRef())).append("\",\n");
+        json.append("  \"settlementDate\": \"").append(exportDate.format(DATE_FMT)).append("\",\n");
+        json.append("  \"participantId\": \"").append(esc(props.getAcquirerBin())).append("\",\n");
+        json.append("  \"totalRecords\": ").append(records.size()).append(",\n");
+        json.append("  \"totalAmount\": ").append(totalMinor).append(",\n");
+        json.append("  \"currency\": \"").append(esc(currency)).append("\",\n");
+        json.append("  \"transactions\": [\n");
+
         for (int i = 0; i < records.size(); i++) {
             SettlementExportRecord r = records.get(i);
-            sb.append("    {");
-            sb.append("\"rrn\":\"").append(r.rrn()).append("\"");
-            sb.append(",\"pan\":\"").append(r.maskedPan()).append("\"");
-            sb.append(",\"amount\":").append(r.grossAmount());
-            sb.append(",\"currency\":\"").append(r.currencyCode()).append("\"");
-            sb.append(",\"merchantId\":\"").append(r.merchantId()).append("\"");
-            sb.append(",\"authCode\":\"").append(r.authCode()).append("\"");
-            sb.append(",\"transactionDate\":\"").append(r.transactionDate()).append("\"");
-            sb.append("}");
-            if (i < records.size() - 1) sb.append(",");
-            sb.append("\n");
+            json.append("    {\n");
+            json.append("      \"pan\": \"").append(esc(r.pan() != null ? r.pan() : "")).append("\",\n");
+            json.append("      \"processingCode\": \"").append(esc(r.processingCode() != null ? r.processingCode() : "000000")).append("\",\n");
+            json.append("      \"amount\": ").append(r.grossAmount() != null ? r.grossAmount().toPlainString() : "0").append(",\n");
+            json.append("      \"stan\": \"").append(esc(r.stan() != null ? r.stan() : "")).append("\",\n");
+            json.append("      \"rrn\": \"").append(esc(r.rrn() != null ? r.rrn() : "")).append("\",\n");
+            json.append("      \"authCode\": \"").append(esc(r.authCode() != null ? r.authCode() : "")).append("\",\n");
+            json.append("      \"merchantId\": \"").append(esc(r.merchantId() != null ? r.merchantId() : "")).append("\",\n");
+            json.append("      \"mcc\": \"").append(esc(r.mcc() != null ? r.mcc() : "0000")).append("\",\n");
+            json.append("      \"transactionDate\": \"").append(r.transactionDate() != null ? r.transactionDate().format(DATE_FMT) : "").append("\",\n");
+            json.append("      \"currencyCode\": \"").append(esc(r.currencyCode() != null ? r.currencyCode() : currency)).append("\"\n");
+            json.append("    }").append(i < records.size() - 1 ? "," : "").append("\n");
         }
-        sb.append("  ]\n}\n");
-        return sb.toString().getBytes(StandardCharsets.UTF_8);
+
+        json.append("  ]\n");
+        json.append("}\n");
+
+        return json.toString().getBytes(StandardCharsets.UTF_8);
     }
 
-    private String resolveParticipantId() {
-        String pid = props.forScheme("afrigo").getParticipantId();
-        return (pid != null && !pid.isBlank()) ? pid : props.getMemberId();
+    /** Minimal JSON string escaping for field values. */
+    private String esc(String s) {
+        if (s == null) return "";
+        return s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }

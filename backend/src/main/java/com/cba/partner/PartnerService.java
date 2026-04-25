@@ -1,6 +1,9 @@
 package com.cba.partner;
 
 import com.cba.common.exception.CbaException;
+import com.cba.openbanking.ConsentRepository;
+import com.cba.openbanking.ConsentStatus;
+import com.cba.openbanking.OpenBankingConsent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -10,6 +13,7 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -21,6 +25,7 @@ public class PartnerService {
     private final PartnerApiKeyRepository apiKeyRepo;
     private final PartnerApplicationRepository applicationRepo;
     private final PartnerWebhookRepository webhookRepo;
+    private final ConsentRepository consentRepo;
     private final BCryptPasswordEncoder passwordEncoder;
     private final PartnerJwtService jwtService;
 
@@ -217,6 +222,44 @@ public class PartnerService {
         }
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepo.save(user);
+    }
+
+    // ── Consents ─────────────────────────────────────────────────────────────
+
+    /**
+     * Lists all OB consents where the tppClientId matches the partner org's ID.
+     * Partners set their orgId as tppClientId when initiating consent via the OB API.
+     */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> listConsentsForOrg(UUID orgId) {
+        // Verify org exists
+        orgRepo.findById(orgId).orElseThrow(() -> CbaException.notFound("PARTNER_NOT_FOUND", "Partner not found"));
+        return consentRepo.findByTppClientIdOrderByCreatedAtDesc(orgId.toString()).stream()
+                .map(this::toConsentMap)
+                .toList();
+    }
+
+    @Transactional
+    public void revokeConsentForOrg(UUID orgId, UUID consentId) {
+        orgRepo.findById(orgId).orElseThrow(() -> CbaException.notFound("PARTNER_NOT_FOUND", "Partner not found"));
+        OpenBankingConsent consent = consentRepo.findById(consentId)
+                .orElseThrow(() -> CbaException.notFound("CONSENT_NOT_FOUND", "Consent not found"));
+        if (!orgId.toString().equals(consent.getTppClientId())) {
+            throw CbaException.notFound("CONSENT_NOT_FOUND", "Consent not found");
+        }
+        consent.setStatus(ConsentStatus.REVOKED);
+        consentRepo.save(consent);
+    }
+
+    private Map<String, Object> toConsentMap(OpenBankingConsent c) {
+        return Map.of(
+                "id", c.getId().toString(),
+                "consentId", c.getConsentId(),
+                "status", c.getStatus().name(),
+                "scopes", c.getScopes() != null ? c.getScopes() : List.of(),
+                "expiryDate", c.getExpiryDate() != null ? c.getExpiryDate().toString() : "",
+                "createdAt", c.getCreatedAt() != null ? c.getCreatedAt().toString() : ""
+        );
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

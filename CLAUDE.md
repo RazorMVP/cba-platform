@@ -597,8 +597,9 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 - `PartnerJwtFilter`: `OncePerRequestFilter`; validates partner tokens for `/api/v1/partners/**`; sets `SecurityContext` with `ROLE_DEVELOPER` or `ROLE_ADMIN`; admin endpoints still require Keycloak ADMIN JWT (bank staff)
 - Package: `com.cba.partner`; Flyway: `V49__partner_module.sql`, `V50__partner_webhooks.sql`
 - Endpoints (original — Session 108): `POST /api/v1/partners/register` (public), `POST /api/v1/partners/auth/login` (public), `GET/POST/DELETE /api/v1/partners/{orgId}/api-keys`, `POST /api/v1/partners/{orgId}/applications`, `GET /api/v1/partners/{orgId}/usage`, `GET /api/v1/partners` (ADMIN), `POST /api/v1/partners/{orgId}/approve` (ADMIN), `POST /api/v1/partners/{orgId}/reject` (ADMIN)
-- Endpoints (new — Session 112): `GET /api/v1/partners/{orgId}/webhooks`, `POST /api/v1/partners/{orgId}/webhooks`, `DELETE /api/v1/partners/{orgId}/webhooks/{webhookId}`, `GET /api/v1/partners/{orgId}/webhooks/{webhookId}/deliveries` (stub — empty list), `GET /api/v1/partners/{orgId}/consents` (stub), `DELETE /api/v1/partners/{orgId}/consents/{consentId}` (stub), `PUT /api/v1/partners/{orgId}` (update org name/website), `PUT /api/v1/partners/users/{userId}` (update user email), `POST /api/v1/partners/users/{userId}/change-password`
-- **Consents stubs**: Consent endpoints return empty/204 until a TPP-to-partner-org mapping is added to the Open Banking consent model
+- Endpoints (new — Session 112): `GET /api/v1/partners/{orgId}/webhooks`, `POST /api/v1/partners/{orgId}/webhooks`, `DELETE /api/v1/partners/{orgId}/webhooks/{webhookId}`, `GET /api/v1/partners/{orgId}/webhooks/{webhookId}/deliveries`, `GET /api/v1/partners/{orgId}/consents`, `DELETE /api/v1/partners/{orgId}/consents/{consentId}`, `PUT /api/v1/partners/{orgId}` (update org name/website), `PUT /api/v1/partners/users/{userId}` (update user email), `POST /api/v1/partners/users/{userId}/change-password`
+- **Webhook delivery** _(Session 115)_: `PartnerWebhookDeliveryService` — `@Async publishEvent()` fans out to matching webhooks; `@Scheduled(fixedDelay=60s)` retry poller; HMAC-SHA256 `X-CBA-Signature` header; exponential backoff 15s→60s→5m→30m→2h; `java.net.http.HttpClient` dispatch
+- **Consents** _(Session 115)_: `ConsentRepository.findByTppClientIdOrderByCreatedAtDesc(orgId.toString())` — partners set their orgId as `tppClientId` when initiating consent via the OB API; revoke sets status to REVOKED
 - **17 partner webhook events**: CONSENT.CREATED/AUTHORISED/REVOKED/EXPIRED, PAYMENT.INITIATED/COMPLETED/FAILED/REVERSED, FUNDS.CONFIRMED, ACCOUNT.ACCESS_GRANTED/BALANCE_UPDATED, APPLICATION.APPROVED/REJECTED, API_KEY.CREATED/REVOKED, RATE_LIMIT.WARNING/EXCEEDED
 
 ---
@@ -1396,7 +1397,7 @@ RAISED → RETRIEVAL_REQUESTED → CHARGEBACK_INITIATED
 6. ✅ **card-service — 3D Secure ACS** — `threeds` package, ACS endpoints, CAVV generation, OTP challenge, SecurityConfig `@Order(0)` chain _(Session 31)_
 7. ✅ **card-service — Card Personalization Bureau** — CDP file generation, bureau job lifecycle; `ORDERED → PRODUCED → DISPATCHED` state progression _(Session 34)_
 8. ✅ **card-service — Scheme-Compliant Chargeback** — full state machine, reason code framework, timeframe enforcement _(Session 36)_
-8.5. ✅ **card-service — Settlement File Export Framework** — `SettlementFileExporter` interface, 5 stub exporters, SFTP+HTTPS transmitter, nightly scheduler, `SettlementExportController` _(Session 37)_
+8.5. ✅ **card-service — Settlement File Export Framework** — `SettlementFileExporter` interface, 5 real binary exporters (Visa BASE II / Mastercard IPM / NIBSS / PAPSS / CUPS), SFTP+HTTPS transmitter, nightly scheduler, `SettlementExportController` _(Session 37; binary formats Session 115)_
 9. ✅ **card-service — Open Banking layer** — `/card-api/v1/` Card API, API key auth (SHA-256 + filter), WebClient webhook delivery (HMAC-SHA256 + exponential backoff), MCC spending analytics, dual-mode SecurityConfig chain _(Session 38)_
 10. ✅ **backend (monolith)** — `CardServiceClient` REST client, `CardAccountAdapter` OB shape mapping, `ConsentScope` enum, AISP card account merge, CBPII card balance extension _(Session 39)_
 11. ✅ **Angular `CardsModule`** — 12 screens: CardList, CardDetail, CardProducts, FraudRules, Settlement, Disputes, TerminalSimulator, ApiKeys, Webhooks, BinManagement, SchemeConfig, Interchange _(Session 41)_
@@ -1662,11 +1663,11 @@ card-service/src/main/java/com/cba/card/settlement/
 ├── SettlementTransmissionRepository.java — 4 query methods + idempotency check (batchId+scheme+status)
 ├── SettlementExportProperties.java     — @ConfigurationProperties(prefix="card.settlement.export");
 │                                          SchemeExportConfig inner class; forScheme() accessor
-├── VisaBase2Exporter.java              — BASE II stub; filename: V+acquirerBin+yyMMdd+001; full field-map Javadoc
-├── MastercardIpmExporter.java          — IPM stub; filename: participantId+yyMMdd+001.IPM; DE48/MTI 1240 Javadoc
-├── VerveNibssExporter.java             — NIBSS e-settlement stub; filename: participantId+YYYYMMDD.set
-├── AfrigoPapssExporter.java            — PAPSS stub; transmissionMethod()="HTTPS"; JSON payload structure
-├── UnionPayCupsExporter.java           — CUPS stub; GB18030 encoding note; filename: participantId+YYYYMMDD.cup
+├── VisaBase2Exporter.java              — BASE II real: 250-byte H/D/T fixed-width ASCII records _(Session 115)_
+├── MastercardIpmExporter.java          — IPM real: 2-byte length-framed ISO 8583 MTI 1240 binary records, primary bitmap, DE 2/3/4/11/12/13/37/38/41/42/43/49 _(Session 115)_
+├── VerveNibssExporter.java             — NIBSS real: pipe-delimited flat file, header+data rows, UTF-8 _(Session 115)_
+├── AfrigoPapssExporter.java            — PAPSS real: JSON batch envelope with transaction array + proper escaping _(Session 115)_
+├── UnionPayCupsExporter.java           — CUPS real: 300-byte GB18030 fixed-width records, CJK merchant name, GB18030 fallback to UTF-8 _(Session 115)_
 ├── SettlementFileTransmitter.java      — SFTP via JSch (addIdentity+getSession); HTTPS via RestTemplate POST
 ├── SettlementTransmissionException.java — retryable RuntimeException signal
 ├── SettlementFileExportService.java    — @Scheduled nightly + exportBatch()/listTransmissions()/getTransmission()

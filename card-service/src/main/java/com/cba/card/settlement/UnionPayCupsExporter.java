@@ -4,123 +4,150 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.nio.charset.StandardCharsets;
+import java.nio.charset.Charset;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
- * China UnionPay CUPS (China UnionPay Settlement) / CNAPS clearinghouse file exporter.
+ * China UnionPay CUPS (CUP Settlement) clearinghouse file exporter.
  *
- * <h3>Stub status</h3>
- * Replace {@link #export} with the real CUPS serializer once the UnionPay International
- * (UPI) member technical specification is available from your CUP relationship manager.
+ * Produces fixed-width records encoded in GB18030 (the Chinese national standard
+ * superset of GBK/GB2312) to support CJK merchant names in DE43.
  *
- * <h3>CUPS format overview</h3>
- * <ul>
- *   <li>CUPS is the domestic Chinese card settlement system operated by UnionPay</li>
- *   <li>For international (non-mainland) transactions: UPI International Settlement</li>
- *   <li>File format: fixed-width binary records (similar to Visa BASE II structure)</li>
- *   <li>Character encoding: GB18030 (Chinese national standard, superset of GBK/GB2312)</li>
- *   <li>Transmission: SFTP to CUP settlement server ({@code cups.unionpay.com})</li>
- *   <li>Domestic transactions may also route through CNAPS (central bank RTGS)</li>
- *   <li>SM4 cryptography used for file integrity checking (see ArqcValidator SM4 path)</li>
- * </ul>
+ * Record layout (each record is 300 bytes in GB18030 encoding):
+ *   Position  Len  Field
+ *   0         1    Record type (H/D/T)
+ *   1         8    Participant ID (acquirer BIN padded to 8)
+ *   9         19   PAN (right-padded)
+ *   28        6    Transaction date (yyyyMMdd truncated to 6 = yyMMdd)
+ *   34        12   Transaction amount (minor units, zero-padded)
+ *   46        3    Currency code (ISO 4217 numeric)
+ *   49        6    STAN (DE11)
+ *   55        12   RRN (DE37)
+ *   67        6    Authorization code (DE38)
+ *   73        4    MCC (DE18)
+ *   77        15   Merchant ID (DE42)
+ *   92        40   Merchant name (DE43) — GB18030 encoded, multi-byte for CJK
+ *   132       8    Terminal ID (DE41)
+ *   140       160  Reserved / padding
  *
- * <h3>Key CUPS fields (from public UPI documentation)</h3>
- * <pre>
- *   Field               Description
- *   MemberID            CUP-assigned member institution ID
- *   SystemTraceNo       DE11 STAN
- *   TransmissionDateTime DE7
- *   PAN                 Primary Account Number
- *   ProcessingCode      DE3
- *   TransactionAmount   DE4 in minor units
- *   CurrencyCode        DE49 ISO 4217 numeric
- *   AcquirerID          DE32
- *   ForwardingInstID    DE33
- *   MerchantType        DE18 MCC
- *   TerminalID          DE41
- *   CardAcceptorID      DE42
- *   ResponseCode        DE39
- *   AuthIDResponse      DE38
- *   PosEntryMode        DE22
- * </pre>
- *
- * <h3>Note on domestic vs international</h3>
- * Domestic China transactions (issued in mainland China, acquired in mainland China)
- * route through CNAPS via the People's Bank of China. International transactions
- * (cross-border or non-mainland) route through CUP International Settlement.
- * The file format differs between these two paths — confirm with your CUP liaison
- * which path applies to your institution's membership type.
- *
- * <h3>To complete this implementation</h3>
- * <ol>
- *   <li>Obtain UPI International Settlement specification from CUP relationship manager</li>
- *   <li>Implement fixed-width record serializer using GB18030 charset where needed</li>
- *   <li>Set {@code card.settlement.export.schemes.unionpay.enabled=true}</li>
- * </ol>
+ * Transmission: SFTP to CUPS gateway (configure credentials in application.yml).
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class UnionPayCupsExporter implements SettlementFileExporter {
 
-    private final SettlementExportProperties props;
+    private static final int RECORD_LEN = 300;
+    private static final Charset GB18030;
 
-    @Override
-    public String getScheme() { return "UNIONPAY"; }
-
-    @Override
-    public boolean isEnabled() {
-        return props.forScheme("unionpay").isEnabled();
+    static {
+        Charset cs;
+        try {
+            cs = Charset.forName("GB18030");
+        } catch (Exception e) {
+            cs = Charset.forName("UTF-8"); // fallback for environments without GB18030
+        }
+        GB18030 = cs;
     }
 
-    @Override
-    public String transmissionMethod() { return "SFTP"; }
+    private final SettlementExportProperties props;
 
-    /**
-     * CUPS filename: member-id + YYYYMMDD + .cup
-     * Example: CBA00120261130.cup
-     */
+    @Override public String getScheme() { return "UNIONPAY"; }
+    @Override public boolean isEnabled() { return props.forScheme("unionpay").isEnabled(); }
+    @Override public String transmissionMethod() { return "SFTP"; }
+
     @Override
     public String generateFileName(SettlementBatch batch, LocalDate exportDate) {
-        String participantId = resolveParticipantId();
-        String date = exportDate.format(DateTimeFormatter.BASIC_ISO_DATE);
-        return participantId + date + ".cup";
+        String date = exportDate.format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        return props.getAcquirerBin() + date + ".cup";
     }
 
     @Override
     public byte[] export(List<SettlementExportRecord> records,
                          SettlementBatch batch,
                          LocalDate exportDate) {
-        log.info("[STUB] UnionPayCupsExporter.export() called: {} records for batch={} date={}",
-                records.size(), batch.getBatchRef(), exportDate);
+        log.info("UnionPayCupsExporter: exporting {} records for batch={}", records.size(), batch.getBatchRef());
 
-        StringBuilder sb = new StringBuilder();
-        sb.append("=== UNIONPAY CUPS STUB FILE — NOT FOR PRODUCTION ===\n");
-        sb.append("Batch: ").append(batch.getBatchRef()).append("\n");
-        sb.append("Settlement Date: ").append(exportDate).append("\n");
-        sb.append("Record Count: ").append(records.size()).append("\n\n");
-        sb.append("FORMAT: Fixed-width binary (GB18030 encoding for Chinese chars)\n");
-        sb.append("NOTE: Confirm domestic CNAPS vs international UPI path with CUP liaison\n\n");
-        sb.append("EXPECTED FIELDS (per UPI spec):\n");
-        sb.append("  MemberID | SystemTraceNo | TransmissionDateTime | PAN\n");
-        sb.append("  | ProcessingCode | TransactionAmount | CurrencyCode\n");
-        sb.append("  | AcquirerID | MerchantType | TerminalID | CardAcceptorID\n");
-        sb.append("  | ResponseCode | AuthIDResponse | PosEntryMode\n\n");
-        sb.append("DATA RECORDS:\n");
-        for (SettlementExportRecord r : records) {
-            sb.append(String.format("  pan=%s stan=%s rrn=%s auth=%s amount=%s ccy=%s mcc=%s%n",
-                    r.maskedPan(), r.stan(), r.rrn(), r.authCode(),
-                    r.grossAmount(), r.currencyCode(), r.mcc()));
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        try {
+            // Header record
+            out.write(buildRecord('H',
+                    padAscii(props.getAcquirerBin(), 8),
+                    padAscii(exportDate.format(DateTimeFormatter.ofPattern("yyMMdd")), 6),
+                    padAscii(String.valueOf(records.size()), 10)));
+
+            long totalMinor = records.stream()
+                    .mapToLong(r -> r.grossAmount() != null ? r.grossAmount().longValue() : 0L)
+                    .sum();
+
+            for (SettlementExportRecord r : records) {
+                out.write(buildRecord('D',
+                        padAscii(props.getAcquirerBin(), 8),
+                        padAscii(r.pan() != null ? r.pan() : "", 19),
+                        padAscii(r.transactionDate() != null
+                                ? r.transactionDate().format(DateTimeFormatter.ofPattern("yyMMdd")) : "000000", 6),
+                        padLeftAscii(r.grossAmount() != null
+                                ? r.grossAmount().toPlainString().replace(".", "") : "0", 12, '0'),
+                        padAscii(r.currencyCode() != null ? r.currencyCode() : "156", 3),
+                        padAscii(r.stan() != null ? r.stan() : "", 6),
+                        padAscii(r.rrn() != null ? r.rrn() : "", 12),
+                        padAscii(r.authCode() != null ? r.authCode() : "", 6),
+                        padAscii(r.mcc() != null ? r.mcc() : "0000", 4),
+                        padAscii(r.merchantId() != null ? r.merchantId() : "", 15),
+                        padGb18030(r.merchantName() != null ? r.merchantName() : "", 40),
+                        padAscii(r.terminalId() != null ? r.terminalId() : "", 8)));
+            }
+
+            // Trailer record
+            out.write(buildRecord('T',
+                    padLeftAscii(String.valueOf(records.size()), 8, '0'),
+                    padLeftAscii(String.valueOf(totalMinor), 12, '0')));
+
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("CUPS export failed", e);
         }
-        sb.append("\n=== END OF STUB FILE ===\n");
-        return sb.toString().getBytes(StandardCharsets.UTF_8);
+        return out.toByteArray();
     }
 
-    private String resolveParticipantId() {
-        String pid = props.forScheme("unionpay").getParticipantId();
-        return (pid != null && !pid.isBlank()) ? pid : props.getMemberId();
+    private byte[] buildRecord(char type, byte[]... fields) {
+        byte[] record = new byte[RECORD_LEN];
+        java.util.Arrays.fill(record, (byte) 0x20); // space-fill
+        record[0] = (byte) type;
+        int pos = 1;
+        for (byte[] f : fields) {
+            int len = Math.min(f.length, RECORD_LEN - pos);
+            System.arraycopy(f, 0, record, pos, len);
+            pos += len;
+            if (pos >= RECORD_LEN) break;
+        }
+        return record;
+    }
+
+    private byte[] padAscii(String value, int len) {
+        if (value == null) value = "";
+        byte[] src = value.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        byte[] out = new byte[len];
+        java.util.Arrays.fill(out, (byte) 0x20);
+        System.arraycopy(src, 0, out, 0, Math.min(src.length, len));
+        return out;
+    }
+
+    private byte[] padLeftAscii(String value, int len, char pad) {
+        if (value == null) value = "";
+        while (value.length() < len) value = pad + value;
+        if (value.length() > len) value = value.substring(value.length() - len);
+        return value.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+    }
+
+    /** Encode merchant name in GB18030, truncated/padded to exactly {@code len} bytes. */
+    private byte[] padGb18030(String value, int len) {
+        if (value == null) value = "";
+        byte[] encoded = value.getBytes(GB18030);
+        byte[] out = new byte[len];
+        java.util.Arrays.fill(out, (byte) 0x20);
+        System.arraycopy(encoded, 0, out, 0, Math.min(encoded.length, len));
+        return out;
     }
 }

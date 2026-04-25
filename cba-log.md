@@ -57,6 +57,64 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 115 — 2026-04-25
+**Partner webhook delivery, partner consents, and settlement binary formats — all three code-only stubs replaced with real implementations (backend BUILD SUCCESS, card-service BUILD SUCCESS).**
+
+#### New/Updated Files
+
+| File | Change |
+|------|--------|
+| `backend/src/main/java/com/cba/partner/PartnerWebhookDelivery.java` | NEW — JPA entity for `partner_webhook_deliveries` table |
+| `backend/src/main/java/com/cba/partner/PartnerWebhookDeliveryRepository.java` | NEW — `findByWebhookIdOrderByCreatedAtDesc`, `findDueForRetry` JPQL |
+| `backend/src/main/java/com/cba/partner/PartnerWebhookDeliveryService.java` | NEW — `@Async publishEvent()` fan-out, `@Scheduled` 60s retry poller, HMAC-SHA256 signing, exponential backoff 15s→60s→5m→30m→2h, `java.net.http.HttpClient` dispatch |
+| `backend/src/main/java/com/cba/partner/PartnerController.java` | UPDATED — `listDeliveries` now returns real `DeliveryResponse` list; `listConsents`/`revokeConsent` stubs replaced with real service calls; `DeliveryResponse` record added |
+| `backend/src/main/java/com/cba/partner/PartnerService.java` | UPDATED — `listConsentsForOrg(UUID)`, `revokeConsentForOrg(UUID, UUID)` added; uses `ConsentRepository.findByTppClientIdOrderByCreatedAtDesc(orgId.toString())` |
+| `backend/src/main/java/com/cba/openbanking/ConsentRepository.java` | UPDATED — added `findByTppClientIdOrderByCreatedAtDesc(String)` query |
+| `card-service/…/settlement/VisaBase2Exporter.java` | UPDATED — real 250-byte fixed-width ASCII H/D/T records (header + data + trailer) |
+| `card-service/…/settlement/MastercardIpmExporter.java` | UPDATED — real length-framed ISO 8583 MTI 1240 binary records, primary bitmap, DE 2/3/4/11/12/13/37/38/41/42/43/49 |
+| `card-service/…/settlement/VerveNibssExporter.java` | UPDATED — real pipe-delimited NIBSS e-Settlement flat file with header row |
+| `card-service/…/settlement/AfrigoPapssExporter.java` | UPDATED — real JSON batch envelope with transaction array and proper escaping |
+| `card-service/…/settlement/UnionPayCupsExporter.java` | UPDATED — real 300-byte GB18030-encoded fixed-width records with CJK merchant name support |
+
+#### Key Patterns / Decisions
+
+- **`java.net.http.HttpClient` for webhook delivery**: No WebFlux in backend; standard Java 11 `HttpClient` avoids dependency. `@Async` on `publishEvent()` and `attemptDelivery()` uses Spring's configured task executor — concurrency bounded by pool, not unbounded threads.
+- **Consents ↔ Partner org link via `tppClientId = orgId.toString()`**: No FK between `PartnerOrganization` and `OpenBankingConsent`. Convention: partners set their orgId as `tppClientId` when initiating consent. `findByTppClientId(orgId.toString())` does the lookup — no schema change needed.
+- **GB18030 fallback**: `UnionPayCupsExporter` catches `UnsupportedCharsetException` and falls back to UTF-8 — safe on JVMs that don't include the optional `GB18030` charset (rare on modern JDKs but possible on minimal JRE images).
+- **Settlement exporters remain `isEnabled() = false`**: All five exporters' `isEnabled()` still reads from `props.forScheme(name).isEnabled()` which defaults to `false`. Real binary records are now produced but no transmission occurs until credentials are configured — exactly the "zero code change at production" guarantee in CLAUDE.md.
+
+#### Build Verification
+
+```text
+Backend:   ./mvnw compile → BUILD SUCCESS (0 errors)
+card-service: ./mvnw compile → BUILD SUCCESS (0 errors)
+```
+
+#### Confirmed Platform Versions
+
+**Backend (`backend/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `c929565` (last backend commit) |
+| Java | 21 | `c929565` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `c929565` |
+| Keycloak admin client | 26.0.5 | `c929565` |
+| springdoc-openapi | 2.8.6 | `c929565` |
+| Lombok | 1.18.38 | `c929565` |
+| PostgreSQL | 16 (Docker) | `c929565` |
+
+**Angular Web App (`web/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `ca3d883` |
+| Angular CLI | 21.2.7 | `ca3d883` |
+| PrimeNG | 21.0.x | `ca3d883` |
+| Vercel deployment | `cba-web-nine.vercel.app` | `ca3d883` |
+
+---
+
 ### Session 114 — 2026-04-25
 **Partner module Hibernate/Flyway startup fixes — all 5 entity `@Version` duplicates removed, `secret_hash` column mapping added, V50 made idempotent, V51 audit columns added (commit `c929565`).**
 

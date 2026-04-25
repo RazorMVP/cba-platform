@@ -17,6 +17,7 @@ import java.util.UUID;
 public class PartnerController {
 
     private final PartnerService partnerService;
+    private final PartnerWebhookDeliveryService deliveryService;
 
     // ── Public ────────────────────────────────────────────────────────────────
 
@@ -92,24 +93,32 @@ public class PartnerController {
     }
 
     @GetMapping("/{orgId}/webhooks/{webhookId}/deliveries")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> listDeliveries(
+    public ResponseEntity<ApiResponse<List<DeliveryResponse>>> listDeliveries(
             @PathVariable UUID orgId, @PathVariable UUID webhookId) {
-        // Delivery log stub — returns empty list until async delivery service is wired
-        return ResponseEntity.ok(ApiResponse.ok(List.of()));
+        List<DeliveryResponse> deliveries = deliveryService.listDeliveries(webhookId).stream()
+                .map(d -> new DeliveryResponse(
+                        d.getId().toString(),
+                        d.getEventType(),
+                        d.getDeliveryUuid(),
+                        d.getStatus(),
+                        d.getHttpStatus(),
+                        d.getAttemptCount(),
+                        d.getLastAttemptAt() != null ? d.getLastAttemptAt().toString() : null,
+                        d.getCreatedAt() != null ? d.getCreatedAt().toString() : null))
+                .toList();
+        return ResponseEntity.ok(ApiResponse.ok(deliveries));
     }
 
     // ── Consents ──────────────────────────────────────────────────────────────
 
     @GetMapping("/{orgId}/consents")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> listConsents(@PathVariable UUID orgId) {
-        // Returns empty list — consents are created by end-users via the partner's app;
-        // a TPP-to-partner mapping table is needed for filtered consent view (future work)
-        return ResponseEntity.ok(ApiResponse.ok(List.of()));
+        return ResponseEntity.ok(ApiResponse.ok(partnerService.listConsentsForOrg(orgId)));
     }
 
     @DeleteMapping("/{orgId}/consents/{consentId}")
     public ResponseEntity<ApiResponse<Void>> revokeConsent(@PathVariable UUID orgId, @PathVariable UUID consentId) {
-        // Revoke stub — full impl requires linking consentId back to the partner's org
+        partnerService.revokeConsentForOrg(orgId, consentId);
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
 
@@ -214,4 +223,8 @@ public class PartnerController {
     public record OrgResponse(
             String id, String organizationName, String status, String tier,
             String environment, String createdAt, long totalApiCalls) {}
+
+    public record DeliveryResponse(
+            String id, String eventType, String deliveryUuid, String status,
+            Integer httpStatus, int attemptCount, String lastAttemptAt, String createdAt) {}
 }

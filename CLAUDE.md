@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 114 — 2026-04-25)
+## Confirmed Platform Versions (Session 116 — 2026-04-25)
 
 These are the verified-working versions for all production components. Update this table whenever a dependency is upgraded.
 
@@ -23,7 +23,7 @@ These are the verified-working versions for all production components. Update th
 | **thumbnailator** | 0.4.20 | Server-side image resize for `ClientImageService` — max 500×500, JPEG output |
 | **ZXing** | 3.5.3 | Server-side QR PNG generation (`core` + `javase`) — Session 105 |
 | **spring-boot-starter-data-redis** | 3.5.0 (managed) | Redis fixed-window rate limiting (Lua INCR+EXPIRE) — Session 106 |
-| **Last git commit** | `c929565` | Session 114 — partner module Hibernate/Flyway startup fixes |
+| **Last git commit** | `9a03bd0` | Session 116 — SpotBugs DM_DEFAULT_ENCODING fix in PartnerWebhookDeliveryService |
 
 ### Angular Web App (`web/`)
 
@@ -49,7 +49,17 @@ These are the verified-working versions for all production components. Update th
 | **React Router** | 6.30.3 | SPA routing |
 | **TypeScript** | 6.0.x | `~6.0.2` |
 | **Vercel deployment** | `partner-portal-omega-two.vercel.app` | Production — Session 112 ✅ |
-| **Last git commit** | `999a4e0` | Session 112 — code review fixes + 9 new backend endpoints (Lint ✅ Build ✅ Docker ✅ Vercel ✅) |
+| **Last git commit** | `12b0e6e` | Session 116 — ConsentsPage.tsx wired to real partner consent endpoints (Lint ✅ Build ✅ Vercel ✅) |
+
+### Card Service (`card-service/`)
+
+| Component | Version | Notes |
+|-----------|---------|-------|
+| **Spring Boot** | 3.5.0 | Parent BOM |
+| **Java** | 21 | LTS |
+| **Dockerfile** | added Session 116 | `maven:3.9-eclipse-temurin-21-alpine` build + `eclipse-temurin:21-jre-alpine` runtime; port 8081 |
+| **CI** | `card-service-ci.yml` | Test ✅ OWASP ✅ Docker ✅ Trivy ✅ — fully green as of Session 116 |
+| **Last git commit** | `447007e` | Session 116 — Trivy image-ref fix + Dockerfile |
 
 > **Session 66 CI fixes**: Angular 21 uses Vitest (not Karma) — `--browsers=ChromeHeadless` and `--code-coverage` are invalid flags. `vercel deploy --prebuilt` requires `.vercel/output/` from `vercel build`, not `dist/` from `ng build`. All three issues fixed; CI pipeline and Vercel production deployment now fully green.
 

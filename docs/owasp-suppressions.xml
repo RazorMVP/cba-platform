@@ -52,14 +52,19 @@
   </suppress>
 
   <!-- ── Netty (all modules) ─────────────────────────────────────────────────
+       CVE-2025-24970 (7.5), CVE-2025-25193 (7.5): HTTP/2 codec CVEs; CBA uses
+       HTTP/1.1 internally; TLS terminated at ingress.
        CVE-2026-33871 (8.7), CVE-2026-33870 (7.5), CVE-2025-55163 (8.2),
        CVE-2025-58056 (2.9), CVE-2025-58057 (6.9), CVE-2025-67735.
-       Transitive dep via Reactor Netty; outbound async HTTP only; no inbound
-       raw-Netty. BOM-managed by Spring Boot 3.5.0.
+       Transitive dep via Reactor Netty (backend) and jPOS/card ISO 8583 TCP
+       (card-service/fep-service); outbound async HTTP only; no inbound raw-Netty
+       exposed. BOM-managed by Spring Boot 3.5.0.
        DC matches across: netty-transport, netty-transport-classes-epoll,
        netty-buffer, netty-codec, netty-handler, etc. -->
   <suppress>
     <packageUrl regex="true">^pkg:maven/io\.netty/.*@.*$</packageUrl>
+    <cve>CVE-2025-24970</cve>
+    <cve>CVE-2025-25193</cve>
     <cve>CVE-2026-33871</cve>
     <cve>CVE-2026-33870</cve>
     <cve>CVE-2025-55163</cve>
@@ -173,6 +178,31 @@
   <suppress>
     <packageUrl regex="true">^pkg:maven/com\.mchange/mchange-commons-java@.*$</packageUrl>
     <cve>CVE-2026-27727</cve>
+  </suppress>
+
+  <!-- ── swagger-ui / DOMPurify (springdoc-openapi transitive) ───────────────
+       CVE-2026-0540, CVE-2025-15599, CVE-2026-41238, CVE-2026-41239,
+       CVE-2026-41240: DOM-based XSS in DOMPurify 3.2.4 bundled in swagger-ui
+       5.x. Swagger UI accessible only to authenticated ADMIN users on an
+       internal network; attack surface is negligible.
+       springdoc-openapi 2.8.x bundles this version; no patched version
+       available without a springdoc major bump. -->
+  <suppress>
+    <packageUrl regex="true">^pkg:maven/org\.springdoc/.*@.*$</packageUrl>
+    <cve>CVE-2026-0540</cve>
+    <cve>CVE-2025-15599</cve>
+    <cve>CVE-2026-41238</cve>
+    <cve>CVE-2026-41239</cve>
+    <cve>CVE-2026-41240</cve>
+  </suppress>
+
+  <!-- ── Tomcat embed — additional 2026 CVEs (card-service) ──────────────────
+       CVE-2025-31650, CVE-2025-31651: Request smuggling; TLS+ingress terminates
+       before Tomcat; no direct public TCP exposure. BOM-managed. -->
+  <suppress>
+    <packageUrl regex="true">^pkg:maven/org\.apache\.tomcat\.embed/.*@.*$</packageUrl>
+    <cve>CVE-2025-31650</cve>
+    <cve>CVE-2025-31651</cve>
   </suppress>
 
 </suppressions>

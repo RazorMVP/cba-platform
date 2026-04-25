@@ -15,6 +15,9 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
@@ -129,7 +132,7 @@ public class PartnerWebhookDeliveryService {
             } else {
                 markFailed(delivery, attempt);
             }
-        } catch (Exception e) {
+        } catch (java.io.IOException | InterruptedException e) {
             log.debug("Webhook delivery failed (attempt {}): {}", attempt, e.getMessage());
             delivery.setHttpStatus(null);
             markFailed(delivery, attempt);
@@ -150,9 +153,9 @@ public class PartnerWebhookDeliveryService {
     private String hmacHex(String secret, String payload) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(secret.getBytes(), "HmacSHA256"));
-            return HexFormat.of().formatHex(mac.doFinal(payload.getBytes()));
-        } catch (Exception e) {
+            mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            return HexFormat.of().formatHex(mac.doFinal(payload.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
             throw new IllegalStateException("HMAC computation failed", e);
         }
     }

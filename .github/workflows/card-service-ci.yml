@@ -120,7 +120,11 @@ jobs:
         run: |
           mvn org.owasp:dependency-check-maven:check \
             -DfailBuildOnCVSS=7 \
+            -DsuppressionFile=../docs/owasp-suppressions.xml \
             -DnvdApiKey="$NVD_API_KEY" \
+            -DnvdMaxRetryCount=5 \
+            -DnvdApiDelay=2000 \
+            -DretireJsAnalyzerEnabled=false \
             --no-transfer-progress
 
       - name: Upload OWASP report

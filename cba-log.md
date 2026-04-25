@@ -57,6 +57,74 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 114 — 2026-04-25
+**Partner module Hibernate/Flyway startup fixes — all 5 entity `@Version` duplicates removed, `secret_hash` column mapping added, V50 made idempotent, V51 audit columns added (commit `c929565`).**
+
+#### New/Updated Files
+
+| File | Change |
+|------|--------|
+| `backend/src/main/resources/db/migration/V50__partner_webhooks.sql` | UPDATED — all `CREATE TABLE`/`CREATE INDEX` statements converted to `IF NOT EXISTS` (idempotent re-run on pre-existing volumes) |
+| `backend/src/main/resources/db/migration/V51__partner_audit_columns.sql` | NEW — `ALTER TABLE … ADD COLUMN IF NOT EXISTS created_by/updated_by` for all 5 partner tables (partner_organizations, partner_users, partner_applications, partner_api_keys, partner_webhooks) |
+| `backend/src/main/java/com/cba/partner/PartnerWebhook.java` | FIXED — added `@Column(name = "secret_hash")` to `secret` field; removed duplicate `@Version private Long version` |
+| `backend/src/main/java/com/cba/partner/PartnerApiKey.java` | FIXED — removed duplicate `@Version private Long version` |
+| `backend/src/main/java/com/cba/partner/PartnerApplication.java` | FIXED — removed duplicate `@Version private Long version` |
+| `backend/src/main/java/com/cba/partner/PartnerOrganization.java` | FIXED — removed duplicate `@Version private Long version` |
+| `backend/src/main/java/com/cba/partner/PartnerUser.java` | FIXED — removed duplicate `@Version private Long version` |
+| `backend/Dockerfile.local` | UPDATED — `mkdir -p /app/uploads/customer-images && chown -R cba:cba /app` before `USER cba` (fixes `AccessDeniedException` for `FileSystemStorageProvider` at runtime) |
+
+#### Key Patterns / Decisions
+
+- **`@Version` in entity hierarchy**: All 5 partner entities extend `AuditableEntity` which already declares `@Version private Long version`. Redeclaring it in the child class causes `MappingException: Attempt to add version property`. The fix is always to remove it from the child — the parent's version is inherited by JPA.
+- **Column name mismatch**: `PartnerWebhook.secret` maps to DB column `secret_hash` (V49 DDL). Without `@Column(name="secret_hash")`, Hibernate looks for column `secret` at schema validation → fails. The `secret_hash` column name is a legacy naming artifact (stores plaintext secret for HMAC computation).
+- **V51 design**: Rather than editing the already-applied V49 (would require `flyway:repair` on every fresh clone), V51 uses `ALTER TABLE … ADD COLUMN IF NOT EXISTS` — safe for both fresh volumes (columns don't exist yet) and existing volumes (columns already added via psql workaround in prior session).
+- **Dockerfile.local pattern**: Pre-build JAR locally with `./mvnw clean package -DskipTests`, then `COPY target/…jar app.jar` in a runtime-only image. Eliminates Maven dependency resolution inside Docker (eliminates the transient 4-min build failures on Alpine).
+
+#### Build Verification
+
+```text
+Backend:  docker container healthy — GET /actuator/health → {"status":"UP"}
+          GET /api/v1/accounting/trial-balance → 200 OK with GL rows
+Angular:  http://localhost:4200/ serving (dev server confirmed live)
+```
+
+#### Confirmed Platform Versions
+
+**Backend (`backend/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `c929565` |
+| Java | 21 | `c929565` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `c929565` |
+| Keycloak admin client | 26.0.5 | `c929565` |
+| springdoc-openapi | 2.8.6 | `c929565` |
+| Lombok | 1.18.38 | `c929565` |
+| PostgreSQL | 16 (Docker) | `c929565` |
+
+**Angular Web App (`web/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `ca3d883` |
+| Angular CLI | 21.2.7 | `ca3d883` |
+| PrimeNG | 21.0.x | `ca3d883` |
+| RxJS | 7.8.x | `ca3d883` |
+| TypeScript | 5.9.x | `ca3d883` |
+| Production URL | cba-web-nine.vercel.app | `ca3d883` |
+
+**Partner Portal (`partner-portal/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| React | 19.2.5 | `999a4e0` |
+| Vite | 8.0.9 | `999a4e0` |
+| Tailwind CSS | 4.2.4 | `999a4e0` |
+| TanStack Query | 5.99.2 | `999a4e0` |
+| Production URL | partner-portal-omega-two.vercel.app | `999a4e0` |
+
+---
+
 ### Session 113 — 2026-04-25
 **Trial balance — dedicated `GET /api/v1/accounting/trial-balance` endpoint + Angular `TrialBalanceComponent` at `/accounting/trial-balance` (commit `ca3d883`).**
 

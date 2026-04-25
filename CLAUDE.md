@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 113 — 2026-04-25)
+## Confirmed Platform Versions (Session 114 — 2026-04-25)
 
 These are the verified-working versions for all production components. Update this table whenever a dependency is upgraded.
 
@@ -23,7 +23,7 @@ These are the verified-working versions for all production components. Update th
 | **thumbnailator** | 0.4.20 | Server-side image resize for `ClientImageService` — max 500×500, JPEG output |
 | **ZXing** | 3.5.3 | Server-side QR PNG generation (`core` + `javase`) — Session 105 |
 | **spring-boot-starter-data-redis** | 3.5.0 (managed) | Redis fixed-window rate limiting (Lua INCR+EXPIRE) — Session 106 |
-| **Last git commit** | `ca3d883` | Session 113 — trial balance endpoint + Angular screen |
+| **Last git commit** | `c929565` | Session 114 — partner module Hibernate/Flyway startup fixes |
 
 ### Angular Web App (`web/`)
 

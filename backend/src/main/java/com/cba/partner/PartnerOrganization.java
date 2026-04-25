@@ -39,7 +39,4 @@ public class PartnerOrganization extends AuditableEntity {
 
     private String approvedBy;
     private java.time.Instant approvedAt;
-
-    @Version
-    private Long version;
 }

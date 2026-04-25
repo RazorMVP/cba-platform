@@ -1,5 +1,5 @@
 -- Partner webhooks: per-org webhook registrations for partner portal event subscriptions
-CREATE TABLE partner_webhooks (
+CREATE TABLE IF NOT EXISTS partner_webhooks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID NOT NULL REFERENCES partner_organizations(id),
     name VARCHAR(255) NOT NULL,
@@ -14,10 +14,10 @@ CREATE TABLE partner_webhooks (
     version BIGINT DEFAULT 0
 );
 
-CREATE INDEX idx_partner_webhooks_org ON partner_webhooks(organization_id);
+CREATE INDEX IF NOT EXISTS idx_partner_webhooks_org ON partner_webhooks(organization_id);
 
 -- Partner webhook delivery log
-CREATE TABLE partner_webhook_deliveries (
+CREATE TABLE IF NOT EXISTS partner_webhook_deliveries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     webhook_id UUID NOT NULL REFERENCES partner_webhooks(id),
     event_type VARCHAR(100) NOT NULL,
@@ -31,4 +31,4 @@ CREATE TABLE partner_webhook_deliveries (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_partner_deliveries_webhook ON partner_webhook_deliveries(webhook_id);
+CREATE INDEX IF NOT EXISTS idx_partner_deliveries_webhook ON partner_webhook_deliveries(webhook_id);

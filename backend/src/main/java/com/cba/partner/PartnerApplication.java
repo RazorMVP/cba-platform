@@ -33,7 +33,4 @@ public class PartnerApplication extends AuditableEntity {
 
     private String reviewedBy;
     private java.time.Instant reviewedAt;
-
-    @Version
-    private Long version;
 }

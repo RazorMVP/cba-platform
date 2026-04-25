@@ -1,17 +1,11 @@
 FROM eclipse-temurin:21-jre-alpine
-
 WORKDIR /app
-
-RUN addgroup -S cba && adduser -S cba -G cba
-
-COPY target/*.jar app.jar
-
+RUN addgroup -S cba && adduser -S cba -G cba && mkdir -p /app/uploads/customer-images && chown -R cba:cba /app
+COPY target/cba-backend-0.1.0-SNAPSHOT.jar app.jar
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD wget -qO- http://localhost:8080/actuator/health || exit 1
-
 USER cba
 EXPOSE 8080
-
 ENTRYPOINT ["java", \
     "-XX:+UseContainerSupport", \
     "-XX:MaxRAMPercentage=75.0", \

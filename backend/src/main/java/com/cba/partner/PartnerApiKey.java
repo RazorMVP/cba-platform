@@ -39,7 +39,4 @@ public class PartnerApiKey extends AuditableEntity {
     private boolean active;
 
     private java.time.Instant lastUsedAt;
-
-    @Version
-    private Long version;
 }

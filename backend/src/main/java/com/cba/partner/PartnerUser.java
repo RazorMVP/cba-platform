@@ -27,7 +27,4 @@ public class PartnerUser extends AuditableEntity {
 
     @Column(nullable = false)
     private boolean active;
-
-    @Version
-    private Long version;
 }

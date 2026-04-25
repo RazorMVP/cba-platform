@@ -27,6 +27,7 @@ public class PartnerWebhook extends AuditableEntity {
     @Column(name = "callback_url", nullable = false, columnDefinition = "TEXT")
     private String callbackUrl;
 
+    @Column(name = "secret_hash")
     private String secret;
 
     @JdbcTypeCode(SqlTypes.JSON)
@@ -35,7 +36,4 @@ public class PartnerWebhook extends AuditableEntity {
 
     @Column(nullable = false)
     private boolean active;
-
-    @Version
-    private Long version;
 }

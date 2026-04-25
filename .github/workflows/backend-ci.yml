@@ -176,7 +176,7 @@ jobs:
         run: |
           mvn org.owasp:dependency-check-maven:check \
             -DfailBuildOnCVSS=7 \
-            -DsuppressionsLocation=../docs/owasp-suppressions.xml \
+            -DsuppressionFile=../docs/owasp-suppressions.xml \
             -DnvdApiKey="${NVD_API_KEY}" \
             -DnvdMaxRetryCount=5 \
             -DnvdApiDelay=2000 \

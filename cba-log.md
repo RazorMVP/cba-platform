@@ -57,6 +57,88 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 112 — 2026-04-25
+**Partner portal code review fixes + 9 new backend endpoints: webhooks CRUD, consents stubs, org/user/password update. CI green (commit `999a4e0`).**
+
+#### New/Updated Files
+
+| File | Change |
+|------|--------|
+| `backend/src/main/java/com/cba/partner/PartnerWebhook.java` | NEW — JPA entity for partner webhooks (`partner_webhooks` table); `@JdbcTypeCode(SqlTypes.JSON)` for `events List<String>`; `@Version` optimistic locking |
+| `backend/src/main/java/com/cba/partner/PartnerWebhookRepository.java` | NEW — two query methods: `findByOrganizationIdAndActiveTrueOrderByCreatedAtDesc`, `findByOrganizationIdOrderByCreatedAtDesc` |
+| `backend/src/main/resources/db/migration/V50__partner_webhooks.sql` | NEW — `partner_webhooks` + `partner_webhook_deliveries` tables with indexes |
+| `backend/src/main/java/com/cba/partner/PartnerController.java` | UPDATED — 9 new endpoints: webhooks CRUD (`GET/POST/DELETE /{orgId}/webhooks`, `GET /{orgId}/webhooks/{webhookId}/deliveries`), consents stubs (`GET/DELETE /{orgId}/consents/{consentId}`), org update (`PUT /{orgId}`), user update (`PUT /users/{userId}`), password change (`POST /users/{userId}/change-password`) |
+| `backend/src/main/java/com/cba/partner/PartnerService.java` | UPDATED — `listWebhooks`, `createWebhook`, `deleteWebhook`, `updateOrg`, `updateUserEmail`, `changePassword` service methods |
+| `partner-portal/src/features/dashboard/DashboardPage.tsx` | FIXED — replaced `<a href>` with React Router `<Link to>` for SPA navigation (3 links) |
+| `partner-portal/src/features/api-keys/ApiKeysPage.tsx` | FIXED — added `onError` to `issue` and `revoke` mutations; inline error banner in modal |
+| `partner-portal/src/features/webhooks/WebhooksPage.tsx` | FIXED — expanded `EVENTS` from 7 card-specific to 17 partner-specific events; added `onError` to `create` and `remove` mutations |
+| `partner-portal/src/features/consents/ConsentsPage.tsx` | FIXED — added `onError` to `revoke` mutation |
+| `partner-portal/src/features/apply/ApplyPage.tsx` | FIXED — added `onError` to `apply` mutation; inline error message in form footer |
+| `partner-portal/src/features/partner-mgmt/PartnerMgmtPage.tsx` | FIXED — added `onError` to `approve` and `reject` mutations |
+| `partner-portal/src/features/settings/SettingsPage.tsx` | FIXED — added `onError` to `saveProfile`, `saveOrg`, `changePassword` mutations; inline error messages |
+| `partner-portal/Dockerfile` | FIXED — replaced multi-stage (Node builder + nginx) with single-stage nginx-only; CI downloads pre-built artifact before `docker build` |
+| `partner-portal/src/main.tsx` | FIXED — QueryClient retry changed from `retry: 1` to smart function that skips 4xx (deterministic failures) and only retries once on 5xx |
+| `partner-portal/src/styles/globals.css` | FIXED — replaced invalid `@font-face src: url(google fonts CSS)` with `@import url(...)` (correct mechanism for external CSS stylesheets) |
+| `partner-portal/nginx.conf` | FIXED — removed `'unsafe-inline'` from `script-src` in Content-Security-Policy |
+| `partner-portal/src/app/api/apiClient.ts` | FIXED — 401 interceptor now uses `router.navigate('/login')` instead of `window.location.href`; clears `partner_user` from localStorage |
+| `partner-portal/src/app/context/AuthContext.tsx` | FIXED — added `isTokenExpired()` via `atob` JWT decode; `loadStoredUser()` validates expiry; `logout` uses router instead of `window.location.href` |
+
+#### Key Patterns / Decisions
+
+- **`<Link to>` vs `<a href>` in React SPA**: `<a href>` causes a full page reload, destroying React state and the TanStack Query cache. React Router `<Link to>` does a client-side navigation — component tree stays mounted and cached data is preserved. Use `<Link>` for all internal routes.
+- **TanStack Query retry for 4xx vs 5xx**: `retry: 1` would retry `401 Unauthorized` and `404 Not Found` — both are deterministic failures that will never self-resolve. The smart retry function `(count, err) => err.response?.status >= 500 && count < 1` only retries server errors, never client errors.
+- **`@font-face src:` expects binary, not CSS**: `src: url('https://fonts.googleapis.com/...')` in `@font-face` tells the browser to load a `.woff2`/`.ttf` binary from that URL. The Google Fonts endpoint returns a CSS stylesheet, not a binary — browser silently fails to load the font. The correct mechanism for external CSS stylesheets is `@import url(...)` at the top of the CSS file.
+- **Single-stage Docker for CI artifact pattern**: When CI already produces a `dist/` artifact in a prior job and downloads it as an artifact before `docker build`, running `npm run build` again in a multi-stage Dockerfile is wasted work and adds ~2 min to the Docker job. The single-stage Dockerfile (`FROM nginx; COPY dist`) makes the contract explicit: "dist must exist before you run this."
+- **`PartnerWebhook` V50 migration**: Two tables — `partner_webhooks` (webhook definitions) and `partner_webhook_deliveries` (per-delivery audit trail with retry state). Delivery async dispatch not yet wired — `GET /{id}/deliveries` returns empty list stub until WebhookDeliveryService is added.
+- **Consents stubs**: `GET /{orgId}/consents` and `DELETE /{orgId}/consents/{id}` are stubs that return empty list / 204. Full implementation requires a TPP-to-partner organization mapping (Open Banking consent scopes include the partner orgId that requested them). Will be wired in a future session.
+
+#### Build Verification
+
+```text
+Partner Portal CI — run 24929842640:
+Lint     ✅ (0 errors, 13 warnings)
+Build    ✅ (Vite build succeeded, artifact uploaded)
+Docker   ✅ ghcr.io/razormvp/cba-platform/cba-partner-portal:main pushed
+Vercel   ✅ deployed to partner-portal-omega-two.vercel.app
+```
+
+#### Confirmed Platform Versions
+
+**Backend (`backend/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `999a4e0` |
+| Java | 21 | `999a4e0` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `999a4e0` |
+| Keycloak admin client | 26.0.5 | `999a4e0` |
+| springdoc-openapi | 2.8.6 | `999a4e0` |
+| Lombok | 1.18.38 | `999a4e0` |
+| PostgreSQL | 16 (Docker) | `999a4e0` |
+
+**Angular Web App (`web/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `ac49929` |
+| Angular CLI | 21.2.7 | `ac49929` |
+| PrimeNG | 21.0.x | `ac49929` |
+| RxJS | 7.8.x | `ac49929` |
+| TypeScript | 5.9.x | `ac49929` |
+| Production URL | cba-web-nine.vercel.app | `ac49929` |
+
+**Partner Portal (`partner-portal/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| React | 19.2.5 | `999a4e0` |
+| Vite | 8.0.9 | `999a4e0` |
+| Tailwind CSS | 4.2.4 | `999a4e0` |
+| TanStack Query | 5.99.2 | `999a4e0` |
+| Production URL | partner-portal-omega-two.vercel.app | `999a4e0` |
+
+---
+
 ### Session 111 — 2026-04-25
 **Partner portal CI fully green: Lint ✅ Build ✅ Docker ✅ Vercel ✅. Image pushed to `ghcr.io/razormvp/cba-platform/cba-partner-portal:main`. Portal live at partner-portal-omega-two.vercel.app.**
 

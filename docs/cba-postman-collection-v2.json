@@ -23839,6 +23839,367 @@
               "body": "{\"data\":null,\"meta\":{},\"errors\":[]}"
             }
           ]
+        },
+        {
+          "name": "List Webhooks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{partnerJwt}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/partners/{{orgId}}/webhooks",
+              "host": [
+                "http://localhost:8080"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "{{orgId}}",
+                "webhooks"
+              ]
+            },
+            "description": "List all active webhooks registered by the partner organisation."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"uuid\",\n      \"name\": \"Payment Events\",\n      \"callbackUrl\": \"https://fintech.io/webhooks/cba\",\n      \"events\": [\n        \"PAYMENT.COMPLETED\",\n        \"PAYMENT.FAILED\"\n      ],\n      \"active\": true,\n      \"createdAt\": \"2026-04-25T12:00:00Z\"\n    }\n  ],\n  \"meta\": {},\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Register Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{partnerJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Payment Events\",\n  \"callbackUrl\": \"https://fintech.io/webhooks/cba\",\n  \"events\": [\n    \"PAYMENT.COMPLETED\",\n    \"PAYMENT.FAILED\",\n    \"CONSENT.REVOKED\"\n  ],\n  \"secret\": \"my-hmac-secret\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/partners/{{orgId}}/webhooks",
+              "host": [
+                "http://localhost:8080"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "{{orgId}}",
+                "webhooks"
+              ]
+            },
+            "description": "Register a new webhook. The secret is stored server-side for HMAC delivery signing."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"data\": {\n    \"id\": \"uuid\",\n    \"name\": \"Payment Events\",\n    \"callbackUrl\": \"https://fintech.io/webhooks/cba\",\n    \"events\": [\n      \"PAYMENT.COMPLETED\",\n      \"PAYMENT.FAILED\",\n      \"CONSENT.REVOKED\"\n    ],\n    \"active\": true,\n    \"createdAt\": \"2026-04-25T12:00:00Z\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Deregister Webhook",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{partnerJwt}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/partners/{{orgId}}/webhooks/{{webhookId}}",
+              "host": [
+                "http://localhost:8080"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "{{orgId}}",
+                "webhooks",
+                "{{webhookId}}"
+              ]
+            },
+            "description": "Soft-delete a webhook (sets active=false). Returns 204 No Content."
+          },
+          "response": [
+            {
+              "name": "204 No Content",
+              "status": "No Content",
+              "code": 204,
+              "body": ""
+            }
+          ]
+        },
+        {
+          "name": "Get Webhook Deliveries",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{partnerJwt}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/partners/{{orgId}}/webhooks/{{webhookId}}/deliveries",
+              "host": [
+                "http://localhost:8080"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "{{orgId}}",
+                "webhooks",
+                "{{webhookId}}",
+                "deliveries"
+              ]
+            },
+            "description": "Delivery log for a webhook. Stub \u2014 returns empty list. Async delivery dispatch will be wired in a future session."
+          },
+          "response": [
+            {
+              "name": "200 OK (stub)",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [],\n  \"meta\": {},\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Consents (stub)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{partnerJwt}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/partners/{{orgId}}/consents",
+              "host": [
+                "http://localhost:8080"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "{{orgId}}",
+                "consents"
+              ]
+            },
+            "description": "List Open Banking consents for the partner organisation. Stub \u2014 returns empty list until TPP-to-partner mapping is added to the consent model."
+          },
+          "response": [
+            {
+              "name": "200 OK (stub)",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [],\n  \"meta\": {},\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Revoke Consent (stub)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{partnerJwt}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8080/api/v1/partners/{{orgId}}/consents/{{consentId}}",
+              "host": [
+                "http://localhost:8080"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "{{orgId}}",
+                "consents",
+                "{{consentId}}"
+              ]
+            },
+            "description": "Revoke a consent on behalf of the partner. Stub \u2014 returns 204 without updating the consent record."
+          },
+          "response": [
+            {
+              "name": "204 No Content (stub)",
+              "status": "No Content",
+              "code": 204,
+              "body": ""
+            }
+          ]
+        },
+        {
+          "name": "Update Organisation",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{partnerJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationName\": \"FinTech Ltd v2\",\n  \"website\": \"https://fintech.io\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/partners/{{orgId}}",
+              "host": [
+                "http://localhost:8080"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "{{orgId}}"
+              ]
+            },
+            "description": "Update organisation name and website URL."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": \"uuid\",\n    \"organizationName\": \"FinTech Ltd v2\",\n    \"website\": \"https://fintech.io\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update User Email",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{partnerJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"new@fintech.io\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/partners/users/{{userId}}",
+              "host": [
+                "http://localhost:8080"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "users",
+                "{{userId}}"
+              ]
+            },
+            "description": "Update the email address of a partner user."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": \"uuid\",\n    \"email\": \"new@fintech.io\",\n    \"role\": \"DEVELOPER\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{partnerJwt}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"OldPass@1\",\n  \"newPassword\": \"NewPass@2\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/partners/users/{{userId}}/change-password",
+              "host": [
+                "http://localhost:8080"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "users",
+                "{{userId}}",
+                "change-password"
+              ]
+            },
+            "description": "Change partner user password. Requires correct currentPassword for verification before updating BCrypt hash."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": []\n}"
+            },
+            {
+              "name": "400 Wrong Current Password",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"INVALID_PASSWORD\",\n      \"message\": \"Current password is incorrect\"\n    }\n  ]\n}"
+            }
+          ]
         }
       ]
     }

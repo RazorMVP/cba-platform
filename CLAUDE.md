@@ -48,8 +48,8 @@ These are the verified-working versions for all production components. Update th
 | **TanStack Query** | 5.99.2 | Server state management |
 | **React Router** | 6.30.3 | SPA routing |
 | **TypeScript** | 6.0.x | `~6.0.2` |
-| **Vercel deployment** | `partner-portal-omega-two.vercel.app` | Production — Session 111 ✅ |
-| **Last git commit** | `f045aca` | Session 111 — all 4 CI jobs green (Lint ✅ Build ✅ Docker ✅ Vercel ✅) |
+| **Vercel deployment** | `partner-portal-omega-two.vercel.app` | Production — Session 112 ✅ |
+| **Last git commit** | `999a4e0` | Session 112 — code review fixes + 9 new backend endpoints (Lint ✅ Build ✅ Docker ✅ Vercel ✅) |
 
 > **Session 66 CI fixes**: Angular 21 uses Vitest (not Karma) — `--browsers=ChromeHeadless` and `--code-coverage` are invalid flags. `vercel deploy --prebuilt` requires `.vercel/output/` from `vercel build`, not `dist/` from `ng build`. All three issues fixed; CI pipeline and Vercel production deployment now fully green.
 
@@ -583,18 +583,23 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 
 ---
 
-### 44. Partner Module (NubBank Partner Portal backend) _(Session 108)_
+### 44. Partner Module (NubBank Partner Portal backend) _(Session 108 + 112)_
 
 - Self-serve partner (fintech developer) registration → sandbox immediately → production requires NubBank approval
 - `PartnerOrganization`: name, `PartnerStatus` (SANDBOX/PENDING_REVIEW/PRODUCTION/SUSPENDED), tier (BASIC/PRO/ENTERPRISE), `PartnerEnvironment` (SANDBOX/PRODUCTION), applicationStatus, approvedBy/At
 - `PartnerUser`: email, passwordHash (BCrypt), role (DEVELOPER/ADMIN), `@ManyToOne` org
 - `PartnerApplication`: production upgrade request — businessType, useCase, estimatedMonthlyCalls, website, technicalContact, complianceNotes; status PENDING_REVIEW/APPROVED/REJECTED
 - `PartnerApiKey`: keyHash (BCrypt), keyPrefix (first 12 chars for display), scopes (JSONB), tier, lastUsedAt; key value shown **once** at creation — never stored plaintext
+- `PartnerWebhook` _(Session 112)_: `@ManyToOne` org, name, callbackUrl (TEXT), secret, `events List<String>` (`@JdbcTypeCode(SqlTypes.JSON)` JSONB), active boolean, `@Version` optimistic locking
+- `PartnerWebhookDelivery` (table only — delivery dispatch not yet wired): webhook_id FK, event_type, delivery_uuid, payload JSONB, http_status, status (PENDING/DELIVERED/FAILED), attempt_count, next_retry_at
 - API key format: `cba_` + Base64URL(32 random bytes)
 - **Partner JWT** (separate from Keycloak): HMAC-SHA256 via Nimbus JOSE `MACSigner`; 24h expiry; claims: sub, email, role, orgId, orgName, status, tier, environment; configured via `app.partner.jwt-secret`
 - `PartnerJwtFilter`: `OncePerRequestFilter`; validates partner tokens for `/api/v1/partners/**`; sets `SecurityContext` with `ROLE_DEVELOPER` or `ROLE_ADMIN`; admin endpoints still require Keycloak ADMIN JWT (bank staff)
-- Package: `com.cba.partner`; Flyway: `V49__partner_module.sql`
-- Endpoints: `POST /api/v1/partners/register` (public), `POST /api/v1/partners/auth/login` (public), `GET/POST/DELETE /api/v1/partners/{orgId}/api-keys`, `POST /api/v1/partners/{orgId}/applications`, `GET /api/v1/partners/{orgId}/usage`, `GET /api/v1/partners` (ADMIN), `POST /api/v1/partners/{orgId}/approve` (ADMIN), `POST /api/v1/partners/{orgId}/reject` (ADMIN)
+- Package: `com.cba.partner`; Flyway: `V49__partner_module.sql`, `V50__partner_webhooks.sql`
+- Endpoints (original — Session 108): `POST /api/v1/partners/register` (public), `POST /api/v1/partners/auth/login` (public), `GET/POST/DELETE /api/v1/partners/{orgId}/api-keys`, `POST /api/v1/partners/{orgId}/applications`, `GET /api/v1/partners/{orgId}/usage`, `GET /api/v1/partners` (ADMIN), `POST /api/v1/partners/{orgId}/approve` (ADMIN), `POST /api/v1/partners/{orgId}/reject` (ADMIN)
+- Endpoints (new — Session 112): `GET /api/v1/partners/{orgId}/webhooks`, `POST /api/v1/partners/{orgId}/webhooks`, `DELETE /api/v1/partners/{orgId}/webhooks/{webhookId}`, `GET /api/v1/partners/{orgId}/webhooks/{webhookId}/deliveries` (stub — empty list), `GET /api/v1/partners/{orgId}/consents` (stub), `DELETE /api/v1/partners/{orgId}/consents/{consentId}` (stub), `PUT /api/v1/partners/{orgId}` (update org name/website), `PUT /api/v1/partners/users/{userId}` (update user email), `POST /api/v1/partners/users/{userId}/change-password`
+- **Consents stubs**: Consent endpoints return empty/204 until a TPP-to-partner-org mapping is added to the Open Banking consent model
+- **17 partner webhook events**: CONSENT.CREATED/AUTHORISED/REVOKED/EXPIRED, PAYMENT.INITIATED/COMPLETED/FAILED/REVERSED, FUNDS.CONFIRMED, ACCOUNT.ACCESS_GRANTED/BALANCE_UPDATED, APPLICATION.APPROVED/REJECTED, API_KEY.CREATED/REVOKED, RATE_LIMIT.WARNING/EXCEEDED
 
 ---
 

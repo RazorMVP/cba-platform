@@ -281,10 +281,16 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Set Trivy image ref
+        run: |
+          LOWER_OWNER="${GITHUB_REPOSITORY_OWNER,,}"
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          echo "TRIVY_IMAGE_REF=ghcr.io/${LOWER_OWNER}/cba-platform/cba-backend:sha-${SHORT_SHA}" >> "$GITHUB_ENV"
+
       - name: Scan Docker image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ghcr.io/${{ github.repository }}/cba-backend:sha-${{ github.sha }}
+          image-ref: ${{ env.TRIVY_IMAGE_REF }}
           format: sarif
           output: trivy-docker.sarif
           severity: CRITICAL,HIGH

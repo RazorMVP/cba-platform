@@ -1,4 +1,5 @@
 name: Partner Portal CI
+# public repo — free Actions minutes
 
 on:
   push:

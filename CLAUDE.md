@@ -58,7 +58,7 @@ These are the verified-working versions for all production components. Update th
 | **Docusaurus** | 3.10.0 | `@docusaurus/core`, `@docusaurus/preset-classic` |
 | **React** | 19.x | Docusaurus 3.10 peer dep |
 | **Node** | ≥20 | CI `NODE_VERSION: '20'` |
-| **Vercel deployment** | _(pending — `vercel link` required)_ | New project; secret `VERCEL_PROJECT_ID_PARTNER_DOCS` needed |
+| **Vercel deployment** | `partner-docs-b15nvegyp-razormvps-projects.vercel.app` | Production ✅ Session 117 |
 | **Last git commit** | `7e3d89d` | Session 117 — NubBank Developer Portal scaffold |
 
 ### Card Service (`card-service/`)

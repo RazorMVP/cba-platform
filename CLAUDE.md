@@ -51,6 +51,16 @@ These are the verified-working versions for all production components. Update th
 | **Vercel deployment** | `partner-portal-omega-two.vercel.app` | Production — Session 112 ✅ |
 | **Last git commit** | `12b0e6e` | Session 116 — ConsentsPage.tsx wired to real partner consent endpoints (Lint ✅ Build ✅ Vercel ✅) |
 
+### Partner Docs (`partner-docs/`)
+
+| Component | Version | Notes |
+|-----------|---------|-------|
+| **Docusaurus** | 3.10.0 | `@docusaurus/core`, `@docusaurus/preset-classic` |
+| **React** | 19.x | Docusaurus 3.10 peer dep |
+| **Node** | ≥20 | CI `NODE_VERSION: '20'` |
+| **Vercel deployment** | _(pending — `vercel link` required)_ | New project; secret `VERCEL_PROJECT_ID_PARTNER_DOCS` needed |
+| **Last git commit** | _(pending push)_ | Session 117 — NubBank Developer Portal scaffold |
+
 ### Card Service (`card-service/`)
 
 | Component | Version | Notes |
@@ -77,6 +87,7 @@ cba-platform/
 ├── web/              # Angular 17+ backoffice portal
 ├── partner-portal/   # React 19 + Vite 6 partner / developer portal ✅ Session 108
 ├── docs-site/        # Docusaurus 3 developer guide ✅ Session 107
+├── partner-docs/     # Docusaurus 3 NubBank Developer Portal (partner/fintech) ✅ Session 117
 ├── mobile/           # Flutter 3+ customer mobile app (❌ Phase 3 — not yet built)
 ├── infrastructure/   # Docker Compose + Kubernetes + Keycloak
 ├── docs/             # OpenAPI specs, Postman collections, API reference HTML

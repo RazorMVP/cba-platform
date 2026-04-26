@@ -57,6 +57,73 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 117 — 2026-04-26
+**NubBank Developer Portal — full standalone Docusaurus instance at `partner-docs/` with CI/CD (commits pending push).**
+
+#### New/Updated Files
+
+| File | Change |
+|------|--------|
+| `partner-docs/package.json` | NEW — Docusaurus 3.10.0 standalone instance, Node ≥20 |
+| `partner-docs/tsconfig.json` | NEW — extends `@docusaurus/tsconfig`, baseUrl "." |
+| `partner-docs/docusaurus.config.ts` | NEW — Title "NubBank Developer Portal", dark-only theme, Instrument Sans/Inter/JetBrains Mono fonts, prism vsDark, 4-col footer |
+| `partner-docs/sidebars.ts` | NEW — 6 categories: Start Here, Open Banking v3.1, Card API, Webhooks, Tutorials, Reference |
+| `partner-docs/src/css/custom.css` | NEW — Full dark theme: navy `#0a1628` forced on both color modes, method badges, admonition overrides, hero gradient |
+| `partner-docs/src/pages/index.tsx` | NEW — Homepage: hero + gradient title, 4-step QuickStart grid, 6-card features, CTA box |
+| `partner-docs/src/pages/index.module.css` | NEW — CSS modules for hero/steps/features/CTA responsive layout |
+| `partner-docs/docs/getting-started.md` | NEW — 4-step: register → login → issue API key → first call; sandbox test data table |
+| `partner-docs/docs/authentication.md` | NEW — Three-principal model, Partner JWT claims, FAPI 2.0 PKCE flow, rate tiers, error responses |
+| `partner-docs/docs/core-concepts.md` | NEW — Partner lifecycle, environments, standard envelope, pagination, date/money/ID conventions |
+| `partner-docs/docs/open-banking.md` | NEW — AISP/PISP/CBPII flows, consent lifecycle, required headers, scope table |
+| `partner-docs/docs/card-api.md` | NEW — Card types, lifecycle state machines, block/unblock, controls, limits, auth history, analytics, terminal simulator |
+| `partner-docs/docs/webhooks.md` | NEW — Register, signature verification (Node.js + Python), retry policy, full event catalogue (17 partner + card events) |
+| `partner-docs/docs/error-reference.md` | NEW — Error codes by category with JS/Python handling examples |
+| `partner-docs/docs/rate-limiting.md` | NEW — Tier table, response headers, exponential-with-jitter backoff JS |
+| `partner-docs/docs/sdks-tools.md` | NEW — Postman download, OpenAPI spec links, SDK generation, cURL quick reference |
+| `partner-docs/docs/changelog.md` | NEW — v1.1 + v1.0 entries |
+| `partner-docs/docs/tutorials/issue-first-card.md` | NEW — 5-step: list products → issue → check status → simulate purchase → view auth log |
+| `partner-docs/docs/tutorials/initiate-payment.md` | NEW — Full PISP flow with ASCII diagram |
+| `partner-docs/docs/tutorials/manage-consents.md` | NEW — List, revoke, status flow diagram, best practices |
+| `partner-docs/static/partner-api-reference.html` | NEW — Copied from `docs/` |
+| `partner-docs/static/card-api-reference.html` | NEW — Copied from `docs/` |
+| `partner-docs/static/postman/cba-postman-collection-v2.json` | NEW — Copied from `docs/` |
+| `partner-docs/static/img/logo.png` | NEW — Nubeero PNG logo |
+| `partner-docs/static/img/logo-dark.png` | NEW — Nubeero PNG logo (dark variant) |
+| `partner-docs/vercel.json` | NEW — framework: docusaurus2, SPA rewrites, security headers, 1y asset cache |
+| `partner-docs/nginx.conf` | NEW — Security headers, SPA routing, gzip, 1y/1h cache tiers |
+| `partner-docs/Dockerfile` | NEW — node:20-alpine build + nginx:alpine runtime |
+| `partner-docs/.gitignore` | NEW — node_modules, build, .docusaurus, .vercel |
+| `.github/workflows/partner-docs-ci.yml` | NEW — build/typecheck/artifact; preview deploy on PR with URL comment; production deploy on main push; staging deploy on develop push; all secrets via `env:` block |
+| `docs-site/sidebars.ts` | UPDATED — added "🤝 Partner Developer Portal" `link` category pointing to deployed partner-docs URLs |
+
+#### Key Patterns / Decisions
+
+- **Separate Docusaurus instance**: `partner-docs/` is fully independent from `docs-site/` — different Vercel project (`VERCEL_PROJECT_ID_PARTNER_DOCS`), independent CI workflow, independent `package.json`. The two sites cross-link via `link` type sidebar items in `docs-site/sidebars.ts`.
+- **Dark theme forced**: `disableSwitch: false, respectPrefersColorScheme: false` in Docusaurus config forces dark mode globally. CSS applies `#0a1628` background on both `[data-theme='light']` and `[data-theme='dark']` — prevents flash on initial load.
+- **GitHub Actions security hook for CI**: All `${{ secrets.* }}` and `${{ github.sha }}` values must go through an `env:` block. Inside `actions/github-script`, access via `process.env.VAR_NAME` not `${{ }}` inline. Shell `run:` commands reference as `"$VAR_NAME"`.
+- **Docusaurus `link` type in sidebar**: External cross-site links use `{type: 'link', label: '...', href: '...'}` — no doc IDs needed. Correct pattern for a multi-instance monorepo.
+- **`pathname:///` for local static files**: Docusaurus navbar/sidebar links to local static HTML use `pathname:///partner-api-reference.html` — the triple slash triggers Docusaurus's pathname routing rather than treating it as an external URL.
+
+#### Build Verification
+
+- `partner-docs/` content: all 13 docs pages + 3 tutorials + homepage written; static files copied ✅
+- `partner-docs-ci.yml`: build → typecheck → Vercel deploy pipeline ✅
+- `docs-site/sidebars.ts`: Partner Docs cross-link section added ✅
+- **Pending**: `cd partner-docs && vercel link` (user must run to create Vercel project and add `VERCEL_PROJECT_ID_PARTNER_DOCS` secret)
+
+#### Confirmed Platform Versions
+
+**Partner Docs (`partner-docs/`):**
+
+| Component | Version | Notes |
+| --------- | ------- | ----- |
+| **Docusaurus** | 3.10.0 | `@docusaurus/core`, `@docusaurus/preset-classic` |
+| **React** | 19.x | Docusaurus 3.10 peer dep |
+| **Node** | ≥20 | Matches CI `NODE_VERSION: '20'` |
+| **Last git commit** | _(pending push)_ | Session 117 — NubBank Developer Portal scaffold |
+
+---
+
 ### Session 116 — 2026-04-25
 **CI fully green — SpotBugs, OWASP, Docker fixed for backend and card-service; ConsentsPage.tsx wired to real partner endpoints (commits `9a03bd0`, `ad91499`, `8912f25`, `447007e`).**
 

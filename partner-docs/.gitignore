@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Build output
+build/
+.docusaurus/
+
+# Generated files
+.cache/
+
+# macOS
+.DS_Store
+
+# Vercel
+.vercel/

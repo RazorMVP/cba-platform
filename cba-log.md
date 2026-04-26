@@ -120,7 +120,7 @@ _None — all Phase 1 backend modules are now complete._
 | **Docusaurus** | 3.10.0 | `@docusaurus/core`, `@docusaurus/preset-classic` |
 | **React** | 19.x | Docusaurus 3.10 peer dep |
 | **Node** | ≥20 | Matches CI `NODE_VERSION: '20'` |
-| **Last git commit** | _(pending push)_ | Session 117 — NubBank Developer Portal scaffold |
+| **Last git commit** | `7e3d89d` | Session 117 — NubBank Developer Portal scaffold |
 
 ---
 

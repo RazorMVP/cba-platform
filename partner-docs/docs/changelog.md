@@ -46,3 +46,4 @@ description: API changelog — breaking changes, new endpoints, and deprecations
 - Deprecated versions receive a **6-month support window** from the announcement date
 - Non-breaking additions (new optional fields, new endpoints) ship without a version bump
 - Deprecation notices appear in the `Deprecation` and `Sunset` response headers
+

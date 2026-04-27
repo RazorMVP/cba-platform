@@ -57,6 +57,83 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 118 — 2026-04-27
+**Nubeero branding applied to all four apps — logos and favicons updated; old `.ico` files replaced to fix browser preference issue (commits `b9b9b64` + `7f3e52b`).**
+
+#### New/Updated Files
+
+| File | Change |
+|------|--------|
+| `web/public/favicon.ico` | REPLACED — 8.3KB Angular default → 259KB Nubeero PNG (fixes browser `.ico` preference over `.png`) |
+| `web/public/favicon.png` | REPLACED — Nubeero logo PNG 259KB |
+| `web/src/index.html` | UPDATED — favicon cache-bust version `?v=2` → `?v=3` on both `<link>` tags |
+| `partner-portal/public/favicon.ico` | REPLACED — 8.3KB Vite default → 259KB Nubeero PNG |
+| `partner-portal/public/favicon.png` | REPLACED — Nubeero logo PNG 259KB |
+| `partner-portal/index.html` | UPDATED — favicon `<link>` changed from `image/x-icon` `.ico` to `image/png` `.png` |
+| `docs-site/static/img/favicon.png` | REPLACED — Nubeero logo PNG 259KB |
+| `docs-site/static/img/nubeero-logo.png` | REPLACED — Nubeero logo PNG 259KB |
+| `docs-site/docusaurus.config.ts` | UPDATED — `favicon: 'img/favicon.ico'` → `'img/favicon.png'` |
+| `partner-docs/static/img/favicon.png` | NEW — Nubeero logo PNG 259KB |
+| `partner-docs/static/img/logo.png` | NEW — Nubeero logo PNG 259KB |
+| `partner-docs/static/img/logo-dark.png` | NEW — Nubeero logo PNG 259KB |
+| `partner-docs/docusaurus.config.ts` | UPDATED — `favicon: 'img/favicon.ico'` → `'img/favicon.png'` |
+| `partner-docs/.gitignore` | UPDATED — duplicate `.vercel` line (cosmetic) |
+
+#### Key Patterns / Decisions
+
+- **Browser `.ico` preference**: Browsers always prefer `favicon.ico` over `favicon.png` when both `<link>` tags exist and both files are present, regardless of tag order or `?v=N` cache-busting on the `.png` link. Root fix: replace the `.ico` file bytes with the new PNG — modern browsers render any image format as a favicon regardless of file extension.
+- **`.ico` file as PNG bytes**: Copying a PNG file as `favicon.ico` works correctly in Chrome, Firefox, and Safari. The file extension is advisory; browsers read the magic bytes and MIME type from the `<link type="image/x-icon">` attribute, not the file content.
+- **Docusaurus `favicon` field**: Accepts any image path; injected into every page `<head>` at build time. Changing the field to `.png` removes the need for an `.ico` file in Docusaurus apps entirely.
+
+#### Build Verification
+
+- `ng serve` restarted after fix; `http://localhost:4200/` serving with updated favicon ✅
+- Vercel production deploys triggered by push to `origin/main` ✅
+- No backend files changed — no API doc update required
+
+#### Confirmed Platform Versions
+
+**Angular Web App (`web/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | 21.2.x | `7f3e52b` |
+| Angular CLI | 21.2.7 | `7f3e52b` |
+| PrimeNG | 21.0.x | `7f3e52b` |
+| RxJS | 7.8.x | `7f3e52b` |
+| TypeScript | 5.9.x | `7f3e52b` |
+| Production URL | `cba-web-nine.vercel.app` | `7f3e52b` |
+
+**Partner Portal (`partner-portal/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| React | 19.2.5 | `7f3e52b` |
+| Vite | 8.0.9 | `7f3e52b` |
+| Tailwind CSS | 4.2.4 | `7f3e52b` |
+| Production URL | `partner-portal-omega-two.vercel.app` | `7f3e52b` |
+
+**Partner Docs (`partner-docs/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Docusaurus | 3.10.0 | `b9b9b64` |
+| Node | ≥20 | `b9b9b64` |
+
+**Backend (`backend/`) — unchanged from Session 116:**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `9a03bd0` |
+| Java | 21 | `9a03bd0` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `9a03bd0` |
+| Keycloak admin client | 26.0.5 | `9a03bd0` |
+| springdoc-openapi | 2.8.6 | `9a03bd0` |
+| Lombok | 1.18.38 | `9a03bd0` |
+| PostgreSQL | 16 (Docker) | `9a03bd0` |
+
+---
+
 ### Session 117 — 2026-04-26
 **NubBank Developer Portal — full standalone Docusaurus instance at `partner-docs/` with CI/CD (commits pending push).**
 

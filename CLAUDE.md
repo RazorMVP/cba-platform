@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 116 — 2026-04-25)
+## Confirmed Platform Versions (Session 118 — 2026-04-27)
 
 These are the verified-working versions for all production components. Update this table whenever a dependency is upgraded.
 
@@ -36,7 +36,7 @@ These are the verified-working versions for all production components. Update th
 | **TypeScript** | 5.9.x | `~5.9.2` pinned |
 | **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma) |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `ca3d883` | Session 113 — TrialBalanceComponent + accounting route |
+| **Last git commit** | `7f3e52b` | Session 118 — Nubeero favicon.ico replaced (browser .ico preference fix) |
 
 ### Partner Portal (`partner-portal/`)
 
@@ -49,7 +49,7 @@ These are the verified-working versions for all production components. Update th
 | **React Router** | 6.30.3 | SPA routing |
 | **TypeScript** | 6.0.x | `~6.0.2` |
 | **Vercel deployment** | `partner-portal-omega-two.vercel.app` | Production — Session 112 ✅ |
-| **Last git commit** | `12b0e6e` | Session 116 — ConsentsPage.tsx wired to real partner consent endpoints (Lint ✅ Build ✅ Vercel ✅) |
+| **Last git commit** | `7f3e52b` | Session 118 — Nubeero favicon.ico replaced |
 
 ### Partner Docs (`partner-docs/`)
 
@@ -59,7 +59,7 @@ These are the verified-working versions for all production components. Update th
 | **React** | 19.x | Docusaurus 3.10 peer dep |
 | **Node** | ≥20 | CI `NODE_VERSION: '20'` |
 | **Vercel deployment** | `partner-docs-b15nvegyp-razormvps-projects.vercel.app` | Production ✅ Session 117 |
-| **Last git commit** | `7e3d89d` | Session 117 — NubBank Developer Portal scaffold |
+| **Last git commit** | `b9b9b64` | Session 118 — Nubeero logo applied to all four apps |
 
 ### Card Service (`card-service/`)
 

@@ -40,10 +40,13 @@ public class PartnerJwtFilter extends OncePerRequestFilter {
         try {
             JWTClaimsSet claims = jwtService.verify(header.substring(7));
             String role = (String) claims.getClaim("role");
+            if (role == null || role.isBlank()) role = "DEVELOPER";
+            // Partner roles are namespaced (ROLE_PARTNER_*) so a partner ADMIN can never
+            // collide with the Keycloak staff ROLE_ADMIN used to gate bank-staff endpoints.
             var auth = new UsernamePasswordAuthenticationToken(
                     claims.getSubject(),
                     null,
-                    List.of(new SimpleGrantedAuthority("ROLE_" + role))
+                    List.of(new SimpleGrantedAuthority("ROLE_PARTNER_" + role))
             );
             auth.setDetails(claims);
             SecurityContextHolder.getContext().setAuthentication(auth);

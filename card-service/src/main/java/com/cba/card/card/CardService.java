@@ -225,6 +225,12 @@ public class CardService {
             if (card.getExpiryDate().compareTo(currentYYMM) < 0) {
                 card.setStatus(CardStatus.EXPIRED);
                 cardRepository.save(card);
+                try {
+                    webhookService.publishEvent("CARD.EXPIRED",
+                            Map.of("cardId", card.getId(), "expiryDate", card.getExpiryDate()));
+                } catch (Exception e) {
+                    log.warn("Webhook publish failed for CARD.EXPIRED: {}", e.getMessage());
+                }
                 expired++;
             }
         }

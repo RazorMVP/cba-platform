@@ -11,10 +11,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -25,9 +29,12 @@ public class PartnerService {
     private final PartnerApiKeyRepository apiKeyRepo;
     private final PartnerApplicationRepository applicationRepo;
     private final PartnerWebhookRepository webhookRepo;
+    private final PartnerUsageSnapshotRepository usageRepo;
+    private final PartnerWebhookDeliveryRepository deliveryRepo;
     private final ConsentRepository consentRepo;
     private final BCryptPasswordEncoder passwordEncoder;
     private final PartnerJwtService jwtService;
+    private final PartnerWebhookDeliveryService webhookDelivery;
 
     // ── Registration ─────────────────────────────────────────────────────────
 
@@ -75,7 +82,7 @@ public class PartnerService {
         byte[] raw = new byte[32];
         new SecureRandom().nextBytes(raw);
         String rawKey = "cba_" + Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
-        String hash = passwordEncoder.encode(rawKey);
+        String hash = PartnerApiKeys.hash(rawKey);  // SHA-256: deterministic, lookup-able
         String prefix = rawKey.substring(0, Math.min(12, rawKey.length()));
 
         apiKeyRepo.save(PartnerApiKey.builder()
@@ -87,6 +94,8 @@ public class PartnerService {
                 .tier("BASIC")
                 .active(true)
                 .build());
+        webhookDelivery.publishEvent(orgId, "API_KEY.CREATED",
+                Map.of("name", name == null ? "" : name, "keyPrefix", prefix));
         return rawKey;
     }
 
@@ -104,6 +113,7 @@ public class PartnerService {
         }
         key.setActive(false);
         apiKeyRepo.save(key);
+        webhookDelivery.publishEvent(orgId, "API_KEY.REVOKED", Map.of("keyId", keyId.toString()));
     }
 
     // ── Webhooks ──────────────────────────────────────────────────────────────
@@ -169,6 +179,8 @@ public class PartnerService {
         org.setApprovedBy(approvedBy);
         org.setApprovedAt(Instant.now());
         orgRepo.save(org);
+        webhookDelivery.publishEvent(orgId, "APPLICATION.APPROVED",
+                Map.of("approvedBy", approvedBy == null ? "" : approvedBy));
     }
 
     @Transactional
@@ -177,6 +189,7 @@ public class PartnerService {
                 .orElseThrow(() -> CbaException.notFound("PARTNER_NOT_FOUND", "Partner not found"));
         org.setApplicationStatus("REJECTED");
         orgRepo.save(org);
+        webhookDelivery.publishEvent(orgId, "APPLICATION.REJECTED", Map.of("orgId", orgId.toString()));
     }
 
     // ── Production Application ────────────────────────────────────────────────
@@ -260,6 +273,87 @@ public class PartnerService {
                 "expiryDate", c.getExpiryDate() != null ? c.getExpiryDate().toString() : "",
                 "createdAt", c.getCreatedAt() != null ? c.getCreatedAt().toString() : ""
         );
+    }
+
+    // ── Usage metering ─────────────────────────────────────────────────────────
+
+    /** Trailing-30-day usage for one organization, with daily series and top endpoints. */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getUsage(UUID orgId) {
+        LocalDate from = LocalDate.now().minusDays(29);
+        List<PartnerUsageSnapshot> snaps =
+                usageRepo.findByOrganizationIdAndSnapshotDateGreaterThanEqualOrderBySnapshotDateAsc(orgId, from);
+
+        long total = snaps.stream().mapToLong(PartnerUsageSnapshot::getTotalCalls).sum();
+        long success = snaps.stream().mapToLong(PartnerUsageSnapshot::getSuccessCalls).sum();
+        long error = snaps.stream().mapToLong(PartnerUsageSnapshot::getErrorCalls).sum();
+
+        List<Map<String, Object>> dailyCalls = snaps.stream()
+                .map(s -> Map.<String, Object>of(
+                        "date", s.getSnapshotDate().toString(),
+                        "count", s.getTotalCalls()))
+                .toList();
+
+        Map<String, Integer> merged = new HashMap<>();
+        for (PartnerUsageSnapshot s : snaps) {
+            if (s.getTopEndpoints() != null) {
+                s.getTopEndpoints().forEach((k, v) -> merged.merge(k, v, Integer::sum));
+            }
+        }
+        List<Map<String, Object>> topEndpoints = merged.entrySet().stream()
+                .sorted((a, b) -> Integer.compare(b.getValue(), a.getValue()))
+                .limit(10)
+                .map(e -> Map.<String, Object>of("endpoint", e.getKey(), "count", e.getValue()))
+                .toList();
+
+        long deliveriesTotal = deliveryRepo.countByOrg(orgId);
+        long deliveriesOk = deliveryRepo.countDeliveredByOrg(orgId);
+        double webhookDeliveryRate = deliveriesTotal == 0
+                ? 0 : Math.round(deliveriesOk * 1000.0 / deliveriesTotal) / 10.0;
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("totalRequests", total);
+        out.put("successRequests", success);
+        out.put("failedRequests", error);
+        out.put("webhookDeliveryRate", webhookDeliveryRate);
+        out.put("dailyCalls", dailyCalls);
+        out.put("topEndpoints", topEndpoints);
+        return out;
+    }
+
+    /** Per-organization usage totals over the last {@code days} days (admin view). */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getAllUsage(int days) {
+        LocalDate from = LocalDate.now().minusDays(Math.max(0, days - 1));
+        List<PartnerUsageSnapshot> snaps = usageRepo.findBySnapshotDateGreaterThanEqual(from);
+
+        Map<UUID, long[]> agg = new HashMap<>(); // [total, success, error]
+        for (PartnerUsageSnapshot s : snaps) {
+            long[] a = agg.computeIfAbsent(s.getOrganizationId(), k -> new long[3]);
+            a[0] += s.getTotalCalls();
+            a[1] += s.getSuccessCalls();
+            a[2] += s.getErrorCalls();
+        }
+        if (agg.isEmpty()) return List.of();
+
+        Map<UUID, String> names = orgRepo.findAllById(agg.keySet()).stream()
+                .collect(Collectors.toMap(PartnerOrganization::getId, PartnerOrganization::getName));
+
+        return agg.entrySet().stream()
+                .map(e -> {
+                    long t = e.getValue()[0], s = e.getValue()[1], er = e.getValue()[2];
+                    double rate = t == 0 ? 0 : Math.round(s * 1000.0 / t) / 10.0;
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("organizationId", e.getKey().toString());
+                    m.put("organizationName", names.getOrDefault(e.getKey(), "—"));
+                    m.put("totalCalls", t);
+                    m.put("successCalls", s);
+                    m.put("errorCalls", er);
+                    m.put("successRate", rate);
+                    return m;
+                })
+                .sorted((a, b) -> Long.compare((Long) b.get("totalCalls"), (Long) a.get("totalCalls")))
+                .toList();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

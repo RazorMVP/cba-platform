@@ -57,6 +57,80 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 119 — 2026-06-18
+**Tier-1 "dead-wiring" sweep — closed 7 audit gaps that made the partner/BaaS layer and notifications actually do what the portal & docs already claim (backend + card-service; commit pending).**
+
+Driven by a full-platform audit ("what's left to work on"). The portal/docs were polished but the backend enforcement/integration core lagged: webhooks never fired, usage showed zeros, issued API keys couldn't authenticate, partner endpoints had an IDOR + a privilege-escalation hole, loan emails went to a hardcoded address, and card-service emitted only 4 of its documented webhook events while settlement export produced nothing.
+
+#### New/Updated Files
+
+| File | Change |
+|------|--------|
+| `backend/.../notification/NotificationEventListener.java` | **Gap 1** — loan-approval email now resolved from `customerId` via `CustomerRepository` (correct decryption context); skips with a warning if no email |
+| `backend/.../partner/PartnerJwtFilter.java` | **Gap 4** — partner roles namespaced `ROLE_PARTNER_*` (closes self-approve escalation); null-role guard |
+| `backend/.../config/SecurityConfig.java` | **Gap 4/5** — partner-path matchers (staff-ADMIN vs `PARTNER_*`); registered `PartnerApiKeyAuthFilter` |
+| `backend/.../partner/PartnerSecurity.java` | **NEW** Gap 4/5 — org/user ownership guard (IDOR); staff `ROLE_ADMIN` override; resolves orgId from JWT claims or API-key principal |
+| `backend/.../partner/PartnerController.java` | **Gap 4/3** — `requireOrgAccess`/`requireUserAccess` on 14 endpoints; `/usage` + admin `/usage` now return real data |
+| `backend/.../partner/PartnerWebhook.java` | **Gap 4** — `secret` `@Convert`-encrypted at rest (reversible; HMAC needs cleartext), column → TEXT |
+| `backend/.../db/migration/V52__partner_webhook_secret_encryption.sql` | **NEW** Gap 4 — widen `partner_webhooks.secret_hash` to TEXT for ciphertext |
+| `backend/.../partner/PartnerApiKeys.java` | **NEW** Gap 5 — SHA-256 (deterministic, lookup-able) key hashing |
+| `backend/.../partner/PartnerApiKeyAuthFilter.java` | **NEW** Gap 5 — `Authorization: ApiKey` auth → org + `ROLE_PARTNER_DEVELOPER` + `ROLE_API_CLIENT` + `SCOPE_*`; updates `lastUsedAt` |
+| `backend/.../partner/PartnerPrincipal.java` | **NEW** Gap 5 — API-key auth details carrying orgId/scopes |
+| `backend/.../partner/PartnerService.java` | **Gap 5/3/2** — SHA-256 key issue; `getUsage`/`getAllUsage` aggregation; publishes APPLICATION.*/API_KEY.* events |
+| `backend/.../partner/PartnerUsageSnapshot.java` + `…Repository.java` | **NEW** Gap 3 — daily usage aggregate entity + read repo |
+| `backend/.../partner/PartnerUsageRecorder.java` | **NEW** Gap 3 — async atomic native UPSERT (counters + top_endpoints JSONB) |
+| `backend/.../partner/PartnerUsageInterceptor.java` | **NEW** Gap 3 — meters partner-only traffic (afterCompletion) |
+| `backend/.../config/WebMvcConfig.java` | **Gap 3** — registered the usage interceptor |
+| `backend/.../partner/PartnerWebhookDeliveryService.java` | **Gap 2** — `parseOrg` helper for cross-bean async publish |
+| `backend/.../partner/PartnerWebhookDeliveryRepository.java` | **Gap 3** — `countByOrg`/`countDeliveredByOrg` for delivery rate |
+| `backend/.../openbanking/ConsentService.java` | **Gap 2** — CONSENT.CREATED/AUTHORISED/REVOKED + FUNDS.CONFIRMED; `tppClientIdFor` |
+| `backend/.../openbanking/PispController.java` | **Gap 2** — PAYMENT.INITIATED/COMPLETED/FAILED |
+| `card-service/.../card/CardService.java` | **Gap 6** — CARD.EXPIRED in CoB |
+| `card-service/.../openbanking/CardApiController.java` | **Gap 6** — CARD.LIMIT_CHANGED |
+| `card-service/.../auth/CardAuthorizationService.java` | **Gap 6** — FRAUD.RULE_TRIGGERED / CARD_STEP_UP / CARD_DECLINED_HIGH_RISK |
+| `card-service/.../dispute/DisputeService.java` | **Gap 6** — DISPUTE.RAISED / DISPUTE.RESOLVED |
+| `card-service/.../settlement/SettlementFileExportService.java` | **Gap 7** — `buildExportRecords` now joins cards→bin_ranges (scheme, normalize UNION_PAY→UNIONPAY) + interchange_log (interchange/net) + masked PAN |
+| backend tests | **NEW** `NotificationEventListenerTest`, `PartnerSecurityTest`, `PartnerApiKeysTest`, `PartnerServiceUsageTest`; updated `PartnerServiceTest` (webhookDelivery mock, dropped stale stub) |
+
+#### Key Patterns / Decisions
+
+- **Audit corrections found in code (sharper than the surface audit):** webhook secrets must be **encrypted (reversible), not hashed** — the cleartext is the HMAC signing key; partner API-key hashing was **broken salted bcrypt** → switched to SHA-256; `PartnerJwtFilter` granted `ROLE_ADMIN` to partner admins → **privilege escalation** to `/{orgId}/approve`, fixed by namespacing `ROLE_PARTNER_*`.
+- **Partner endpoints were already 403 under real Keycloak** (no matcher for partner roles; only dev-bypass `ROLE_ADMIN` worked). Gap 4 added proper partner-path matchers, so the portal works against real auth now.
+- **Async webhook publish must be cross-bean** — `publishEvent` is `@Async`; calling it via self-invocation bypasses the proxy and blocks the request thread. OB call sites use the static `parseOrg` helper + a cross-bean `publishEvent` call.
+- **Gap 7 scheme-code mismatch:** `bin_ranges` stores `UNION_PAY` but `UnionPayCupsExporter.getScheme()` is `UNIONPAY`; SQL normalizes so records route to the exporter. Masked-PAN-only (per decision) — no full-PAN decrypt in the JDBC path.
+- **Events wired (11 partner + 7 card):** partner — APPLICATION.APPROVED/REJECTED, API_KEY.CREATED/REVOKED, CONSENT.CREATED/AUTHORISED/REVOKED, FUNDS.CONFIRMED, PAYMENT.INITIATED/COMPLETED/FAILED; card — CARD.EXPIRED, CARD.LIMIT_CHANGED, FRAUD.RULE_TRIGGERED/CARD_STEP_UP/CARD_DECLINED_HIGH_RISK, DISPUTE.RAISED/RESOLVED.
+- **Deferred (documented, not silently skipped):** CONSENT.EXPIRED (no active expiry job), ACCOUNT.ACCESS_GRANTED/BALANCE_UPDATED (no clean trigger), PAYMENT.REVERSED + AUTHORIZATION.REVERSED (no domain reversal handler — reversals flow through FEP/simulator MTI 0400), RATE_LIMIT.WARNING/EXCEEDED (rate-limit filter runs before partner auth → orgId unavailable).
+
+#### Build Verification
+
+- `backend`: `./mvnw test -Djacoco.skip=true` → **622 tests, 0 failures, 0 errors, BUILD SUCCESS**. New tests: NotificationEventListenerTest (2), PartnerSecurityTest (5), PartnerApiKeysTest (1), PartnerServiceUsageTest (3).
+- `card-service`: `./mvnw compile` → **BUILD SUCCESS**. Gap 6/7 are compile-verified + reviewed; card-service Mockito unit tests for concrete classes are blocked on this Java 25 host (`Could not modify all classes`), and the settlement live-DB path needs Testcontainers (not runnable here).
+- **Env note:** local JDK is Java 25; JaCoCo 0.8.12 can't instrument it, so tests run with `-Djacoco.skip=true`. Pre-existing environment mismatch, unrelated to these changes.
+
+#### Confirmed Platform Versions
+
+**Backend (`backend/`) — versions unchanged (no `pom.xml` edits this session):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | Session 119 (commit pending) |
+| Java | 21 | Session 119 |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | Session 119 |
+| Keycloak admin client | 26.0.5 | Session 119 |
+| springdoc-openapi | 2.8.6 | Session 119 |
+| Lombok | 1.18.38 | Session 119 |
+| PostgreSQL | 16 (Docker) | Session 119 |
+
+**card-service (`card-service/`):**
+
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | Session 119 (commit pending) |
+| Java | 21 | Session 119 |
+
+#### Compliance Checklist Update
+- No REST endpoint URLs/params/signatures changed (only internal guard/publish calls + response *values* now real) → `api-reference.html` / Postman need no new endpoint entries. The webhook event catalogue they already document is now actually wired.
+
 ### Session 118 — 2026-04-27
 **Nubeero branding applied to all four apps — logos and favicons updated; old `.ico` files replaced to fix browser preference issue (commits `b9b9b64` + `7f3e52b`).**
 

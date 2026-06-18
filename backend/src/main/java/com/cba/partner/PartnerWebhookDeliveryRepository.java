@@ -15,4 +15,11 @@ public interface PartnerWebhookDeliveryRepository extends JpaRepository<PartnerW
     @Query("SELECT d FROM PartnerWebhookDelivery d " +
            "WHERE d.status = 'FAILED' AND d.attemptCount < 5 AND d.nextRetryAt <= :now")
     List<PartnerWebhookDelivery> findDueForRetry(@Param("now") Instant now);
+
+    @Query("SELECT COUNT(d) FROM PartnerWebhookDelivery d WHERE d.webhook.organization.id = :orgId")
+    long countByOrg(@Param("orgId") UUID orgId);
+
+    @Query("SELECT COUNT(d) FROM PartnerWebhookDelivery d " +
+           "WHERE d.webhook.organization.id = :orgId AND d.status = 'DELIVERED'")
+    long countDeliveredByOrg(@Param("orgId") UUID orgId);
 }

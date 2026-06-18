@@ -212,13 +212,16 @@ public class SettlementFileExportService {
     private List<SettlementExportRecord> buildExportRecords(
             SettlementBatch batch, LocalDate settlementDate) {
 
+        // Joins settlement_items -> authorization_log -> cards (for scheme via BIN + masked PAN + card type)
+        // and the latest interchange_log row (for interchange/scheme-fee/net). Scheme is resolved by a
+        // BIN range-scan against the card's 8-digit prefix and normalized so it matches the exporter codes
+        // (bin_ranges stores 'UNION_PAY' but UnionPayCupsExporter.getScheme() is 'UNIONPAY').
         String sql = """
                 SELECT
                     si.id                  AS settlement_item_id,
                     si.authorization_log_id,
                     si.amount              AS gross_amount,
                     si.currency_code,
-                    al.card_id,
                     al.stan,
                     al.rrn,
                     al.mti,
@@ -229,14 +232,37 @@ public class SettlementFileExportService {
                     al.mcc,
                     -- authorization_log has no terminal_id column; default to empty
                     ''                     AS terminal_id,
-                    al.response_code,
-                    -- Derive scheme from BIN via card join (simplified — no JOIN here for performance)
-                    'UNKNOWN'              AS scheme,
+                    -- Resolve scheme from the card BIN; normalize UNION_PAY -> UNIONPAY to match exporter code
+                    COALESCE((
+                        SELECT CASE WHEN br.scheme = 'UNION_PAY' THEN 'UNIONPAY' ELSE br.scheme END
+                        FROM bin_ranges br
+                        WHERE br.active = true
+                          AND br.bin_start <= c.pan_prefix
+                          AND br.bin_end   >= c.pan_prefix
+                        ORDER BY LENGTH(br.bin_start) DESC
+                        LIMIT 1
+                    ), 'UNKNOWN')          AS scheme,
+                    -- Masked PAN only (no full PAN decrypt in the SQL path): first 6 + mask + last 4
+                    CASE WHEN c.pan_prefix IS NOT NULL
+                         THEN SUBSTRING(c.pan_prefix FROM 1 FOR 6) || '******' || c.pan_suffix
+                         ELSE '****' END   AS masked_pan,
+                    COALESCE(c.card_type, 'DEBIT')              AS card_type,
                     -- auth_code stored in response_code field for approved txns
                     CASE WHEN al.response_code = '00' THEN al.rrn ELSE '' END AS auth_code,
-                    al.created_at::date    AS transaction_date
+                    al.created_at::date    AS transaction_date,
+                    COALESCE(il.interchange_amount, 0)            AS interchange_amount,
+                    COALESCE(il.scheme_fee_amount, 0)            AS scheme_fee_amount,
+                    COALESCE(il.net_settlement_amount, si.amount) AS net_amount
                 FROM settlement_items si
                 LEFT JOIN authorization_log al ON al.id = si.authorization_log_id
+                LEFT JOIN cards c            ON c.id  = al.card_id
+                LEFT JOIN LATERAL (
+                    SELECT il2.interchange_amount, il2.scheme_fee_amount, il2.net_settlement_amount
+                    FROM interchange_log il2
+                    WHERE il2.authorization_log_id = al.id
+                    ORDER BY il2.calculated_at DESC
+                    LIMIT 1
+                ) il ON true
                 WHERE si.batch_id = ?
                   AND si.status = 'SETTLED'
                 """;
@@ -245,9 +271,9 @@ public class SettlementFileExportService {
                 UUID.fromString(rs.getString("settlement_item_id")),
                 rs.getString("authorization_log_id") != null
                         ? UUID.fromString(rs.getString("authorization_log_id")) : null,
-                "****",                                         // maskedPan — populated below
-                "",                                             // pan — not in auth_log; fetched from card vault in real impl
-                "DEBIT",                                        // cardType — default; resolve from card_id in real impl
+                rs.getString("masked_pan"),
+                "",                                             // pan — masked-only; full PAN decrypt deferred (Gap 7 decision)
+                rs.getString("card_type"),
                 rs.getString("scheme"),
                 rs.getString("mti"),
                 rs.getString("stan"),
@@ -256,16 +282,17 @@ public class SettlementFileExportService {
                 rs.getString("processing_code"),
                 rs.getString("entry_mode"),
                 rs.getBigDecimal("gross_amount"),
-                BigDecimal.ZERO,                                // interchange — populated by InterchangeLog lookup in real impl
-                BigDecimal.ZERO,                                // scheme fees — same
-                rs.getBigDecimal("gross_amount"),               // net = gross until interchange populated
+                rs.getBigDecimal("interchange_amount"),
+                rs.getBigDecimal("scheme_fee_amount"),
+                rs.getBigDecimal("net_amount"),
                 rs.getString("currency_code"),
                 rs.getString("merchant_id"),
                 rs.getString("merchant_name"),
                 rs.getString("mcc"),
                 rs.getString("terminal_id"),
                 props.getAcquirerBin(),
-                rs.getDate("transaction_date").toLocalDate(),
+                rs.getDate("transaction_date") != null
+                        ? rs.getDate("transaction_date").toLocalDate() : settlementDate,
                 settlementDate
         ), batch.getId());
     }

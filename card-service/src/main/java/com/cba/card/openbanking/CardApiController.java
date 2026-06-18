@@ -161,6 +161,7 @@ public class CardApiController {
         CardLimit limit = limitService.update(id,
                 req.dailyPurchaseLimit(), req.dailyWithdrawalLimit(),
                 req.perTransactionLimit(), req.monthlyLimit());
+        webhookService.publishEvent("CARD.LIMIT_CHANGED", Map.of("cardId", id));
         return ResponseEntity.ok(ApiResponse.ok(limit));
     }
 

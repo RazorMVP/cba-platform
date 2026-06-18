@@ -81,6 +81,7 @@ public class CardAuthorizationService {
                     req.isFinancial(), null);
 
             FraudEvaluationResult fraud = fraudEngine.evaluate(ctx);
+            publishFraudEvents(card, fraud);
 
             if (fraud.declined()) {
                 String rc = fraud.ruleResults().stream()
@@ -146,6 +147,30 @@ public class CardAuthorizationService {
         } catch (Exception e) {
             log.error("Authorization processing error for STAN={}", req.stan(), e);
             return logAndReturn(card, req, CardAuthResponse.systemError(), 0, FraudDecision.DECLINE);
+        }
+    }
+
+    /** Emit fraud webhook events from an evaluation result (best-effort — never blocks authorization). */
+    private void publishFraudEvents(Card card, FraudEvaluationResult fraud) {
+        if (card == null) return;
+        try {
+            var triggered = fraud.ruleResults().stream()
+                    .filter(r -> r.triggered())
+                    .map(r -> r.ruleId())
+                    .toList();
+            if (!triggered.isEmpty()) {
+                webhookService.publishEvent("FRAUD.RULE_TRIGGERED",
+                        Map.of("cardId", card.getId(), "score", fraud.totalScore(), "rules", triggered));
+            }
+            if (fraud.decision() == FraudDecision.STEP_UP) {
+                webhookService.publishEvent("FRAUD.CARD_STEP_UP",
+                        Map.of("cardId", card.getId(), "score", fraud.totalScore()));
+            } else if (fraud.decision() == FraudDecision.DECLINE) {
+                webhookService.publishEvent("FRAUD.CARD_DECLINED_HIGH_RISK",
+                        Map.of("cardId", card.getId(), "score", fraud.totalScore()));
+            }
+        } catch (Exception e) {
+            log.debug("Fraud webhook publish failed: {}", e.getMessage());
         }
     }
 

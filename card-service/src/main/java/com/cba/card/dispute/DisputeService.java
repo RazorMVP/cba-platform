@@ -1,14 +1,18 @@
 package com.cba.card.dispute;
 
 import com.cba.card.common.CbaException;
+import com.cba.card.openbanking.webhook.WebhookService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -35,6 +39,10 @@ public class DisputeService {
     private final RetrievalRequestRepository      retrievalRepository;
     private final RepresentmentRepository         representmentRepository;
 
+    /** Injected lazily to avoid a potential cycle with WebhookDeliveryService. */
+    @Lazy @Autowired
+    private WebhookService webhookService;
+
     private static final Set<DisputeStatus> TERMINAL = Set.of(
             DisputeStatus.RESOLVED, DisputeStatus.WITHDRAWN);
 
@@ -55,6 +63,12 @@ public class DisputeService {
         CardDispute saved = disputeRepository.save(dispute);
         log.info("Dispute raised: id={} card={} ref={} reason={}",
                 saved.getId(), cardId, transactionRef, reason);
+        try {
+            webhookService.publishEvent("DISPUTE.RAISED", Map.of(
+                    "disputeId", saved.getId(), "cardId", cardId, "reason", reason.name()));
+        } catch (Exception e) {
+            log.debug("Webhook publish failed for DISPUTE.RAISED: {}", e.getMessage());
+        }
         return saved;
     }
 
@@ -168,7 +182,14 @@ public class DisputeService {
         dispute.setResolutionNotes(notes);
 
         log.info("Dispute {} -> RESOLVED favor={}", disputeId, resolutionFavor);
-        return disputeRepository.save(dispute);
+        CardDispute saved = disputeRepository.save(dispute);
+        try {
+            webhookService.publishEvent("DISPUTE.RESOLVED",
+                    Map.of("disputeId", disputeId, "resolutionFavor", saved.getResolutionFavor()));
+        } catch (Exception e) {
+            log.debug("Webhook publish failed for DISPUTE.RESOLVED: {}", e.getMessage());
+        }
+        return saved;
     }
 
     // ── Withdraw ──────────────────────────────────────────────────────────────

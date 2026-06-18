@@ -43,6 +43,21 @@ public class PartnerWebhookDeliveryService {
             .build();
 
     /**
+     * Parse a consent {@code tppClientId} (a partner orgId string) into a UUID, or return null if it is
+     * not a partner org (e.g. an external TPP). Lets Open Banking call sites publish events without
+     * each one repeating the parse/guard. Call the resulting {@link #publishEvent} cross-bean so its
+     * {@code @Async} proxy applies and dispatch stays off the request thread.
+     */
+    public static UUID parseOrg(String tppClientId) {
+        if (tppClientId == null) return null;
+        try {
+            return UUID.fromString(tppClientId);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    /**
      * Fan out an event to all active webhooks that subscribe to it.
      * Called from PartnerService when a significant event occurs.
      */

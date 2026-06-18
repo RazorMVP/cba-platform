@@ -23,7 +23,7 @@ These are the verified-working versions for all production components. Update th
 | **thumbnailator** | 0.4.20 | Server-side image resize for `ClientImageService` — max 500×500, JPEG output |
 | **ZXing** | 3.5.3 | Server-side QR PNG generation (`core` + `javase`) — Session 105 |
 | **spring-boot-starter-data-redis** | 3.5.0 (managed) | Redis fixed-window rate limiting (Lua INCR+EXPIRE) — Session 106 |
-| **Last git commit** | `9a03bd0` | Session 116 — SpotBugs DM_DEFAULT_ENCODING fix in PartnerWebhookDeliveryService |
+| **Last git commit** | Session 119 (commit pending) | Session 119 — Tier-1 partner/BaaS hardening: IDOR guard, `ROLE_PARTNER_*` namespacing (fixes self-approve escalation), API-key SHA-256 + `PartnerApiKeyAuthFilter`, usage metering, webhook event wiring, encrypted webhook secret, loan-email fix |
 
 ### Angular Web App (`web/`)
 
@@ -69,7 +69,7 @@ These are the verified-working versions for all production components. Update th
 | **Java** | 21 | LTS |
 | **Dockerfile** | added Session 116 | `maven:3.9-eclipse-temurin-21-alpine` build + `eclipse-temurin:21-jre-alpine` runtime; port 8081 |
 | **CI** | `card-service-ci.yml` | Test ✅ OWASP ✅ Docker ✅ Trivy ✅ — fully green as of Session 116 |
-| **Last git commit** | `447007e` | Session 116 — Trivy image-ref fix + Dockerfile |
+| **Last git commit** | Session 119 (commit pending) | Session 119 — webhook events (CARD.EXPIRED, CARD.LIMIT_CHANGED, FRAUD.*, DISPUTE.*) + settlement `buildExportRecords` real scheme/interchange/masked-PAN |
 
 > **Session 66 CI fixes**: Angular 21 uses Vitest (not Karma) — `--browsers=ChromeHeadless` and `--code-coverage` are invalid flags. `vercel deploy --prebuilt` requires `.vercel/output/` from `vercel build`, not `dist/` from `ng build`. All three issues fixed; CI pipeline and Vercel production deployment now fully green.
 
@@ -622,6 +622,20 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 - **Webhook delivery** _(Session 115)_: `PartnerWebhookDeliveryService` — `@Async publishEvent()` fans out to matching webhooks; `@Scheduled(fixedDelay=60s)` retry poller; HMAC-SHA256 `X-CBA-Signature` header; exponential backoff 15s→60s→5m→30m→2h; `java.net.http.HttpClient` dispatch
 - **Consents** _(Session 115)_: `ConsentRepository.findByTppClientIdOrderByCreatedAtDesc(orgId.toString())` — partners set their orgId as `tppClientId` when initiating consent via the OB API; revoke sets status to REVOKED
 - **17 partner webhook events**: CONSENT.CREATED/AUTHORISED/REVOKED/EXPIRED, PAYMENT.INITIATED/COMPLETED/FAILED/REVERSED, FUNDS.CONFIRMED, ACCOUNT.ACCESS_GRANTED/BALANCE_UPDATED, APPLICATION.APPROVED/REJECTED, API_KEY.CREATED/REVOKED, RATE_LIMIT.WARNING/EXCEEDED
+
+#### Partner/BaaS Hardening — Session 119
+
+Tier-1 sweep that made the partner layer actually do what the portal/docs claimed. Critical gotchas for future work:
+
+- **Partner roles are namespaced `ROLE_PARTNER_DEVELOPER` / `ROLE_PARTNER_ADMIN`** (`PartnerJwtFilter`). Before, a partner with role `ADMIN` got `ROLE_ADMIN` and could call `POST /{orgId}/approve` to self-promote to PRODUCTION. Bank-staff endpoints gate on Keycloak `hasRole('ADMIN')`; `SecurityConfig` now has explicit partner-path matchers (staff-admin paths first, then `/api/v1/partners/**` → `PARTNER_*` + ADMIN). Without these matchers partner endpoints 403 under real Keycloak (only dev-bypass worked).
+- **IDOR guard:** `PartnerSecurity.requireOrgAccess(orgId)` / `requireUserAccess(userId)` on every `/{orgId}/...` and `/users/{userId}` developer endpoint. Resolves the caller's orgId from the partner JWT claims **or** a `PartnerPrincipal` (API-key). `ROLE_ADMIN` (staff/dev-bypass) is a full-access override. Mismatch → 404 (anti-enumeration).
+- **API keys are SHA-256 hashed** (`PartnerApiKeys.hash`), NOT bcrypt — bcrypt is salted so `findByKeyHashAndActiveTrue` could never match. `PartnerApiKeyAuthFilter` authenticates `Authorization: ApiKey cba_…`, sets org + `ROLE_PARTNER_DEVELOPER` + `ROLE_API_CLIENT` (so keys reach `/open-banking/**`) + `SCOPE_*`, and updates `lastUsedAt`. Existing pre-S119 keys (bcrypt) won't authenticate — none did before (no filter), so nothing to migrate.
+- **Webhook secret is ENCRYPTED at rest, not hashed** (`PartnerWebhook.secret` `@Convert(EncryptedStringConverter)`, column TEXT via V52). The cleartext is the HMAC signing key, so it must stay reversible.
+- **`publishEvent` must be called cross-bean** to keep its `@Async` (self-invocation blocks the request thread). OB call sites use the static `PartnerWebhookDeliveryService.parseOrg(tppClientId)` + a cross-bean `publishEvent`. Events now fire from `PartnerService` (APPLICATION.*/API_KEY.*), `ConsentService` (CONSENT.* + FUNDS.CONFIRMED), `PispController` (PAYMENT.*). Deferred: CONSENT.EXPIRED (no expiry job), ACCOUNT.*, PAYMENT.REVERSED, RATE_LIMIT.* (filter runs before partner auth → no orgId).
+- **Usage metering:** `PartnerUsageRecorder` (async, atomic native UPSERT into `partner_usage_snapshots`, counters + `top_endpoints` JSONB) driven by `PartnerUsageInterceptor` (afterCompletion, partner-only via `PartnerSecurity.currentOrgId()`). `/usage` + admin `/usage` now return real aggregates (were hardcoded zeros).
+- **card-service events wired:** CARD.EXPIRED (CoB), CARD.LIMIT_CHANGED (CardApiController), FRAUD.RULE_TRIGGERED/CARD_STEP_UP/CARD_DECLINED_HIGH_RISK (CardAuthorizationService), DISPUTE.RAISED/RESOLVED (DisputeService). AUTHORIZATION.REVERSED deferred (no domain reversal handler — FEP/simulator MTI 0400 only).
+- **Settlement export now produces records:** `SettlementFileExportService.buildExportRecords` joins cards→`bin_ranges` (scheme via BIN range-scan; **normalize `UNION_PAY`→`UNIONPAY`** to match `UnionPayCupsExporter.getScheme()`) and the latest `interchange_log` row (interchange/scheme-fee/net). Masked-PAN only (first6+mask+last4); full-PAN decrypt deferred. Previously `scheme='UNKNOWN'` hardcoded → zero records ever routed to an exporter.
+- **Env note (Session 119):** local JDK is Java 25 — JaCoCo 0.8.12 can't instrument it (run tests with `-Djacoco.skip=true`), and card-service's Mockito can't mock concrete classes (`Could not modify all classes`), so card-service domain unit tests aren't runnable on this host.
 
 ---
 

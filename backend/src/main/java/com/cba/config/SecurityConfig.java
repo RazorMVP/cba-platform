@@ -37,12 +37,18 @@ public class SecurityConfig {
     @Autowired
     private com.cba.partner.PartnerJwtFilter partnerJwtFilter;
 
+    /** Partner API-key filter — authenticates machine-to-machine "Authorization: ApiKey ..." requests */
+    @Autowired
+    private com.cba.partner.PartnerApiKeyAuthFilter partnerApiKeyAuthFilter;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         // Rate limiting runs first — before auth so we can still throttle unauthenticated abuse
         http.addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class);
         // Partner JWT filter runs before Keycloak JWT processing
         http.addFilterBefore(partnerJwtFilter, UsernamePasswordAuthenticationFilter.class);
+        // Partner API-key (M2M) filter — authenticates "Authorization: ApiKey ..." requests
+        http.addFilterBefore(partnerApiKeyAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         if (devAuthBypassFilter != null) {
             http.addFilterBefore(devAuthBypassFilter, UsernamePasswordAuthenticationFilter.class);
@@ -61,6 +67,17 @@ public class SecurityConfig {
                     "/api/v1/partners/register",
                     "/api/v1/partners/auth/login"
                 ).permitAll()
+
+                // Partner — bank-staff operations (Keycloak ADMIN only; namespaced partner
+                // roles cannot match ROLE_ADMIN, so a partner admin cannot self-approve)
+                .requestMatchers(HttpMethod.GET, "/api/v1/partners").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/v1/partners/usage").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/partners/*/approve").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/partners/*/reject").hasRole("ADMIN")
+
+                // Partner — developer self-service (partner JWT or API key; ADMIN = staff/dev-bypass override)
+                .requestMatchers("/api/v1/partners/**")
+                    .hasAnyRole("PARTNER_DEVELOPER", "PARTNER_ADMIN", "ADMIN")
 
                 // Public endpoints — health, docs
                 .requestMatchers(

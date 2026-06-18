@@ -8,6 +8,11 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
+import com.cba.customer.Customer;
+import com.cba.customer.CustomerRepository;
+
+import java.util.UUID;
+
 /**
  * Listens for domain events and sends notifications asynchronously.
  * @Async ensures notifications never block the calling transaction.
@@ -21,6 +26,7 @@ public class NotificationEventListener {
 
     private final JavaMailSender mailSender;
     private final InAppNotificationService inAppService;
+    private final CustomerRepository customerRepository;
 
     @EventListener
     @Async
@@ -65,12 +71,18 @@ public class NotificationEventListener {
                 "Loan application has been approved and is ready for disbursement.",
                 "LOAN", event.getLoanId()
             );
-            sendSimpleMail(
-                "noreply@cba.com",
-                "customer@cba.com", // TODO: resolve from customerId
-                "Your loan has been approved",
-                "Congratulations! Your loan application has been approved."
-            );
+            String email = resolveCustomerEmail(event.getCustomerId());
+            if (email != null && !email.isBlank()) {
+                sendSimpleMail(
+                    "noreply@cba.com",
+                    email,
+                    "Your loan has been approved",
+                    "Congratulations! Your loan application has been approved."
+                );
+            } else {
+                log.warn("Loan approved but no email on file for customerId={} — email skipped",
+                    event.getCustomerId());
+            }
         } else if (event.getType() == LoanEvent.Type.DISBURSED) {
             inAppService.push(
                 InAppNotification.Type.LOAN_DISBURSED,
@@ -95,6 +107,18 @@ public class NotificationEventListener {
                 "LOAN", event.getLoanId()
             );
         }
+    }
+
+    /**
+     * Resolves a customer's email through CustomerRepository so the JPA
+     * EncryptedStringConverter decrypts it in the correct persistence context.
+     * Returns null if the customer or email is absent — caller skips the send.
+     */
+    private String resolveCustomerEmail(UUID customerId) {
+        if (customerId == null) return null;
+        return customerRepository.findById(customerId)
+                .map(Customer::getEmail)
+                .orElse(null);
     }
 
     private void sendSimpleMail(String from, String to, String subject, String body) {

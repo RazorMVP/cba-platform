@@ -36,6 +36,7 @@ public class PartnerController {
 
     @GetMapping("/{orgId}/api-keys")
     public ResponseEntity<ApiResponse<List<ApiKeyResponse>>> listApiKeys(@PathVariable UUID orgId) {
+        PartnerSecurity.requireOrgAccess(orgId);
         List<ApiKeyResponse> keys = partnerService.listApiKeys(orgId).stream()
                 .map(k -> new ApiKeyResponse(
                         k.getId().toString(),
@@ -52,12 +53,14 @@ public class PartnerController {
 
     @PostMapping("/{orgId}/api-keys")
     public ResponseEntity<ApiResponse<Map<String, String>>> issueApiKey(@PathVariable UUID orgId, @RequestBody IssueKeyRequest req) {
+        PartnerSecurity.requireOrgAccess(orgId);
         String key = partnerService.issueApiKey(orgId, req.name(), req.scopes());
         return ResponseEntity.status(201).body(ApiResponse.ok(Map.of("key", key)));
     }
 
     @DeleteMapping("/{orgId}/api-keys/{keyId}")
     public ResponseEntity<ApiResponse<Void>> revokeApiKey(@PathVariable UUID orgId, @PathVariable UUID keyId) {
+        PartnerSecurity.requireOrgAccess(orgId);
         partnerService.revokeApiKey(orgId, keyId);
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
@@ -66,6 +69,7 @@ public class PartnerController {
 
     @GetMapping("/{orgId}/webhooks")
     public ResponseEntity<ApiResponse<List<WebhookResponse>>> listWebhooks(@PathVariable UUID orgId) {
+        PartnerSecurity.requireOrgAccess(orgId);
         List<WebhookResponse> hooks = partnerService.listWebhooks(orgId).stream()
                 .map(w -> new WebhookResponse(
                         w.getId().toString(),
@@ -80,6 +84,7 @@ public class PartnerController {
 
     @PostMapping("/{orgId}/webhooks")
     public ResponseEntity<ApiResponse<WebhookResponse>> createWebhook(@PathVariable UUID orgId, @RequestBody WebhookRequest req) {
+        PartnerSecurity.requireOrgAccess(orgId);
         PartnerWebhook w = partnerService.createWebhook(orgId, req.name(), req.callbackUrl(), req.secret(), req.events());
         return ResponseEntity.status(201).body(ApiResponse.ok(new WebhookResponse(
                 w.getId().toString(), w.getName(), w.getCallbackUrl(), w.getEvents(), w.isActive(),
@@ -88,6 +93,7 @@ public class PartnerController {
 
     @DeleteMapping("/{orgId}/webhooks/{webhookId}")
     public ResponseEntity<ApiResponse<Void>> deleteWebhook(@PathVariable UUID orgId, @PathVariable UUID webhookId) {
+        PartnerSecurity.requireOrgAccess(orgId);
         partnerService.deleteWebhook(orgId, webhookId);
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
@@ -95,6 +101,7 @@ public class PartnerController {
     @GetMapping("/{orgId}/webhooks/{webhookId}/deliveries")
     public ResponseEntity<ApiResponse<List<DeliveryResponse>>> listDeliveries(
             @PathVariable UUID orgId, @PathVariable UUID webhookId) {
+        PartnerSecurity.requireOrgAccess(orgId);
         List<DeliveryResponse> deliveries = deliveryService.listDeliveries(webhookId).stream()
                 .map(d -> new DeliveryResponse(
                         d.getId().toString(),
@@ -113,11 +120,13 @@ public class PartnerController {
 
     @GetMapping("/{orgId}/consents")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> listConsents(@PathVariable UUID orgId) {
+        PartnerSecurity.requireOrgAccess(orgId);
         return ResponseEntity.ok(ApiResponse.ok(partnerService.listConsentsForOrg(orgId)));
     }
 
     @DeleteMapping("/{orgId}/consents/{consentId}")
     public ResponseEntity<ApiResponse<Void>> revokeConsent(@PathVariable UUID orgId, @PathVariable UUID consentId) {
+        PartnerSecurity.requireOrgAccess(orgId);
         partnerService.revokeConsentForOrg(orgId, consentId);
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
@@ -126,6 +135,7 @@ public class PartnerController {
 
     @PostMapping("/{orgId}/applications")
     public ResponseEntity<ApiResponse<Void>> submitApplication(@PathVariable UUID orgId, @RequestBody PartnerApplicationRequest req) {
+        PartnerSecurity.requireOrgAccess(orgId);
         partnerService.submitApplication(orgId, req);
         return ResponseEntity.status(201).body(ApiResponse.ok(null));
     }
@@ -134,32 +144,29 @@ public class PartnerController {
 
     @GetMapping("/{orgId}/usage")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getUsage(@PathVariable UUID orgId) {
-        return ResponseEntity.ok(ApiResponse.ok(Map.of(
-                "totalRequests", 0,
-                "successRequests", 0,
-                "failedRequests", 0,
-                "webhookDeliveryRate", 0,
-                "dailyCalls", List.of(),
-                "topEndpoints", List.of()
-        )));
+        PartnerSecurity.requireOrgAccess(orgId);
+        return ResponseEntity.ok(ApiResponse.ok(partnerService.getUsage(orgId)));
     }
 
     // ── Partner user settings ─────────────────────────────────────────────────
 
     @PutMapping("/users/{userId}")
     public ResponseEntity<ApiResponse<Void>> updateUser(@PathVariable UUID userId, @RequestBody UpdateUserRequest req) {
+        PartnerSecurity.requireUserAccess(userId);
         partnerService.updateUserEmail(userId, req.email());
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
 
     @PostMapping("/users/{userId}/change-password")
     public ResponseEntity<ApiResponse<Void>> changePassword(@PathVariable UUID userId, @RequestBody ChangePasswordRequest req) {
+        PartnerSecurity.requireUserAccess(userId);
         partnerService.changePassword(userId, req.currentPassword(), req.newPassword());
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
 
     @PutMapping("/{orgId}")
     public ResponseEntity<ApiResponse<Void>> updateOrg(@PathVariable UUID orgId, @RequestBody UpdateOrgRequest req) {
+        PartnerSecurity.requireOrgAccess(orgId);
         partnerService.updateOrg(orgId, req.organizationName(), req.website());
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
@@ -185,7 +192,7 @@ public class PartnerController {
     @GetMapping("/usage")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getAllUsage(@RequestParam(defaultValue = "30") int days) {
-        return ResponseEntity.ok(ApiResponse.ok(List.of()));
+        return ResponseEntity.ok(ApiResponse.ok(partnerService.getAllUsage(days)));
     }
 
     @PostMapping("/{orgId}/approve")

@@ -30,6 +30,7 @@ class PartnerServiceTest {
     @Mock PartnerApplicationRepository applicationRepo;
     @Mock BCryptPasswordEncoder passwordEncoder;
     @Mock PartnerJwtService jwtService;
+    @Mock PartnerWebhookDeliveryService webhookDelivery;
 
     @InjectMocks PartnerService service;
 
@@ -131,7 +132,7 @@ class PartnerServiceTest {
         @DisplayName("issueApiKey returns raw key starting with cba_")
         void issueApiKey_success() {
             when(orgRepo.findById(orgId)).thenReturn(Optional.of(org));
-            when(passwordEncoder.encode(anyString())).thenReturn("hashed");
+            // API keys are SHA-256 hashed (not via passwordEncoder) since Gap 5
 
             String rawKey = service.issueApiKey(orgId, "Test Key", List.of("accounts:read"));
             assertThat(rawKey).startsWith("cba_");

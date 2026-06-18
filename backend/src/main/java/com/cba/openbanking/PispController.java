@@ -2,6 +2,7 @@ package com.cba.openbanking;
 
 import com.cba.openbanking.dto.DomesticPaymentRequest;
 import com.cba.openbanking.dto.DomesticPaymentResponse;
+import com.cba.partner.PartnerWebhookDeliveryService;
 import com.cba.payment.PaymentService;
 import com.cba.payment.dto.TransferRequest;
 import com.cba.payment.dto.PaymentResponse;
@@ -16,6 +17,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * FAPI 2.0 compliant Payment Initiation Service Provider (PISP) endpoints.
@@ -30,6 +33,7 @@ public class PispController {
 
     private final ConsentService consentService;
     private final PaymentService paymentService;
+    private final PartnerWebhookDeliveryService webhookDelivery;
 
     @PostMapping("/domestic-payments")
     @PreAuthorize("hasAnyRole('CUSTOMER', 'API_CLIENT')")
@@ -49,6 +53,25 @@ public class PispController {
                 null
         );
         PaymentResponse payment = paymentService.transfer(transfer, "open-banking:" + request.consentId());
+
+        // Notify the initiating partner (if this consent belongs to one) of the payment outcome
+        UUID partnerOrg = PartnerWebhookDeliveryService.parseOrg(consentService.tppClientIdFor(request.consentId()));
+        if (partnerOrg != null) {
+            webhookDelivery.publishEvent(partnerOrg, "PAYMENT.INITIATED", Map.of(
+                    "paymentId", payment.id().toString(),
+                    "consentId", request.consentId(),
+                    "amount", payment.amount()));
+            String terminal = switch (payment.status().name()) {
+                case "COMPLETED" -> "PAYMENT.COMPLETED";
+                case "FAILED" -> "PAYMENT.FAILED";
+                default -> null;
+            };
+            if (terminal != null) {
+                webhookDelivery.publishEvent(partnerOrg, terminal, Map.of(
+                        "paymentId", payment.id().toString(),
+                        "status", payment.status().name()));
+            }
+        }
 
         DomesticPaymentResponse response = new DomesticPaymentResponse(
                 payment.id().toString(),

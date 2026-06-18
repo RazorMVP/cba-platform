@@ -1,6 +1,7 @@
 package com.cba.partner;
 
 import com.cba.common.audit.AuditableEntity;
+import com.cba.common.crypto.EncryptedStringConverter;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -27,7 +28,11 @@ public class PartnerWebhook extends AuditableEntity {
     @Column(name = "callback_url", nullable = false, columnDefinition = "TEXT")
     private String callbackUrl;
 
-    @Column(name = "secret_hash")
+    // Encrypted at rest (Jasypt AES-256) — NOT hashed: the cleartext is the HMAC signing
+    // key used when dispatching webhooks, so it must remain reversible. Column widened to
+    // TEXT in V52 to hold the ciphertext.
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(name = "secret_hash", columnDefinition = "TEXT")
     private String secret;
 
     @JdbcTypeCode(SqlTypes.JSON)

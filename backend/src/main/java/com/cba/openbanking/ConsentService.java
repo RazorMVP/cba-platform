@@ -7,11 +7,14 @@ import com.cba.customer.Customer;
 import com.cba.customer.CustomerRepository;
 import com.cba.openbanking.card.CardServiceClient;
 import com.cba.openbanking.dto.*;
+import com.cba.partner.PartnerWebhookDeliveryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -23,6 +26,7 @@ public class ConsentService {
     private final AccountRepository    accountRepository;
     private final AuditLogService      auditLogService;
     private final CardServiceClient    cardServiceClient;
+    private final PartnerWebhookDeliveryService webhookDelivery;
 
     // ── Consent lifecycle ────────────────────────────────────────────
 
@@ -41,6 +45,9 @@ public class ConsentService {
 
         OpenBankingConsent saved = consentRepository.save(consent);
         auditLogService.log("OpenBankingConsent", saved.getConsentId(), "CREATE", null, saved);
+        publishToPartner(saved, "CONSENT.CREATED",
+                Map.of("consentId", saved.getConsentId(),
+                       "scopes", saved.getScopes() == null ? List.of() : saved.getScopes()));
         return ConsentResponse.from(saved);
     }
 
@@ -66,6 +73,7 @@ public class ConsentService {
         consent.setStatus(ConsentStatus.AUTHORISED);
         OpenBankingConsent saved = consentRepository.save(consent);
         auditLogService.log("OpenBankingConsent", consentId, "AUTHORISE", null, saved);
+        publishToPartner(saved, "CONSENT.AUTHORISED", Map.of("consentId", consentId));
         return ConsentResponse.from(saved);
     }
 
@@ -80,6 +88,7 @@ public class ConsentService {
         consent.setStatus(ConsentStatus.REVOKED);
         OpenBankingConsent saved = consentRepository.save(consent);
         auditLogService.log("OpenBankingConsent", consentId, "REVOKE", null, saved);
+        publishToPartner(saved, "CONSENT.REVOKED", Map.of("consentId", consentId));
         return ConsentResponse.from(saved);
     }
 
@@ -119,6 +128,10 @@ public class ConsentService {
         var accountOpt = accountRepository.findById(request.accountId());
         if (accountOpt.isPresent()) {
             boolean fundsAvailable = accountOpt.get().getBalance().compareTo(request.amount()) >= 0;
+            publishToPartner(consent, "FUNDS.CONFIRMED", Map.of(
+                    "consentId", consent.getConsentId(),
+                    "accountId", request.accountId().toString(),
+                    "fundsAvailable", fundsAvailable));
             return buildFundsConfirmationResponse(request, fundsAvailable);
         }
 
@@ -130,6 +143,10 @@ public class ConsentService {
             var balOpt = cardServiceClient.getCardBalance(request.accountId());
             if (balOpt.isPresent() && balOpt.get().availableBalance() != null) {
                 boolean fundsAvailable = balOpt.get().availableBalance().compareTo(request.amount()) >= 0;
+                publishToPartner(consent, "FUNDS.CONFIRMED", Map.of(
+                        "consentId", consent.getConsentId(),
+                        "accountId", request.accountId().toString(),
+                        "fundsAvailable", fundsAvailable));
                 return buildFundsConfirmationResponse(request, fundsAvailable);
             }
         }
@@ -151,6 +168,20 @@ public class ConsentService {
     }
 
     // ── Private helpers ──────────────────────────────────────────────
+
+    /** Returns the partner orgId (tppClientId) that owns a consent — used by PISP to attribute payment events. */
+    @Transactional(readOnly = true)
+    public String tppClientIdFor(String consentId) {
+        return findByConsentId(consentId).getTppClientId();
+    }
+
+    /** Publish a partner webhook event for the org that owns this consent (no-op if not a partner org). */
+    private void publishToPartner(OpenBankingConsent consent, String eventType, Object payload) {
+        UUID org = PartnerWebhookDeliveryService.parseOrg(consent.getTppClientId());
+        if (org != null) {
+            webhookDelivery.publishEvent(org, eventType, payload);
+        }
+    }
 
     private OpenBankingConsent findByConsentId(String consentId) {
         return consentRepository.findByConsentId(consentId)

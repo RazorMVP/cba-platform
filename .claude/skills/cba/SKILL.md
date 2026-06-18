@@ -7,9 +7,11 @@ description: Core Banking Application (CBA) builder for Java. Use this skill whe
 
 ---
 
-## ⛔ SESSION COMPLETION GATE — READ THIS BEFORE SAYING "DONE"
+## ⛔ SESSION COMPLETION GATE — RUN THIS AFTER EVERY CHANGE
 
-**You MUST NOT close a session, summarise completion, or push to GitHub until every item below is checked. This is a hard stop, not a suggestion.**
+**The gate runs after EVERY build, update, fix, refactor, or modification — no matter how small.** You MUST NOT report completion, summarise work, say "done", or push to GitHub until the gate has been **executed** (not merely read) and every applicable item below is checked. This is a hard stop, not a suggestion.
+
+> **"Materially satisfied" ≠ "gate run."** If you did not run the verification block and tick each box, the gate did not happen — even if you are *confident* nothing needs updating. Confidence is not evidence; the grep output is. (This is the exact failure mode of Session 119: the work was correct and the docs happened to be fine, but the gate was never run, so no one could prove it.)
 
 ### Mandatory End-of-Session Checklist
 
@@ -26,6 +28,35 @@ Run through this list in order after every feature, fix, or refactor — even ti
   - [ ] Build step in CI uses only standard CLI (`npm run build`, `ng build`, `docusaurus build`) — no Vercel CLI in the build step; deploy step is clearly separated and labelled as swappable
 - [ ] **6. Commit and push** — `git add cba-log.md CLAUDE.md docs/api-reference.html docs/cba-postman-collection-v2.json && git commit && git push origin main`. The pre-push hook will block if `Confirmed Platform Versions` is missing from either doc file.
 
+### How to Run the Gate — Mandatory Execution Procedure
+
+The gate is a procedure you **execute**, not a list you eyeball. The instant any code/doc/config change is complete — before you write a completion message — do this:
+
+1. **Open the gate as tracked work.** Call `TodoWrite` and add one todo per applicable gate item (1–6). A skipped step is then visible instead of silent.
+
+2. **Run the verification block and paste its output into the conversation.** Run it *even when you expect a no-op* — "I assumed nothing changed" is precisely how the gate gets skipped. From the repo root:
+   ```bash
+   BASE="origin/main"; git rev-parse --verify -q "$BASE" >/dev/null || BASE="HEAD~1"
+   echo "── Endpoint / param surface changes since last push ($BASE) ──"
+   git diff $BASE -- '*.java' \
+     | grep -E '^[+-].*@(Get|Post|Put|Delete|Patch|Request)Mapping|^[+-].*@(RequestParam|PathVariable)' \
+     | grep -v '^[+-][+-]' \
+     || echo "(none — no endpoint/param surface change)"
+   echo "── Doc files changed since last push ──"
+   DOCS=$(git diff $BASE --stat -- cba-log.md CLAUDE.md docs/api-reference.html docs/cba-postman-collection-v2.json)
+   [ -n "$DOCS" ] && echo "$DOCS" || echo "(none changed)"
+   ```
+   (`git diff $BASE` with no `..HEAD` compares the last pushed state to the **working tree**, so it catches committed *and* uncommitted changes from the whole session.)
+
+3. **Act on the result, then tick each box:**
+   - Endpoint/param lines printed → items 3 & 4 are **REQUIRED**; update `api-reference.html` + the postman collection + the API matrix.
+   - No endpoint lines **but** a response shape or behaviour changed (new JSON key, new `404`/error path, changed default) → still update the affected doc entry.
+   - Genuinely no API-surface change → write this exact proof line into the cba-log.md entry: **"API surface unchanged — verified via gate grep; no api-reference/postman edits owed."** That sentence is the evidence the gate ran.
+
+4. **Only after every applicable box is ticked** may you commit, push, and report completion.
+
+**Skip rule:** the *only* change that may skip items 3–5 is one touching **zero** files under `backend/`, `card-service/`, `fep-service/`, `web/`, `web-react/`, or `docs/`. Even then, items 1, 2, and 6 still run.
+
 ### Rationalisation Traps — These Are Not Valid Reasons to Skip
 
 | Thought | Why it's wrong |
@@ -37,6 +68,9 @@ Run through this list in order after every feature, fix, or refactor — even ti
 | "The session ran long, I'll commit without the docs" | The pre-push hook will block the push anyway. Fix it now. |
 | "It's just a frontend app, Dockerfile can come later" | Later never comes. A frontend without a Dockerfile is not deployment-agnostic. Add it before the commit. |
 | "Vercel already handles the deploy, Dockerfile is redundant" | Vercel is one target. The Dockerfile is the contract that makes the app portable. Both must exist. |
+| "Nothing API-facing changed, so the gate is satisfied" | You only *know* that after running the grep. Run it and write the proof line in `cba-log.md`. An unrun gate is a skipped gate, regardless of the outcome. |
+| "I'll verify the docs at the end of the session" | The gate runs after *every* change, not once at the end. Batching it is how a mid-session change slips through uncovered. |
+| "I already know this was just internal wiring" | Internal wiring still changes behaviour (new events, new 404s, real-vs-stub responses). Run the block; let the output decide, not your memory. |
 
 ---
 

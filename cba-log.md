@@ -58,7 +58,7 @@ _None — all Phase 1 backend modules are now complete._
 ## Change History
 
 ### Session 119 — 2026-06-18
-**Tier-1 "dead-wiring" sweep — closed 7 audit gaps that made the partner/BaaS layer and notifications actually do what the portal & docs already claim (backend + card-service; commit pending).**
+**Tier-1 "dead-wiring" sweep — closed 7 audit gaps that made the partner/BaaS layer and notifications actually do what the portal & docs already claim (backend + card-service; commit `7d7062c`).**
 
 Driven by a full-platform audit ("what's left to work on"). The portal/docs were polished but the backend enforcement/integration core lagged: webhooks never fired, usage showed zeros, issued API keys couldn't authenticate, partner endpoints had an IDOR + a privilege-escalation hole, loan emails went to a hardcoded address, and card-service emitted only 4 of its documented webhook events while settlement export produced nothing.
 
@@ -113,7 +113,7 @@ Driven by a full-platform audit ("what's left to work on"). The portal/docs were
 
 | Component | Version | Git ref |
 |-----------|---------|---------|
-| Spring Boot | 3.5.0 | Session 119 (commit pending) |
+| Spring Boot | 3.5.0 | Session 119 (`7d7062c`) |
 | Java | 21 | Session 119 |
 | Application artifact | cba-backend 0.1.0-SNAPSHOT | Session 119 |
 | Keycloak admin client | 26.0.5 | Session 119 |
@@ -125,7 +125,7 @@ Driven by a full-platform audit ("what's left to work on"). The portal/docs were
 
 | Component | Version | Git ref |
 |-----------|---------|---------|
-| Spring Boot | 3.5.0 | Session 119 (commit pending) |
+| Spring Boot | 3.5.0 | Session 119 (`7d7062c`) |
 | Java | 21 | Session 119 |
 
 #### Compliance Checklist Update

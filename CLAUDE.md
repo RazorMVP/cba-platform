@@ -23,7 +23,7 @@ These are the verified-working versions for all production components. Update th
 | **thumbnailator** | 0.4.20 | Server-side image resize for `ClientImageService` — max 500×500, JPEG output |
 | **ZXing** | 3.5.3 | Server-side QR PNG generation (`core` + `javase`) — Session 105 |
 | **spring-boot-starter-data-redis** | 3.5.0 (managed) | Redis fixed-window rate limiting (Lua INCR+EXPIRE) — Session 106 |
-| **Last git commit** | Session 119 (commit pending) | Session 119 — Tier-1 partner/BaaS hardening: IDOR guard, `ROLE_PARTNER_*` namespacing (fixes self-approve escalation), API-key SHA-256 + `PartnerApiKeyAuthFilter`, usage metering, webhook event wiring, encrypted webhook secret, loan-email fix |
+| **Last git commit** | Session 119 (`7d7062c`) | Session 119 — Tier-1 partner/BaaS hardening: IDOR guard, `ROLE_PARTNER_*` namespacing (fixes self-approve escalation), API-key SHA-256 + `PartnerApiKeyAuthFilter`, usage metering, webhook event wiring, encrypted webhook secret, loan-email fix |
 
 ### Angular Web App (`web/`)
 
@@ -69,7 +69,7 @@ These are the verified-working versions for all production components. Update th
 | **Java** | 21 | LTS |
 | **Dockerfile** | added Session 116 | `maven:3.9-eclipse-temurin-21-alpine` build + `eclipse-temurin:21-jre-alpine` runtime; port 8081 |
 | **CI** | `card-service-ci.yml` | Test ✅ OWASP ✅ Docker ✅ Trivy ✅ — fully green as of Session 116 |
-| **Last git commit** | Session 119 (commit pending) | Session 119 — webhook events (CARD.EXPIRED, CARD.LIMIT_CHANGED, FRAUD.*, DISPUTE.*) + settlement `buildExportRecords` real scheme/interchange/masked-PAN |
+| **Last git commit** | Session 119 (`7d7062c`) | Session 119 — webhook events (CARD.EXPIRED, CARD.LIMIT_CHANGED, FRAUD.*, DISPUTE.*) + settlement `buildExportRecords` real scheme/interchange/masked-PAN |
 
 > **Session 66 CI fixes**: Angular 21 uses Vitest (not Karma) — `--browsers=ChromeHeadless` and `--code-coverage` are invalid flags. `vercel deploy --prebuilt` requires `.vercel/output/` from `vercel build`, not `dist/` from `ng build`. All three issues fixed; CI pipeline and Vercel production deployment now fully green.
 

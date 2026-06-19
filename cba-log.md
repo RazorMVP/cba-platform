@@ -98,14 +98,14 @@ The FEP (ISO 8583 socket server, EMV cryptogram validation, scheme routing) had 
 **fep-service (`fep-service/`):**
 | Component | Version | Git ref |
 |-----------|---------|---------|
-| Spring Boot | 3.2.5 | `3d127f2` |
-| Java | 21 (target; host JDK 25) | `3d127f2` |
-| jPOS | 2.1.9 | `3d127f2` |
-| Netty | 4.1.109.Final | `3d127f2` |
-| Bouncy Castle | 1.78.1 | `3d127f2` |
-| Lombok | 1.18.38 | `3d127f2` |
-| maven-surefire-plugin | 3.5.5 (pinned this session) | `3d127f2` |
-| Tests | 49 (was 0) | `3d127f2` |
+| Spring Boot | 3.2.5 | `76938a6` |
+| Java | 21 (target; host JDK 25) | `76938a6` |
+| jPOS | 2.1.9 | `76938a6` |
+| Netty | 4.1.109.Final | `76938a6` |
+| Bouncy Castle | 1.78.1 | `76938a6` |
+| Lombok | 1.18.38 | `76938a6` |
+| maven-surefire-plugin | 3.5.5 (pinned this session) | `76938a6` |
+| Tests | 49 (was 0) | `76938a6` |
 
 ---
 

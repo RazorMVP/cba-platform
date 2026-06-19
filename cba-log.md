@@ -57,6 +57,58 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 120 — 2026-06-19
+**fep-service test coverage: 0 → 49 tests (the platform's highest-risk, previously untested service). Production-readiness plan item 3.**
+
+The FEP (ISO 8583 socket server, EMV cryptogram validation, scheme routing) had **zero tests** — the single biggest test-coverage risk on the platform, since a bug there silently mis-authenticates real card transactions. Root cause was partly a toolchain wall: fep-service is on Spring Boot 3.2.5, whose parent pins `maven-surefire-plugin:3.1.2`, which fails to load (`SurefireReportParameters` missing) on the current Maven/JDK — so no test could run at all. Fixed by pinning surefire `3.5.5`, then added 49 unit tests across the pure-logic core. No Mockito (Java 25 can't mock concrete classes) — used plain JUnit, interface stubs, and subclass test doubles instead.
+
+#### New/Updated Files
+
+| File | Change |
+|------|--------|
+| `fep-service/pom.xml` | Pin `maven-surefire-plugin:3.5.5` to override SB 3.2.5's broken 3.1.2 (no tests could run otherwise) |
+| `fep-service/.../emv/EmvDataParserTest.java` | NEW — 9 tests: BER-TLV parse (null/empty, primitive, multi-byte tag, long-form length, constructed-template unwrap, overflow graceful-stop, realistic DE55, case-insensitive) |
+| `fep-service/.../emv/EmvDataTest.java` | NEW — 4 tests: tag accessors, hex rendering, case-insensitivity, defensive-copy immutability |
+| `fep-service/.../emv/ArqcValidatorTest.java` | NEW — 7 tests: offline CID logic (TC→accept, AAC→reject), missing ARQC/ATC→reject, forged ARQC→reject, **genuine-ARQC round-trip→accept** + single-bit-tamper→reject (independent EMV TDES replica locks the security behaviour) |
+| `fep-service/.../emv/ArpcGeneratorTest.java` | NEW — 5 tests: null/short→zero fallback, determinism, authCode affects output, exact Method-1 vector |
+| `fep-service/.../auth/AuthorizationResultTest.java` | NEW — 3 tests: approve/decline/systemError factory mappings (DE39/DE38) |
+| `fep-service/.../auth/AuthorizationRequestTest.java` | NEW — 4 tests: compact-ctor defaults (scheme→UNKNOWN, schemeData→empty), `@With` immutable copy |
+| `fep-service/.../scheme/MastercardSchemeAdapterTest.java` | NEW — 7 tests: DE48 PDS parse (single/multiple subelements, overflow + non-numeric length dropped), DE111 MIP capture, empty msg, scheme type |
+| `fep-service/.../scheme/SchemeAdapterFactoryTest.java` | NEW — 7 tests: 6-digit + 8-digit-precedence BIN routing, remote fallback + cache, short/null PAN→UNKNOWN, unregistered→UNKNOWN, getAdapter fallback (CardServiceClient faked by subclassing) |
+| `fep-service/.../router/MessageRouterTest.java` | NEW — 3 tests: malformed MTI dropped, unknown request MTI→RC30+0→1 flip, unknown advice MTI→RC30+2→3 flip (handlers null — these branches never touch them) |
+
+#### Key Patterns / Decisions
+
+- **No Mockito on Java 25.** Concrete-class mocking throws "Could not modify all classes" on this host. Avoided entirely: pure-logic tests, a hand-written `HsmAdapter` interface stub, and a `CardServiceClient` **subclass** test double (plain inheritance works fine).
+- **Security regression lock via independent replica.** `ArqcValidatorTest` re-implements the documented EMV TDES session-key derivation + CBC-MAC with the same dev IMK to produce a *genuine* ARQC. This proves the validator actually checks the cryptogram (genuine→true, one-bit-tamper→false) rather than being a no-op — the most important single assertion in the FEP.
+- **fep-service has no JaCoCo** (unlike backend/card-service), so the Java 25 instrumentation problem doesn't apply here; tests run clean with no `-Djacoco.skip`.
+- **Launcher caching:** surefire 3.5.5 needs `junit-platform-launcher:1.10.2` — fetched online once, then runs offline (`-o`).
+- **Scope:** unit-tested the pure-logic core (EMV, scheme routing, auth DTOs, MTI dispatch). Handler happy-paths (AuthorizationHandler etc.) and the Netty socket/jPOS packager round-trip need a running card-service + TCP harness → integration-test territory, deliberately deferred.
+
+#### Build Verification
+
+`cd fep-service && ./mvnw -o test → Tests run: 49, Failures: 0, Errors: 0, Skipped: 0 → BUILD SUCCESS`
+
+#### API Surface
+
+**API surface unchanged — verified via gate grep; no api-reference/postman edits owed.** (Test-only + build-config change; no `@*Mapping`/`@RequestParam`/`@PathVariable` additions or changes.)
+
+#### Confirmed Platform Versions
+
+**fep-service (`fep-service/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.2.5 | `3d127f2` |
+| Java | 21 (target; host JDK 25) | `3d127f2` |
+| jPOS | 2.1.9 | `3d127f2` |
+| Netty | 4.1.109.Final | `3d127f2` |
+| Bouncy Castle | 1.78.1 | `3d127f2` |
+| Lombok | 1.18.38 | `3d127f2` |
+| maven-surefire-plugin | 3.5.5 (pinned this session) | `3d127f2` |
+| Tests | 49 (was 0) | `3d127f2` |
+
+---
+
 ### Session 119 — 2026-06-18
 **Tier-1 "dead-wiring" sweep — closed 7 audit gaps that made the partner/BaaS layer and notifications actually do what the portal & docs already claim (backend + card-service; commit `7d7062c`).**
 

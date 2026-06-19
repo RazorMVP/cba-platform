@@ -637,6 +637,17 @@ Tier-1 sweep that made the partner layer actually do what the portal/docs claime
 - **Settlement export now produces records:** `SettlementFileExportService.buildExportRecords` joins cards→`bin_ranges` (scheme via BIN range-scan; **normalize `UNION_PAY`→`UNIONPAY`** to match `UnionPayCupsExporter.getScheme()`) and the latest `interchange_log` row (interchange/scheme-fee/net). Masked-PAN only (first6+mask+last4); full-PAN decrypt deferred. Previously `scheme='UNKNOWN'` hardcoded → zero records ever routed to an exporter.
 - **Env note (Session 119):** local JDK is Java 25 — JaCoCo 0.8.12 can't instrument it (run tests with `-Djacoco.skip=true`), and card-service's Mockito can't mock concrete classes (`Could not modify all classes`), so card-service domain unit tests aren't runnable on this host.
 
+#### fep-service Test Coverage — Session 120
+
+First tests for fep-service (was **0 tests** — the platform's highest-risk untested service). Now **49 unit tests, all green** (`cd fep-service && ./mvnw -o test`). Critical gotchas for future fep-service work:
+
+- **Surefire must be pinned.** fep-service is on Spring Boot **3.2.5**, whose parent pins `maven-surefire-plugin:3.1.2` — that version fails to load on the current Maven/JDK (`A required class is missing: org/apache/maven/plugin/surefire/SurefireReportParameters`), so **no test could run at all** before this. Fixed by an explicit `<version>3.5.5</version>` override in `fep-service/pom.xml`. Any other SB-3.2.x module will hit the same wall.
+- **No Mockito on Java 25 here either.** Same `Could not modify all classes` limit as card-service. Tests avoid it entirely: pure-logic assertions, a hand-written `HsmAdapter` interface stub, and a `CardServiceClient` **subclass** test double (plain inheritance works; inline-mocking doesn't).
+- **fep-service has no JaCoCo plugin**, so the Java 25 instrumentation problem doesn't apply — no `-Djacoco.skip` needed. Just `./mvnw -o test`.
+- **Launcher fetch:** surefire 3.5.5 needs `junit-platform-launcher:1.10.2`; fetch online once (`./mvnw test`), then it runs offline (`-o`).
+- **Security regression lock:** `ArqcValidatorTest` re-implements the EMV TDES derivation + CBC-MAC with the dev IMK to mint a genuine ARQC, proving the validator accepts valid cryptograms and rejects one-bit tampers — not a no-op. If the production derivation changes, this test breaks (intentionally).
+- **Coverage scope:** EMV (parser, ARQC, ARPC, EmvData), scheme routing (BIN→scheme, Mastercard PDS), auth DTOs, MTI dispatch. Deferred to integration tests: handler happy-paths (need a running card-service) and the Netty/jPOS socket round-trip.
+
 ---
 
 ## Card Management Service and Front End Processing Module

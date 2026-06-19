@@ -57,6 +57,39 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 120 (cont.) — 2026-06-19
+**card-service Java 25 test toolchain unblocked — Mockito now mocks concrete classes; first card-service unit tests added (DisputeService, 4 tests).**
+
+Follow-up to the question "if a Java 21 runner or Mockito/ByteBuddy bump is needed, why not just get it?" Investigation showed the Session 119 claim "card-service domain unit tests aren't runnable on this host" was really a **config gap, not an environment dead-end**: the backend already runs 622 Mockito tests on this same Java 25 host. The difference was surefire config. Java 21 is not installed (only 17 & 25), so the fix is the Mockito/Byte Buddy route, not a JDK swap.
+
+#### New/Updated Files
+
+| File | Change |
+|------|--------|
+| `card-service/pom.xml` | Added surefire `argLine` (default + `full-integration` profiles): `-Dnet.bytebuddy.experimental=true` + `-javaagent:.../mockito-core-${mockito.version}.jar` — the same proven config the backend uses. **No `${argLine}` prefix** (card-service has no JaCoCo, so that property is undefined). |
+| `card-service/.../dispute/DisputeServiceTest.java` | NEW — 4 tests: raiseDispute→RAISED + DISPUTE.RAISED webhook, resolve(ISSUER)→RESOLVED + DISPUTE.RESOLVED, invalid resolutionFavor→reject, withdraw-on-terminal→reject. Mocks the **concrete** `WebhookService` — the exact thing that failed in Session 119. Re-instates coverage deleted that session. |
+
+#### Key Patterns / Decisions
+
+- **Root cause of "Could not modify all classes":** ByteBuddy's inline mock maker can't self-attach as a JVM agent on Java 25. Fix = (a) pass mockito-core as `-javaagent` so it gets a real `Instrumentation` (no self-attach), (b) `net.bytebuddy.experimental=true` to proceed on class-file v69. Both already in the backend; card-service simply lacked them.
+- **No JDK swap, no version bump needed.** Mockito/Byte Buddy come from the SB 3.5.0 parent (same as backend, which works). Java 21 isn't installed; Java 17 can't run a Java-21 target. The `-javaagent`/experimental combo is the correct, CI-portable fix (CI runs Java 21 where it's also harmless).
+- **Test-data gotcha found via the proof test:** `DisputeService.raiseDispute` builds the webhook payload with `Map.of("disputeId", saved.getId(), ...)`, and `Map.of` rejects nulls — so a stubbed `save` must assign an id (as JPA would) or the publish is silently swallowed by the service's try/catch. The stub now sets the id.
+- **CLAUDE.md Session 119 env note corrected** — card-service unit tests ARE runnable now.
+
+#### Build Verification
+
+`cd card-service && ./mvnw -o test -Dtest=com.cba.card.dispute.DisputeServiceTest → Tests run: 4, Failures: 0, Errors: 0 → BUILD SUCCESS` (concrete-class mock created with no "Could not modify all classes").
+
+#### API Surface
+
+**API surface unchanged — verified via gate grep; no api-reference/postman edits owed.** (Build-config + test-only change.)
+
+#### Confirmed Platform Versions
+
+card-service dependency versions unchanged from Session 119 (Spring Boot 3.5.0, Java 21 target, Mockito/Byte Buddy SB-managed). Only `card-service/pom.xml` surefire `argLine` added — no dependency version bump.
+
+---
+
 ### Session 120 — 2026-06-19
 **fep-service test coverage: 0 → 49 tests (the platform's highest-risk, previously untested service). Production-readiness plan item 3.**
 

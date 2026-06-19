@@ -635,7 +635,7 @@ Tier-1 sweep that made the partner layer actually do what the portal/docs claime
 - **Usage metering:** `PartnerUsageRecorder` (async, atomic native UPSERT into `partner_usage_snapshots`, counters + `top_endpoints` JSONB) driven by `PartnerUsageInterceptor` (afterCompletion, partner-only via `PartnerSecurity.currentOrgId()`). `/usage` + admin `/usage` now return real aggregates (were hardcoded zeros).
 - **card-service events wired:** CARD.EXPIRED (CoB), CARD.LIMIT_CHANGED (CardApiController), FRAUD.RULE_TRIGGERED/CARD_STEP_UP/CARD_DECLINED_HIGH_RISK (CardAuthorizationService), DISPUTE.RAISED/RESOLVED (DisputeService). AUTHORIZATION.REVERSED deferred (no domain reversal handler — FEP/simulator MTI 0400 only).
 - **Settlement export now produces records:** `SettlementFileExportService.buildExportRecords` joins cards→`bin_ranges` (scheme via BIN range-scan; **normalize `UNION_PAY`→`UNIONPAY`** to match `UnionPayCupsExporter.getScheme()`) and the latest `interchange_log` row (interchange/scheme-fee/net). Masked-PAN only (first6+mask+last4); full-PAN decrypt deferred. Previously `scheme='UNKNOWN'` hardcoded → zero records ever routed to an exporter.
-- **Env note (Session 119):** local JDK is Java 25 — JaCoCo 0.8.12 can't instrument it (run tests with `-Djacoco.skip=true`), and card-service's Mockito can't mock concrete classes (`Could not modify all classes`), so card-service domain unit tests aren't runnable on this host.
+- **Env note (Session 119):** local JDK is Java 25 — JaCoCo 0.8.12 can't instrument it (run tests with `-Djacoco.skip=true`). ~~card-service's Mockito can't mock concrete classes (`Could not modify all classes`)~~ **RESOLVED Session 120** — card-service Mockito now mocks concrete classes on Java 25 via surefire `-javaagent:mockito-core` + `-Dnet.bytebuddy.experimental=true` (see "card-service Test Toolchain" below). card-service unit tests ARE runnable on this host.
 
 #### fep-service Test Coverage — Session 120
 
@@ -647,6 +647,22 @@ First tests for fep-service (was **0 tests** — the platform's highest-risk unt
 - **Launcher fetch:** surefire 3.5.5 needs `junit-platform-launcher:1.10.2`; fetch online once (`./mvnw test`), then it runs offline (`-o`).
 - **Security regression lock:** `ArqcValidatorTest` re-implements the EMV TDES derivation + CBC-MAC with the dev IMK to mint a genuine ARQC, proving the validator accepts valid cryptograms and rejects one-bit tampers — not a no-op. If the production derivation changes, this test breaks (intentionally).
 - **Coverage scope:** EMV (parser, ARQC, ARPC, EmvData), scheme routing (BIN→scheme, Mastercard PDS), auth DTOs, MTI dispatch. Deferred to integration tests: handler happy-paths (need a running card-service) and the Netty/jPOS socket round-trip.
+
+#### card-service Test Toolchain — Session 120
+
+The Session 119 claim that card-service unit tests "aren't runnable on this host" was a **config gap, not an environment limit** — the backend runs 622 Mockito tests on the same Java 25 JDK. Fixed by adding to `card-service/pom.xml` surefire (default + `full-integration`):
+
+```xml
+<argLine>
+  -Dnet.bytebuddy.experimental=true
+  -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar
+</argLine>
+```
+
+- **Why it works:** ByteBuddy's inline mock maker can't self-attach as a JVM agent on Java 25 (`Could not modify all classes`). The `-javaagent` hands Mockito a real `Instrumentation` (no self-attach); `experimental=true` lets ByteBuddy proceed on class-file v69. Same fix the backend uses.
+- **No `${argLine}` prefix** — card-service has no JaCoCo, so that property is undefined; referencing it passes the literal string to the JVM and aborts startup. (The backend *does* prefix `${argLine}` because JaCoCo sets it there.)
+- **No JDK swap / version bump:** Java 21 is not installed (only 17 & 25); Mockito/Byte Buddy are SB-3.5.0-managed. CI runs Java 21, where the flags are harmless.
+- **First card-service unit tests:** `DisputeServiceTest` (4 tests), mocking the concrete `WebhookService`. card-service is now unblocked for real domain unit-test coverage (currently minimal — a follow-on workstream).
 
 ---
 

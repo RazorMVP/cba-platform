@@ -226,6 +226,14 @@
             <exclude>**/*IntegrationTest.java</exclude>
             <exclude>**/openapi/**/*Test.java</exclude>
           </excludes>
+          <!-- Mockito on Java 21+ / Java 25: load mockito-core as a java agent so it
+               does not need to self-attach (blocked on newer JDKs), and allow Byte Buddy
+               to instrument the unrecognised class-file version. No ${argLine} prefix —
+               card-service has no JaCoCo, so that property is undefined here. -->
+          <argLine>
+            -Dnet.bytebuddy.experimental=true
+            -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar
+          </argLine>
         </configuration>
       </plugin>
 
@@ -252,6 +260,10 @@
               </includes>
               <!-- Remove exclusions — run ALL tests including integration -->
               <excludes/>
+              <argLine>
+                -Dnet.bytebuddy.experimental=true
+                -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar
+              </argLine>
             </configuration>
           </plugin>
         </plugins>

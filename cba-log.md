@@ -57,6 +57,49 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 120 (cont. 2) — 2026-06-19
+**card-service unit suite build-out: 4 → 65 tests across the money-critical core. Production-readiness plan item 3 (continued).**
+
+With the Java 25 toolchain unblocked (prev. entry), built out real domain unit coverage for card-service, prioritising the money-critical logic: the authorization decision, fraud scoring, card lifecycle, settlement, and the security primitives (PAN hashing, API-key hashing, CAVV, tokenization).
+
+#### New Files (9 test classes, 61 new tests)
+
+| File | Tests | Covers |
+|------|-------|--------|
+| `fraud/FraudEngineTest.java` | 9 | Hard-blocks (BLOCKED/EXPIRED/PIN-retry → DECLINE 100), scored rules, per-currency `SINGLE_AMOUNT_LIMIT` thresholds (ISO 4217 numeric map), velocity, combined-score decline, CNP debit |
+| `auth/CardAuthorizationServiceTest.java` | 8 | Full decision tree via the PREPAID path: card-not-found→RC14, fraud decline→RC05, CARD_BLOCKED→RC62, insufficient funds→RC51, wallet-missing→RC91, approve→RC00+authcode, balance-inquiry skip, PIN-verified retry reset |
+| `card/CardServiceTest.java` | 9 | Lifecycle state machine (block/unblock/activate/cancel + invalid-state + unknown-command), PIN-retry auto-block at 3, CoB `expireCards`, HMAC PAN hashing |
+| `settlement/SettlementServiceTest.java` | 7 | Batch open/get, add-item totals, close→SETTLED, non-OPEN reject, nightly unmatched-auth expiry |
+| `bin/BinServiceTest.java` | 6 | PAN→scheme range-scan (8-then-6 digit), null/short/unmatched→UNKNOWN, mapping export |
+| `openbanking/apikey/ApiKeyServiceTest.java` | 6 | SHA-256 canonical vector, issue (hash not raw stored), verify + last-used stamp, unknown→empty, revoke |
+| `threeds/CavvGeneratorTest.java` | 6 | Deterministic CAVV bound to card+amount, 28-char Base64, currency-required guard, hmacHex |
+| `token/TokenServiceTest.java` | 5 | DPAN gen (token BIN, preserves last 4), detokenize active/inactive/missing, suspend |
+| `limits/CardLimitServiceTest.java` | 5 | get/throw, partial-update non-null fields, per-txn cap, fail-open when no row |
+
+(Plus `dispute/DisputeServiceTest.java` — 4, from the prev. entry. Total card-service unit tests: **65**.)
+
+#### Key Patterns / Decisions
+
+- **`@InjectMocks` uses ONE injection strategy.** When a class has a constructor (`@RequiredArgsConstructor`), Mockito does constructor injection and **does not also field-inject** remaining `@Mock`s. So `@Lazy @Autowired` fields like `webhookService` (on `CardService` and `CardAuthorizationService`) must be wired with `ReflectionTestUtils.setField` — otherwise the best-effort webhook publish silently NPEs into the service's try/catch and `verify(...)` fails. This bit 4 CardService tests before the fix.
+- **PREPAID path tests the whole auth tree without HTTP.** DEBIT/CREDIT balances come from the monolith via `RestTemplate` (and a private `BalanceResponse` record that's awkward to construct); PREPAID balance comes from `walletRepository`, so the full approve/decline/insufficient/issuer-unavailable matrix is unit-testable with pure mocks.
+- **`@Value` fields set via reflection:** `approveThreshold`/`stepUpThreshold` (FraudEngine), `panHmacKey`/`defaultCurrency` (CardService), `tokenBinPrefix` (TokenService), `masterKey` (CavvGenerator), `authExpiryDays` (SettlementService).
+- **Crypto/security locked with canonical vectors:** `ApiKeyService.sha256hex("abc")` asserted against the published SHA-256 vector; CAVV/PAN-hash asserted deterministic + correct length.
+- **`Card.pinRetryCount` is `short`** — setters need an explicit cast in tests.
+
+#### Build Verification
+
+`cd card-service && ./mvnw -o test → Tests run: 65, Failures: 0, Errors: 0, Skipped: 0 → BUILD SUCCESS`
+
+#### API Surface
+
+**API surface unchanged — verified via gate grep; no api-reference/postman edits owed.** (Test-only change.)
+
+#### Confirmed Platform Versions
+
+card-service dependency versions unchanged from Session 119 (Spring Boot 3.5.0, Java 21 target). No production code or dependency change this entry — tests only.
+
+---
+
 ### Session 120 (cont.) — 2026-06-19
 **card-service Java 25 test toolchain unblocked — Mockito now mocks concrete classes; first card-service unit tests added (DisputeService, 4 tests).**
 

@@ -22,6 +22,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
@@ -183,6 +184,57 @@ class CardAuthorizationServiceTest {
         service.authorize(req(new BigDecimal("100"), "000000", true));
 
         verify(cardService).resetPinRetry(card.getId());
+    }
+
+    // ── DEBIT / CREDIT balance-source paths (issuer-unavailable → RC91) ────────
+
+    private static Card debitCard(UUID linkedEntityId) {
+        Card c = new Card();
+        c.setId(UUID.randomUUID());
+        c.setCardType(CardType.DEBIT);
+        c.setStatus(com.cba.card.card.CardStatus.ACTIVE);
+        c.setLinkedEntityId(linkedEntityId);
+        return c;
+    }
+
+    @Test
+    @DisplayName("DEBIT card with no linked account → RC=91 (no balance source)")
+    void debitNoLinkedAccount() {
+        Card card = debitCard(null); // no linked monolith account
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+
+        assertThat(service.authorize(req(new BigDecimal("100"), "000000", false)).responseCode())
+                .isEqualTo("91");
+    }
+
+    @Test
+    @DisplayName("DEBIT card declines RC=91 when the monolith balance call fails")
+    void debitBackendUnavailable() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+        when(backendRestTemplate.getForEntity(any(String.class), any()))
+                .thenThrow(new RestClientException("connection refused"));
+
+        assertThat(service.authorize(req(new BigDecimal("100"), "000000", false)).responseCode())
+                .isEqualTo("91");
+    }
+
+    @Test
+    @DisplayName("CREDIT card with no linked loan → RC=91 (no credit line)")
+    void creditNoLinkedLoan() {
+        Card card = new Card();
+        card.setId(UUID.randomUUID());
+        card.setCardType(CardType.CREDIT);
+        card.setStatus(com.cba.card.card.CardStatus.ACTIVE);
+        card.setLinkedEntityId(null);
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+
+        assertThat(service.authorize(req(new BigDecimal("100"), "000000", false)).responseCode())
+                .isEqualTo("91");
     }
 
     private static PrepaidWallet wallet(String balance) {

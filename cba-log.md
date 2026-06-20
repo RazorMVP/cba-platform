@@ -57,6 +57,51 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 120 (cont. 3) — 2026-06-20
+**Test coverage extended to the remaining card-service services + fep-service handlers. card-service 65 → 95, fep-service 49 → 56. Production-readiness plan item 3 (continued).**
+
+Covered the larger services that the prior entry flagged as not-yet-unit-tested, plus the fep-service message handlers. Also unblocked Mockito on Java 25 for fep-service (same fix as card-service).
+
+#### New / Updated Files
+
+| File | Tests | Covers |
+|------|-------|--------|
+| `interchange/InterchangeQualificationEngineTest.java` | 4 | Settlement math: zero-amount, `gross×rate%+fixed` interchange + scheme-fee netting, no-rate fallback, auth-not-found |
+| `threeds/ThreeDsServiceTest.java` | 6 | 3DS OTP challenge: correct/wrong/expired OTP, already-authenticated idempotency, max-attempts lock, session-not-found (real `CavvGenerator` for genuine OTP-hash round-trip) |
+| `bureau/BureauServiceTest.java` | 6 | Bureau job state-machine guards (createJob empty, submit/confirm/dispatch/fail status guards, not-found) |
+| `settlement/VisaBase2ExporterTest.java` | 5 | BASE II fixed-width framing (250-byte H/D/T), file name, trailer count+total, `maskPan` |
+| `openbanking/webhook/WebhookDeliveryServiceTest.java` | 4 | Webhook HMAC-SHA256 signature (canonical RFC vector, determinism, secret/payload sensitivity) |
+| `openbanking/analytics/SpendingAnalyticsServiceTest.java` | 2 | MCC → category mapping (`categoryFor`) incl. unknown → Other |
+| `auth/CardAuthorizationServiceTest.java` (+3) | 3 | DEBIT/CREDIT balance-source paths → RC=91 (no linked account, monolith unreachable, no credit line) |
+| `fep .../router/NetworkHandlerTest.java` | 4 | 0800 network mgmt: sign-on/echo/unknown → 0810 RC=00; 0820 inbound not replied |
+| `fep .../router/AuthorizationHandlerTest.java` | 3 | 0100 approve → 0110 RC00+DE38, decline → RC05, 0120 advice → 0130 (scheme adapter mocked) |
+| `fep-service/pom.xml` | — | Mockito Java 25 fix: surefire `argLine` (javaagent + Byte Buddy experimental) + override `mockito.version=5.17.0` / `byte-buddy.version=1.17.6` (SB 3.2.5's defaults predate Java 25) |
+
+#### Key Patterns / Decisions
+
+- **fep-service Mockito on Java 25:** SB 3.2.5's managed Mockito/Byte Buddy can't instrument class-file v69. Overrode both to the versions proven on card-service (5.17.0 / 1.17.6) + added the surefire `-javaagent`/experimental `argLine`. `AuthorizationHandlerTest` mocking the concrete `CardServiceClient` is the proof it works.
+- **Test the testable seam, defer the integration seam.** For each service I unit-tested the pure/decision logic and deliberately deferred the genuinely-integration parts (documented, not silently skipped): `WebhookDeliveryService` HTTP delivery (reactive `WebClient` chain), `SpendingAnalyticsService` SQL aggregations (need a DB), `BureauService` CDP-generating happy paths (need full `CdpRecord`), `CardAuthorizationService` DEBIT/CREDIT *approve* paths (private `BalanceResponse` record — RC91 decline paths are covered).
+- **Settlement exporter framing** asserted at the byte level (record types at fixed 250-byte offsets, trailer count+total) — the format contract a scheme rejects on if wrong.
+- **Canonical crypto vectors** used again: HMAC-SHA256 RFC vector for webhook signatures.
+
+#### Still deferred to integration tests (honest scope)
+
+fep-service Netty/jPOS socket round-trip (server boot + TCP framing); `FinancialHandler` (0200) / `ReversalHandler` (0400) — structurally analogous to `AuthorizationHandler`, not yet covered; card-service `@SpringBootTest`/Testcontainers (`-Pfull-integration`); `TerminalSimulatorService` (Netty client), `SettlementFileExportService.buildExportRecords` (JdbcTemplate), and the 4 non-Visa scheme exporters.
+
+#### Build Verification
+
+`cd card-service && ./mvnw -o test → Tests run: 95, Failures: 0` · `cd fep-service && ./mvnw -o test → Tests run: 56, Failures: 0` — both BUILD SUCCESS.
+
+#### API Surface
+
+**API surface unchanged — verified via gate grep; no api-reference/postman edits owed.** (Test-only + build-config change.)
+
+#### Confirmed Platform Versions
+
+No production dependency change. fep-service test-scope overrides only: `mockito.version=5.17.0`, `byte-buddy.version=1.17.6`, `maven-surefire-plugin=3.5.5`. card-service unchanged from Session 119.
+
+---
+
 ### Session 120 (cont. 2) — 2026-06-19
 **card-service unit suite build-out: 4 → 65 tests across the money-critical core. Production-readiness plan item 3 (continued).**
 

@@ -208,8 +208,12 @@ public class SettlementFileExportService {
      * Build normalized {@link SettlementExportRecord} list for a batch.
      * Joins settlement_items with authorization_log to populate all fields
      * exporters need, without requiring exporters to touch the DB.
+     *
+     * <p>Package-private (not {@code private}) so the Testcontainers integration
+     * test can validate the SQL — scheme BIN range-scan, {@code UNION_PAY→UNIONPAY}
+     * normalization, masked-PAN, and interchange netting — against a real PostgreSQL.
      */
-    private List<SettlementExportRecord> buildExportRecords(
+    List<SettlementExportRecord> buildExportRecords(
             SettlementBatch batch, LocalDate settlementDate) {
 
         // Joins settlement_items -> authorization_log -> cards (for scheme via BIN + masked PAN + card type)

@@ -57,6 +57,48 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 120 (cont. 5) — 2026-06-21
+**card-service integration pieces: TerminalSimulatorService (Netty client) unit-tested; SettlementFileExportService.buildExportRecords Testcontainers test written + SQL verified vs real PostgreSQL 16. card-service unit 99 → 104 (+ 1 integration class). Production-readiness plan item 3 (continued).**
+
+#### New / Updated Files
+
+| File | Tests | Covers |
+|------|-------|--------|
+| `terminal/TerminalSimulatorServiceTest.java` | 5 | Full build→send→decode round trip with a mocked `FepIso8583Client`: approved purchase (0100→0110+DE38), declined (RC05), withdrawal (0200→0210), network mgmt (0800→0810), FEP-unavailable→RC91. Exercises the simulator's own ISO 8583 response decoder. |
+| `settlement/SettlementFileExportServiceIntegrationTest.java` | 2 (full-integration) | `buildExportRecords` Gap-7 SQL vs real PostgreSQL: UNION_PAY→UNIONPAY normalization, masked-PAN, interchange netting, SETTLED-only; UNKNOWN-scheme fallback |
+| `settlement/SettlementFileExportService.java` | — | `buildExportRecords` visibility `private`→package-private so the Testcontainers test can call it directly |
+
+#### Docker / Testcontainers environment finding
+
+Docker Desktop **29.5.2** (daemon API 1.54) is installed and the `docker` CLI works, but **Testcontainers 1.20.4's bundled docker-java cannot connect** — it gets `HTTP 400` on the `/info` ping against the Docker Desktop socket (a known incompatibility with very new Docker Desktop; tried `DOCKER_HOST`, `DOCKER_API_VERSION`, Ryuk-off, TC 1.21.3 override — all 400). So **`-Pfull-integration` Testcontainers tests cannot run on this host**; they run in CI (standard Docker).
+
+To not ship unverified SQL, the `buildExportRecords` query + its seed data were **verified out-of-band against a real PostgreSQL 16** started via the Docker CLI with the real V1+V3 migrations loaded:
+```
+scheme  | masked_pan       | gross      | interchange | net       | status
+UNIONPAY| 621234******1111 | 10000.0000 | 150.0000    | 9837.0000 | SETTLED
+```
+All 8 seed inserts matched the live schema → the Java test's SQL and assertions are correct; it will pass in CI.
+
+#### Key Patterns / Decisions
+
+- **TerminalSimulatorService needs no Docker** — it's a Netty *client*. Mocking `FepIso8583Client.send(byte[])` with canned ISO 8583 frames exercises the real build + response-decoder logic.
+- **Out-of-band SQL verification** when the test *runner* (Testcontainers) can't reach Docker but the *CLI* can: load the real migrations into a CLI-started container and run the exact query. The Java test ships as the CI artifact; the SQL is proven here.
+- **Minor production observation (not changed):** `buildExportRecords` hardcodes `'' AS terminal_id`, but `authorization_log` *does* have a `terminal_id` column — the field could be populated. Left as-is (deliberate empty default); noted for a future tidy.
+
+#### Build Verification
+
+`cd card-service && ./mvnw -o test → Tests run: 104, Failures: 0` (unit; integration excluded). `buildExportRecords` SQL verified vs real PostgreSQL 16 via Docker CLI (see above). fep-service unchanged (64).
+
+#### API Surface
+
+**API surface unchanged — verified via gate grep; no api-reference/postman edits owed.** (Test-only + a method-visibility change; no REST mapping change.)
+
+#### Confirmed Platform Versions
+
+No dependency change. Production change: `SettlementFileExportService.buildExportRecords` visibility (private→package-private, testability). card-service unchanged from Session 119.
+
+---
+
 ### Session 120 (cont. 4) — 2026-06-21
 **fep socket round-trip + remaining handlers/exporters — and the integration test caught a real production Netty bug. card-service 95 → 99, fep-service 56 → 64. Production-readiness plan item 3 (continued).**
 

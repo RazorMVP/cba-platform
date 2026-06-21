@@ -57,6 +57,47 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 120 (cont. 4) — 2026-06-21
+**fep socket round-trip + remaining handlers/exporters — and the integration test caught a real production Netty bug. card-service 95 → 99, fep-service 56 → 64. Production-readiness plan item 3 (continued).**
+
+#### 🐛 Production bug found & fixed: FEP would never send socket responses
+
+The new end-to-end socket test revealed that `FepServerInitializer` added the outbound encoders (`isoEncoder`, `framePrepender`) **after** the inbound `fepHandler`. `FepMessageHandler` replies via `ctx.writeAndFlush(...)`, whose outbound event flows from that handler toward the pipeline head — so it never traverses encoders positioned after it. The response `ISOMsg` was never encoded/framed; a real ATM/POS would time out waiting. **Every handler unit test passed** — only the socket round-trip surfaced it. Fixed by moving the outbound handlers ahead of the inbound business handler (the conventional Netty ordering). This is the headline value of the integration test.
+
+#### New / Updated Files
+
+| File | Tests | Covers |
+|------|-------|--------|
+| `fep .../server/FepServerInitializer.java` | — | **FIX**: reorder Netty pipeline so outbound encoders precede the inbound handler (responses are now encoded + length-framed) |
+| `fep .../server/FepSocketRoundTripTest.java` | 1 | **Real TCP round trip**: boots a Netty server on an ephemeral port, sends a length-framed 0800, asserts 0810 RC=00 + STAN echo — exercises framing → decode → route → NetworkHandler → encode |
+| `fep .../router/FinancialHandlerTest.java` | 4 | 0200 approve→0210+DE38, decline→RC51, balance-inquiry (310000)→DE54, 0220→0230 |
+| `fep .../router/ReversalHandlerTest.java` | 3 | 0400→0410 (accepted/original-not-found RC25), 0420→0430 |
+| `card .../settlement/SchemeExportersTest.java` | 4 | Non-Visa exporters: Mastercard IPM (length-framed MTI 1240), Verve/NIBSS (pipe-delimited), Afrigo/PAPSS (JSON+escaping), UnionPay CUPS (300-byte GB18030 H/D/T) |
+
+#### Key Patterns / Decisions
+
+- **Netty outbound-ordering gotcha (the bug):** outbound events flow from the writing handler toward the head, so encoders must be added *before* the business handler. `addLast()`-ing them after silently skips them on `ctx.write()`.
+- **Socket test uses jPOS `ISO87APackager` (code-based), not the XML packagers.** The packager XMLs declare an external DTD (`http://jpos.org/dtd/packager.dtd`) which jPOS 2.1.9's `GenericPackager(InputStream)` fetches over the network — it fails in a network-isolated/CI/sandbox env (and `GenericPackager` has no validation toggle / local-resolver hook from an InputStream). Using `ISO87APackager` (a built-in ISO 8583:1987 ASCII packager) tests the real socket pipeline without that dependency. **The XML-load network-DTD dependency is a separate production hardening item** (see below) — left untouched this session to avoid an unvalidated production change.
+- **Exporter formats** asserted at the structural level each clearinghouse rejects on: IPM 2-byte length prefix + MTI, NIBSS pipe columns + counts, PAPSS JSON envelope + quote-escaping, CUPS 300-byte fixed records + CJK GB18030 encoding.
+
+#### Known production hardening item (discovered, not yet fixed)
+
+fep-service loads its jPOS packager XMLs via `GenericPackager(InputStream)`, and those XMLs reference an external DTD over HTTP. In a truly network-isolated FEP deployment (which CLAUDE.md mandates) this could fail at startup. Options for a future session: bundle the DTD + JAXP XML catalog, switch to code-based packagers, or upgrade jPOS. Not changed here because it needs its own validation pass.
+
+#### Build Verification
+
+`cd card-service && ./mvnw -o test → Tests run: 99, Failures: 0` · `cd fep-service && ./mvnw -o test → Tests run: 64, Failures: 0` — both BUILD SUCCESS.
+
+#### API Surface
+
+**API surface unchanged — verified via gate grep; no api-reference/postman edits owed.** (No REST `@*Mapping` changes; the production fix is a Netty pipeline reorder.)
+
+#### Confirmed Platform Versions
+
+No dependency change. Production change: `FepServerInitializer` Netty pipeline order (bug fix). card-service unchanged from Session 119.
+
+---
+
 ### Session 120 (cont. 3) — 2026-06-20
 **Test coverage extended to the remaining card-service services + fep-service handlers. card-service 65 → 95, fep-service 49 → 56. Production-readiness plan item 3 (continued).**
 

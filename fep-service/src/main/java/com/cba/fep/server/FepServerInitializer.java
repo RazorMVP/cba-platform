@@ -49,8 +49,17 @@ public class FepServerInitializer extends ChannelInitializer<SocketChannel> {
 
     @Override
     protected void initChannel(SocketChannel ch) {
+        // IMPORTANT: outbound handlers (encoder + length prepender) must be added
+        // BEFORE the inbound business handler. FepMessageHandler responds with
+        // ctx.writeAndFlush(...), whose outbound event flows from that handler toward
+        // the head — so it only traverses outbound handlers positioned ahead of it.
+        // If the encoders were added after fepHandler (toward the tail), the response
+        // ISOMsg would never be encoded/framed and the client would time out.
         ch.pipeline()
-            // --- Inbound ---
+            // --- Outbound (response path: ISOMsg → bytes → 2-byte length prefix) ---
+            .addLast("framePrepender", new LengthFieldPrepender(LENGTH_FIELD_LENGTH))
+            .addLast("isoEncoder",   new FepMessageEncoder())
+            // --- Inbound (request path: strip length → bytes → ISOMsg → route) ---
             .addLast("frameDecoder", new LengthFieldBasedFrameDecoder(
                     MAX_FRAME_LENGTH,
                     LENGTH_FIELD_OFFSET,
@@ -58,9 +67,6 @@ public class FepServerInitializer extends ChannelInitializer<SocketChannel> {
                     LENGTH_ADJUSTMENT,
                     INITIAL_BYTES_STRIP))
             .addLast("isoDecoder",   new FepMessageDecoder(messageFactory))
-            .addLast("fepHandler",   new FepMessageHandler(messageRouter))
-            // --- Outbound ---
-            .addLast("isoEncoder",   new FepMessageEncoder())
-            .addLast("framePrepender", new LengthFieldPrepender(LENGTH_FIELD_LENGTH));
+            .addLast("fepHandler",   new FepMessageHandler(messageRouter));
     }
 }

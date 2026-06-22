@@ -674,6 +674,13 @@ The Session 119 claim that card-service unit tests "aren't runnable on this host
 - **card-service had never booted its Spring context in a test until Session 120 cont. 6.** Doing so fixed four startup bugs (all in cba-log): duplicate `card.settlement` YAML key, `CardController`/`CardProductController` ambiguous `GET /api/v1/cards/products` mapping, `threeds_sessions.challenge_attempts` SMALLINT-vs-`int` (V9 migration), and the test infra's Flyway credentials. With `ddl-auto=validate` in prod, integration tests that boot the context are the guard against entity/schema drift.
 - **Still deferred:** DEBIT/CREDIT balance *approve* paths (private `BalanceResponse` record).
 
+#### backend monolith — context-boot integration test (Session 120 cont. 7)
+
+- **Testcontainers bumped to 1.21.4** (same Docker 29.x fix as card-service). `BackendContextLoadIntegrationTest` boots the full context against real PG16 with the `test` profile (`ddl-auto=validate`, `jwk-set-uri`, `auth-bypass`). **The backend boots clean — no startup bugs** (unlike card-service). Full `-Pfull-integration` = **623 green**.
+- **Always `clean` before `-Pfull-integration`:** without it, Maven may run an IDE/Eclipse-ECJ-compiled stale `CustomerServiceTest.class` carrying `Unresolved compilation problem: cannot convert from CustomerMapperImpl to CustomerMapper` (Eclipse doesn't run MapStruct's annotation processor). `clean` forces javac, which generates `CustomerMapperImpl` correctly.
+- **`AbstractIntegrationTest` gotchas:** the `test` profile declares the Testcontainers `jdbc:tc:` driver, but the base class drives the container via `@Container` + a plain `jdbc:postgresql://` URL — so it must override `spring.datasource.driver-class-name=org.postgresql.Driver` and must NOT set `spring.flyway.url` (else Flyway opens a credential-less connection → SCRAM failure).
+- **Pre-existing follow-ups (kept excluded from `-Pfull-integration`, not yet fixed):** `openapi/OpenApiSnapshotTest` (`GET /api-docs.yaml` → non-200 in the test profile); legacy `*IT.java` (`PaymentServiceIT`: `payments.source_currency` NOT NULL on the insufficient-balance path; multi-`@Container` lifecycle needs a singleton-container setup). These never ran before (surefire `includes` = `*Test`/`*Tests`, no failsafe).
+
 ---
 
 ## Card Management Service and Front End Processing Module

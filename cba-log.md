@@ -57,7 +57,42 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 120 (cont. 7) — 2026-06-22
+**Same Testcontainers fix + a context-boot integration test for the backend monolith. Backend boots cleanly with `ddl-auto=validate` (NO latent startup bugs, unlike card-service). Full `-Pfull-integration`: 623 green. Production-readiness plan item 3.**
+
+Applied the card-service playbook to the backend. Unlike card-service (4 startup bugs), the backend's full context boots clean against a real PostgreSQL with schema validation — good news: the monolith has no entity/schema drift, ambiguous mappings, or duplicate YAML keys.
+
+#### New / Updated Files
+
+| File | Change |
+|------|--------|
+| `backend/pom.xml` | `testcontainers.version` 1.20.4→**1.21.4** (Docker 29.x / API 1.54 support, testcontainers-java#11212); `full-integration` profile `<excludes combine.self="override">` keeping only `openapi/**` excluded (so `*IntegrationTest` runs; was silently running 0 integration tests) |
+| `backend/.../integration/AbstractIntegrationTest.java` | **FIX** drop `spring.flyway.url` (was causing SCRAM auth failure); override `spring.datasource.driver-class-name=org.postgresql.Driver` (the `test` profile declares the Testcontainers `jdbc:tc:` driver, which rejected the explicit-`@Container` plain URL) |
+| `backend/.../integration/BackendContextLoadIntegrationTest.java` | NEW — boots the full context against real PG16 with the `test` profile (`ddl-auto=validate`, `jwk-set-uri`, `auth-bypass`); asserts the context wires (>200 beans). A real "would it start in production?" check. |
+
+#### Build Verification
+
+`cd backend && ./mvnw -o test -Djacoco.skip=true → 622 unit, 0 failures`. `cd backend && DOCKER_HOST=… ./mvnw clean test -Pfull-integration -Djacoco.skip=true → Tests run: 623, Failures: 0` (622 unit + BackendContextLoadIntegrationTest) — **first green full-integration run; backend context boots in a test for the first time.**
+
+#### Findings / follow-ups (pre-existing, flagged not fixed)
+
+The fixed `full-integration` profile also *would* run two pre-existing, never-before-run tests that fail for their own reasons — kept excluded so the build stays green, tracked here:
+- **`openapi/OpenApiSnapshotTest`**: `GET /api-docs.yaml` returns non-200 in the `test` profile (springdoc path/security config) → can't fetch the live spec to snapshot. (card-service's equivalent works; backend's needs a config look.)
+- **Legacy `*IT.java`** (`PaymentServiceIT`, `CustomerRepositoryIT`): never wired to run (surefire `includes` are `*Test`/`*Tests`, no failsafe). `PaymentServiceIT.transfer_insufficientBalance_throws` hits `payments.source_currency` NOT NULL; plus a multi-`@Container` lifecycle issue (2nd test class connects to the 1st's stopped container — needs a singleton-container or reuse-enabled setup).
+- **Stale IDE classes:** running `-Pfull-integration` without `clean` ran an Eclipse-ECJ-compiled `CustomerServiceTest.class` carrying `Unresolved compilation problem: cannot convert from CustomerMapperImpl to CustomerMapper` (Eclipse doesn't run MapStruct's processor). Always `clean` before a full-integration run; CI does.
+
+#### API Surface
+
+**API surface unchanged.** No backend production code changed (pom + test infra + one new test); gate grep shows no `@*Mapping`/param changes.
+
+#### Confirmed Platform Versions
+
+Backend: Testcontainers **1.21.4** (was 1.20.4). No production dependency/code change. Spring Boot 3.5.0 / Java 21 unchanged.
+
+---
+
 ### Session 120 (cont. 6) — 2026-06-22
+**Got card-service Testcontainers running (Docker 29.x) — which surfaced and fixed FOUR latent startup bugs. Full `-Pfull-integration` suite: 107 green (card-service context had never booted in a test before). Production-readiness plan item 3.**
 **Got card-service Testcontainers running (Docker 29.x) — which surfaced and fixed FOUR latent startup bugs. Full `-Pfull-integration` suite: 107 green (card-service context had never booted in a test before). Production-readiness plan item 3.**
 
 #### Q: "which Docker Desktop is compatible?" → A: don't downgrade Docker; upgrade Testcontainers

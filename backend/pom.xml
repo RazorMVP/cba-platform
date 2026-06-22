@@ -25,7 +25,7 @@
         <mapstruct.version>1.6.3</mapstruct.version>
         <jasypt.version>3.0.5</jasypt.version>
         <springdoc.version>2.8.6</springdoc.version>
-        <testcontainers.version>1.20.4</testcontainers.version>
+        <testcontainers.version>1.21.4</testcontainers.version>
         <jacoco.version>0.8.12</jacoco.version>
         <spotbugs.version>4.8.6.6</spotbugs.version>
         <keycloak.version>26.0.5</keycloak.version>
@@ -427,8 +427,18 @@
                                 <include>**/*Test.java</include>
                                 <include>**/*Tests.java</include>
                             </includes>
-                            <!-- Remove the exclusions — run ALL tests including integration -->
-                            <excludes/>
+                            <!-- Un-exclude *IntegrationTest.java (the base config excludes it),
+                                 but keep the openapi snapshot test excluded. combine.self=override
+                                 is REQUIRED: without it Maven merges with the base <excludes> and
+                                 *IntegrationTest stays excluded under -Pfull-integration.
+                                 Pre-existing tests intentionally still NOT run here (separate
+                                 follow-ups): openapi/OpenApiSnapshotTest (GET /api-docs.yaml
+                                 returns non-200 in the test profile) and the legacy *IT.java
+                                 tests (PaymentServiceIT: payments.source_currency NOT NULL;
+                                 multi-@Container lifecycle). -->
+                            <excludes combine.self="override">
+                                <exclude>**/openapi/**/*Test.java</exclude>
+                            </excludes>
                             <argLine>
                                 ${argLine}
                                 -Dnet.bytebuddy.experimental=true

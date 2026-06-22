@@ -34,7 +34,14 @@ public abstract class AbstractIntegrationTest {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
-        // Override the tc: URL from application-test.yml with the real container URL
-        registry.add("spring.flyway.url", POSTGRES::getJdbcUrl);
+        // The `test` profile declares the Testcontainers JDBC driver (jdbc:tc:...).
+        // We drive the container explicitly via @Container above, so override the
+        // driver back to the real PostgreSQL driver — otherwise Flyway/the datasource
+        // reject the plain jdbc:postgresql:// URL ("ContainerDatabaseDriver claims to
+        // not accept jdbcUrl").
+        registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
+        // Do NOT set spring.flyway.url on its own — that makes Flyway open a separate
+        // credential-less connection (SCRAM auth failure). Leaving it unset lets Flyway
+        // inherit the datasource url+username+password above.
     }
 }

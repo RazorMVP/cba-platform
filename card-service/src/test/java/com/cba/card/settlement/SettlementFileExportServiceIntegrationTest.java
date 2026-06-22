@@ -71,7 +71,7 @@ class SettlementFileExportServiceIntegrationTest extends AbstractCardIntegration
         jdbc.update("""
                 INSERT INTO settlement_batches (id, batch_ref, status, settlement_date, total_amount, item_count)
                 VALUES (?, ?, 'CLOSED', CURRENT_DATE, 10000, 1)
-                """, batchId, "BATCH-" + batchId);
+                """, batchId, batchId.toString());
         jdbc.update("""
                 INSERT INTO settlement_items (id, batch_id, authorization_log_id, amount, currency_code, status)
                 VALUES (?, ?, ?, 10000, '156', 'SETTLED')
@@ -125,7 +125,7 @@ class SettlementFileExportServiceIntegrationTest extends AbstractCardIntegration
         jdbc.update("""
                 INSERT INTO settlement_batches (id, batch_ref, status, settlement_date, total_amount, item_count)
                 VALUES (?, ?, 'CLOSED', CURRENT_DATE, 2000, 1)
-                """, batchId, "BATCH-" + batchId);
+                """, batchId, batchId.toString());
         jdbc.update("""
                 INSERT INTO settlement_items (id, batch_id, authorization_log_id, amount, currency_code, status)
                 VALUES (?, ?, ?, 2000, '840', 'SETTLED')

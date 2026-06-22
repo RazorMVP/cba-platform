@@ -72,11 +72,9 @@ public class CardController {
         return ResponseEntity.ok(ApiResponse.ok(card));
     }
 
-    /** List card products. Delegates to the dedicated CardProductController. */
-    @GetMapping("/products")
-    public ResponseEntity<ApiResponse<List<CardProduct>>> listProducts() {
-        return ResponseEntity.ok(ApiResponse.ok(List.of())); // product list served by /api/v1/cards/products
-    }
+    // NOTE: GET /api/v1/cards/products is served by CardProductController.list().
+    // A stub listProducts() here previously mapped the same route and caused an
+    // "Ambiguous mapping" startup failure — removed.
 
     // ── Inner DTOs ────────────────────────────────────────────────────────────
 

@@ -24,7 +24,7 @@
     <bouncycastle.version>1.78.1</bouncycastle.version>
     <jasypt.version>3.0.5</jasypt.version>
     <springdoc.version>2.8.6</springdoc.version>
-    <testcontainers.version>1.20.4</testcontainers.version>
+    <testcontainers.version>1.21.4</testcontainers.version>
   </properties>
 
   <dependencyManagement>
@@ -258,8 +258,12 @@
                 <include>**/*Test.java</include>
                 <include>**/*Tests.java</include>
               </includes>
-              <!-- Remove exclusions — run ALL tests including integration -->
-              <excludes/>
+              <!-- Remove exclusions — run ALL tests including integration.
+                   combine.self=override is REQUIRED: without it Maven merges this
+                   empty <excludes/> with the base config's <excludes> (which lists
+                   **/*IntegrationTest.java + openapi), so the integration tests would
+                   stay excluded even under -Pfull-integration. -->
+              <excludes combine.self="override"/>
               <argLine>
                 -Dnet.bytebuddy.experimental=true
                 -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar

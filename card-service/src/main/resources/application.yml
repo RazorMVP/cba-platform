@@ -71,8 +71,6 @@ card:
   fraud:
     approve-threshold: 30       # Score < 30 → APPROVE
     step-up-threshold: 70       # Score 30-69 → STEP_UP; ≥70 → DECLINE
-  settlement:
-    auth-expiry-days: 7         # Unmatched authorizations reversed after 7 days
   tap-limit:                    # Single-message (real-time) threshold per ISO 4217 numeric code (minor units)
     "840": 2500                 # USD: $25.00 (2500 cents)
     "404": 350000               # KES: 3,500 KES (350000 cents)
@@ -93,6 +91,7 @@ card:
   bureau:
     name: ${BUREAU_NAME:CBA_BUREAU}   # Configured bureau name — e.g. THALES_HID, IDEMIA, HID_GLOBAL
   settlement:
+    auth-expiry-days: 7         # Unmatched authorizations reversed after 7 days
     export:
       acquirer-bin: ${ACQUIRER_BIN:000000}     # Bank's BIN — embedded in all scheme file headers
       member-id: ${MEMBER_ID:CBA001}           # Scheme membership identifier

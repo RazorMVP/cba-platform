@@ -48,7 +48,9 @@ public abstract class AbstractCardIntegrationTest {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.url", POSTGRES::getJdbcUrl);
+        // Do NOT set spring.flyway.url on its own — that makes Flyway open a separate
+        // credential-less connection (SCRAM auth failure). Leaving it unset lets Flyway
+        // inherit the datasource url+username+password above.
     }
 
     /**

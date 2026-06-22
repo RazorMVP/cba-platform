@@ -1,14 +1,3829 @@
-# openapi-snapshot-placeholder
-#
-# This file is intentionally empty. On the first run of the integration test suite
-# (mvn verify -Pfull-integration), the CardOpenApiSnapshotTest will boot the full
-# Spring Boot context, call /v3/api-docs.yaml, and write the live spec here.
-#
-# After the test generates this file, commit it:
-#   git add card-service/docs/openapi-snapshot.yaml
-#   git commit -m "docs(openapi): initial card-service API contract snapshot"
-#
-# To regenerate after intentional API changes:
-#   cd card-service && ./mvnw verify -Pfull-integration -Dupdate.api.snapshot=true
-#   git add card-service/docs/openapi-snapshot.yaml
-#   git commit -m "docs(openapi): update card-service API contract snapshot — <describe what changed>"
+openapi: 3.1.0
+info:
+  title: OpenAPI definition
+  version: v0
+servers:
+- url: http://localhost:55961
+  description: Generated server url
+paths:
+  /card-api/v1/cards/{id}/limits:
+    put:
+      tags:
+      - card-api-controller
+      operationId: updateLimits
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateLimitsRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCardLimit"
+  /card-api/v1/cards/{id}/controls:
+    put:
+      tags:
+      - card-api-controller
+      operationId: updateControls
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardControlsRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCard"
+  /api/v1/interchange/rates/{id}:
+    get:
+      tags:
+      - interchange-controller
+      operationId: getRate
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseInterchangeRate"
+    put:
+      tags:
+      - interchange-controller
+      operationId: updateRate
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InterchangeRateRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseInterchangeRate"
+    delete:
+      tags:
+      - interchange-controller
+      operationId: deleteRate
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+  /api/v1/interchange/fees/{id}:
+    get:
+      tags:
+      - interchange-controller
+      operationId: getFee
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSchemeFee"
+    put:
+      tags:
+      - interchange-controller
+      operationId: updateFee
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SchemeFeeRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSchemeFee"
+    delete:
+      tags:
+      - interchange-controller
+      operationId: deleteFee
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+  /api/v1/cards/{cardId}/limits:
+    get:
+      tags:
+      - card-limit-controller
+      operationId: get
+      parameters:
+      - name: cardId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCardLimit"
+    put:
+      tags:
+      - card-limit-controller
+      operationId: update
+      parameters:
+      - name: cardId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateLimitsRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCardLimit"
+  /api/v1/cards/products/{id}:
+    get:
+      tags:
+      - card-product-controller
+      operationId: get_1
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCardProduct"
+    put:
+      tags:
+      - card-product-controller
+      operationId: update_1
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardProduct"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCardProduct"
+  /api/v1/cards/fraud/rules/{id}:
+    put:
+      tags:
+      - fraud-controller
+      operationId: updateRule
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRuleRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseFraudRuleEntity"
+  /api/v1/bins/{id}:
+    get:
+      tags:
+      - bin-controller
+      operationId: getById
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBinRange"
+    put:
+      tags:
+      - bin-controller
+      operationId: update_2
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BinRangeRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBinRange"
+    delete:
+      tags:
+      - bin-controller
+      operationId: delete
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+  /card-api/v1/webhooks:
+    get:
+      tags:
+      - card-api-controller
+      operationId: listWebhooks
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListWebhook"
+    post:
+      tags:
+      - card-api-controller
+      operationId: registerWebhook
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterWebhookRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseRegisterWebhookResponse"
+  /card-api/v1/cards:
+    get:
+      tags:
+      - card-api-controller
+      operationId: listCards
+      parameters:
+      - name: customerId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListCard"
+    post:
+      tags:
+      - card-api-controller
+      operationId: issueCard
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IssueCardRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCard"
+  /card-api/v1/cards/{id}/pin/change:
+    post:
+      tags:
+      - card-api-controller
+      operationId: changePin
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PinChangeRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseMapStringString"
+  /card-api/v1/api-keys:
+    get:
+      tags:
+      - card-api-controller
+      operationId: listApiKeys
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListApiKey"
+    post:
+      tags:
+      - card-api-controller
+      operationId: issueApiKey
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IssueKeyRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseIssueKeyResponse"
+  /api/v1/tokens:
+    post:
+      tags:
+      - token-controller
+      operationId: tokenize
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TokenizeRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseTokenResponse"
+  /api/v1/tokens/{tokenRef}/suspend:
+    post:
+      tags:
+      - token-controller
+      operationId: suspend
+      parameters:
+      - name: tokenRef
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+  /api/v1/simulate/withdrawal:
+    post:
+      tags:
+      - terminal-simulator-controller
+      operationId: withdrawal
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulateRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSimulateResponse"
+  /api/v1/simulate/reversal:
+    post:
+      tags:
+      - terminal-simulator-controller
+      operationId: reversal
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulateRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSimulateResponse"
+  /api/v1/simulate/purchase:
+    post:
+      tags:
+      - terminal-simulator-controller
+      operationId: purchase
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulateRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSimulateResponse"
+  /api/v1/simulate/network/signon:
+    post:
+      tags:
+      - terminal-simulator-controller
+      operationId: signOn
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulateRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSimulateResponse"
+  /api/v1/simulate/network/echo:
+    post:
+      tags:
+      - terminal-simulator-controller
+      operationId: echo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulateRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSimulateResponse"
+  /api/v1/simulate/balance:
+    post:
+      tags:
+      - terminal-simulator-controller
+      operationId: balance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SimulateRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSimulateResponse"
+  /api/v1/internal/authorize:
+    post:
+      tags:
+      - card-authorization-controller
+      operationId: authorize
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardAuthRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/CardAuthResponse"
+  /api/v1/internal/advise:
+    post:
+      tags:
+      - card-authorization-controller
+      operationId: recordAdvice
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdviceRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/CardAuthResponse"
+  /api/v1/interchange/rates:
+    get:
+      tags:
+      - interchange-controller
+      operationId: listRates
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListInterchangeRate"
+    post:
+      tags:
+      - interchange-controller
+      operationId: createRate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InterchangeRateRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseInterchangeRate"
+  /api/v1/interchange/fees:
+    get:
+      tags:
+      - interchange-controller
+      operationId: listFees
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListSchemeFee"
+    post:
+      tags:
+      - interchange-controller
+      operationId: createFee
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SchemeFeeRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSchemeFee"
+  /api/v1/cards:
+    get:
+      tags:
+      - card-controller
+      operationId: listCards_1
+      parameters:
+      - name: customerId
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListCard"
+    post:
+      tags:
+      - card-controller
+      operationId: issueCard_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IssueCardRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCard"
+  /api/v1/cards/{id}:
+    get:
+      tags:
+      - card-controller
+      operationId: getCard
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCard"
+    post:
+      tags:
+      - card-controller
+      operationId: command
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: command
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCard"
+  /api/v1/cards/settlement/export/{batchId}:
+    post:
+      tags:
+      - settlement-export-controller
+      operationId: triggerExport
+      parameters:
+      - name: batchId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: settlementDate
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListSettlementTransmission"
+  /api/v1/cards/settlement/batches/{id}/close:
+    post:
+      tags:
+      - settlement-controller
+      operationId: closeBatch
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSettlementBatch"
+  /api/v1/cards/settlement/batches/open:
+    post:
+      tags:
+      - settlement-controller
+      operationId: openBatch
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSettlementBatch"
+  /api/v1/cards/products:
+    get:
+      tags:
+      - card-product-controller
+      operationId: list
+      parameters:
+      - name: type
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListCardProduct"
+    post:
+      tags:
+      - card-product-controller
+      operationId: create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardProduct"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCardProduct"
+  /api/v1/cards/disputes:
+    get:
+      tags:
+      - dispute-controller
+      operationId: listDisputes
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - RAISED
+          - RETRIEVAL_REQUESTED
+          - CHARGEBACK_INITIATED
+          - REPRESENTMENT
+          - PRE_ARBITRATION
+          - RESOLVED
+          - WITHDRAWN
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListCardDispute"
+    post:
+      tags:
+      - dispute-controller
+      operationId: raiseDispute
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RaiseDisputeRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCardDispute"
+  /api/v1/cards/disputes/{id}/withdraw:
+    post:
+      tags:
+      - dispute-controller
+      operationId: withdraw
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCardDispute"
+  /api/v1/cards/disputes/{id}/retrieval:
+    post:
+      tags:
+      - dispute-controller
+      operationId: requestRetrieval
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCardDispute"
+  /api/v1/cards/disputes/{id}/resolve:
+    post:
+      tags:
+      - dispute-controller
+      operationId: resolve
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCardDispute"
+  /api/v1/cards/disputes/{id}/representment:
+    post:
+      tags:
+      - dispute-controller
+      operationId: recordRepresentment
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RepresentmentRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCardDispute"
+  /api/v1/cards/disputes/{id}/pre-arbitration:
+    post:
+      tags:
+      - dispute-controller
+      operationId: escalateToPreArbitration
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCardDispute"
+  /api/v1/cards/disputes/{id}/chargeback:
+    post:
+      tags:
+      - dispute-controller
+      operationId: initiateChargeback
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InitiateChargebackRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCardDispute"
+  /api/v1/bureau/jobs:
+    get:
+      tags:
+      - bureau-controller
+      operationId: listJobs
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListBureauJob"
+    post:
+      tags:
+      - bureau-controller
+      operationId: createJob
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBureauJob"
+  /api/v1/bureau/jobs/{id}/submit:
+    post:
+      tags:
+      - bureau-controller
+      operationId: submitJob
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBureauJob"
+  /api/v1/bureau/jobs/{id}/fail:
+    post:
+      tags:
+      - bureau-controller
+      operationId: failJob
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: reason
+        in: query
+        required: false
+        schema:
+          type: string
+          default: Manual failure marking
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBureauJob"
+  /api/v1/bureau/jobs/{id}/dispatch:
+    post:
+      tags:
+      - bureau-controller
+      operationId: dispatchJob
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBureauJob"
+  /api/v1/bureau/jobs/{id}/confirm:
+    post:
+      tags:
+      - bureau-controller
+      operationId: confirmJob
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BureauConfirmRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBureauJob"
+  /api/v1/bins:
+    get:
+      tags:
+      - bin-controller
+      operationId: list_1
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListBinRange"
+    post:
+      tags:
+      - bin-controller
+      operationId: create_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BinRangeRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBinRange"
+  /3ds/acs/challenge/{acsTransId}/verify:
+    post:
+      tags:
+      - three-ds-controller
+      operationId: verifyChallenge
+      parameters:
+      - name: acsTransId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChallengeSubmitRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChallengeVerifyResponse"
+  /3ds/acs/areq:
+    post:
+      tags:
+      - three-ds-controller
+      operationId: receiveAReq
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AReqMessage"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AResMessage"
+  /card-api/v1/webhooks/{id}/deliveries:
+    get:
+      tags:
+      - card-api-controller
+      operationId: listDeliveries
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListWebhookDeliveryLog"
+  /card-api/v1/cards/{id}:
+    get:
+      tags:
+      - card-api-controller
+      operationId: getCard_1
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCard"
+  /card-api/v1/cards/{id}/transactions:
+    get:
+      tags:
+      - card-api-controller
+      operationId: getSettledTransactions
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListAuthorizationLog"
+  /card-api/v1/cards/{id}/authorizations:
+    get:
+      tags:
+      - card-api-controller
+      operationId: getAuthorizations
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListAuthorizationLog"
+  /card-api/v1/cards/{id}/analytics/by-merchant:
+    get:
+      tags:
+      - card-api-controller
+      operationId: byMerchant
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: currency
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListMerchantSummary"
+  /card-api/v1/cards/{id}/analytics/by-category:
+    get:
+      tags:
+      - card-api-controller
+      operationId: byCategory
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: currency
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListCategorySummary"
+  /card-api/v1/analytics/summary:
+    get:
+      tags:
+      - card-api-controller
+      operationId: summary
+      parameters:
+      - name: cardId
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: currency
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseMonthlySummary"
+  /api/v1/tokens/detokenize:
+    get:
+      tags:
+      - token-controller
+      operationId: detokenize
+      parameters:
+      - name: dpan
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseString"
+  /api/v1/internal/detokenize:
+    get:
+      tags:
+      - card-authorization-controller
+      operationId: detokenize_1
+      parameters:
+      - name: dpan
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/DetokenizeResponse"
+  /api/v1/internal/cards/{cardId}/authorizations:
+    get:
+      tags:
+      - card-authorization-controller
+      operationId: getHistory
+      parameters:
+      - name: cardId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuthorizationLog"
+  /api/v1/interchange/log/{authId}:
+    get:
+      tags:
+      - interchange-controller
+      operationId: getLog
+      parameters:
+      - name: authId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseInterchangeLog"
+  /api/v1/interchange/calculate:
+    get:
+      tags:
+      - interchange-controller
+      operationId: calculate
+      parameters:
+      - name: authId
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseInterchangeResult"
+  /api/v1/cards/{id}/balance:
+    get:
+      tags:
+      - card-controller
+      operationId: getBalance
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBalanceResult"
+  /api/v1/cards/settlement/transmissions:
+    get:
+      tags:
+      - settlement-export-controller
+      operationId: listTransmissions
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListSettlementTransmission"
+  /api/v1/cards/settlement/transmissions/{id}:
+    get:
+      tags:
+      - settlement-export-controller
+      operationId: getTransmission
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSettlementTransmission"
+  /api/v1/cards/settlement/batches:
+    get:
+      tags:
+      - settlement-controller
+      operationId: listBatches
+      parameters:
+      - name: date
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListSettlementBatch"
+  /api/v1/cards/settlement/batches/{id}:
+    get:
+      tags:
+      - settlement-controller
+      operationId: getBatch
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSettlementBatch"
+  /api/v1/cards/settlement/batches/{id}/items:
+    get:
+      tags:
+      - settlement-controller
+      operationId: getItems
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListSettlementItem"
+  /api/v1/cards/settlement/batches/{batchId}/transmissions:
+    get:
+      tags:
+      - settlement-export-controller
+      operationId: listTransmissionsForBatch
+      parameters:
+      - name: batchId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListSettlementTransmission"
+  /api/v1/cards/fraud/rules:
+    get:
+      tags:
+      - fraud-controller
+      operationId: listRules
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListFraudRuleEntity"
+  /api/v1/cards/disputes/{id}:
+    get:
+      tags:
+      - dispute-controller
+      operationId: getDispute
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCardDispute"
+  /api/v1/cards/disputes/{id}/retrieval-requests:
+    get:
+      tags:
+      - dispute-controller
+      operationId: listRetrievalRequests
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListRetrievalRequest"
+  /api/v1/cards/disputes/{id}/representments:
+    get:
+      tags:
+      - dispute-controller
+      operationId: listRepresentments
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListRepresentment"
+  /api/v1/cards/disputes/reason-codes:
+    get:
+      tags:
+      - dispute-controller
+      operationId: listReasonCodes
+      parameters:
+      - name: scheme
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListChargebackReasonCode"
+  /api/v1/bureau/jobs/{jobId}/cdp/{cardId}:
+    get:
+      tags:
+      - bureau-controller
+      operationId: previewCdp
+      parameters:
+      - name: jobId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: cardId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCdpPreviewResponse"
+  /api/v1/bureau/jobs/{id}:
+    get:
+      tags:
+      - bureau-controller
+      operationId: getJob
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseBureauJobDetail"
+  /api/v1/bins/{bin}/scheme:
+    get:
+      tags:
+      - bin-controller
+      operationId: schemeByBin
+      parameters:
+      - name: bin
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+  /api/v1/bins/lookup:
+    get:
+      tags:
+      - bin-controller
+      operationId: lookup
+      parameters:
+      - name: pan
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSchemeType"
+  /api/v1/bins/all:
+    get:
+      tags:
+      - bin-controller
+      operationId: allMappings
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+  /3ds/acs/challenge/{acsTransId}:
+    get:
+      tags:
+      - three-ds-controller
+      operationId: renderChallengePage
+      parameters:
+      - name: acsTransId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            text/html:
+              schema:
+                type: string
+  /card-api/v1/webhooks/{id}:
+    delete:
+      tags:
+      - card-api-controller
+      operationId: deleteWebhook
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+  /card-api/v1/api-keys/{id}:
+    delete:
+      tags:
+      - card-api-controller
+      operationId: revokeApiKey
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseVoid"
+  /api/v1/tokens/{tokenRef}:
+    delete:
+      tags:
+      - token-controller
+      operationId: delete_1
+      parameters:
+      - name: tokenRef
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+components:
+  schemas:
+    UpdateLimitsRequest:
+      type: object
+      properties:
+        dailyPurchaseLimit:
+          type: number
+        dailyWithdrawalLimit:
+          type: number
+        perTransactionLimit:
+          type: number
+        monthlyLimit:
+          type: number
+    ApiError:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        field:
+          type: string
+    ApiResponseCardLimit:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/CardLimit"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    Card:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        panEncrypted:
+          type: string
+        panHash:
+          type: string
+        panPrefix:
+          type: string
+        panSuffix:
+          type: string
+        expiryDate:
+          type: string
+        cvvEncrypted:
+          type: string
+        cardSequenceNo:
+          type: integer
+          format: int32
+        cardType:
+          type: string
+          enum:
+          - DEBIT
+          - PREPAID
+          - CREDIT
+        status:
+          type: string
+          enum:
+          - ISSUED
+          - ACTIVE
+          - BLOCKED
+          - EXPIRED
+          - CANCELLED
+          - ORDERED
+          - PRODUCED
+          - DISPATCHED
+          - ACTIVATION_PENDING
+        virtualFlag:
+          type: boolean
+        customerId:
+          type: string
+          format: uuid
+        linkedEntityId:
+          type: string
+          format: uuid
+        product:
+          $ref: "#/components/schemas/CardProduct"
+        pinRetryCount:
+          type: integer
+          format: int32
+        pinSet:
+          type: boolean
+        version:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CardLimit:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        card:
+          $ref: "#/components/schemas/Card"
+        dailyPurchaseLimit:
+          type: number
+        dailyWithdrawalLimit:
+          type: number
+        perTxnLimit:
+          type: number
+        monthlyLimit:
+          type: number
+        currencyCode:
+          type: string
+        version:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CardProduct:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        cardType:
+          type: string
+          enum:
+          - DEBIT
+          - PREPAID
+          - CREDIT
+        binRangeStart:
+          type: string
+        binRangeEnd:
+          type: string
+        defaultDailyLimit:
+          type: number
+        features:
+          type: object
+          additionalProperties:
+            type: object
+        active:
+          type: boolean
+        version:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Meta:
+      type: object
+      properties:
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        total:
+          type: integer
+          format: int64
+    CardControlsRequest:
+      type: object
+      properties:
+        freeze:
+          type: boolean
+        contactlessEnabled:
+          type: boolean
+        cnpEnabled:
+          type: boolean
+        internationalEnabled:
+          type: boolean
+    ApiResponseCard:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/Card"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    InterchangeRateRequest:
+      type: object
+      properties:
+        scheme:
+          type: string
+          minLength: 1
+        cardType:
+          type: string
+          enum:
+          - DEBIT
+          - PREPAID
+          - CREDIT
+        mccCategory:
+          type: string
+        transactionType:
+          type: string
+          enum:
+          - PURCHASE
+          - CASH
+          - REFUND
+        channel:
+          type: string
+          enum:
+          - CARD_PRESENT
+          - CNP
+        ratePercent:
+          type: number
+          minimum: 0.0
+        fixedFee:
+          type: number
+          minimum: 0.0
+        currencyCode:
+          type: string
+          maxLength: 3
+          minLength: 3
+        effectiveFrom:
+          type: string
+          format: date
+        effectiveTo:
+          type: string
+          format: date
+        active:
+          type: boolean
+      required:
+      - cardType
+      - channel
+      - effectiveFrom
+      - fixedFee
+      - ratePercent
+      - transactionType
+    ApiResponseInterchangeRate:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/InterchangeRate"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    InterchangeRate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        scheme:
+          type: string
+        cardType:
+          type: string
+          enum:
+          - DEBIT
+          - PREPAID
+          - CREDIT
+        mccCategory:
+          type: string
+        transactionType:
+          type: string
+          enum:
+          - PURCHASE
+          - CASH
+          - REFUND
+        channel:
+          type: string
+          enum:
+          - CARD_PRESENT
+          - CNP
+        ratePercent:
+          type: number
+        fixedFee:
+          type: number
+        currencyCode:
+          type: string
+        effectiveFrom:
+          type: string
+          format: date
+        effectiveTo:
+          type: string
+          format: date
+        active:
+          type: boolean
+        version:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    SchemeFeeRequest:
+      type: object
+      properties:
+        scheme:
+          type: string
+          minLength: 1
+        feeType:
+          type: string
+          enum:
+          - ASSESSMENT
+          - NETWORK
+          - CROSS_BORDER
+          - INTERNATIONAL_SERVICE
+        ratePercent:
+          type: number
+          minimum: 0.0
+        fixedFee:
+          type: number
+          minimum: 0.0
+        effectiveFrom:
+          type: string
+          format: date
+        effectiveTo:
+          type: string
+          format: date
+        active:
+          type: boolean
+      required:
+      - effectiveFrom
+      - feeType
+      - fixedFee
+      - ratePercent
+    ApiResponseSchemeFee:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/SchemeFee"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    SchemeFee:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        scheme:
+          type: string
+        feeType:
+          type: string
+          enum:
+          - ASSESSMENT
+          - NETWORK
+          - CROSS_BORDER
+          - INTERNATIONAL_SERVICE
+        ratePercent:
+          type: number
+        fixedFee:
+          type: number
+        effectiveFrom:
+          type: string
+          format: date
+        effectiveTo:
+          type: string
+          format: date
+        active:
+          type: boolean
+        version:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+    ApiResponseCardProduct:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/CardProduct"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    UpdateRuleRequest:
+      type: object
+      properties:
+        weight:
+          type: integer
+          format: int32
+        enabled:
+          type: boolean
+        params:
+          type: object
+          additionalProperties:
+            type: object
+    ApiResponseFraudRuleEntity:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/FraudRuleEntity"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    FraudRuleEntity:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        ruleId:
+          type: string
+        weight:
+          type: integer
+          format: int32
+        enabled:
+          type: boolean
+        params:
+          type: object
+          additionalProperties:
+            type: object
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    BinRangeRequest:
+      type: object
+      properties:
+        binStart:
+          type: string
+          maxLength: 8
+          minLength: 6
+          pattern: \d+
+        binEnd:
+          type: string
+          maxLength: 8
+          minLength: 6
+          pattern: \d+
+        scheme:
+          type: string
+          enum:
+          - VISA
+          - MASTERCARD
+          - VERVE
+          - AFRIGO
+          - UNION_PAY
+          - UNKNOWN
+        productType:
+          type: string
+        cardType:
+          type: string
+          enum:
+          - DEBIT
+          - PREPAID
+          - CREDIT
+        countryCode:
+          type: string
+          maxLength: 3
+          minLength: 0
+        currencyCode:
+          type: string
+          maxLength: 3
+          minLength: 0
+        active:
+          type: boolean
+      required:
+      - scheme
+    ApiResponseBinRange:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/BinRange"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    BinRange:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        binStart:
+          type: string
+        binEnd:
+          type: string
+        scheme:
+          type: string
+          enum:
+          - VISA
+          - MASTERCARD
+          - VERVE
+          - AFRIGO
+          - UNION_PAY
+          - UNKNOWN
+        productType:
+          type: string
+        cardType:
+          type: string
+          enum:
+          - DEBIT
+          - PREPAID
+          - CREDIT
+        countryCode:
+          type: string
+        currencyCode:
+          type: string
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    RegisterWebhookRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          minLength: 0
+        callbackUrl:
+          type: string
+          minLength: 1
+        events:
+          type: array
+          items:
+            type: string
+    ApiResponseRegisterWebhookResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/RegisterWebhookResponse"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    RegisterWebhookResponse:
+      type: object
+      properties:
+        webhook:
+          $ref: "#/components/schemas/Webhook"
+        secret:
+          type: string
+    Webhook:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        callbackUrl:
+          type: string
+        events:
+          type: array
+          items:
+            type: string
+        secret:
+          type: string
+        active:
+          type: boolean
+        createdBy:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+    IssueCardRequest:
+      type: object
+      properties:
+        productId:
+          type: string
+          format: uuid
+        customerId:
+          type: string
+          format: uuid
+        linkedEntityId:
+          type: string
+          format: uuid
+        virtual:
+          type: boolean
+    PinChangeRequest:
+      type: object
+      properties:
+        oldPinBlock:
+          type: string
+          minLength: 1
+        newPinBlock:
+          type: string
+          minLength: 1
+    ApiResponseMapStringString:
+      type: object
+      properties:
+        data:
+          type: object
+          additionalProperties:
+            type: string
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    IssueKeyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          minLength: 0
+        scopes:
+          type: array
+          items:
+            type: string
+    ApiKey:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        keyHash:
+          type: string
+        createdBy:
+          type: string
+          format: uuid
+        active:
+          type: boolean
+        scopes:
+          type: array
+          items:
+            type: string
+        lastUsedAt:
+          type: string
+          format: date-time
+        tier:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    ApiResponseIssueKeyResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/IssueKeyResponse"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    IssueKeyResponse:
+      type: object
+      properties:
+        apiKey:
+          $ref: "#/components/schemas/ApiKey"
+        rawKey:
+          type: string
+    TokenizeRequest:
+      type: object
+      properties:
+        cardId:
+          type: string
+          format: uuid
+        customerId:
+          type: string
+          format: uuid
+    ApiResponseTokenResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/TokenResponse"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    TokenResponse:
+      type: object
+      properties:
+        dpan:
+          type: string
+        expiryDate:
+          type: string
+        tokenRef:
+          type: string
+    SimulateRequest:
+      type: object
+      properties:
+        cardNumber:
+          type: string
+        expiryDate:
+          type: string
+        amount:
+          type: number
+        currency:
+          type: string
+        terminalId:
+          type: string
+        merchantId:
+          type: string
+        merchantName:
+          type: string
+        mcc:
+          type: string
+        entryMode:
+          type: string
+        pinBlock:
+          type: string
+        originalStan:
+          type: string
+        originalRrn:
+          type: string
+        networkCode:
+          type: string
+    ApiResponseSimulateResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/SimulateResponse"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    SimulateResponse:
+      type: object
+      properties:
+        requestMti:
+          type: string
+        responseMti:
+          type: string
+        responseCode:
+          type: string
+        responseDescription:
+          type: string
+        authCode:
+          type: string
+        availableBalance:
+          type: string
+        stan:
+          type: string
+        rrn:
+          type: string
+        approved:
+          type: boolean
+        requestHex:
+          type: string
+        responseHex:
+          type: string
+    CardAuthRequest:
+      type: object
+      properties:
+        pan:
+          type: string
+        processingCode:
+          type: string
+        amount:
+          type: number
+        currencyCode:
+          type: string
+        stan:
+          type: string
+        terminalId:
+          type: string
+        merchantId:
+          type: string
+        merchantName:
+          type: string
+        mcc:
+          type: string
+        posEntryMode:
+          type: string
+        posConditionCode:
+          type: string
+        rrn:
+          type: string
+        scheme:
+          type: string
+        pinVerified:
+          type: boolean
+        arqcValid:
+          type: boolean
+        isFinancial:
+          type: boolean
+        emvTags:
+          type: object
+          additionalProperties:
+            type: string
+    CardAuthResponse:
+      type: object
+      properties:
+        responseCode:
+          type: string
+        authorizationCode:
+          type: string
+        approved:
+          type: boolean
+        standIn:
+          type: boolean
+        availableBalance:
+          type: number
+        currencyCode:
+          type: string
+        mipReference:
+          type: string
+    AdviceRequest:
+      type: object
+      properties:
+        pan:
+          type: string
+        amount:
+          type: number
+        stan:
+          type: string
+    ApiResponseListSettlementTransmission:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SettlementTransmission"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    SettlementTransmission:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        batchId:
+          type: string
+          format: uuid
+        scheme:
+          type: string
+        fileName:
+          type: string
+        recordCount:
+          type: integer
+          format: int32
+        totalAmount:
+          type: number
+        settlementDate:
+          type: string
+          format: date
+        transmissionMethod:
+          type: string
+        endpoint:
+          type: string
+        status:
+          type: string
+        attemptCount:
+          type: integer
+          format: int32
+        lastAttemptAt:
+          type: string
+          format: date-time
+        transmittedAt:
+          type: string
+          format: date-time
+        acknowledgedAt:
+          type: string
+          format: date-time
+        errorMessage:
+          type: string
+        version:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ApiResponseSettlementBatch:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/SettlementBatch"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    SettlementBatch:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        batchRef:
+          type: string
+        status:
+          type: string
+          enum:
+          - OPEN
+          - CLOSED
+          - SETTLED
+          - FAILED
+        settlementDate:
+          type: string
+          format: date
+        totalAmount:
+          type: number
+        itemCount:
+          type: integer
+          format: int32
+        openedAt:
+          type: string
+          format: date-time
+        closedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+    RaiseDisputeRequest:
+      type: object
+      properties:
+        cardId:
+          type: string
+          format: uuid
+        transactionRef:
+          type: string
+          minLength: 1
+        disputeReason:
+          type: string
+          enum:
+          - UNAUTHORIZED
+          - GOODS_NOT_RECEIVED
+          - DUPLICATE
+          - AMOUNT_MISMATCH
+          - OTHER
+        raisedBy:
+          type: string
+          format: uuid
+        originalAmount:
+          type: number
+        currencyCode:
+          type: string
+      required:
+      - cardId
+      - disputeReason
+      - originalAmount
+      - raisedBy
+    ApiResponseCardDispute:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/CardDispute"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    CardDispute:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        cardId:
+          type: string
+          format: uuid
+        transactionRef:
+          type: string
+        disputeReason:
+          type: string
+          enum:
+          - UNAUTHORIZED
+          - GOODS_NOT_RECEIVED
+          - DUPLICATE
+          - AMOUNT_MISMATCH
+          - OTHER
+        status:
+          type: string
+          enum:
+          - RAISED
+          - RETRIEVAL_REQUESTED
+          - CHARGEBACK_INITIATED
+          - REPRESENTMENT
+          - PRE_ARBITRATION
+          - RESOLVED
+          - WITHDRAWN
+        raisedBy:
+          type: string
+          format: uuid
+        resolvedBy:
+          type: string
+          format: uuid
+        originalAmount:
+          type: number
+        resolutionNotes:
+          type: string
+        schemeReasonCode:
+          $ref: "#/components/schemas/ChargebackReasonCode"
+        currencyCode:
+          type: string
+        chargebackDeadline:
+          type: string
+          format: date
+        responseDeadline:
+          type: string
+          format: date
+        preArbitrationDeadline:
+          type: string
+          format: date
+        resolutionFavor:
+          type: string
+        version:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ChargebackReasonCode:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        scheme:
+          type: string
+        code:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        maxDaysToChargeback:
+          type: integer
+          format: int32
+        maxDaysToRespond:
+          type: integer
+          format: int32
+        maxDaysPreArbitration:
+          type: integer
+          format: int32
+    ResolveRequest:
+      type: object
+      properties:
+        resolvedBy:
+          type: string
+          format: uuid
+        resolutionFavor:
+          type: string
+          minLength: 1
+        notes:
+          type: string
+    RepresentmentRequest:
+      type: object
+      properties:
+        acquirerReason:
+          type: string
+          minLength: 1
+    InitiateChargebackRequest:
+      type: object
+      properties:
+        reasonCodeId:
+          type: string
+          format: uuid
+      required:
+      - reasonCodeId
+    ApiResponseBureauJob:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/BureauJob"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    BureauJob:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        batchRef:
+          type: string
+        bureauName:
+          type: string
+        cardCount:
+          type: integer
+          format: int32
+        status:
+          type: string
+          enum:
+          - PENDING
+          - SENT
+          - CONFIRMED
+          - FAILED
+        submittedAt:
+          type: string
+          format: date-time
+        confirmedAt:
+          type: string
+          format: date-time
+        notes:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BureauJobItem"
+        version:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    BureauJobItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        job:
+          $ref: "#/components/schemas/BureauJob"
+        card:
+          $ref: "#/components/schemas/Card"
+        physicalOrder:
+          $ref: "#/components/schemas/PhysicalCardOrder"
+        personalizationDataHash:
+          type: string
+        chipSerialNo:
+          type: string
+        schemeAid:
+          type: string
+        status:
+          type: string
+          enum:
+          - PENDING
+          - PERSONALIZED
+          - FAILED
+        failureReason:
+          type: string
+        version:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PhysicalCardOrder:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        card:
+          $ref: "#/components/schemas/Card"
+        status:
+          type: string
+        activationCode:
+          type: string
+        cardBureauRef:
+          type: string
+        productionRequestDate:
+          type: string
+          format: date
+        dispatchDate:
+          type: string
+          format: date
+        version:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    BureauConfirmRequest:
+      type: object
+      properties:
+        batchRef:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ItemConfirmation"
+          minItems: 1
+    ItemConfirmation:
+      type: object
+      properties:
+        cardId:
+          type: string
+          format: uuid
+        success:
+          type: boolean
+        chipSerialNo:
+          type: string
+        bureauRef:
+          type: string
+        failureReason:
+          type: string
+    ChallengeSubmitRequest:
+      type: object
+      properties:
+        otp:
+          type: string
+          maxLength: 8
+          minLength: 4
+    ChallengeVerifyResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        eci:
+          type: string
+        authenticationValue:
+          type: string
+        message:
+          type: string
+    AReqMessage:
+      type: object
+      properties:
+        threeDSServerTransID:
+          type: string
+          format: uuid
+        dsTransID:
+          type: string
+          format: uuid
+        acctNumber:
+          type: string
+          minLength: 1
+        cardExpiryDate:
+          type: string
+        messageCategory:
+          type: string
+        transType:
+          type: string
+        purchaseAmount:
+          type: number
+        purchaseCurrency:
+          type: string
+        purchaseExponent:
+          type: string
+        merchantName:
+          type: string
+        merchantCountryCode:
+          type: string
+        acquirerBIN:
+          type: string
+        acquirerMerchantID:
+          type: string
+        deviceChannel:
+          type: string
+        notificationURL:
+          type: string
+      required:
+      - threeDSServerTransID
+    AResMessage:
+      type: object
+      properties:
+        threeDSServerTransID:
+          type: string
+          format: uuid
+        dsTransID:
+          type: string
+          format: uuid
+        acsTransID:
+          type: string
+          format: uuid
+        transStatus:
+          type: string
+        eci:
+          type: string
+        authenticationValue:
+          type: string
+        acsURL:
+          type: string
+        messageVersion:
+          type: string
+    ApiResponseListWebhook:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Webhook"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    ApiResponseListWebhookDeliveryLog:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/WebhookDeliveryLog"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    WebhookDeliveryLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        webhook:
+          $ref: "#/components/schemas/Webhook"
+        eventType:
+          type: string
+        deliveryUuid:
+          type: string
+        payload:
+          type: string
+        httpStatus:
+          type: integer
+          format: int32
+        status:
+          type: string
+        attemptCount:
+          type: integer
+          format: int32
+        lastAttemptAt:
+          type: string
+          format: date-time
+        nextRetryAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    ApiResponseListCard:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Card"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    ApiResponseListAuthorizationLog:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuthorizationLog"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    AuthorizationLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        cardId:
+          type: string
+          format: uuid
+        stan:
+          type: string
+        rrn:
+          type: string
+        mti:
+          type: string
+        processingCode:
+          type: string
+        amount:
+          type: number
+        currencyCode:
+          type: string
+        responseCode:
+          type: string
+        authCode:
+          type: string
+        entryMode:
+          type: string
+        terminalId:
+          type: string
+        merchantId:
+          type: string
+        merchantName:
+          type: string
+        mcc:
+          type: string
+        fraudScore:
+          type: integer
+          format: int32
+        decision:
+          type: string
+          enum:
+          - APPROVE
+          - STEP_UP
+          - DECLINE
+        scheme:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        financial:
+          type: boolean
+    ApiResponseListMerchantSummary:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/MerchantSummary"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    MerchantSummary:
+      type: object
+      properties:
+        merchantId:
+          type: string
+        merchantName:
+          type: string
+        totalAmount:
+          type: number
+        transactionCount:
+          type: integer
+          format: int32
+        currencyCode:
+          type: string
+    ApiResponseListCategorySummary:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategorySummary"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    CategorySummary:
+      type: object
+      properties:
+        category:
+          type: string
+        totalAmount:
+          type: number
+        transactionCount:
+          type: integer
+          format: int32
+        currencyCode:
+          type: string
+    ApiResponseListApiKey:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiKey"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    ApiResponseMonthlySummary:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/MonthlySummary"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    MonthlySummary:
+      type: object
+      properties:
+        approvedTotal:
+          type: number
+        approvedCount:
+          type: integer
+          format: int32
+        declinedCount:
+          type: integer
+          format: int32
+        avgTransactionAmount:
+          type: number
+        currencyCode:
+          type: string
+    ApiResponseString:
+      type: object
+      properties:
+        data:
+          type: string
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    DetokenizeResponse:
+      type: object
+      properties:
+        pan:
+          type: string
+    ApiResponseListInterchangeRate:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/InterchangeRate"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    ApiResponseInterchangeLog:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/InterchangeLog"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    InterchangeLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        authorizationLogId:
+          type: string
+          format: uuid
+        scheme:
+          type: string
+        interchangeAmount:
+          type: number
+        schemeFeeAmount:
+          type: number
+        netSettlementAmount:
+          type: number
+        rateApplied:
+          type: string
+        calculatedAt:
+          type: string
+          format: date-time
+    ApiResponseListSchemeFee:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SchemeFee"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    ApiResponseInterchangeResult:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/InterchangeResult"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    InterchangeResult:
+      type: object
+      properties:
+        interchangeAmount:
+          type: number
+        schemeFeeAmount:
+          type: number
+        netSettlementAmount:
+          type: number
+        rateApplied:
+          type: string
+    ApiResponseBalanceResult:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/BalanceResult"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    BalanceResult:
+      type: object
+      properties:
+        availableBalance:
+          type: number
+        cardType:
+          type: string
+    ApiResponseSettlementTransmission:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/SettlementTransmission"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    ApiResponseListSettlementBatch:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SettlementBatch"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    ApiResponseListSettlementItem:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SettlementItem"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    SettlementItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        batch:
+          $ref: "#/components/schemas/SettlementBatch"
+        authorizationLogId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+        currencyCode:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    ApiResponseListCardProduct:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/CardProduct"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    ApiResponseListFraudRuleEntity:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/FraudRuleEntity"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    ApiResponseListCardDispute:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/CardDispute"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    ApiResponseListRetrievalRequest:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/RetrievalRequest"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    RetrievalRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        dispute:
+          $ref: "#/components/schemas/CardDispute"
+        requestedAt:
+          type: string
+          format: date-time
+        deadline:
+          type: string
+          format: date
+        respondedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    ApiResponseListRepresentment:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Representment"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    Representment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        dispute:
+          $ref: "#/components/schemas/CardDispute"
+        submittedAt:
+          type: string
+          format: date-time
+        deadline:
+          type: string
+          format: date
+        reason:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    ApiResponseListChargebackReasonCode:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChargebackReasonCode"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    ApiResponseListBureauJob:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/BureauJob"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    ApiResponseCdpPreviewResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/CdpPreviewResponse"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    CdpPreviewResponse:
+      type: object
+      properties:
+        cardId:
+          type: string
+          format: uuid
+        schemeAid:
+          type: string
+        schemeLabel:
+          type: string
+        expiryYYMM:
+          type: string
+        sequenceNo:
+          type: integer
+          format: int32
+        serviceCode:
+          type: string
+        aip:
+          type: string
+        iacDefault:
+          type: string
+        iacDenial:
+          type: string
+        iacOnline:
+          type: string
+        pdol:
+          type: string
+        issuerKeyIndex:
+          type: integer
+          format: int32
+        cvkIndex:
+          type: integer
+          format: int32
+        hash:
+          type: string
+    ApiResponseBureauJobDetail:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/BureauJobDetail"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    BureauJobDetail:
+      type: object
+      properties:
+        job:
+          $ref: "#/components/schemas/BureauJob"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BureauJobItem"
+    ApiResponseListBinRange:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/BinRange"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    ApiResponseSchemeType:
+      type: object
+      properties:
+        data:
+          type: string
+          enum:
+          - VISA
+          - MASTERCARD
+          - VERVE
+          - AFRIGO
+          - UNION_PAY
+          - UNKNOWN
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    ApiResponseVoid:
+      type: object
+      properties:
+        data:
+          type: object
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"

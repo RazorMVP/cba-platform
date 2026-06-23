@@ -138,4 +138,25 @@ public class Payment {
     @Version
     @Column(nullable = false)
     private Long version;
+
+    /**
+     * Backfills the cross-currency audit columns before insert/update.
+     *
+     * <p>{@code source_currency} and {@code destination_currency} are NOT NULL at the
+     * schema level (see {@code V3__multi_currency.sql}) — every payment records the
+     * currency on each leg, which for a same-currency transfer is simply the same
+     * currency twice. The cross-currency code path sets these explicitly to the
+     * differing values; this hook is the safety net that backfills them from the
+     * always-set {@link #currencyCode} / {@link #amount} for same-currency transfers,
+     * reversals, and external payments — so no {@code new Payment()} call site can
+     * ever violate the constraint, present or future.
+     */
+    @PrePersist
+    @PreUpdate
+    private void backfillCurrencyAuditColumns() {
+        if (sourceCurrency == null)      sourceCurrency = currencyCode;
+        if (destinationCurrency == null) destinationCurrency = currencyCode;
+        if (sourceAmount == null)        sourceAmount = amount;
+        if (destinationAmount == null)   destinationAmount = amount;
+    }
 }

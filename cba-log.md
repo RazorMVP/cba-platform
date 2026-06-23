@@ -57,6 +57,61 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 120 (cont. 8) — 2026-06-23
+**Closed all three cont.7 backend follow-ups — and chasing them surfaced TWO genuine latent production defects (both fixed). Full `-Pfull-integration`: 629 green (622 unit + 7 integration), reliably green across repeat runs. Production-readiness plan item 3.**
+
+The "wire the never-run `*IT` tests and fix the flagged follow-ups" task did exactly what untested code is supposed to do under a real DB: it exposed two real bugs that all three existing test layers had missed.
+
+#### 🐛 Latent production defect #1 — same-currency payments cannot persist
+
+`payments.source_currency` / `destination_currency` are **NOT NULL** since `V3__multi_currency.sql` (backfilled then constrained). But `PaymentService` only set them on the **cross-currency** branch — so every **same-currency** internal transfer, every **reversal**, and every **external/SWIFT payment** built a `Payment` with `source_currency = null` → `DataIntegrityViolationException` at flush/commit. The happy-path transfer fails against a real schema (worse than cont.7's "insufficient-balance path" note — the happy path itself hits the constraint).
+
+- **Why no layer caught it:** unit tests mock `PaymentRepository` (no DB constraints); the integration test that would catch it (`PaymentServiceIT`) was never wired into surefire (`includes` only matched `*Test`/`*Tests`).
+- **Fix (bypass-proof):** a `@PrePersist`/`@PreUpdate` hook on the `Payment` entity (`backfillCurrencyAuditColumns()`) defaults `sourceCurrency`/`destinationCurrency`/`sourceAmount`/`destinationAmount` from the always-set `currencyCode`/`amount`. One place, covers all 3 call sites + any future `new Payment()`. The cross-currency branch still sets the differing values explicitly before persist.
+
+#### 🐛 Latent production defect #2 — demo customer PII unreadable in every profile
+
+Demo migrations (`V2`, `V4`) store PII as `DEMO_ENC:<plaintext>` (a seed sentinel — jasypt's random salt+IV means no static ciphertext can be hand-written into SQL). But `FieldEncryptor.decrypt()` had **no handling** for the marker — it fed `DEMO_ENC:John` straight to jasypt, which throws. So loading any demo customer's PII via JPA fails (`Error attempting to apply AttributeConverter`) in dev, docker, test, **and** prod.
+
+- **Fix:** `decrypt()` now passes the plaintext through when the value starts with `DEMO_PREFIX` (`DEMO_ENC:`); real writes still produce real ciphertext, so the marker only exists in seed rows and self-heals on first update. No blanket catch-all (that would hide real key-mismatch errors).
+
+#### 🔧 OpenApiSnapshotTest — non-200 AND non-determinism
+
+- **Non-200:** `SecurityConfig` permitted `/api-docs/**` but not the `/api-docs.yaml` sibling (and not the `/api-docs` JSON base) → fell through to `.anyRequest().authenticated()`. Added `/api-docs` + `/api-docs.yaml` to `permitAll`.
+- **Non-determinism (deeper issue):** two consecutive runs of the _fixed_ test still differed — springdoc emits schema **properties** in reflection order (e.g. `totalElements`/`totalPages` swap run-to-run). springdoc's `writer-with-order-by-keys` only sorts **paths**, not schema properties ([springdoc-openapi#1690](https://github.com/springdoc/springdoc-openapi/issues/1690), [#1362](https://github.com/springdoc/springdoc-openapi/issues/1362)) — so it would NOT have fixed this; adding it to prod config would have been misleading. **Fix:** the TEST now `canonicalize()`s both specs (parse → recursively sort every object's keys; array order preserved as it is semantically meaningful) before compare + write. Verified stable across consecutive runs.
+
+#### 🔧 Singleton-container base class
+
+`AbstractIntegrationTest` now starts ONE PostgreSQL container from a static initializer (no `@Testcontainers`/`@Container`), shared by every IT class for the JVM's life and reclaimed by Ryuk/JVM shutdown. Replaces the per-class start/stop the JUnit extension did across four IT classes (slow + teardown races) — the cont.7 "multi-`@Container` lifecycle" follow-up.
+
+#### New / Updated Files
+
+| File | Change |
+|------|--------|
+| `backend/.../payment/Payment.java` | **FIX (defect #1)** NEW `@PrePersist`/`@PreUpdate backfillCurrencyAuditColumns()` — defaults the NOT-NULL cross-currency audit columns from `currencyCode`/`amount` |
+| `backend/.../common/crypto/FieldEncryptor.java` | **FIX (defect #2)** `decrypt()` passes through `DEMO_ENC:` seed plaintext; NEW `DEMO_PREFIX` constant |
+| `backend/.../config/SecurityConfig.java` | permit `/api-docs` + `/api-docs.yaml` (was only `/api-docs/**`) — public API-docs endpoints |
+| `backend/pom.xml` | `full-integration` profile: add `**/*IT.java` to `<includes>`; `<excludes combine.self="override"/>` now empty (openapi snapshot test no longer excluded) |
+| `backend/.../integration/AbstractIntegrationTest.java` | singleton-container pattern (static init + `start()`, removed `@Testcontainers`/`@Container`); `@SuppressWarnings("resource")` for the intentionally-unclosed container |
+| `backend/.../integration/PaymentServiceIT.java` | assertion fix (`"Insufficient available balance"`); + regression asserts that same-currency transfers populate the audit columns |
+| `backend/.../openapi/OpenApiSnapshotTest.java` | `canonicalize()` (recursive object-key sort) for order-insensitive snapshot comparison + write |
+| `backend/docs/openapi-snapshot.yaml` | regenerated as the real, canonical (alpha-sorted) spec — was the placeholder (test had never succeeded before) |
+
+#### Build Verification
+
+- `cd backend && ./mvnw -o clean test -Djacoco.skip=true` → **622 unit, 0 failures** (no Docker; `*IT`/snapshot/context-boot correctly excluded from the default build).
+- `cd backend && DOCKER_HOST=… ./mvnw -o clean test -Pfull-integration -Djacoco.skip=true` → **Tests run: 629, Failures: 0, Errors: 0** (622 unit + `OpenApiSnapshotTest` + 3 `PaymentServiceIT` + 2 `CustomerRepositoryIT`). Green on two consecutive runs (one earlier run hit a transient Docker/Testcontainers hiccup with Ryuk disabled — re-ran clean green).
+
+#### API Surface
+
+**API surface unchanged.** No REST endpoint added/changed — the `SecurityConfig` edit is a permit-list change, not a `@*Mapping`. Gate grep over the Java diff shows zero `@(Get|Post|Put|Delete|Patch|Request)Mapping` changes → `api-reference.html` + Postman not required.
+
+#### Confirmed Platform Versions
+
+Backend: Spring Boot 3.5.0 / Java 21, Testcontainers 1.21.4 — unchanged from cont.7. No production dependency change; the two defect fixes are pure application code.
+
+---
+
 ### Session 120 (cont. 7) — 2026-06-22
 **Same Testcontainers fix + a context-boot integration test for the backend monolith. Backend boots cleanly with `ddl-auto=validate` (NO latent startup bugs, unlike card-service). Full `-Pfull-integration`: 623 green. Production-readiness plan item 3.**
 

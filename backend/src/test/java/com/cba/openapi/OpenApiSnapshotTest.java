@@ -1,6 +1,11 @@
 package com.cba.openapi;
 
 import com.cba.integration.AbstractIntegrationTest;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.client.TestRestTemplate;
@@ -8,10 +13,14 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.ResponseEntity;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
@@ -41,6 +50,9 @@ class OpenApiSnapshotTest extends AbstractIntegrationTest {
     /** Placeholder content written on first run; replaced with real spec. */
     private static final String PLACEHOLDER_MARKER = "# openapi-snapshot-placeholder";
 
+    /** YAML mapper used only to canonicalise specs for an order-insensitive comparison. */
+    private static final YAMLMapper YAML = new YAMLMapper();
+
     @LocalServerPort
     private int port;
 
@@ -49,7 +61,7 @@ class OpenApiSnapshotTest extends AbstractIntegrationTest {
 
     @Test
     void openApiSpecMatchesSnapshot() throws IOException {
-        String liveSpec = fetchLiveSpec();
+        String liveSpec = canonicalize(fetchLiveSpec());
 
         boolean updateMode = Boolean.parseBoolean(
                 System.getProperty("update.api.snapshot", "false"));
@@ -70,7 +82,7 @@ class OpenApiSnapshotTest extends AbstractIntegrationTest {
             return; // Pass on first-write / explicit update
         }
 
-        String committedSpec = Files.readString(SNAPSHOT_PATH, StandardCharsets.UTF_8);
+        String committedSpec = canonicalize(Files.readString(SNAPSHOT_PATH, StandardCharsets.UTF_8));
 
         if (!liveSpec.equals(committedSpec)) {
             fail(buildDiffMessage(committedSpec, liveSpec));
@@ -78,6 +90,44 @@ class OpenApiSnapshotTest extends AbstractIntegrationTest {
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+    /**
+     * Canonicalises an OpenAPI YAML document so the comparison is immune to springdoc's
+     * non-deterministic map ordering. springdoc builds paths/schemas/properties via
+     * reflection, whose order is not stable run-to-run (e.g. {@code totalElements} vs
+     * {@code totalPages}); its {@code writer-with-order-by-keys} flag only sorts paths,
+     * not schema properties (springdoc-openapi#1690 / #1362). We parse the spec into a
+     * tree and recursively sort every object's keys. Array order is deliberately
+     * PRESERVED — it is semantically meaningful in OpenAPI (parameter order, enum
+     * values, {@code required}, {@code servers}, …), so re-ordering it could mask a real
+     * contract change.
+     */
+    private String canonicalize(String yaml) {
+        try {
+            return YAML.writeValueAsString(sortKeys(YAML.readTree(yaml)));
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to canonicalize OpenAPI spec", e);
+        }
+    }
+
+    private JsonNode sortKeys(JsonNode node) {
+        if (node.isObject()) {
+            ObjectNode sorted = JsonNodeFactory.instance.objectNode();
+            List<String> names = new ArrayList<>();
+            node.fieldNames().forEachRemaining(names::add);
+            Collections.sort(names);
+            for (String name : names) {
+                sorted.set(name, sortKeys(node.get(name)));
+            }
+            return sorted;
+        }
+        if (node.isArray()) {
+            ArrayNode arr = JsonNodeFactory.instance.arrayNode();
+            node.forEach(child -> arr.add(sortKeys(child)));
+            return arr;
+        }
+        return node;
+    }
 
     private String fetchLiveSpec() {
         ResponseEntity<String> response = restTemplate.getForEntity(

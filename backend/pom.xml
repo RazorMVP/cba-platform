@@ -423,22 +423,23 @@
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-surefire-plugin</artifactId>
                         <configuration>
+                            <!-- Run the heavyweight suites the base config skips: the
+                                 Testcontainers *IntegrationTest classes, the legacy *IT.java
+                                 classes (PaymentServiceIT, CustomerRepositoryIT), and the
+                                 openapi/OpenApiSnapshotTest contract snapshot. The base
+                                 <includes> only matches *Test/*Tests, so *IT must be added
+                                 explicitly here. -->
                             <includes>
                                 <include>**/*Test.java</include>
                                 <include>**/*Tests.java</include>
+                                <include>**/*IT.java</include>
                             </includes>
-                            <!-- Un-exclude *IntegrationTest.java (the base config excludes it),
-                                 but keep the openapi snapshot test excluded. combine.self=override
-                                 is REQUIRED: without it Maven merges with the base <excludes> and
-                                 *IntegrationTest stays excluded under -Pfull-integration.
-                                 Pre-existing tests intentionally still NOT run here (separate
-                                 follow-ups): openapi/OpenApiSnapshotTest (GET /api-docs.yaml
-                                 returns non-200 in the test profile) and the legacy *IT.java
-                                 tests (PaymentServiceIT: payments.source_currency NOT NULL;
-                                 multi-@Container lifecycle). -->
-                            <excludes combine.self="override">
-                                <exclude>**/openapi/**/*Test.java</exclude>
-                            </excludes>
+                            <!-- Un-exclude everything the base config excludes
+                                 (**/*IntegrationTest.java + **/openapi/**). combine.self=override
+                                 is REQUIRED: without it Maven merges this empty <excludes/> with
+                                 the base <excludes> and those tests stay excluded under
+                                 -Pfull-integration. -->
+                            <excludes combine.self="override"/>
                             <argLine>
                                 ${argLine}
                                 -Dnet.bytebuddy.experimental=true

@@ -15,6 +15,16 @@ import jakarta.annotation.PostConstruct;
 @Component
 public class FieldEncryptor {
 
+    /**
+     * Seed-data sentinel. Jasypt uses a random salt + IV, so a valid ciphertext cannot
+     * be hand-written into a Flyway migration (no static string round-trips). Demo
+     * migrations (V2, V4) therefore store PII as {@code DEMO_ENC:<plaintext>} and rely on
+     * {@link #decrypt(String)} to recognise the marker and return the plaintext. Real
+     * writes always go through jasypt encryption, so the marker only ever appears in seed
+     * rows and self-heals to real ciphertext on the first update.
+     */
+    static final String DEMO_PREFIX = "DEMO_ENC:";
+
     @Value("${cba.encryption.secret-key}")
     private String secretKey;
 
@@ -41,6 +51,14 @@ public class FieldEncryptor {
     }
 
     public String decrypt(String value) {
-        return value == null ? null : encryptor.decrypt(value);
+        if (value == null) {
+            return null;
+        }
+        // Seed rows carry plaintext behind the DEMO_ENC: marker (see DEMO_PREFIX) —
+        // pass the plaintext through rather than feeding it to jasypt (which would throw).
+        if (value.startsWith(DEMO_PREFIX)) {
+            return value.substring(DEMO_PREFIX.length());
+        }
+        return encryptor.decrypt(value);
     }
 }

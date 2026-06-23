@@ -5,29 +5,42 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * Base class for integration tests.
  * Starts a real PostgreSQL 16 container via Testcontainers.
- * Flyway runs V1 + V2 migrations automatically on startup.
+ * Flyway runs all migrations automatically on startup.
  *
  * Inheriting classes get a fully migrated, real database —
  * no mocks, no H2 in-memory DB with its own quirks.
+ *
+ * <p><b>Singleton-container pattern.</b> The container is started exactly once,
+ * from a static initializer, and shared by every subclass for the lifetime of the
+ * JVM (the surefire fork) — it is deliberately NOT managed by the JUnit
+ * {@code @Testcontainers} / {@code @Container} extension. With several IT classes
+ * ({@code PaymentServiceIT}, {@code CustomerRepositoryIT}, {@code OpenApiSnapshotTest},
+ * {@code BackendContextLoadIntegrationTest}), the per-class start/stop that
+ * {@code @Testcontainers} performs would spin up and tear down a fresh container for
+ * each class and can race on teardown. One container, started here and reclaimed by
+ * Ryuk / JVM shutdown, is faster and avoids that lifecycle churn entirely.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Testcontainers
 @ActiveProfiles("test")
+@SuppressWarnings("resource") // singleton container is intentionally never closed — reclaimed by Ryuk / JVM shutdown
 public abstract class AbstractIntegrationTest {
 
-    @Container
-    static final PostgreSQLContainer<?> POSTGRES =
-        new PostgreSQLContainer<>("postgres:16-alpine")
+    static final PostgreSQLContainer<?> POSTGRES;
+
+    static {
+        POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
             .withDatabaseName("cba_test")
             .withUsername("cba_user")
             .withPassword("cba_pass")
             .withReuse(true);
+        // Start once for the whole suite. No explicit stop: a reusable/singleton
+        // container is reclaimed by Ryuk (or JVM shutdown), not per test class.
+        POSTGRES.start();
+    }
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {

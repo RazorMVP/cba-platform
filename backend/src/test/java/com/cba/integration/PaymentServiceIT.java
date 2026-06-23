@@ -40,6 +40,14 @@ class PaymentServiceIT extends AbstractIntegrationTest {
 
         assertThat(payment.status()).isEqualTo(PaymentStatus.COMPLETED);
 
+        // Regression guard: same-currency transfers must still populate the NOT-NULL
+        // cross-currency audit columns (source/destination currency + amount).
+        assertThat(payment.crossCurrency()).isFalse();
+        assertThat(payment.sourceCurrency()).isEqualTo(srcBefore.getCurrencyCode());
+        assertThat(payment.destinationCurrency()).isEqualTo(dstBefore.getCurrencyCode());
+        assertThat(payment.sourceAmount()).isEqualByComparingTo(amount);
+        assertThat(payment.destinationAmount()).isEqualByComparingTo(amount);
+
         Account srcAfter = accountRepository.findById(JOHN_SAVINGS).orElseThrow();
         Account dstAfter = accountRepository.findById(JANE_SAVINGS).orElseThrow();
 
@@ -66,6 +74,6 @@ class PaymentServiceIT extends AbstractIntegrationTest {
             "test"
         ))
         .isInstanceOf(CbaException.class)
-        .hasMessageContaining("Insufficient balance");
+        .hasMessageContaining("Insufficient available balance");
     }
 }

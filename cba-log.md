@@ -57,6 +57,46 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 120 (cont. 9) — 2026-06-24
+**Started Angular `web/` test coverage (production-readiness plan item, web frontend). From 1 → 75 tests across the core HTTP layer, auth interceptor/guard, and the 5 top-traffic operations services. `CI=true npx ng test --no-watch` → 75 passed (8 files).**
+
+The Angular app had 121 components and exactly 1 scaffold test — the entire user-facing layer was untested. This is the first tranche: the foundation (`ApiService` — every feature service depends on it), the auth interceptor + guard, and the highest-traffic operations services (accounts, payments, customers, loans). Service tests use a mocked `ApiService` (vi.fn → of(...)) to lock each operation's exact path + param shape without HTTP — the layer most prone to silent breakage (wrong path, `getPage` vs `get`, missed `?command=`).
+
+#### New / Updated Files
+
+| File | Change |
+|------|--------|
+| `web/.../core/api/api.service.spec.ts` | NEW — 13 tests; all 9 HTTP methods via `HttpTestingController`: envelope→`.data` unwrap, param building (number→string), `getPage` defaults, `postParams`/`putParams` empty-body+params, `command` `?command=` URL, `postForm` FormData |
+| `web/.../core/auth/auth.interceptor.spec.ts` | NEW — 4 tests; bypass (no headers), real-mode Bearer+`X-Tenant-ID` on `/api/`, non-`/api/` untouched, no-token passthrough |
+| `web/.../core/auth/auth.guard.spec.ts` | NEW — 2 tests; bypass→true, and `vi.mock('keycloak-angular')` to prove the non-bypass branch delegates to the Keycloak guard |
+| `web/.../operations/accounts/account.service.spec.ts` | NEW — ~20 tests; list paging/filter, lifecycle `?command=` URLs, freeze/unfreeze/close via `putParams`, deposit/withdraw `postParams` with amount→string, holds, statement, template |
+| `web/.../operations/payments/payment.service.spec.ts` | NEW — 8 tests; transfer, reverse, standing orders, external payment routing |
+| `web/.../operations/customers/customer.service.spec.ts` | NEW — ~14 tests; ApiService delegation + direct-HttpClient image methods (Bearer token + `dev-bypass-token` fallback + `URL.createObjectURL` blob) |
+| `web/.../operations/loans/loan.service.spec.ts` | NEW — ~14 tests; lifecycle command pattern, NPA/restructuring posts, charges via `getPage(...).pipe(map(p=>p.content))`, reschedule, audit-log scoping |
+
+#### Key Patterns / Gotchas
+
+- **Run command:** `cd web && CI=true npx ng test --no-watch`. Angular 21 uses the `@angular/build:unit-test` builder (Vitest under the hood); `tsconfig.spec.json` declares `vitest/globals`, so `describe`/`it`/`expect`/`vi` are global (no imports). `CI=true`/`--no-watch` force a one-shot run.
+- **`ApiService.command()` query lives in `req.url`, not `req.params`.** It embeds `?command=x` directly in the URL string, so `HttpTestingController` keeps it in `req.url` — match the full URL with the query. Params passed via the options object (get/getPage/postParams) land in `req.params` instead.
+- **Feature-service tests mock `ApiService`** (`{ get: vi.fn().mockReturnValue(of(...)) }`) — fast, no HTTP, and they pin the exact path + param contract (the most breakage-prone surface).
+- **TS4111 (`noPropertyAccessFromIndexSignature`):** type mock objects with a FINITE key union — `Record<'get' | 'post' | …, ReturnType<typeof vi.fn>>` (named properties, dot access OK). `Record<string, …>` is an index signature → dot access banned.
+- **IDE TS diagnostics lag edits** — they flagged the finite-union `Record` as an index signature, but the `ng test` compiler (authoritative) accepted it. Trust the build, not the editor squiggles.
+- **`environment` is a mutable imported object** — flip `environment.authBypass` per-test to cover interceptor/guard branches; restore in `afterEach`.
+
+#### Build Verification
+
+`cd web && CI=true npx ng test --no-watch` → **Test Files 8 passed, Tests 75 passed**. No backend/Java touched → API docs (`api-reference.html`/Postman) not required.
+
+#### Coverage note
+
+Coverage is concentrated on the core HTTP layer + auth + the 5 top operations services. **The 121 Angular components and the remaining ~13 feature services are the next tranche** — not yet covered. No silent claim of platform-wide 70%; this is the first, foundational batch.
+
+#### Confirmed Platform Versions
+
+Angular `web/`: Angular 21.2.x, Vitest 4.0.8 / @vitest/coverage-v8 4.1.4, TypeScript 5.9.x — unchanged. Test-only change; no dependency or app-code change.
+
+---
+
 ### Session 120 (cont. 8) — 2026-06-23
 **Closed all three cont.7 backend follow-ups — and chasing them surfaced TWO genuine latent production defects (both fixed). Full `-Pfull-integration`: 629 green (622 unit + 7 integration), reliably green across repeat runs. Production-readiness plan item 3.**
 

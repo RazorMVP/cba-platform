@@ -36,7 +36,7 @@ These are the verified-working versions for all production components. Update th
 | **TypeScript** | 5.9.x | `~5.9.2` pinned |
 | **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma) |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `7f3e52b` | Session 118 — Nubeero favicon.ico replaced (browser .ico preference fix) |
+| **Last git commit** | `__WEBSHA__` | Session 120 (cont. 9) — first Angular web test tranche: 1→75 tests (ApiService, auth interceptor/guard, top-5 operations services) |
 
 ### Partner Portal (`partner-portal/`)
 
@@ -2753,6 +2753,16 @@ this.search$.pipe(debounceTime(250), distinctUntilChanged(), takeUntil(this.dest
   .subscribe(q => this.applyFilter(q));
 ```
 Products lists are not server-paginated (small datasets); Customers list uses `switchMap` for server-side search.
+
+### Angular Web Testing (Session 120 cont. 9)
+
+Angular 21 uses the `@angular/build:unit-test` builder (Vitest under the hood). Run one-shot with `cd web && CI=true npx ng test --no-watch`. `tsconfig.spec.json` declares `vitest/globals`, so `describe`/`it`/`expect`/`vi` are global — no imports needed.
+
+- **`ApiService.command()` puts its query in the URL string, not the params bag.** It builds `${path}?command=x` literally, so `HttpTestingController` keeps it in `req.url` — match the full URL with the query. Params passed via the options object (`get`/`getPage`/`postParams`) land in `req.params` instead.
+- **Feature-service tests mock `ApiService`** (`{ get: vi.fn().mockReturnValue(of(...)) }`) and assert the exact path + param shape — fast, no HTTP, and pins the most breakage-prone surface (wrong path, `getPage` vs `get`, missed `?command=`, missing `.content` unwrap).
+- **TS4111 (`noPropertyAccessFromIndexSignature` is on):** type mock objects with a FINITE key union — `Record<'get' | 'post' | …, ReturnType<typeof vi.fn>>` (named properties → dot access OK). `Record<string, …>` is an index signature → dot access banned. The IDE's TS server lags edits and may flag the finite-union form anyway — the `ng test` compiler is authoritative.
+- **`environment` is a mutable imported object** — flip `environment.authBypass` per-test to cover the interceptor/guard branches; restore in `afterEach`. Use `vi.mock('keycloak-angular')` to observe the guard's non-bypass delegation.
+- **Coverage status:** core HTTP layer + auth + the 5 top operations services (accounts, payments, customers, loans) are covered (75 tests). The 121 components + remaining ~13 feature services are the next tranche — not yet covered.
 
 ---
 

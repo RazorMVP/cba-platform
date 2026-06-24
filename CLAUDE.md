@@ -36,7 +36,7 @@ These are the verified-working versions for all production components. Update th
 | **TypeScript** | 5.9.x | `~5.9.2` pinned |
 | **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma) |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `__WEBSHA__` | Session 120 (cont. 9) — first Angular web test tranche: 1→75 tests (ApiService, auth interceptor/guard, top-5 operations services) |
+| **Last git commit** | `d9a7f32` | Session 120 (cont. 9) — first Angular web test tranche: 1→75 tests (ApiService, auth interceptor/guard, top-5 operations services) |
 
 ### Partner Portal (`partner-portal/`)
 

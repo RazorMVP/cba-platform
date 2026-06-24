@@ -36,7 +36,7 @@ These are the verified-working versions for all production components. Update th
 | **TypeScript** | 5.9.x | `~5.9.2` pinned |
 | **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma) |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `d9a7f32` | Session 120 (cont. 9) — first Angular web test tranche: 1→75 tests (ApiService, auth interceptor/guard, top-5 operations services) |
+| **Last git commit** | `__WEBSHA__` | Session 120 (cont. 10) — Angular service-layer tests complete: 75→160 tests (all 18 feature services + interceptor/guard/keycloak) |
 
 ### Partner Portal (`partner-portal/`)
 
@@ -2762,7 +2762,7 @@ Angular 21 uses the `@angular/build:unit-test` builder (Vitest under the hood). 
 - **Feature-service tests mock `ApiService`** (`{ get: vi.fn().mockReturnValue(of(...)) }`) and assert the exact path + param shape — fast, no HTTP, and pins the most breakage-prone surface (wrong path, `getPage` vs `get`, missed `?command=`, missing `.content` unwrap).
 - **TS4111 (`noPropertyAccessFromIndexSignature` is on):** type mock objects with a FINITE key union — `Record<'get' | 'post' | …, ReturnType<typeof vi.fn>>` (named properties → dot access OK). `Record<string, …>` is an index signature → dot access banned. The IDE's TS server lags edits and may flag the finite-union form anyway — the `ng test` compiler is authoritative.
 - **`environment` is a mutable imported object** — flip `environment.authBypass` per-test to cover the interceptor/guard branches; restore in `afterEach`. Use `vi.mock('keycloak-angular')` to observe the guard's non-bypass delegation.
-- **Coverage status:** core HTTP layer + auth + the 5 top operations services (accounts, payments, customers, loans) are covered (75 tests). The 121 components + remaining ~13 feature services are the next tranche — not yet covered.
+- **Coverage status:** core HTTP layer + auth + **all 18 feature services** are covered (160 tests, 21 files — Session 120 cont. 10). The 121 Angular **components** are the next tranche — not yet covered.
 
 ---
 

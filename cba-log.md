@@ -57,6 +57,43 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 120 (cont. 10) — 2026-06-24
+**Completed the Angular service-layer test coverage — all 18 feature services + interceptor + guard now tested. 75 → 160 tests (21 files). `CI=true npx ng test --no-watch` → 160 passed.**
+
+Second web tranche: every remaining feature service now has a spec following the established mocked-`ApiService` pattern (and `HttpTestingController` for the two services that use `HttpClient` directly). The whole service layer — the most breakage-prone surface (path/param contracts) — is now locked.
+
+#### New / Updated Files
+
+| File | Change |
+|------|--------|
+| `web/.../operations/dashboard/dashboard.service.spec.ts` | NEW — KPI `/dashboard` happy path + per-resource `catchError` fallback, loan-portfolio bucket mapping + zeroed fallback, recent-txns content unwrap, KYC initials |
+| `web/.../operations/teller/teller.service.spec.ts` | NEW — teller CRUD, activate/close sub-paths (not `?command=`), cashier + session lifecycle (open under cashier, settle under session), cash txns |
+| `web/.../reports/report.service.spec.ts` | NEW — `encodeURIComponent` report/job names, `getExportUrl` (reads `api['base']`), mailing `getPage`→content, `runMailingJob` command |
+| `web/.../treasury/treasury.service.spec.ts` | NEW — placements/positions CRUD + `command`, liquidity reads with currency/days embedded in URL, reserves CRUD |
+| `web/.../groups/groups.service.spec.ts` | NEW — group/center CRUD + `activate` command, member add/remove, `assignStaff` `?staffId=` in URL |
+| `web/.../open-banking/open-banking.service.spec.ts` | NEW — consent list (undefined params when no filters), authorise/revoke command |
+| `web/.../products/product.service.spec.ts` | NEW — 5 product families, `activeOnly` string coercion, charges `getPage` with appliesTo |
+| `web/.../accounting/accounting.service.spec.ts` | NEW — GL enable/disable command, journal `getPage` size 50, `createClosure` `postParams` with conditional comments, trial balance, rules, provisioning |
+| `web/.../cards/cards.service.spec.ts` | NEW — `HttpTestingController`; verifies the TWO base URLs (`/api/v1` vs `/card-api/v1`): `listCards`/limits/auth/API-keys/webhooks → cardApi; `disputeCommand` path-segment (not `?command=`) |
+| `web/.../system/system.service.spec.ts` | NEW — codes/values, configs, holidays `getPage`+activate, credit-bureau `?command=`, exchange-rate from/to path, field-config by entity, datatables delete-by-name |
+| `web/.../admin/admin.service.spec.ts` | NEW — user/MC/TPP/SMS/SI commands, **`listAuditLogs` routing** (`entityId` alone must NOT hit `/audits/search`), notification filters, login summary days, bulk-import `postForm`, fraud alerts/cases/blacklist paging |
+| `web/.../layout/notification-bell/notification-bell.service.spec.ts` | NEW — unread-count + inbox `catchError` fallbacks; locks that `getInbox` uses `api.get` (not `getPage`) despite the comment |
+| `web/.../core/auth/keycloak.service.spec.ts` | NEW — `CbaKeycloakService` getRoles/hasRole/getKeycloakUrl |
+
+#### Build Verification
+
+`cd web && CI=true npx ng test --no-watch` → **Test Files 21 passed, Tests 160 passed**. No backend/Java touched → API docs not required.
+
+#### Coverage note
+
+**All 18 feature services + interceptor + guard are now covered.** Remaining: the 121 Angular **components** (next tranche — smoke/interaction tests on the top screens).
+
+#### Confirmed Platform Versions
+
+Angular `web/`: Angular 21.2.x, Vitest 4.0.8 — unchanged. Test-only change.
+
+---
+
 ### Session 120 (cont. 9) — 2026-06-24
 **Started Angular `web/` test coverage (production-readiness plan item, web frontend). From 1 → 75 tests across the core HTTP layer, auth interceptor/guard, and the 5 top-traffic operations services. `CI=true npx ng test --no-watch` → 75 passed (8 files).**
 

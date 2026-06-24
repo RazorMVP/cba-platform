@@ -36,7 +36,7 @@ These are the verified-working versions for all production components. Update th
 | **TypeScript** | 5.9.x | `~5.9.2` pinned |
 | **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma) |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `4d93fa2` | Session 120 (cont. 10) — Angular service-layer tests complete: 75→160 tests (all 18 feature services + interceptor/guard/keycloak) |
+| **Last git commit** | `__WEBSHA__` | Session 120 (cont. 11) — first Angular component tests: 160→207 tests (3 shared components + 5 top-traffic screens: dashboard/customers/accounts/loans/payments) |
 
 ### Partner Portal (`partner-portal/`)
 
@@ -2762,7 +2762,8 @@ Angular 21 uses the `@angular/build:unit-test` builder (Vitest under the hood). 
 - **Feature-service tests mock `ApiService`** (`{ get: vi.fn().mockReturnValue(of(...)) }`) and assert the exact path + param shape — fast, no HTTP, and pins the most breakage-prone surface (wrong path, `getPage` vs `get`, missed `?command=`, missing `.content` unwrap).
 - **TS4111 (`noPropertyAccessFromIndexSignature` is on):** type mock objects with a FINITE key union — `Record<'get' | 'post' | …, ReturnType<typeof vi.fn>>` (named properties → dot access OK). `Record<string, …>` is an index signature → dot access banned. The IDE's TS server lags edits and may flag the finite-union form anyway — the `ng test` compiler is authoritative.
 - **`environment` is a mutable imported object** — flip `environment.authBypass` per-test to cover the interceptor/guard branches; restore in `afterEach`. Use `vi.mock('keycloak-angular')` to observe the guard's non-bypass delegation.
-- **Coverage status:** core HTTP layer + auth + **all 18 feature services** are covered (160 tests, 21 files — Session 120 cont. 10). The 121 Angular **components** are the next tranche — not yet covered.
+- **Coverage status:** core HTTP layer + auth + **all 18 feature services** (cont. 10) + **3 shared components + the 5 top-traffic screens** (dashboard, customers, accounts, loans, payments — cont. 11) are covered (207 tests, 29 files). The remaining ~113 components (detail/admin/system/cards/products screens) are future tranches.
+- **Component-test pattern:** presentational components use `TestBed` + `componentRef.setInput(...)` (works for `@Input()` too in Angular 21) and assert rendered DOM. Feature screens mock the injected service(s) + add `provideRouter([])`, then `detectChanges()` for a full-template smoke render plus direct assertions on helper methods/getters. **Pagination gotcha:** `next/prevPage()` call `loadPage()` which re-reads `totalElements` from the service — the mock must echo the same total or post-first-call bounds use the stale default. **`shared/components/data-table/` is empty** — no `DataTableComponent` exists despite the component-map listing.
 
 ---
 

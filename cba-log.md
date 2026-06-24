@@ -57,6 +57,44 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 120 (cont. 11) — 2026-06-24
+**First Angular component tests — shared components + the 5 top-traffic screens. 160 → 207 tests (29 files). `CI=true npx ng test --no-watch` → 207 passed.**
+
+Third web tranche: moved from services to components. Established the component-test pattern (TestBed + `componentRef.setInput` for presentational components; mocked service + `provideRouter([])` + full-template `detectChanges()` for feature screens), then covered the highest-traffic screens. The full-template render is itself a smoke test — it would catch the documented Angular footguns (e.g. a `Page` object bound where a `[]` is iterated, missing bindings).
+
+#### New / Updated Files
+
+| File | Change |
+|------|--------|
+| `web/.../shared/components/status-badge/status-badge.spec.ts` | NEW — label render, variant modifier class, neutral default |
+| `web/.../shared/components/kpi-card/kpi-card.spec.ts` | NEW — title/value/icon render, colour class, footer `@if` (hidden vs up-trend icon) |
+| `web/.../shared/components/page-header/page-header.spec.ts` | NEW — title, conditional subtitle/icon, `[actions]` content projection (host component) |
+| `web/.../operations/dashboard/dashboard.spec.ts` | NEW — 6-source `ngOnInit` load + full render, KPI error→loading=false, helpers (avatarColor wrap, txnAmountClass, txnBadgeVariant, collectionBarColor thresholds, depositBalanceFormatted) |
+| `web/.../operations/customers/customers-list.spec.ts` | NEW — first-page load, onFilter reset, pagination bounds, row-count getters, initials/kycVariant/kycLabel/avatarColor |
+| `web/.../operations/accounts/accounts-list.spec.ts` | NEW — load + error, pagination bounds, statusVariant/typeIcon |
+| `web/.../operations/loans/loans-list.spec.ts` | NEW — load, selectLoan→schedule, repaidPct formula, statusVariant/statusLabel maps, overdueCount/overdueTotal reduce |
+| `web/.../operations/payments/payments-list.spec.ts` | NEW — context load, loadPayments no-op guard, status filter, pagination (totalPages floors at 1), transfer wizard validity + step nav + submit success/error, SO/external form validity, statusVariant/isCredit |
+
+#### Key Patterns / Decisions
+
+- **`data-table` component does not exist** — the `shared/components/data-table/` directory is empty (tables are inlined per-screen). The CLAUDE.md component map lists `DataTableComponent` as ✅ Built, but there is no implementation to test.
+- **Pagination-test gotcha:** `next/prevPage()` call `loadPage()`, which re-reads `totalElements` from the (mocked) service. The mock must echo the same total or the bound checks after the first call use the stale default — caught two self-inflicted failures.
+- `componentRef.setInput(...)` works for `@Input()` (not just signal inputs) in Angular 21.
+
+#### Build Verification
+
+`cd web && CI=true npx ng test --no-watch` → **Test Files 29 passed, Tests 207 passed**. No backend/Java touched → API docs not required.
+
+#### Coverage note
+
+Covered so far: core HTTP + auth + all 18 services (cont. 10) + 3 shared components + 5 top-traffic screens. Remaining: the other ~113 components (detail screens, admin/system/cards/products screens) — future tranches.
+
+#### Confirmed Platform Versions
+
+Angular `web/`: Angular 21.2.x, Vitest 4.0.8 — unchanged. Test-only change.
+
+---
+
 ### Session 120 (cont. 10) — 2026-06-24
 **Completed the Angular service-layer test coverage — all 18 feature services + interceptor + guard now tested. 75 → 160 tests (21 files). `CI=true npx ng test --no-watch` → 160 passed.**
 

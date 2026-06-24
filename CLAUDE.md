@@ -36,7 +36,7 @@ These are the verified-working versions for all production components. Update th
 | **TypeScript** | 5.9.x | `~5.9.2` pinned |
 | **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma) |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `__WEBSHA__` | Session 120 (cont. 11) — first Angular component tests: 160→207 tests (3 shared components + 5 top-traffic screens: dashboard/customers/accounts/loans/payments) |
+| **Last git commit** | `dd2c08c` | Session 120 (cont. 11) — first Angular component tests: 160→207 tests (3 shared components + 5 top-traffic screens: dashboard/customers/accounts/loans/payments) |
 
 ### Partner Portal (`partner-portal/`)
 

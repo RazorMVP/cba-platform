@@ -57,6 +57,47 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 120 (cont. 12) — 2026-06-26
+**Completed Angular component test coverage — every `@Component` in the app now has a spec. 207 → 1145 tests (115 files). `CI=true npx ng test --no-watch` → 1145 passed; zero untested components remain.**
+
+Fourth web tranche: tested all 86 remaining components, broken into 8 module sections and delegated to per-section subagents (each writes + self-verifies the full suite in its own context; sequential so no concurrent-`ng test` interference) following the now-established component-test pattern. Each section committed as its own milestone; this entry is the consolidated docs gate.
+
+#### Sections (each a separate commit)
+
+| Section | Components | Δ tests | Commit |
+|---------|-----------|---------|--------|
+| admin | 19 (users/roles/offices/staff/hooks/maker-checker/notifications/audit-log/TPP/sms-campaigns/standing-instructions/login-history/compliance/bulk-import/security-policy/fraud-alerts+cases+rules/blacklist) | +217 | `6a553c6` |
+| system | 14 (codes/global-config/floating-rates/taxes/account-algorithms/holidays/payment-types/funds/account-number-formats/datatables/surveys/credit-bureau/exchange-rates/field-config) | +161 | `c5a3f62` |
+| cards | 12 (card-list/detail/products/fraud-rules/settlement/disputes/terminal-simulator/api-keys/webhooks/bin/scheme-config/interchange) | +93 | `5e40bfe` |
+| products | 11 (5 list + 5 view/edit detail + charges) | +124 | `628e02d` |
+| accounting | 7 (gl-accounts/journal-entries/gl-closures/financial-activity/accounting-rules/provisioning/trial-balance) | +96 | `2bd8d2b` |
+| operations detail | 6 (account/customer/loan/payment detail + teller list/detail) | +104 | `3b37843` |
+| groups+open-banking+treasury+reports | 12 | +126 | `b572370` |
+| layout+auth | 5 (shell/sidebar/topbar/notification-bell/login) | +28 | `fab72e2` |
+
+#### Key Patterns / Decisions
+
+- **Component-test pattern** (now applied app-wide): presentational components → `TestBed` + `componentRef.setInput` + DOM assertions; feature/detail screens → mock injected service(s) with a **finite-union `Record<...>` type** (never `Record<string,…>` — strict TS `noPropertyAccessFromIndexSignature` rejects dot access) + `provideRouter([])` + an `ActivatedRoute` stub (`snapshot.paramMap.get('id')`) for detail screens, then `detectChanges()` for a full-template smoke render plus direct assertions on helpers/getters/validation and command/modal flows (success + `throwError` error branch).
+- **Detail-screen view/edit toggle** tested in both modes: existing id loads via `get(id)`; `id='new'` enters create mode; `enterEditMode` deep-copy isolation (mutating `form` must not mutate `product`); `save` create-vs-update + write-on-success.
+- **Timers** (notification-bell 30s poll, cob-scheduler refresh) tested with `vi.useFakeTimers()` + `advanceTimersByTime` (restored in `afterEach`).
+- **`HttpClient`-direct screens** (account-detail QR, customer-detail image) add `provideHttpClient()` + `provideHttpClientTesting()`.
+- **Pagination gotcha** (carried over): `next/prevPage` call `loadPage()` which re-reads `totalElements` from the service — the mock must echo the same total.
+- **Orchestration:** sequential subagents (not parallel) — a shared working tree + whole-suite `ng test` means two agents writing/running at once would see each other's half-written specs and fail spuriously. Each next section's agent re-ran the full suite, transitively re-verifying all prior sections.
+
+#### Build Verification
+
+`cd web && CI=true npx ng test --no-watch` → **Test Files 115 passed, Tests 1145 passed**. Untested-`@Component` scan → empty. No backend/Java touched → API docs not required.
+
+#### Coverage note
+
+**100% of Angular components now have specs** (115 spec files: 1 app + 21 service/core + 93 component). Full web test journey this session: 1 → 75 → 160 (services) → 207 (top screens) → **1145** (all components).
+
+#### Confirmed Platform Versions
+
+Angular `web/`: Angular 21.2.x, Vitest 4.0.8 — unchanged. Test-only change.
+
+---
+
 ### Session 120 (cont. 11) — 2026-06-24
 **First Angular component tests — shared components + the 5 top-traffic screens. 160 → 207 tests (29 files). `CI=true npx ng test --no-watch` → 207 passed.**
 

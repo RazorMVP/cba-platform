@@ -67,6 +67,12 @@ mobile/pubspec.lock
 .claude/skills/cba/credentials.json
 .claude/todos/
 .claude/scheduled_tasks.lock
+# transient session handoff (from /handoff skill)
+.claude/HANDOFF.md
+# Playwright MCP tooling artifacts
+.playwright-mcp/
+# transient superpowers planning artifacts (not repo knowledge)
+docs/superpowers/
 
 # ── Logs ──────────────────────────────────────────────────────────────────────
 *.log
@@ -78,6 +84,9 @@ yarn-error.log*
 # ── Test Artifacts ────────────────────────────────────────────────────────────
 web/playwright-report/
 web/test-results/
+
+# ── Stray root-level screenshots (UI-review artifacts; real assets live in subdirs)
+/*.png
 
 # ── Security Scan Outputs (keep reports out of repo) ──────────────────────────
 **/dependency-check-report*

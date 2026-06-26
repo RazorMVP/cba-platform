@@ -3,6 +3,9 @@
 		{
 			"name": "CoreBanking",
 			"path": "."
+		},
+		{
+			"path": "../nubbank-baas"
 		}
 	],
 	"settings": {

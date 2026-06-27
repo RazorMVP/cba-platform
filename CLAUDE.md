@@ -48,8 +48,9 @@ These are the verified-working versions for all production components. Update th
 | **TanStack Query** | 5.99.2 | Server state management |
 | **React Router** | 6.30.3 | SPA routing |
 | **TypeScript** | 6.0.x | `~6.0.2` |
+| **Vitest / Testing Library** | 4.1.9 | Test toolchain added Session 120 cont.13 (was 0 tests → 78); `npm test` |
 | **Vercel deployment** | `partner-portal-omega-two.vercel.app` | Production — Session 112 ✅ |
-| **Last git commit** | `7f3e52b` | Session 118 — Nubeero favicon.ico replaced |
+| **Last git commit** | `ec18787` | Session 120 (cont. 13) — Vitest harness + 78 tests from zero (apiClient/auth/guards + all 14 pages + AppShell) |
 
 ### Partner Docs (`partner-docs/`)
 

@@ -57,6 +57,50 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 120 (cont. 13) — 2026-06-27
+**Housekeeping + partner-portal (React) test coverage from zero. Working tree cleaned; partner-portal 0 → 78 tests.**
+
+Two production-readiness tail items: (1) repo housekeeping, (2) the last untested frontend.
+
+#### 1. Housekeeping (`6d8fdea`)
+- Deleted 11 stray root UI-review screenshots (referenced nowhere); gitignored `/*.png`.
+- Gitignored transient artifacts: `.claude/HANDOFF.md` (/handoff output), `.playwright-mcp/` (MCP tooling), `docs/superpowers/` (planning docs for the separate nubbank-baas repo — file kept on disk, not repo knowledge).
+- Committed the `CoreBanking.code-workspace` multi-root addition (`../nubbank-baas`).
+- **Working tree is now clean.**
+- **Gotcha:** `.gitignore` does NOT support trailing inline comments — `pattern  # note` makes the `#…` part of the pattern, so it matches nothing. Comments must be on their own line.
+
+#### 2. partner-portal React tests (`f17c24d` harness+foundation, `ec18787` pages)
+The React partner portal (React 19 + Vite 8 + TanStack Query) had **zero** tests and **no test tooling**. Added the toolchain and full coverage.
+
+| File | Change |
+|------|--------|
+| `partner-portal/package.json` | NEW devDeps: `vitest@4.1.9`, `@vitest/coverage-v8`, `jsdom`, `@testing-library/{react,jest-dom,user-event}`; `test`/`test:watch` scripts |
+| `partner-portal/vite.config.ts` | `defineConfig` from `vitest/config`; `test` block (jsdom, globals, setupFiles, `css:false`) |
+| `partner-portal/tsconfig.app.json` | excludes `*.test.ts(x)` + `test-setup.ts` so `tsc -b` build ignores specs |
+| `partner-portal/tsconfig.spec.json` | NEW — vitest/jest-dom/node types for spec IDE typing |
+| `partner-portal/src/test-setup.ts` | NEW — imports `@testing-library/jest-dom` |
+| `…/app/api/apiClient.test.ts` | NEW — token-attach request interceptor, 401→clear+redirect, non-401 passthrough, base-URL fallback (router mocked to avoid the page-tree import chain) |
+| `…/app/context/AuthContext.test.tsx` | NEW — JWT expiry/malformed guards, hydrate-from-storage, login post+store, logout, useAuth-outside-provider throw |
+| `…/shared/components/guards.test.tsx` | NEW — AuthGuard + StaffGuard redirect vs render, ADMIN vs DEVELOPER |
+| `…/shared/components/AppShell.test.tsx` | NEW — org/Outlet, admin-only nav by role, logout |
+| 11 page specs (`LoginPage`/`DashboardPage` references + Register/Apply/ApiKeys/Consents/PartnerMgmt/Sandbox/Settings/UsageAnalytics/Webhooks) | NEW — form submit/validation/error, TanStack Query load + empty-state, mutations (issue/revoke/register/apply/save), display helpers |
+
+#### Key Patterns / Decisions
+
+- **React page-test pattern:** mock `apiClient` (`vi.mock(...,()=>({apiClient:{get:vi.fn(),...}}))`), mock `useAuth` via a `vi.hoisted` mutable holder, partial-mock `react-router-dom` for `useNavigate`, wrap query pages in `QueryClientProvider` (`retry:false`) + `MemoryRouter`. jsdom lacks `navigator.clipboard`/`window.confirm` → stub per-test.
+- Delegated the 10 page/shell specs to a subagent once the harness + 2 reference page tests were proven; sequential, self-verified.
+- Untested by design: `main.tsx` (DOM entry mount) + `router.tsx` (route table) — no meaningful unit logic.
+
+#### Build Verification
+
+`cd partner-portal && npm test` → **15 files, 78 passed**. No backend/Java touched → API docs not required.
+
+#### Confirmed Platform Versions
+
+**Partner Portal (`partner-portal/`):** React 19.2.5, Vite 8.0.9, TanStack Query 5.99.2, TypeScript 6.0.x — unchanged. **NEW: Vitest 4.1.9 + Testing Library** test toolchain. Last partner-portal commit: `ec18787`.
+
+---
+
 ### Session 120 (cont. 12) — 2026-06-26
 **Completed Angular component test coverage — every `@Component` in the app now has a spec. 207 → 1145 tests (115 files). `CI=true npx ng test --no-watch` → 1145 passed; zero untested components remain.**
 

@@ -328,6 +328,11 @@ public class CardAuthorizationService {
         return authLogRepository.findByCardIdOrderByCreatedAtDesc(cardId);
     }
 
-    /** Internal DTO for balance REST response from monolith. */
-    private record BalanceResponse(BigDecimal availableBalance, String currencyCode) {}
+    /**
+     * Internal DTO for balance REST response from monolith.
+     * Package-private (not private) so unit tests in this package can stub
+     * {@code backendRestTemplate.getForEntity(...)} with a populated balance to
+     * exercise the DEBIT/CREDIT approve + insufficient-funds paths.
+     */
+    record BalanceResponse(BigDecimal availableBalance, String currencyCode) {}
 }

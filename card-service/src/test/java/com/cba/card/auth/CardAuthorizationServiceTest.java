@@ -21,6 +21,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.ResponseEntity;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
@@ -32,15 +33,17 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * Tests for {@link CardAuthorizationService} — the authorization decision engine
- * (fraud → balance → approve/decline) called by fep-service. Exercised through the
- * PREPAID card path, whose balance comes from the wallet repository, so no HTTP
- * mocking of the monolith is needed to cover the full decision tree.
+ * (fraud → balance → approve/decline) called by fep-service. The PREPAID path is
+ * driven through the wallet repository (no HTTP), while the DEBIT/CREDIT paths stub
+ * the monolith balance/credit REST call to cover the approve, insufficient-funds
+ * (RC51), and issuer-unavailable (RC91) branches.
  */
 @ExtendWith(MockitoExtension.class)
 class CardAuthorizationServiceTest {
@@ -235,6 +238,95 @@ class CardAuthorizationServiceTest {
 
         assertThat(service.authorize(req(new BigDecimal("100"), "000000", false)).responseCode())
                 .isEqualTo("91");
+    }
+
+    // ── DEBIT / CREDIT approve + insufficient paths (balance via monolith REST) ──
+    // BalanceResponse is package-private so we can stub the REST call with a real
+    // balance and exercise the approve / RC51 branches (not just the RC91 failures).
+
+    private static Card creditCard(UUID linkedLoanId) {
+        Card c = new Card();
+        c.setId(UUID.randomUUID());
+        c.setCardType(CardType.CREDIT);
+        c.setStatus(com.cba.card.card.CardStatus.ACTIVE);
+        c.setLinkedEntityId(linkedLoanId);
+        return c;
+    }
+
+    /** Stubs the monolith balance/credit REST call to return the given available amount. */
+    private void stubBackendBalance(String available) {
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+        doReturn(ResponseEntity.ok(
+                new CardAuthorizationService.BalanceResponse(new BigDecimal(available), "840")))
+                .when(backendRestTemplate).getForEntity(any(String.class), any());
+    }
+
+    @Test
+    @DisplayName("DEBIT card with sufficient account balance approves with RC=00")
+    void debitApproved() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        stubBackendBalance("500.00");
+
+        CardAuthResponse resp = service.authorize(req(new BigDecimal("100"), "000000", false));
+
+        assertThat(resp.approved()).isTrue();
+        assertThat(resp.responseCode()).isEqualTo("00");
+        assertThat(resp.authorizationCode()).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("DEBIT card with balance below the amount declines RC=51 (insufficient funds)")
+    void debitInsufficientFunds() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        stubBackendBalance("50.00");
+
+        assertThat(service.authorize(req(new BigDecimal("100"), "000000", false)).responseCode())
+                .isEqualTo("51");
+    }
+
+    @Test
+    @DisplayName("DEBIT balance inquiry (310000) approves even when the balance is below the amount")
+    void debitBalanceInquiryApproved() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        stubBackendBalance("10.00");
+
+        CardAuthResponse resp = service.authorize(req(new BigDecimal("999999"), "310000", false));
+
+        assertThat(resp.approved()).isTrue();
+        assertThat(resp.responseCode()).isEqualTo("00");
+    }
+
+    @Test
+    @DisplayName("CREDIT card with available credit ≥ amount approves with RC=00")
+    void creditApproved() {
+        Card card = creditCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        stubBackendBalance("1000.00");
+
+        CardAuthResponse resp = service.authorize(req(new BigDecimal("100"), "000000", false));
+
+        assertThat(resp.approved()).isTrue();
+        assertThat(resp.responseCode()).isEqualTo("00");
+        assertThat(resp.authorizationCode()).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("CREDIT card with available credit below the amount declines RC=51")
+    void creditInsufficientAvailability() {
+        Card card = creditCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        stubBackendBalance("50.00");
+
+        assertThat(service.authorize(req(new BigDecimal("100"), "000000", false)).responseCode())
+                .isEqualTo("51");
     }
 
     private static PrepaidWallet wallet(String balance) {

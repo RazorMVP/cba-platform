@@ -57,6 +57,23 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 120 (cont. 16) — 2026-06-28
+**fep-service context-boot test — boots the full Spring context for the first time ever. fep-service 68 → 69 tests.**
+
+Direct follow-up to cont. 15: now that the packager XMLs load, the `IsoMessageFactory` `@Component` finally constructs, so the context can boot. `FepContextLoadTest` is the first `@SpringBootTest` in fep-service.
+
+- `@SpringBootTest(webEnvironment = RANDOM_PORT, properties = "fep.tcp.port=0")` — **no Testcontainers**: fep-service has no DB / Flyway / security, so the only boot side effect is the Netty ISO 8583 server, bound to an ephemeral port (and HTTP on a random port). The full production wiring starts: web + Netty + the 6 jPOS packagers + 5 scheme adapters + `SoftwareHsmAdapter` + router + `CardServiceClient`.
+- Asserts context non-null, bean count > 30, `IsoMessageFactory` base + all 5 scheme packagers present.
+- **Result: the context boots clean — no remaining startup bugs** (contrast card-service cont. 6, which surfaced 4). Confirms cont. 15's packager fixes were the only thing blocking fep-service from starting.
+
+`cd fep-service && ./mvnw -o test` → **69 passed**. Test-only; runs in the default `mvn test` (no Docker). Remaining follow-up: exhaustive per-field validation of the 5 scheme packagers vs each scheme spec.
+
+#### Confirmed Platform Versions
+
+fep-service: Spring Boot 3.2.5, Java 21, jPOS 2.1.9 — unchanged. Test-only.
+
+---
+
 ### Session 120 (cont. 15) — 2026-06-28
 **jPOS external-DTD boot risk fixed — and it exposed that the FEP scheme-packager XMLs never loaded at all (fep-service was non-bootable). fep-service 65 → 68 tests.**
 

@@ -57,6 +57,35 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 120 (cont. 17) — 2026-06-28
+**Exhaustive per-field validation of the 5 scheme packagers vs the canonical ISO 8583:1987 spec. No errors remained (cont. 15 fixes were sufficient); locked with 17 assertions. fep-service 69 → 86 tests.**
+
+Closes the last follow-up on the FEP-packager thread. Methodically diffed all 6 packagers' field tables against the canonical ISO 8583:1987 data-element definitions and against each other.
+
+#### Findings (all clean)
+
+- **Base packager** defines every standard DE (0–128) and conforms to ISO 8583:1987 (PAN `IFA_LLNUM/19`, amount `IFA_NUMERIC/12`, RRN `IF_CHAR/12`, currency `IFA_NUMERIC/3`, PIN `IFB_BINARY/8`, EMV `IFB_LLLBINARY/999`, MAC `IFB_BINARY/8`, bitmap `IFB_BITMAP/16`, …).
+- **Every scheme matches base exactly on all standard DEs** (2–47, 49–110) — 0 mismatches across Visa/MC/Verve/Afrigo/UnionPay.
+- **No duplicate ids, all ascending, core auth fields (0,1,2,3,4,7,11,39,41,49) present** in every scheme.
+- **Private DEs** (48, 60–63, 111–127) are uniformly `IFA_LLLCHAR/999` — the correct generic choice for a `GenericPackager`; the scheme-specific PDS/subfield parsing lives in the `SchemeAdapter`s (MC DE48 PDS, Visa DE62/63, CUP DE60–63), not the packager.
+
+So the cont. 15 structural fixes (DTD id, classes, bitmap) had already made the field definitions correct — this pass found **nothing to fix** and instead locks it.
+
+#### New test — `PackagerFieldSpecTest` (17)
+
+- `CANON` map encodes the canonical ISO 8583:1987 standard-DE table (length + jPOS class).
+- Base must define every canonical DE exactly; each scheme must match for every standard DE it defines.
+- Every field class must be a real jPOS class (regression guard for the fabricated classes fixed in cont. 15).
+- **All 5 scheme packagers round-trip a realistic 0100** (PAN/proc/amount/STAN/terminal/merchant/currency + **binary DE52 PIN + DE55 EMV** through the secondary bitmap) — the strongest functional proof.
+
+`cd fep-service && ./mvnw -o test` → **86 passed**. No production change (validation + test only).
+
+#### Confirmed Platform Versions
+
+fep-service: Spring Boot 3.2.5, Java 21, jPOS 2.1.9 — unchanged. Test-only.
+
+---
+
 ### Session 120 (cont. 16) — 2026-06-28
 **fep-service context-boot test — boots the full Spring context for the first time ever. fep-service 68 → 69 tests.**
 

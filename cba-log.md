@@ -57,6 +57,40 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 120 (cont. 15) — 2026-06-28
+**jPOS external-DTD boot risk fixed — and it exposed that the FEP scheme-packager XMLs never loaded at all (fep-service was non-bootable). fep-service 65 → 68 tests.**
+
+Took on the documented "jPOS external-DTD startup risk." The root cause was a one-string bug, and fixing it cascaded into three genuine packager defects that prove these XMLs had never been parsed.
+
+#### What was wrong & fixed (all 6 `fep-service/src/main/resources/iso8583-*.xml`)
+
+1. **DTD SYSTEM id (the hardening):** `http://jpos.org/dtd/packager.dtd` → `http://jpos.org/dtd/generic-packager-1.0.dtd`. jPOS 2.1.9's `GenericPackager$GenericEntityResolver` (decompiled to confirm) maps only the latter to the jar-bundled `genericpackager.dtd`; the legacy id matched nothing → network fetch → a network-isolated FEP fails to boot.
+2. **`standalone="yes"` removed:** once the DTD resolves locally, its element-content model makes the XML's indentation illegal in a standalone doc ("white space must not occur…").
+3. **Fabricated jPOS field classes → real ones:** `IFA_ALPHANUMS`→`IF_CHAR` (×59), `IFA_LLLVAR`→`IFA_LLLCHAR` (×99), `IFA_LLVAR`→`IFA_LLCHAR` (×33). None of the three existed in jPOS — the packagers threw `ClassNotFoundException` on load.
+4. **Bitmap `IFB_BITMAP` length `8`→`16`:** a 64-bit primary-only bitmap can't address fields >64 — including **DE70** (network-mgmt code the FEP's `NetworkHandler` sets) and DE111-127.
+
+#### Implication
+
+`IsoMessageFactory` is a `@Component` that constructs these packagers at startup; since they never loaded, **fep-service's Spring context had never successfully booted.** The socket round-trip test masked this by mocking the factory and using the code-based `ISO87APackager`.
+
+#### New test — `IsoMessageFactoryTest` (3)
+
+The first test to parse the real XMLs: all 6 packagers load with `javax.xml.accessExternalDTD=file,jar` (blocks remote DTD → proves local resolution / no network); base packager round-trips a 0800 with DE11+DE70 (secondary bitmap); DOCTYPE guard forbids regressing the SYSTEM id.
+
+#### Build Verification
+
+`cd fep-service && ./mvnw -o test` → **68 passed**. Production change is data-only (resource XMLs); no Java/endpoint change → API docs not required.
+
+#### Not done (follow-ups)
+
+Exhaustive per-field length/type validation of all 5 scheme packagers vs each scheme spec; a full fep-service `@SpringBootTest` context-boot test.
+
+#### Confirmed Platform Versions
+
+fep-service: Spring Boot 3.2.5, Java 21, jPOS 2.1.9 — unchanged. Resource-XML + test change only.
+
+---
+
 ### Session 120 (cont. 14) — 2026-06-28
 **Test-coverage tail (item 3) closed: card-service DEBIT/CREDIT approve paths, fep-service socket auth round-trip, and a real Playwright E2E setup (was a broken CI stub).**
 

@@ -57,6 +57,37 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 120 (cont. 14) — 2026-06-28
+**Test-coverage tail (item 3) closed: card-service DEBIT/CREDIT approve paths, fep-service socket auth round-trip, and a real Playwright E2E setup (was a broken CI stub).**
+
+Three remaining test gaps, each committed separately.
+
+| Gap | What | Commit |
+|-----|------|--------|
+| **2b** card-service DEBIT/CREDIT approve | `BalanceResponse` widened `private`→package-private; `CardAuthorizationServiceTest` +5 (DEBIT approve RC00 / insufficient RC51 / balance-inquiry; CREDIT approve / insufficient) → **109 tests** | `a0efeeb` |
+| **2c** fep-service socket money path | `FepSocketRoundTripTest` extended: real-TCP **0100→0110 auth** through the full Netty pipeline (real `AuthorizationHandler`, mocked `CardServiceClient`/scheme/EMV/HSM) alongside the existing 0800 echo → **65 tests** | `eb71af6` |
+| **2d** web E2E Playwright | The `web-ci.yml` e2e job ran `npx playwright test` with **no config, no specs, and no `@playwright/test` dep** — a no-op stub. Added the real setup + 5 deployed-shell smoke tests; exercised locally against the live prod deployment (**5 passed**) | `0f4ac0b` |
+
+#### Key Patterns / Decisions
+
+- **2b** mirrors the `buildExportRecords` testability pattern (widen visibility so a same-package test can stub the monolith REST call with a real balance). No endpoint/API change.
+- **2c** the handlers build responses via `request.clone()`, so the response inherits the request's packager and packs cleanly over the socket; `mock()`+`when()` without `MockitoExtension` is lenient, so the auth stubs in `@BeforeEach` don't trip strict-stubs on the echo test. Uses the code-based `ISO87APackager` to dodge the open jPOS external-DTD boot risk.
+- **2d** runs against a DEPLOYED URL (CI passes the Vercel preview via `BASE_URL`; local defaults to the prod alias). The deployed app has auth-bypass + an unreachable backend, so the specs assert the boot/chrome/routing layer (graceful-degradation-safe), not data flows. Selectors derived from a live Playwright-MCP accessibility snapshot. `e2e/` is a sibling of `src/`, so the Vitest unit runner (`tsconfig.spec.json` = `src/**/*.spec.ts`) never collects it.
+
+#### Build Verification
+
+card-service `./mvnw -o test` → **109**; fep-service `./mvnw -o test` → **65**; web `npx playwright test` → **5 passed** (against `cba-web-nine.vercel.app`). No backend/Java endpoint change → API docs not required.
+
+#### Status
+
+Item 3 (test coverage) is now closed across **all** modules: backend 629, card-service 109, fep-service 65, web 1145 unit + 5 E2E, partner-portal 78.
+
+#### Confirmed Platform Versions
+
+Unchanged. card-service / fep-service test-only + visibility tweak; web adds `@playwright/test` 1.61.1 (E2E only).
+
+---
+
 ### Session 120 (cont. 13) — 2026-06-27
 **Housekeeping + partner-portal (React) test coverage from zero. Working tree cleaned; partner-portal 0 → 78 tests.**
 

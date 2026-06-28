@@ -34,9 +34,10 @@ These are the verified-working versions for all production components. Update th
 | **PrimeNG** | 21.0.x | UI component library |
 | **RxJS** | 7.8.x | Reactive extensions; `~7.8.0` pinned |
 | **TypeScript** | 5.9.x | `~5.9.2` pinned |
-| **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma) |
+| **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma); 1145 unit tests (all components+services) |
+| **@playwright/test** | 1.61.1 | E2E (cont. 14) — `npm run e2e`; 5 deployed-shell smoke tests vs `BASE_URL` (prod alias default) |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `fab72e2` | Session 120 (cont. 12) — Angular component coverage COMPLETE: 207→1145 tests (115 files); every `@Component` in the app now has a spec (admin/system/cards/products/accounting/operations-detail/groups/open-banking/treasury/reports/layout/auth) |
+| **Last git commit** | `0f4ac0b` | Session 120 (cont. 14) — real Playwright E2E setup (was a broken CI stub) + 5 deployed-shell smoke tests. (cont. 12: component coverage COMPLETE — 1145 unit tests, every `@Component` has a spec) |
 
 ### Partner Portal (`partner-portal/`)
 

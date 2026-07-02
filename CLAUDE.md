@@ -23,7 +23,7 @@ These are the verified-working versions for all production components. Update th
 | **thumbnailator** | 0.4.20 | Server-side image resize for `ClientImageService` — max 500×500, JPEG output |
 | **ZXing** | 3.5.3 | Server-side QR PNG generation (`core` + `javase`) — Session 105 |
 | **spring-boot-starter-data-redis** | 3.5.0 (managed) | Redis fixed-window rate limiting (Lua INCR+EXPIRE) — Session 106 |
-| **Last git commit** | Session 120 cont. 8 (`a2cb424`) | Session 120 (cont. 8) — backend test-coverage hardening: 2 latent defects fixed (`Payment` NOT-NULL currency audit columns via `@PrePersist`; `FieldEncryptor` `DEMO_ENC:` decrypt passthrough), singleton Testcontainer, `OpenApiSnapshotTest` permit + canonicalization; `*IT` wired into `-Pfull-integration` (629 green) |
+| **Last git commit** | Session 121 (`d66444a`) | Session 121 — Tier-3 external-integration adapters: pluggable `SmsProvider`/`CreditBureauProvider`/`ExternalPaymentGateway`/`PushSender` (simulated default + real HTTP behind `app.*.provider`), wired into real send/check/dispatch paths (external-pay submits before debit → rollback-safe). backend 622 → 674 unit tests; +`docs/integration-runbook.md` |
 
 ### Angular Web App (`web/`)
 

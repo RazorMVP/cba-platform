@@ -26,6 +26,7 @@ import java.util.UUID;
 public class InAppNotificationController {
 
     private final InAppNotificationService service;
+    private final PushDispatchService pushDispatchService;
 
     @GetMapping("/inbox")
     @PreAuthorize("hasAnyRole('ADMIN','TELLER','CUSTOMER')")
@@ -87,6 +88,18 @@ public class InAppNotificationController {
         return ResponseEntity.ok(ApiResponse.ok(service.getDevices(userId)));
     }
 
+    @PostMapping("/push")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Send a push notification to a user's devices",
+        description = "Fans out to all active devices of the target user via the active push provider "
+            + "(NONE=simulated in dev; HTTP=real relay). Dead tokens are auto-deactivated. "
+            + "Returns { total, sent, failed, deactivated, provider }.")
+    public ResponseEntity<ApiResponse<PushDispatchService.PushDispatchResult>> sendPush(
+            @Valid @RequestBody SendPushRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                pushDispatchService.sendToUser(req.userId(), req.title(), req.body(), req.data())));
+    }
+
     // DTOs
 
     public record UnreadCountResponse(long count) {}
@@ -95,4 +108,10 @@ public class InAppNotificationController {
             @NotBlank String fcmToken,
             @NotNull PushDevice.Platform platform,
             String deviceLabel) {}
+
+    public record SendPushRequest(
+            @NotBlank String userId,
+            @NotBlank String title,
+            @NotBlank String body,
+            java.util.Map<String, String> data) {}
 }

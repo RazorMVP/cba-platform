@@ -14574,6 +14574,73 @@
           "response": []
         },
         {
+          "name": "Send campaign to recipients",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recipients\": [\n    { \"customerId\": \"{{customerId}}\", \"mobileNo\": \"+254700000000\" },\n    { \"customerId\": null, \"mobileNo\": \"+254711111111\" }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/smscampaigns/{{campaignId}}/send",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "smscampaigns",
+                "{{campaignId}}",
+                "send"
+              ]
+            },
+            "description": "Dispatches the campaign message to each recipient through the active SMS provider. In dev/sandbox the provider is NONE (simulated — messages become SENT without a real gateway); set app.sms.provider=HTTP with app.sms.http.* to dispatch through a real gateway. Returns { total, sent, failed, invalid, provider }.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK — dispatch counts",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/smscampaigns/{{campaignId}}/send"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": { \"total\": 2, \"sent\": 2, \"failed\": 0, \"invalid\": 0, \"provider\": \"NONE\" },\n  \"meta\": {},\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
           "name": "Delete campaign",
           "request": {
             "method": "DELETE",
@@ -15959,6 +16026,70 @@
       "name": "37 \u00b7 Credit Bureau",
       "description": "Credit bureau integration and loan-product mappings",
       "item": [
+        {
+          "name": "Run credit check",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"nationalId\": \"NID-12345\",\n  \"fullName\": \"Jane Doe\",\n  \"country\": \"KE\",\n  \"loanProductId\": \"{{loanProductId}}\",\n  \"minScore\": 600\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/creditbureaus/check",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "creditbureaus",
+                "check"
+              ]
+            },
+            "description": "Pulls a report through the active provider (SIMULATED=deterministic score, no bureau; set app.creditbureau.provider=HTTP + app.creditbureau.http.* for a real bureau) and applies pass/fail policy. HIT passes when score >= minScore; NO_HIT/UNAVAILABLE only fails when the loan product mandates the check. Returns { report, mandatory, passed, provider }.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK \u2014 passed",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": { "raw": "{{baseUrl}}/api/v1/creditbureaus/check" }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"report\": { \"status\": \"HIT\", \"score\": 712, \"band\": \"GOOD\", \"reference\": \"SIM-1a2b3c\", \"message\": null },\n    \"mandatory\": true,\n    \"passed\": true,\n    \"provider\": \"SIMULATED\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            }
+          ]
+        },
         {
           "name": "List integrations",
           "request": {
@@ -17743,6 +17874,53 @@
               "status": "OK",
               "code": 200,
               "body": "{\n  \"data\": [\n    {\n      \"id\": \"uuid\",\n      \"userId\": \"dev-bypass-admin\",\n      \"platform\": \"ANDROID\",\n      \"deviceLabel\": \"Samsung Galaxy S24\",\n      \"active\": true,\n      \"registeredAt\": \"2026-04-19T09:00:00Z\"\n    }\n  ],\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Send Push To User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"customer-123\",\n  \"title\": \"Payment received\",\n  \"body\": \"Your account was credited 5,000.00\",\n  \"data\": { \"accountId\": \"{{accountId}}\", \"type\": \"CREDIT\" }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/push",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "push"
+              ]
+            },
+            "description": "Fans out a push to all active devices of the target user via the active provider. In dev the provider is NONE (simulated — no Firebase/APNs); set app.push.provider=HTTP + app.push.http.* for a real relay. Dead tokens (404/410/UNREGISTERED) are auto-deactivated. Returns { total, sent, failed, deactivated, provider }. ADMIN only."
+          },
+          "response": [
+            {
+              "name": "200 OK — fan-out counts",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"data\": { \"total\": 2, \"sent\": 2, \"failed\": 0, \"deactivated\": 0, \"provider\": \"NONE\" },\n  \"errors\": []\n}"
             }
           ]
         },

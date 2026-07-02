@@ -13,6 +13,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -44,6 +45,7 @@ class PaymentServiceTest {
     @Mock ExchangeRateService exchangeRateService;
     @Mock StandingOrderRepository standingOrderRepository;
     @Mock ApplicationEventPublisher eventPublisher;
+    @Mock com.cba.payment.gateway.ExternalPaymentGateway externalPaymentGateway;
 
     @InjectMocks PaymentService paymentService;
 
@@ -306,6 +308,80 @@ class PaymentServiceTest {
 
             var resp = paymentService.cancelStandingOrder(soId);
             assertThat(resp.status()).isEqualTo(StandingOrder.Status.CANCELLED);
+        }
+    }
+
+    @Nested
+    @DisplayName("initiateExternalPayment")
+    class ExternalPayment {
+
+        private com.cba.payment.dto.ExternalPaymentRequest req(String externalRef) {
+            return new com.cba.payment.dto.ExternalPaymentRequest(
+                    srcId, new BigDecimal("100.00"), "USD", "SWIFT", "Jane Doe",
+                    "GB33BUKB20201555555555", "BUKBGB22", "Barclays", "GBR", "SHA", "invoice-1", externalRef);
+        }
+
+        @Test
+        @DisplayName("gateway accepted → debits source, completes, stores network reference")
+        void accepted_debitsAndCompletes() {
+            when(accountRepository.findById(srcId)).thenReturn(Optional.of(source));
+            when(accountHoldRepository.sumActiveHoldsByAccount(srcId)).thenReturn(BigDecimal.ZERO);
+            when(externalPaymentGateway.submit(any())).thenReturn(
+                    com.cba.payment.gateway.GatewayResult.accepted("NET-REF-1"));
+            when(externalPaymentGateway.gatewayId()).thenReturn("SIMULATED");
+            when(transactionRepository.save(any())).thenReturn(mock(Transaction.class));
+            when(paymentRepository.save(any())).thenAnswer(inv -> {
+                Payment p = inv.getArgument(0);
+                if (p.getId() == null) p.setId(UUID.randomUUID());
+                return p;
+            });
+
+            // externalReference blank → the gateway's network reference is stored
+            paymentService.initiateExternalPayment(req(null), "teller1");
+
+            ArgumentCaptor<Payment> cap = ArgumentCaptor.forClass(Payment.class);
+            verify(paymentRepository).save(cap.capture());
+            assertThat(cap.getValue().getStatus()).isEqualTo(PaymentStatus.COMPLETED);
+            assertThat(cap.getValue().getExternalReference()).isEqualTo("NET-REF-1");
+            assertThat(source.getBalance()).isEqualByComparingTo("900.00");
+        }
+
+        @Test
+        @DisplayName("caller-supplied externalReference is preserved over the gateway reference")
+        void accepted_keepsCallerReference() {
+            when(accountRepository.findById(srcId)).thenReturn(Optional.of(source));
+            when(accountHoldRepository.sumActiveHoldsByAccount(srcId)).thenReturn(BigDecimal.ZERO);
+            when(externalPaymentGateway.submit(any())).thenReturn(
+                    com.cba.payment.gateway.GatewayResult.accepted("NET-REF-1"));
+            when(externalPaymentGateway.gatewayId()).thenReturn("SIMULATED");
+            when(transactionRepository.save(any())).thenReturn(mock(Transaction.class));
+            when(paymentRepository.save(any())).thenAnswer(inv -> {
+                Payment p = inv.getArgument(0);
+                if (p.getId() == null) p.setId(UUID.randomUUID());
+                return p;
+            });
+
+            paymentService.initiateExternalPayment(req("MY-INVOICE-99"), "teller1");
+
+            ArgumentCaptor<Payment> cap = ArgumentCaptor.forClass(Payment.class);
+            verify(paymentRepository).save(cap.capture());
+            assertThat(cap.getValue().getExternalReference()).isEqualTo("MY-INVOICE-99");
+        }
+
+        @Test
+        @DisplayName("gateway rejected → throws and never debits (rolls back)")
+        void rejected_throwsNoDebit() {
+            when(accountRepository.findById(srcId)).thenReturn(Optional.of(source));
+            when(externalPaymentGateway.submit(any())).thenReturn(
+                    com.cba.payment.gateway.GatewayResult.rejected("TRANSPORT_ERROR", "gateway down"));
+
+            assertThatThrownBy(() -> paymentService.initiateExternalPayment(req(null), "teller1"))
+                    .isInstanceOf(CbaException.class)
+                    .hasMessageContaining("rejected");
+
+            verify(accountRepository, never()).save(any());
+            verify(paymentRepository, never()).save(any());
+            assertThat(source.getBalance()).isEqualByComparingTo("1000.00");
         }
     }
 }

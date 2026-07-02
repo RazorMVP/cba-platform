@@ -2344,6 +2344,7 @@ Content-Type: application/json
 <tr><td>POST</td><td>/api/v1/smscampaigns</td><td>Create campaign</td><td>ADMIN</td></tr>
 <tr><td>PUT</td><td>/api/v1/smscampaigns/{id}</td><td>Update campaign</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/smscampaigns/{id}?command=activate</td><td>Activate campaign (PENDING → ACTIVE)</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/smscampaigns/{id}/send</td><td>Dispatch campaign to a recipient list via the active SMS provider (NONE=simulated, HTTP=real gateway); returns sent/failed/invalid counts</td><td>ADMIN</td></tr>
 <tr><td>DELETE</td><td>/api/v1/smscampaigns/{id}</td><td>Soft-delete campaign (sets status=DELETED)</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/api/v1/smscampaigns/{id}/messages</td><td>List outbound SMS messages for campaign</td><td>ADMIN</td></tr>
 </table>
@@ -2557,6 +2558,7 @@ Content-Type: application/json
 <tr><td>POST</td><td>/api/v1/creditbureaus/{id}?command=activate</td><td>Activate integration</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/creditbureaus/{id}?command=deactivate</td><td>Deactivate integration</td><td>ADMIN</td></tr>
 <tr><td>DELETE</td><td>/api/v1/creditbureaus/{id}</td><td>Delete integration</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/creditbureaus/check</td><td>Run a credit check via the active provider (SIMULATED=deterministic, HTTP=real bureau); returns {report, mandatory, passed, provider}</td><td>ADMIN/TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/creditbureaus/{id}/mappings</td><td>List product mappings</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/creditbureaus/{id}/mappings</td><td>Add product mapping</td><td>ADMIN</td></tr>
 <tr><td>DELETE</td><td>/api/v1/creditbureaus/{id}/mappings/{mappingId}</td><td>Remove product mapping</td><td>ADMIN</td></tr>
@@ -3299,6 +3301,7 @@ Content-Type: application/json
 <tr><td>POST</td><td>/api/v1/smscampaigns</td><td>Create campaign</td><td>ADMIN</td></tr>
 <tr><td>PUT</td><td>/api/v1/smscampaigns/{id}</td><td>Update campaign</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/smscampaigns/{id}?command=activate</td><td>Activate campaign</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/smscampaigns/{id}/send</td><td>Send campaign to recipients (active SMS provider)</td><td>ADMIN</td></tr>
 <tr><td>DELETE</td><td>/api/v1/smscampaigns/{id}</td><td>Delete campaign</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/api/v1/smscampaigns/{id}/messages</td><td>List campaign messages</td><td>ADMIN</td></tr>
 <!-- Report Mailing Jobs -->
@@ -3343,6 +3346,7 @@ Content-Type: application/json
 <tr><td>POST</td><td>/api/v1/creditbureaus/{id}?command=activate</td><td>Activate integration</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/creditbureaus/{id}?command=deactivate</td><td>Deactivate integration</td><td>ADMIN</td></tr>
 <tr><td>DELETE</td><td>/api/v1/creditbureaus/{id}</td><td>Delete integration</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/creditbureaus/check</td><td>Run a credit check (active provider)</td><td>ADMIN/TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/creditbureaus/{id}/mappings</td><td>List product mappings</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/creditbureaus/{id}/mappings</td><td>Add product mapping</td><td>ADMIN</td></tr>
 <tr><td>DELETE</td><td>/api/v1/creditbureaus/{id}/mappings/{mId}</td><td>Remove product mapping</td><td>ADMIN</td></tr>
@@ -3412,6 +3416,7 @@ Content-Type: application/json
 <tr><td>POST</td><td>/api/v1/notifications/devices</td><td>Register / refresh FCM token — body: <code>{ fcmToken, platform, deviceLabel }</code>. <code>platform</code>: <code>ANDROID</code> | <code>IOS</code> | <code>WEB</code>.</td><td>ADMIN / TELLER / CUSTOMER</td></tr>
 <tr><td>DELETE</td><td>/api/v1/notifications/devices/{deviceId}</td><td>Soft-delete device (sets <code>active = false</code>). Only the owning user can deregister their own token.</td><td>ADMIN / TELLER / CUSTOMER</td></tr>
 <tr><td>GET</td><td>/api/v1/notifications/devices</td><td>List all devices registered by the calling user (active and inactive).</td><td>ADMIN / TELLER / CUSTOMER</td></tr>
+<tr><td>POST</td><td>/api/v1/notifications/push</td><td>Send a push to a user's active devices via the active provider (NONE=simulated dev; HTTP=real relay/FCM proxy) — body: <code>{ userId, title, body, data }</code>. Dead tokens auto-deactivated. Returns <code>{ total, sent, failed, deactivated, provider }</code>.</td><td>ADMIN</td></tr>
 </table>
 <p><strong>Notification Types:</strong> <code>LOAN_APPROVED</code>, <code>LOAN_DISBURSED</code>, <code>LOAN_IN_ARREARS</code>, <code>LOAN_WRITTEN_OFF</code>, <code>ACCOUNT_OPENED</code>, <code>ACCOUNT_CLOSED</code>, <code>ACCOUNT_FROZEN</code>, <code>KYC_APPROVED</code>, <code>KYC_REJECTED</code>, <code>LARGE_TRANSACTION</code>, <code>PAYMENT_COMPLETED</code>, <code>PAYMENT_FAILED</code>, <code>SYSTEM_ALERT</code> — <strong>Severity:</strong> <code>INFO</code>, <code>WARNING</code>, <code>ERROR</code></p>
 </section>
@@ -3633,6 +3638,7 @@ Content-Type: application/json
 <tr><td>Notifications Admin</td><td>/api/v1/notifications/*</td><td>Templates CRUD, test send, delivery history — Session 46</td></tr>
 <tr><td>In-App Notification Feed</td><td>/api/v1/notifications/inbox, /inbox/unread-count, /inbox/read-all</td><td>Global feed + per-user read horizon — Session 97</td></tr>
 <tr><td>Push Device Registry</td><td>/api/v1/notifications/devices, /devices/{id}</td><td>FCM token register / deregister / list — Session 97</td></tr>
+<tr><td>Push Dispatch</td><td>/api/v1/notifications/push</td><td>Per-user fan-out via pluggable provider (NONE/HTTP); dead-token pruning — Session 121</td></tr>
 <tr><td>Login History</td><td>/api/v1/auth/events, /auth/events/summary</td><td>Immutable login event log; aggregated summary with top failed usernames — Session 98</td></tr>
 <tr><td>Compliance Reports</td><td>/api/v1/compliance/reports/audit-summary, /failed-logins, /user-activity, /data-access</td><td>Pre-built regulatory reports over audit_log + login_history — Session 98</td></tr>
 <tr><td>Bulk Import</td><td>/api/v1/bulkimport/customers, /bulkimport/loans, /bulkimport/jobs, /bulkimport/templates/{type}</td><td>CSV upload for customers and loans with per-row error reporting — Session 99</td></tr>

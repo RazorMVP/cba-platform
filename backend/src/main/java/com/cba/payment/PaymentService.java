@@ -48,6 +48,7 @@ public class PaymentService {
     private final ExchangeRateService           exchangeRateService;
     private final StandingOrderRepository       standingOrderRepository;
     private final ApplicationEventPublisher     eventPublisher;
+    private final com.cba.payment.gateway.ExternalPaymentGateway externalPaymentGateway;
 
     @Lazy
     @Autowired(required = false)
@@ -334,13 +335,28 @@ public class PaymentService {
                     "Insufficient funds for external payment");
         }
 
+        String ref = "EXT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
+
+        // Submit to the external network BEFORE debiting. A rejection throws, which rolls
+        // back this @Transactional method — so a refused payment never leaves a phantom
+        // debit. In dev the SimulatedExternalPaymentGateway accepts unconditionally.
+        com.cba.payment.gateway.GatewayResult gw = externalPaymentGateway.submit(
+                new com.cba.payment.gateway.ExternalPaymentInstruction(
+                        req.network(), req.amount(), req.currencyCode(),
+                        req.beneficiaryName(), req.beneficiaryIban(), req.beneficiaryBic(),
+                        req.beneficiaryBankName(), req.beneficiaryCountryCode(),
+                        req.chargeType() != null ? req.chargeType().toUpperCase(Locale.ROOT) : "SHA", ref));
+        if (!gw.accepted()) {
+            throw CbaException.badRequest("EXTERNAL_PAYMENT_REJECTED",
+                    "External payments gateway rejected the transfer: " + gw.errorMessage());
+        }
+
         // Debit source account
         BigDecimal holdSum = accountHoldRepository.sumActiveHoldsByAccount(source.getId());
         BigDecimal available = source.getBalance().subtract(holdSum).subtract(source.computeEffectiveFloor());
         source.debit(req.amount(), available);
         accountRepository.save(source);
 
-        String ref = "EXT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
         transactionRepository.save(Transaction.of(source, TransactionType.TRANSFER_DEBIT,
                 req.amount(), source.getBalance(),
                 "External " + req.network() + " payment to " + req.beneficiaryName(), ref, actor));
@@ -363,13 +379,18 @@ public class PaymentService {
         payment.setBeneficiaryBic(req.beneficiaryBic());
         payment.setBeneficiaryBankName(req.beneficiaryBankName());
         payment.setBeneficiaryCountryCode(req.beneficiaryCountryCode());
-        payment.setExternalReference(req.externalReference());
+        // Prefer the caller's own reference; fall back to the gateway's network reference (e.g. SWIFT UETR).
+        payment.setExternalReference(
+                (req.externalReference() != null && !req.externalReference().isBlank())
+                        ? req.externalReference() : gw.networkReference());
         payment.setChargeType(req.chargeType() != null ? req.chargeType().toUpperCase(Locale.ROOT) : "SHA");
 
         Payment saved = paymentRepository.save(payment);
 
         auditLogService.log("PAYMENT", saved.getId().toString(), "EXTERNAL_PAYMENT_INITIATED",
-                null, "network=" + req.network() + ",beneficiary=" + req.beneficiaryName());
+                null, "network=" + req.network() + ",beneficiary=" + req.beneficiaryName()
+                        + ",gateway=" + externalPaymentGateway.gatewayId()
+                        + ",networkRef=" + gw.networkReference());
 
         return toResponse(saved);
     }

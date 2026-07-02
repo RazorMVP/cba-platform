@@ -57,6 +57,50 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 121 — 2026-06-30
+**Tier-3 external-integration adapters (all 4): SMS gateway, credit bureau, external-payment (SWIFT/SEPA/ACH) gateway, push notifications. Each was a stub/config-only feature that never actually reached an external system; each now has a real pluggable provider (simulated default + real HTTP impl) wired into a working dispatch/check path. backend 622 → 674 unit tests (+52), all green. Plus a consolidated credential-flip runbook.**
+
+Executes the "actionable-now slice" of the credential-blocked external-integrations backlog: build the *unbuilt* Tier-3 adapters against a mock/no-op provider so the code path is real and tested, then a real impl goes live by flipping one config flag + supplying credentials — mirroring the settlement-file exporters and `StorageProvider`. Nothing here needs a vendor contract to run in dev.
+
+#### The shared pattern (all 4 adapters)
+One interface, two `@ConditionalOnProperty` implementations, `matchIfMissing=true` on the default → exactly one bean in the context (no `NoUniqueBeanDefinitionException`). The default simulates/logs (dev needs no credentials, like MailHog for email); the `havingValue=HTTP` impl does a real `RestTemplate` JSON POST + Bearer auth and has a package-private test-seam constructor taking a `RestTemplate` (bound to `MockRestServiceServer` in tests). Provider-side failure → a rejected *result*, never a thrown exception — **except external payments**, where a rejection must abort (see below).
+
+#### Adapter 1 — SMS gateway
+- `notification/sms/{SmsProvider,NoOpSmsProvider,HttpSmsProvider}` + `social/SmsDispatchService` (one `SmsMessage` per recipient; verdict → `SENT`/`FAILED`/`INVALID`, blank number never hits the gateway).
+- `SmsCampaignService.sendCampaign(id, SendCampaignRequest)` (+`Recipient`/`SendResult` records; DELETED/empty guards; advances `lastTriggerDate`); `POST /api/v1/smscampaigns/{id}/send` (ADMIN).
+- Recipient resolution (broadcast "ALL"/saved-query) deliberately out of scope — caller passes `[{customerId, mobileNo}]`, keeping the path free of encrypted-PII coupling. Was: `SmsCampaignService` created campaigns but **never sent anything or created an `SmsMessage`**.
+
+#### Adapter 2 — Credit bureau
+- `system/bureau/{CreditBureauProvider,SimulatedCreditBureauProvider,HttpCreditBureauProvider,CreditCheckRequest,CreditReport}` + `system/CreditBureauCheckService`.
+- Simulated = deterministic 300–850 score from national-id/customer-id hash. `CreditReport` status HIT/NO_HIT/**UNAVAILABLE** (bureau outage is a first-class outcome, not an exception). Policy: HIT passes iff `score ≥ minScore` (`app.creditbureau.min-score`, default 600); NO_HIT/UNAVAILABLE fail only when the product mapping marks the check mandatory (`findByLoanProductId` added).
+- `POST /api/v1/creditbureaus/check` (ADMIN/TELLER) → `{report,mandatory,passed,provider}`. The `implClass` column is now descriptive metadata only — active adapter is config-selected (no reflective loading). Was: pure config CRUD, **no check ever run**.
+
+#### Adapter 3 — External-payment gateway (SWIFT/SEPA/ACH)
+- `payment/gateway/{ExternalPaymentGateway,SimulatedExternalPaymentGateway,HttpExternalPaymentGateway,ExternalPaymentInstruction,GatewayResult}`; wired into `PaymentService.initiateExternalPayment`.
+- **Submits to the gateway BEFORE debiting** — a `REJECTED`/errored submit throws `CbaException` → the `@Transactional` rolls back → **no phantom debit** (the one adapter where a failure is NOT silently tolerated: money must never leave for a refused payment). Gateway `networkReference` (e.g. SWIFT UETR) stored in `externalReference` when the caller supplied none. Was: set `COMPLETED` immediately, **never contacted a network**.
+
+#### Adapter 4 — Push notifications
+- `notification/push/{PushSender,NoOpPushSender,HttpPushSender}` + `notification/PushDispatchService.sendToUser` (fans out to a user's active `push_devices`, updates `lastSeenAt`, **auto-deactivates dead tokens** — FCM `UNREGISTERED` / HTTP 404/410 → `PushResult.invalidToken`).
+- `POST /api/v1/notifications/push` (ADMIN) → `{total,sent,failed,deactivated,provider}`. The `push_devices` registry existed; the actual send path did not. A native FCM v1/APNs client is a drop-in sibling behind a new `havingValue`.
+
+#### Config (all env-driven; base block → all profiles)
+`app.sms.provider` (`NONE`|HTTP) + `app.sms.http.{url,api-key,sender}`; `app.creditbureau.provider` (`SIMULATED`|HTTP) + `min-score` + `http.{url,api-key}`; `app.payments.external.gateway` (`SIMULATED`|HTTP) + `http.{url,api-key}`; `app.push.provider` (`NONE`|HTTP) + `http.{url,api-key}`.
+
+#### New docs
+- `docs/api-reference.html` + `docs/cba-postman-collection-v2.json`: `/smscampaigns/{id}/send`, `/creditbureaus/check`, `/notifications/push` (module tables + full matrix + Postman requests with example responses).
+- `docs/integration-runbook.md` — NEW consolidated credential-flip runbook: every external integration (built adapters + credential-ready + contract-gated), its env vars, and exact go-live steps.
+
+#### Tests (+52 → backend 674 unit, all green)
+SMS: `NoOpSmsProviderTest`(4), `HttpSmsProviderTest`(5), `SmsDispatchServiceTest`(4), `SmsCampaignServiceTest`(+3). Credit: `SimulatedCreditBureauProviderTest`(4), `HttpCreditBureauProviderTest`(5), `CreditBureauCheckServiceTest`(5). Payment: `SimulatedExternalPaymentGatewayTest`(2), `HttpExternalPaymentGatewayTest`(4), `PaymentServiceTest`(+3 external, incl. rollback-on-reject + no-phantom-debit). Push: `NoOpPushSenderTest`(4), `HttpPushSenderTest`(5), `PushDispatchServiceTest`(4). HTTP adapters tested via `MockRestServiceServer`.
+
+#### Build Verification
+`cd backend && ./mvnw -o -Djacoco.skip=true test` → **Tests run: 674, Failures: 0, Errors: 0 — BUILD SUCCESS** (Java 25 host; JaCoCo skipped; Mockito `-javaagent` already in pom; no Docker — pure unit + MockRestServiceServer). Bean wiring verified: each provider pair is mutually exclusive, so the default context has exactly one bean per seam.
+
+#### Confirmed Platform Versions
+Backend: Spring Boot 3.5.0, Java 21, `cba-backend 0.1.0-SNAPSHOT`, Keycloak admin 26.0.5, springdoc 2.8.6, Lombok 1.18.38, PostgreSQL 16 — unchanged (additive feature; no dependency change). Not yet committed (per session gate: push on request).
+
+---
+
 ### Session 120 (cont. 17) — 2026-06-28
 **Exhaustive per-field validation of the 5 scheme packagers vs the canonical ISO 8583:1987 spec. No errors remained (cont. 15 fixes were sufficient); locked with 17 assertions. fep-service 69 → 86 tests.**
 

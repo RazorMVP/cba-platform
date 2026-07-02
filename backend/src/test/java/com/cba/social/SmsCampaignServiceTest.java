@@ -29,6 +29,7 @@ class SmsCampaignServiceTest {
     @Mock SmsCampaignRepository campaignRepository;
     @Mock SmsMessageRepository messageRepository;
     @Mock AuditLogService auditLogService;
+    @Mock SmsDispatchService dispatchService;
 
     @InjectMocks SmsCampaignService service;
 
@@ -202,6 +203,69 @@ class SmsCampaignServiceTest {
 
             assertThatThrownBy(() -> service.listMessages(campaignId, Pageable.unpaged()))
                 .isInstanceOf(CbaException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("Send")
+    class Send {
+
+        private SmsMessage withStatus(SmsMessage.DeliveryStatus s) {
+            SmsMessage m = new SmsMessage();
+            m.setDeliveryStatus(s);
+            return m;
+        }
+
+        @Test
+        @DisplayName("sendCampaign dispatches per recipient and aggregates status counts")
+        void sendCampaign_countsStatuses() {
+            campaign.setMessage("Hello");
+            when(campaignRepository.findById(campaignId)).thenReturn(Optional.of(campaign));
+            when(campaignRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            when(dispatchService.dispatch(any(), any(), eq("+100"), any()))
+                .thenReturn(withStatus(SmsMessage.DeliveryStatus.SENT));
+            when(dispatchService.dispatch(any(), any(), eq("+200"), any()))
+                .thenReturn(withStatus(SmsMessage.DeliveryStatus.FAILED));
+            when(dispatchService.dispatch(any(), any(), eq("+300"), any()))
+                .thenReturn(withStatus(SmsMessage.DeliveryStatus.INVALID));
+            when(dispatchService.activeProvider()).thenReturn("NONE");
+
+            SmsCampaignService.SendResult r = service.sendCampaign(campaignId,
+                new SmsCampaignService.SendCampaignRequest(List.of(
+                    new SmsCampaignService.Recipient(null, "+100"),
+                    new SmsCampaignService.Recipient(null, "+200"),
+                    new SmsCampaignService.Recipient(null, "+300"))));
+
+            assertThat(r.total()).isEqualTo(3);
+            assertThat(r.sent()).isEqualTo(1);
+            assertThat(r.failed()).isEqualTo(1);
+            assertThat(r.invalid()).isEqualTo(1);
+            assertThat(r.provider()).isEqualTo("NONE");
+            verify(campaignRepository).save(argThat(c -> c.getLastTriggerDate() != null));
+        }
+
+        @Test
+        @DisplayName("sendCampaign throws when recipient list is empty")
+        void sendCampaign_noRecipients_throws() {
+            when(campaignRepository.findById(campaignId)).thenReturn(Optional.of(campaign));
+
+            assertThatThrownBy(() -> service.sendCampaign(campaignId,
+                    new SmsCampaignService.SendCampaignRequest(List.of())))
+                .isInstanceOf(CbaException.class)
+                .hasMessageContaining("recipient");
+        }
+
+        @Test
+        @DisplayName("sendCampaign rejects a DELETED campaign")
+        void sendCampaign_deleted_throws() {
+            campaign.setStatus(SmsCampaign.Status.DELETED);
+            when(campaignRepository.findById(campaignId)).thenReturn(Optional.of(campaign));
+
+            assertThatThrownBy(() -> service.sendCampaign(campaignId,
+                    new SmsCampaignService.SendCampaignRequest(List.of(
+                        new SmsCampaignService.Recipient(null, "+100")))))
+                .isInstanceOf(CbaException.class)
+                .hasMessageContaining("deleted");
         }
     }
 }

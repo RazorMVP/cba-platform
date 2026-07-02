@@ -74,6 +74,29 @@ app:
   image:
     storage: FILE_SYSTEM   # FILE_SYSTEM | DATABASE | S3
     upload-dir: ./uploads/customer-images
+  sms:
+    provider: ${SMS_PROVIDER:NONE}   # NONE = simulate/log (no gateway); HTTP = real gateway
+    http:
+      url: ${SMS_HTTP_URL:}          # gateway POST endpoint (e.g. https://api.africastalking.com/version1/messaging)
+      api-key: ${SMS_HTTP_API_KEY:}  # Bearer token; omit for open/dev gateways
+      sender: ${SMS_HTTP_SENDER:CBA} # sender id / short code
+  creditbureau:
+    provider: ${CREDIT_BUREAU_PROVIDER:SIMULATED}  # SIMULATED = deterministic score (no bureau); HTTP = real bureau
+    min-score: ${CREDIT_BUREAU_MIN_SCORE:600}      # pass threshold for a HIT report (300–850 scale)
+    http:
+      url: ${CREDIT_BUREAU_URL:}                   # bureau lookup POST endpoint (TransUnion/Metropol/etc.)
+      api-key: ${CREDIT_BUREAU_API_KEY:}           # Bearer token
+  payments:
+    external:
+      gateway: ${EXTERNAL_PAYMENT_GATEWAY:SIMULATED}  # SIMULATED = accept (no bank link); HTTP = real SWIFT/SEPA/ACH gateway
+      http:
+        url: ${EXTERNAL_PAYMENT_URL:}                 # gateway submit POST endpoint (PSP / correspondent bank)
+        api-key: ${EXTERNAL_PAYMENT_API_KEY:}         # Bearer token
+  push:
+    provider: ${PUSH_PROVIDER:NONE}   # NONE = simulate/log (no Firebase/APNs); HTTP = real push relay / FCM proxy
+    http:
+      url: ${PUSH_HTTP_URL:}          # push relay POST endpoint
+      api-key: ${PUSH_HTTP_API_KEY:}  # Bearer token
 
 keycloak:
   auth-server-url: http://${KEYCLOAK_HOST:localhost}:${KEYCLOAK_PORT:8180}

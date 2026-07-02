@@ -21,6 +21,27 @@ import java.util.UUID;
 public class CreditBureauController {
 
     private final CreditBureauService creditBureauService;
+    private final CreditBureauCheckService creditBureauCheckService;
+
+    /** Body of {@code POST /creditbureaus/check}. */
+    public record CreditCheckHttpRequest(
+        UUID customerId, String nationalId, String fullName, String country,
+        UUID loanProductId, Integer minScore
+    ) {}
+
+    @Operation(summary = "Run a credit-bureau check",
+        description = "Pulls a report through the active provider (SIMULATED in dev, HTTP for a real bureau) and "
+            + "applies pass/fail policy: HIT passes when score ≥ minScore; NO_HIT/UNAVAILABLE only fails when the "
+            + "loan product mandates the check. Returns { report, mandatory, passed, provider }.")
+    @PostMapping("/check")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
+    public ApiResponse<CreditBureauCheckService.CreditCheckResult> check(
+            @RequestBody CreditCheckHttpRequest req) {
+        return ApiResponse.ok(creditBureauCheckService.check(
+                new com.cba.system.bureau.CreditCheckRequest(
+                        req.customerId(), req.nationalId(), req.fullName(), req.country()),
+                req.loanProductId(), req.minScore()));
+    }
 
     @Operation(summary = "List all credit bureau integrations")
     @GetMapping

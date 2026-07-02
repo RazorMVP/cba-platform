@@ -2,6 +2,7 @@ package com.cba.social;
 
 import com.cba.audit.AuditLogService;
 import com.cba.common.exception.CbaException;
+import com.cba.notification.sms.SmsProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -9,6 +10,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -24,9 +27,19 @@ public class SmsCampaignService {
         LocalDate runDate
     ) {}
 
+    /** One target of a send request. {@code mobileNo} is required; {@code customerId} is optional metadata. */
+    public record Recipient(UUID customerId, String mobileNo) {}
+
+    /** Body of {@code POST /smscampaigns/{id}/send}. */
+    public record SendCampaignRequest(List<Recipient> recipients) {}
+
+    /** Aggregate outcome of a send batch. */
+    public record SendResult(int total, int sent, int failed, int invalid, String provider) {}
+
     private final SmsCampaignRepository campaignRepository;
     private final SmsMessageRepository  messageRepository;
     private final AuditLogService        auditLogService;
+    private final SmsDispatchService     dispatchService;
 
     @Transactional(readOnly = true)
     public Page<SmsCampaign> listCampaigns(Pageable p) {
@@ -93,5 +106,43 @@ public class SmsCampaignService {
     public Page<SmsMessage> listMessages(UUID campaignId, Pageable p) {
         getCampaign(campaignId); // validate exists
         return messageRepository.findByCampaignId(campaignId, p);
+    }
+
+    /**
+     * Dispatch a campaign's message to an explicit recipient list through the active
+     * {@link SmsProvider}. Each recipient becomes one {@link SmsMessage} delivery row;
+     * the batch outcome is audited and the campaign's {@code lastTriggerDate} advanced.
+     *
+     * <p>Recipient resolution (broadcast "ALL", saved-query "QUERY") is intentionally
+     * out of scope here — the caller supplies the resolved MSISDNs, keeping this method
+     * free of encrypted-PII coupling. A DELETED campaign cannot be sent.
+     */
+    @Transactional
+    public SendResult sendCampaign(UUID id, SendCampaignRequest req) {
+        SmsCampaign c = getCampaign(id);
+        if (c.getStatus() == SmsCampaign.Status.DELETED) {
+            throw CbaException.badRequest("INVALID_STATE", "A deleted campaign cannot be sent");
+        }
+        if (req == null || req.recipients() == null || req.recipients().isEmpty()) {
+            throw CbaException.badRequest("NO_RECIPIENTS", "At least one recipient is required");
+        }
+
+        int sent = 0, failed = 0, invalid = 0;
+        for (Recipient r : req.recipients()) {
+            SmsMessage m = dispatchService.dispatch(c, r.customerId(), r.mobileNo(), c.getMessage());
+            switch (m.getDeliveryStatus()) {
+                case SENT -> sent++;
+                case INVALID -> invalid++;
+                default -> failed++;
+            }
+        }
+
+        c.setLastTriggerDate(OffsetDateTime.now());
+        campaignRepository.save(c);
+
+        SendResult result = new SendResult(req.recipients().size(), sent, failed, invalid,
+                dispatchService.activeProvider());
+        auditLogService.log("SmsCampaign", id.toString(), "SEND", null, result);
+        return result;
     }
 }

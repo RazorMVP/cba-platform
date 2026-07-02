@@ -269,6 +269,7 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 - Double-entry ledger: every transfer debits source and credits destination atomically
 - Use `SELECT FOR UPDATE` on both accounts to prevent race conditions
 - `AuditLogService` called with `PROPAGATION.REQUIRES_NEW` so audit survives rollback
+- **External-payment gateway** _(Session 121)_: pluggable `ExternalPaymentGateway` (`com.cba.payment.gateway`) selected by `app.payments.external.gateway` — `SimulatedExternalPaymentGateway` (default, `matchIfMissing=true`; accepts + returns synthetic network ref, dev/demo settles immediately) vs `HttpExternalPaymentGateway` (`havingValue=HTTP`; real RestTemplate POST to `app.payments.external.http.{url,api-key}`). `initiateExternalPayment` **submits to the gateway BEFORE debiting** — a `REJECTED`/errored submit throws → the `@Transactional` rolls back → no phantom debit. The gateway's `networkReference` (e.g. SWIFT UETR) is stored in `externalReference` when the caller supplied none. Unlike SMS/bureau/push, a gateway failure is NOT silently tolerated — money never leaves an account for a refused payment.
 
 ### 5. Product Module
 - **Loan products** — full Mifos parity: shortName (UNIQUE, 4 chars), fund @ManyToOne, principal range + default, installmentAmountInMultiplesOf, full interest config (interestRateFrequencyType, interestType, amortizationType, interestCalculationPeriodType, daysInYearType, daysInMonthType), repayment schedule (numberOfRepayments, repaymentEvery, repaymentFrequencyType), grace periods, @Embedded `AllowAttributeOverrides` (8 boolean overrides), 8 GL account @ManyToOne linkages, @ManyToMany charges via `loan_product_charges` join table
@@ -299,6 +300,7 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 - Event-driven via Spring `@EventListener` + `@Async`
 - Events: account opened/closed, large transaction, loan approved/disbursed/due, failed login, profile change
 - Email via MailHog in dev; configure SMTP in prod
+- **Push dispatch** _(Session 121)_: pluggable `PushSender` (`com.cba.notification.push`) selected by `app.push.provider` — `NoOpPushSender` (default, `matchIfMissing=true`; logs token-masked, simulates) vs `HttpPushSender` (`havingValue=HTTP`; POST to `app.push.http.{url,api-key}`; a native FCM v1/APNs client is a drop-in sibling). `PushDispatchService.sendToUser` fans out to a user's active `push_devices`, updates `lastSeenAt`, and **auto-deactivates dead tokens** (FCM `UNREGISTERED` / HTTP 404/410 → `PushResult.invalidToken`). Endpoint: `POST /api/v1/notifications/push` (ADMIN) → `{total,sent,failed,deactivated,provider}`. The `push_devices` registry (register/deregister/list) was pre-existing; this session added the actual send path.
 
 ### 8. Audit Module
 - **NEVER update or delete audit log records** — append-only
@@ -514,8 +516,9 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 - `SmsCampaign.Status` flow: `PENDING → WAITING_FOR_ACTIVATION → ACTIVE → CLOSED → DELETED` (soft-delete)
 - `SmsMessage` tracks per-recipient delivery: `DeliveryStatus` enum `PENDING | SENT | FAILED | INVALID`; linked to campaign and customer
 - `recurrence` stored as iCal RRULE string (e.g. `FREQ=WEEKLY;BYDAY=MO`)
-- Package: `com.cba.social`; Flyway: `V17__hooks_holidays_campaigns.sql`
-- Endpoints: `GET/POST/PUT/DELETE /api/v1/smscampaigns`, `POST /api/v1/smscampaigns/{id}?command=activate`, `GET /api/v1/smscampaigns/{id}/messages`
+- **SMS gateway adapter** _(Session 121)_: pluggable `SmsProvider` (`com.cba.notification.sms`) selected by `app.sms.provider` — `NoOpSmsProvider` (default, `matchIfMissing=true`; simulates+logs, dev needs no creds) vs `HttpSmsProvider` (`havingValue=HTTP`; real RestTemplate JSON POST `{to,from,message}` + Bearer, `app.sms.http.{url,api-key,sender}`). Same swap-behind-config pattern as `StorageProvider`/settlement exporters. `SmsDispatchService` (in `com.cba.social`, where `SmsMessage` lives) creates one delivery row per recipient and maps the provider verdict → `SENT`/`FAILED`/`INVALID` (blank number never hits the gateway; gateway rejection is a `SmsResult.rejected`, never an exception). `sendCampaign` takes an **explicit recipient list** (`[{customerId, mobileNo}]`) — broadcast/"ALL"/saved-query resolution is deliberately out of scope to keep the send path free of encrypted-PII coupling.
+- Package: `com.cba.social` (+ `com.cba.notification.sms` for the provider); Flyway: `V17__hooks_holidays_campaigns.sql`
+- Endpoints: `GET/POST/PUT/DELETE /api/v1/smscampaigns`, `POST /api/v1/smscampaigns/{id}?command=activate`, `POST /api/v1/smscampaigns/{id}/send` (dispatch to recipients → `{total,sent,failed,invalid,provider}`), `GET /api/v1/smscampaigns/{id}/messages`
 
 ### 34. Report Mailing Jobs Module
 - Scheduled report delivery via email. References stored reports by `reportName`; params as JSONB `Map<String,String>`
@@ -577,8 +580,9 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 - `CreditBureauProductMapping`: UNIQUE constraint on `(loan_product_id, credit_bureau_id)`; `creditCheckMandatory boolean`
 - Activate/deactivate without deleting; `findByCreditBureauId()` for listing mappings per bureau
 - No `version` on either entity; cross-package loan product reference stored as UUID (no JPA join)
-- Package: `com.cba.system`; Flyway: `V18__maker_checker_datatables.sql`
-- Endpoints: `GET/POST/PUT/DELETE /api/v1/creditbureaus`, `POST /api/v1/creditbureaus/{id}?command=activate|deactivate`, `GET/POST/DELETE /api/v1/creditbureaus/{id}/mappings`
+- **Credit-check adapter** _(Session 121)_: pluggable `CreditBureauProvider` (`com.cba.system.bureau`) selected by `app.creditbureau.provider` — `SimulatedCreditBureauProvider` (default, `matchIfMissing=true`; deterministic 300–850 score from the national-id/customer-id hash, no external call) vs `HttpCreditBureauProvider` (`havingValue=HTTP`; real POST to `app.creditbureau.http.{url,api-key}`). The `implClass` column is now descriptive metadata only — the active adapter is Spring-config-selected (no reflective loading). `CreditBureauCheckService.check(req, loanProductId, minScore)` pulls a `CreditReport` (HIT/NO_HIT/UNAVAILABLE — a bureau outage is never an exception) and applies policy: HIT passes iff `score ≥ minScore` (`app.creditbureau.min-score`, default 600); NO_HIT/UNAVAILABLE fail only when the product's mapping marks the check mandatory. Endpoint: `POST /api/v1/creditbureaus/check` (ADMIN/TELLER) → `{report,mandatory,passed,provider}` — the seam loan origination would call.
+- Package: `com.cba.system` (+ `com.cba.system.bureau` for the provider); Flyway: `V18__maker_checker_datatables.sql`
+- Endpoints: `GET/POST/PUT/DELETE /api/v1/creditbureaus`, `POST /api/v1/creditbureaus/{id}?command=activate|deactivate`, `POST /api/v1/creditbureaus/check`, `GET/POST/DELETE /api/v1/creditbureaus/{id}/mappings`
 
 ### 41. Surveys Module
 - PPI / welfare survey engine (Mifos-compatible). 5-entity cascade chain: `Survey → SurveyQuestion → SurveyResponse`, `Survey → SurveyScorecard → SurveyScorecardScore`

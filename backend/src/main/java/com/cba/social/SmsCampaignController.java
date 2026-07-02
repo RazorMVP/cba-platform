@@ -70,6 +70,17 @@ public class SmsCampaignController {
         smsCampaignService.deleteCampaign(id);
     }
 
+    @Operation(summary = "Send a campaign to an explicit recipient list",
+        description = "Dispatches the campaign message to each recipient through the active SMS provider "
+            + "(NONE = simulated in dev/sandbox; HTTP = real gateway). Returns per-status counts.")
+    @PostMapping("/api/v1/smscampaigns/{id}/send")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<SmsCampaignService.SendResult> send(
+            @PathVariable UUID id,
+            @RequestBody SmsCampaignService.SendCampaignRequest req) {
+        return ApiResponse.ok(smsCampaignService.sendCampaign(id, req));
+    }
+
     @Operation(summary = "List delivery messages for an SMS campaign")
     @GetMapping("/api/v1/smscampaigns/{id}/messages")
     @PreAuthorize("hasRole('ADMIN')")

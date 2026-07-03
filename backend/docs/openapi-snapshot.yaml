@@ -570,6 +570,17 @@ components:
         meta:
           $ref: "#/components/schemas/PageMeta"
       type: "object"
+    ApiResponseCreditCheckResult:
+      properties:
+        data:
+          $ref: "#/components/schemas/CreditCheckResult"
+        errors:
+          items:
+            $ref: "#/components/schemas/ApiError"
+          type: "array"
+        meta:
+          $ref: "#/components/schemas/PageMeta"
+      type: "object"
     ApiResponseCustomerResponse:
       properties:
         data:
@@ -2352,6 +2363,17 @@ components:
         meta:
           $ref: "#/components/schemas/PageMeta"
       type: "object"
+    ApiResponsePushDispatchResult:
+      properties:
+        data:
+          $ref: "#/components/schemas/PushDispatchResult"
+        errors:
+          items:
+            $ref: "#/components/schemas/ApiError"
+          type: "array"
+        meta:
+          $ref: "#/components/schemas/PageMeta"
+      type: "object"
     ApiResponseQrResponse:
       properties:
         data:
@@ -2433,6 +2455,17 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/SecurityPolicy"
+        errors:
+          items:
+            $ref: "#/components/schemas/ApiError"
+          type: "array"
+        meta:
+          $ref: "#/components/schemas/PageMeta"
+      type: "object"
+    ApiResponseSendResult:
+      properties:
+        data:
+          $ref: "#/components/schemas/SendResult"
         errors:
           items:
             $ref: "#/components/schemas/ApiError"
@@ -4254,6 +4287,53 @@ components:
           type: "string"
         loanProductId:
           format: "uuid"
+          type: "string"
+      type: "object"
+    CreditCheckHttpRequest:
+      properties:
+        country:
+          type: "string"
+        customerId:
+          format: "uuid"
+          type: "string"
+        fullName:
+          type: "string"
+        loanProductId:
+          format: "uuid"
+          type: "string"
+        minScore:
+          format: "int32"
+          type: "integer"
+        nationalId:
+          type: "string"
+      type: "object"
+    CreditCheckResult:
+      properties:
+        mandatory:
+          type: "boolean"
+        passed:
+          type: "boolean"
+        provider:
+          type: "string"
+        report:
+          $ref: "#/components/schemas/CreditReport"
+      type: "object"
+    CreditReport:
+      properties:
+        band:
+          type: "string"
+        message:
+          type: "string"
+        reference:
+          type: "string"
+        score:
+          format: "int32"
+          type: "integer"
+        status:
+          enum:
+          - "HIT"
+          - "NO_HIT"
+          - "UNAVAILABLE"
           type: "string"
       type: "object"
     Customer:
@@ -9325,6 +9405,23 @@ components:
         userId:
           type: "string"
       type: "object"
+    PushDispatchResult:
+      properties:
+        deactivated:
+          format: "int32"
+          type: "integer"
+        failed:
+          format: "int32"
+          type: "integer"
+        provider:
+          type: "string"
+        sent:
+          format: "int32"
+          type: "integer"
+        total:
+          format: "int32"
+          type: "integer"
+      type: "object"
     QrResponse:
       properties:
         accountName:
@@ -9394,6 +9491,14 @@ components:
         runningBalance:
           type: "number"
         transactionType:
+          type: "string"
+      type: "object"
+    Recipient:
+      properties:
+        customerId:
+          format: "uuid"
+          type: "string"
+        mobileNo:
           type: "string"
       type: "object"
     RecordEventRequest:
@@ -9956,6 +10061,46 @@ components:
       required:
       - "payerAccountId"
       - "token"
+      type: "object"
+    SendCampaignRequest:
+      properties:
+        recipients:
+          items:
+            $ref: "#/components/schemas/Recipient"
+          type: "array"
+      type: "object"
+    SendPushRequest:
+      properties:
+        body:
+          minLength: 1
+          type: "string"
+        data:
+          additionalProperties:
+            type: "string"
+          type: "object"
+        title:
+          minLength: 1
+          type: "string"
+        userId:
+          minLength: 1
+          type: "string"
+      type: "object"
+    SendResult:
+      properties:
+        failed:
+          format: "int32"
+          type: "integer"
+        invalid:
+          format: "int32"
+          type: "integer"
+        provider:
+          type: "string"
+        sent:
+          format: "int32"
+          type: "integer"
+        total:
+          format: "int32"
+          type: "integer"
       type: "object"
     SessionResponse:
       properties:
@@ -13395,6 +13540,29 @@ paths:
                 $ref: "#/components/schemas/ApiResponseCreditBureauIntegration"
           description: "Created"
       summary: "Create a new credit bureau integration"
+      tags:
+      - "Credit Bureaus"
+  /api/v1/creditbureaus/check:
+    post:
+      description: "Pulls a report through the active provider (SIMULATED in dev,\
+        \ HTTP for a real bureau) and applies pass/fail policy: HIT passes when score\
+        \ ≥ minScore; NO_HIT/UNAVAILABLE only fails when the loan product mandates\
+        \ the check. Returns { report, mandatory, passed, provider }."
+      operationId: "check"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreditCheckHttpRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCreditCheckResult"
+          description: "OK"
+      summary: "Run a credit-bureau check"
       tags:
       - "Credit Bureaus"
   /api/v1/creditbureaus/{id}:
@@ -16891,6 +17059,28 @@ paths:
       summary: "Unread notification count for the calling user"
       tags:
       - "In-App Notifications"
+  /api/v1/notifications/push:
+    post:
+      description: "Fans out to all active devices of the target user via the active\
+        \ push provider (NONE=simulated in dev; HTTP=real relay). Dead tokens are\
+        \ auto-deactivated. Returns { total, sent, failed, deactivated, provider }."
+      operationId: "sendPush"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendPushRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePushDispatchResult"
+          description: "OK"
+      summary: "Send a push notification to a user's devices"
+      tags:
+      - "In-App Notifications"
   /api/v1/notifications/templates:
     get:
       operationId: "listTemplates"
@@ -19446,6 +19636,35 @@ paths:
                 $ref: "#/components/schemas/ApiResponsePageSmsMessage"
           description: "OK"
       summary: "List delivery messages for an SMS campaign"
+      tags:
+      - "SMS Campaigns"
+  /api/v1/smscampaigns/{id}/send:
+    post:
+      description: "Dispatches the campaign message to each recipient through the\
+        \ active SMS provider (NONE = simulated in dev/sandbox; HTTP = real gateway).\
+        \ Returns per-status counts."
+      operationId: "send"
+      parameters:
+      - in: "path"
+        name: "id"
+        required: true
+        schema:
+          format: "uuid"
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendCampaignRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSendResult"
+          description: "OK"
+      summary: "Send a campaign to an explicit recipient list"
       tags:
       - "SMS Campaigns"
   /api/v1/staff:

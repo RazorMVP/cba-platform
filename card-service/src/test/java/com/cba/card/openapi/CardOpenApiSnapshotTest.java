@@ -49,7 +49,11 @@ class CardOpenApiSnapshotTest extends AbstractCardIntegrationTest {
 
     @Test
     void cardApiSpecMatchesSnapshot() throws IOException {
-        String liveSpec = fetchLiveSpec();
+        // Normalize the only environment-specific token: springdoc emits the live
+        // servers[].url with the @SpringBootTest(RANDOM_PORT) port, which differs every
+        // run. Without this, the snapshot could only ever match the exact run that wrote
+        // it — a latent non-determinism that reddened every CI full-integration build.
+        String liveSpec = normalize(fetchLiveSpec());
 
         boolean updateMode = Boolean.parseBoolean(
                 System.getProperty("update.api.snapshot", "false"));
@@ -78,6 +82,11 @@ class CardOpenApiSnapshotTest extends AbstractCardIntegrationTest {
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+    /** Replace the random local server port so the snapshot is stable across runs. */
+    private static String normalize(String spec) {
+        return spec.replaceAll("http://localhost:\\d+", "http://localhost:PORT");
+    }
 
     private String fetchLiveSpec() {
         ResponseEntity<String> response = restTemplate.getForEntity(

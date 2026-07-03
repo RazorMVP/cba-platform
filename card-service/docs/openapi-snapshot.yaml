@@ -3,7 +3,7 @@ info:
   title: OpenAPI definition
   version: v0
 servers:
-- url: http://localhost:55961
+- url: http://localhost:PORT
   description: Generated server url
 paths:
   /card-api/v1/cards/{id}/limits:

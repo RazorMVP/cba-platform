@@ -57,6 +57,27 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 121 (cont. 2) — 2026-07-03
+**Swapped card-service's SFTP library from the unmaintained `com.jcraft:jsch:0.1.55` to the maintained drop-in fork `com.github.mwiede:jsch:0.2.23`. Zero code change (same `com.jcraft.jsch` package); the SFTP settlement transmitter now negotiates with a default modern OpenSSH natively. card-service `-Pfull-integration` 113 green. Commit `16c076b`.**
+
+Resolves the "Algorithm negotiation fail" documented in cont. 1: the original 0.1.55's algorithm set predates modern OpenSSH defaults. The fork ships modern KEX/host-key/cipher algorithms.
+
+#### Changes
+| File | Change |
+|------|--------|
+| `card-service/pom.xml` | `com.jcraft:jsch:0.1.55` → `com.github.mwiede:jsch:0.2.23` (drop-in fork, same package) |
+| `SettlementFileTransmitterSftpIntegrationTest` | Removed the `/etc/sftp.d/` legacy-algorithm sshd workaround — the test now runs against **atmoz/sftp's default (modern) config**, validating the true modern-client↔modern-server posture. Javadoc updated. |
+
+#### Notes
+- **No production code change** — `SettlementFileTransmitter` imports `com.jcraft.jsch.*`, which the fork provides identically. Only the Maven coordinates changed.
+- **CVE posture improved** — 0.1.55 is abandoned and carries known advisories; the fork is actively maintained.
+- **Verification:** `cd card-service && DOCKER_HOST=… ./mvnw -Pfull-integration test` → 113 green (SFTP round trip now passes with no server-side legacy-algo tweak).
+
+#### Confirmed Platform Versions
+card-service: Spring Boot 3.5.0, Java 21, **jsch `com.github.mwiede:0.2.23`** (was `com.jcraft:0.1.55`). Backend unchanged.
+
+---
+
 ### Session 121 (cont. 1) — 2026-07-03
 **Container-backed end-to-end integration tests for the real HTTP providers + adjacent real integrations (WireMock / MinIO / MailHog / SFTP), not `MockRestServiceServer`. Surfaced + fixed two latent OpenAPI-snapshot defects. Backend `-Pfull-integration` 688 green; card-service 113 green. Commit `45a44ef`.**
 

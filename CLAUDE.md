@@ -71,7 +71,7 @@ These are the verified-working versions for all production components. Update th
 | **Java** | 21 | LTS |
 | **Dockerfile** | added Session 116 | `maven:3.9-eclipse-temurin-21-alpine` build + `eclipse-temurin:21-jre-alpine` runtime; port 8081 |
 | **CI** | `card-service-ci.yml` | Test ✅ OWASP ✅ Docker ✅ Trivy ✅ — fully green as of Session 116 |
-| **Last git commit** | Session 121 cont. 1 (`45a44ef`) | Session 121 (cont. 1) — `SettlementFileTransmitterSftpIntegrationTest` (atmoz/sftp key-auth round trip; surfaced jsch 0.1.55 vs modern-OpenSSH negotiation) + fixed `CardOpenApiSnapshotTest` RANDOM_PORT non-determinism. `-Pfull-integration` 113 green. (S119 `7d7062c`: webhook events + settlement `buildExportRecords`) |
+| **Last git commit** | Session 121 cont. 2 (`16c076b`) | Session 121 (cont. 2) — SFTP lib swapped `com.jcraft:jsch:0.1.55` → maintained `com.github.mwiede:jsch:0.2.23` (drop-in, same package, modern algos → negotiates with default modern OpenSSH; SFTP test workaround removed). `-Pfull-integration` 113 green. (cont. 1 `45a44ef`: container-backed integration tests + OpenAPI-snapshot fixes) |
 
 > **Session 66 CI fixes**: Angular 21 uses Vitest (not Karma) — `--browsers=ChromeHeadless` and `--code-coverage` are invalid flags. `vercel deploy --prebuilt` requires `.vercel/output/` from `vercel build`, not `dist/` from `ng build`. All three issues fixed; CI pipeline and Vercel production deployment now fully green.
 

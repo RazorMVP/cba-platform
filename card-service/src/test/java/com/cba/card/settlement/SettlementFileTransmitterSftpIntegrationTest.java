@@ -32,13 +32,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * The uploaded file is then downloaded over a second SFTP session and byte-compared —
  * proving the transmission actually landed, not merely that {@code transmit()} returned.
  *
- * <p><b>Real-world finding:</b> card-service depends on {@code com.jcraft:jsch:0.1.55}
- * (the original, unmaintained JSch). Its algorithm set predates modern OpenSSH defaults,
- * so an out-of-the-box modern sshd rejects it with "Algorithm negotiation fail". This test
- * configures the container's sshd to also offer the legacy algorithms JSch 0.1.55 supports
- * (ssh-rsa host key + SHA-1 KEX) — which is what a real scheme SFTP endpoint must expose for
- * this client, or the bank should migrate to the maintained {@code com.github.mwiede:jsch}
- * drop-in fork. The transmitter code is unchanged; only the server is made compatible.
+ * <p><b>SSH library note:</b> card-service uses the maintained {@code com.github.mwiede:jsch}
+ * fork (same {@code com.jcraft.jsch} package as the original, unmaintained
+ * {@code com.jcraft:jsch:0.1.55}). The fork ships modern KEX/host-key/cipher algorithms, so
+ * it negotiates with the container's default modern OpenSSH out of the box — no legacy-algo
+ * server tweak is needed. (The original 0.1.55 failed here with "Algorithm negotiation fail".)
  */
 @Testcontainers
 @DisplayName("SettlementFileTransmitter (SFTP) — end-to-end against an atmoz/sftp container")
@@ -68,26 +66,11 @@ class SettlementFileTransmitterSftpIntegrationTest {
         }
     }
 
-    // Runs before sshd starts (atmoz executes /etc/sftp.d/* first); re-enables the legacy
-    // algorithms JSch 0.1.55 still uses so negotiation with modern OpenSSH succeeds.
-    private static final String LEGACY_SSHD = """
-            #!/bin/sh
-            cat >> /etc/ssh/sshd_config <<'CFG'
-            HostKeyAlgorithms +ssh-rsa
-            PubkeyAcceptedAlgorithms +ssh-rsa
-            KexAlgorithms +diffie-hellman-group14-sha1,diffie-hellman-group-exchange-sha1,diffie-hellman-group1-sha1
-            Ciphers +aes128-cbc,3des-cbc
-            MACs +hmac-sha1
-            CFG
-            """;
-
     @Container
     @SuppressWarnings("resource") // Testcontainers manages the @Container lifecycle
     static final GenericContainer<?> SFTP =
             new GenericContainer<>(DockerImageName.parse("atmoz/sftp:alpine"))
                     .withCopyToContainer(Transferable.of(PUBLIC_KEY), "/home/" + USER + "/.ssh/keys/id_rsa.pub")
-                    .withCopyToContainer(Transferable.of(LEGACY_SSHD.getBytes(StandardCharsets.UTF_8), 0755),
-                            "/etc/sftp.d/00-legacy-algos.sh")
                     // user:pass:e?:uid:gid:dir  → key auth (pass present but JSch uses the key)
                     .withCommand(USER + ":pass:1001:100:" + REMOTE_DIR)
                     .withExposedPorts(22)

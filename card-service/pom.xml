@@ -143,10 +143,13 @@
     </dependency>
 
     <!-- ── SFTP (settlement file transmission to scheme networks) ──── -->
+    <!-- Maintained drop-in fork of the unmaintained com.jcraft:jsch:0.1.55: same
+         com.jcraft.jsch package (no code change), but with modern KEX/host-key/cipher
+         algorithms so it negotiates with current OpenSSH servers out of the box. -->
     <dependency>
-      <groupId>com.jcraft</groupId>
+      <groupId>com.github.mwiede</groupId>
       <artifactId>jsch</artifactId>
-      <version>0.1.55</version>
+      <version>0.2.23</version>
     </dependency>
 
     <!-- ── OpenAPI Documentation ─────────────────────────────────── -->

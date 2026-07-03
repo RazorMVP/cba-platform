@@ -57,6 +57,37 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 121 (cont. 1) — 2026-07-03
+**Container-backed end-to-end integration tests for the real HTTP providers + adjacent real integrations (WireMock / MinIO / MailHog / SFTP), not `MockRestServiceServer`. Surfaced + fixed two latent OpenAPI-snapshot defects. Backend `-Pfull-integration` 688 green; card-service 113 green. Commit `45a44ef`.**
+
+Follows Session 121: the unit tests fake HTTP via `MockRestServiceServer`; these drive the actual providers over a real socket against real containers, exercising `RestTemplateBuilder` wiring, Jackson marshalling on the wire, Bearer-header transmission, timeouts, and response parsing across a process boundary.
+
+#### New tests (Testcontainers; all `*IntegrationTest` → excluded from default `test`, run under `-Pfull-integration`)
+| Test | Container | What it proves |
+|------|-----------|----------------|
+| `com.cba.integration.HttpProvidersWireMockIntegrationTest` (5) | `wiremock/wiremock:3.9.1` | All 4 Session-121 HTTP providers (SMS/credit/external-pay/push) over real HTTP. Stub **request matchers require** the `Bearer` header + a JSON body field → a pass proves the provider genuinely sent them (mismatch → 404 → provider degrades → assertion fails). Includes push 404 → `invalidToken`. Built via each provider's production `(RestTemplateBuilder, Environment)` ctor + `MockEnvironment`. |
+| `com.cba.customer.storage.S3StorageProviderIntegrationTest` (1) | `minio/minio:latest` | `S3StorageProvider` PUT/GET/DELETE byte round trip through real AWS SDK v2 (`forcePathStyle`, `endpointOverride`); delete → `NoSuchKeyException`. |
+| `com.cba.notification.MailHogEmailIntegrationTest` (1) | `mailhog/mailhog:v1.0.1` | Real `NotificationEventListener.onLoanApproved` → `JavaMailSender.send` over SMTP; asserted via MailHog HTTP API. |
+| `com.cba.card.settlement.SettlementFileTransmitterSftpIntegrationTest` (1) | `atmoz/sftp:alpine` | `SettlementFileTransmitter` SFTP path with a runtime-generated RSA key, key-auth, `cd`+`put`, then independent read-back byte-compare. |
+
+#### Findings / fixes
+- **🐛 `CardOpenApiSnapshotTest` was non-deterministic** — it raw-`equals`'d the whole spec including the `servers[].url` carrying the `@SpringBootTest(RANDOM_PORT)` port, so it could only pass on the exact run that wrote the snapshot (red on every other CI full-integration run). Fixed: `normalize()` maps `http://localhost:<port>` → `http://localhost:PORT` on both sides; snapshot regenerated.
+- **backend OpenAPI snapshot was stale** — Session 121 added `/creditbureaus/check`, `/smscampaigns/{id}/send`, `/notifications/push` but never ran the snapshot test (it only runs under `-Pfull-integration`). Running the full suite here caught it; `backend/docs/openapi-snapshot.yaml` regenerated (+219 lines: the 3 paths + `CreditCheckResult`/`SendResult`/`PushDispatchResult` schemas).
+- **Real-world caveat — JSch 0.1.55 vs modern OpenSSH:** the SFTP round trip first failed "Algorithm negotiation fail". `com.jcraft:jsch:0.1.55` (unmaintained) predates modern OpenSSH defaults. The test injects an `/etc/sftp.d/` script re-enabling `ssh-rsa`/SHA-1 KEX so the server is JSch-compatible; the transmitter code is unchanged. Production options: point at a JSch-compatible scheme endpoint, or migrate to the drop-in `com.github.mwiede:jsch` fork.
+
+#### Gotchas
+- **MailHog serves `Content-Type: text/json`** (non-standard) → the Jackson `Map` converter rejects it; read the raw String body instead.
+- **`Transferable.of(bytes, 0755)`** sets exec bit for the container-side sshd script; the key pair is generated in a `static {}` block **before** the `@Container` field so the public key can be copied in for atmoz to append to `authorized_keys` at boot.
+- **Docker:** run with `DOCKER_HOST=unix://$HOME/.docker/run/docker.sock` (Docker Desktop 29.x); Testcontainers 1.21.4 (already pinned).
+
+#### Build Verification
+`cd backend && DOCKER_HOST=… ./mvnw -o -Djacoco.skip=true -Pfull-integration test` → **688 green**. `cd card-service && … -Pfull-integration test` → **113 green**. Default `./mvnw test` (no Docker) unaffected — `*IntegrationTest` excluded.
+
+#### Confirmed Platform Versions
+Backend: Spring Boot 3.5.0, Java 21, Testcontainers 1.21.4 — unchanged (test-only; no production/dependency change). card-service: Spring Boot 3.5.0, Java 21, jsch 0.1.55 (finding noted above).
+
+---
+
 ### Session 121 — 2026-06-30
 **Tier-3 external-integration adapters (all 4): SMS gateway, credit bureau, external-payment (SWIFT/SEPA/ACH) gateway, push notifications. Each was a stub/config-only feature that never actually reached an external system; each now has a real pluggable provider (simulated default + real HTTP impl) wired into a working dispatch/check path. backend 622 → 674 unit tests (+52), all green. Plus a consolidated credential-flip runbook.**
 

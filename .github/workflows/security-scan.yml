@@ -24,7 +24,7 @@ jobs:
       matrix:
         language: [java, javascript-typescript]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Java (for Java CodeQL)
         if: matrix.language == 'java'
@@ -66,7 +66,7 @@ jobs:
     name: Trivy Filesystem Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Scan source + dependencies + IaC configs
         uses: aquasecurity/trivy-action@master
@@ -91,7 +91,7 @@ jobs:
     name: Secret Detection (Gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -107,7 +107,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Dependency Review
         uses: actions/dependency-review-action@v4
@@ -130,7 +130,7 @@ jobs:
           - dir: web
             type: npm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Java (backend only)
         if: matrix.type == 'maven'
@@ -176,7 +176,7 @@ jobs:
     name: Infrastructure Security Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Scan Kubernetes manifests (Trivy)
         uses: aquasecurity/trivy-action@master
@@ -208,7 +208,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'schedule'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Run OWASP ZAP against staging API
         uses: zaproxy/action-api-scan@v0.7.0

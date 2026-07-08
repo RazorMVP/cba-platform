@@ -2995,12 +2995,14 @@ Images tagged with commit SHA — Kubernetes deployments reference SHA tags for 
 ### Dependency Auto-Updates (Dependabot)
 
 Dependabot runs every Monday, grouped by ecosystem:
-- Maven: Spring Boot group, Security group, Testing group
+- Maven: **all three Java modules** — `/backend`, `/card-service`, `/fep-service` (Spring Boot group, Security group, Testing group) _(card-service + fep-service added Session 121 cont. 3)_
 - npm: Angular group, Angular Material group
 - pub (Dart/Flutter): ungrouped
 - Docker: all Dockerfiles
 - GitHub Actions: all action pinning
 - Major version bumps are ignored (require manual upgrade)
+
+> **Security-patch flow (why all Maven modules must be watched):** the OWASP CI gate fails on CVSS ≥ 7. When a CVE lands against a dependency, the SAFE fix is a Dependabot version-bump PR (a real fix), not a suppression. `docs/owasp-suppressions.xml` header documents the policy: upgrade first; only a **narrow, single-CVE, justified, time-boxed** suppression if no patch exists yet; **never** a justification-less group wildcard (it hides every future CVE in that family). Before Session 121 cont. 3, card-service/fep-service had no Maven Dependabot coverage — a future CVE there would have failed CI with no auto-fix path.
 
 ---
 

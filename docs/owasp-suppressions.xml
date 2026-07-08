@@ -12,6 +12,18 @@
     upgrade path), false-positive CPE matches, or attack surface unreachable
     (TLS at ingress, no AJP, admin-controlled SMTP/JDBC, read-only doc processing).
     Reviewed 2026-04-25 by RazorMVP.
+
+    ── Handling a NEW CVE (e.g. against com.github.mwiede:jsch or any dependency) ──
+    SAFE, in order of preference:
+      1. UPGRADE to a patched version. Dependabot auto-opens the PR — all Maven modules
+         (backend, card-service, fep-service) are watched in .github/dependabot.yml.
+         Merge the bump → CI passes. This FIXES the vuln instead of hiding it.
+      2. If no patch exists yet: add a NARROW, single-CVE <suppress> with a written
+         justification (why the path is unreachable/mitigated) AND a review-by date.
+         Remove it the moment a patched version ships.
+    NEVER add a justification-less group wildcard just to turn the build green — that
+    silently hides every present and future CVE in that library family, including
+    exploitable ones. The failBuildOnCVSS=7 gate is the safety mechanism; keep it sharp.
   -->
 
   <!-- ── Eclipse Angus Mail (all submodules) ─────────────────────────────────

@@ -19,6 +19,44 @@ updates:
       - dependency-name: '*'
         update-types: ['version-update:semver-major']
 
+  # Java (Maven) dependencies — card-service microservice
+  # Ensures card-service deps (e.g. com.github.mwiede:jsch) get security-patch PRs.
+  # Without this, a CVE >= 7 would fail card-service OWASP CI with no auto-fix path.
+  - package-ecosystem: maven
+    directory: /card-service
+    schedule:
+      interval: weekly
+      day: monday
+      time: '03:00'
+    open-pull-requests-limit: 10
+    groups:
+      spring-boot:
+        patterns: ['org.springframework.boot:*', 'org.springframework:*']
+      security:
+        patterns: ['org.springframework.security:*', 'org.keycloak:*']
+      testing:
+        patterns: ['org.junit:*', 'org.mockito:*', 'org.testcontainers:*']
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+
+  # Java (Maven) dependencies — fep-service microservice
+  - package-ecosystem: maven
+    directory: /fep-service
+    schedule:
+      interval: weekly
+      day: monday
+      time: '03:00'
+    open-pull-requests-limit: 10
+    groups:
+      spring-boot:
+        patterns: ['org.springframework.boot:*', 'org.springframework:*']
+      testing:
+        patterns: ['org.junit:*', 'org.mockito:*', 'org.testcontainers:*']
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+
   # Angular (npm) dependencies
   - package-ecosystem: npm
     directory: /web

@@ -57,6 +57,32 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 121 (cont. 3) — 2026-07-07
+**Closed the "future jsch CVE" gap the safe way — not by pre-suppressing, but by ensuring future CVEs arrive as auto-patch PRs. Dependabot's Maven ecosystem only watched `/backend`; card-service + fep-service had **no** dependency-update coverage, so a CVSS ≥ 7 CVE against `mwiede:jsch` (or any card/fep dep) would have failed OWASP CI with no auto-fix path. Added both modules to `dependabot.yml` + codified the new-CVE policy in the suppressions header. No suppression added; CVSS gate unchanged.**
+
+The tempting-but-unsafe fix would have been a blanket `^pkg:maven/com\.github\.mwiede/.*` suppression — that hides every future jsch CVE, including exploitable ones. The correct fix keeps the gate sharp and makes the *fix* (a version bump) the path of least resistance.
+
+#### Changes
+| File | Change |
+|------|--------|
+| `.github/dependabot.yml` | +`maven` entries for `/card-service` and `/fep-service` (weekly, same groups/`ignore semver-major` as `/backend`). All 3 Java modules now watched. |
+| `docs/owasp-suppressions.xml` | Header extended with a **"Handling a NEW CVE"** policy: (1) upgrade via the Dependabot PR; (2) only a narrow, single-CVE, justified, time-boxed `<suppress>` if no patch exists yet; **never** a justification-less group wildcard. |
+| `CLAUDE.md` | Dependabot section updated (all 3 Maven modules) + security-patch-flow note. |
+
+#### Why this is the safe resolution
+- **No security compromise:** no suppression added, `failBuildOnCVSS=7` untouched — a real CVE still fails the build until fixed.
+- **Root-cause fix:** future CVEs against card-service/fep-service deps now surface as Dependabot version-bump PRs (a fix), removing the pressure to blanket-suppress.
+- **Human-reviewed:** Dependabot proposes; it does not auto-merge. `semver-major` bumps still ignored (manual review), consistent with backend.
+- **Documented guardrail:** the policy lives in the suppressions-file header — exactly where someone lands when a CVE fails the build.
+
+#### Verification
+`python3 -c "import yaml"` parse of `dependabot.yml` → maven dirs `[/backend, /card-service, /fep-service]`. `xml.dom.minidom` parse of `owasp-suppressions.xml` → well-formed. Config-only; no build run needed.
+
+#### Confirmed Platform Versions
+Unchanged — CI/infra config + docs only. Backend Spring Boot 3.5.0 / Java 21; card-service jsch `com.github.mwiede:0.2.23`.
+
+---
+
 ### Session 121 (cont. 2) — 2026-07-03
 **Swapped card-service's SFTP library from the unmaintained `com.jcraft:jsch:0.1.55` to the maintained drop-in fork `com.github.mwiede:jsch:0.2.23`. Zero code change (same `com.jcraft.jsch` package); the SFTP settlement transmitter now negotiates with a default modern OpenSSH natively. card-service `-Pfull-integration` 113 green. Commit `16c076b`.**
 

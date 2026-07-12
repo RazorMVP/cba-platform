@@ -83,7 +83,9 @@ updates:
       time: '03:00'
     open-pull-requests-limit: 5
 
-  # Docker base images
+  # Docker base images — one entry per module that HAS a Dockerfile, so every
+  # base image (eclipse-temurin / maven / node / nginx) gets CVE-patch PRs.
+  # NOTE: /web has no Dockerfile (deploys via Vercel) — intentionally NOT watched.
   - package-ecosystem: docker
     directory: /backend
     schedule:
@@ -93,7 +95,25 @@ updates:
         update-types: ['version-update:semver-major']
 
   - package-ecosystem: docker
-    directory: /web
+    directory: /card-service
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: 'eclipse-temurin'
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: docker
+    directory: /docs-site
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /partner-docs
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /partner-portal
     schedule:
       interval: weekly
 

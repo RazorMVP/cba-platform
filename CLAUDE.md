@@ -2998,7 +2998,7 @@ Dependabot runs every Monday, grouped by ecosystem:
 - Maven: **all three Java modules** — `/backend`, `/card-service`, `/fep-service` (Spring Boot group, Security group, Testing group) _(card-service + fep-service added Session 121 cont. 3)_
 - npm: Angular group, Angular Material group
 - pub (Dart/Flutter): ungrouped
-- Docker: all Dockerfiles
+- Docker: **every module with a Dockerfile** — `/backend`, `/card-service`, `/docs-site`, `/partner-docs`, `/partner-portal` (base images eclipse-temurin / maven / node / nginx). `/web` has no Dockerfile (Vercel deploy) and is intentionally not watched. _(card-service + docs/portal added, dead `/web` entry removed, Session 121 cont. 4)_
 - GitHub Actions: all action pinning
 - Major version bumps are ignored (require manual upgrade)
 

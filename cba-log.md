@@ -57,6 +57,34 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 121 (cont. 4) — 2026-07-12
+**Closed the Docker-base-image half of the same supply-chain gap. Dependabot's Docker ecosystem watched only `/backend` + a **dead** `/web` entry (web has no Dockerfile — Vercel deploy). Meanwhile `card-service`, `docs-site`, `partner-docs`, `partner-portal` all ship Dockerfiles with **no** base-image CVE-patch coverage. Now every Dockerfile-bearing module is watched; the dead entry is removed. (Correction to cont. 3's aside: `fep-service` has **no** Dockerfile, so nothing to add there.)**
+
+#### Findings (full Dockerfile inventory)
+| Module | Dockerfile | Base images | Before | After |
+|--------|-----------|-------------|--------|-------|
+| backend | ✅ | maven / eclipse-temurin | watched | watched |
+| card-service | ✅ | maven / eclipse-temurin | **unwatched** | ✅ watched |
+| docs-site | ✅ | node:22 / nginx | **unwatched** | ✅ watched |
+| partner-docs | ✅ | node:20 / nginx | **unwatched** | ✅ watched |
+| partner-portal | ✅ | nginx:1.27 | **unwatched** | ✅ watched |
+| web | ❌ (Vercel) | — | **dead entry** | removed |
+| fep-service | ❌ | — | — | n/a |
+
+#### Changes
+| File | Change |
+|------|--------|
+| `.github/dependabot.yml` | Docker section rewritten: +`/card-service` (mirrors backend's `eclipse-temurin` semver-major ignore), +`/docs-site` +`/partner-docs` +`/partner-portal`; removed the dead `/web` entry. |
+| `CLAUDE.md` | Dependabot Docker bullet made precise (lists the 5 watched modules + why `/web` is excluded). |
+
+#### Verification
+`yaml.safe_load` of `dependabot.yml` → docker dirs `[/backend, /card-service, /docs-site, /partner-docs, /partner-portal]`; asserted **every** watched dir has a real Dockerfile and `/web` is absent. Config-only; no build run needed. Same safety properties as cont. 3 — additive, human-reviewed PRs (no auto-merge), no suppression, gate unchanged.
+
+#### Confirmed Platform Versions
+Unchanged — CI/infra config + docs only.
+
+---
+
 ### Session 121 (cont. 3) — 2026-07-07
 **Closed the "future jsch CVE" gap the safe way — not by pre-suppressing, but by ensuring future CVEs arrive as auto-patch PRs. Dependabot's Maven ecosystem only watched `/backend`; card-service + fep-service had **no** dependency-update coverage, so a CVSS ≥ 7 CVE against `mwiede:jsch` (or any card/fep dep) would have failed OWASP CI with no auto-fix path. Added both modules to `dependabot.yml` + codified the new-CVE policy in the suppressions header. No suppression added; CVSS gate unchanged.**
 

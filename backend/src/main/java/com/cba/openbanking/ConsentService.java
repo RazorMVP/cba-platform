@@ -77,6 +77,32 @@ public class ConsentService {
         return ConsentResponse.from(saved);
     }
 
+    /** Statuses that can still expire; REVOKED and EXPIRED are terminal. */
+    private static final List<ConsentStatus> EXPIRABLE_STATUSES =
+            List.of(ConsentStatus.AWAITING_AUTHORISATION, ConsentStatus.AUTHORISED);
+
+    /**
+     * Expire every consent whose {@code expiryDate} has passed, transitioning it to
+     * {@link ConsentStatus#EXPIRED}, auditing the change, and firing the
+     * {@code CONSENT.EXPIRED} partner webhook. Idempotent — a consent already REVOKED/EXPIRED
+     * is never re-processed (excluded by the query). Driven by {@link ConsentExpiryJob}.
+     *
+     * @param now the cutoff instant (injected for testability)
+     * @return the number of consents expired this run
+     */
+    @Transactional
+    public int expireDueConsents(Instant now) {
+        List<OpenBankingConsent> due =
+                consentRepository.findByStatusInAndExpiryDateBefore(EXPIRABLE_STATUSES, now);
+        for (OpenBankingConsent consent : due) {
+            consent.setStatus(ConsentStatus.EXPIRED);
+            OpenBankingConsent saved = consentRepository.save(consent);
+            auditLogService.log("OpenBankingConsent", saved.getConsentId(), "EXPIRE", null, saved);
+            publishToPartner(saved, "CONSENT.EXPIRED", Map.of("consentId", saved.getConsentId()));
+        }
+        return due.size();
+    }
+
     @Transactional
     public ConsentResponse revokeConsent(String consentId) {
         OpenBankingConsent consent = findByConsentId(consentId);

@@ -57,6 +57,32 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 121 (cont. 5) — 2026-07-13
+**Wired the one genuinely-small deferred domain feature: `CONSENT.EXPIRED`. A `@Scheduled` job now transitions Open Banking consents past their `expiryDate` to `EXPIRED`, audits, and fires the partner webhook — closing the gap where consents only failed *at use time* (PISP/CBPII threw `CONSENT_EXPIRED`) but never changed status or notified the partner. backend 674 → 676 unit tests. Also: an honest re-sizing of the other 4 "deferred features" — on inspection they're medium+, not small (see below).**
+
+#### Changes
+| File | Change |
+|------|--------|
+| `openbanking/ConsentRepository.java` | +`findByStatusInAndExpiryDateBefore(statuses, cutoff)` — null `expiry_date` never `< cutoff`, so open-ended consents are excluded |
+| `openbanking/ConsentService.java` | +`expireDueConsents(Instant now)` — expires AWAITING/AUTHORISED consents past expiry, sets EXPIRED, audits `EXPIRE`, fires `CONSENT.EXPIRED` via `publishToPartner`; `now` injected for testability; returns count |
+| `openbanking/ConsentExpiryJob.java` | NEW `@Scheduled(cron=${app.openbanking.consent-expiry-cron:0 7 * * * *})` (hourly) → `expireDueConsents(now)`. Scheduling kept out of the service so the logic stays unit-testable. |
+| `ConsentServiceTest.java` | +`@Mock PartnerWebhookDeliveryService` + nested `ExpireDueConsents` (2): expires + fires `CONSENT.EXPIRED`/audits per consent (UUID `tppClientId` so `parseOrg` resolves a real org); none-due → 0, no publish |
+
+#### Honest re-sizing of the remaining 4 (grounded in the code — NOT "small")
+- **PAYMENT.REVERSED** — `PaymentService.reversePayment` exists and sets `REVERSED`, but `Payment` has **only `reversalOf`**, no partner/consent link. Firing to the initiating partner needs a new `Payment`→org linkage (migration + wire at PISP payment creation). **Medium.**
+- **AUTHORIZATION.REVERSED** — card-service has **no reversal handler at all** (grep: nothing). Net-new: a reversal endpoint FEP (MTI 0400) calls, hold-release/backend-reversal, then the event. **Medium-large.**
+- **Async external-payment settlement** — the gateway models submit-ack only; a status-webhook → `PROCESSING→COMPLETED/RETURNED` lifecycle is a design change (new endpoint + states). **Large.**
+- **Full-PAN decrypt in settlement export** — the SQL path masks by design (first6+mask+last4). Un-masking expands **PCI scope** and needs a SQL→JPA per-row decrypt (`FieldEncryptor`). **Medium + a security decision, not a cleanup — should not ship without explicit sign-off.**
+- (RATE_LIMIT.WARNING/EXCEEDED — the filter resolves caller identity but not a partner orgId at 429 time; medium filter change.)
+
+#### Build Verification
+`cd backend && ./mvnw -o -Djacoco.skip=true clean test` → **676 green** (ConsentServiceTest 15 → 17). Note: run needed `clean` — the open IDE's Eclipse-JDT compile had left stale `target/` classes causing a spurious `CustomerServiceTest` "cannot find symbol" (documented gotcha; `clean` forces javac + MapStruct). No new REST endpoint (scheduled job) → no api-reference/postman change.
+
+#### Confirmed Platform Versions
+Backend Spring Boot 3.5.0, Java 21 — unchanged (additive feature; no dependency change).
+
+---
+
 ### Session 121 (cont. 4) — 2026-07-12
 **Closed the Docker-base-image half of the same supply-chain gap. Dependabot's Docker ecosystem watched only `/backend` + a **dead** `/web` entry (web has no Dockerfile — Vercel deploy). Meanwhile `card-service`, `docs-site`, `partner-docs`, `partner-portal` all ship Dockerfiles with **no** base-image CVE-patch coverage. Now every Dockerfile-bearing module is watched; the dead entry is removed. (Correction to cont. 3's aside: `fep-service` has **no** Dockerfile, so nothing to add there.)**
 

@@ -8,6 +8,7 @@ import com.cba.customer.Customer;
 import com.cba.customer.CustomerRepository;
 import com.cba.openbanking.card.CardServiceClient;
 import com.cba.openbanking.dto.*;
+import com.cba.partner.PartnerWebhookDeliveryService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -36,6 +37,7 @@ class ConsentServiceTest {
     @Mock AccountRepository accountRepository;
     @Mock AuditLogService auditLogService;
     @Mock CardServiceClient cardServiceClient;
+    @Mock PartnerWebhookDeliveryService webhookDelivery;
 
     @InjectMocks ConsentService consentService;
 
@@ -252,6 +254,51 @@ class ConsentServiceTest {
                 consentId, UUID.randomUUID(), new BigDecimal("100.00"), "USD");
             assertThatThrownBy(() -> consentService.confirmFunds(req))
                 .isInstanceOf(CbaException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("expireDueConsents")
+    class ExpireDueConsents {
+
+        private OpenBankingConsent dueConsent(UUID partnerOrg, String cid) {
+            OpenBankingConsent c = new OpenBankingConsent();
+            c.setConsentId(cid);
+            c.setTppClientId(partnerOrg.toString());   // UUID → resolves to a partner org
+            c.setStatus(ConsentStatus.AUTHORISED);
+            c.setExpiryDate(Instant.now().minusSeconds(3600));
+            return c;
+        }
+
+        @Test
+        @DisplayName("transitions due consents to EXPIRED and fires CONSENT.EXPIRED per consent")
+        void expiresAndPublishes() {
+            UUID org = UUID.randomUUID();
+            OpenBankingConsent c1 = dueConsent(org, "ob-exp-000000000001");
+            OpenBankingConsent c2 = dueConsent(org, "ob-exp-000000000002");
+            Instant now = Instant.now();
+            when(consentRepository.findByStatusInAndExpiryDateBefore(anyCollection(), eq(now)))
+                .thenReturn(List.of(c1, c2));
+            when(consentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            int expired = consentService.expireDueConsents(now);
+
+            assertThat(expired).isEqualTo(2);
+            assertThat(c1.getStatus()).isEqualTo(ConsentStatus.EXPIRED);
+            assertThat(c2.getStatus()).isEqualTo(ConsentStatus.EXPIRED);
+            verify(webhookDelivery, times(2)).publishEvent(eq(org), eq("CONSENT.EXPIRED"), any());
+            verify(auditLogService, times(2)).log(eq("OpenBankingConsent"), any(), eq("EXPIRE"), any(), any());
+        }
+
+        @Test
+        @DisplayName("no due consents → returns 0 and publishes nothing")
+        void noneDue_returnsZero() {
+            Instant now = Instant.now();
+            when(consentRepository.findByStatusInAndExpiryDateBefore(anyCollection(), eq(now)))
+                .thenReturn(List.of());
+
+            assertThat(consentService.expireDueConsents(now)).isZero();
+            verifyNoInteractions(webhookDelivery);
         }
     }
 }

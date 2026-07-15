@@ -57,6 +57,39 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 121 (cont. 7) — 2026-07-15
+**Wired the third deferred feature: `AUTHORIZATION.REVERSED`. Net-new card-service reversal handler `POST /api/v1/internal/reverse` — idempotent record-and-notify. Also found + partly fixed a latent FEP↔card-service path mismatch (the reverse endpoint literally 404'd before). card-service 109 → 113 unit tests; fep-service 86 (unchanged).**
+
+The cont. 5 re-sizing flagged this as "Medium-large — net-new card-service reversal handler." Confirmed: the FEP `ReversalHandler` (MTI 0400/0420) already calls `cardServiceClient.reverse(pan, amount, stan, de90)`, but **card-service had no `/reverse` endpoint** (only authorize/advise/detokenize/history).
+
+#### Money model drove the design
+card-service authorization is **check-and-record only** — `authorize` GETs a balance to check it; `recordAdvice` just writes a log row ("transaction already completed at terminal; just record it"). **Nothing debits the prepaid wallet or posts to the backend on the auth path.** So a correct reversal here is **record-and-notify**, NOT a fund-return — crediting the wallet back would *create money that was never debited*. The financial-reversal step is a documented no-op seam for when a real debit path is wired.
+
+#### `CardAuthorizationService.reverse(pan, amount, stan, de90)` → RC
+- **Idempotent** (the FEP's stated requirement — "duplicate reversals must not double-credit"): guard on an existing 0400 for (card, STAN) → return `00` no-op.
+- Locate the original auth by (card, STAN) via `findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(..., "0400")`. Not found / card not found → `25`. Record a `0400` `AuthorizationLog` (rc `00`, carries the original's merchant/terminal/scheme/currency), fire `AUTHORIZATION.REVERSED`, return `00`. Any error → `96`.
+
+#### ⚠️ Latent bug found (partly fixed)
+The FEP `CardServiceClient` posts to `/api/v1/fep/*` but card-service serves `/api/v1/internal/*` — so **no FEP→card-service HTTP call currently reaches its target** (both sides mock each other in tests, so it was never caught). Fixed the **reverse** URL (`/api/v1/fep/reverse` → `/api/v1/internal/reverse`) so the delivered feature is reachable. **Still broken (flagged, deferred to a focused contract pass):** `authorize` (`/fep` vs `/internal`), `advice`/`advise` spelling, and `detokenize` (GET on card-service vs POST from FEP). Bundling that into "reversal" would be scope-creep with a method-change decision.
+
+#### Changes
+| File | Change |
+|------|--------|
+| `card/auth/AuthorizationLogRepository.java` | +`existsByCardIdAndStanAndMti` (idempotency) + `findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc` (original lookup) |
+| `card/auth/CardAuthorizationService.java` | +`reverse(...)` handler; +`import java.util.Optional` |
+| `card/auth/CardAuthorizationController.java` | +`POST /api/v1/internal/reverse` + `ReverseRequest`/`ReverseResponse` records |
+| `fep/auth/CardServiceClient.java` (fep-service) | reverse URL `/api/v1/fep/reverse` → `/api/v1/internal/reverse` |
+| `CardAuthorizationServiceTest.java` | +4: records+fires; idempotent duplicate; no original → 25; unknown card → 25 |
+| `docs/card-api-reference.html` | +`/api/v1/internal/reverse` endpoint block |
+
+#### Build Verification
+`cd card-service && ./mvnw -o clean test` → **113 green** (+4). `cd fep-service && ./mvnw -o clean test` → **86 green** (URL change is transparent — mocked in tests). `clean` needed on card-service to dodge the open-IDE Eclipse-JDT stale-compile ("Unresolved compilation problem" → forced javac surfaced the real fix: a missing `java.util.Optional` import).
+
+#### Confirmed Platform Versions
+card-service Spring Boot 3.5.0, Java 21 — unchanged (additive; no dependency change).
+
+---
+
 ### Session 121 (cont. 6) — 2026-07-14
 **Wired the second deferred domain feature: `PAYMENT.REVERSED`. When a partner-initiated (PISP) payment is reversed, the initiating partner now gets the webhook — with **no schema migration**, because PISP payments already carry the consent in their actor string. backend 676 → 682 unit tests.**
 

@@ -33,6 +33,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -333,5 +335,77 @@ class CardAuthorizationServiceTest {
         PrepaidWallet w = new PrepaidWallet();
         w.setBalance(new BigDecimal(balance));
         return w;
+    }
+
+    // ── Reversal (0400) ─────────────────────────────────────────────────────────
+
+    private static final String REV_STAN = "000123";
+
+    private static AuthorizationLog originalAuth(UUID cardId) {
+        AuthorizationLog a = new AuthorizationLog();
+        a.setCardId(cardId);
+        a.setStan(REV_STAN);
+        a.setMti("0200");
+        a.setAmount(new BigDecimal("100.00"));
+        a.setCurrencyCode("840");
+        a.setResponseCode("00");
+        a.setMerchantId("MERCH01");
+        a.setTerminalId("TERM01");
+        a.setScheme("VISA");
+        return a;
+    }
+
+    @Test
+    @DisplayName("reversal of a located original records a 0400 and fires AUTHORIZATION.REVERSED")
+    void reverse_recordsAndFires() {
+        Card card = prepaidCard();
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(originalAuth(card.getId())));
+
+        String rc = service.reverse(PAN, new BigDecimal("100.00"), REV_STAN, "0200000123...");
+
+        assertThat(rc).isEqualTo("00");
+        verify(authLogRepository).save(argThat(a ->
+                "0400".equals(a.getMti()) && "00".equals(a.getResponseCode())));
+        verify(webhookService).publishEvent(eq("AUTHORIZATION.REVERSED"), any());
+    }
+
+    @Test
+    @DisplayName("a duplicate reversal is idempotent — no second 0400, no second event")
+    void reverse_idempotent() {
+        Card card = prepaidCard();
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(true);
+
+        String rc = service.reverse(PAN, new BigDecimal("100.00"), REV_STAN, "x");
+
+        assertThat(rc).isEqualTo("00");
+        verify(authLogRepository, never()).save(any());
+        verify(webhookService, never()).publishEvent(any(), any());
+    }
+
+    @Test
+    @DisplayName("no locatable original → RC=25, nothing recorded or notified")
+    void reverse_noOriginal_returns25() {
+        Card card = prepaidCard();
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.empty());
+
+        assertThat(service.reverse(PAN, new BigDecimal("100.00"), REV_STAN, "x")).isEqualTo("25");
+        verify(authLogRepository, never()).save(any());
+        verify(webhookService, never()).publishEvent(any(), any());
+    }
+
+    @Test
+    @DisplayName("unknown card → RC=25, no event")
+    void reverse_cardNotFound_returns25() {
+        when(cardService.findByPanHash(PAN)).thenThrow(CbaException.notFound("CARD_NOT_FOUND", "x"));
+
+        assertThat(service.reverse(PAN, new BigDecimal("100.00"), REV_STAN, "x")).isEqualTo("25");
+        verify(webhookService, never()).publishEvent(any(), any());
     }
 }

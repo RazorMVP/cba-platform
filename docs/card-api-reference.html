@@ -426,6 +426,26 @@ It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port
 }</code></pre>
   </div>
 </details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/internal/reverse</span>
+    <span class="endpoint-summary">Reverse an authorization (FEP internal — MTI 0400/0420)</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Called by <strong>fep-service</strong> for reversal requests/advices. <strong>Idempotent</strong> — a duplicate reversal for the same (card, STAN) is a no-op. Record-and-notify: locates the original authorization, records a 0400 entry, and fires <code>AUTHORIZATION.REVERSED</code>. (No funds move on the card-service auth path, so financial reversal is a no-op seam.)</p>
+    <h4>Request Body</h4>
+    <pre><code>{
+  "pan": "4111111111111111",
+  "amount": 5000,                    // DE4, minor units
+  "stan": "123456",                  // DE11
+  "originalDataElements": "0200123456..."  // DE90
+}</code></pre>
+    <h4>Response</h4>
+    <pre><code>{ "responseCode": "00" }   // 00=accepted, 25=original/card not located, 96=error</code></pre>
+  </div>
+</details>
 </section>
 
 <!-- ═══════════════════════════════════════════════════════════════════════ -->

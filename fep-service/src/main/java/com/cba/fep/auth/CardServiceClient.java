@@ -119,7 +119,7 @@ public class CardServiceClient {
                     "originalDataElements", originalDataElements != null ? originalDataElements : "");
             @SuppressWarnings("unchecked")
             Map<String, Object> response = restTemplate.postForObject(
-                    cardServiceBaseUrl + "/api/v1/fep/reverse",
+                    cardServiceBaseUrl + "/api/v1/internal/reverse",
                     new HttpEntity<>(body, jsonHeaders()),
                     Map.class);
             return response != null ? (String) response.get("responseCode") : "96";

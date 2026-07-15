@@ -26,6 +26,7 @@ import org.springframework.web.client.RestTemplate;
 import java.math.BigDecimal;
 import java.security.SecureRandom;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -203,6 +204,82 @@ public class CardAuthorizationService {
         AuthorizationLog log_entry = buildAuthLog(card, stan, "0220", amount, null, "00", null, null, null, null, false, null);
         authLogRepository.save(log_entry);
         return new CardAuthResponse("00", null, true, false, null, null, null);
+    }
+
+    /**
+     * Reversal handler for MTI 0400/0420 — called by fep-service at
+     * {@code POST /api/v1/internal/reverse}.
+     *
+     * <p>In this platform authorization/advice are check-and-record only — no funds move on
+     * the auth path (see {@link #authorize} / {@link #recordAdvice}). A reversal is therefore a
+     * record-and-notify operation: locate the original authorization by (card, STAN), record a
+     * {@code 0400} entry, and fire {@code AUTHORIZATION.REVERSED} — <b>idempotently</b>, so a
+     * duplicate 0400 (a common scheme retry) never double-records or double-notifies. The
+     * financial-reversal step (returning funds to a prepaid wallet / reversing a backend debit)
+     * is intentionally a no-op today because the auth path posts no funds; this method is the
+     * seam it will hook into once a real debit path is wired.
+     *
+     * @return ISO response code — {@code "00"} accepted, {@code "25"} original/card not located,
+     *         {@code "96"} on error
+     */
+    @Transactional
+    public String reverse(String pan, BigDecimal amount, String stan, String originalDataElements) {
+        try {
+            Card card;
+            try {
+                card = cardService.findByPanHash(pan);
+            } catch (Exception e) {
+                log.warn("Reversal: card not found for STAN={}", stan);
+                return "25"; // unable to locate account
+            }
+
+            // Idempotency — a reversal for this (card, STAN) is already recorded.
+            if (authLogRepository.existsByCardIdAndStanAndMti(card.getId(), stan, "0400")) {
+                log.info("Reversal already processed for card={} STAN={} — idempotent no-op",
+                        card.getId(), stan);
+                return "00";
+            }
+
+            // Locate the original authorization/advice for this (card, STAN).
+            Optional<AuthorizationLog> originalOpt =
+                    authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(
+                            card.getId(), stan, "0400");
+            if (originalOpt.isEmpty()) {
+                log.warn("Reversal: no original found for card={} STAN={}", card.getId(), stan);
+                return "25"; // unable to locate original
+            }
+            AuthorizationLog original = originalOpt.get();
+
+            // Record the reversal (0400). No funds move — the auth path posted none.
+            AuthorizationLog reversal = buildAuthLog(card, stan, "0400", amount,
+                    original.getCurrencyCode(), "00", null,
+                    original.getTerminalId(), original.getMerchantId(), original.getMerchantName(),
+                    false, original.getScheme());
+            reversal.setProcessingCode(original.getProcessingCode());
+            reversal.setRrn(original.getRrn());
+            reversal.setMcc(original.getMcc());
+            authLogRepository.save(reversal);
+
+            // Notify the partner/webhooks (best-effort — never block the reversal).
+            try {
+                webhookService.publishEvent("AUTHORIZATION.REVERSED", Map.of(
+                        "cardId", card.getId(),
+                        "stan", stan,
+                        "amount", amount != null ? amount : BigDecimal.ZERO,
+                        "currencyCode", original.getCurrencyCode() != null ? original.getCurrencyCode() : "",
+                        "merchantId", original.getMerchantId() != null ? original.getMerchantId() : "",
+                        "originalResponseCode", original.getResponseCode()));
+            } catch (Exception e) {
+                log.warn("Webhook publish failed for AUTHORIZATION.REVERSED: {}", e.getMessage());
+            }
+
+            log.info("Reversal recorded for card={} STAN={}", card.getId(), stan);
+            return "00";
+
+        } catch (Exception e) {
+            log.error("Reversal processing error for STAN={}", stan, e);
+            return "96";
+        }
     }
 
     // ── Balance Checks (via monolith REST) ────────────────────────────────────

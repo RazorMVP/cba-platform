@@ -44,4 +44,11 @@ public interface AuthorizationLogRepository extends JpaRepository<AuthorizationL
              AND a.createdAt < :cutoff
            """)
     List<AuthorizationLog> findUnmatchedAuthsOlderThan(@Param("cutoff") OffsetDateTime cutoff);
+
+    /** Idempotency guard for reversals — has a 0400 already been recorded for this (card, STAN)? */
+    boolean existsByCardIdAndStanAndMti(UUID cardId, String stan, String mti);
+
+    /** The original (non-reversal) authorization for a (card, STAN), most recent first. */
+    java.util.Optional<AuthorizationLog> findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(
+            UUID cardId, String stan, String mti);
 }

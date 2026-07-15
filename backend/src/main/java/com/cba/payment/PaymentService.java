@@ -283,6 +283,12 @@ public class PaymentService {
 
         auditLogService.log("Payment", paymentId.toString(), "REVERSE", PaymentStatus.COMPLETED.name(), PaymentStatus.REVERSED.name());
         log.info("Payment reversed: {} by {}", original.getReferenceNumber(), reversedBy);
+
+        // Notify downstream (AFTER_COMMIT) — e.g. an Open Banking listener fires PAYMENT.REVERSED
+        // to the initiating partner when the original payment's actor is "open-banking:{consentId}".
+        eventPublisher.publishEvent(new PaymentReversedEvent(
+                original.getId(), original.getCreatedBy(), original.getAmount(), ref, request.reason()));
+
         return toResponse(saved);
     }
 

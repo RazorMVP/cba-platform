@@ -57,6 +57,34 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 121 (cont. 6) — 2026-07-14
+**Wired the second deferred domain feature: `PAYMENT.REVERSED`. When a partner-initiated (PISP) payment is reversed, the initiating partner now gets the webhook — with **no schema migration**, because PISP payments already carry the consent in their actor string. backend 676 → 682 unit tests.**
+
+The cont. 5 re-sizing flagged this as "Medium (needs a Payment→partner-org link)". On closer read the link already exists implicitly: `PispController` creates PISP payments via `paymentService.transfer(txn, "open-banking:" + consentId)`, and `transfer` sets `payment.createdBy = actor` — so a reversed payment's `createdBy` **is** the consent pointer. No new column/migration required.
+
+#### Design — event-driven, no package cycle
+`payment` must not import `openbanking` (`openbanking → payment` already exists via `PispController`). So:
+- `PaymentService.reversePayment` publishes a plain `PaymentReversedEvent(paymentId, originalCreatedBy, amount, reversalReference, reason)` (reuses the existing `ApplicationEventPublisher` — same one that emits `TransactionFraudEvent`).
+- `PaymentReversalPartnerNotifier` (in `openbanking`) consumes it `@Async @TransactionalEventListener(AFTER_COMMIT)` — the exact pattern `FraudEngineService` uses. It strips the `"open-banking:"` prefix off `createdBy`, resolves the org via `ConsentService.tppClientIdFor` + `PartnerWebhookDeliveryService.parseOrg`, and fires `PAYMENT.REVERSED`. AFTER_COMMIT = partner only told about a committed reversal; `@Async` = off the reversing request's thread.
+- Non-PISP reversals (teller/admin actor, e.g. `"teller1"`) → prefix check fails → no event. External TPP (non-UUID `tppClientId`) → `parseOrg` null → no event. Consent deleted/malformed → lookup throws → swallowed + logged (never breaks the notify path).
+
+#### Changes
+| File | Change |
+|------|--------|
+| `payment/PaymentReversedEvent.java` | NEW record — carries the original payment's initiating actor so listeners attribute the reversal without `PaymentService` depending on them |
+| `payment/PaymentService.java` | `reversePayment` publishes `PaymentReversedEvent` after the reversal commits (audit + save already done) |
+| `openbanking/PaymentReversalPartnerNotifier.java` | NEW `@Async @TransactionalEventListener(AFTER_COMMIT)` — resolves partner org from `createdBy`, fires `PAYMENT.REVERSED` |
+| `PaymentServiceTest.java` | +`Reversal` (1): asserts the event is published with the original's `createdBy`/amount/`REV-` reference |
+| `PaymentReversalPartnerNotifierTest.java` | NEW (5): PISP→publishes; non-PISP→ignored; null actor→ignored; external-TPP→no publish; consent-lookup-throws→swallowed |
+
+#### Build Verification
+`cd backend && ./mvnw -o -Djacoco.skip=true clean test` → **682 green** (+6). `clean` again needed to dodge the open-IDE stale-compile gotcha. No new REST endpoint (event-driven) → no api-reference/postman change.
+
+#### Confirmed Platform Versions
+Backend Spring Boot 3.5.0, Java 21 — unchanged (additive; no dependency change).
+
+---
+
 ### Session 121 (cont. 5) — 2026-07-13
 **Wired the one genuinely-small deferred domain feature: `CONSENT.EXPIRED`. A `@Scheduled` job now transitions Open Banking consents past their `expiryDate` to `EXPIRED`, audits, and fires the partner webhook — closing the gap where consents only failed *at use time* (PISP/CBPII threw `CONSENT_EXPIRED`) but never changed status or notified the partner. backend 674 → 676 unit tests. Also: an honest re-sizing of the other 4 "deferred features" — on inspection they're medium+, not small (see below).**
 

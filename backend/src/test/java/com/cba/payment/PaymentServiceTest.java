@@ -384,4 +384,50 @@ class PaymentServiceTest {
             assertThat(source.getBalance()).isEqualByComparingTo("1000.00");
         }
     }
+
+    @Nested
+    @DisplayName("reversePayment")
+    class Reversal {
+
+        private Payment completedOriginal(String createdBy) {
+            Payment p = new Payment();
+            p.setId(srcId); // any id
+            p.setReferenceNumber("PAY-REV-1");
+            p.setPaymentType(PaymentType.INTERNAL_TRANSFER);
+            p.setSourceAccount(source);
+            p.setDestinationAccount(destination);
+            p.setAmount(new BigDecimal("100.00"));
+            p.setCurrencyCode("USD");
+            p.setStatus(PaymentStatus.COMPLETED);
+            p.setCreatedBy(createdBy);
+            return p;
+        }
+
+        @Test
+        @DisplayName("publishes a PaymentReversedEvent carrying the original's initiating actor")
+        void reversePayment_publishesEvent() {
+            Payment original = completedOriginal("open-banking:ob-123");
+            when(paymentRepository.findById(srcId)).thenReturn(Optional.of(original));
+            when(accountRepository.findByIdWithLock(srcId)).thenReturn(Optional.of(source));
+            when(accountRepository.findByIdWithLock(dstId)).thenReturn(Optional.of(destination));
+            when(accountHoldRepository.sumActiveHoldsByAccount(dstId)).thenReturn(BigDecimal.ZERO);
+            when(transactionRepository.save(any())).thenReturn(mock(Transaction.class));
+            when(paymentRepository.save(any())).thenAnswer(inv -> {
+                Payment p = inv.getArgument(0);
+                if (p.getId() == null) p.setId(UUID.randomUUID());
+                return p;
+            });
+
+            paymentService.reversePayment(srcId,
+                    new com.cba.payment.dto.ReversePaymentRequest("customer request"), "teller1");
+
+            ArgumentCaptor<PaymentReversedEvent> cap = ArgumentCaptor.forClass(PaymentReversedEvent.class);
+            verify(eventPublisher).publishEvent(cap.capture());
+            PaymentReversedEvent evt = cap.getValue();
+            assertThat(evt.paymentId()).isEqualTo(srcId);
+            assertThat(evt.originalCreatedBy()).isEqualTo("open-banking:ob-123");
+            assertThat(evt.amount()).isEqualByComparingTo("100.00");
+            assertThat(evt.reversalReference()).isEqualTo("REV-PAY-REV-1");
+        }
+    }
 }

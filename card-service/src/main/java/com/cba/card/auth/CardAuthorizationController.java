@@ -51,15 +51,20 @@ public class CardAuthorizationController {
         return ResponseEntity.ok(new ReverseResponse(rc));
     }
 
-    /** De-tokenization — called by FEP when PAN starts with token BIN prefix (9999xx). */
-    @GetMapping("/detokenize")
-    public ResponseEntity<DetokenizeResponse> detokenize(@RequestParam String dpan) {
+    /**
+     * De-tokenization — called by FEP when PAN starts with token BIN prefix (9999xx).
+     * POST with a body (not GET/query) so the DPAN never lands in access/proxy logs.
+     */
+    @PostMapping("/detokenize")
+    public ResponseEntity<DetokenizeResponse> detokenize(@RequestBody DetokenizeRequest req) {
+        String dpan = req.dpan();
         try {
             String realPan = tokenService.detokenize(dpan);
             return ResponseEntity.ok(new DetokenizeResponse(realPan));
         } catch (Exception e) {
             // Fall back to DPAN itself — FEP will decline with correct RC from card lookup miss
-            log.warn("Detokenize failed for DPAN prefix {}****: {}", dpan.substring(0, Math.min(6, dpan.length())), e.getMessage());
+            log.warn("Detokenize failed for DPAN prefix {}****: {}",
+                    dpan != null ? dpan.substring(0, Math.min(6, dpan.length())) : "??", e.getMessage());
             return ResponseEntity.ok(new DetokenizeResponse(dpan));
         }
     }
@@ -73,6 +78,9 @@ public class CardAuthorizationController {
     // ── DTOs ──────────────────────────────────────────────────────────────────
 
     public record AdviceRequest(String pan, BigDecimal amount, String stan) {}
+
+    /** FEP detokenize request — DPAN in the body (not a query param) to keep it out of logs. */
+    public record DetokenizeRequest(String dpan) {}
 
     public record DetokenizeResponse(String pan) {}
 

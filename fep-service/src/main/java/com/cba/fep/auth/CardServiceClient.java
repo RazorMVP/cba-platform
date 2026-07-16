@@ -71,7 +71,7 @@ public class CardServiceClient {
 
             @SuppressWarnings("unchecked")
             Map<String, Object> response = restTemplate.postForObject(
-                    cardServiceBaseUrl + "/api/v1/fep/authorize",
+                    cardServiceBaseUrl + "/api/v1/internal/authorize",
                     new HttpEntity<>(body, headers),
                     Map.class);
 
@@ -94,7 +94,7 @@ public class CardServiceClient {
                     "stan", stan != null ? stan : "");
             @SuppressWarnings("unchecked")
             Map<String, Object> response = restTemplate.postForObject(
-                    cardServiceBaseUrl + "/api/v1/fep/advice",
+                    cardServiceBaseUrl + "/api/v1/internal/advise",
                     new HttpEntity<>(body, jsonHeaders()),
                     Map.class);
             return parseAuthResult(response);
@@ -137,7 +137,7 @@ public class CardServiceClient {
         try {
             @SuppressWarnings("unchecked")
             Map<String, Object> response = restTemplate.postForObject(
-                    cardServiceBaseUrl + "/api/v1/fep/detokenize",
+                    cardServiceBaseUrl + "/api/v1/internal/detokenize",
                     new HttpEntity<>(Map.of("dpan", dpan), jsonHeaders()),
                     Map.class);
             return response != null ? (String) response.get("pan") : dpan;

@@ -57,6 +57,41 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 121 (cont. 8) — 2026-07-16
+**Closed the latent FEP↔card-service contract bug surfaced in cont. 7: the FEP posted to `/api/v1/fep/*` but card-service serves `/api/v1/internal/*`, so NO FEP→card-service HTTP call reached its target. Aligned all remaining calls, fixed a GET-vs-POST + a field-name mismatch, and added the missing contract test. card-service 113 → 115; fep-service 86.**
+
+Both services mock each other in their own suites, so the real wire contract was never exercised — hiding the base-path mismatch (all endpoints), a GET-vs-POST on detokenize, and a `schemeData`/`emvTags` field-name mismatch. cont. 7 fixed only `reverse`; this closes the rest.
+
+#### Fixes
+| Endpoint | Before | After |
+|----------|--------|-------|
+| authorize | FEP `POST /api/v1/fep/authorize` → card-service `/api/v1/internal/authorize` | FEP → `/api/v1/internal/authorize` ✅ |
+| advice | FEP `POST /api/v1/fep/advice` → card-service `/api/v1/internal/advise` (path **and** spelling) | FEP → `/api/v1/internal/advise` ✅ |
+| detokenize | FEP `POST /api/v1/fep/detokenize` (body) → card-service `GET /api/v1/internal/detokenize` (`@RequestParam`) — path **and** HTTP method | card-service → **`POST` + `@RequestBody DetokenizeRequest`**; FEP → `/api/v1/internal/detokenize` ✅ |
+| authorize body | FEP sends `schemeData`; `CardAuthRequest` field was `emvTags` (silently dropped) | `CardAuthRequest.emvTags` → **`schemeData`** ✅ (both unused → no behaviour change, but now a true mirror) |
+
+- **detokenize GET→POST is a security improvement, not just alignment**: a DPAN (token → real PAN) in a URL query lands in access/proxy logs. POST with a body keeps it out. Chose POST as canonical (the FEP already POSTs).
+- **`FepAuthorizeContractTest` (NEW, card-service, 2)** — serializes the FEP's exact authorize body map → deserializes into `CardAuthRequest`, asserting every used field binds (incl. `schemeData` now) + that `CardAuthResponse` exposes the fields the FEP's `parseAuthResult` reads. This is the test whose absence let the mismatch live; it now locks the contract.
+- BIN calls (`/api/v1/bins/{bin}/scheme`, `/api/v1/bins/all`) were always correct — untouched.
+- **Not changed** (correct as-is): card-service `authorize`/`advise` server paths; the reverse wiring (cont. 7).
+
+#### Changes
+| File | Change |
+|------|--------|
+| `fep/auth/CardServiceClient.java` (fep) | 3 URLs `/api/v1/fep/{authorize,advice,detokenize}` → `/api/v1/internal/{authorize,advise,detokenize}` |
+| `card/auth/CardAuthorizationController.java` | `detokenize` GET+`@RequestParam` → POST+`@RequestBody`; +`DetokenizeRequest` record |
+| `card/auth/CardAuthRequest.java` | `emvTags` → `schemeData` (mirrors fep `AuthorizationRequest.schemeData`) |
+| `card/auth/FepAuthorizeContractTest.java` | NEW (2) — wire-contract lock |
+| `docs/card-api-reference.html` | authorize doc path `/api/v1/internal/cards/authorize` → `/api/v1/internal/authorize` |
+
+#### Build Verification
+`cd card-service && ./mvnw -o clean test` → **115 green** (+2). `cd fep-service && ./mvnw -o clean test` → **86 green** (URL changes transparent — CardServiceClient is mocked in fep tests). `clean` used to dodge the open-IDE Eclipse-JDT stale-compile.
+
+#### Confirmed Platform Versions
+card-service + fep-service Spring Boot 3.5.0 / 3.2.5, Java 21 — unchanged (path/contract fix; no dependency change).
+
+---
+
 ### Session 121 (cont. 7) — 2026-07-15
 **Wired the third deferred feature: `AUTHORIZATION.REVERSED`. Net-new card-service reversal handler `POST /api/v1/internal/reverse` — idempotent record-and-notify. Also found + partly fixed a latent FEP↔card-service path mismatch (the reverse endpoint literally 404'd before). card-service 109 → 113 unit tests; fep-service 86 (unchanged).**
 

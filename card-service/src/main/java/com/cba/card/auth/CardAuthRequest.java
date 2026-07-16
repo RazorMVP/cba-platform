@@ -24,5 +24,5 @@ public record CardAuthRequest(
         boolean            pinVerified,
         boolean            arqcValid,
         boolean            isFinancial,
-        Map<String,String> emvTags          // hex-encoded EMV TLV values; null for non-EMV
+        Map<String,String> schemeData        // scheme-specific data (parsed private DEs / EMV tags); matches fep-service AuthorizationRequest.schemeData
 ) {}

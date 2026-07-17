@@ -57,6 +57,37 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 121 (cont. 9) — 2026-07-16
+**Wired the last reasonably-contained deferred event: `RATE_LIMIT.WARNING` / `RATE_LIMIT.EXCEEDED` partner webhooks. Solved the "filter runs before partner auth → no orgId" blocker by resolving the org from the request itself, firing only on a threshold cross and only once per window. backend 682 → 690 unit tests.**
+
+The deferral reason was real: `RateLimitFilter` runs before partner authentication, so the `SecurityContext` has no orgId when the 429 is written. Fix: resolve the org **directly from the request** instead of the security context.
+
+#### Design (hot-path-safe, no spam)
+- `RateLimitEventNotifier.maybeNotify(request, identity, result)` — called by `RateLimitFilter` right after the check (best-effort; never throws into the filter).
+  1. **Classify**: `!allowed` → `RATE_LIMIT.EXCEEDED`; else `remaining ≤ 10% of limit` → `RATE_LIMIT.WARNING`; else return (the common path does **zero** extra work).
+  2. **Dedup FIRST** (`RateLimitService.firstEventInWindow`, Redis `SETNX` + 60s TTL, keyed on the filter's existing `identity`) — so the org lookup + publish happen at most once per window.
+  3. **Resolve org**: partner JWT `orgId` claim (unverified base64, same trick the filter uses for identity) **or** API-key → org (`PartnerApiKeys.hash` → `findByKeyHashAndActiveTrue` → `organization.id`). Null → not partner-attributable → no event.
+  4. **Publish** `webhookDelivery.publishEvent(orgId, eventType, {limit, remaining, path})` (async).
+- Ordering matters: dedup **before** the (possible DB) org lookup → the API-key lookup runs at most once/window/identity, never on the hot path.
+- **Fail-safe:** Redis down → `firstEventInWindow` returns false → event suppressed (without the dedup counter we can't guarantee once-per-window, so we stay quiet rather than risk a webhook storm). Consistent with the limiter's own fail-open-for-traffic stance.
+
+#### Changes
+| File | Change |
+|------|--------|
+| `config/RateLimitService.java` | +`firstEventInWindow(key)` — Redis SETNX(60s) dedup; Redis error → false (suppress) |
+| `config/RateLimitEventNotifier.java` | NEW — classify + dedup + resolve-org (JWT `orgId` / API-key) + publish |
+| `config/RateLimitFilter.java` | +`RateLimitEventNotifier` dep; `maybeNotify(request, identity, result)` after headers set |
+| `config/RateLimitEventNotifierTest.java` | NEW (5): within-limit→none; EXCEEDED+JWT→publish; WARNING+API-key→publish; deduped→none; non-partner→none |
+| `config/RateLimitServiceTest.java` | NEW (3): first-in-window→true; subsequent→false; Redis-down→false |
+
+#### Build Verification
+`cd backend && ./mvnw -o -Djacoco.skip=true test` → **690 green** (+8). No new REST endpoint (filter-side webhook) → no api-reference/postman change.
+
+#### Confirmed Platform Versions
+Backend Spring Boot 3.5.0, Java 21 — unchanged (additive; no dependency change).
+
+---
+
 ### Session 121 (cont. 8) — 2026-07-16
 **Closed the latent FEP↔card-service contract bug surfaced in cont. 7: the FEP posted to `/api/v1/fep/*` but card-service serves `/api/v1/internal/*`, so NO FEP→card-service HTTP call reached its target. Aligned all remaining calls, fixed a GET-vs-POST + a field-name mismatch, and added the missing contract test. card-service 113 → 115; fep-service 86.**
 

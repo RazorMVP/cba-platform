@@ -76,6 +76,27 @@ public class RateLimitService {
     }
 
     /**
+     * One-shot-per-window guard used to de-duplicate rate-limit webhook events (WARNING /
+     * EXCEEDED). Atomically sets {@code key} with a 60-second TTL only if absent; returns
+     * {@code true} for the FIRST caller in the window and {@code false} thereafter — so a
+     * partner hammering the API over its limit triggers at most one event per window.
+     *
+     * <p>Fail-safe: if Redis is unavailable it returns {@code false} (suppress the event) —
+     * without the dedup counter we cannot guarantee once-per-window, so we stay quiet rather
+     * than risk a webhook storm.
+     */
+    public boolean firstEventInWindow(String key) {
+        try {
+            Boolean set = redis.opsForValue()
+                    .setIfAbsent("rlevt:" + key, "1", java.time.Duration.ofSeconds(60));
+            return Boolean.TRUE.equals(set);
+        } catch (Exception e) {
+            log.warn("Rate-limit event dedup Redis error (suppressing event): {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Resolves the effective requests-per-minute limit from GlobalConfiguration.
      * Falls back to the Tier default if no DB override is present.
      */

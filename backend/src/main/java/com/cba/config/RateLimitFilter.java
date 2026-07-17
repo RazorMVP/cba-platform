@@ -57,6 +57,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     );
 
     private final RateLimitService rateLimitService;
+    private final RateLimitEventNotifier rateLimitEventNotifier;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -79,6 +80,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
         response.setHeader("X-RateLimit-Remaining", String.valueOf(result.remaining()));
         response.setHeader("X-RateLimit-Reset", String.valueOf(
                 System.currentTimeMillis() / 1000 + 60));
+
+        // Best-effort partner webhook on WARNING/EXCEEDED (no-op unless partner-attributable + threshold crossed).
+        rateLimitEventNotifier.maybeNotify(request, identity, result);
 
         if (!result.allowed()) {
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());

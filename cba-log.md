@@ -57,6 +57,22 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 121 (cont. 10) — 2026-07-21
+**Logged the 3 remaining deferred features in a durable, actionable backlog doc so they can be picked up cold — `docs/deferred-backlog.md`. Doc-only; no code change.**
+
+Item C closed everything reasonably contained (cont. 5–9). What's left is different in character — a design task, a compliance decision, and a volume/linkage problem — so instead of a one-line "TODO" they're captured with current state, exact seams/files, what's needed, effort/risk, and gotchas:
+
+1. **Async external-payment settlement lifecycle** (Effort L, money path) — the gateway models submit-ack only; needs `PROCESSING` state + a signed/idempotent status-callback receiver keyed on `networkReference` → `COMPLETED`/`FAILED`(/`RETURNED`) + credit-back on return + a stuck-in-PROCESSING sweep. Seams: `com.cba.payment.gateway.*`, `PaymentService.initiateExternalPayment`, `PispController` event firing.
+2. **Full-PAN decrypt in card settlement export** (Effort M, **PCI sign-off required**) — `SettlementFileExportService.buildExportRecords:279` emits masked PAN only (SQL path can't decrypt `pan_encrypted`); real files need full PAN, which **widens PCI-DSS scope** — must be a compliance decision (encrypt files at rest, retention, access control), not a silent code change. Seam: JPA/`FieldEncryptor` decrypt per record.
+3. **ACCOUNT.ACCESS_GRANTED / ACCOUNT.BALANCE_UPDATED webhooks** (ACCESS_GRANTED S–M, BALANCE_UPDATED M–L) — ACCESS_GRANTED can hook AISP `ConsentService.authoriseConsent`; BALANCE_UPDATED is effectively a fan-out subscription system (no account→consenting-orgs index, balance changes in many places, high volume → needs a domain event + dedup/throttle), which is why it's deferred.
+
+Full detail (per-item current state, files, what's needed, gotchas) lives in **`docs/deferred-backlog.md`**; `CLAUDE.md` reference-files table + the partner deferred note point to it.
+
+#### Build Verification
+Docs only — no build. `docs/deferred-backlog.md` NEW; cba-log + CLAUDE.md pointers.
+
+---
+
 ### Session 121 (cont. 9) — 2026-07-16
 **Wired the last reasonably-contained deferred event: `RATE_LIMIT.WARNING` / `RATE_LIMIT.EXCEEDED` partner webhooks. Solved the "filter runs before partner auth → no orgId" blocker by resolving the org from the request itself, firing only on a threshold cross and only once per window. backend 682 → 690 unit tests.**
 

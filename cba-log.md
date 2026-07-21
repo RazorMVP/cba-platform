@@ -57,6 +57,23 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 121 (cont. 11) — 2026-07-21
+**Full-codebase sweep for every remaining deferral marker; added 4 more items + a roadmap section to `docs/deferred-backlog.md` (now 7 items). Doc-only.**
+
+Grep'd all three Java services (+ web/partner-portal) for deferral signals — `TODO`/`FIXME`, "for now / in production / simplified / dev mode / not enforced / advisory / hardcoded / stub". Curated out the noise (Stitch `*.prototype.html` refs, `DevAuthBypassFilter` (intentional), fraud/3DS last-resort guards (intentional), demo-data plaintext markers) and the already-covered (full-PAN = item 2; HSM/scheme/bureau credentials = `integration-runbook.md`). Genuine, unlogged deferrals added:
+
+4. **FEP EMV crypto + TLV simplified for dev** — `ArqcValidator` hardcoded dev IMK; `ArpcGenerator` simplified 3DES MAC (not real session-key ARPC); scheme adapters "simplified append / BER-TLV parser" (not a proper TLV builder). Production = HSM-derived keys + a real TLV builder/parser. (M)
+5. **Card controls advisory, not enforced** — `CardApiController:150`: `PUT /cards/{id}/controls` enforces only `freeze`; contactless/CNP/international are returned as-is, never enforced in `CardAuthorizationService.authorize`. (S–M)
+6. **Backend rate-limit tier always BASIC** — `RateLimitFilter:140`: no per-partner tier resolution (card-service's filter reads `api_keys.tier`; the backend one doesn't). Reuse `RateLimitEventNotifier`'s request-side org/key resolution. (S–M)
+7. **Prod security hardening** — SFTP `StrictHostKeyChecking=no` → known_hosts (`SettlementFileTransmitter:93`); CDP not encrypted with bureau public key (`BureauService:104`). Hard prerequisite before settlement/bureau go-live. (S)
+
+Also added a **Roadmap section** pointing to Mobile Phase 3 (CLAUDE.md) and the external-integration go-live set (`integration-runbook.md`), so `deferred-backlog.md` is now the single "what's not done" index.
+
+#### Build Verification
+Docs only — no build.
+
+---
+
 ### Session 121 (cont. 10) — 2026-07-21
 **Logged the 3 remaining deferred features in a durable, actionable backlog doc so they can be picked up cold — `docs/deferred-backlog.md`. Doc-only; no code change.**
 

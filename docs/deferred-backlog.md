@@ -2,10 +2,17 @@
 
 > Durable record of features that are **intentionally deferred**, with enough context to pick up
 > cold. Each was scoped and consciously left because it's a proper design task, a compliance
-> decision, or lacks a clean trigger — *not* because it was forgotten. Updated Session 121 cont. 10
-> (2026-07-21) after item C ("small deferred domain features") closed everything reasonably
-> contained (CONSENT.EXPIRED, PAYMENT.REVERSED, AUTHORIZATION.REVERSED, RATE_LIMIT.*, and the
-> FEP↔card-service contract).
+> decision, lacks a clean trigger, or is a documented dev-simplification — *not* because it was
+> forgotten. First written Session 121 cont. 10 (items 1–3) after item C closed everything
+> reasonably contained (CONSENT.EXPIRED, PAYMENT.REVERSED, AUTHORIZATION.REVERSED, RATE_LIMIT.*,
+> FEP↔card-service contract). **Expanded cont. 11 (2026-07-21)** with a full-codebase sweep for
+> every remaining deferral marker (items 4–7 + the roadmap section).
+>
+> **Not in this list** (deliberately): intentional dev features that are correct as-is —
+> `DevAuthBypassFilter` (prod uses Keycloak), fraud/3DS last-resort scalar guards, Stitch
+> `*.prototype.html` design refs, demo-data plaintext markers. And the whole external-integration
+> go-live set (HSM hardware, scheme network links, real vendor adapters) lives in
+> `docs/integration-runbook.md` — see the Roadmap section at the bottom.
 
 Legend — **Effort**: S / M / L. **Risk**: what makes it non-trivial.
 
@@ -120,6 +127,117 @@ Two of the 17 partner webhook events never fire — there's no clean domain trig
 ### Gotchas
 - BALANCE_UPDATED is effectively a fan-out subscription system — treat it as such (volume, dedup, ordering),
   not a one-line wire. This is why it was deferred.
+
+---
+
+## 4. FEP EMV cryptogram + TLV handling is simplified for dev
+
+**Effort: M · Risk: EMV correctness / crypto — real schemes reject malformed cryptograms & TLV**
+
+### What it is
+The fep-service EMV path validates/generates cryptograms and parses/builds DE55 (ICC data) with
+**dev-simplified** algorithms and a hardcoded key, sufficient for the software HSM + tests but not
+scheme-correct for production.
+
+### Current state (fep-service)
+- `emv/ArqcValidator.java:47` — "Uses a **hardcoded dev IMK**. Production retrieves the [issuer master key from the HSM]."
+- `emv/ArpcGenerator.java:56,82` — "**simplified** MAC … in a real implementation the session key [derivation]"; "Simplified 3DES MAC for ARPC (dev mode)."
+- `scheme/AbstractSchemeAdapter.java:46,62` — ARPC is appended "as raw bytes"; "**simplified append** — production code would use a proper **TLV builder**."
+- `scheme/UnionPaySchemeAdapter.java:149` — "**simplified BER-TLV parser** targeting the CUP proprietary tags."
+
+### What's needed
+1. Real EMV session-key derivation and ARQC/ARPC via the **HSM** (the IMK never lives in code) — ties
+   into the HSM go-live (`docs/integration-runbook.md`, Tier 1).
+2. A proper **BER-TLV builder/parser** for DE55 construction and CUP/scheme private-tag parsing (this part
+   is a code-correctness item independent of the HSM).
+
+### Notes
+`FepSocketRoundTripTest` / `PackagerFieldSpecTest` exercise ISO 8583 field *packaging*; the EMV *crypto* is
+dev-simplified and not covered end-to-end. `ArqcValidatorTest` proves the dev derivation is self-consistent
+(not a no-op), but it validates the dev IMK path, not production HSM derivation.
+
+---
+
+## 5. Card controls (contactless / CNP / international) are advisory, not enforced
+
+**Effort: S–M · Risk: authorization decision path**
+
+### What it is
+`PUT /card-api/v1/cards/{id}/controls` only enforces **freeze** (→ card block/unblock). The
+`contactless` / `cnp` / `international` toggles are **returned as-is and never enforced**.
+
+### Current state (card-service)
+- `openbanking/CardApiController.java:150` — "contactless / CNP / international flags are stored in
+  card_limits / product features … **For now these are advisory flags returned as-is**; full
+  implementation wires to card product config."
+
+### What's needed
+1. Persist the control flags (on `Card` or `card_limits` / product features).
+2. Enforce them in `CardAuthorizationService.authorize` — decline CNP when disabled (DE22 entry mode /
+   card-not-present), contactless when disabled (DE22 contactless), international when disabled (currency /
+   country vs card home), with the right ISO response codes.
+3. Fire the existing webhook events on control change.
+
+### Seams / files
+`card-service` `CardApiController` (controls endpoint), `CardAuthorizationService.authorize`, `Card` /
+`CardLimit` (where flags live).
+
+---
+
+## 6. Backend rate-limit tier is always BASIC (no per-partner tier resolution)
+
+**Effort: S–M · Risk: low**
+
+### What it is
+The **backend** `RateLimitFilter` (covering `/api/v1/**` + `/open-banking/v3.1/**`) applies **BASIC**
+(100 rpm) to every caller unless an `X-Rate-Tier` header is present — it does not resolve the partner's
+actual tier (PRO/ENTERPRISE) from their API key or JWT. (card-service's own filter *does* read
+`api_keys.tier`; only the backend filter is behind.)
+
+### Current state (backend)
+- `config/RateLimitFilter.java:140` — "Partner Management … will inject a tier header after API key lookup.
+  **For now all callers use BASIC.**"
+
+### What's needed
+Resolve the tier in the backend filter from the partner API key (`PartnerApiKey.tier`) or the JWT `tier`
+claim — the exact request-side resolution `RateLimitEventNotifier` (cont. 9) already does for the orgId can
+be reused (JWT claim / `PartnerApiKeys.hash` → key → tier). Then a PRO/ENTERPRISE partner gets its real limit.
+
+### Seams / files
+`config/RateLimitFilter.resolveTier`, `config/RateLimitEventNotifier` (reuse the org/key resolution),
+`PartnerApiKey.tier`.
+
+---
+
+## 7. Production security hardening: SFTP host-key + CDP encryption
+
+**Effort: S · Risk: MITM / unprotected CHD if shipped as-is — a hard prerequisite for go-live**
+
+### What it is
+Two dev-safe defaults that **must** be fixed before any settlement-file or bureau transmission goes live
+(gates the credential-ready integrations in `docs/integration-runbook.md`).
+
+### Current state (card-service)
+- `settlement/SettlementFileTransmitter.java:93` — JSch SFTP uses `StrictHostKeyChecking=no`
+  ("**TODO production**: replace no with known_hosts fingerprint verification").
+- `bureau/BureauService.java:104` — "In production, the CDP bytes **would be encrypted** with the bureau's
+  public key" (currently not encrypted).
+
+### What's needed
+1. `known_hosts` fingerprint pinning (`StrictHostKeyChecking=yes`) for all scheme SFTP endpoints.
+2. Encrypt CDP (card personalization data) with the bureau's public key before transmission.
+3. mTLS (scheme-provided client cert) for the HTTPS settlement path (already noted as a TODO in the transmitter).
+
+---
+
+## Roadmap-level items (tracked elsewhere — listed here for completeness)
+
+- **Mobile — Flutter Phase 3**: not started; the `mobile/` dir is empty. Backend is ready (push registry,
+  `/api/v1/self/*`, `cba-mobile` Keycloak client). Full status in **CLAUDE.md → "Mobile Frontend … NOT YET BUILT"**.
+- **External-integration go-live** (credential/vendor-gated): HSM (Thales payShield), card-scheme ISO 8583
+  network links + certification, 3-D Secure Directory Server registration, card personalization bureau,
+  settlement SFTP/HTTPS credentials, and the real per-vendor adapters for SMS / credit-bureau / external-payment
+  / push. All catalogued with env vars + go-live steps in **`docs/integration-runbook.md`**.
 
 ---
 

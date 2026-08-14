@@ -71,7 +71,7 @@ These are the verified-working versions for all production components. Update th
 | **Java** | 21 | LTS |
 | **Dockerfile** | added Session 116 | `maven:3.9-eclipse-temurin-21-alpine` build + `eclipse-temurin:21-jre-alpine` runtime; port 8081 |
 | **CI** | `card-service-ci.yml` | Test ✅ OWASP ✅ Docker ✅ Trivy ✅ — fully green as of Session 116 |
-| **Last git commit** | Session 121 cont. 8 (`ed4e785`) | Session 121 (cont. 8) — closed the FEP↔card-service contract bug: aligned authorize/advice/detokenize URLs to `/api/v1/internal/*`, detokenize GET→POST (DPAN out of logs), `CardAuthRequest.emvTags`→`schemeData`, +`FepAuthorizeContractTest` locking the wire contract. 113 → 115 unit. (cont. 7 `3ecab99`: `AUTHORIZATION.REVERSED` reversal handler) |
+| **Last git commit** | Session 122 (`1a0c601`) | Session 122 — card-service dev auth-bypass filter (mirror of the backend's, `@ConditionalOnProperty(app.auth-bypass=true)`) so the `authBypass`-mode Angular Cards screens load against `:8081`; fixed a Jackson↔Hibernate lazy-proxy 500 on the card endpoints (`@JsonIgnoreProperties` on `Card.product`); added a `productName` derived field for the Card List; regenerated the stale OpenAPI snapshot (also resynced cont. 7/8 drift). 115 unit. (cont. 8 `ed4e785`: FEP↔card-service contract) |
 
 > **Session 66 CI fixes**: Angular 21 uses Vitest (not Karma) — `--browsers=ChromeHeadless` and `--code-coverage` are invalid flags. `vercel deploy --prebuilt` requires `.vercel/output/` from `vercel build`, not `dist/` from `ng build`. All three issues fixed; CI pipeline and Vercel production deployment now fully green.
 

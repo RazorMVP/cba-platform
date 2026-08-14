@@ -1,6 +1,7 @@
 package com.cba.card.card;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -93,5 +94,17 @@ public class Card {
     /** Convenience: masked PAN for logging — e.g. 411111******1111 */
     public String maskedPan() {
         return panPrefix.substring(0, 6) + "******" + panSuffix;
+    }
+
+    /**
+     * Flat product name for API consumers (the Angular Card List binds
+     * {@code card.productName}). Derived from the lazy {@code product}
+     * association — resolved within the open-in-view session during
+     * serialization. Not persisted ({@code @Transient}).
+     */
+    @Transient
+    @JsonProperty("productName")
+    public String getProductName() {
+        return product != null ? product.getName() : null;
     }
 }

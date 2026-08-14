@@ -595,6 +595,42 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseSimulateResponse"
+  /api/v1/internal/reverse:
+    post:
+      tags:
+      - card-authorization-controller
+      operationId: reverse
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReverseRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ReverseResponse"
+  /api/v1/internal/detokenize:
+    post:
+      tags:
+      - card-authorization-controller
+      operationId: detokenize
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DetokenizeRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/DetokenizeResponse"
   /api/v1/internal/authorize:
     post:
       tags:
@@ -1404,24 +1440,6 @@ paths:
     get:
       tags:
       - token-controller
-      operationId: detokenize
-      parameters:
-      - name: dpan
-        in: query
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ApiResponseString"
-  /api/v1/internal/detokenize:
-    get:
-      tags:
-      - card-authorization-controller
       operationId: detokenize_1
       parameters:
       - name: dpan
@@ -1435,7 +1453,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/DetokenizeResponse"
+                $ref: "#/components/schemas/ApiResponseString"
   /api/v1/internal/cards/{cardId}/authorizations:
     get:
       tags:
@@ -1977,6 +1995,8 @@ components:
         updatedAt:
           type: string
           format: date-time
+        productName:
+          type: string
     CardLimit:
       type: object
       properties:
@@ -2648,6 +2668,32 @@ components:
           type: string
         responseHex:
           type: string
+    ReverseRequest:
+      type: object
+      properties:
+        pan:
+          type: string
+        amount:
+          type: number
+        stan:
+          type: string
+        originalDataElements:
+          type: string
+    ReverseResponse:
+      type: object
+      properties:
+        responseCode:
+          type: string
+    DetokenizeRequest:
+      type: object
+      properties:
+        dpan:
+          type: string
+    DetokenizeResponse:
+      type: object
+      properties:
+        pan:
+          type: string
     CardAuthRequest:
       type: object
       properties:
@@ -2683,7 +2729,7 @@ components:
           type: boolean
         isFinancial:
           type: boolean
-        emvTags:
+        schemeData:
           type: object
           additionalProperties:
             type: string
@@ -3424,11 +3470,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ApiError"
-    DetokenizeResponse:
-      type: object
-      properties:
-        pan:
-          type: string
     ApiResponseListInterchangeRate:
       type: object
       properties:

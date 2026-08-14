@@ -79,7 +79,9 @@ Context: the Angular backoffice runs with `authBypass=true` — its `auth.interc
 `cd card-service && ./mvnw -o clean test` → **Tests run: 115, Failures: 0, Errors: 0** · BUILD SUCCESS. Runtime: `/card-api/v1/cards` → **200** with all 3 demo cards (product data serialized); `/api/v1/cards` → 200. Full dev stack up: web `:4200`, backend `:8080`, card-service `:8081` all 200.
 
 #### Confirmed Platform Versions
-**Card Service (`card-service/`):** Spring Boot 3.5.0 · Java 21 (dev host runs JDK 25) · Jackson 2.18.3 · unit suite 115 green. Git ref at entry time: parent `0709fe7` (card-service last: `ed4e785`); this change uncommitted at write time (committed immediately after).
+**Card Service (`card-service/`):** Spring Boot 3.5.0 · Java 21 (dev host runs JDK 25) · Jackson 2.18.3 · unit suite 115 green. Git refs: (a) dev-bypass + serialization fix `1a0c601`; (b) productName + snapshot resync committed immediately after.
+
+**(b) `productName` on the card API + OpenAPI snapshot resync.** Added a derived `@Transient @JsonProperty("productName") getProductName()` on `Card` (returns `product.getName()`, OSIV-resolved) so the Angular Card List's `card.productName` binding populates — verified live: 3 cards → "CBA Classic Debit" / "CBA Credit Standard" / "CBA Prepaid Travel". This changed the `Card` OpenAPI schema, so `card-service/docs/openapi-snapshot.yaml` was regenerated (`./mvnw -Pfull-integration -Dupdate.api.snapshot=true`, Docker Testcontainers). The regen also **resynced pre-existing drift** — the committed snapshot (Jul 3) predated Session 121 cont. 7/8, so it now also reflects `/api/v1/internal/reverse`, detokenize GET→POST, and `CardAuthRequest.emvTags`→`schemeData`. No endpoint added/removed by (b) itself (only a response field). 115 unit green.
 
 ### Session 121 (cont. 11) — 2026-07-21
 **Full-codebase sweep for every remaining deferral marker; added 4 more items + a roadmap section to `docs/deferred-backlog.md` (now 7 items). Doc-only.**

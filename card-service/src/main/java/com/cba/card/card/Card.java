@@ -1,5 +1,6 @@
 package com.cba.card.card;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -65,6 +66,10 @@ public class Card {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", nullable = false)
+    // Skip the Hibernate proxy's synthetic props so Jackson serializes the real
+    // CardProduct (lazy-loaded within the open-in-view session) instead of failing
+    // on ByteBuddyInterceptor when the association is an uninitialized proxy.
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private CardProduct product;
 
     @Column(name = "pin_retry_count", nullable = false)

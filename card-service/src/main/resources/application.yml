@@ -62,6 +62,15 @@ jasypt:
     password: ${ENCRYPTION_KEY:dev-encryption-key-change-in-prod}
     iv-generator-classname: org.jasypt.iv.RandomIvGenerator
 
+# Application-level toggles
+app:
+  # Dev-only: when true, DevAuthBypassFilter injects a fake ADMIN principal so the
+  # authBypass-mode Angular backoffice can call /api/v1/cards/** and /card-api/v1/**
+  # without a Keycloak token. MUST stay false in production (override with
+  # APP_AUTH_BYPASS=true for local dev only). The bypass bean is @ConditionalOnProperty,
+  # so at false/absent it is never created.
+  auth-bypass: ${APP_AUTH_BYPASS:false}
+
 # Card service specific config
 card:
   pan:

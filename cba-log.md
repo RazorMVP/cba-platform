@@ -57,6 +57,30 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 122 — 2026-08-13
+**card-service local-dev enablement: added a dev auth-bypass filter (mirror of the backend's) + fixed a pre-existing Jackson↔Hibernate lazy-proxy 500 on the card endpoints. Cards backoffice screens now load real data end-to-end in `authBypass` dev mode.**
+
+Context: the Angular backoffice runs with `authBypass=true` — its `auth.interceptor.ts` attaches **no `Authorization` header**. The backend tolerates that via `DevAuthBypassFilter`; card-service did **not** have one, so every `/api/v1/cards/**` and `/card-api/v1/**` call from the dev frontend 401'd. Running card-service from source (`:8081` → `card_db` on host `:5433`) confirmed the 401.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/.../config/DevAuthBypassFilter.java` | **NEW** — mirror of `com.cba.config.DevAuthBypassFilter`. `@ConditionalOnProperty(name="app.auth-bypass", havingValue="true")`; injects `ROLE_ADMIN/TELLER/CUSTOMER/API_CLIENT` only when the SecurityContext has no auth (a real ApiKey/Bearer still wins). `shouldNotFilter` skips actuator/swagger/v3-api-docs. Bean is **never created in prod** (property absent/false) → PCI-safe. |
+| `card-service/.../config/SecurityConfig.java` | Optional `@Autowired(required=false) DevAuthBypassFilter`; wired via `addFilterBefore(..., UsernamePasswordAuthenticationFilter.class)` into the **Order-2** (`/card-api/v1/**`, after the ApiKey filter) and **Order-3** (everything else, incl. `/api/v1/cards/**`) chains, each guarded by a null-check so prod is a no-op. |
+| `card-service/.../card/Card.java` | **Serialization fix** — `@JsonIgnoreProperties({"hibernateLazyInitializer","handler"})` on the lazy `@ManyToOne product`. Once the bypass let requests reach the controller, `/card-api/v1/cards` threw **500**: Jackson serializing raw `Card` entities hit the uninitialized `CardProduct` Hibernate proxy (`No serializer found for ByteBuddyInterceptor … hibernateLazyInitializer`). The annotation skips the proxy's synthetic props so Jackson serializes the real `CardProduct` (lazy-loaded within the open-in-view session). Chosen over the global `jackson-datatype-hibernate6` module because only v2.21.4 is cached locally while the runtime is Jackson 2.18.3 (offline version skew). |
+| `card-service/src/main/resources/application.yml` | Documented `app.auth-bypass: ${APP_AUTH_BYPASS:false}` — OFF by default (prod-safe), overridden with `APP_AUTH_BYPASS=true` for local dev only. |
+
+#### Key Patterns / Decisions
+- **Dev-run env for card-service from source:** `APP_AUTH_BYPASS=true SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5433/card_db DB_USERNAME=card_user DB_PASSWORD=card_dev_password ./mvnw -o spring-boot:run`. The yml datasource default (`localhost:5432/card_db`, user `cba`) is wrong for the compose host layout — `:5432` is postgres-**main**; card_db is postgres-card on host `:5433`. `SPRING_DATASOURCE_URL` overrides the hardcoded yml `spring.datasource.url`.
+- **`/api/v1/cards` vs `/card-api/v1/cards`:** the Angular Card List calls `/card-api/v1/cards`. `/api/v1/cards` filters by `customerId` and returns empty without one — expected, not a bug.
+- **Auth precedence preserved:** bypass filter injects only when `getAuthentication()==null`, and on the card-api chain it's added *after* the ApiKey filter — a real `Authorization: ApiKey`/`Bearer` still authenticates normally.
+
+#### Build Verification
+`cd card-service && ./mvnw -o clean test` → **Tests run: 115, Failures: 0, Errors: 0** · BUILD SUCCESS. Runtime: `/card-api/v1/cards` → **200** with all 3 demo cards (product data serialized); `/api/v1/cards` → 200. Full dev stack up: web `:4200`, backend `:8080`, card-service `:8081` all 200.
+
+#### Confirmed Platform Versions
+**Card Service (`card-service/`):** Spring Boot 3.5.0 · Java 21 (dev host runs JDK 25) · Jackson 2.18.3 · unit suite 115 green. Git ref at entry time: parent `0709fe7` (card-service last: `ed4e785`); this change uncommitted at write time (committed immediately after).
+
 ### Session 121 (cont. 11) — 2026-07-21
 **Full-codebase sweep for every remaining deferral marker; added 4 more items + a roadmap section to `docs/deferred-backlog.md` (now 7 items). Doc-only.**
 

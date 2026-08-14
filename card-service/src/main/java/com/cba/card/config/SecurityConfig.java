@@ -34,6 +34,14 @@ public class SecurityConfig {
     private RateLimitFilter rateLimitFilter;
 
     /**
+     * Dev-only bypass — injected ONLY when {@code app.auth-bypass=true} (local dev).
+     * Absent in production (the {@code @ConditionalOnProperty} bean is never created),
+     * so this field stays {@code null} and the wiring below is a no-op.
+     */
+    @Autowired(required = false)
+    private DevAuthBypassFilter devAuthBypassFilter;
+
+    /**
      * WebClient bean used by {@link com.cba.card.openbanking.webhook.WebhookDeliveryService}
      * for async webhook delivery. Shared singleton — WebClient is thread-safe.
      */
@@ -93,7 +101,12 @@ public class SecurityConfig {
         http
             .securityMatcher("/card-api/v1/**")
             .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
-            .addFilterBefore(apiKeyAuthFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(apiKeyAuthFilter, UsernamePasswordAuthenticationFilter.class);
+        // Dev-only: inject ADMIN when no ApiKey/JWT present (added after the ApiKey filter so a real key wins).
+        if (devAuthBypassFilter != null) {
+            http.addFilterBefore(devAuthBypassFilter, UsernamePasswordAuthenticationFilter.class);
+        }
+        http
             .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
             .csrf(csrf -> csrf.disable())
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -105,8 +118,12 @@ public class SecurityConfig {
     @Bean
     @Order(3)
     public SecurityFilterChain publicChain(HttpSecurity http) throws Exception {
+        http.addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class);
+        // Dev-only: inject ADMIN when no Bearer token present so authBypass-mode Angular can read /api/v1/cards/**.
+        if (devAuthBypassFilter != null) {
+            http.addFilterBefore(devAuthBypassFilter, UsernamePasswordAuthenticationFilter.class);
+        }
         http
-            .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                 // OpenAPI / Swagger UI — documentation is always public

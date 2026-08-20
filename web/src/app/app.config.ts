@@ -1,4 +1,4 @@
-import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { ApplicationConfig, provideBrowserGlobalErrorListeners, provideZoneChangeDetection } from '@angular/core';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
@@ -37,6 +37,10 @@ const keycloakProviders = environment.authBypass
 
 export const appConfig: ApplicationConfig = {
   providers: [
+    // Angular 21 defaults to zoneless CD even with zone.js loaded; the components
+    // in this app mutate plain properties inside RxJS subscribes (no signals), which
+    // only re-render under zone-based change detection. Opt in explicitly.
+    provideZoneChangeDetection({ eventCoalescing: true }),
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes, withComponentInputBinding()),
     provideHttpClient(withInterceptors([authInterceptor])),

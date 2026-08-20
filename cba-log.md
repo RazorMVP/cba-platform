@@ -57,6 +57,31 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 123 — 2026-08-20
+**Cards backoffice screen "No cards found" — two stacked browser-only bugs fixed: card-service CORS + the whole web app silently running zoneless. Every data screen now renders.**
+
+Symptom: after Session 122 (auth-bypass + serialization + productName), curl returned 3 cards from `/card-api/v1/cards` but the Angular Cards screen still showed "No cards found." Root-caused with a headless-Chromium probe (Playwright) — curl can't see either bug because both are **browser-only**.
+
+**Layer 1 — card-service had no CORS.** The Angular dev app (`:4200`) calls card-service (`:8081`) cross-origin; card-service's `SecurityConfig` had no `.cors(...)` on any chain (the backend does — which is why every *other* screen worked). Browser discarded the 200 response (unreadable to JS); preflight `OPTIONS` 403'd. Fix: `corsConfigurationSource()` bean mirroring the backend's (origins `localhost:4200/3000/5173` + `*.vercel.app`/`*.cba.com`) wired into the Order-2 (`/card-api/v1/**`) and Order-3 chains. Verified: in-page `fetch()` → 200 readable; preflight → 200.
+
+**Layer 2 (the real one) — the app runs ZONELESS but is written for zone-based CD.** With CORS fixed, the data arrived (200, 2780-byte body readable) yet the view stayed on the loading skeleton with **no console error** — and a single keystroke made all 3 cards appear. Classic change-detection miss. Findings: `zone.js` is absent from `package.json` **and** `node_modules`; **85 of 87** feature components mutate plain properties inside bare RxJS `subscribe()`s (only 2 use signals). Angular 21 defaults to **zoneless even when zone.js is present** — adding the polyfill alone left `window.Zone` loaded but the app in the `<root>` zone (not `angular`). This was **systemic**: customers/accounts were also stuck (rendered only after a stray click), not just cards. Fix: `zone.js ^0.16.2` + `angular.json` `"polyfills": ["zone.js"]` + **`provideZoneChangeDetection({ eventCoalescing: true })`** in `app.config.ts`. After the provider, all screens auto-render (dashboard 10 rows, customers 7, accounts 1, cards 3 — 0 skeletons, no interaction).
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/.../config/SecurityConfig.java` | `corsConfigurationSource()` bean + `.cors(...)` on the Order-2 & Order-3 chains |
+| `web/package.json` + `package-lock.json` | add `zone.js ^0.16.2` |
+| `web/angular.json` | add `"polyfills": ["zone.js"]` to build options |
+| `web/src/app/app.config.ts` | `provideZoneChangeDetection({ eventCoalescing: true })` as the first provider |
+
+#### Key Patterns / Decisions
+- **Why zone.js over signals:** 85/87 components use the imperative `this.x = …` pattern; re-enabling zone-based CD makes them all work as written. Migrating to signals is the modern-Angular alternative but is an 85-component change. Zone.js is fully supported in Angular 21.
+- **Angular 21 gotcha:** zoneless is the default; `provideZoneChangeDetection()` is REQUIRED to use zone-based CD even with the zone.js polyfill present. The polyfill on its own is a no-op.
+- **Debugging method:** curl proves the server; only a real browser proves the client. `page.evaluate(fetch)` isolates CORS-from-JS; `window.Zone.current.name` reveals zone vs zoneless; an interaction-then-recount isolates a CD miss from a data miss.
+
+#### Build Verification
+Web: `CI=true npx ng test --no-watch` → **1145 passed (115 files)**. card-service: `./mvnw -o clean test` → **115 passed** (CORS change). All screens verified rendering via headless Chromium.
+
 ### Session 122 — 2026-08-13
 **card-service local-dev enablement: added a dev auth-bypass filter (mirror of the backend's) + fixed a pre-existing Jackson↔Hibernate lazy-proxy 500 on the card endpoints. Cards backoffice screens now load real data end-to-end in `authBypass` dev mode.**
 

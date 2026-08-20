@@ -2498,6 +2498,8 @@ For local development without a running Keycloak instance. Activated by `app.aut
 
 **card-service mirror _(Session 122)_:** card-service now has its own `com.cba.card.config.DevAuthBypassFilter` — identical `@ConditionalOnProperty(app.auth-bypass=true)` pattern, injects `ROLE_ADMIN/TELLER/CUSTOMER/API_CLIENT` only when the SecurityContext is empty (a real ApiKey/Bearer still wins). Wired into the Order-2 (`/card-api/v1/**`, after the ApiKey filter) and Order-3 (`/api/v1/cards/**` + all else) chains, each null-guarded so prod is a no-op. Run from source with `APP_AUTH_BYPASS=true` (yml default is `false`). Without it, the `authBypass`-mode Angular Cards screens 401 against `:8081` (card-service validates Keycloak JWTs and the dev frontend sends no `Authorization` header). **Dev-run:** `APP_AUTH_BYPASS=true SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5433/card_db DB_USERNAME=card_user DB_PASSWORD=card_dev_password ./mvnw -o spring-boot:run` (the yml datasource default points at `:5432`, which is postgres-**main**, not card_db). **Related serialization fix:** once the bypass lets requests reach the controller, raw `Card` entities with a lazy `product` proxy break Jackson — fixed with `@JsonIgnoreProperties({"hibernateLazyInitializer","handler"})` on `Card.product` (the global `jackson-datatype-hibernate6` module wasn't offline-resolvable at the runtime Jackson 2.18.3).
 
+**card-service CORS _(Session 123)_:** card-service's `SecurityConfig` now has a `corsConfigurationSource()` bean (mirror of the backend's — origins `localhost:4200/3000/5173` + `*.vercel.app`/`*.cba.com`) wired via `.cors(...)` into the Order-2 (`/card-api/v1/**`) and Order-3 chains. Without it the browser silently discards card-service responses (the request 200s server-side but is unreadable to JS, and the `OPTIONS` preflight 403s) — that's why the Cards screen showed "No cards found" even though curl worked. The backend already had CORS, so only the Cards screen (the one screen that calls `:8081` cross-origin) was affected.
+
 ### PCI-DSS Checklist
 - No PAN stored unencrypted
 - All PII encrypted at field level
@@ -2761,6 +2763,15 @@ this.search$.pipe(debounceTime(250), distinctUntilChanged(), takeUntil(this.dest
   .subscribe(q => this.applyFilter(q));
 ```
 Products lists are not server-paginated (small datasets); Customers list uses `switchMap` for server-side search.
+
+### Angular Change Detection — zone-based, REQUIRED _(Session 123)_
+
+**The web app runs zone-based change detection and it must stay that way.** All ~85 feature components mutate plain properties inside bare RxJS `subscribe()`s (`this.cards = …; this.loading = false;`) — only 2 use signals. That pattern only re-renders under zone.js.
+
+- `web/package.json` includes `zone.js`; `web/angular.json` build options set `"polyfills": ["zone.js"]`; `web/src/app/app.config.ts` calls **`provideZoneChangeDetection({ eventCoalescing: true })`** as the first provider.
+- **Angular 21 defaults to ZONELESS even when zone.js is loaded.** The polyfill alone is a no-op — `window.Zone` loads but the app stays in the `<root>` zone, HTTP responses don't trigger CD, and every data screen freezes on its initial (skeleton/empty) render until a stray user event forces a pass. `provideZoneChangeDetection()` is what actually switches it on.
+- Do NOT remove zone.js, drop the polyfill, or delete the provider unless you also migrate every component to signals / async pipe / `markForCheck`. Removing any one silently breaks all data screens (they render only after an interaction) with **no console error** — a browser-only failure curl and unit tests can't catch.
+- Symptom to recognize: request returns 200 with a readable body, view stuck on skeleton, no error → change-detection miss, not a network bug. Confirm with a headless-browser probe: `window.Zone.current.name` should be `angular` (in the Angular zone), and an interaction-then-recount reveals already-loaded data.
 
 ### Angular Web Testing (Session 120 cont. 9)
 

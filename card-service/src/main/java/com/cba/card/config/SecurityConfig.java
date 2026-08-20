@@ -12,7 +12,12 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.reactive.function.client.WebClient;
+
+import java.util.List;
 
 /**
  * Multi-chain security config for card-service:
@@ -100,6 +105,7 @@ public class SecurityConfig {
             throws Exception {
         http
             .securityMatcher("/card-api/v1/**")
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(apiKeyAuthFilter, UsernamePasswordAuthenticationFilter.class);
         // Dev-only: inject ADMIN when no ApiKey/JWT present (added after the ApiKey filter so a real key wins).
@@ -124,6 +130,7 @@ public class SecurityConfig {
             http.addFilterBefore(devAuthBypassFilter, UsernamePasswordAuthenticationFilter.class);
         }
         http
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                 // OpenAPI / Swagger UI — documentation is always public
@@ -136,5 +143,35 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}));
         return http.build();
+    }
+
+    /**
+     * CORS for the browser-facing chains ({@code /card-api/v1/**} and {@code /api/v1/cards/**}).
+     * Mirrors the backend monolith's config so the Angular backoffice (localhost:4200)
+     * and the Vercel deployments can call card-service directly. Without this the browser
+     * blocks the cross-origin XHR — the request succeeds server-side but the response is
+     * unreadable to JS (and the preflight 403s).
+     */
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOriginPatterns(List.of(
+            "http://localhost:4200",    // Angular dev server
+            "http://localhost:3000",    // Partner portal dev server (Vite)
+            "http://localhost:5173",    // React dev server (Vite)
+            "https://*.cba.com",       // Production domains
+            "https://*.vercel.app"     // Vercel preview deployments
+        ));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of(
+            "Authorization", "Content-Type", "Accept",
+            "X-Requested-With", "X-FAPI-Interaction-ID", "X-FAPI-Auth-Date"
+        ));
+        config.setAllowCredentials(true);
+        config.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
     }
 }

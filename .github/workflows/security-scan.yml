@@ -211,7 +211,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run OWASP ZAP against staging API
-        uses: zaproxy/action-api-scan@v0.7.0
+        uses: zaproxy/action-api-scan@v0.10.0
         with:
           target: ${{ vars.API_STAGING_URL }}/api-docs/openapi.yaml
           format: openapi

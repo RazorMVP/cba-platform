@@ -23,7 +23,7 @@
     <jpos.version>2.1.9</jpos.version>
     <netty.version>4.1.109.Final</netty.version>
     <bouncycastle.version>1.78.1</bouncycastle.version>
-    <lombok.version>1.18.38</lombok.version>
+    <lombok.version>1.18.46</lombok.version>
     <!-- Override SB 3.2.5's Mockito/Byte Buddy to versions that support Java 25
          bytecode (class-file v69) so concrete-class mocking works on this host. -->
     <mockito.version>5.17.0</mockito.version>

@@ -29,15 +29,19 @@ These are the verified-working versions for all production components. Update th
 
 | Component | Version | Notes |
 |-----------|---------|-------|
-| **Angular** | 21.2.x | `@angular/core`, `@angular/material`, all `@angular/*` packages |
-| **Angular CLI** | 21.2.7 | Used for `vercel build --prod` (CI) |
-| **PrimeNG** | 21.0.x | UI component library |
+| **Angular** | 21.2.23 | `@angular/core` + framework packages; floors raised `^21.2.0` → `^21.2.23` (Session 124, security) |
+| **Angular CLI / @angular/build** | 21.2.24 | Used for `vercel build --prod` (CI); `^21.2.24` |
+| **Angular Material / CDK** | 21.2.14 | `^21.2.14` |
+| **PrimeNG** | 21.1.10 | UI component library |
 | **RxJS** | 7.8.x | Reactive extensions; `~7.8.0` pinned |
-| **TypeScript** | 5.9.x | `~5.9.2` pinned |
-| **Vitest / @vitest/coverage-v8** | 4.0.8 | Angular 21 default test runner (replaced Karma); 1145 unit tests (all components+services) |
+| **TypeScript** | 5.9.3 | `~5.9.2` pinned |
+| **zone.js** | 0.16.3 | **REQUIRED** — zone-based CD; see "Angular Change Detection" below. Bumped S124, browser-verified |
+| **Vitest / @vitest/coverage-v8** | 4.1.11 | Angular 21 default test runner (replaced Karma); 1145 unit tests (all components+services) |
 | **@playwright/test** | 1.61.1 | E2E (cont. 14) — `npm run e2e`; 5 deployed-shell smoke tests vs `BASE_URL` (prod alias default) |
+| **npm audit (high+)** | **0 vulnerabilities** | Session 124 — was 1 critical + 18 high, which was failing CI's `security` job and blocking all deploys |
+| **Node (local dev)** | v24.14.0 | Satisfies Angular 21's `>=24.0.0`. **Below the Angular CLI v22 floor of v24.15.0** — an Angular 22 upgrade needs a local Node bump. CI uses Node 22.x |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | `0f4ac0b` | Session 120 (cont. 14) — real Playwright E2E setup (was a broken CI stub) + 5 deployed-shell smoke tests. (cont. 12: component coverage COMPLETE — 1145 unit tests, every `@Component` has a spec) |
+| **Last git commit** | Session 124 | Session 124 — Angular 21.2.x latest-patch security bump; cleared 1 critical + 18 high npm advisories that had been failing the CI `security` gate and **blocking the S122/123 CORS + zone.js fixes from ever deploying**. 1145 tests green, 0 regressions. (`0f4ac0b`: Playwright E2E setup; cont. 12: component coverage COMPLETE) |
 
 ### Partner Portal (`partner-portal/`)
 
@@ -2772,6 +2776,31 @@ Products lists are not server-paginated (small datasets); Customers list uses `s
 - **Angular 21 defaults to ZONELESS even when zone.js is loaded.** The polyfill alone is a no-op — `window.Zone` loads but the app stays in the `<root>` zone, HTTP responses don't trigger CD, and every data screen freezes on its initial (skeleton/empty) render until a stray user event forces a pass. `provideZoneChangeDetection()` is what actually switches it on.
 - Do NOT remove zone.js, drop the polyfill, or delete the provider unless you also migrate every component to signals / async pipe / `markForCheck`. Removing any one silently breaks all data screens (they render only after an interaction) with **no console error** — a browser-only failure curl and unit tests can't catch.
 - Symptom to recognize: request returns 200 with a readable body, view stuck on skeleton, no error → change-detection miss, not a network bug. Confirm with a headless-browser probe: `window.Zone.current.name` should be `angular` (in the Angular zone), and an interaction-then-recount reveals already-loaded data.
+
+### Angular Dependency Upgrades — how to bump `web/` safely _(Session 124)_
+
+The `web/` npm audit gate in `web-ci.yml` (`security` job → `npm audit --audit-level=high`) is a **hard blocker on deploys**: `deploy` is `needs: [test, security]`, so a red audit means nothing reaches Vercel. Session 124 found 1 critical + 18 high there, which had silently prevented the Session 122/123 CORS + zone.js fixes from ever shipping. Check this gate before assuming a merged fix is live.
+
+**The working procedure for any Angular version move:**
+
+1. **Establish a green baseline first** — `cd web && CI=true npx ng test --no-watch` (expect 115 files / 1145 tests). Without it, a pre-existing failure gets misattributed to the bump.
+2. **Check whether fixes are within-major** — `npm audit --json` and read `fixAvailable.isSemVerMajor`. If all `false`, no framework migration is needed; find the latest published patch with `npm view @angular/core versions --json`.
+3. **Edit `package.json` floors directly**, then `rm -rf node_modules package-lock.json && npm install`.
+4. **Verify:** `npm audit --audit-level=high` (must exit 0), full test suite, `npm run build`, **and a browser check** (step 5).
+5. **Browser-verify any `zone.js` change** — see "Angular Change Detection" above. Unit tests and `curl` both pass while real zone patching regresses.
+
+**Three traps that will waste your time (all hit in S124):**
+
+| Trap | Why it fails | Do instead |
+|------|--------------|------------|
+| `npm audit fix` | **Cannot bump direct dependencies.** Loops indefinitely printing "fix available via `npm audit fix`" while changing nothing. Fine for transitives only. | Edit `package.json` floors explicitly |
+| `npm install @angular/core@X` | **ERESOLVE.** Angular packages peer-depend on each other at **exact patch versions** (`peerOptional @angular/animations@"21.2.8" from @angular/platform-browser@21.2.8`), so partial upgrades are structurally impossible; npm reconciles against the stale installed tree and gives up | Update **all** `@angular/*` atomically, then delete the lockfile and re-resolve. **Never** `--force` / `--legacy-peer-deps` — both accept a knowingly-broken tree |
+| `ng update @angular/core@^21` | Downloads the **latest** CLI (v22) to perform *any* update; CLI v22 requires Node ≥ v24.15.0 and local is v24.14.0 → hard-fails before doing anything. The temp CLI is pointless when staying on v21 | Manifest edit + clean re-resolve |
+
+- **Raise declared floors, don't just move the lockfile.** With `^21.2.0` left in place, a future regenerated lockfile can legally resolve back to vulnerable 21.2.8. The floor is what makes the fix durable.
+- **`ng update --dry-run` does not exist in Angular CLI 21** (it appears in the old GitHub wiki). Supported: `--force`, `--next`, `--migrate-only`, `--name`, `--from`, `--to`, `--allow-dirty`, `--verbose`, `-C/--create-commits`.
+- **Version lockstep:** framework packages (`core`/`common`/`compiler`/`forms`/`router`/`platform-browser`/`animations`/`compiler-cli`) share one version; `cdk`/`material` share another; `build`/`cli` a third. They advance on separate patch cadences — don't force them to one number.
+- **Only `web-ci.yml` has an npm audit gate** (verified across all 8 workflows). `partner-portal`, `docs-site`, `partner-docs` are unaffected.
 
 ### Angular Web Testing (Session 120 cont. 9)
 

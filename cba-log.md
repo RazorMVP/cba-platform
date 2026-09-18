@@ -57,6 +57,115 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 124 — 2026-09-18
+**Unblocked the web CI/CD pipeline: cleared 1 critical + 18 high npm advisories via an Angular 21.2.x latest-patch bump, releasing the Session 122/123 fixes that had never reached production.**
+
+**Why this mattered.** `web-ci.yml`'s `deploy` job is `needs: [test, security]`, and the `security` job runs `npm audit --audit-level=high`. `web/` carried **1 critical + 18 high + 15 moderate + 3 low** advisories, so that job had been failing — which meant **the card-service CORS fix (S122/123) and the zone.js change-detection fix (S123) were never deployed to Vercel production**. Production was still serving the zoneless build where every data screen sat on a skeleton until the user happened to click something. The red audit gate wasn't a security control any more; it was a deploy outage.
+
+**Diagnosis.** All 19 high/critical reported `fixAvailable: true` with **`isSemVerMajor: false`** — every fix existed inside the 21.2.x line (`@angular/core@21.2.23`, `@angular/build@21.2.24`), so **no Angular 22 migration was required**. The remaining 7 after `npm audit fix` were Angular's own framework/build chain plus what `@angular/build` pins (`vite`, `undici`, `piscina`).
+
+**Three tool traps, in order:**
+1. **`npm audit fix` cannot bump direct dependencies** — it looped at 7 high across 3 passes, repeating "fix available via `npm audit fix`" while changing nothing.
+2. **`npm install <pkg>@<ver>` hit ERESOLVE** — Angular packages peer-depend on each other at **exact patch versions** (`peerOptional @angular/animations@"21.2.8" from @angular/platform-browser@21.2.8`), so a partial upgrade is structurally impossible; npm kept reconciling against the stale installed tree.
+3. **`ng update` was unusable on this host** — it downloads the *latest* CLI (v22) to perform any update, and CLI v22 requires Node ≥ v24.15.0 (local is **v24.14.0**). The temp CLI is irrelevant when deliberately staying on v21, but it hard-fails before doing anything.
+
+**What worked:** raise the declared floors in `package.json`, then `rm -rf node_modules package-lock.json && npm install` for a from-scratch resolution. Result: **`found 0 vulnerabilities`**, and `npm audit --audit-level=high` (the literal CI gate command) **exits 0**.
+
+Floors were raised (`^21.2.0` → `^21.2.23`) rather than only moving the lockfile: under `^21.2.0` a future regenerated lockfile could legally resolve back to vulnerable 21.2.8, so a lockfile-only fix would not have been durable.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/package.json` | 12 `@angular/*` floors raised: framework → `^21.2.23`, `cdk`/`material` → `^21.2.14`, `build`/`cli` → `^21.2.24` |
+| `web/package-lock.json` | full clean re-resolution (622 packages); 0 vulnerabilities |
+
+#### Version Deltas
+| Package | Before | After | Note |
+|---------|--------|-------|------|
+| `@angular/core` | 21.2.8 | **21.2.23** | 3 high advisories |
+| `@angular/build` | 21.2.7 | **21.2.24** | pulls patched vite/undici/piscina |
+| `@angular/cli` | 21.2.7 | **21.2.24** | |
+| `@angular/material` / `cdk` | 21.2.6 | **21.2.14** | |
+| `tar` | 7.5.13 | **7.5.22** | **the sole critical** |
+| `vite` | 7.3.2 | **7.3.6** | |
+| `undici` | 7.24.4 | **7.29.1** | |
+| `piscina` | 5.1.x | **5.2.0** | |
+| `postcss` | 8.5.9 | **8.5.28** | |
+| `nanoid` | 3.3.11 | **3.3.19** | |
+| `browserslist` | 4.28.2 | **4.29.0** | |
+| `zone.js` | 0.16.2 | **0.16.3** | ⚠️ the S123 CD-fix package |
+| `vitest` | 4.1.4 | **4.1.11** | within `^4.0.8` |
+| `@ngrx/*` | 21.1.0 | **21.1.1** | |
+
+#### Key Patterns / Decisions
+- **Angular's exact-version internal peers make partial upgrades impossible.** Any Angular version move must be atomic across every `@angular/*` package. When npm ERESOLVEs on an Angular bump, the stale lockfile is the cause — delete it and re-resolve rather than reaching for `--force` or `--legacy-peer-deps`, both of which accept a knowingly-broken tree.
+- **`ng update` is unusable for within-major patch bumps on a host whose Node is below the *latest* CLI's floor.** It fetches latest-CLI first regardless of the requested target. Manifest edit + clean re-resolve is the reliable path.
+- **Raise declared floors, don't just move the lockfile** — otherwise the advisory returns on the next lockfile regeneration.
+- **`--dry-run` no longer exists on `ng update`** in Angular CLI 21 (it's in older wiki docs); supported flags are `--force`, `--next`, `--migrate-only`, `--name`, `--from`, `--to`, `--allow-dirty`, `--verbose`, `-C/--create-commits`.
+- **Only `web-ci.yml` has an npm audit gate** — verified by grep across all 8 workflows. `partner-portal`, `docs-site`, `partner-docs` deploys were never blocked by this.
+- **A `zone.js` bump must be verified in a browser, not in tests.** jsdom unit tests and `curl` both pass while real zone patching regresses — that is precisely how S123's bug hid. See Build Verification.
+- **`Zone.current.name` is a misleading probe on its own.** Sampled from an injected script at idle it reads `<root>` even in a healthy zone-based app, because the `angular` zone is only current *inside* Angular's own tasks. The trustworthy check is functional: does the DOM reach a post-async state with zero user interaction?
+
+#### Build Verification
+- **Baseline before any change:** `CI=true npx ng test --no-watch` → **115 files / 1145 tests passed** (exit 0). Established first so any post-bump failure could not be misattributed.
+- **After the bump:** **115 files / 1145 tests passed** (exit 0) — identical, zero regressions.
+- `npm run build` (production) → exit 0, artifact at `web/dist/cba-web/`. Pre-existing non-blocking warnings only (NG8102 nullish diagnostics in `treasury/liquidity.html`; `loan-detail.scss` 21.54 kB vs 20 kB warn budget — under the 40 kB error budget).
+- `npm audit --audit-level=high` → **`found 0 vulnerabilities`, exit 0** (the exact CI gate command).
+- **Browser verification of the zone.js 0.16.3 bump** (Playwright against the *production* build served statically, port 4300):
+  - `ng-version` attribute in DOM = **21.2.23** — confirms the patched framework is what booted.
+  - `setTimeout` zone-patched = **true**; `ZoneAwarePromise` installed = **true** — the mechanism `provideZoneChangeDetection` relies on is active.
+  - **Functional CD proof, no user interaction:** Dashboard reached its resolved empty states ("No recent transactions", "No pending KYC reviews", `—` placeholders) with **`skeletons: 0, spinners: 0`**. Those states are reachable only *after* the HTTP calls settle and a component sets `loading = false` in a bare RxJS callback — under the zoneless regression the view would have stayed frozen on skeletons. Cross-checked on Customers: "No customers found / No results", `skeletons: 0, spinners: 0`.
+  - (No backend was running, so screens resolve to empty/error states rather than live data — sufficient for the CD property under test, which is *async-render-without-interaction*, not data correctness.)
+
+#### API Documentation
+**API surface unchanged — verified via gate grep; no api-reference/postman edits owed.** Changed files were `web/package.json` and `web/package-lock.json` only; zero `*.java` files touched, and the gate's endpoint/param annotation grep against `origin/main` returned no matches.
+
+#### Follow-ups / Recommendations (not actioned)
+- **The audit gate is arguably mis-tuned for a frontend repo.** `npm audit --audit-level=high` with no `--omit=dev` fails on build-time-only advisories in the Angular toolchain, which land regularly and are not reachable from shipped browser code. This will re-block the deploy the next time one is published. Options: `--omit=dev` for shipped-code-only scope, or keep the gate advisory (`continue-on-error`) while tracking advisories via the existing Dependabot + Snyk + Trivy layers. **Deliberately not changed here — weakening a security gate is the maintainer's call, not a side effect of a dependency bump.**
+- `@angular/animations@21.2.23` now emits a deprecation warning (Angular 22 replaces it with `animate.enter`/`animate.leave`). Non-blocking on v21; relevant when the Angular 22 migration is planned.
+- Local Node is **v24.14.0**, below the Angular CLI v22 floor of v24.15.0. An Angular 22 upgrade will require a local Node bump. CI's Node 22.x satisfies v21's `^22.12.0` requirement.
+
+#### Confirmed Platform Versions
+
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `614a9d0` |
+| Java | 21 | `614a9d0` |
+| Application artifact | cba-backend 0.1.0-SNAPSHOT | `614a9d0` |
+| Keycloak admin client | 26.0.5 | `614a9d0` |
+| springdoc-openapi | 2.8.6 | `614a9d0` |
+| Lombok | 1.18.38 | `614a9d0` |
+| PostgreSQL | 16 (Docker) | `614a9d0` |
+
+**Angular Web App (`web/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Angular | **21.2.23** | this session |
+| Angular CLI | **21.2.24** | this session |
+| Angular Material / CDK | **21.2.14** | this session |
+| PrimeNG | 21.1.10 | this session |
+| RxJS | 7.8.x | `c1c7bdb` |
+| TypeScript | 5.9.3 | `c1c7bdb` |
+| Vitest / coverage-v8 | **4.1.11** | this session |
+| zone.js | **0.16.3** | this session |
+| @playwright/test | 1.61.1 | `c1c7bdb` |
+| Unit tests | 1145 passing (115 files) | this session |
+| npm audit (high+) | **0 vulnerabilities** | this session |
+| Production URL | cba-web-nine.vercel.app | pending this deploy |
+
+#### Compliance Checklist Update
+| Gate item | Status |
+|-----------|--------|
+| 1. `cba-log.md` updated | ✅ this entry |
+| 2. `CLAUDE.md` versions + gotchas | ✅ |
+| 3. `docs/api-reference.html` | ✅ N/A — proof line recorded above |
+| 4. `docs/cba-postman-collection-v2.json` | ✅ N/A — proof line recorded above |
+| 5. Deployment-agnostic check | ✅ N/A — no new app/service |
+| 6. Commit + push | ✅ |
+
+---
+
 ### Session 123 — 2026-08-20
 **Cards backoffice screen "No cards found" — two stacked browser-only bugs fixed: card-service CORS + the whole web app silently running zoneless. Every data screen now renders.**
 

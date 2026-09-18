@@ -103,6 +103,7 @@ Floors were raised (`^21.2.0` → `^21.2.23`) rather than only moving the lockfi
 - **Raise declared floors, don't just move the lockfile** — otherwise the advisory returns on the next lockfile regeneration.
 - **`--dry-run` no longer exists on `ng update`** in Angular CLI 21 (it's in older wiki docs); supported flags are `--force`, `--next`, `--migrate-only`, `--name`, `--from`, `--to`, `--allow-dirty`, `--verbose`, `-C/--create-commits`.
 - **Only `web-ci.yml` has an npm audit gate** — verified by grep across all 8 workflows. `partner-portal`, `docs-site`, `partner-docs` deploys were never blocked by this.
+- **🔍 ROOT CAUSE of the pileup — the audit gate deadlocks Dependabot.** Two Dependabot PRs (runs `32685408788` "angular group, 9 updates" and `32685348141` "angular-material group, 2 updates", both 2026-08-24) **passed `Lint & Test` but failed `Security Audit (npm)`**, so `deploy` was skipped and neither could merge. The angular-group PR's log shows it got down to `6 vulnerabilities (1 low, 5 high)` → still `exit code 1`. Dependabot only bumps within its **configured group**, so every PR leaves out-of-group advisories in place; the gate is all-or-nothing, so **no partial fix PR can ever go green**. Result: the auto-update mechanism was structurally dead and advisories compounded 6 → 19 over ~3 weeks. A full clean re-resolution breaks the deadlock because it fixes everything at once — **but the deadlock re-forms the moment one new out-of-group advisory lands.** This is the strongest argument for the gate re-tuning in Follow-ups below.
 - **A `zone.js` bump must be verified in a browser, not in tests.** jsdom unit tests and `curl` both pass while real zone patching regresses — that is precisely how S123's bug hid. See Build Verification.
 - **`Zone.current.name` is a misleading probe on its own.** Sampled from an injected script at idle it reads `<root>` even in a healthy zone-based app, because the `angular` zone is only current *inside* Angular's own tasks. The trustworthy check is functional: does the DOM reach a post-async state with zero user interaction?
 
@@ -116,6 +117,13 @@ Floors were raised (`^21.2.0` → `^21.2.23`) rather than only moving the lockfi
   - `setTimeout` zone-patched = **true**; `ZoneAwarePromise` installed = **true** — the mechanism `provideZoneChangeDetection` relies on is active.
   - **Functional CD proof, no user interaction:** Dashboard reached its resolved empty states ("No recent transactions", "No pending KYC reviews", `—` placeholders) with **`skeletons: 0, spinners: 0`**. Those states are reachable only *after* the HTTP calls settle and a component sets `loading = false` in a bare RxJS callback — under the zoneless regression the view would have stayed frozen on skeletons. Cross-checked on Customers: "No customers found / No results", `skeletons: 0, spinners: 0`.
   - (No backend was running, so screens resolve to empty/error states rather than live data — sufficient for the CD property under test, which is *async-render-without-interaction*, not data correctness.)
+- **CI run `35321960003` — every job green:** `Security Audit (npm)` ✅ (the gate that had been red for weeks), `Lint & Test (Angular)` ✅, `Build & Deploy → Vercel` ✅. `E2E (Playwright)` skipped — PR-only by design (`if: github.event_name == 'pull_request'`).
+- **Production deploy CONFIRMED live** — `cba-qji8pa3je-razormvps-projects.vercel.app`, aliased to `cba-web-nine.vercel.app`. Browser-verified against the real production URL:
+  - `ng-version` = **21.2.23** — direct proof the patched framework is what production now serves (was blocked from deploying since S122).
+  - **`XMLHttpRequest.prototype.send` zone-patched = true** — the exact mechanism by which `HttpClient` callbacks re-enter the Angular zone and trigger CD. This is the capability that was dead pre-S123.
+  - `addEventListener` patched = true; global `Promise` replaced (`Promise.name === "k"`, i.e. a minified ZoneAwarePromise — a native promise reports `"Promise"`).
+  - Dashboard **and** Customers both reach post-async resolved states in production with `skeletons: 0, spinners: 0` and no user interaction.
+  - ⚠️ **Probe caveat worth remembering:** in a production build, terser mangles class names, so `Promise.name === 'ZoneAwarePromise'` and `Promise.toString().includes(...)` are **false negatives**. Assert `Promise.name !== 'Promise'` instead. Likewise `Zone.current.name` sampled from an injected script always reads `<root>` (tasks inherit the zone they were *scheduled* in), so use `xhrPatched` + a functional render check rather than zone-name sampling.
 
 #### API Documentation
 **API surface unchanged — verified via gate grep; no api-reference/postman edits owed.** Changed files were `web/package.json` and `web/package-lock.json` only; zero `*.java` files touched, and the gate's endpoint/param annotation grep against `origin/main` returned no matches.
@@ -152,7 +160,9 @@ Floors were raised (`^21.2.0` → `^21.2.23`) rather than only moving the lockfi
 | @playwright/test | 1.61.1 | `c1c7bdb` |
 | Unit tests | 1145 passing (115 files) | this session |
 | npm audit (high+) | **0 vulnerabilities** | this session |
-| Production URL | cba-web-nine.vercel.app | pending this deploy |
+| Vercel deployment | `cba-qji8pa3je-razormvps-projects.vercel.app` | `28b26c1` |
+| Production URL | **cba-web-nine.vercel.app** ✅ verified serving `ng-version 21.2.23` | `28b26c1` |
+| CI run | `35321960003` — all jobs success | `28b26c1` |
 
 #### Compliance Checklist Update
 | Gate item | Status |

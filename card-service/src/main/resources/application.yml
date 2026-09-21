@@ -107,6 +107,16 @@ card:
       export-cron: "0 58 23 * * *"             # Nightly export at 23:58 — runs after settlement batch closes at 23:57
       max-retries: 3
       retry-delay-seconds: 300                 # 5 minutes between retries
+      # ── Transport security ────────────────────────────────────────────────────
+      # SFTP schemes: the host key MUST be pinned before a scheme can be enabled.
+      #   Supply EITHER sftp-known-hosts-path (an OpenSSH known_hosts file — preferred,
+      #   supports rotation) OR sftp-known-hosts-entry (a literal line, for secret-manager
+      #   deployments). With neither set, transmission FAILS CLOSED: an unverified host key
+      #   means anything answering on the scheme's address could receive settlement files
+      #   and harvest our authentication attempt. Take the key from the scheme's onboarding
+      #   pack — never by trusting whatever host answers on first connect.
+      # HTTPS schemes: https-keystore-path is optional and enables mutual TLS. When set but
+      #   unloadable, transmission fails closed rather than downgrading to bearer-only.
       schemes:
         visa:
           enabled: false                       # Set true + configure credentials at production
@@ -114,6 +124,8 @@ card:
           sftp-port: ${VISA_SFTP_PORT:22}
           sftp-user: ${VISA_SFTP_USER:}
           sftp-key-path: ${VISA_SFTP_KEY_PATH:}
+          sftp-known-hosts-path: ${VISA_SFTP_KNOWN_HOSTS:}
+          sftp-known-hosts-entry: ${VISA_SFTP_KNOWN_HOSTS_ENTRY:}
           remote-dir: ${VISA_SFTP_DIR:/incoming}
           participant-id: ${VISA_PARTICIPANT_ID:}
         mastercard:
@@ -122,6 +134,8 @@ card:
           sftp-port: ${MC_SFTP_PORT:22}
           sftp-user: ${MC_SFTP_USER:}
           sftp-key-path: ${MC_SFTP_KEY_PATH:}
+          sftp-known-hosts-path: ${MC_SFTP_KNOWN_HOSTS:}
+          sftp-known-hosts-entry: ${MC_SFTP_KNOWN_HOSTS_ENTRY:}
           remote-dir: ${MC_SFTP_DIR:/incoming}
           participant-id: ${MC_PARTICIPANT_ID:}
         verve:
@@ -130,12 +144,21 @@ card:
           sftp-port: ${VERVE_SFTP_PORT:22}
           sftp-user: ${VERVE_SFTP_USER:}
           sftp-key-path: ${VERVE_SFTP_KEY_PATH:}
+          sftp-known-hosts-path: ${VERVE_SFTP_KNOWN_HOSTS:}
+          sftp-known-hosts-entry: ${VERVE_SFTP_KNOWN_HOSTS_ENTRY:}
           remote-dir: ${VERVE_SFTP_DIR:/settlement}
           participant-id: ${VERVE_PARTICIPANT_ID:}
         afrigo:
           enabled: false
           https-endpoint: ${PAPSS_ENDPOINT:https://gateway.papss.com/settlement}
           https-api-key: ${PAPSS_API_KEY:}
+          # Mutual TLS — optional; set when PAPSS issues a client certificate.
+          https-keystore-path: ${PAPSS_MTLS_KEYSTORE:}
+          https-keystore-password: ${PAPSS_MTLS_KEYSTORE_PASSWORD:}
+          https-keystore-type: ${PAPSS_MTLS_KEYSTORE_TYPE:PKCS12}
+          # Only needed when the scheme uses a private CA; otherwise the JDK truststore applies.
+          https-truststore-path: ${PAPSS_MTLS_TRUSTSTORE:}
+          https-truststore-password: ${PAPSS_MTLS_TRUSTSTORE_PASSWORD:}
           participant-id: ${PAPSS_PARTICIPANT_ID:}
         unionpay:
           enabled: false
@@ -143,6 +166,8 @@ card:
           sftp-port: ${CUP_SFTP_PORT:22}
           sftp-user: ${CUP_SFTP_USER:}
           sftp-key-path: ${CUP_SFTP_KEY_PATH:}
+          sftp-known-hosts-path: ${CUP_SFTP_KNOWN_HOSTS:}
+          sftp-known-hosts-entry: ${CUP_SFTP_KNOWN_HOSTS_ENTRY:}
           remote-dir: ${CUP_SFTP_DIR:/incoming}
           participant-id: ${CUP_PARTICIPANT_ID:}
 

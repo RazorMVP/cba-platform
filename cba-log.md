@@ -57,6 +57,57 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 1) — 2026-09-21
+**Dependency Review has never actually run: the workflow sets both `allow-licenses` and `deny-licenses`, which the action rejects outright. CI-only fix.**
+
+> ⚠️ **Merge note:** this entry and Session 125's both insert at the top of Change History on
+> separate branches (`ci/fix-dependency-review-license-config` and
+> `fix/sftp-hostkey-cdp-encryption`). A trivial conflict is expected on whichever merges
+> second — resolution is "keep both entries".
+
+**Found by the branch+PR switch.** `dependency-review` is gated `if: github.event_name == 'pull_request'`, and until Session 124 every change went straight to `main` — so this job had never executed on a non-Dependabot change. PR #99 was the first to run it, and it failed in 5s with:
+
+```
+##[error] "You cannot specify both allow-licenses and deny-licenses"
+```
+
+It never evaluated a single dependency. **License enforcement has been effectively off for the repo's entire history**, while appearing configured.
+
+**Fix:** dropped `allow-licenses`, kept `deny-licenses: GPL-2.0, GPL-3.0, AGPL-3.0`.
+
+**Why deny-list, not allow-list:** the allow-list was `MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC`, which rejects **EPL-2.0** (JUnit 5, Jakarta EE, H2), MPL-2.0 and CDDL — all benign and all present in a normal Java stack. That produces constant false failures, and a gate that always fails gets switched off. The deny-list targets the actual risk for a proprietary product: strong copyleft.
+
+#### ⚠️ Finding surfaced while choosing semantics — jPOS is AGPL-3.0
+`fep-service` depends on jPOS, and its POM declares **`GNU AFFERO GENERAL PUBLIC LICENSE`** (verified in `~/.m2/repository/org/jpos/.../*.pom`, not assumed). AGPL §13 requires offering source to users who interact with the software **over a network** — and fep-service is a network-facing ISO 8583 TCP server on port 8583. jPOS sells a commercial license for exactly this case.
+
+Not acted on, and not a blocker for this fix: `dependency-review` only evaluates dependencies **changed in a PR**, so existing jPOS won't trip it. But it is a genuine licensing question for a proprietary banking platform, and the repo's own `deny-licenses: AGPL-3.0` rule was written to catch it. Needs a legal/commercial decision, not a code change.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `.github/workflows/security-scan.yml` | removed `allow-licenses`; expanded the `deny-licenses` comment to record why both lists cannot coexist |
+
+#### Build Verification
+No build impact — CI configuration only, zero application files touched. Validated by the check itself running on the PR (the failure mode was a config rejection, not a finding). The other PR failure on #99, `Trivy Filesystem Scan`, was an unrelated transient `429 Too Many Requests` from Maven Central (`Retry-After: 1800`), not a vulnerability.
+
+#### API Documentation
+**API surface unchanged — verified via gate grep; no api-reference/postman edits owed.** Zero `*.java` files touched; the change is confined to `.github/workflows/`.
+
+#### Confirmed Platform Versions
+Unchanged from Session 125 — no dependency, runtime, or application version moved. `actions/dependency-review-action@v4` (pinned, unchanged); jPOS in fep-service declares AGPL-3.0 (see finding above).
+
+#### Compliance Checklist Update
+| Gate item | Status |
+|-----------|--------|
+| 1. `cba-log.md` updated | ✅ this entry |
+| 2. `CLAUDE.md` gotcha | ✅ |
+| 3. `docs/api-reference.html` | ✅ N/A — proof line above |
+| 4. `docs/cba-postman-collection-v2.json` | ✅ N/A — proof line above |
+| 5. Deployment-agnostic check | ✅ N/A — no new app/service |
+| 6. Commit + push | ✅ via PR |
+
+---
+
 ### Session 124 — 2026-09-18
 **Unblocked the web CI/CD pipeline: cleared 1 critical + 18 high npm advisories via an Angular 21.2.x latest-patch bump, releasing the Session 122/123 fixes that had never reached production.**
 

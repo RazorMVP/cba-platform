@@ -2954,6 +2954,10 @@ CoreBanking/                          ← monorepo root (this repo)
 | `mobile-ci.yml` | push/PR to main/develop | `mobile/**` | test → dart-audit → build-android → build-ios |
 | `security-scan.yml` | push/PR + cron (Mon 03:00) | all | codeql → trivy-fs → gitleaks → dependency-review → snyk → zap |
 
+> **⚠️ `dependency-review` config gotcha _(Session 125 cont. 1)_.** The action **rejects having both `allow-licenses` and `deny-licenses` set** — it errors with `"You cannot specify both allow-licenses and deny-licenses"` and evaluates nothing, so the job fails without ever checking a dependency. `security-scan.yml` had both from the start, and because `dependency-review` is `if: github.event_name == 'pull_request'` and the repo pushed straight to `main` until Session 124, **it had never run** — license enforcement looked configured but was off. Fixed by keeping the deny-list only. Prefer **deny-list** here: an allow-list of `MIT/Apache-2.0/BSD/ISC` rejects EPL-2.0 (JUnit 5, Jakarta, H2), MPL-2.0 and CDDL, which are benign and unavoidable in this stack.
+>
+> **Related licensing note:** `fep-service`'s jPOS dependency declares **AGPL-3.0** (verified in its POM). AGPL §13 obliges offering source to users interacting over a network, and fep-service is a network-facing TCP server on 8583; jPOS sells a commercial license for this case. `dependency-review` only evaluates dependencies *changed in a PR*, so existing jPOS won't trip the deny-list — but it is an open legal/commercial question, not a code issue.
+
 ### Vercel Deployment (Angular Web App — production)
 
 **Config**: `web/vercel.json`

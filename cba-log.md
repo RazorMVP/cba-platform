@@ -57,6 +57,45 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 3) — 2026-09-22
+**Trivy Filesystem Scan fixed: it failed daily on a Maven Central `429 Too Many Requests`. Now pre-resolves `~/.m2` with Maven and scans with `--offline-scan`. Also triaged the 179 Dependabot alerts that became visible when alerts were enabled.**
+
+**Trivy root cause** (verified against Trivy's own troubleshooting docs, Context7 `/aquasecurity/trivy`): when scanning `pom.xml`, Trivy fetches every missing transitive POM from `repo.maven.apache.org`. Maven Central rate-limits per IP; GitHub's shared runner IPs hit it and got `429` with `Retry-After: 1800` on 2026-09-21 (`project-1.0.9.pom`) and 2026-09-22 (`jetty-ee10-bom-12.0.21.pom`). Trivy deliberately fails fast on the first 429 rather than retry and extend the block. Re-running is not a fix.
+
+**Fix (`security-scan.yml` → `trivy-fs`):** `actions/setup-java@v4` with `cache: maven` keyed on the 3 poms, then `mvn dependency:resolve` per module (backend, card-service and fep-service are independent projects with no reactor parent, so per-module resolve suffices), then `TRIVY_OFFLINE_SCAN: 'true'` on the scan step. Per Trivy's source, `--offline-scan` affects **only** the Java POM parser's remote fetch; vuln-DB download is unaffected. The pre-resolve step matters: offline mode silently skips any POM missing from the cache.
+
+**Dependabot triage (179 open: 8 critical / 85 high / 70 medium / 16 low):**
+- **168 of 179 are in npm lockfiles for non-shipped docs/portal apps**: `docs-site` 61, `partner-docs` 61, `partner-portal` 46. Only **11 are Java** (card-service 5, fep-service 4, backend 2), and those ship.
+- **The 8 criticals are only 3 distinct problems:**
+  1. 🔴 `org.bouncycastle:bcprov-jdk18on` **1.78.1 → 1.85** in card-service + fep-service (GHSA-574f-3g2m-x479, GHSA-9pwp-9qqc-pr26). **Highest real risk:** shipped runtime crypto (EMV ARQC, TDES/SM4, PIN blocks).
+  2. 🟡 `shell-quote` → 1.8.4 in docs-site + partner-docs (Docusaurus build-time transitive).
+  3. 🟡 `websocket-driver` → 0.7.5 in docs-site + partner-docs (dev server only).
+- Not fixed in this change. Recorded for the next PR.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `.github/workflows/security-scan.yml` | `trivy-fs`: + Java/Maven cache, + per-module `dependency:resolve`, + `TRIVY_OFFLINE_SCAN` |
+
+#### Build Verification
+Workflow YAML parses (`yaml.safe_load`), `trivy-fs` step order confirmed. The real proof is the job going green on this PR's CI run; a 429 can't be reproduced locally.
+
+#### API Documentation
+**API surface unchanged — verified via gate grep; no api-reference/postman edits owed.** CI config only.
+
+#### Confirmed Platform Versions
+Unchanged from Session 125.
+
+#### Compliance Checklist Update
+| Gate item | Status |
+|-----------|--------|
+| 1. `cba-log.md` | ✅ |
+| 2. `CLAUDE.md` gotcha | ✅ |
+| 3–5 | ✅ N/A |
+| 6. Commit + push | ✅ via PR |
+
+---
+
 ### Session 125 (cont. 2) — 2026-09-22
 **Removed a leaked Google OAuth client secret from two tracked files in this PUBLIC repo. The client was deleted in Google Cloud Console first, so the value is now dead.**
 

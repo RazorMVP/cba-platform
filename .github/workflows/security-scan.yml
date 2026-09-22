@@ -68,8 +68,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Trivy resolves transitive Java dependencies by fetching POMs from Maven
+      # Central when they are missing from ~/.m2. Maven Central rate-limits the
+      # shared GitHub runner IPs and returns 429 (Retry-After: 1800), which failed
+      # this job on consecutive days. Fix per Trivy's troubleshooting guide:
+      # pre-populate ~/.m2 with Maven itself (cached between runs), then scan with
+      # --offline-scan so Trivy makes no Maven Central requests at all.
+      - name: Set up Java (Maven cache for Trivy)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+          cache-dependency-path: |
+            backend/pom.xml
+            card-service/pom.xml
+            fep-service/pom.xml
+
+      - name: Pre-resolve Maven dependencies into ~/.m2
+        # The three modules are independent projects (no reactor parent), so a
+        # per-module dependency:resolve caches every POM Trivy needs.
+        run: |
+          for module in backend card-service fep-service; do
+            (cd "$module" && mvn -B -q --no-transfer-progress dependency:resolve)
+          done
+
       - name: Scan source + dependencies + IaC configs
         uses: aquasecurity/trivy-action@master
+        env:
+          # Only affects the Java POM parser: skip remote POM lookups and use ~/.m2.
+          TRIVY_OFFLINE_SCAN: 'true'
         with:
           scan-type: fs
           scan-ref: .

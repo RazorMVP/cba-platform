@@ -74,7 +74,7 @@ These are the verified-working versions for all production components. Update th
 | **Spring Boot** | **3.4.4** | Parent BOM. ⚠️ **Not 3.5.0** — this table said 3.5.0 until Session 125; `card-service/pom.xml` has always said 3.4.4. Gives Spring Framework 6.2, so `JdkClientHttpRequestFactory` is available |
 | **Java** | 21 | LTS |
 | **JSch (SFTP)** | `com.github.mwiede:jsch:0.2.23` | The maintained fork, same `com.jcraft.jsch` package as the dead `com.jcraft:jsch:0.1.55`. Ships modern KEX/host-key algorithms — negotiates with current OpenSSH without legacy tweaks |
-| **BouncyCastle** | bcprov-jdk18on 1.78.1 | **`bcpkix` is NOT present** — no in-process X.509 certificate builder. Tests needing certs shell out to the JDK's `keytool` |
+| **BouncyCastle** | bcprov-jdk18on **1.86** | Bumped from 1.78.1 (Session 125 cont. 4) — cleared 8 Dependabot alerts (per service: 2 critical, 1 high, 1 medium — GHSA-9pwp-9qqc-pr26, -574f-3g2m-x479, -qp49-qgx5-5m26, -c3fc-8qff-9hwx). fep-service uses the same `bouncycastle.version` property. **`bcpkix` is NOT present** — no in-process X.509 certificate builder. Tests needing certs shell out to the JDK's `keytool` |
 | **Unit tests** | 118 | `cd card-service && ./mvnw -o test` |
 | **`-Pfull-integration`** | 124 | Needs Docker: `DOCKER_HOST=unix://$HOME/.docker/run/docker.sock` |
 | **Dockerfile** | added Session 116 | `maven:3.9-eclipse-temurin-21-alpine` build + `eclipse-temurin:21-jre-alpine` runtime; port 8081 |

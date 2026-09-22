@@ -108,6 +108,103 @@ Unchanged from Session 125 — no dependency, runtime, or application version mo
 
 ---
 
+### Session 125 — 2026-09-21
+**Closed the MITM hole in scheme settlement transmission: SFTP host-key pinning (fail-closed) + opt-in HTTPS mutual TLS, both proven by tests that fail against the old code. Re-scoped deferred-backlog item 7, which conflated this with a much larger bureau-side task.**
+
+First change under the new **branch + PR workflow** — branch `fix/sftp-hostkey-cdp-encryption`.
+
+**The vulnerability, demonstrated rather than asserted.** `SettlementFileTransmitter:94` set `StrictHostKeyChecking=no`, so JSch accepted *any* host key. The first test written this session pinned an impostor RSA key and transmitted anyway — the log line `SFTP transmission complete: scheme=visa file=mitm.dat` is the proof: settlement data delivered to a server whose key did not match, with our public-key authentication attempt handed over too.
+
+**A precision correction to the backlog's framing.** The two items were not equally severe. SFTP `StrictHostKeyChecking=no` was a genuine MITM hole. HTTPS mTLS was **not** — the existing `RestTemplate` already validated the *server* certificate via the JDK truststore; mTLS adds the *client* authenticating itself, which schemes require contractually. Implemented both, but only one was a live exposure.
+
+**Scope discovery that changed the work.** Backlog item 7 bundled "encrypt CDP with the bureau's public key" at Effort **S**. Reading the code showed that is not a hardening tweak:
+- **`BureauFileTransport` does not exist** — it is named only in a comment at `BureauService.java:107`. `submitJob` generates a `CdpRecord`, hashes it, sets a date, and stops. Nothing serialises CDP to bytes or transmits it, so there is no "before transmission" to encrypt at.
+- **`panEncryptedForBureau` is mislabelled** — `CdpGenerator.java:101` passes `card.getPanEncrypted()`, the **Jasypt** ciphertext under card-service's *own* key, while the adjacent comment claims "bureau HSM decrypts using shared ZMK". A bureau cannot decrypt that. Not a raw-PAN exposure (it is ciphertext), but the contract is wrong and breaks on first real onboarding.
+
+User chose to ship transport hardening now and re-file the bureau work. Item 7 is now **"CDP file format, bureau transport, and encryption"**, Effort **M**, explicitly gated on having a named bureau's spec.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `settlement/SettlementFileTransmitter.java` | `StrictHostKeyChecking` `no`→`yes`; `pinHostKey()`; pre-connect fail-closed guard; per-scheme mTLS client; stale javadoc checklist corrected |
+| `settlement/SettlementTlsClientFactory.java` | **NEW** — builds/caches one mTLS `RestTemplate` per scheme from a PKCS12 keystore |
+| `settlement/SettlementExportProperties.java` | +7 fields: `sftpKnownHostsPath/Entry`, `httpsKeystorePath/Password/Type`, `httpsTruststorePath/Password` |
+| `resources/application.yml` | new keys for all 5 schemes, every one defaulting empty; all schemes stay `enabled: false` |
+| `SettlementFileTransmitterSftpIntegrationTest.java` | +2 tests (impostor key refused; fail-closed message); happy path now pins the container's real host key |
+| `SettlementFileTransmitterMtlsTest.java` | **NEW** — 3 tests; real handshake vs an in-process `needClientAuth` server |
+| `docs/integration-runbook.md` | §10 — new env vars; replaced the now-false "⚠️ Replace `StrictHostKeyChecking=no`" line |
+| `docs/deferred-backlog.md` | item 7 re-filed as CDP-only, Effort S→M, with the two findings above |
+
+#### Key Patterns / Decisions
+- **Fail closed, and fail *before connecting*.** The guard sits with the existing host/key-path guards, ahead of the `try` block — so an unpinned scheme never opens a TCP connection and never offers its identity to an unverified host. It also keeps the message out of the catch-all re-wrap. Error names the exact property: `set card.settlement.export.schemes.visa.sftp-known-hosts-path or .sftp-known-hosts-entry`.
+- **Two supply mechanisms, both through JSch's own verifier.** `sftp-known-hosts-path` (file, preferred — supports rotation) or `sftp-known-hosts-entry` (literal line, for secret-manager deploys). Both feed `jsch.setKnownHosts`; deliberately **no** hand-rolled `HostKeyRepository` or fingerprint comparison — the less bespoke crypto-adjacent code, the better.
+- **mTLS gets its own client, never the shared bean.** `SettlementFileTransmitter` was injecting the single `backendRestTemplate` — the same instance used for balance lookups against the monolith. Attaching a scheme-issued client certificate to it would have presented the scheme's identity on unrelated internal calls. `SettlementTlsClientFactory` is a plain field, not a Spring bean, which also kept the 2-arg constructor intact so no existing test construction site changed.
+- **`JdkClientHttpRequestFactory`, no new dependency.** Spring's default `SimpleClientHttpRequestFactory` cannot take a custom `SSLContext`; the JDK `HttpClient` can, and Spring 6.2 (SB 3.4.4) ships the adapter. Avoided pulling in Apache HttpClient for one code path.
+- **Fail closed on an unloadable keystore too** — no silent downgrade to bearer-only. A scheme mandating mTLS would reject the request anyway, and a silent downgrade hides the misconfiguration until a settlement window is already missed. Error names the property and the cause, never the password.
+
+#### Build Verification
+TDD throughout — every behaviour has a test that was **watched failing against the old code** first:
+
+| Test | RED evidence (before) | After |
+|------|----------------------|-------|
+| `refusesMismatchedHostKey` | **Upload succeeded** — `SFTP transmission complete: file=mitm.dat` to an impostor host | Refused; file absent from server |
+| `failsClosedWhenHostKeyNotPinned` | Threw, but with JSch's opaque `UnknownHostKey` | Actionable message naming both properties |
+| `transmitsWithMutualTls` | ERROR — handshake rejected, no client cert presented | Payload received over mutually-authenticated channel |
+| `failsClosedOnUnloadableKeystore` | Wrong message (keystore config ignored entirely) | Message names the keystore + cause |
+| `rejectsClientWithoutCertificate` | *Passed from the start* — deliberately, it guards the premise that the test server really does demand client auth, without which `transmitsWithMutualTls` would prove nothing |
+
+- card-service unit: **115 → 118**; `-Pfull-integration`: **124**. All green, zero regressions.
+- mTLS test PKI is generated at runtime with the JDK's `keytool` — card-service ships `bcprov` but not `bcpkix`, so there is no in-process X.509 builder.
+- Docker 29.7.2 + Testcontainers 1.21.4 (the pairing CLAUDE.md records as required).
+
+#### API Documentation
+**API surface unchanged — verified via gate grep; no api-reference/postman edits owed.** Zero `*.java` endpoint/param annotations changed; the gate's grep against `origin/main` returned no matches. Changes are confined to settlement transport internals, config, and docs.
+
+#### Corrections to existing docs
+- **`CLAUDE.md` recorded card-service as Spring Boot 3.5.0; `card-service/pom.xml` says 3.4.4.** Corrected. Unrelated to this work, found while checking `JdkClientHttpRequestFactory` availability.
+- `SettlementFileTransmitter`'s javadoc "production hardening checklist" still listed host-key verification and mTLS as outstanding. Marked done; the two genuinely-remaining items (vault-sourced private key, Resilience4j circuit breaker) left as ☐.
+
+#### Follow-ups (not actioned)
+- SFTP private key still loads from a filesystem path, not a vault.
+- No circuit breaker around scheme transmission.
+- True end-to-end mTLS against a real scheme endpoint is only possible at onboarding; the in-process `needClientAuth` server is the closest honest proxy.
+
+#### Confirmed Platform Versions
+
+**Backend (`backend/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | 3.5.0 | `614a9d0` |
+| Java | 21 | `614a9d0` |
+| Keycloak admin client | 26.0.5 | `614a9d0` |
+| springdoc-openapi | 2.8.6 | `614a9d0` |
+| Lombok | 1.18.38 | `614a9d0` |
+| PostgreSQL | 16 (Docker) | `614a9d0` |
+
+**Card Service (`card-service/`):**
+| Component | Version | Git ref |
+|-----------|---------|---------|
+| Spring Boot | **3.4.4** (CLAUDE.md previously said 3.5.0 — corrected) | this session |
+| Java | 21 | `c1c7bdb` |
+| JSch | `com.github.mwiede:jsch:0.2.23` | `c1c7bdb` |
+| BouncyCastle | bcprov-jdk18on 1.78.1 (no bcpkix) | `c1c7bdb` |
+| Testcontainers | 1.21.4 | `c1c7bdb` |
+| Unit tests | **118** (was 115) | this session |
+| `-Pfull-integration` | **124** | this session |
+| Docker (local) | 29.7.2 | this session |
+
+#### Compliance Checklist Update
+| Gate item | Status |
+|-----------|--------|
+| 1. `cba-log.md` updated | ✅ this entry |
+| 2. `CLAUDE.md` versions + gotchas | ✅ |
+| 3. `docs/api-reference.html` | ✅ N/A — proof line recorded above |
+| 4. `docs/cba-postman-collection-v2.json` | ✅ N/A — proof line recorded above |
+| 5. Deployment-agnostic check | ✅ N/A — no new app/service |
+| 6. Commit + push | ✅ via PR (new workflow) |
+
+---
+
 ### Session 124 — 2026-09-18
 **Unblocked the web CI/CD pipeline: cleared 1 critical + 18 high npm advisories via an Angular 21.2.x latest-patch bump, releasing the Session 122/123 fixes that had never reached production.**
 

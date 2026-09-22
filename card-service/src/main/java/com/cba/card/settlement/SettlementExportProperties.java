@@ -87,6 +87,27 @@ public class SettlementExportProperties {
         private String remoteDir = "/incoming";
 
         /**
+         * Path to an OpenSSH {@code known_hosts} file pinning this scheme's SFTP host key.
+         * Preferred supply mechanism: supports key rotation and multiple hosts per scheme.
+         *
+         * <p>At least one of this or {@link #sftpKnownHostsEntry} must be set for an
+         * {@code enabled} scheme — transmission fails closed otherwise, because an
+         * unverified host key means any host answering on that address can impersonate
+         * the scheme, receive settlement files, and harvest the authentication attempt.
+         */
+        private String sftpKnownHostsPath;
+
+        /**
+         * A literal {@code known_hosts} entry, as an alternative to {@link #sftpKnownHostsPath}
+         * for secret-manager/container deployments where mounting a file is awkward.
+         *
+         * <p>Standard OpenSSH line format — {@code host keytype base64blob}, or
+         * {@code [host]:port keytype base64blob} for a non-standard port. Multiple
+         * entries may be separated by newlines.
+         */
+        private String sftpKnownHostsEntry;
+
+        /**
          * HTTPS endpoint for schemes that use REST-based clearinghouse APIs
          * (e.g. newer PAPSS or NIBSS integrations). Ignored when SFTP is used.
          */
@@ -94,6 +115,33 @@ public class SettlementExportProperties {
 
         /** API key / bearer token for HTTPS-based scheme endpoints. */
         private String httpsApiKey;
+
+        /**
+         * Path to a keystore holding the scheme-issued <em>client</em> certificate, enabling
+         * mutual TLS on the HTTPS settlement path. Optional: when unset, the connection uses
+         * ordinary one-way TLS (the server certificate is still verified) with bearer auth.
+         *
+         * <p>When set but unloadable, transmission fails closed rather than silently
+         * falling back to bearer-only — a scheme that mandates mTLS would reject the
+         * request anyway, and a silent downgrade hides the misconfiguration.
+         */
+        private String httpsKeystorePath;
+
+        /** Password for {@link #httpsKeystorePath}. Supply via env/secret manager, never YAML. */
+        private String httpsKeystorePassword;
+
+        /** Keystore type for {@link #httpsKeystorePath}. Schemes normally issue PKCS12. */
+        private String httpsKeystoreType = "PKCS12";
+
+        /**
+         * Optional truststore for verifying the scheme's server certificate. When unset,
+         * the JDK default truststore is used — correct for schemes with a publicly-rooted
+         * certificate; set this when the scheme uses a private CA.
+         */
+        private String httpsTruststorePath;
+
+        /** Password for {@link #httpsTruststorePath}. Supply via env/secret manager, never YAML. */
+        private String httpsTruststorePassword;
 
         /**
          * Scheme-assigned member/participant identifier for file naming and headers.

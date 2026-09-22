@@ -29,10 +29,13 @@ import java.util.Properties;
  *
  * <h3>Production hardening checklist</h3>
  * <ul>
- *   <li>SFTP: load private key from secure vault (not filesystem path in env var)</li>
- *   <li>SFTP: verify known_hosts fingerprint instead of StrictHostKeyChecking=no</li>
- *   <li>HTTPS: configure mutual TLS via scheme-provided client certificate</li>
- *   <li>Both: wrap with circuit breaker (Resilience4j) for scheme network outages</li>
+ *   <li>✅ SFTP: host key pinned via {@code sftp-known-hosts-path} / {@code -entry} with
+ *       {@code StrictHostKeyChecking=yes}. Fails closed when unpinned.</li>
+ *   <li>✅ HTTPS: mutual TLS via {@code https-keystore-path} (see
+ *       {@link SettlementTlsClientFactory}). Optional per scheme; fails closed when the
+ *       keystore is configured but unloadable.</li>
+ *   <li>☐ SFTP: load private key from a secure vault (currently a filesystem path)</li>
+ *   <li>☐ Both: wrap with a circuit breaker (Resilience4j) for scheme network outages</li>
  * </ul>
  */
 @Slf4j
@@ -41,7 +44,16 @@ import java.util.Properties;
 public class SettlementFileTransmitter {
 
     private final SettlementExportProperties props;
+
+    /** Shared client used for schemes that do not configure a client certificate. */
     private final RestTemplate restTemplate;
+
+    /**
+     * Per-scheme mutual-TLS clients. A plain field rather than an injected bean so the
+     * scheme client certificate can never leak onto {@code backendRestTemplate}, which
+     * also serves balance lookups against the monolith.
+     */
+    private final SettlementTlsClientFactory tlsClients = new SettlementTlsClientFactory();
 
     /**
      * Transmit a settlement file using the method appropriate for the scheme.
@@ -78,6 +90,21 @@ public class SettlementFileTransmitter {
             throw new SettlementTransmissionException(
                     "SFTP private key path not configured for scheme: " + scheme);
         }
+        // Fail closed BEFORE opening a connection: an unpinned host key means any host
+        // answering on this address could impersonate the scheme, receive settlement
+        // files, and harvest our authentication attempt. Validating here means we never
+        // even contact an unverified host.
+        boolean hasKnownHostsPath  = cfg.getSftpKnownHostsPath()  != null
+                                     && !cfg.getSftpKnownHostsPath().isBlank();
+        boolean hasKnownHostsEntry = cfg.getSftpKnownHostsEntry() != null
+                                     && !cfg.getSftpKnownHostsEntry().isBlank();
+        if (!hasKnownHostsPath && !hasKnownHostsEntry) {
+            throw new SettlementTransmissionException(
+                    "SFTP host key not pinned for scheme: " + scheme
+                    + " — set card.settlement.export.schemes." + scheme.toLowerCase()
+                    + ".sftp-known-hosts-path or .sftp-known-hosts-entry. Refusing to "
+                    + "transmit settlement data to an unverified host.");
+        }
 
         log.info("SFTP transmit → {}@{}:{}{}/{} ({} bytes)",
                 user, host, port, remDir, fileName, fileBytes.length);
@@ -87,11 +114,12 @@ public class SettlementFileTransmitter {
         try {
             JSch jsch = new JSch();
             jsch.addIdentity(keyPath);
+            pinHostKey(jsch, cfg);
 
             session = jsch.getSession(user, host, port);
             Properties sshConfig = new Properties();
-            // TODO production: replace no with known_hosts fingerprint verification
-            sshConfig.put("StrictHostKeyChecking", "no");
+            // Host key is pinned above; refuse to connect to an unrecognised server.
+            sshConfig.put("StrictHostKeyChecking", "yes");
             session.setConfig(sshConfig);
             session.connect(30_000);
 
@@ -113,6 +141,26 @@ public class SettlementFileTransmitter {
         }
     }
 
+    /**
+     * Pin the scheme's SSH host key so {@code StrictHostKeyChecking=yes} has something to
+     * verify against. Without this, JSch would accept any host key and settlement files
+     * could be delivered to an impostor that answers on the scheme's address.
+     *
+     * @param cfg scheme config supplying either a known_hosts path or a literal entry
+     */
+    private void pinHostKey(JSch jsch, SettlementExportProperties.SchemeExportConfig cfg)
+            throws com.jcraft.jsch.JSchException {
+        String path  = cfg.getSftpKnownHostsPath();
+        String entry = cfg.getSftpKnownHostsEntry();
+
+        if (path != null && !path.isBlank()) {
+            jsch.setKnownHosts(path);
+        } else if (entry != null && !entry.isBlank()) {
+            jsch.setKnownHosts(new ByteArrayInputStream(
+                    entry.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        }
+    }
+
     // ── HTTPS ─────────────────────────────────────────────────────────────────
 
     private void transmitHttps(byte[] fileBytes, String fileName, String scheme) {
@@ -125,7 +173,18 @@ public class SettlementFileTransmitter {
                     "HTTPS endpoint not configured for scheme: " + scheme);
         }
 
-        log.info("HTTPS transmit → {} ({} bytes) scheme={}", endpoint, fileBytes.length, scheme);
+        // A scheme-specific mutually-authenticated client when a client keystore is
+        // configured; otherwise the shared template (one-way TLS + bearer). Built outside
+        // the try below so a keystore misconfiguration surfaces as itself rather than
+        // being re-wrapped as a generic transmission failure.
+        RestTemplate client = tlsClients.forScheme(scheme, cfg);
+        boolean mutualTls = client != null;
+        if (!mutualTls) {
+            client = restTemplate;
+        }
+
+        log.info("HTTPS transmit → {} ({} bytes) scheme={} mutualTls={}",
+                endpoint, fileBytes.length, scheme, mutualTls);
 
         try {
             HttpHeaders headers = new HttpHeaders();
@@ -136,7 +195,7 @@ public class SettlementFileTransmitter {
             }
 
             HttpEntity<byte[]> request = new HttpEntity<>(fileBytes, headers);
-            restTemplate.postForEntity(endpoint, request, Void.class);
+            client.postForEntity(endpoint, request, Void.class);
 
             log.info("HTTPS transmission complete: scheme={} file={}", scheme, fileName);
 

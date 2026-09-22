@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * End-to-end integration test for {@link SettlementFileTransmitter}'s SFTP path against a
@@ -76,7 +77,25 @@ class SettlementFileTransmitterSftpIntegrationTest {
                     .withExposedPorts(22)
                     .waitingFor(Wait.forLogMessage(".*Server listening on.*", 1));
 
-    private SettlementExportProperties propsForVisa() {
+    /**
+     * The container's genuine host keys, rendered as known_hosts entries for the mapped port.
+     * All key types are included so whichever algorithm JSch negotiates has a pinned match.
+     */
+    private static String containerHostKeys() throws Exception {
+        var res = SFTP.execInContainer("sh", "-c", "cat /etc/ssh/ssh_host_*_key.pub");
+        StringBuilder sb = new StringBuilder();
+        for (String line : res.getStdout().split("\n")) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) continue;
+            String[] parts = trimmed.split("\\s+");   // "keytype base64 comment"
+            sb.append("[").append(SFTP.getHost()).append("]:").append(SFTP.getMappedPort(22))
+              .append(" ").append(parts[0]).append(" ").append(parts[1]).append("\n");
+        }
+        return sb.toString();
+    }
+
+    /** Base config with the container's real host key pinned via the inline-entry mechanism. */
+    private SettlementExportProperties propsForVisa() throws Exception {
         SettlementExportProperties.SchemeExportConfig cfg = new SettlementExportProperties.SchemeExportConfig();
         cfg.setEnabled(true);
         cfg.setSftpHost(SFTP.getHost());
@@ -84,10 +103,76 @@ class SettlementFileTransmitterSftpIntegrationTest {
         cfg.setSftpUser(USER);
         cfg.setSftpKeyPath(PRIVATE_KEY_PATH);
         cfg.setRemoteDir(REMOTE_DIR);
+        cfg.setSftpKnownHostsEntry(containerHostKeys());
 
         SettlementExportProperties props = new SettlementExportProperties();
         props.getSchemes().put("visa", cfg);
         return props;
+    }
+
+    /**
+     * Writes a known_hosts file pinning {@code host:port} to the supplied public key blob.
+     * Non-standard ports use the bracketed OpenSSH form: {@code [host]:port keytype base64}.
+     */
+    private static String writeKnownHosts(String keyTypeAndBlob) throws Exception {
+        File kh = File.createTempFile("known_hosts_", "");
+        kh.deleteOnExit();
+        String line = "[" + SFTP.getHost() + "]:" + SFTP.getMappedPort(22) + " " + keyTypeAndBlob + "\n";
+        java.nio.file.Files.writeString(kh.toPath(), line);
+        return kh.getAbsolutePath();
+    }
+
+    /** A syntactically valid RSA host key that is NOT the container's — an impostor. */
+    private static String impostorHostKey() throws Exception {
+        JSch jsch = new JSch();
+        KeyPair kp = KeyPair.genKeyPair(jsch, KeyPair.RSA, 2048);
+        ByteArrayOutputStream pub = new ByteArrayOutputStream();
+        kp.writePublicKey(pub, "impostor");
+        kp.dispose();
+        // writePublicKey emits OpenSSH "ssh-rsa AAAA... comment"; keep type + blob only.
+        String[] parts = pub.toString(StandardCharsets.UTF_8).trim().split("\\s+");
+        return parts[0] + " " + parts[1];
+    }
+
+    @Test
+    @DisplayName("transmit() fails closed with an actionable message when no host key is pinned at all")
+    void failsClosedWhenHostKeyNotPinned() throws Exception {
+        SettlementExportProperties props = propsForVisa();
+        props.forScheme("visa").setSftpKnownHostsEntry(null);
+        props.forScheme("visa").setSftpKnownHostsPath(null);
+
+        SettlementFileTransmitter transmitter =
+                new SettlementFileTransmitter(props, new RestTemplate());
+
+        assertThatThrownBy(() -> transmitter.transmit(
+                    "payload".getBytes(StandardCharsets.UTF_8), "unpinned.dat", "visa", "SFTP"))
+                .isInstanceOf(SettlementTransmissionException.class)
+                // Operators must be told which properties to set, not handed JSch's
+                // opaque "UnknownHostKey". The check must also happen BEFORE connecting,
+                // so no authentication attempt is ever made to an unverified host.
+                .hasMessageContaining("host key")
+                .hasMessageContaining("sftp-known-hosts");
+    }
+
+    @Test
+    @DisplayName("transmit() REFUSES to upload when the server's host key does not match the pinned key (MITM)")
+    void refusesMismatchedHostKey() throws Exception {
+        SettlementExportProperties props = propsForVisa();
+        // Replace the genuine pinned key with an impostor's, via the file-path mechanism.
+        props.forScheme("visa").setSftpKnownHostsEntry(null);
+        props.forScheme("visa").setSftpKnownHostsPath(writeKnownHosts(impostorHostKey()));
+
+        SettlementFileTransmitter transmitter =
+                new SettlementFileTransmitter(props, new RestTemplate());
+
+        assertThatThrownBy(() -> transmitter.transmit(
+                    "payload".getBytes(StandardCharsets.UTF_8), "mitm.dat", "visa", "SFTP"))
+                .isInstanceOf(SettlementTransmissionException.class);
+
+        // And prove it did not land on the server despite the failure.
+        assertThatThrownBy(() -> downloadViaSftp("mitm.dat"))
+                .as("file must not exist on the server after a refused transmission")
+                .isInstanceOf(Exception.class);
     }
 
     @Test

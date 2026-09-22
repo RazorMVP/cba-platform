@@ -1,16 +1,9 @@
 {
-  "_comment": "Stitch MCP credentials — copy the mcpServers block into your project's .mcp.json file at the repo root",
+  "_comment": "Stitch MCP server entry — mirror of the repo-root .mcp.json. NEVER put OAuth client IDs or secrets in this file or in .mcp.json: both are tracked in a PUBLIC repo. Claude Code stores an OAuth client secret in the system keychain, not in config. If the server needs pre-configured credentials, register them locally: `claude mcp add --scope local --transport http --client-id <id> --client-secret stitch <url>` (prompts for the secret with masked input). Note: mcp.stitch.withgoogle.com did not resolve in DNS as of 2026-09-22.",
   "mcpServers": {
     "stitch": {
       "type": "http",
-      "url": "https://mcp.stitch.withgoogle.com/mcp",
-      "oauth2": {
-        "clientId": "804393456987-tk8t522icfns6omdh3mlthn7bvlh532s.apps.googleusercontent.com",
-        "clientSecret": "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",
-        "authorizationEndpoint": "https://accounts.google.com/o/oauth2/v2/auth",
-        "tokenEndpoint": "https://oauth2.googleapis.com/token",
-        "scopes": ["openid", "email", "profile"]
-      }
+      "url": "https://mcp.stitch.withgoogle.com/mcp"
     }
   }
 }

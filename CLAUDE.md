@@ -3158,6 +3158,16 @@ The token lives only in:
 
 Never paste the token into any file that is tracked by git.
 
+### MCP config credentials — never in tracked files _(Session 125 cont. 2)_
+
+**This repo is PUBLIC.** A Google OAuth client ID + secret for the Stitch MCP sat in `.mcp.json` **and** `.claude/skills/cba/settings.json` from 2026-04-05 (`444cb1c`) until 2026-09-22. It was found only when secret scanning was switched on. The client has been deleted; both files now hold `type` + `url` only.
+
+- **Claude Code never reads an OAuth secret from config.** The schema key is `oauth` (`clientId`, `callbackPort`, `scopes`), not `oauth2`. The secret lives in the macOS keychain: `claude mcp add --scope local --transport http --client-id <id> --client-secret <name> <url>` (masked prompt) or `MCP_CLIENT_SECRET=... claude mcp add ...`. Use `--scope local` so nothing lands in the tracked `.mcp.json`.
+- **`${VAR}` expansion in `.mcp.json` works only in `command`, `args`, `env`, `url` and `headers`**, not inside `oauth`. A `${SECRET}` placeholder there ships as the literal string.
+- **`mcp.stitch.withgoogle.com` has no DNS record** (checked 2026-09-22), which is why the Stitch MCP fails with `ENOTFOUND` every session. `stitch.withgoogle.com` itself is live.
+- **Repo security settings are now on:** dependency graph, Dependabot alerts + security updates, secret scanning, **push protection**. Push protection blocks a known-format secret at `git push`, before it reaches history. If it blocks you, remove the secret; don't bypass it.
+- **If a secret ever leaks here:** rotate/revoke it at the provider **first** (removing the file doesn't un-leak it), then remove it from every tracked copy (GitHub's alert may list only one location, so `grep` for the value's prefix), then close the alert as *revoked*. Rewriting history is unnecessary once the secret is dead.
+
 ---
 
 ## Infrastructure & Runtime Fixes — Session 50 (2026-04-14)

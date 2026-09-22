@@ -118,12 +118,23 @@ Legend for **State**:
 - **What / where:** `com.cba.card.settlement.*` — real binary exporters (Visa BASE II, Mastercard IPM, NIBSS, PAPSS/JSON, CUPS) + SFTP/HTTPS transmitter, in **card-service**.
 - **Default:** all 5 schemes `enabled: false`.
 - **Go live per scheme:** `card.settlement.export.schemes.<scheme>.enabled=true` + its SFTP/HTTPS creds:
-  - Visa: `VISA_SFTP_HOST/USER/KEY_PATH`
-  - Mastercard: `MC_SFTP_HOST/USER/KEY_PATH`
-  - Verve: `VERVE_SFTP_HOST/USER/KEY_PATH`
+  - Visa: `VISA_SFTP_HOST/USER/KEY_PATH` + **`VISA_SFTP_KNOWN_HOSTS`**
+  - Mastercard: `MC_SFTP_HOST/USER/KEY_PATH` + **`MC_SFTP_KNOWN_HOSTS`**
+  - Verve: `VERVE_SFTP_HOST/USER/KEY_PATH` + **`VERVE_SFTP_KNOWN_HOSTS`**
   - Afrigo/PAPSS: `PAPSS_ENDPOINT` + `PAPSS_API_KEY` (HTTPS)
-  - UnionPay: `CUP_SFTP_HOST/USER/KEY_PATH`
-- ⚠️ Replace JSch `StrictHostKeyChecking=no` with a real `known_hosts` before production.
+  - UnionPay: `CUP_SFTP_HOST/USER/KEY_PATH` + **`CUP_SFTP_KNOWN_HOSTS`**
+- 🔒 **Host-key pinning is mandatory for SFTP schemes.** Set `*_SFTP_KNOWN_HOSTS` to an
+  OpenSSH `known_hosts` file path, or `*_SFTP_KNOWN_HOSTS_ENTRY` to a literal line
+  (`[host]:port ssh-rsa AAAA...`) where mounting a file is awkward. With neither set, an
+  enabled scheme **fails closed** — `transmit()` throws before opening a connection, so no
+  settlement file and no authentication attempt reaches an unverified host. Take the key
+  from the scheme's onboarding pack; do **not** harvest it by connecting and trusting
+  whatever answers.
+- 🔒 **Optional mutual TLS for Afrigo/PAPSS:** `PAPSS_MTLS_KEYSTORE` +
+  `PAPSS_MTLS_KEYSTORE_PASSWORD` (PKCS12; `PAPSS_MTLS_KEYSTORE_TYPE` to override), plus
+  `PAPSS_MTLS_TRUSTSTORE`/`_PASSWORD` only if PAPSS uses a private CA. Unset = one-way TLS
+  with bearer auth (server cert still verified). Set-but-unloadable **fails closed** rather
+  than silently downgrading to bearer-only.
 - **Contract:** 🔴 requires scheme membership + real interchange rate tables.
 
 ## 11. HSM — Thales payShield (fep-service) 🟢🔴

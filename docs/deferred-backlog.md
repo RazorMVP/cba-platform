@@ -209,24 +209,43 @@ be reused (JWT claim / `PartnerApiKeys.hash` → key → tier). Then a PRO/ENTER
 
 ---
 
-## 7. Production security hardening: SFTP host-key + CDP encryption
+## 7. CDP file format, bureau transport, and encryption
 
-**Effort: S · Risk: MITM / unprotected CHD if shipped as-is — a hard prerequisite for go-live**
+**Effort: M · Risk: cardholder data leaving the platform — needs the bureau's actual spec before building**
+
+> **Transport hardening (SFTP host-key pinning + HTTPS mTLS) is DONE — Session 125.**
+> `SettlementFileTransmitter` now pins the scheme host key (`sftp-known-hosts-path` /
+> `-entry`, `StrictHostKeyChecking=yes`) and fails closed when unpinned, and supports
+> optional per-scheme mutual TLS via `SettlementTlsClientFactory`. Verified by
+> `SettlementFileTransmitterSftpIntegrationTest` (an impostor host key is refused) and
+> `SettlementFileTransmitterMtlsTest` (real handshake against a `needClientAuth` server).
+> What remains below is the *bureau* side, which was mis-scoped as "Effort: S" alongside it.
 
 ### What it is
-Two dev-safe defaults that **must** be fixed before any settlement-file or bureau transmission goes live
-(gates the credential-ready integrations in `docs/integration-runbook.md`).
+Card personalization data (CDP) is generated but **never serialised, encrypted, or transmitted**.
 
-### Current state (card-service)
-- `settlement/SettlementFileTransmitter.java:93` — JSch SFTP uses `StrictHostKeyChecking=no`
-  ("**TODO production**: replace no with known_hosts fingerprint verification").
-- `bureau/BureauService.java:104` — "In production, the CDP bytes **would be encrypted** with the bureau's
-  public key" (currently not encrypted).
+### Current state (card-service) — verified Session 125
+- **`BureauFileTransport` does not exist.** It is named only in a comment at
+  `bureau/BureauService.java:107` ("not implemented in dev stub"). `submitJob` generates a
+  `CdpRecord`, stores its hash, sets `productionRequestDate`, and stops. Nothing turns CDP
+  into bytes and nothing sends it anywhere — so there is no "before transmission" to encrypt at.
+- **`panEncryptedForBureau` is mislabelled.** `CdpGenerator.java:101` sets it to
+  `card.getPanEncrypted()` — the **Jasypt** ciphertext under *card-service's own* key — while the
+  adjacent comment claims "bureau HSM decrypts using shared ZMK". A bureau cannot decrypt that;
+  it has no access to our Jasypt key. Not a raw-PAN exposure (it is ciphertext), but the stated
+  contract is wrong and will break on first real bureau onboarding.
 
 ### What's needed
-1. `known_hosts` fingerprint pinning (`StrictHostKeyChecking=yes`) for all scheme SFTP endpoints.
-2. Encrypt CDP (card personalization data) with the bureau's public key before transmission.
-3. mTLS (scheme-provided client cert) for the HTTPS settlement path (already noted as a TODO in the transmitter).
+1. The bureau's actual CDP file specification (Thales / Idemia / HID each publish their own).
+2. CDP serialisation to that format.
+3. Real key wrapping — PAN under a **shared ZMK** as the comment claims, or the bureau's public
+   key — replacing the current Jasypt-ciphertext passthrough. Fix the misleading comment either way.
+4. A `BureauFileTransport` (SFTP, reusing the now-pinned transmitter pattern).
+
+### Why this is gated, not "cleanup"
+An encryption scheme invented without the bureau's spec is likely to be rebuilt on onboarding,
+and it cannot be meaningfully tested — there is no counterparty to decrypt it. Pick this up
+when a named bureau and its spec exist.
 
 ---
 

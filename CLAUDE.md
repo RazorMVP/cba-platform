@@ -71,8 +71,12 @@ These are the verified-working versions for all production components. Update th
 
 | Component | Version | Notes |
 |-----------|---------|-------|
-| **Spring Boot** | 3.5.0 | Parent BOM |
+| **Spring Boot** | **3.4.4** | Parent BOM. ⚠️ **Not 3.5.0** — this table said 3.5.0 until Session 125; `card-service/pom.xml` has always said 3.4.4. Gives Spring Framework 6.2, so `JdkClientHttpRequestFactory` is available |
 | **Java** | 21 | LTS |
+| **JSch (SFTP)** | `com.github.mwiede:jsch:0.2.23` | The maintained fork, same `com.jcraft.jsch` package as the dead `com.jcraft:jsch:0.1.55`. Ships modern KEX/host-key algorithms — negotiates with current OpenSSH without legacy tweaks |
+| **BouncyCastle** | bcprov-jdk18on 1.78.1 | **`bcpkix` is NOT present** — no in-process X.509 certificate builder. Tests needing certs shell out to the JDK's `keytool` |
+| **Unit tests** | 118 | `cd card-service && ./mvnw -o test` |
+| **`-Pfull-integration`** | 124 | Needs Docker: `DOCKER_HOST=unix://$HOME/.docker/run/docker.sock` |
 | **Dockerfile** | added Session 116 | `maven:3.9-eclipse-temurin-21-alpine` build + `eclipse-temurin:21-jre-alpine` runtime; port 8081 |
 | **CI** | `card-service-ci.yml` | Test ✅ OWASP ✅ Docker ✅ Trivy ✅ — fully green as of Session 116 |
 | **Last git commit** | Session 122 (`1a0c601`) | Session 122 — card-service dev auth-bypass filter (mirror of the backend's, `@ConditionalOnProperty(app.auth-bypass=true)`) so the `authBypass`-mode Angular Cards screens load against `:8081`; fixed a Jackson↔Hibernate lazy-proxy 500 on the card endpoints (`@JsonIgnoreProperties` on `Card.product`); added a `productName` derived field for the Card List; regenerated the stale OpenAPI snapshot (also resynced cont. 7/8 drift). 115 unit. (cont. 8 `ed4e785`: FEP↔card-service contract) |
@@ -1810,6 +1814,16 @@ card:
 | `buildExportRecords()` uses JdbcTemplate | Intentional — avoids importing domain repositories from other packages (card, interchange); scheme is set to `'UNKNOWN'` in stub SQL and must be resolved via card/BIN join in production serializer implementation |
 | Stub `export()` returns UTF-8 text bytes | Stubs return human-readable field-layout documentation; real implementations replace the body with binary records per scheme spec; the interface contract (`byte[]`) is identical for both |
 
+#### Settlement transport security — host-key pinning + mTLS _(Session 125)_
+
+`StrictHostKeyChecking=no` is **gone**. `SettlementFileTransmitter` now pins the scheme's SSH host key and **fails closed** when it isn't pinned.
+
+- **Enabling an SFTP scheme now requires a host key.** Set `card.settlement.export.schemes.<s>.sftp-known-hosts-path` (an OpenSSH `known_hosts` file — preferred, supports rotation) **or** `.sftp-known-hosts-entry` (a literal `[host]:port keytype base64` line, for secret-manager deploys). With neither, `transmit()` throws **before opening a connection**, so nothing — not the file, not the auth attempt — reaches an unverified host. Both mechanisms feed `jsch.setKnownHosts`; there is deliberately **no** hand-rolled `HostKeyRepository` or fingerprint comparison.
+- **mTLS is opt-in and is NOT a vulnerability fix.** The `RestTemplate` always validated the *server* certificate via the JDK truststore; `https-keystore-path` adds the *client* authenticating itself, which schemes require contractually. Unset → unchanged bearer-only behaviour. Set-but-unloadable → **fails closed**, no silent downgrade.
+- **Never attach a scheme client cert to `backendRestTemplate`.** That bean also serves balance lookups against the monolith, so a scheme certificate on it would present the scheme's identity on unrelated internal calls. `SettlementTlsClientFactory` builds a *separate* per-scheme client and is a plain field (not a Spring bean), which also keeps the transmitter's 2-arg constructor intact for tests.
+- **`JdkClientHttpRequestFactory`, not Apache HttpClient.** Spring's default `SimpleClientHttpRequestFactory` cannot accept a custom `SSLContext`; the JDK `HttpClient` can, and Spring 6.2 ships the adapter — so mTLS needed no new dependency.
+- **Testing gotchas:** `SettlementFileTransmitterSftpIntegrationTest` pins the `atmoz/sftp` container's **real** host key (read via `execInContainer` from `/etc/ssh/ssh_host_*_key.pub`, rendered as `[host]:mappedPort` lines) — a test that supplies no host key will now fail, correctly. `SettlementFileTransmitterMtlsTest` runs an in-process `HttpsServer` with `setNeedClientAuth(true)` and includes a deliberate premise-guard test (`rejectsClientWithoutCertificate`): if that ever starts passing trivially, the server is not really demanding client auth and the mTLS test proves nothing.
+
 ---
 
 ### backend — Card Service Integration (Session 39)
@@ -2953,6 +2967,10 @@ CoreBanking/                          ← monorepo root (this repo)
 | `web-ci.yml` | push/PR to main/develop | `web/**` | lint → test → build → Vercel deploy → e2e |
 | `mobile-ci.yml` | push/PR to main/develop | `mobile/**` | test → dart-audit → build-android → build-ios |
 | `security-scan.yml` | push/PR + cron (Mon 03:00) | all | codeql → trivy-fs → gitleaks → dependency-review → snyk → zap |
+
+> **⚠️ `dependency-review` config gotcha _(Session 125 cont. 1)_.** The action **rejects having both `allow-licenses` and `deny-licenses` set** — it errors with `"You cannot specify both allow-licenses and deny-licenses"` and evaluates nothing, so the job fails without ever checking a dependency. `security-scan.yml` had both from the start, and because `dependency-review` is `if: github.event_name == 'pull_request'` and the repo pushed straight to `main` until Session 124, **it had never run** — license enforcement looked configured but was off. Fixed by keeping the deny-list only. Prefer **deny-list** here: an allow-list of `MIT/Apache-2.0/BSD/ISC` rejects EPL-2.0 (JUnit 5, Jakarta, H2), MPL-2.0 and CDDL, which are benign and unavoidable in this stack.
+>
+> **Related licensing note:** `fep-service`'s jPOS dependency declares **AGPL-3.0** (verified in its POM). AGPL §13 obliges offering source to users interacting over a network, and fep-service is a network-facing TCP server on 8583; jPOS sells a commercial license for this case. `dependency-review` only evaluates dependencies *changed in a PR*, so existing jPOS won't trip the deny-list — but it is an open legal/commercial question, not a code issue.
 
 ### Vercel Deployment (Angular Web App — production)
 

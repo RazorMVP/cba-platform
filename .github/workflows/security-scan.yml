@@ -113,10 +113,14 @@ jobs:
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
-          # Deny known problematic licenses
+          # Deny strong-copyleft licenses, which are the actual risk for a proprietary
+          # banking product. Deny-list (not allow-list) is deliberate: an allow-list of
+          # MIT/Apache-2.0/BSD/ISC would reject EPL-2.0 (JUnit 5, Jakarta, H2), MPL-2.0 and
+          # CDDL — all benign and all present in a normal Java stack — producing constant
+          # false failures. The action REJECTS having both lists set:
+          #   "You cannot specify both allow-licenses and deny-licenses"
+          # so an allow-licenses line here disables the whole check rather than tightening it.
           deny-licenses: GPL-2.0, GPL-3.0, AGPL-3.0
-          # Allow commonly used permissive licenses
-          allow-licenses: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC
 
   # ─── Snyk — Java + npm ───────────────────────────────────────────────────────
   snyk:

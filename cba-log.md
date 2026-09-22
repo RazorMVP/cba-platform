@@ -57,6 +57,50 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 2) — 2026-09-22
+**Removed a leaked Google OAuth client secret from two tracked files in this PUBLIC repo. The client was deleted in Google Cloud Console first, so the value is now dead.**
+
+> ⚠️ **Merge note:** third open branch inserting at the top of Change History (with #99 and #100). Expect a trivial conflict here; resolution is "keep all entries".
+
+**How it was found:** at the user's request, enabled repo `secret_scanning` + `secret_scanning_push_protection` via `gh api -X PATCH repos/RazorMVP/cba-platform` (both previously `disabled` on a public repo). The first scan immediately raised 2 open alerts: **Google OAuth Client ID** (#1) and **Google OAuth Client Secret** (#2), at `.mcp.json:7–8`, committed 2026-04-05 in `444cb1c` (initial scaffold). Publicly readable for ~5½ months.
+
+**Rotation came first.** Removing a file doesn't un-leak it, because it stays in git history and may already be copied. The user deleted the OAuth client in Google Cloud Console before any code change. That is the actual fix; this commit only stops re-storing it.
+
+**Second copy found:** GitHub listed only `.mcp.json`, but `.claude/skills/cba/settings.json` held the **identical** secret (verified by value comparison, not by eye). Both cleaned. A post-fix `grep` for `GOCSPX-` and the client-ID prefix across the working tree returns nothing.
+
+**Three findings:**
+- **The config never used Claude Code's schema.** It had an `oauth2` block with `clientSecret`/`authorizationEndpoint`/`tokenEndpoint`. Claude Code's key is `oauth` (`clientId`, `callbackPort`, `scopes`), and the **client secret is never in config**. It lives in the macOS keychain, set via `claude mcp add ... --client-secret` (masked prompt) or `MCP_CLIENT_SECRET`. Verified against current Claude Code docs (Context7 `/websites/code_claude`).
+- **`${VAR}` expansion does NOT work inside `oauth`.** Per the docs, expansion applies only to `command`, `args`, `env`, `url` and `headers`. Moving the secret to `${STITCH_OAUTH_CLIENT_SECRET}` inside `oauth2` would have silently shipped the literal string.
+- **The endpoint has never existed.** `mcp.stitch.withgoogle.com` has no DNS record (`dig` empty, `curl` exit 6). `stitch.withgoogle.com` is live (200). This is why the Stitch MCP failed with `ENOTFOUND` every session. Kept `type` + `url` only, so behaviour is unchanged (it already never connected). Removing the entry entirely is a separate decision, flagged not taken.
+
+**History rewrite deliberately NOT done.** With the client deleted, the value in history is inert. A rewrite would mean force-pushing `main` for no security gain.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `.mcp.json` | removed `oauth2` block (deleted client's ID + secret); kept `type` + `url` |
+| `.claude/skills/cba/settings.json` | same removal; `_comment` rewritten to forbid credentials in tracked config and give the correct keychain-based command |
+
+#### Build Verification
+No build impact: two config files, zero application code. Both files validate with `python3 -m json.tool`. Secret-scanning alerts #1/#2 remain open in GitHub until closed as **revoked** in the Security tab (user action). The value is in history, so the alert won't auto-close.
+
+#### API Documentation
+**API surface unchanged — verified via gate grep; no api-reference/postman edits owed.** Zero `*.java` files touched.
+
+#### Confirmed Platform Versions
+Unchanged from Session 125. Repo security settings now: dependency graph ✅, Dependabot alerts ✅, Dependabot security updates ✅, secret scanning ✅, push protection ✅ (non-provider patterns + validity checks still off).
+
+#### Compliance Checklist Update
+| Gate item | Status |
+|-----------|--------|
+| 1. `cba-log.md` | ✅ this entry |
+| 2. `CLAUDE.md` gotcha | ✅ |
+| 3–4. API docs | ✅ N/A — proof line above |
+| 5. Deployment-agnostic | ✅ N/A |
+| 6. Commit + push | ✅ via PR |
+
+---
+
 ### Session 124 — 2026-09-18
 **Unblocked the web CI/CD pipeline: cleared 1 critical + 18 high npm advisories via an Angular 21.2.x latest-patch bump, releasing the Session 122/123 fixes that had never reached production.**
 

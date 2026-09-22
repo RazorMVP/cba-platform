@@ -57,6 +57,30 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 4) — 2026-09-22
+**Bouncy Castle `bcprov-jdk18on` 1.78.1 → 1.86 in card-service and fep-service. Clears all 8 open bcprov Dependabot alerts, including 4 of the repo's 8 criticals.**
+
+**Alerts cleared (identical set in each service):** GHSA-9pwp-9qqc-pr26 (critical, fixed 1.85), GHSA-574f-3g2m-x479 (critical, fixed 1.80.2), GHSA-qp49-qgx5-5m26 (high, fixed 1.85), GHSA-c3fc-8qff-9hwx (medium, fixed 1.84). card-service #3/#5/#6/#7, fep-service #69–#72.
+
+**Why 1.86, not 1.85:** 1.86 is the current Maven Central release (checked `maven-metadata.xml`, not `search.maven.org`, whose index reported a stale `latestVersion` of 1.80). Same 1.x line, so no API break is expected, and the tests confirm it.
+
+**Decision recorded:** the repo stays **public**. Making it private on the owner's GitHub Pro personal plan would drop secret scanning, push protection, CodeQL and Dependency Review, which need the Advanced Security add-ons sold only to Team or Enterprise orgs.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/pom.xml` | `bouncycastle.version` 1.78.1 → 1.86 |
+| `fep-service/pom.xml` | `bouncycastle.version` 1.78.1 → 1.86 |
+
+#### Build Verification
+`./mvnw test` in both modules: 0 failures, 0 errors. fep-service 86/86, including `ArqcValidatorTest` 7/7, which mints real TDES and SM4 ARQCs through Bouncy Castle. The resolved jar's manifest reports `Bundle-Version: 1.86`.
+
+#### API Documentation
+**API surface unchanged — verified via gate grep; no api-reference/postman edits owed.** Dependency version only.
+
+#### Confirmed Platform Versions
+card-service + fep-service: bcprov-jdk18on **1.86** (was 1.78.1). CLAUDE.md card-service table updated.
+
 ### Session 125 (cont. 3) — 2026-09-22
 **Trivy Filesystem Scan fixed: it failed daily on a Maven Central `429 Too Many Requests`. Now pre-resolves `~/.m2` with Maven and scans with `--offline-scan`. Also triaged the 179 Dependabot alerts that became visible when alerts were enabled.**
 

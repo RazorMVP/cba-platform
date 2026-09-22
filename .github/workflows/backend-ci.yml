@@ -152,7 +152,8 @@ jobs:
   owasp-check:
     name: OWASP Dependency Check
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    # Was 180. With the mirror + a cache that is actually saved, a run is minutes.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -163,31 +164,50 @@ jobs:
           distribution: temurin
           cache: maven
 
-      - name: Cache NVD database
-        uses: actions/cache@v4
+      # restore/save split, NOT plain actions/cache: plain actions/cache only saves
+      # when the job succeeds, and this job fails on any CVSS >= 7 finding — so the
+      # NVD cache was never written. The old key (hash of pom.xml) also never
+      # refreshed once saved. Now: one entry per day, saved even on failure.
+      # Same key prefix as card-service-ci.yml, so the two jobs share the database.
+      - name: Compute NVD cache key
+        id: nvd-key
+        run: echo "key=owasp-nvd-${{ runner.os }}-$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore NVD database cache
+        uses: actions/cache/restore@v4
         with:
           path: ~/.m2/repository/org/owasp/dependency-check-data
-          key: owasp-nvd-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            owasp-nvd-${{ runner.os }}-
+          key: ${{ steps.nvd-key.outputs.key }}
+          restore-keys: owasp-nvd-${{ runner.os }}-
 
       - name: Run OWASP Dependency Check
         working-directory: backend
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        # Plugin pinned (was unpinned → newest on every run). `hoursToWaitBeforeChecking`
+        # is not a dependency-check property and was silently ignored; the real one is
+        # nvdValidForHours. OSS Index now requires credentials, so it's disabled explicitly.
         run: |
-          mvn org.owasp:dependency-check-maven:check \
+          mvn org.owasp:dependency-check-maven:13.0.0:check \
             -DfailBuildOnCVSS=7 \
             -DsuppressionFile=../docs/owasp-suppressions.xml \
             -DnvdApiKey="${NVD_API_KEY}" \
             -DnvdMaxRetryCount=5 \
             -DnvdApiDelay=2000 \
             -DnvdDatafeedUrl=https://dependency-check.github.io/DependencyCheck_Builder/nvd_cache/ \
+            -DnvdValidForHours=24 \
             -DretireJsAnalyzerEnabled=false \
             -DnodeAnalyzerEnabled=false \
             -DassemblyAnalyzerEnabled=false \
-            -DhoursToWaitBeforeChecking=24 \
+            -DossIndexAnalyzerEnabled=false \
             --no-transfer-progress
+
+      - name: Save NVD database cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.m2/repository/org/owasp/dependency-check-data
+          key: ${{ steps.nvd-key.outputs.key }}
 
       - name: Upload OWASP report
         if: always()

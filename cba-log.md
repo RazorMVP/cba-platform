@@ -57,6 +57,37 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 5) — 2026-09-22
+**OWASP Dependency Check CI fixed so it finishes in minutes, not ~40+ min or never. It still fails on real CVEs, and a separate PR fixes those.**
+
+**Root causes (from the job logs):**
+1. **The NVD cache was never saved.** Plain `actions/cache` saves only on job success, and `owasp-check` fails on every CVSS ≥ 7 finding. The backend log confirms it: `Cache not found for input keys: owasp-nvd-Linux-<pomhash>`. card-service had no cache at all.
+2. **card-service paged the NVD API.** Its 2026-08-20 run spent 37 min downloading 381,164 records before scanning, and PR #109's run was still downloading after 45+ min. The backend already used the public mirror (its run took 2 min).
+3. **The plugin wasn't pinned**, so each run resolved the newest version (13.0.0 today).
+4. **The backend's `-DhoursToWaitBeforeChecking=24` isn't a dependency-check property** and was silently ignored. The real property is `nvdValidForHours` (checked against the plugin's configuration docs).
+
+**Fix (both `backend-ci.yml` and `card-service-ci.yml`):** a per-day cache key `owasp-nvd-Linux-YYYY-MM-DD` shared by both jobs, `actions/cache/restore` before the scan, `actions/cache/save` with `if: always()` after it, the mirror datafeed, `dependency-check-maven:13.0.0` pinned, `nvdValidForHours=24`, `ossIndexAnalyzerEnabled=false` (OSS Index now requires credentials), and `timeout-minutes: 45` (backend was 180).
+
+**What the job then finds (the real reason it has failed on main since July):**
+- **backend (SB 3.5.0):** Tomcat 10.1.41, Spring 6.2.7, Spring Security 6.5.0, Jackson 2.19.0, httpclient5 5.4.4, PostgreSQL 42.7.5, Netty 4.1.121. Several are CVSS 9.1–9.8.
+- **card-service (SB 3.4.4 + explicit `netty.version` 4.1.115):** the same set, older, plus Netty CVEs up to 10.0.
+- **Impact:** `docker` needs `owasp-check == success`, so neither service has built an image on main since at least July.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `.github/workflows/card-service-ci.yml` | `owasp-check`: restore/save NVD cache, mirror, pinned plugin, 45-min timeout |
+| `.github/workflows/backend-ci.yml` | `owasp-check`: same; drops broken `hoursToWaitBeforeChecking` and the never-saved pom-hash cache |
+
+#### Build Verification
+Both workflows parse (`yaml.safe_load`) with the steps in order. The mirror is live (`cache.properties` updated 2026-09-22). The real proof is this PR's CI: `owasp-check` should *finish* in minutes, and it will still *fail* on the CVEs above.
+
+#### API Documentation
+**API surface unchanged — verified via gate grep; no api-reference/postman edits owed.** CI config only.
+
+#### Confirmed Platform Versions
+Unchanged. The Spring Boot bumps are the next PR.
+
 ### Session 125 (cont. 4) — 2026-09-22
 **Bouncy Castle `bcprov-jdk18on` 1.78.1 → 1.86 in card-service and fep-service. Clears all 8 open bcprov Dependabot alerts, including 4 of the repo's 8 criticals.**
 

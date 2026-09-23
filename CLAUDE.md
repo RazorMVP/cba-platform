@@ -4,7 +4,7 @@ This file is the single source of truth for Claude when working on the CBA platf
 
 ---
 
-## Confirmed Platform Versions (Session 118 — 2026-04-27)
+## Confirmed Platform Versions (Session 125 — 2026-09-23)
 
 These are the verified-working versions for all production components. Update this table whenever a dependency is upgraded.
 
@@ -22,8 +22,8 @@ These are the verified-working versions for all production components. Update th
 | **AWS SDK v2 S3** | 2.26.12 | Optional — for S3/MinIO/GCS image storage |
 | **thumbnailator** | 0.4.20 | Server-side image resize for `ClientImageService` — max 500×500, JPEG output |
 | **ZXing** | 3.5.3 | Server-side QR PNG generation (`core` + `javase`) — Session 105 |
-| **spring-boot-starter-data-redis** | 3.5.0 (managed) | Redis fixed-window rate limiting (Lua INCR+EXPIRE) — Session 106 |
-| **Last git commit** | Session 121 cont. 1 (`45a44ef`) | Session 121 (cont. 1) — container-backed e2e integration tests (WireMock/MinIO/MailHog/SFTP) exercising the real HTTP providers over a socket; regenerated the stale backend OpenAPI snapshot (Session-121 endpoints) + fixed `CardOpenApiSnapshotTest` RANDOM_PORT non-determinism. `-Pfull-integration`: backend 688 green, card-service 113 green. (cont. 0 `d66444a`: Tier-3 adapters — SmsProvider/CreditBureauProvider/ExternalPaymentGateway/PushSender, 622→674 unit) |
+| **spring-boot-starter-data-redis** | 3.5.16 (managed) | Redis fixed-window rate limiting (Lua INCR+EXPIRE) — Session 106 |
+| **Last git commit** | Session 125 cont. 8 (`ad374f9`) | Session 125 — Spring Boot 3.5.0 → 3.5.16 (#111); six security pins ahead of the BOM (Tomcat 10.1.60, Netty 4.1.138, PostgreSQL 42.7.13, httpcore5 5.4.3, httpclient5 5.6.4, log4j2 2.26.1) + 14 time-boxed Spring suppressions so `owasp-check` passes **while still blocking at CVSS 7** (#113); MinIO test image → quay.io and 3 SpotBugs findings fixed (#114). `-Pfull-integration`: **704/704**. |
 
 ### Angular Web App (`web/`)
 
@@ -78,8 +78,8 @@ These are the verified-working versions for all production components. Update th
 | **Unit tests** | 118 | `cd card-service && ./mvnw -o test` |
 | **`-Pfull-integration`** | 124 | Needs Docker: `DOCKER_HOST=unix://$HOME/.docker/run/docker.sock` |
 | **Dockerfile** | added Session 116 | `maven:3.9-eclipse-temurin-21-alpine` build + `eclipse-temurin:21-jre-alpine` runtime; port 8081 |
-| **CI** | `card-service-ci.yml` | Test ✅ OWASP ✅ Docker ✅ Trivy ✅ — fully green as of Session 116 |
-| **Last git commit** | Session 122 (`1a0c601`) | Session 122 — card-service dev auth-bypass filter (mirror of the backend's, `@ConditionalOnProperty(app.auth-bypass=true)`) so the `authBypass`-mode Angular Cards screens load against `:8081`; fixed a Jackson↔Hibernate lazy-proxy 500 on the card endpoints (`@JsonIgnoreProperties` on `Card.product`); added a `productName` derived field for the Card List; regenerated the stale OpenAPI snapshot (also resynced cont. 7/8 drift). 115 unit. (cont. 8 `ed4e785`: FEP↔card-service contract) |
+| **CI** | `card-service-ci.yml` | Test ✅ OWASP ✅ Docker ✅ Trivy ✅ — green on main as of Session 125 cont. 10 (`b93ebcc`); images push to GHCR as `sha-<7>` + `main`. Deploy jobs run and **skip cleanly** — no cluster configured (`docs/deferred-backlog.md` item 8) |
+| **Last git commit** | Session 125 cont. 8 (`ad374f9`) | Session 125 — bcprov 1.78.1 → 1.86 (#109); Spring Boot 3.4.4 → 3.5.16 with the old `netty.version 4.1.115` pin removed (#111); the same six security pins + Spring suppressions as the backend (#113). Settlement SFTP host-key pinning + opt-in mTLS earlier in Session 125 (#99). `-Pfull-integration`: **124/124**. |
 
 > **Session 66 CI fixes**: Angular 21 uses Vitest (not Karma) — `--browsers=ChromeHeadless` and `--code-coverage` are invalid flags. `vercel deploy --prebuilt` requires `.vercel/output/` from `vercel build`, not `dist/` from `ng build`. All three issues fixed; CI pipeline and Vercel production deployment now fully green.
 

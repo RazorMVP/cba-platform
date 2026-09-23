@@ -57,6 +57,40 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 11) — 2026-09-23
+**Session Completion Gate executed for the whole of Session 125 cont. 4–10 (PRs #109, #110, #111, #113, #114, #115; #112 closed unmerged). One item failed and is fixed here: CLAUDE.md's Confirmed Platform Versions table was stale.**
+
+#### Gate results
+| # | Item | Result |
+|---|------|--------|
+| 1 | `cba-log.md` | ✅ All nine Session 125 entries (cont. 1–6, 8–10) carry the proof line and a Confirmed Platform Versions block. (cont. 7 existed only on the closed PR #112; cont. 8 records why it was reverted.) |
+| 2 | `CLAUDE.md` | ❌ → ✅ **Fixed in this entry.** Backend "Last git commit" said `45a44ef` (Session 121) and card-service said `1a0c601` (Session 122); both are now `ad374f9`. `spring-boot-starter-data-redis` said 3.5.0 → 3.5.16. card-service's CI row said "fully green as of Session 116" → now records the Session 125 state. Table heading dated Session 118 → Session 125. |
+| 3 | `docs/api-reference.html` | ✅ Not owed — see proof below |
+| 4 | Postman collection | ✅ Not owed — see proof below |
+| 5 | Deployment-agnostic check | ✅ N/A — no new app or service this session |
+| 6 | Commit + push | ✅ Via branch + PR (`docs/session-125-gate`), per the standing never-commit-to-main rule |
+
+#### Verification block — run against BOTH `origin/main` and the session start `f5f9a72`
+`origin/main` alone would compare a tree to itself, since every session PR was already merged, so the block was also run from `f5f9a72` (the commit before #109) to cover the whole session:
+- Endpoint / param surface changes since `f5f9a72`: **none**.
+- Doc files changed since `f5f9a72`: `CLAUDE.md`, `cba-log.md` only.
+- Java files changed this session: `RateLimitEventNotifier.java`, `PartnerApiKeyAuthFilter.java` (catch narrowing), `S3StorageProviderIntegrationTest.java` (test image).
+
+**Behaviour check on the two main-code files** (the gate counts behaviour changes, not just endpoints): `extractJwtClaim` only ever receives `auth.substring(7)` after an `auth == null` guard, and its body can only throw `IllegalArgumentException` (Base64 decode) or `IndexOutOfBoundsException` — exactly the two it now catches — so its behaviour is identical. `PartnerApiKeyAuthFilter`'s narrowing to `RuntimeException` compiled, which proves nothing checked is thrown in the block, so its behaviour is identical too.
+
+**API surface unchanged — verified via gate grep; no api-reference/postman edits owed.**
+
+#### Confirmed Platform Versions
+| Directory | Last commit | Notes |
+|-----------|-------------|-------|
+| `backend/` | `ad374f9` (#113) | Spring Boot 3.5.16 + 6 security pins; 704/704 |
+| `card-service/` | `ad374f9` (#113) | Spring Boot 3.5.16 + 6 security pins; bcprov 1.86; 124/124 |
+| `fep-service/` | `9a5e3f9` (#109) | Spring Boot 3.2.5 (unchanged); bcprov 1.86; 86/86 |
+| `web/` | `28b26c1` | Unchanged this session (Angular 21.2.23) |
+| `.github/` + `docs/` | `b93ebcc` (#115) | OWASP cache, deploy-job fixes, backlog items 8–9 |
+
+**Images:** `ghcr.io/razormvp/cba-platform/cba-backend` and `…/cba-card-service` build and push on main (first since July 2026: `sha-ad374f9`; latest `sha-b93ebcc`). **Deploy:** jobs now run and skip cleanly — no cluster configured.
+
 ### Session 125 (cont. 10) — 2026-09-23
 **Logged the missing CI credentials (Kubernetes deploy, SonarCloud) as deferred-backlog items 8 and 9, and FIXED seven bugs in the deploy jobs that would have blocked deployment even once those credentials exist.** Both at the owner's request.
 

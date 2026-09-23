@@ -41,7 +41,13 @@ class S3StorageProviderIntegrationTest {
 
     @Container
     static final GenericContainer<?> MINIO =
-            new GenericContainer<>(DockerImageName.parse("minio/minio:latest"))
+            // quay.io, NOT Docker Hub: MinIO stopped publishing free images there, so
+            // `minio/minio` now fails with "pull access denied … repository does not
+            // exist", breaking this test — and the whole backend `test` job — on every
+            // run. quay.io/minio/minio still serves the community releases.
+            // Pinned to a release tag rather than `latest` so the test cannot shift
+            // under us; this is the last plain community release (2025-09-07).
+            new GenericContainer<>(DockerImageName.parse("quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"))
                     .withExposedPorts(9000)
                     .withEnv("MINIO_ROOT_USER", ACCESS)
                     .withEnv("MINIO_ROOT_PASSWORD", SECRET)

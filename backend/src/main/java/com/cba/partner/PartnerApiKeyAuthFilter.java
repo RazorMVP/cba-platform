@@ -56,8 +56,12 @@ public class PartnerApiKeyAuthFilter extends OncePerRequestFilter {
                 if (match.isPresent()) {
                     authenticate(match.get());
                 }
-            } catch (Exception ignored) {
-                // malformed key — leave unauthenticated; endpoint authorization will reject
+            } catch (RuntimeException ignored) {
+                // Malformed key, or the lookup failed (e.g. DataAccessException):
+                // leave the request unauthenticated and let endpoint authorization
+                // reject it. Narrowed from `Exception` (SpotBugs REC_CATCH_EXCEPTION)
+                // — nothing checked is thrown here, so the wider catch only risked
+                // swallowing faults this filter should not be handling.
             }
         }
 

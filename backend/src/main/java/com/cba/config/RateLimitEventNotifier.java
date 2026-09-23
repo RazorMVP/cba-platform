@@ -106,7 +106,12 @@ public class RateLimitEventNotifier {
             start += search.length();
             int end = payload.indexOf('"', start);
             return end > start ? payload.substring(start, end) : null;
-        } catch (Exception e) {
+        } catch (IllegalArgumentException | IndexOutOfBoundsException e) {
+            // Malformed token: not valid Base64URL, or the payload is truncated
+            // mid-claim. Callers treat null as "no orgId", which is the intended
+            // outcome — the token's signature is verified downstream regardless.
+            // Narrow catch (was `Exception`): SpotBugs REC_CATCH_EXCEPTION, and a
+            // blanket catch here would also swallow unrelated runtime faults.
             return null;
         }
     }

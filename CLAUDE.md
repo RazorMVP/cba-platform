@@ -12,7 +12,7 @@ These are the verified-working versions for all production components. Update th
 
 | Component | Version | Notes |
 |-----------|---------|-------|
-| **Spring Boot** | 3.5.0 | Parent BOM; governs Flyway, Hibernate, security versions |
+| **Spring Boot** | **3.5.16** | Parent BOM; governs Flyway, Hibernate, security versions. Bumped from 3.5.0 (Session 125 cont. 6) to clear OWASP CVEs in Tomcat/Spring/Spring Security/Jackson/httpclient5/PostgreSQL/Netty |
 | **Java** | 21 | LTS; records, sealed classes, pattern matching used throughout |
 | **Application artifact** | `cba-backend 0.1.0-SNAPSHOT` | `pom.xml` groupId: `com.cba` |
 | **Keycloak admin client** | 26.0.5 | `keycloak-admin-client` |
@@ -71,7 +71,7 @@ These are the verified-working versions for all production components. Update th
 
 | Component | Version | Notes |
 |-----------|---------|-------|
-| **Spring Boot** | **3.4.4** | Parent BOM. ⚠️ **Not 3.5.0** — this table said 3.5.0 until Session 125; `card-service/pom.xml` has always said 3.4.4. Gives Spring Framework 6.2, so `JdkClientHttpRequestFactory` is available |
+| **Spring Boot** | **3.5.16** | Parent BOM. Was 3.4.4 until Session 125 cont. 6 (the table wrongly said 3.5.0 until Session 125); bumped for the same OWASP CVEs as the backend. Spring Framework 6.2 either way, so `JdkClientHttpRequestFactory` stays available. The explicit `netty.version` 4.1.115 pin was **removed** — it held Netty below the Spring Boot-managed version and carried CVEs up to CVSS 10.0 |
 | **Java** | 21 | LTS |
 | **JSch (SFTP)** | `com.github.mwiede:jsch:0.2.23` | The maintained fork, same `com.jcraft.jsch` package as the dead `com.jcraft:jsch:0.1.55`. Ships modern KEX/host-key algorithms — negotiates with current OpenSSH without legacy tweaks |
 | **BouncyCastle** | bcprov-jdk18on **1.86** | Bumped from 1.78.1 (Session 125 cont. 4) — cleared 8 Dependabot alerts (per service: 2 critical, 1 high, 1 medium — GHSA-9pwp-9qqc-pr26, -574f-3g2m-x479, -qp49-qgx5-5m26, -c3fc-8qff-9hwx). fep-service uses the same `bouncycastle.version` property. **`bcpkix` is NOT present** — no in-process X.509 certificate builder. Tests needing certs shell out to the JDK's `keytool` |

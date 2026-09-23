@@ -220,4 +220,125 @@
     <cve>CVE-2025-46701</cve>
   </suppress>
 
+  <!-- ══════════════════════════════════════════════════════════════════════════
+       Spring Framework / Spring Security — NO PATCHED RELEASE EXISTS
+       Added 2026-09-23 (Session 125 cont. 8). Review by 2026-12-22.
+
+       Every one of these was checked individually against the GitHub Advisory DB
+       and NVD: spring-core 6.2.19 and spring-security-core 6.5.11 are the NEWEST
+       published versions in their lines, and none of these CVEs has a fixed
+       version anywhere (6.2.x, 6.5.x or 7.x). There is no upgrade to take.
+
+       Everything that COULD be fixed by upgrading was fixed by upgrading instead
+       of suppressed — see the "Security pins" block in backend/pom.xml and
+       card-service/pom.xml (Tomcat 10.1.60, Netty 4.1.138, PostgreSQL 42.7.13,
+       httpcore5 5.4.3, httpclient5 5.6.4, log4j2 2.26.1).
+
+       `until` is real: when it passes, dependency-check ignores the suppression
+       and the build fails again on that CVE. That is the intended prompt to
+       re-check for a patched Spring release. Do NOT bump the date without
+       re-running the check — if a fix has shipped, upgrade and DELETE the entry.
+
+       Stack facts these justifications rest on (verified 2026-09-23):
+         * Servlet/MVC on Tomcat. 16 @RestController in card-service, all MVC.
+         * spring-webflux is on card-service's classpath for WebClient ONLY —
+           no @EnableWebFlux, no RouterFunctions, no reactive controllers.
+         * Not present anywhere: RSocket, Jetty, Aalto XML, XsltView, WebAuthn,
+           UnboundID, SseEmitter/text-event-stream.
+         * No @ModelAttribute / WebDataBinder / @InitBinder; all 188 request
+           payloads bind as JSON through Jackson.
+         * No SpEL evaluation of user input (no SpelExpressionParser /
+           parseExpression in either service).
+       PURL SCOPE: dependency-check attributes a Spring Framework CVE to EVERY
+       sibling spring-* jar via CPE, so suppressing only spring-core simply moved
+       the failure to spring-tx. These entries therefore use the group-level PURL
+       ^pkg:maven/org\.springframework/.*$ — which is still NARROW in the sense
+       the policy cares about: each entry names its exact CVEs, so a different
+       future CVE in any spring-* jar is NOT hidden.
+       ══════════════════════════════════════════════════════════════════════════ -->
+
+  <!-- XsltView SSRF/RCE. XsltView is not used (0 references in either service). -->
+  <suppress until="2026-12-22Z">
+    <notes>No fixed release exists. Unreachable: XsltView is not used.</notes>
+    <packageUrl regex="true">^pkg:maven/org\.springframework/.*$</packageUrl>
+    <cve>CVE-2026-47884</cve>
+  </suppress>
+
+  <!-- WebFlux SERVER-side defects. We run MVC on Tomcat; spring-webflux is present
+       only as WebClient, so none of these code paths is instantiated. -->
+  <suppress until="2026-12-22Z">
+    <notes>No fixed release exists. Unreachable: no reactive server — WebFlux is on
+      the classpath for WebClient only (no @EnableWebFlux/RouterFunctions/reactive
+      controllers). 47885 = PartEventHttpMessageReader; 47889 = WebFlux on Jetty 12
+      (Jetty absent); 47891 = Aalto XML (absent); 47892 = functional endpoints;
+      47893 = WebFlux WebSocket (no WebSocket endpoints).</notes>
+    <packageUrl regex="true">^pkg:maven/org\.springframework/.*$</packageUrl>
+    <cve>CVE-2026-47885</cve>
+    <cve>CVE-2026-47889</cve>
+    <cve>CVE-2026-47891</cve>
+    <cve>CVE-2026-47892</cve>
+    <cve>CVE-2026-47893</cve>
+  </suppress>
+
+  <!-- RSocket memory leak. No RSocket dependency and no RSocket code. -->
+  <suppress until="2026-12-22Z">
+    <notes>No fixed release exists. Unreachable: RSocket is not a dependency.</notes>
+    <packageUrl regex="true">^pkg:maven/org\.springframework/.*$</packageUrl>
+    <cve>CVE-2026-47888</cve>
+  </suppress>
+
+  <!-- SpEL DoS / SimpleEvaluationContext guard bypass. We never evaluate
+       user-supplied SpEL; the only SpEL is developer-authored @Value defaults. -->
+  <suppress until="2026-12-22Z">
+    <notes>No fixed release exists. Unreachable: no user-supplied SpEL evaluation
+      (no SpelExpressionParser/parseExpression anywhere in main source).</notes>
+    <packageUrl regex="true">^pkg:maven/org\.springframework/.*$</packageUrl>
+    <cve>CVE-2026-47886</cve>
+    <cve>CVE-2026-59283</cve>
+  </suppress>
+
+  <!-- SSE stream corruption with view fragments. No SSE endpoints. -->
+  <suppress until="2026-12-22Z">
+    <notes>No fixed release exists. Unreachable: no Server-Sent Events — no
+      SseEmitter and no text/event-stream producer in either service.</notes>
+    <packageUrl regex="true">^pkg:maven/org\.springframework/.*$</packageUrl>
+    <cve>CVE-2026-47890</cve>
+  </suppress>
+
+  <!-- MVC functional web framework (RouterFunctions). We use annotated controllers. -->
+  <suppress until="2026-12-22Z">
+    <notes>No fixed release exists. Unreachable: the functional web framework is not
+      used — no RouterFunctions/ServerResponse; all endpoints are @RestController.</notes>
+    <packageUrl regex="true">^pkg:maven/org\.springframework/.*$</packageUrl>
+    <cve>CVE-2026-59313</cve>
+  </suppress>
+
+  <!-- Data-binding DoS via user-supplied property paths.
+       ⚠️ NOT claimed unreachable — this is a RISK-ACCEPTED entry. -->
+  <suppress until="2026-12-22Z">
+    <notes>No fixed release exists (affects every Spring 5.2–7.0 line). Risk accepted,
+      NOT unreachable: the classic vector is absent — no @ModelAttribute, no
+      WebDataBinder/@InitBinder, and all 188 request payloads bind as JSON through
+      Jackson rather than Spring property paths — but Spring Data's Pageable/Sort
+      resolution does accept user-supplied property names, so a DoS attempt cannot be
+      fully excluded. Mitigations: authenticated endpoints only, plus per-tier rate
+      limiting (RateLimitFilter). Upgrade the moment a fixed Spring release ships.</notes>
+    <packageUrl regex="true">^pkg:maven/org\.springframework/.*$</packageUrl>
+    <cve>CVE-2026-59282</cve>
+  </suppress>
+
+  <!-- Spring Security: WebAuthn + embedded UnboundID LDAP server.
+       Attributed by dependency-check to spring-security-core AND
+       spring-security-oauth2-resource-server, hence the group-level PURL —
+       still narrow, because it is scoped to these two CVEs only. -->
+  <suppress until="2026-12-22Z">
+    <notes>No fixed release exists (6.5.11 is the newest 6.5.x). Unreachable:
+      47841 = WebAuthn support, which is not enabled (0 references); 59270 = the
+      EMBEDDED UnboundID LDAP server, which is not a dependency. Authentication is
+      Keycloak OIDC/JWT resource-server only.</notes>
+    <packageUrl regex="true">^pkg:maven/org\.springframework\.security/.*$</packageUrl>
+    <cve>CVE-2026-47841</cve>
+    <cve>CVE-2026-59270</cve>
+  </suppress>
+
 </suppressions>

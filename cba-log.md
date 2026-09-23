@@ -57,8 +57,6 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
-> ⚠️ **Merge note:** cont. 9 (this entry, branch `fix/backend-ci-green`, based on main) and cont. 6/8 (branch `fix/owasp-pin-and-suppress`) all insert at the top of Change History. On rebase keep them in numeric order, newest first — do not interleave the hunks.
-
 ### Session 125 (cont. 9) — 2026-09-23
 **The two pre-existing backend CI failures are fixed: the deleted `minio/minio` Docker Hub image, and 3 SpotBugs findings. Backend is now 704/704 green including the MinIO test.** Neither was caused by the Spring Boot bump (#111) — both predate it and both block `docker` on main.
 
@@ -87,6 +85,52 @@ _None — all Phase 1 backend modules are now complete._
 
 #### Confirmed Platform Versions
 Unchanged.
+
+### Session 125 (cont. 8) — 2026-09-23
+**`owasp-check` is GREEN and still BLOCKING at CVSS 7 in both Java services — reached by upgrading six libraries ahead of the Spring Boot BOM and suppressing only the 14 CVEs that have no fix anywhere. backend 704/704, card-service 124/124.**
+
+**This replaces cont. 7, which was reverted (PR #112 closed unmerged).** That change made the job `continue-on-error` on the stated grounds that "Dependabot, Snyk and Trivy remain blocking". An automated security review of the pushed commit flagged it as a false compensating control, and **it was right**:
+- `snyk`'s two scan steps are `continue-on-error: true` → report-only.
+- The Trivy scans set no `exit-code` (or `exit-code: '0'`) → report-only.
+- Dependabot raises **alerts**; it is not a CI gate.
+So `owasp-check` is the **only** gate that fails a build on a CVE in an **existing** Java dependency — `dependency-review` sees only dependencies *changed in a PR*, and `npm audit` covers `web/` only. Making it advisory would have left that whole class ungated. **Do not make this job advisory.**
+
+**Step 1 — upgrade everything that has a fix (6 pins, both poms).** Each is annotated with the CVE it clears and an instruction to remove it when the BOM catches up:
+
+| Library | SB 3.5.16 ships | Pinned | Clears |
+|---|---|---|---|
+| Tomcat | 10.1.55 | **10.1.60** | CVE-2026-65182 (9.1) |
+| Netty | 4.1.135 | **4.1.138.Final** | CVE-2026-56817 (8.3), CVE-2026-56745 (8.7) |
+| PostgreSQL | 42.7.11 | **42.7.13** | CVE-2026-54291 (8.2) |
+| httpcore5 | 5.3.6 | **5.4.3** | CVE-2026-54399, CVE-2026-54428 (7.5) |
+| httpclient5 | 5.5.2 | **5.6.4** | CVE-2026-71290 (9.1) |
+| log4j2 | 2.24.3 | **2.26.1** | CVE-2026-34479 |
+
+**Step 2 — suppress only the unfixable (14 CVEs, 8 entries, `until="2026-12-22Z"`).** `spring-core` 6.2.19 and `spring-security-core` 6.5.11 are the newest published versions in their lines and **none of these CVEs has a fixed version in 6.2.x, 6.5.x or 7.x**. Justifications rest on verified stack facts, not assertions: no RSocket / Jetty / Aalto XML / XsltView / WebAuthn / UnboundID / SSE anywhere; `spring-webflux` is on card-service's classpath for `WebClient` only (no `@EnableWebFlux`, no `RouterFunctions`, no reactive controllers — 16 MVC `@RestController`s); no `@ModelAttribute`/`WebDataBinder`; all 188 request payloads bind as JSON via Jackson; no `SpelExpressionParser`/`parseExpression`. **One entry is deliberately NOT claimed unreachable** — CVE-2026-59282 (data-binding DoS) is marked *risk accepted*, because Spring Data's Pageable/Sort resolution does take user-supplied property names; mitigations noted (authenticated endpoints, `RateLimitFilter`).
+
+**⚠️ Two traps, both hit while doing this:**
+1. **Check BOTH advisory sources before suppressing.** The GitHub Advisory DB lists **no** fix for `httpclient5` CVE-2026-71290, but **NVD's CPE range ends at 5.6.4**, which is published. Trusting GHSA alone would have suppressed a fixable 9.1. Same story for log4j: the CVE is really against the `log4j-1.2-api` bridge and is fixed in 2.25.4.
+2. **dependency-check spreads a CPE-matched CVE across every sibling jar in the group.** Suppressing `spring-core` alone simply moved the failure to `spring-tx`. The Spring entries use a group-level PURL (`^pkg:maven/org\.springframework/.*$`), kept narrow by listing exact CVEs — the same approach the pre-existing entries in that file already use, and documented in its header.
+
+**Also: `mvn` options must not be passed through a single shell variable** — `OPTS="...goal -Dx=1..."` collapses into one argument and Maven fails with `Could not find goal 'check -DfailBuildOnCVSS=7 …'`. Cost ~10 min of a wasted scan pair.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/pom.xml` | +6 security pins ahead of the BOM, with per-CVE comments |
+| `card-service/pom.xml` | Same 6 pins |
+| `docs/owasp-suppressions.xml` | +8 time-boxed entries covering 14 unfixable Spring CVEs |
+
+#### Build Verification
+`dependency-check:check -DfailBuildOnCVSS=7`: **BUILD SUCCESS on both modules** (was: 17 findings on backend). `clean verify -Pfull-integration`: **backend 704/704, card-service 124/124**, 0 failures, 0 errors — the pins move five libraries off the BOM versions without a single regression.
+
+#### API Documentation
+**API surface unchanged — verified via gate grep; no api-reference/postman edits owed.** Dependency versions and scanner config only.
+
+#### Confirmed Platform Versions
+Both services keep Spring Boot 3.5.16, now with Tomcat 10.1.60, Netty 4.1.138.Final, PostgreSQL 42.7.13, httpcore5 5.4.3, httpclient5 5.6.4, log4j2 2.26.1 pinned above the BOM. CLAUDE.md tables updated.
+
+> ⚠️ **Merge note:** cont. 9 (this entry, branch `fix/backend-ci-green`, based on main) and cont. 6/8 (branch `fix/owasp-pin-and-suppress`) all insert at the top of Change History. On rebase keep them in numeric order, newest first — do not interleave the hunks.
 
 ### Session 125 (cont. 6) — 2026-09-23
 **Spring Boot bumped in both Java services: backend 3.5.0 → 3.5.16, card-service 3.4.4 → 3.5.16, and card-service's explicit `netty.version` pin removed. This cuts the OWASP findings sharply but does NOT turn `owasp-check` green — see "the gate cannot pass by upgrading" below.**

@@ -57,6 +57,37 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+> ⚠️ **Merge note:** cont. 9 (this entry, branch `fix/backend-ci-green`, based on main) and cont. 6/8 (branch `fix/owasp-pin-and-suppress`) all insert at the top of Change History. On rebase keep them in numeric order, newest first — do not interleave the hunks.
+
+### Session 125 (cont. 9) — 2026-09-23
+**The two pre-existing backend CI failures are fixed: the deleted `minio/minio` Docker Hub image, and 3 SpotBugs findings. Backend is now 704/704 green including the MinIO test.** Neither was caused by the Spring Boot bump (#111) — both predate it and both block `docker` on main.
+
+**1. MinIO image — `minio/minio` no longer exists on Docker Hub.** MinIO stopped publishing free Docker Hub images, so `S3StorageProviderIntegrationTest` failed with `pull access denied for minio/minio, repository does not exist or may require 'docker login'`. One erroring test failed the whole backend `test` job (703/704 otherwise passing), which gates `docker`. **Fix:** pull from **`quay.io/minio/minio`**, which still serves the community releases, pinned to **`RELEASE.2025-09-07T16-13-09Z`** rather than a floating `latest` so the test cannot shift underneath us. Verified locally: 1/1 in 7.5 s.
+
+**2. SpotBugs — 3 findings, handled by kind rather than blanket-suppressed:**
+- `RateLimitEventNotifier.extractJwtClaim` (REC_CATCH_EXCEPTION): `catch (Exception)` → `catch (IllegalArgumentException | IndexOutOfBoundsException)` — the two unchecked types Base64URL decoding and `substring` can actually throw. Behaviour unchanged (null ⇒ "no orgId"); the token's signature is verified downstream regardless.
+- `PartnerApiKeyAuthFilter.doFilterInternal` (REC_CATCH_EXCEPTION): `catch (Exception)` → `catch (RuntimeException)`. Nothing checked is thrown in the guarded block, so the wider catch only risked swallowing faults this filter should not handle. A failed lookup still leaves the request unauthenticated for endpoint authorization to reject.
+- `Payment.backfillCurrencyAuditColumns` (UPM_UNCALLED_PRIVATE_METHOD): a **false positive** — it is a `@PrePersist`/`@PreUpdate` callback invoked reflectively by Hibernate, so no bytecode caller exists. **Excluded, not changed:** deleting it to satisfy SpotBugs would reintroduce the Session 120 cont. 8 defect where every same-currency payment violated the NOT NULL `source_currency` constraint. The `<Match>` is scoped to that one class + method + pattern.
+
+**⚠️ SpotBugs cannot be verified locally on this host (new gotcha).** SpotBugs 4.8.6.6 fails on Java 25 with `IllegalArgumentException: Unsupported class file major version 69` while scanning even `java/lang/Object`, and reports `Java returned: 1` instead of findings — the same class of Java 25 limitation as JaCoCo. Run local builds with `-Dspotbugs.skip=true`; **the PR's `SpotBugs Static Analysis` job (Java 21) is the authoritative check** for these three fixes.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/src/test/java/com/cba/customer/storage/S3StorageProviderIntegrationTest.java` | Docker Hub `minio/minio:latest` → `quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z` |
+| `backend/src/main/java/com/cba/config/RateLimitEventNotifier.java` | Narrowed `catch (Exception)` |
+| `backend/src/main/java/com/cba/partner/PartnerApiKeyAuthFilter.java` | Narrowed `catch (Exception)` |
+| `backend/spotbugs-exclude.xml` | +1 scoped exclusion for the JPA-callback false positive |
+
+#### Build Verification
+`clean verify -Pfull-integration`: **704/704, 0 failures, 0 errors** — including `S3StorageProviderIntegrationTest`, which had been the sole failure. SpotBugs verification deferred to CI (see the Java 25 note above).
+
+#### API Documentation
+**API surface unchanged — verified via gate grep; no api-reference/postman edits owed.** Exception handling, test infrastructure and static-analysis config only.
+
+#### Confirmed Platform Versions
+Unchanged.
+
 ### Session 125 (cont. 5) — 2026-09-22
 **OWASP Dependency Check CI fixed so it finishes in minutes, not ~40+ min or never. It still fails on real CVEs, and a separate PR fixes those.**
 

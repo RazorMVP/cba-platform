@@ -220,4 +220,21 @@
         <Bug pattern="NM_CONFUSING"/>
     </Match>
 
+    <!--
+        Payment.backfillCurrencyAuditColumns(): UPM_UNCALLED_PRIVATE_METHOD is a
+        FALSE POSITIVE. The method is a JPA lifecycle callback (@PrePersist /
+        @PreUpdate) invoked reflectively by Hibernate, so no caller exists in
+        bytecode for SpotBugs to find. It is what guarantees the NOT NULL
+        source_currency / destination_currency columns are populated on every
+        persist (see Session 120 cont. 8 — it fixed a latent defect where every
+        same-currency payment failed to insert). Deleting it to satisfy SpotBugs
+        would reintroduce that defect, so the finding is excluded instead.
+        Scoped to this one method + pattern.
+    -->
+    <Match>
+        <Class name="com.cba.payment.Payment"/>
+        <Method name="backfillCurrencyAuditColumns"/>
+        <Bug pattern="UPM_UNCALLED_PRIVATE_METHOD"/>
+    </Match>
+
 </FindBugsFilter>

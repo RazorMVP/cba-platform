@@ -88,6 +88,40 @@ _None — all Phase 1 backend modules are now complete._
 #### Confirmed Platform Versions
 Unchanged.
 
+### Session 125 (cont. 6) — 2026-09-23
+**Spring Boot bumped in both Java services: backend 3.5.0 → 3.5.16, card-service 3.4.4 → 3.5.16, and card-service's explicit `netty.version` pin removed. This cuts the OWASP findings sharply but does NOT turn `owasp-check` green — see "the gate cannot pass by upgrading" below.**
+
+**Why:** with cont. 5's CI fix the job finishes in ~2 min, so what it reports is actionable. Every flagged jar is a transitive Spring Boot dependency (Tomcat, Spring Framework, Spring Security, Jackson, httpclient5, PostgreSQL JDBC, Netty), so the parent BOM is the right lever — not suppressions (per the policy in `docs/owasp-suppressions.xml`).
+
+**The Netty pin was the worst offender.** `card-service/pom.xml` set `<netty.version>4.1.115.Final</netty.version>`, overriding the Spring Boot-managed version and holding `netty-all` on CVEs up to **CVSS 10.0** (CVE-2026-45674, CVE-2026-47691). Removed; `netty-all` still declares `${netty.version}`, which now resolves from the parent.
+
+**⚠️ The gate cannot pass by upgrading (verified 2026-09-23).** A local backend scan on 3.5.16 still fails, and the findings are against the **newest** versions in each line:
+- **Real and patchable upstream, but not yet in any Spring Boot release:** `tomcat-embed-core` 10.1.55 (CVE-2026-65182, CVSS 9.1 — fixed in **10.1.58**; 10.1.60 is out), `netty` 4.1.135 (CVE-2026-56817/56745 — fixed in **4.1.136**; 4.1.138 is out), `postgresql` 42.7.11 (CVE-2026-54291 — fixed in **42.7.12**; 42.7.13 is out). Cross-checked against the GitHub Advisory DB, which gives exact ranges — these are **not** CPE false positives.
+- **No fix published anywhere:** `spring-core` 6.2.19 (CVE-2026-47884/47890/47891/47892, several 9.8) and `spring-security-core` 6.5.11 (CVE-2026-59270 9.1, CVE-2026-47841 7.4) are already the latest in their lines. `httpclient5` CVE-2026-71290 (9.1) likewise lists no patched version.
+- **So `-DfailBuildOnCVSS=7` is unsatisfiable today**, even with per-library overrides. Deciding what to do with the gate (narrow time-boxed suppressions vs making it advisory) is a maintainer call, deliberately not made in this PR.
+
+**Verification (local, real containers):**
+- backend `clean verify -Pfull-integration`: **704/704**, 0 failures, 0 errors.
+- card-service `clean verify -Pfull-integration`: **124/124**, 0 failures, 0 errors.
+- card-service needed **no code changes** for 3.4.4 → 3.5.16 — the context-boot and OpenAPI snapshot tests pass unchanged.
+
+**Note for the next session:** `mvn clean` can fail with `Failed to delete backend/target/test-classes` while the IDE holds a lock. Deleting `target/classes` by hand instead leaves *missing* class files and produces misleading `cannot access com.cba...` compile errors on a build that is fine — retry `clean` rather than chasing the error. Also: running two `dependency-check` scans in parallel locally saturates the NVD datafeed download and both die on `Connection reset`; run them one at a time.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/pom.xml` | `spring-boot-starter-parent` 3.5.0 → 3.5.16 |
+| `card-service/pom.xml` | `spring-boot-starter-parent` 3.4.4 → 3.5.16; removed `netty.version` 4.1.115 override |
+
+#### Build Verification
+Both full-integration suites green on real PostgreSQL containers (see above).
+
+#### API Documentation
+**API surface unchanged — verified via gate grep; no api-reference/postman edits owed.** Dependency versions only; the card-service OpenAPI snapshot test passes unchanged.
+
+#### Confirmed Platform Versions
+backend Spring Boot **3.5.16** (was 3.5.0); card-service Spring Boot **3.5.16** (was 3.4.4), Netty now Spring Boot-managed (was pinned 4.1.115.Final). CLAUDE.md tables updated. fep-service untouched — it is on SB 3.2.5 and has **no** `owasp-check` job.
+
 ### Session 125 (cont. 5) — 2026-09-22
 **OWASP Dependency Check CI fixed so it finishes in minutes, not ~40+ min or never. It still fails on real CVEs, and a separate PR fixes those.**
 

@@ -57,6 +57,40 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 10) — 2026-09-23
+**Docs only. Logged the missing CI credentials — Kubernetes deploy and SonarCloud — as deferred-backlog items 8 and 9, at the owner's request. While checking what they need, found five confirmed bugs in the deploy jobs that would block deployment even once the credentials exist.**
+
+**Context:** after #113 merged, the main run for `ad374f9` built and pushed **both images for the first time since July 2026** (`ghcr.io/razormvp/cba-platform/cba-backend` and `…/cba-card-service`, tagged `sha-ad374f9` + `main`). `deploy-production` skipped, and `SonarCloud Analysis` failed in ~15 s. The owner chose to log the missing credentials for future action rather than provision them now.
+
+**Credential gap (verified against `gh secret list` / `gh variable list`):**
+- Secrets not set: `KUBE_CONFIG_PROD`, `KUBE_CONFIG_STAGING`, `SONAR_TOKEN`.
+- Variables not set: **none exist at all** — so `SONAR_ORG` (required alongside the token), `API_STAGING_URL`, `API_BASE_URL_STAGING` and `KEYCLOAK_URL_STAGING` are all missing. `API_STAGING_URL` is also the weekly ZAP scan's target.
+- Environments: `production` exists; `staging` does not.
+
+**The five deploy-job bugs (logged in backlog item 8, not fixed — fixing them without a cluster to verify against would be untestable):**
+1. **Skip propagation:** on a push to main `api-doc-check` is skipped, and `deploy-production`'s implicit `success()` sees that through `docker` — so it skips even though `docker` succeeded (run `35896354660`).
+2. **Wrong file:** the `sed` edits `…/deployment.yaml`; the files are `backend-deployment.yaml` / `card-service-deployment.yaml`.
+3. **Wrong pattern:** it searches `cba/backend:latest`; the manifest says `ghcr.io/razormvp/cba-platform/cba-backend:latest`.
+4. **Wrong tag:** it writes the full 40-char SHA; images are pushed with the 7-char short SHA.
+5. **Mixed case:** it builds the reference from `github.repository` (`RazorMVP/…`) — the GHCR lowercase gotcha CLAUDE.md already documents.
+
+**Also corrected in CLAUDE.md:** "Kubernetes Deployment Flow" step 2 claimed the image Trivy scan "blocks on CRITICAL/HIGH". It does not — `exit-code: '0'`, report-only. The section now opens with a warning that the flow has never run past image push, pointing at the backlog.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `docs/deferred-backlog.md` | +item 8 (Kubernetes deploy credentials + 5 workflow bugs), +item 9 (SonarCloud token + org) |
+| `CLAUDE.md` | "Kubernetes Deployment Flow": never-run warning + backlog pointer; Trivy image scan corrected to report-only |
+
+#### Build Verification
+N/A — documentation only. Every claim in items 8–9 was checked against the repo's secrets/variables/environments via `gh` and against the workflow and manifest files.
+
+#### API Documentation
+**API surface unchanged — verified via gate grep; no api-reference/postman edits owed.** Documentation only.
+
+#### Confirmed Platform Versions
+Unchanged.
+
 ### Session 125 (cont. 9) — 2026-09-23
 **The two pre-existing backend CI failures are fixed: the deleted `minio/minio` Docker Hub image, and 3 SpotBugs findings. Backend is now 704/704 green including the MinIO test.** Neither was caused by the Spring Boot bump (#111) — both predate it and both block `docker` on main.
 

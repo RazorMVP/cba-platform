@@ -6,7 +6,8 @@
 > forgotten. First written Session 121 cont. 10 (items 1–3) after item C closed everything
 > reasonably contained (CONSENT.EXPIRED, PAYMENT.REVERSED, AUTHORIZATION.REVERSED, RATE_LIMIT.*,
 > FEP↔card-service contract). **Expanded cont. 11 (2026-07-21)** with a full-codebase sweep for
-> every remaining deferral marker (items 4–7 + the roadmap section).
+> every remaining deferral marker (items 4–7 + the roadmap section). **Items 8–9 added Session 125
+> cont. 10 (2026-09-23)**: the CI secrets and variables that deployment and SonarCloud need.
 >
 > **Not in this list** (deliberately): intentional dev features that are correct as-is —
 > `DevAuthBypassFilter` (prod uses Keycloak), fraud/3DS last-resort scalar guards, Stitch
@@ -246,6 +247,107 @@ Card personalization data (CDP) is generated but **never serialised, encrypted, 
 An encryption scheme invented without the bureau's spec is likely to be rebuilt on onboarding,
 and it cannot be meaningfully tested — there is no counterparty to decrypt it. Pick this up
 when a named bureau and its spec exist.
+
+---
+
+## 8. Kubernetes deployment — cluster credentials not provisioned
+
+**Effort: M · Risk: needs a cluster decision first, and the deploy jobs are broken in five
+confirmed ways even once the secrets exist**
+
+> Logged 2026-09-23 (Session 125 cont. 10) at the owner's request, right after images started
+> building on main again for the first time since July 2026.
+
+### What it is
+`backend-ci.yml` and `card-service-ci.yml` each end in `deploy-staging` and `deploy-production`
+jobs that `kubectl apply` the manifests in `infrastructure/k8s/`. **Neither has ever deployed
+anything** — no cluster is wired to the repo.
+
+### Current state — verified 2026-09-23
+- **Images DO build and push.** First successful main run: `ad374f9`. Both
+  `ghcr.io/razormvp/cba-platform/cba-backend` and `…/cba-card-service` are tagged `sha-ad374f9` + `main`.
+- **Secrets missing:** `KUBE_CONFIG_PROD`, `KUBE_CONFIG_STAGING`. Each deploy job's first real step
+  is `echo "${KUBE_CONFIG}" | base64 -d > /tmp/kubeconfig.yml`, which would write an empty file.
+- **Variables missing:** `API_STAGING_URL`, `API_BASE_URL_STAGING`, `KEYCLOAK_URL_STAGING` — the repo
+  has **no variables at all**. `API_STAGING_URL` is also the target of the weekly `zap-api-scan` in
+  `security-scan.yml`, which therefore has nothing to scan.
+- **GitHub environments:** `production` exists; **`staging` does not**. It would be auto-created on
+  first use, but without the required-reviewers protection the CLAUDE.md setup checklist calls for.
+
+### ⚠️ Five workflow bugs — fix these BEFORE adding credentials (all confirmed by reading the files)
+1. **`deploy-production` can never run as written — skip propagation.** `api-doc-check` is
+   `if: github.event_name == 'pull_request'`, so on a push to main it is *skipped*. `docker` still
+   runs because its `if` starts with `always()`, but `deploy-production` (`needs: docker`,
+   `if: github.ref == 'refs/heads/main'`) has no status function, so its implicit `success()` sees
+   the skipped job further up the chain. Observed on run `35896354660`: docker `success`,
+   deploy-production `skipped`. Fix: `if: always() && needs.docker.result == 'success' && github.ref == 'refs/heads/main'`,
+   and the same shape for `deploy-staging` with `refs/heads/develop`.
+2. **Wrong file path.** The rewrite step edits `infrastructure/k8s/backend/deployment.yaml` and
+   `infrastructure/k8s/card-service/deployment.yaml`. Those files **do not exist** — they are
+   `backend-deployment.yaml` and `card-service-deployment.yaml`. `sed -i` would exit non-zero with
+   "No such file or directory" and fail the job.
+3. **Wrong search pattern.** It replaces `cba/backend:latest` / `cba/card-service:latest`, but the
+   manifests contain `ghcr.io/razormvp/cba-platform/cba-backend:latest` (and the card-service
+   equivalent). Even with the path fixed, **nothing would be replaced** and the rollout would
+   silently keep `:latest`.
+4. **Wrong tag.** It writes `sha-` + the **full 40-char** SHA (`${{ github.sha }}` in backend,
+   `$(git rev-parse HEAD)` in card-service), but `docker/metadata-action` pushes the **7-char short**
+   SHA (`sha-ad374f9`). The rewritten image reference would not exist in GHCR → `ImagePullBackOff`.
+   Simplest fix: read the tag from the `docker` job's `outputs.tags` (card-service already exposes
+   `needs.docker.outputs.tags` as `IMAGE_TAGS` but never uses it).
+5. **Mixed-case registry path.** Both build the reference from `${{ github.repository }}`, which is
+   `RazorMVP/cba-platform` — not a valid lowercase OCI reference. This is the GHCR lowercase gotcha
+   already in CLAUDE.md; lowercase it (`${GITHUB_REPOSITORY,,}`) or reuse the metadata-action output.
+
+### What's needed
+1. **Decide the target cluster** (managed EKS/GKE/AKS or other) for staging and production.
+2. Fix the five bugs above.
+3. Create each kubeconfig with a **namespace-scoped service account** limited to `cba-platform`,
+   not a cluster-admin credential. Add as secrets: `base64 < kubeconfig` → `KUBE_CONFIG_STAGING` /
+   `KUBE_CONFIG_PROD`.
+4. Set variables `API_STAGING_URL`, `API_BASE_URL_STAGING`, `KEYCLOAK_URL_STAGING`.
+5. Create the `staging` environment and add **required reviewers** to `production`.
+6. Replace every `<CHANGE_ME>` in `infrastructure/k8s/**` secrets via Sealed Secrets or Vault, per
+   CLAUDE.md — **never real values in git; this repo is public**.
+7. Deploy to staging first and confirm `kubectl rollout status` completes and the pods run the
+   `sha-<short>` image, not `:latest`.
+
+### Seams / files
+`.github/workflows/backend-ci.yml` + `card-service-ci.yml` (`deploy-staging`, `deploy-production`),
+`infrastructure/k8s/backend/backend-deployment.yaml`, `infrastructure/k8s/card-service/card-service-deployment.yaml`,
+repo Settings → Secrets / Variables / Environments.
+
+---
+
+## 9. SonarCloud — token and organisation not provisioned
+
+**Effort: S · Risk: none to the product; the job is already non-blocking**
+
+> Logged 2026-09-23 (Session 125 cont. 10) at the owner's request.
+
+### What it is
+`backend-ci.yml`'s `sonar` job fails on every run in ~15 s. It is `continue-on-error: true`, so it
+blocks nothing — but it is permanent red noise on every backend PR and main push, and **the 70%
+coverage quality gate CLAUDE.md describes is not enforced by anything**.
+
+### Current state — verified 2026-09-23
+- **Secret missing:** `SONAR_TOKEN`.
+- **Variable missing:** `SONAR_ORG` (passed as `-Dsonar.organization`). Provisioning only the token
+  would still fail — **both are required**.
+- The job runs `mvn verify sonar:sonar` with project key `cba-platform_backend`; that project must
+  exist in SonarCloud under the chosen organisation.
+
+### What's needed
+1. Create (or pick) a SonarCloud organisation bound to the `RazorMVP` GitHub account.
+2. Create the project with key **`cba-platform_backend`**, or change the key in the workflow to match.
+3. Generate a token (SonarCloud → My Account → Security) → repo secret **`SONAR_TOKEN`**.
+4. Set repo variable **`SONAR_ORG`** to the organisation slug.
+5. Re-run the backend workflow and confirm the job goes green.
+6. **Then decide** whether the quality gate should block. With `continue-on-error: true`, even a
+   failed gate passes CI — removing it is a policy call.
+
+### Seams / files
+`.github/workflows/backend-ci.yml` (`sonar` job), repo Settings → Secrets / Variables.
 
 ---
 

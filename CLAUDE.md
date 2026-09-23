@@ -3026,8 +3026,10 @@ Images tagged with commit SHA — Kubernetes deployments reference SHA tags for 
 
 ### Kubernetes Deployment Flow
 
+> **⚠️ This flow has never run end-to-end — steps 1–2 work, steps 3–6 do not _(verified Session 125 cont. 10, 2026-09-23)_.** Images build and push (first success: `ad374f9`), but **no cluster is wired up**: `KUBE_CONFIG_PROD` / `KUBE_CONFIG_STAGING` are not set, and neither are `SONAR_TOKEN` / `SONAR_ORG` or any staging variables. The deploy jobs are also broken in five confirmed ways even once credentials exist — skip propagation stops `deploy-production` from ever running, and the step-3 `sed` targets a file that does not exist (`deployment.yaml` vs `backend-deployment.yaml`), with the wrong pattern, the wrong (40-char vs 7-char) SHA tag, and a mixed-case registry path. **Full pick-up list: `docs/deferred-backlog.md` items 8 (Kubernetes) and 9 (SonarCloud).**
+
 1. Docker image built and pushed to GHCR
-2. Trivy scans image for CVEs (blocks on CRITICAL/HIGH)
+2. Trivy scans the image and uploads SARIF to the Security tab — **report-only** (`exit-code: '0'`); it does not block
 3. `deployment.yaml` patched with new image SHA tag via `sed`
 4. `kubectl apply -f infrastructure/k8s/` applies all manifests
 5. `kubectl rollout status` waits up to 300s for pod readiness

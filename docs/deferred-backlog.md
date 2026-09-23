@@ -252,8 +252,8 @@ when a named bureau and its spec exist.
 
 ## 8. Kubernetes deployment — cluster credentials not provisioned
 
-**Effort: M · Risk: needs a cluster decision first, and the deploy jobs are broken in five
-confirmed ways even once the secrets exist**
+**Effort: M · Risk: needs a cluster decision and a one-time bootstrap. The workflow bugs that
+would have blocked it are FIXED (cont. 10) — what remains is infrastructure and credentials.**
 
 > Logged 2026-09-23 (Session 125 cont. 10) at the owner's request, right after images started
 > building on main again for the first time since July 2026.
@@ -274,42 +274,49 @@ anything** — no cluster is wired to the repo.
 - **GitHub environments:** `production` exists; **`staging` does not**. It would be auto-created on
   first use, but without the required-reviewers protection the CLAUDE.md setup checklist calls for.
 
-### ⚠️ Five workflow bugs — fix these BEFORE adding credentials (all confirmed by reading the files)
-1. **`deploy-production` can never run as written — skip propagation.** `api-doc-check` is
-   `if: github.event_name == 'pull_request'`, so on a push to main it is *skipped*. `docker` still
-   runs because its `if` starts with `always()`, but `deploy-production` (`needs: docker`,
-   `if: github.ref == 'refs/heads/main'`) has no status function, so its implicit `success()` sees
-   the skipped job further up the chain. Observed on run `35896354660`: docker `success`,
-   deploy-production `skipped`. Fix: `if: always() && needs.docker.result == 'success' && github.ref == 'refs/heads/main'`,
-   and the same shape for `deploy-staging` with `refs/heads/develop`.
-2. **Wrong file path.** The rewrite step edits `infrastructure/k8s/backend/deployment.yaml` and
-   `infrastructure/k8s/card-service/deployment.yaml`. Those files **do not exist** — they are
-   `backend-deployment.yaml` and `card-service-deployment.yaml`. `sed -i` would exit non-zero with
-   "No such file or directory" and fail the job.
-3. **Wrong search pattern.** It replaces `cba/backend:latest` / `cba/card-service:latest`, but the
-   manifests contain `ghcr.io/razormvp/cba-platform/cba-backend:latest` (and the card-service
-   equivalent). Even with the path fixed, **nothing would be replaced** and the rollout would
-   silently keep `:latest`.
-4. **Wrong tag.** It writes `sha-` + the **full 40-char** SHA (`${{ github.sha }}` in backend,
-   `$(git rev-parse HEAD)` in card-service), but `docker/metadata-action` pushes the **7-char short**
-   SHA (`sha-ad374f9`). The rewritten image reference would not exist in GHCR → `ImagePullBackOff`.
-   Simplest fix: read the tag from the `docker` job's `outputs.tags` (card-service already exposes
-   `needs.docker.outputs.tags` as `IMAGE_TAGS` but never uses it).
-5. **Mixed-case registry path.** Both build the reference from `${{ github.repository }}`, which is
-   `RazorMVP/cba-platform` — not a valid lowercase OCI reference. This is the GHCR lowercase gotcha
-   already in CLAUDE.md; lowercase it (`${GITHUB_REPOSITORY,,}`) or reuse the metadata-action output.
+### ✅ Seven workflow bugs — FIXED (Session 125 cont. 10, before any credentials exist)
+The deploy jobs could never have deployed. All four (`backend-ci.yml` / `card-service-ci.yml` ×
+staging / production) were rewritten from one template; the reasoning is in the comment block above
+the jobs in each workflow.
+
+| # | Bug | Fix |
+|---|---|---|
+| 1 | **Skip propagation.** `api-doc-check` is PR-only, so it is *skipped* on a push; `deploy-*` had a plain `if`, whose implicit `success()` saw that skip through `docker` and skipped the deploy even though `docker` succeeded (run `35896354660`) | `if: always() && needs.docker.result == 'success' && github.ref == …` |
+| 2 | `sed` edited `…/deployment.yaml`, which does not exist | targets `<svc>/<svc>-deployment.yaml` |
+| 3 | searched for `cba/<svc>:latest`; the manifest says `ghcr.io/razormvp/cba-platform/cba-<svc>:latest` | regex matches the real `image:` line |
+| 4 | wrote the full 40-char SHA; metadata-action pushes the 7-char one (`sha-ad374f9`) | `sha-${GITHUB_SHA::7}` |
+| 5 | used mixed-case `github.repository` (`RazorMVP/…`) — not a valid OCI reference | `${GITHUB_REPOSITORY,,}` |
+| 6 | (backend) `kubectl apply -f infrastructure/k8s/` is not recursive → applied only `namespace.yaml` | applies **only** `infrastructure/k8s/<svc>/` — deliberately NOT `-R` on the tree, which would push `secrets/` with its `<CHANGE_ME>` placeholders over real cluster secrets |
+| 7 | rollout waited on `deployment/cba-<svc>`; the Deployments are named `backend` / `card-service` | `deployment/<svc>` |
+
+**Plus two safety properties the rewrite adds:**
+- **The image step fails closed.** After rewriting, it `grep`s for the exact expected image line and
+  exits 1 (`refusing to deploy :latest`) if it isn't there — so a future manifest change can never
+  make a rollout silently keep `:latest`.
+- **A missing cluster no longer turns main red.** Fixing bug 1 means the deploy jobs now actually run
+  on every push to main/develop. Each first checks for its `KUBE_CONFIG_*` secret; if it is absent it
+  emits a `Deploy skipped` notice and skips the remaining steps, so the job reports green instead of
+  failing on an empty kubeconfig.
+
+**Verification:** `actionlint` clean on both workflows. The image-pin step was run in an `ubuntu:24.04`
+container (GNU sed + bash, as on the runner) against copies of the real manifests with
+`GITHUB_REPOSITORY=RazorMVP/cba-platform`: backend → `ghcr.io/razormvp/cba-platform/cba-backend:sha-ad374f9`,
+card-service likewise — **exactly the tags that exist in GHCR** — and a manifest without a matching
+line exits 1. **Not verifiable without a cluster:** `kubectl apply` and `rollout status` themselves.
+The first real deploy is still the test of those two steps.
 
 ### What's needed
 1. **Decide the target cluster** (managed EKS/GKE/AKS or other) for staging and production.
-2. Fix the five bugs above.
-3. Create each kubeconfig with a **namespace-scoped service account** limited to `cba-platform`,
-   not a cluster-admin credential. Add as secrets: `base64 < kubeconfig` → `KUBE_CONFIG_STAGING` /
-   `KUBE_CONFIG_PROD`.
+2. **Bootstrap the cluster once, by hand** — the deploy jobs deliberately apply only their own service
+   directory: `namespace.yaml`, then `secrets/` (via Sealed Secrets or Vault, with every `<CHANGE_ME>`
+   replaced — **never real values in git; this repo is public**), `configmaps/`, and the data stores
+   (`postgres/`, `redis/`, `keycloak/`).
+3. Create each kubeconfig with a **namespace-scoped service account** limited to `cba-platform`, not a
+   cluster-admin credential. Add as secrets: `base64 < kubeconfig` → `KUBE_CONFIG_STAGING` / `KUBE_CONFIG_PROD`.
 4. Set variables `API_STAGING_URL`, `API_BASE_URL_STAGING`, `KEYCLOAK_URL_STAGING`.
-5. Create the `staging` environment and add **required reviewers** to `production`.
-6. Replace every `<CHANGE_ME>` in `infrastructure/k8s/**` secrets via Sealed Secrets or Vault, per
-   CLAUDE.md — **never real values in git; this repo is public**.
-7. Deploy to staging first and confirm `kubectl rollout status` completes and the pods run the
+5. Create the `staging` environment and add **required reviewers** to `production` — once the secret is
+   set, every push to main deploys to production.
+6. Push to `develop` first and confirm `kubectl rollout status` completes and the pods run the
    `sha-<short>` image, not `:latest`.
 
 ### Seams / files

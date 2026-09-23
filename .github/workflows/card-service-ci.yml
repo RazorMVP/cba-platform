@@ -247,70 +247,132 @@ jobs:
         with:
           sarif_file: trivy-card-service.sarif
 
-  # ─── Deploy to Staging ────────────────────────────────────────────────────────
+  # ─── Deploy ──────────────────────────────────────────────────────────────────
+  # Rewritten Session 125 cont. 10 — the previous jobs could never have deployed:
+  #  1. Skip propagation: api-doc-check is PR-only, so on a push it is SKIPPED. A plain
+  #     job-level `if` carries an implicit success() that sees that skip through `docker`
+  #     and skips the deploy even when docker succeeded. Hence always() + an explicit
+  #     needs.docker.result check.
+  #  2-5. The image rewrite targeted a file that does not exist (deployment.yaml vs
+  #     <service>-deployment.yaml), searched for the wrong image (cba/<svc>:latest), wrote the
+  #     full 40-char SHA while metadata-action pushes the 7-char one, and used the
+  #     mixed-case github.repository (not a valid OCI reference). It now rewrites the real
+  #     line to ghcr.io/<lowercase repo>/<image>:sha-<7> and FAILS if nothing changed, so a
+  #     rollout can never silently keep :latest.
+  #  6. (backend) `kubectl apply -f infrastructure/k8s/` is not recursive, so it applied
+  #     only namespace.yaml. Each job now applies ONLY its own service directory — NOT
+  #     `-R` on the whole tree, which would push secrets/ with its <CHANGE_ME> placeholders
+  #     over real cluster secrets. Namespace, secrets, configmaps and data stores are a
+  #     one-time cluster bootstrap, not part of a per-service deploy.
+  #  7. The rollout waited on deployment/cba-<svc>; the Deployments are named <svc>.
+  # No cluster is configured yet (docs/deferred-backlog.md item 8): each job checks for
+  # its kubeconfig secret first and skips cleanly with a notice when it is absent, so a
+  # missing cluster reports as "not configured" rather than a red main.
+
   deploy-staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
     needs: docker
-    if: github.ref == 'refs/heads/develop'
+    if: always() && needs.docker.result == 'success' && github.ref == 'refs/heads/develop'
     environment: staging
+    env:
+      KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_STAGING }}
     steps:
+      - name: Check cluster credentials
+        id: creds
+        run: |
+          if [ -z "$KUBE_CONFIG" ]; then
+            echo "::notice title=Deploy skipped::KUBE_CONFIG_STAGING is not set - no cluster is configured. See docs/deferred-backlog.md item 8."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.creds.outputs.configured == 'true'
 
       - name: Set up kubectl
+        if: steps.creds.outputs.configured == 'true'
         uses: azure/setup-kubectl@v4
 
       - name: Write kubeconfig
-        env:
-          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_STAGING }}
-        run: echo "$KUBE_CONFIG" | base64 -d > /tmp/kubeconfig.yml
-
-      - name: Update image in k8s manifests
-        env:
-          IMAGE_TAGS: ${{ needs.docker.outputs.tags }}
+        if: steps.creds.outputs.configured == 'true'
         run: |
-          sed -i "s|cba/card-service:latest|ghcr.io/${{ github.repository }}/cba-card-service:sha-$(git rev-parse HEAD)|g" \
-            infrastructure/k8s/card-service/deployment.yaml
+          echo "$KUBE_CONFIG" | base64 -d > "$RUNNER_TEMP/kubeconfig"
+          chmod 600 "$RUNNER_TEMP/kubeconfig"
 
-      - name: Apply Kubernetes manifests
-        run: kubectl apply -f infrastructure/k8s/card-service/ --kubeconfig=/tmp/kubeconfig.yml
+      - name: Pin the image to this commit
+        if: steps.creds.outputs.configured == 'true'
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}/cba-card-service:sha-${GITHUB_SHA::7}"
+          MANIFEST="infrastructure/k8s/card-service/card-service-deployment.yaml"
+          sed -i -E "s|image: ghcr\.io/[^[:space:]]+/cba-card-service:[^[:space:]]+|image: ${IMAGE}|" "$MANIFEST"
+          grep -q "image: ${IMAGE}$" "$MANIFEST" \
+            || { echo "::error::image not rewritten in $MANIFEST - refusing to deploy :latest"; exit 1; }
+          echo "Deploying ${IMAGE}"
+
+      - name: Apply card-service manifests
+        if: steps.creds.outputs.configured == 'true'
+        run: kubectl apply -f infrastructure/k8s/card-service/ --kubeconfig="$RUNNER_TEMP/kubeconfig"
 
       - name: Wait for rollout
+        if: steps.creds.outputs.configured == 'true'
         run: |
-          kubectl rollout status deployment/cba-card-service \
+          kubectl rollout status deployment/card-service \
             -n cba-platform \
-            --kubeconfig=/tmp/kubeconfig.yml \
+            --kubeconfig="$RUNNER_TEMP/kubeconfig" \
             --timeout=300s
 
-  # ─── Deploy to Production ─────────────────────────────────────────────────────
   deploy-production:
     name: Deploy to Production
     runs-on: ubuntu-latest
     needs: docker
-    if: github.ref == 'refs/heads/main'
+    if: always() && needs.docker.result == 'success' && github.ref == 'refs/heads/main'
     environment: production
+    env:
+      KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_PROD }}
     steps:
+      - name: Check cluster credentials
+        id: creds
+        run: |
+          if [ -z "$KUBE_CONFIG" ]; then
+            echo "::notice title=Deploy skipped::KUBE_CONFIG_PROD is not set - no cluster is configured. See docs/deferred-backlog.md item 8."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.creds.outputs.configured == 'true'
 
       - name: Set up kubectl
+        if: steps.creds.outputs.configured == 'true'
         uses: azure/setup-kubectl@v4
 
       - name: Write kubeconfig
-        env:
-          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG_PROD }}
-        run: echo "$KUBE_CONFIG" | base64 -d > /tmp/kubeconfig.yml
-
-      - name: Update image in k8s manifests
+        if: steps.creds.outputs.configured == 'true'
         run: |
-          sed -i "s|cba/card-service:latest|ghcr.io/${{ github.repository }}/cba-card-service:sha-$(git rev-parse HEAD)|g" \
-            infrastructure/k8s/card-service/deployment.yaml
+          echo "$KUBE_CONFIG" | base64 -d > "$RUNNER_TEMP/kubeconfig"
+          chmod 600 "$RUNNER_TEMP/kubeconfig"
 
-      - name: Apply Kubernetes manifests
-        run: kubectl apply -f infrastructure/k8s/card-service/ --kubeconfig=/tmp/kubeconfig.yml
+      - name: Pin the image to this commit
+        if: steps.creds.outputs.configured == 'true'
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}/cba-card-service:sha-${GITHUB_SHA::7}"
+          MANIFEST="infrastructure/k8s/card-service/card-service-deployment.yaml"
+          sed -i -E "s|image: ghcr\.io/[^[:space:]]+/cba-card-service:[^[:space:]]+|image: ${IMAGE}|" "$MANIFEST"
+          grep -q "image: ${IMAGE}$" "$MANIFEST" \
+            || { echo "::error::image not rewritten in $MANIFEST - refusing to deploy :latest"; exit 1; }
+          echo "Deploying ${IMAGE}"
+
+      - name: Apply card-service manifests
+        if: steps.creds.outputs.configured == 'true'
+        run: kubectl apply -f infrastructure/k8s/card-service/ --kubeconfig="$RUNNER_TEMP/kubeconfig"
 
       - name: Wait for rollout
+        if: steps.creds.outputs.configured == 'true'
         run: |
-          kubectl rollout status deployment/cba-card-service \
+          kubectl rollout status deployment/card-service \
             -n cba-platform \
-            --kubeconfig=/tmp/kubeconfig.yml \
+            --kubeconfig="$RUNNER_TEMP/kubeconfig" \
             --timeout=300s

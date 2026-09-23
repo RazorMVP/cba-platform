@@ -57,6 +57,50 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 10) — 2026-09-23
+**Logged the missing CI credentials (Kubernetes deploy, SonarCloud) as deferred-backlog items 8 and 9, and FIXED seven bugs in the deploy jobs that would have blocked deployment even once those credentials exist.** Both at the owner's request.
+
+**Context:** after #113 merged, the main run for `ad374f9` built and pushed **both images for the first time since July 2026** (`ghcr.io/razormvp/cba-platform/cba-backend` and `…/cba-card-service`, tagged `sha-ad374f9` + `main`). `deploy-production` skipped and `SonarCloud Analysis` failed in ~15 s. The owner chose to log the credentials for later, then asked for the deploy-job bugs found while checking to be fixed first.
+
+**Credential gap (verified via `gh secret list` / `gh variable list` / the environments API):**
+- Secrets not set: `KUBE_CONFIG_PROD`, `KUBE_CONFIG_STAGING`, `SONAR_TOKEN`.
+- Variables: **none exist** — so `SONAR_ORG` (required alongside the token), `API_STAGING_URL`, `API_BASE_URL_STAGING`, `KEYCLOAK_URL_STAGING` are all missing.
+- Environments: `production` exists with **no protection rules**; `staging` does not exist.
+
+**Seven deploy-job bugs — all FIXED.** All four jobs (backend + card-service × staging + production) were rewritten from one template:
+1. **Skip propagation:** `api-doc-check` is PR-only → skipped on a push → `deploy-*`'s implicit `success()` saw it through `docker` and skipped (run `35896354660`: docker success, deploy skipped). → `if: always() && needs.docker.result == 'success' && github.ref == …`
+2. **Non-existent file:** `sed` edited `…/deployment.yaml`; the files are `backend-deployment.yaml` / `card-service-deployment.yaml`.
+3. **Wrong pattern:** searched `cba/backend:latest`; the manifest has `ghcr.io/razormvp/cba-platform/cba-backend:latest`.
+4. **Wrong tag:** full 40-char SHA vs the 7-char one metadata-action pushes.
+5. **Mixed case:** `github.repository` (`RazorMVP/…`) isn't a valid OCI reference → `${GITHUB_REPOSITORY,,}`.
+6. **Not recursive (backend):** `kubectl apply -f infrastructure/k8s/` applied only `namespace.yaml`. Fixed by applying **only the service's own directory** — deliberately NOT `-R`, which would push `secrets/` with `<CHANGE_ME>` placeholders over real cluster secrets.
+7. **Wrong rollout names:** waited on `deployment/cba-*`; the Deployments are `backend` / `card-service`.
+
+**Two properties the rewrite adds:**
+- **The image step fails closed** — it greps for the exact expected line and exits 1 (`refusing to deploy :latest`) if the rewrite didn't happen.
+- **No cluster ≠ red main.** Fixing bug 1 makes the deploy jobs actually run on every main/develop push. Each first checks for its `KUBE_CONFIG_*` secret and, if absent, emits a `Deploy skipped` notice and skips the rest — green, not failed.
+
+**Also corrected in CLAUDE.md:** the "Kubernetes Deployment Flow" section now states steps 3–6 have never run against a cluster and documents the fixed flow; step 2 no longer claims the image Trivy scan blocks (`exit-code: '0'`, report-only).
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `.github/workflows/backend-ci.yml` | `deploy-staging` + `deploy-production` rewritten (7 fixes + credential guard + fail-closed image pin) |
+| `.github/workflows/card-service-ci.yml` | Same |
+| `docs/deferred-backlog.md` | +item 8 (Kubernetes: credentials, bootstrap, the 7 fixed bugs), +item 9 (SonarCloud token + org) |
+| `CLAUDE.md` | "Kubernetes Deployment Flow" rewritten to match reality; Trivy image scan corrected to report-only |
+
+#### Build Verification
+- `actionlint` on both workflows: **clean** (exit 0, no findings).
+- The image-pin step run in an **`ubuntu:24.04` container** (GNU sed + bash, as on the runner) against copies of the real manifests with `GITHUB_REPOSITORY=RazorMVP/cba-platform`: backend → `ghcr.io/razormvp/cba-platform/cba-backend:sha-ad374f9`, card-service likewise — **exactly the tags present in GHCR**. A manifest with no matching line → exit 1.
+- **Not verifiable without a cluster:** `kubectl apply` and `rollout status`. The post-merge main run will exercise the new `if` and the credential guard (expect `Deploy skipped` notices, jobs green).
+
+#### API Documentation
+**API surface unchanged — verified via gate grep; no api-reference/postman edits owed.** CI config and documentation only.
+
+#### Confirmed Platform Versions
+Unchanged.
+
 ### Session 125 (cont. 9) — 2026-09-23
 **The two pre-existing backend CI failures are fixed: the deleted `minio/minio` Docker Hub image, and 3 SpotBugs findings. Backend is now 704/704 green including the MinIO test.** Neither was caused by the Spring Boot bump (#111) — both predate it and both block `docker` on main.
 

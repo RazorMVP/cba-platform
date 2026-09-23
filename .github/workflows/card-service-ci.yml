@@ -110,6 +110,8 @@ jobs:
     # ADVISORY, not blocking (Session 125 cont. 7) — same reasoning as backend-ci.yml:
     # the remaining CVEs are on the newest published versions and have no fix, so a
     # blocking gate only stopped images from ever being built. Report still uploads.
+    # ⚠️ Same cost as the backend: no CI gate now fails on a CVE in an existing Java
+    # dependency (Snyk/Trivy are report-only; dependency-review sees only changed deps).
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4

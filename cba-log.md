@@ -57,6 +57,54 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 13) — 2026-09-24
+**End-of-day (CoB) fixes, PR A of 2: the standing-order and arrears jobs now run (they had failed on every night since April 2026), job dates come from the run's business date instead of the backend's start-up date, and the CoB Scheduler screen shows the four jobs with working Run Now and history.**
+
+#### What the database showed before the fix
+| Job | Runs Apr–Sep 2026 | Cause |
+|-----|-------------------|-------|
+| `standingOrderExecutionJob` | **0 of 95 succeeded** | `findDueOrders(LocalDate)` returned `List`, no `Pageable` → `RepositoryItemReader` got `NoSuchMethodException` every run |
+| `arrearsClassificationJob` | **0 of 117 succeeded** | `.arguments(List.of(ACTIVE, IN_ARREARS))` hit the builder's `arguments(List)` overload → two `LoanStatus` args → `NoSuchMethodException` |
+| `dormancyClassificationJob` | 90 of 90 | Worked, but see date + paging bugs below |
+| `interestAccrualJob` | 101 of 101 | Worked (no GL posting — PR B) |
+| CoB Scheduler screen | blank | `GET /api/v1/jobs` returned `cob_job_history` rows, which only manual runs write — **0 rows** vs 403 real runs |
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `cob/CobJobDefinition.java` | NEW — enum catalogue of the 4 jobs (job/bean/trigger/display names); `parameters(businessDate)`; `businessDate(param)` |
+| `cob/StandingOrderExecutionJob.java` | Rewritten as a tasklet: snapshots due IDs, then **one transaction per order** (transfer + schedule advance commit together). A failed order no longer rolls back the others and stays due |
+| `cob/DormancyClassificationJob.java` | `@StepScope` `ListItemReader<UUID>` of candidate IDs dated by `businessDate`; processor re-checks status |
+| `cob/ArrearsClassificationJob.java` | Reader argument wrapped as one list; reader + processor `@StepScope`; overdue checked against `businessDate` |
+| `payment/StandingOrderRepository.java`, `account/AccountRepository.java` | `findDueOrders` → `findDueOrderIds`; `findCandidatesForDormancy` → `findDormancyCandidateIds` (ID snapshots) |
+| `cob/CobJobService.java`, `CobJobView.java`, `CobRunView.java` | NEW — job list from Quartz triggers + Spring Batch; history from `batch_job_execution`; Run Now reports the real `BatchStatus` (was always COMPLETED), 404 unknown job, 409 already running |
+| `cob/CobController.java`, `CobSchedulerConfig.java`, `QuartzJobBridge.java` | Controller delegates to the service; config keeps only triggers; bridge uses shared parameters |
+| `test/.../integration/CobJobsIT.java` | NEW — 6 tests launching the real jobs on PostgreSQL: 25 orders + 1 failing, 150 dormant accounts at a past business date, arrears set and cleared, list/run/history, 404 |
+| `web/.../reports/report.service.ts`, `cob-scheduler.ts/.html/.spec.ts` | `runJob` returns the run; FAILED runs show the job's error; list reloads immediately; subtitle includes dormancy |
+| `backend/docs/openapi-snapshot.yaml` | Regenerated — `CobJobView` / `CobRunView` schemas replace `CobJobHistory` |
+| `docs/api-reference.html`, `docs/cba-postman-collection-v2.json` | CoB section rewritten with response fields, 404/409, "200 even when FAILED"; Postman descriptions + example responses on all 5 CoB requests, new Dormancy trigger request |
+
+#### Key Patterns / Decisions
+- **Reader bugs are invisible to unit tests**: Spring Batch resolves the repository method by name at run time. Only a test that launches the job catches them — hence `CobJobsIT`.
+- **Paging over a result set the job changes skips rows** (dormancy selects ACTIVE and sets DORMANT; standing orders move `next_execution_date`). Snapshot IDs first. Arrears keeps paging: its status changes stay inside the query.
+- **`JobLauncher.run` returns normally when the job fails** — read `execution.getStatus()`.
+- `docs-site/static/` copies of the API docs were **already out of sync** before this change, so they were not copied (would publish unrelated drift).
+- Out of scope, in PR B: interest accrual GL posting (problem 3) and chaining the jobs so each waits for the previous one (problem 5). Card expiry has no schedule (problem 6) — not yet requested.
+
+#### Build Verification
+- `CobJobsIT`: 6/6 against PostgreSQL 16 (Testcontainers).
+- Backend `mvn test`: **690/690**. `-Pfull-integration`: **710/710** (was 704; +6).
+- Web `ng test`: **1146/1146** (115 files; +1 FAILED-run test).
+- Gate grep: endpoint paths unchanged, but **response bodies of all three `/api/v1/jobs` endpoints changed** → api-reference, Postman and the OpenAPI snapshot updated.
+
+#### Confirmed Platform Versions
+| Directory | Last commit | Notes |
+|-----------|-------------|-------|
+| `backend/` | this PR | Spring Boot 3.5.16, Spring Batch 5.2; 710/710 full-integration |
+| `web/` | this PR | Angular 21.2.23; 1146/1146 |
+| `card-service/` | `ad374f9` (#113) | Unchanged |
+| `fep-service/` | `9a5e3f9` (#109) | Unchanged |
+
 ### Session 125 (cont. 12) — 2026-09-24
 **`docker compose --profile app up` now brings the stack up. Before this, the backend container crash-looped on every start and no app container could ever report healthy.**
 

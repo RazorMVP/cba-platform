@@ -504,6 +504,17 @@ components:
         meta:
           $ref: "#/components/schemas/PageMeta"
       type: "object"
+    ApiResponseCobRunView:
+      properties:
+        data:
+          $ref: "#/components/schemas/CobRunView"
+        errors:
+          items:
+            $ref: "#/components/schemas/ApiError"
+          type: "array"
+        meta:
+          $ref: "#/components/schemas/PageMeta"
+      type: "object"
     ApiResponseCode:
       properties:
         data:
@@ -1010,11 +1021,24 @@ components:
         meta:
           $ref: "#/components/schemas/PageMeta"
       type: "object"
-    ApiResponseListCobJobHistory:
+    ApiResponseListCobJobView:
       properties:
         data:
           items:
-            $ref: "#/components/schemas/CobJobHistory"
+            $ref: "#/components/schemas/CobJobView"
+          type: "array"
+        errors:
+          items:
+            $ref: "#/components/schemas/ApiError"
+          type: "array"
+        meta:
+          $ref: "#/components/schemas/PageMeta"
+      type: "object"
+    ApiResponseListCobRunView:
+      properties:
+        data:
+          items:
+            $ref: "#/components/schemas/CobRunView"
           type: "array"
         errors:
           items:
@@ -3367,35 +3391,47 @@ components:
       required:
       - "actualCash"
       type: "object"
-    CobJobHistory:
+    CobJobView:
+      properties:
+        active:
+          type: "boolean"
+        cronExpression:
+          type: "string"
+        currentlyRunning:
+          type: "boolean"
+        displayName:
+          type: "string"
+        jobName:
+          type: "string"
+        nextRunTime:
+          format: "date-time"
+          type: "string"
+        previousRunEndTime:
+          format: "date-time"
+          type: "string"
+        previousRunStartTime:
+          format: "date-time"
+          type: "string"
+        previousRunStatus:
+          type: "string"
+      type: "object"
+    CobRunView:
       properties:
         businessDate:
-          format: "date"
           type: "string"
-        completedAt:
+        endTime:
           format: "date-time"
           type: "string"
         errorMessage:
           type: "string"
         id:
-          format: "uuid"
           type: "string"
         jobName:
           type: "string"
-        recordsProcessed:
-          format: "int32"
-          type: "integer"
-        springBatchJobExecutionId:
-          format: "int64"
-          type: "integer"
-        startedAt:
+        startTime:
           format: "date-time"
           type: "string"
         status:
-          enum:
-          - "RUNNING"
-          - "COMPLETED"
-          - "FAILED"
           type: "string"
       type: "object"
     Code:
@@ -12469,7 +12505,7 @@ paths:
       - "Bulk Import"
   /api/v1/bulkimport/jobs:
     get:
-      operationId: "recentJobs_1"
+      operationId: "recentJobs"
       parameters:
       - in: "query"
         name: "entityType"
@@ -15825,19 +15861,23 @@ paths:
       - "Hooks"
   /api/v1/jobs:
     get:
-      operationId: "recentJobs"
+      description: "One entry per nightly job in schedule order: cron expression,\
+        \ next scheduled run, and the outcome of the most recent run (scheduled or\
+        \ manual)."
+      operationId: "listJobs"
       responses:
         "200":
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ApiResponseListCobJobHistory"
+                $ref: "#/components/schemas/ApiResponseListCobJobView"
           description: "OK"
-      summary: "List available CoB jobs and recent history"
+      summary: "List the CoB jobs"
       tags:
       - "CoB Scheduler"
   /api/v1/jobs/{jobName}/history:
     get:
+      description: "The 30 most recent runs, newest first, scheduled and manual alike."
       operationId: "jobHistory"
       parameters:
       - in: "path"
@@ -15850,15 +15890,17 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ApiResponseListCobJobHistory"
+                $ref: "#/components/schemas/ApiResponseListCobRunView"
           description: "OK"
       summary: "Get execution history for a specific job"
       tags:
       - "CoB Scheduler"
   /api/v1/jobs/{jobName}/run:
     post:
-      description: "Valid job names: standingOrderExecutionJob, interestAccrualJob,\
-        \ dormancyClassificationJob, arrearsClassificationJob"
+      description: "Runs the job synchronously for today's business date and returns\
+        \ the run, including status SUCCESS or FAILED. 404 for an unknown job; 409\
+        \ if it is already running. Valid job names: standingOrderExecutionJob, dormancyClassificationJob,\
+        \ interestAccrualJob, arrearsClassificationJob"
       operationId: "runJob"
       parameters:
       - in: "path"
@@ -15871,7 +15913,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ApiResponseVoid"
+                $ref: "#/components/schemas/ApiResponseCobRunView"
           description: "OK"
       summary: "Manually trigger a CoB job"
       tags:

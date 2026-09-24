@@ -1961,15 +1961,15 @@ difference = actual_cash - closing_balance</pre>
 <!-- COB SCHEDULER ───────────────────────────────────────────────────────── -->
 <section id="cob">
 <h2>Close of Business (CoB) Scheduler <span style="font-size:.75rem;font-weight:400;color:#065f46;background:#d1fae5;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Live</span></h2>
-<p>Spring Batch jobs triggered nightly via Quartz. Three jobs run in sequence: standing-order execution (23:55) → interest accrual (23:57) → arrears classification (23:59). Each job is also manually triggerable via API.</p>
+<p>Spring Batch jobs triggered nightly via Quartz (server time): standing-order execution (23:55) → dormancy classification (23:56) → interest accrual (23:57) → arrears classification (23:59). Each job is also manually triggerable via API. Every run carries a <code>businessDate</code> job parameter, and the jobs date their work by it rather than by the clock.</p>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
-<tr><td>GET</td><td>/api/v1/jobs</td><td>List recent CoB job executions (last 10)</td><td>ADMIN</td></tr>
-<tr><td>POST</td><td>/api/v1/jobs/{jobName}/run</td><td>Manually trigger a CoB job immediately</td><td>ADMIN</td></tr>
-<tr><td>GET</td><td>/api/v1/jobs/{jobName}/history</td><td>Get full execution history for a job</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/jobs</td><td>List the four CoB jobs in schedule order. Each entry: <code>jobName</code>, <code>displayName</code>, <code>cronExpression</code>, <code>nextRunTime</code>, <code>previousRunStartTime</code>, <code>previousRunEndTime</code>, <code>previousRunStatus</code> (<code>SUCCESS</code> / <code>FAILED</code> / <code>RUNNING</code>, null if never run), <code>active</code> (false when the Quartz trigger is paused), <code>currentlyRunning</code>. Covers scheduled and manual runs.</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/jobs/{jobName}/run</td><td>Run a CoB job now, synchronously, for today's business date. Returns the finished run (same shape as a history entry) — <strong>check <code>status</code>: the call returns 200 even when the job itself ends <code>FAILED</code></strong>. <code>404</code> unknown job name; <code>409</code> <code>COB_JOB_ALREADY_RUNNING</code> if that job is running.</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/jobs/{jobName}/history</td><td>The 30 most recent runs, newest first, scheduled and manual alike. Each entry: <code>id</code> (Spring Batch execution id), <code>jobName</code>, <code>businessDate</code>, <code>startTime</code>, <code>endTime</code>, <code>status</code>, <code>errorMessage</code> (first line of the failure; null on success). <code>404</code> unknown job name.</td><td>ADMIN</td></tr>
 </table>
-<p><strong>Valid job names:</strong> <code>standingOrderExecutionJob</code>, <code>interestAccrualJob</code>, <code>arrearsClassificationJob</code></p>
-<p><strong>Implementation:</strong> <code>QuartzJobBridge extends QuartzJobBean</code> bridges Quartz → Spring Batch; looks up the Spring Batch <code>Job</code> bean by <code>jobBeanName</code> job data key. History tracked in <code>cob_job_history</code> table. Quartz schema managed by Flyway V10 (<code>initialize-schema: never</code>).</p>
+<p><strong>Valid job names:</strong> <code>standingOrderExecutionJob</code>, <code>dormancyClassificationJob</code>, <code>interestAccrualJob</code>, <code>arrearsClassificationJob</code></p>
+<p><strong>Implementation:</strong> <code>QuartzJobBridge extends QuartzJobBean</code> bridges Quartz → Spring Batch; looks up the Spring Batch <code>Job</code> bean by <code>jobBeanName</code> job data key. Run history is read from Spring Batch's own execution tables (<code>batch_job_execution</code>), so nightly runs appear alongside manual ones; <code>cob_job_history</code> is still written by manual runs only. Standing orders run one transaction per order, so a failed order can't roll back the others and stays due for the next run. Quartz schema managed by Flyway V10 (<code>initialize-schema: never</code>).</p>
 </section>
 
 <!-- ACCOUNTING ──────────────────────────────────────────────────────────── -->

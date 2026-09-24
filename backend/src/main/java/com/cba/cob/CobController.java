@@ -16,32 +16,37 @@ import java.util.List;
 @Tag(name = "CoB Scheduler", description = "Close-of-Business batch job management and history")
 public class CobController {
 
-    private final CobSchedulerConfig cobSchedulerConfig;
-    private final CobJobHistoryRepository historyRepository;
+    private final CobJobService cobJobService;
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "List available CoB jobs and recent history")
-    public ResponseEntity<ApiResponse<List<CobJobHistory>>> recentJobs() {
-        return ResponseEntity.ok(ApiResponse.ok(historyRepository.findTop10ByOrderByStartedAtDesc()));
+    @Operation(
+        summary = "List the CoB jobs",
+        description = "One entry per nightly job in schedule order: cron expression, next scheduled run, "
+                    + "and the outcome of the most recent run (scheduled or manual)."
+    )
+    public ResponseEntity<ApiResponse<List<CobJobView>>> listJobs() {
+        return ResponseEntity.ok(ApiResponse.ok(cobJobService.listJobs()));
     }
 
     @PostMapping("/{jobName}/run")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(
         summary = "Manually trigger a CoB job",
-        description = "Valid job names: standingOrderExecutionJob, interestAccrualJob, dormancyClassificationJob, arrearsClassificationJob"
+        description = "Runs the job synchronously for today's business date and returns the run, "
+                    + "including status SUCCESS or FAILED. 404 for an unknown job; 409 if it is already running. "
+                    + "Valid job names: standingOrderExecutionJob, dormancyClassificationJob, "
+                    + "interestAccrualJob, arrearsClassificationJob"
     )
-    public ResponseEntity<ApiResponse<Void>> runJob(@PathVariable String jobName) {
-        cobSchedulerConfig.triggerJobNow(jobName);
-        return ResponseEntity.ok(ApiResponse.ok(null));
+    public ResponseEntity<ApiResponse<CobRunView>> runJob(@PathVariable String jobName) {
+        return ResponseEntity.ok(ApiResponse.ok(cobJobService.runNow(jobName)));
     }
 
     @GetMapping("/{jobName}/history")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Get execution history for a specific job")
-    public ResponseEntity<ApiResponse<List<CobJobHistory>>> jobHistory(@PathVariable String jobName) {
-        return ResponseEntity.ok(ApiResponse.ok(
-                historyRepository.findByJobNameOrderByBusinessDateDesc(jobName)));
+    @Operation(summary = "Get execution history for a specific job",
+               description = "The 30 most recent runs, newest first, scheduled and manual alike.")
+    public ResponseEntity<ApiResponse<List<CobRunView>>> jobHistory(@PathVariable String jobName) {
+        return ResponseEntity.ok(ApiResponse.ok(cobJobService.history(jobName)));
     }
 }

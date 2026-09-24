@@ -3240,6 +3240,19 @@ Spring Boot 3.3+ (Flyway 10+) extracted PostgreSQL dialect support from `flyway-
 
 The build stage must use `maven:3.9-eclipse-temurin-21-alpine`, not `eclipse-temurin:21-jdk-alpine`. The latter has no Maven binary, causing `./mvnw` to fail.
 
+### Running the `--profile app` stack locally _(Session 125 cont. 12)_
+
+CI builds and pushes images but **never starts them**, so runtime bugs in the containers only surface when someone runs Compose. Three that did:
+
+| Issue | Fix |
+|-------|-----|
+| Backend crash-loops: `Cannot create image upload directory: /app/uploads/customer-images` (`AccessDeniedException`) | The runtime runs as non-root `cba` but `/app` is root-owned. The Dockerfile pre-creates `/app/uploads` owned by `cba`. Any new path the app writes under `/app` needs the same treatment |
+| App containers never become `healthy`, so dependants (`web`, `partner-portal`, `fep-service`) never start | `eclipse-temurin:21-jre-alpine` has **no `curl`**. Compose healthchecks use `wget -qO-` (busybox), like the Dockerfiles' own `HEALTHCHECK` |
+| Cards screens 401 in the docker stack | card-service's bypass defaults off (`APP_AUTH_BYPASS:false`); compose sets it `"true"` to match the backend's `docker` profile |
+
+- **GHCR images are `linux/amd64` only.** On Apple Silicon `docker pull` fails with `no matching manifest for linux/arm64/v8`. Build natively: `docker build -t ghcr.io/razormvp/cba-platform/cba-backend:main backend` (same for `card-service`, `partner-portal`, and `docs-site` → `cba-docs`), then `VERSION=main docker compose -f infrastructure/docker-compose.yml --profile app up -d --no-deps backend card-service partner-portal docs`. CI tags `sha-<7>` + `main`, never `latest`, so compose's `:latest` default resolves to a stale or missing image.
+- **`fep-service` and `web` have no Dockerfile or image.** Run them from source: `cd fep-service && ./mvnw spring-boot:run` (not `-o` — the spring-boot plugin jars may not be cached) and `cd web && npx ng serve`.
+
 ---
 
 ## PRD Gap Analysis — Session 49 (2026-04-14)

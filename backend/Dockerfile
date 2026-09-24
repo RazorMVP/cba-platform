@@ -14,8 +14,11 @@ FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
-# Create non-root user for security
-RUN addgroup -S cba && adduser -S cba -G cba
+# Create non-root user for security. /app stays root-owned, so pre-create the
+# writable upload root (FileSystemStorageProvider's default ./uploads/customer-images)
+# or the app crashes at startup with AccessDeniedException.
+RUN addgroup -S cba && adduser -S cba -G cba \
+    && mkdir -p /app/uploads && chown cba:cba /app/uploads
 
 # Copy the fat jar
 COPY --from=builder /app/target/*.jar app.jar

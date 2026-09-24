@@ -57,6 +57,35 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 12) — 2026-09-24
+**`docker compose --profile app up` now brings the stack up. Before this, the backend container crash-looped on every start and no app container could ever report healthy.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/Dockerfile` | Runtime stage pre-creates `/app/uploads` owned by `cba`. `/app` is root-owned and the app runs as `cba`, so `FileSystemStorageProvider` (default `./uploads/customer-images`) threw `AccessDeniedException` in its constructor and the context never started |
+| `infrastructure/docker-compose.yml` | backend / card-service / fep-service healthchecks `curl -sf` → `wget -qO-`. The `eclipse-temurin:21-jre-alpine` runtime has no `curl`, so the check always failed, the containers stayed unhealthy, and `web`/`partner-portal`/`fep-service` (`depends_on: service_healthy`) never started. The Dockerfiles' own `HEALTHCHECK` already used `wget` |
+| `infrastructure/docker-compose.yml` | card-service gets `APP_AUTH_BYPASS: "true"`, matching the backend's `docker` profile. Without it the portal's Cards screens 401 |
+
+#### Key Patterns / Decisions
+- **Found by actually running the stack.** CI only builds and pushes images; it never starts them, so neither bug could be caught there.
+- **GHCR images are `linux/amd64` only.** `docker pull` fails on Apple Silicon (`no matching manifest for linux/arm64/v8`). Locally, build natively instead: `docker build -t ghcr.io/razormvp/cba-platform/cba-backend:main backend` (same for card-service), then `VERSION=main docker compose ... --profile app up -d`.
+- **Still not containerised (unchanged, out of scope):** `fep-service` and `web` have no Dockerfile and no GHCR image, so their compose entries can't start. Run them from source (`./mvnw spring-boot:run`, `npx ng serve`), and start the rest with `up -d --no-deps backend card-service partner-portal docs`. `partner-portal` and `docs` images also aren't published — `docker build` them from `partner-portal/` and `docs-site/`.
+
+#### Build Verification
+Rebuilt the backend image and recreated backend, card-service, partner-portal and docs from the repo compose file alone (no override). backend + card-service `healthy`; `/app/uploads/customer-images` created as `cba:cba`; 200 from `/actuator/health` on 8080/8081/8082, the web portal on :4200, partner-portal :3000, docs :3001, `GET /api/v1/customers`, and `GET /card-api/v1/cards`; ISO 8583 TCP :8583 open.
+
+**API surface unchanged — verified via gate grep; no api-reference/postman edits owed.**
+
+#### Confirmed Platform Versions
+| Directory | Last commit | Notes |
+|-----------|-------------|-------|
+| `backend/` | this PR | Dockerfile only; Spring Boot 3.5.16, 704/704 unchanged |
+| `card-service/` | `ad374f9` (#113) | Unchanged |
+| `fep-service/` | `9a5e3f9` (#109) | Unchanged |
+| `web/` | `28b26c1` | Unchanged (Angular 21.2.23) |
+| `infrastructure/` | this PR | compose healthchecks + card-service auth bypass |
+
 ### Session 125 (cont. 11) — 2026-09-23
 **Session Completion Gate executed for the whole of Session 125 cont. 4–10 (PRs #109, #110, #111, #113, #114, #115; #112 closed unmerged). One item failed and is fixed here: CLAUDE.md's Confirmed Platform Versions table was stale.**
 

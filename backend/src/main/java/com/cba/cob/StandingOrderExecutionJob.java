@@ -8,24 +8,34 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
+import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
-import org.springframework.batch.item.ItemProcessor;
-import org.springframework.batch.item.ItemWriter;
-import org.springframework.batch.item.data.RepositoryItemReader;
-import org.springframework.batch.item.data.builder.RepositoryItemReaderBuilder;
+import org.springframework.batch.core.step.tasklet.Tasklet;
+import org.springframework.batch.repeat.RepeatStatus;
+import org.springframework.batch.support.transaction.ResourcelessTransactionManager;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.domain.Sort;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.Map;
+import java.util.List;
+import java.util.UUID;
 
 /**
- * Executes all standing orders due today and advances their next execution date.
+ * Executes all standing orders due on the business date and advances their next
+ * execution date.
+ *
+ * <p>Each order runs in its <b>own</b> transaction: the transfer and the schedule
+ * advance commit together or not at all. A chunk-oriented step can't give that —
+ * {@code PaymentService.transfer} joins the chunk transaction, so one failed order
+ * (e.g. insufficient funds) marks the whole chunk rollback-only and undoes the
+ * orders that succeeded alongside it. The step itself uses a resourceless
+ * transaction manager because all real work happens in the per-order transactions.
  */
 @Configuration
 @RequiredArgsConstructor
@@ -44,62 +54,79 @@ public class StandingOrderExecutionJob {
     }
 
     @Bean
-    public Step standingOrderStep(JobRepository jobRepository,
-                                   PlatformTransactionManager transactionManager) {
+    public Step standingOrderStep(JobRepository jobRepository) {
         return new StepBuilder("standingOrderStep", jobRepository)
-                .<StandingOrder, StandingOrder>chunk(20, transactionManager)
-                .reader(dueOrdersReader())
-                .processor(orderProcessor())
-                .writer(orderWriter())
+                .tasklet(standingOrderTasklet(null, null), new ResourcelessTransactionManager())
                 .build();
     }
 
     @Bean
-    public RepositoryItemReader<StandingOrder> dueOrdersReader() {
-        return new RepositoryItemReaderBuilder<StandingOrder>()
-                .name("dueOrdersReader")
-                .repository(standingOrderRepository)
-                .methodName("findDueOrders")
-                .arguments(LocalDate.now())
-                .sorts(Map.of("id", Sort.Direction.ASC))
-                .pageSize(20)
-                .build();
-    }
+    @StepScope
+    public Tasklet standingOrderTasklet(
+            @Value("#{jobParameters['" + CobJobDefinition.BUSINESS_DATE + "']}") String businessDateParam,
+            PlatformTransactionManager transactionManager) {
+        LocalDate businessDate = CobJobDefinition.businessDate(businessDateParam);
+        TransactionTemplate perOrder = new TransactionTemplate(transactionManager);
 
-    @Bean
-    public ItemProcessor<StandingOrder, StandingOrder> orderProcessor() {
-        return order -> {
-            try {
-                TransferRequest transferReq = new TransferRequest(
-                        order.getSourceAccount().getId(),
-                        order.getDestinationAccount().getId(),
-                        order.getAmount(),
-                        "Standing order: " + order.getDescription(),
-                        null
-                );
-                paymentService.transfer(transferReq, "system");
+        return (contribution, chunkContext) -> {
+            List<UUID> dueIds = standingOrderRepository.findDueOrderIds(businessDate);
+            int executed = 0;
+            int failed = 0;
 
-                order.setLastExecutedAt(Instant.now());
-                order.setNextExecutionDate(computeNext(order));
-
-                // Auto-complete if end date reached
-                if (order.getEndDate() != null && order.getNextExecutionDate().isAfter(order.getEndDate())) {
-                    order.setStatus(StandingOrder.Status.COMPLETED);
+            for (UUID id : dueIds) {
+                contribution.incrementReadCount();
+                try {
+                    Boolean ran = perOrder.execute(tx -> executeOrder(id, businessDate));
+                    if (Boolean.TRUE.equals(ran)) {
+                        executed++;
+                    } else {
+                        contribution.incrementFilterCount(1);
+                    }
+                } catch (RuntimeException e) {
+                    // Rolled back as a unit; the order stays due and is retried next run.
+                    failed++;
+                    contribution.incrementProcessSkipCount();
+                    log.error("Standing order {} execution failed: {}", id, e.getMessage());
                 }
-                return order;
-            } catch (Exception e) {
-                log.error("Standing order {} execution failed: {}", order.getId(), e.getMessage());
-                return null; // skip failed orders — they remain due tomorrow
             }
+
+            contribution.incrementWriteCount(executed);
+            log.info("Standing orders for {}: {} due, {} executed, {} failed",
+                    businessDate, dueIds.size(), executed, failed);
+            return RepeatStatus.FINISHED;
         };
     }
 
-    @Bean
-    public ItemWriter<StandingOrder> orderWriter() {
-        return orders -> {
-            standingOrderRepository.saveAll(orders.getItems());
-            log.info("Standing orders executed: {}", orders.size());
-        };
+    /**
+     * Runs one order inside the caller's transaction. Re-reads the order so a change
+     * since the ID snapshot (paused, cancelled, already run) is honoured; returns
+     * {@code false} when the order is no longer due.
+     */
+    private boolean executeOrder(UUID id, LocalDate businessDate) {
+        StandingOrder order = standingOrderRepository.findById(id).orElse(null);
+        if (order == null
+                || order.getStatus() != StandingOrder.Status.ACTIVE
+                || order.getNextExecutionDate().isAfter(businessDate)) {
+            return false;
+        }
+
+        paymentService.transfer(new TransferRequest(
+                order.getSourceAccount().getId(),
+                order.getDestinationAccount().getId(),
+                order.getAmount(),
+                "Standing order: " + order.getDescription(),
+                null
+        ), "system");
+
+        order.setLastExecutedAt(Instant.now());
+        order.setNextExecutionDate(computeNext(order));
+        if (order.getEndDate() != null && order.getNextExecutionDate().isAfter(order.getEndDate())) {
+            order.setStatus(StandingOrder.Status.COMPLETED);
+        }
+        // @Version on StandingOrder: a concurrent run that already advanced this order
+        // fails here with an optimistic-lock error, rolling back its duplicate transfer.
+        standingOrderRepository.saveAndFlush(order);
+        return true;
     }
 
     private LocalDate computeNext(StandingOrder order) {

@@ -25,7 +25,7 @@ describe('CobSchedulerComponent', () => {
     vi.useFakeTimers();
     svc = {
       listJobs: vi.fn().mockReturnValue(of([job()])),
-      runJob: vi.fn().mockReturnValue(of(void 0)),
+      runJob: vi.fn().mockReturnValue(of(hist())),
       getJobHistory: vi.fn().mockReturnValue(of([hist()])),
     };
     TestBed.configureTestingModule({
@@ -60,14 +60,21 @@ describe('CobSchedulerComponent', () => {
   });
 
   describe('runJob', () => {
-    it('triggers the job and schedules a refresh', () => {
+    it('triggers the job and refreshes the list straight away', () => {
       const c = make();
       c.runJob(job());
       expect(svc.runJob).toHaveBeenCalledWith('interestAccrualJob');
       expect(c.runningJobs.has('interestAccrualJob')).toBe(false);
-      // refresh timer fires a second listJobs after the delay
-      vi.advanceTimersByTime(2600);
+      // the run is synchronous, so the list reloads without waiting
       expect(svc.listJobs).toHaveBeenCalledTimes(2);
+      expect(c.runError(job())).toBe('');
+    });
+
+    it('shows the job failure when the run completes with status FAILED', () => {
+      svc.runJob.mockReturnValue(of(hist({ status: 'FAILED', errorMessage: 'NoSuchMethodException' })));
+      const c = make();
+      c.runJob(job());
+      expect(c.runError(job())).toBe('Run failed: NoSuchMethodException');
     });
 
     it('reloads history when the run job is the selected job', () => {

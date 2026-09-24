@@ -53,10 +53,11 @@ export interface CobJob {
 export interface CobJobHistory {
   id: string;
   jobName: string;
+  businessDate?: string;
   startTime: string;
   endTime?: string;
   status: 'SUCCESS' | 'FAILED' | 'RUNNING';
-  errorMessage?: string;
+  errorMessage?: string | null;
 }
 
 // ── Report Mailing ─────────────────────────────────────────────────────────────
@@ -128,8 +129,9 @@ export class ReportService {
   listJobs(): Observable<CobJob[]> {
     return this.api.get<CobJob[]>('/jobs');
   }
-  runJob(jobName: string): Observable<void> {
-    return this.api.post<void>(`/jobs/${encodeURIComponent(jobName)}/run`, {});
+  /** Runs synchronously; resolves with the finished run (status SUCCESS or FAILED). */
+  runJob(jobName: string): Observable<CobJobHistory> {
+    return this.api.post<CobJobHistory>(`/jobs/${encodeURIComponent(jobName)}/run`, {});
   }
   getJobHistory(jobName: string): Observable<CobJobHistory[]> {
     return this.api.get<CobJobHistory[]>(`/jobs/${encodeURIComponent(jobName)}/history`);

@@ -361,7 +361,8 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 ### 14. GL / Accounting Module
 - Double-entry journal with auto-posting + manual journal entries (Option C)
 - `FinancialActivityAccount` maps abstract activities (ASSET_LOAN_PORTFOLIO, INCOME_INTEREST, etc.) to concrete GL codes
-- `GlAccountingService.postDoubleEntry()` — invoked by domain services at transaction time
+- `GlAccountingService.postDoubleEntry()` / `postByActivity()` — **only savings interest calls them** (nightly accrual + `?command=postInterest`: DR `EXPENSE_INTEREST_ON_SAVINGS` / CR `LIABILITY_SAVINGS_CONTROL`). Payments, loans, fees and teller cash still post nothing to the GL _(Session 125 cont. 14)_
+- **Journal writes had never worked before cont. 14**: `transaction_id` (NOT NULL) was unmapped, the V8 activity rows weren't enum names, and lazy `GlAccount` proxies broke Jackson. Every journal line now carries a shared `transactionId`; GL entities with lazy relations need class-level `@JsonIgnoreProperties({"hibernateLazyInitializer","handler"})`
 - `GlAccountingService.postManualEntries()` — requires balanced debits/credits; blocks DML SQL
 - Package: `com.cba.accounting`
 - Entities: `GlAccount`, `JournalEntry`, `FinancialActivityAccount`, `GlClosure`
@@ -378,9 +379,8 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 
 ### 16. CoB Scheduler Module (Close of Business)
 - Spring Batch jobs + Quartz triggers; both schemas managed by Flyway V10 (`initialize-schema: never`); 5 missing Quartz tables added in V24
-- Nightly schedule: standing-orders (23:55) → dormancy (23:56) → interest-accrual (23:57) → arrears (23:59)
+- Nightly: **one** Quartz trigger (23:55) → `CloseOfBusinessQuartzJob` → `CobRunner` runs standing-orders → dormancy → interest-accrual → arrears **in sequence**; a failed job is logged and the next still runs. V53 deleted the old per-job triggers — Quartz persists triggers in `qrtz_*`, so removing a trigger bean alone leaves it firing
 - **`CobJobDefinition` enum is the single job catalogue**; dates come from the `businessDate` job parameter (`@StepScope` beans), never `LocalDate.now()` in a singleton. `CobJobsIT` launches every job against real PostgreSQL — keep it: `RepositoryItemReader` resolves its method by reflection, so reader bugs only fail at run time (standing orders + arrears failed every night Apr–Sep 2026; see cba-log Session 125 cont. 13)
-- `QuartzJobBridge extends QuartzJobBean` bridges Quartz → Spring Batch; looks up bean by `jobBeanName` job data key
 - **`@Bean` naming**: Spring Batch auto-registers beans by the name passed to `JobBuilder`; the `@Bean` annotation must use a **different** name to avoid `NoUniqueBeanDefinitionException`. Convention: `@Bean("standingOrderExecutionBatchJob")`, `@Bean("interestAccrualBatchJob")`, `@Bean("arrearsClassificationBatchJob")` — the `BatchJob` suffix disambiguates from the internal Batch job name
 - Never put `@Qualifier` on fields with `@RequiredArgsConstructor` — Lombok drops field annotations from the generated constructor
 - Entity: `CobJobHistory` (manual runs only); Package: `com.cba.cob`. Run history API reads Spring Batch's `batch_job_execution`, so nightly runs show

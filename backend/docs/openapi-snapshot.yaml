@@ -5244,6 +5244,7 @@ components:
         financialActivity:
           enum:
           - "ASSET_FUND_SOURCE"
+          - "ASSET_CASH_AT_TELLER"
           - "ASSET_INTEREST_RECEIVABLE"
           - "ASSET_LOAN_PORTFOLIO"
           - "LIABILITY_SAVINGS_CONTROL"
@@ -5252,6 +5253,7 @@ components:
           - "INCOME_FEES"
           - "EXPENSE_LOAN_LOSS_PROVISION"
           - "EXPENSE_WRITE_OFF"
+          - "EXPENSE_INTEREST_ON_SAVINGS"
           type: "string"
         glAccount:
           $ref: "#/components/schemas/GlAccount"
@@ -5264,6 +5266,7 @@ components:
         financialActivity:
           enum:
           - "ASSET_FUND_SOURCE"
+          - "ASSET_CASH_AT_TELLER"
           - "ASSET_INTEREST_RECEIVABLE"
           - "ASSET_LOAN_PORTFOLIO"
           - "LIABILITY_SAVINGS_CONTROL"
@@ -5272,6 +5275,7 @@ components:
           - "INCOME_FEES"
           - "EXPENSE_LOAN_LOSS_PROVISION"
           - "EXPENSE_WRITE_OFF"
+          - "EXPENSE_INTEREST_ON_SAVINGS"
           type: "string"
         glAccountId:
           format: "uuid"
@@ -6097,6 +6101,8 @@ components:
           type: "boolean"
         transactionDate:
           format: "date"
+          type: "string"
+        transactionId:
           type: "string"
       type: "object"
     LinkRequest:

@@ -57,6 +57,52 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 14) — 2026-09-25
+**End-of-day (CoB) fixes, PR B of 2: interest now posts to the general ledger, and the four jobs run in sequence from one trigger. Fixing the GL surfaced three older defects that meant no journal entry had ever been written.**
+
+#### Defects found and fixed
+| # | Defect | Effect | Fix |
+|---|--------|--------|-----|
+| 1 | `journal_entries.transaction_id` is `NOT NULL` (V8) but `JournalEntry` never mapped it | **Every** GL insert failed — the journal had 0 rows, ever (manual entries included) | Mapped; one id per posting: `GL-…` pair, `MJ-…` manual journal, `REV-…` reversal |
+| 2 | V8 seeded financial activities as `INTEREST_INCOME`, `LOAN_PORTFOLIO`, … — not `FinancialActivity` enum constants | `GET /financialactivityaccounts` → **500**; no activity could be resolved for posting | V53 renames all 7 to enum names (`CASH_AT_TELLER` → new `ASSET_CASH_AT_TELLER`) |
+| 3 | Lazy `GlAccount` proxy serialized by Jackson | Still **500** once rows loaded; `/journalentries` would 500 as soon as a row existed | Class-level `@JsonIgnoreProperties({"hibernateLazyInitializer","handler"})` on `GlAccount` + `JournalEntry` |
+| 4 | Interest accrual credited balances with no GL entry (problem 3) | Ledger never matched customer balances | DR `EXPENSE_INTEREST_ON_SAVINGS` (5002) / CR `LIABILITY_SAVINGS_CONTROL` (2001) per credit, same transaction; nightly job **and** `?command=postInterest`. Missing mapping → job FAILS, nobody credited |
+| 5 | Four independent cron triggers a minute apart (problem 5) | Jobs overlapped; a catch-up fired all four at once | One trigger (23:55) → `CloseOfBusinessQuartzJob` (`@DisallowConcurrentExecution`) → `CobRunner` runs them in order; a failure is logged and the next job still runs |
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `cob/CobRunner.java`, `cob/CloseOfBusinessQuartzJob.java` | NEW — sequential runner + the single Quartz job. `QuartzJobBridge` deleted |
+| `cob/CobJobDefinition.java`, `CobSchedulerConfig.java`, `CobJobService.java` | One trigger (`closeOfBusinessTrigger`, `0 55 23 * * ?`); screen shows the shared cron/next run for all jobs |
+| `cob/InterestAccrualJob.java` | GL posting in the chunk writer; step-scoped reader/writer dated by `businessDate` |
+| `account/AccountService.java` | Manual `postInterest` posts the same GL pair |
+| `accounting/JournalEntry.java`, `GlAccountingService.java` | `transactionId` mapped and set; Jackson proxy guard |
+| `accounting/GlAccount.java` | Jackson proxy guard |
+| `accounting/FinancialActivityAccount.java` | + `ASSET_CASH_AT_TELLER`, `EXPENSE_INTEREST_ON_SAVINGS` |
+| `db/migration/V53__cob_gl_mappings_and_single_trigger.sql` | Renames the 7 seeded activities; maps `EXPENSE_INTEREST_ON_SAVINGS` → GL 5002; deletes the 4 old `qrtz_*` trigger/job rows (Quartz persists them — removing the beans alone would leave them firing) |
+| `test/.../CobJobsIT.java` | +3 tests: balanced journal pair + GL endpoints 200 over HTTP; missing mapping → FAILED, nobody credited; `CobRunner` order with each job starting after the previous ended |
+| `test/.../AccountServiceTest.java` | Mocks `GlAccountingService`; verifies the manual posting |
+| `backend/docs/openapi-snapshot.yaml`, `docs/api-reference.html`, `docs/cba-postman-collection-v2.json`, `web/.../cob-scheduler.html` | `transactionId`, new activity values, sequencing text |
+
+#### Key Patterns / Decisions
+- **A failed CoB job does not stop the ones after it.** They share ordering, not data; halting would turn one standing-order outage into a lost day of interest for every customer. Flag for review if the bank's policy differs.
+- **Interest without a GL mapping fails the job** rather than crediting silently — money never moves without its ledger entry.
+- **Wider gap, not fixed (out of scope):** `postByActivity`/`postDoubleEntry` still have **no other callers** — payments, loan disbursement/repayment, fees and teller cash post nothing to the GL. Interest is now the only automatic posting.
+- **Local demo data:** all 10 demo accounts are DORMANT (no transactions in 90 days), so the nightly interest job credits nobody locally until one is reactivated.
+
+#### Build Verification
+- `CobJobsIT` 9/9 against PostgreSQL 16; backend `mvn test` **690/690**; `-Pfull-integration` **713/713** (was 710).
+- **Live stack** (backend rebuilt from this branch): V53 applied, `qrtz_triggers` holds only `closeOfBusinessTrigger`; `/financialactivityaccounts`, `/journalentries`, `/glaccounts`, `/jobs` all 200 (the first two were 500). Run Now on interest after reactivating one demo account → DR 5002 / CR 2001, 1.0565 each, one transaction id; trial balance `balanced = true` — **the first journal entries this system has recorded**.
+- Gate grep: no endpoint paths changed; response bodies changed (`JournalEntry.transactionId`, new activity enum values) → api-reference, Postman and OpenAPI snapshot updated.
+
+#### Confirmed Platform Versions
+| Directory | Last commit | Notes |
+|-----------|-------------|-------|
+| `backend/` | this PR | Spring Boot 3.5.16; Flyway V53; 713/713 full-integration |
+| `web/` | this PR | subtitle text only |
+| `card-service/` | `ad374f9` (#113) | Unchanged |
+| `fep-service/` | `9a5e3f9` (#109) | Unchanged |
+
 ### Session 125 (cont. 13) — 2026-09-24
 **End-of-day (CoB) fixes, PR A of 2: the standing-order and arrears jobs now run (they had failed on every night since April 2026), job dates come from the run's business date instead of the backend's start-up date, and the CoB Scheduler screen shows the four jobs with working Run Now and history.**
 

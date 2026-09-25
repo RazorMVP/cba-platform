@@ -47,6 +47,7 @@ public class AccountService {
     private final ApplicationEventPublisher eventPublisher;
     private final TenantService tenantService;
     private final GlobalConfigurationRepository globalConfigRepository;
+    private final com.cba.accounting.GlAccountingService glAccountingService;
 
     @Transactional
     public AccountResponse openAccount(OpenAccountRequest request) {
@@ -438,6 +439,14 @@ public class AccountService {
             "INT-MANUAL-" + System.currentTimeMillis() + "-" + id.toString().substring(0, 8),
             "system"
         ));
+        // Same ledger entry as the nightly accrual job, in this transaction: a missing
+        // GL mapping throws ACTIVITY_NOT_MAPPED and rolls the whole posting back.
+        glAccountingService.postByActivity(
+            com.cba.accounting.FinancialActivityAccount.FinancialActivity.EXPENSE_INTEREST_ON_SAVINGS,
+            com.cba.accounting.FinancialActivityAccount.FinancialActivity.LIABILITY_SAVINGS_CONTROL,
+            interest, account.getCurrencyCode(), java.time.LocalDate.now(),
+            "Manual interest posting " + account.getAccountNumber(),
+            com.cba.accounting.JournalEntry.EntityType.ACCOUNT, account.getId());
         auditLogService.log("ACCOUNT", id.toString(), "POST_INTEREST",
             "MANUAL", interest.toPlainString());
         return toResponse(account);

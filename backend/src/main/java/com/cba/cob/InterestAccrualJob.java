@@ -6,10 +6,14 @@ import com.cba.account.AccountStatus;
 import com.cba.account.Transaction;
 import com.cba.account.TransactionRepository;
 import com.cba.account.TransactionType;
+import com.cba.accounting.FinancialActivityAccount.FinancialActivity;
+import com.cba.accounting.GlAccountingService;
+import com.cba.accounting.JournalEntry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
+import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
@@ -17,6 +21,7 @@ import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.data.RepositoryItemReader;
 import org.springframework.batch.item.data.builder.RepositoryItemReaderBuilder;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.domain.Sort;
@@ -32,8 +37,18 @@ import java.util.Map;
 /**
  * Spring Batch job that accrues daily interest on all ACTIVE savings accounts.
  * Formula: dailyInterest = balance × (annualRate / 365)
- * Writes an INTEREST_CREDIT Transaction record for every account credited.
- * Runs nightly via Quartz trigger.
+ *
+ * <p>For every account credited it writes, in the same chunk transaction:
+ * <ul>
+ *   <li>the balance change and an INTEREST_CREDIT {@link Transaction}, and</li>
+ *   <li>the GL double entry: DR {@code EXPENSE_INTEREST_ON_SAVINGS} /
+ *       CR {@code LIABILITY_SAVINGS_CONTROL}, dated by the business date.</li>
+ * </ul>
+ * If either financial activity has no GL mapping the chunk rolls back and the job
+ * fails — interest is never credited to a customer without its ledger entry.
+ *
+ * <p>Paging is safe here: the job changes balances, never status, so the ACTIVE
+ * result set doesn't shift under the reader.
  */
 @Configuration
 @RequiredArgsConstructor
@@ -42,6 +57,7 @@ public class InterestAccrualJob {
 
     private final AccountRepository accountRepository;
     private final TransactionRepository transactionRepository;
+    private final GlAccountingService glAccountingService;
 
     record AccrualResult(Account account, BigDecimal interestAmount) {}
 
@@ -60,11 +76,12 @@ public class InterestAccrualJob {
                 .<Account, AccrualResult>chunk(100, transactionManager)
                 .reader(activeAccountReader())
                 .processor(accrualProcessor())
-                .writer(accrualWriter())
+                .writer(accrualWriter(null))
                 .build();
     }
 
     @Bean
+    @StepScope
     public RepositoryItemReader<Account> activeAccountReader() {
         return new RepositoryItemReaderBuilder<Account>()
                 .name("activeAccountReader")
@@ -98,27 +115,37 @@ public class InterestAccrualJob {
     }
 
     @Bean
-    public ItemWriter<AccrualResult> accrualWriter() {
+    @StepScope
+    public ItemWriter<AccrualResult> accrualWriter(
+            @Value("#{jobParameters['" + CobJobDefinition.BUSINESS_DATE + "']}") String businessDateParam) {
+        LocalDate businessDate = CobJobDefinition.businessDate(businessDateParam);
         return results -> {
             List<Account> accounts = new ArrayList<>(results.size());
             List<Transaction> transactions = new ArrayList<>(results.size());
 
             for (AccrualResult result : results) {
-                accounts.add(result.account());
+                Account account = result.account();
+                accounts.add(account);
                 transactions.add(Transaction.of(
-                        result.account(),
+                        account,
                         TransactionType.INTEREST_CREDIT,
                         result.interestAmount(),
-                        result.account().getBalance(),
+                        account.getBalance(),
                         "Daily interest accrual",
-                        "INT-" + System.currentTimeMillis() + "-" + result.account().getId().toString().substring(0, 8),
+                        "INT-" + System.currentTimeMillis() + "-" + account.getId().toString().substring(0, 8),
                         "system"
                 ));
+                glAccountingService.postByActivity(
+                        FinancialActivity.EXPENSE_INTEREST_ON_SAVINGS,
+                        FinancialActivity.LIABILITY_SAVINGS_CONTROL,
+                        result.interestAmount(), account.getCurrencyCode(), businessDate,
+                        "Daily interest accrual " + account.getAccountNumber(),
+                        JournalEntry.EntityType.ACCOUNT, account.getId());
             }
 
             accountRepository.saveAll(accounts);
             transactionRepository.saveAll(transactions);
-            log.info("Interest accrual: credited {} accounts for {}", accounts.size(), LocalDate.now());
+            log.info("Interest accrual: credited and posted {} accounts for {}", accounts.size(), businessDate);
         };
     }
 }

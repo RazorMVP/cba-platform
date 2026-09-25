@@ -49,6 +49,7 @@ class AccountServiceTest {
     @Mock ApplicationEventPublisher eventPublisher;
     @Mock TenantService tenantService;
     @Mock GlobalConfigurationRepository globalConfigRepository;
+    @Mock com.cba.accounting.GlAccountingService glAccountingService;
 
     @InjectMocks AccountService accountService;
 
@@ -672,6 +673,12 @@ class AccountServiceTest {
             AccountResponse resp = accountService.postInterest(accountId);
             assertThat(resp).isNotNull();
             verify(auditLogService).log(eq("ACCOUNT"), any(), eq("POST_INTEREST"), any(), any());
+            // Interest is an expense of the bank: DR interest expense / CR customer deposits.
+            verify(glAccountingService).postByActivity(
+                eq(com.cba.accounting.FinancialActivityAccount.FinancialActivity.EXPENSE_INTEREST_ON_SAVINGS),
+                eq(com.cba.accounting.FinancialActivityAccount.FinancialActivity.LIABILITY_SAVINGS_CONTROL),
+                any(BigDecimal.class), any(), any(), any(),
+                eq(com.cba.accounting.JournalEntry.EntityType.ACCOUNT), eq(accountId));
         }
 
         @Test

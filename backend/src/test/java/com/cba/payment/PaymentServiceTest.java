@@ -46,6 +46,7 @@ class PaymentServiceTest {
     @Mock StandingOrderRepository standingOrderRepository;
     @Mock ApplicationEventPublisher eventPublisher;
     @Mock com.cba.payment.gateway.ExternalPaymentGateway externalPaymentGateway;
+    @Mock com.cba.account.AccountGlPosting accountGlPosting;
 
     @InjectMocks PaymentService paymentService;
 
@@ -118,6 +119,10 @@ class PaymentServiceTest {
             PaymentResponse resp = paymentService.transfer(req, "teller1");
             assertThat(resp).isNotNull();
             verify(paymentRepository, times(2)).save(any());
+            // One journal for the pair, with each account's balance before the move.
+            verify(accountGlPosting).postTransfer(eq(source), argThat(b -> b.compareTo(new BigDecimal("1000.00")) == 0),
+                eq(destination), argThat(b -> b.compareTo(new BigDecimal("500.00")) == 0),
+                any(), any(), any(), any());
         }
 
         @Test
@@ -428,6 +433,39 @@ class PaymentServiceTest {
             assertThat(evt.originalCreatedBy()).isEqualTo("open-banking:ob-123");
             assertThat(evt.amount()).isEqualByComparingTo("100.00");
             assertThat(evt.reversalReference()).isEqualTo("REV-PAY-REV-1");
+        }
+
+        @Test
+        @DisplayName("cross-currency: debits the destination its converted amount, not the source amount")
+        void reversePayment_crossCurrency_debitsDestinationAmount() {
+            destination.setCurrencyCode("KES");
+            destination.setBalance(new BigDecimal("20000.00"));
+            Payment original = completedOriginal("teller1");
+            original.setCrossCurrency(true);
+            original.setDestinationCurrency("KES");
+            original.setDestinationAmount(new BigDecimal("13550.00"));
+            original.setExchangeRateUsed(new BigDecimal("135.5"));
+            when(paymentRepository.findById(srcId)).thenReturn(Optional.of(original));
+            when(accountRepository.findByIdWithLock(srcId)).thenReturn(Optional.of(source));
+            when(accountRepository.findByIdWithLock(dstId)).thenReturn(Optional.of(destination));
+            when(accountHoldRepository.sumActiveHoldsByAccount(dstId)).thenReturn(BigDecimal.ZERO);
+            when(transactionRepository.save(any())).thenReturn(mock(Transaction.class));
+            when(paymentRepository.save(any())).thenAnswer(inv -> {
+                Payment p = inv.getArgument(0);
+                if (p.getId() == null) p.setId(UUID.randomUUID());
+                return p;
+            });
+
+            PaymentResponse resp = paymentService.reversePayment(srcId,
+                    new com.cba.payment.dto.ReversePaymentRequest("error"), "teller1");
+
+            assertThat(source.getBalance()).isEqualByComparingTo("1100.00");       // +100 USD back
+            assertThat(destination.getBalance()).isEqualByComparingTo("6450.00");  // −13,550 KES, not −100
+            assertThat(resp.amount()).isEqualByComparingTo("13550.00");
+            assertThat(resp.currencyCode()).isEqualTo("KES");
+            verify(accountGlPosting).postTransfer(eq(destination), argThat(b -> b.compareTo(new BigDecimal("20000.00")) == 0),
+                eq(source), argThat(b -> b.compareTo(new BigDecimal("1000.00")) == 0),
+                any(), any(), eq("REV-PAY-REV-1"), any());
         }
     }
 }

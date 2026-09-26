@@ -47,7 +47,7 @@ public class AccountService {
     private final ApplicationEventPublisher eventPublisher;
     private final TenantService tenantService;
     private final GlobalConfigurationRepository globalConfigRepository;
-    private final com.cba.accounting.GlAccountingService glAccountingService;
+    private final AccountGlPosting accountGlPosting;
 
     @Transactional
     public AccountResponse openAccount(OpenAccountRequest request) {
@@ -200,11 +200,17 @@ public class AccountService {
                 "Account " + account.getAccountNumber() + " is " + account.getStatus());
         }
 
+        BigDecimal before = account.getBalance();
         account.credit(amount);
         accountRepository.save(account);
 
+        String reference = generateReference();
         Transaction tx = Transaction.of(account, TransactionType.DEPOSIT, amount,
-            account.getBalance(), description, generateReference(), createdBy);
+            account.getBalance(), description, reference, createdBy);
+        // DR Cash at Teller / CR savings control (or overdraft portfolio). Same transaction:
+        // a missing GL mapping rejects the deposit instead of leaving it unposted.
+        accountGlPosting.postCashMovement(account, before, LocalDate.now(),
+            "Cash deposit " + account.getAccountNumber(), reference);
         return toTransactionResponse(transactionRepository.save(tx));
     }
 
@@ -233,11 +239,15 @@ public class AccountService {
                 : "Insufficient available balance (available: " + effectiveAvailable + ")";
             throw CbaException.badRequest("BELOW_MINIMUM_BALANCE", msg);
         }
+        BigDecimal before = account.getBalance();
         account.debit(amount, effectiveAvailable);
         accountRepository.save(account);
 
+        String reference = generateReference();
         Transaction tx = Transaction.of(account, TransactionType.WITHDRAWAL, amount,
-            account.getBalance(), description, generateReference(), createdBy);
+            account.getBalance(), description, reference, createdBy);
+        accountGlPosting.postCashMovement(account, before, LocalDate.now(),
+            "Cash withdrawal " + account.getAccountNumber(), reference);
         return toTransactionResponse(transactionRepository.save(tx));
     }
 
@@ -431,22 +441,18 @@ public class AccountService {
         if (interest.compareTo(BigDecimal.ZERO) <= 0)
             throw CbaException.badRequest("NO_INTEREST_DUE",
                 "No interest to post — zero balance or zero rate");
-        account.setBalance(account.getBalance().add(interest));
+        BigDecimal before = account.getBalance();
+        account.setBalance(before.add(interest));
         accountRepository.save(account);
+        String reference = "INT-MANUAL-" + System.currentTimeMillis() + "-" + id.toString().substring(0, 8);
         transactionRepository.save(Transaction.of(
             account, TransactionType.INTEREST_CREDIT, interest,
-            account.getBalance(), "Manual interest posting",
-            "INT-MANUAL-" + System.currentTimeMillis() + "-" + id.toString().substring(0, 8),
-            "system"
+            account.getBalance(), "Manual interest posting", reference, "system"
         ));
         // Same ledger entry as the nightly accrual job, in this transaction: a missing
         // GL mapping throws ACTIVITY_NOT_MAPPED and rolls the whole posting back.
-        glAccountingService.postByActivity(
-            com.cba.accounting.FinancialActivityAccount.FinancialActivity.EXPENSE_INTEREST_ON_SAVINGS,
-            com.cba.accounting.FinancialActivityAccount.FinancialActivity.LIABILITY_SAVINGS_CONTROL,
-            interest, account.getCurrencyCode(), java.time.LocalDate.now(),
-            "Manual interest posting " + account.getAccountNumber(),
-            com.cba.accounting.JournalEntry.EntityType.ACCOUNT, account.getId());
+        accountGlPosting.postInterestCredit(account, before, LocalDate.now(),
+            "Manual interest posting " + account.getAccountNumber(), reference);
         auditLogService.log("ACCOUNT", id.toString(), "POST_INTEREST",
             "MANUAL", interest.toPlainString());
         return toResponse(account);

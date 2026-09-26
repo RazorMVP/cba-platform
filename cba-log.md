@@ -57,6 +57,54 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 15) — 2026-09-25
+**GL posting, PR 1 of 3: deposits, withdrawals, teller cash, internal transfers (incl. standing orders), payment reversals and savings interest now post a balanced journal in the same transaction as the balance change. A missing GL mapping rejects the transaction.**
+
+User decisions (2026-09-25, each checked against a cited standard first): loans accrue (IFRS 9 §5.4.1) with 90-day non-performing suspension (Basel d403, CBN) — PR 2; **reject** unmapped transactions; one-time opening-balance journal with **no** accrual booking on migration day (ISA 510, IAS 8) — PR 1b; FX position accounts + revaluation job (IAS 21 §21/23/28) — positions here, revaluation in PR 1b.
+
+#### Defects found and fixed
+| # | Defect | Effect | Fix |
+|---|--------|--------|-----|
+| 1 | Deposits, withdrawals, teller cash, transfers, standing orders and reversals posted nothing to the GL | GL 2001 never reconciled to customer balances | `AccountGlPosting` posts every one of them; `GlPostingIT` proves GL 2001 moves by exactly the balance movement |
+| 2 | Cross-currency reversal debited the destination the **source** amount | 100 USD → 13,550 KES, reversed: KES account debited 100 KES, customer kept 13,450 KES | Destination gives back `destinationAmount`; reversal record carries destination currency/amount |
+| 3 | Teller cash wrote `setBalance` directly: no lock, no holds/floor/lock-in, and accepted any currency | Race condition; holds bypassed at the till; KES cash into a USD account at 1:1 | Delegates to `AccountService.deposit/withdraw`; `CURRENCY_MISMATCH` unless till = account = cash currency |
+| 4 | Teller cash with no account moved till cash with no counter-entry | Unpostable | `400 ACCOUNT_REQUIRED`; web form requires the account |
+| 5 | Financial Activity Accounts screen offered 7 names the backend rejects and lacked the ones posting uses | Admins could not map GL accounts from the UI | Web union + labels = the backend enum (16) |
+| 6 | Functional currency derived per request from `X-Tenant-ID` | Two requests could value one FX position in different currencies | `functional-currency` global config (trap door), IAS 21 §17 |
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `account/AccountGlPosting.java` | NEW — balance-change → journal lines. Product GL link first, then activity mapping, else reject. Credit balance → savings control; part below zero → overdraft portfolio (asset; FFIEC RC-E, IAS 32 §42). Cross-currency: FX position (foreign ccy) + equivalent (functional ccy) at spot, residual → FX gain/loss. Teller over/short |
+| `accounting/GlAccountingService.java` | NEW `postJournal` (multi-line, balanced **per currency**, DETAIL + enabled accounts only), `activityAccount`, `JournalLine`; `postDoubleEntry` routes through it |
+| `accounting/FinancialActivityAccount.java`, `JournalEntry.java` | +5 activities; `EntityType.PAYMENT` |
+| `account/AccountService.java`, `payment/PaymentService.java`, `teller/TellerService.java`, `cob/InterestAccrualJob.java` | Post via `AccountGlPosting`; reversal amount fix; teller delegation + over/short at close |
+| `db/migration/V54__gl_posting_deposits_transfers.sql` | GL 1102 Overdrafts, 1200 FX Position, 1201 FX Position Equivalent, 4003 Net FX Gains, 5003 Cash Over and Short (only where the V8 chart exists), their mappings, `functional-currency` |
+| `web/.../accounting.service.ts`, `financial-activity-accounts.ts(.spec)`, `teller-detail.ts/.html/.spec.ts` | Activity list = backend enum; teller account required |
+| `test/.../AccountGlPostingTest.java` (12), `GlPostingIT.java` (6) | NEW — line-level rules; real-DB reconciliation, cross-currency + reversal, unmapped rejection |
+| `test/.../AccountServiceTest`, `PaymentServiceTest`, `TellerServiceTest` | New collaborators; GL verifies; cross-currency reversal regression; currency mismatch; over/short |
+| `backend/docs/openapi-snapshot.yaml`, `docs/api-reference.html`, `docs/cba-postman-collection-v2.json` (+ `docs-site/static` copies, which had drifted behind) | New enum values; posting table; teller/settle/reverse behaviour and 400 codes |
+
+#### Key Patterns / Decisions
+- **One function covers every deposit-account movement:** given the balance before and after, it splits the change between savings control (positive part) and overdraft portfolio (negative part). Callers only supply the counter-entry.
+- **Journals balance per currency, never across.** A cross-currency posting balances through the position accounts; the functional-currency residual is the realised exchange difference (IAS 21 §28).
+- **`DepositProduct.accountingType = NONE` is ignored** — Fineract uses it to switch posting off, which the every-movement-posts rule forbids.
+- **Still not posting (PR 2/3):** loan disbursement credits savings (`LoanService`), external SWIFT/SEPA payments, charges, term deposits, shares, treasury. **PR 1b:** opening-balance journal, FX revaluation job.
+- **Known gap, not in scope:** all tenants share one ledger (`journal_entries.tenant_id` unused). Separate legal entities need separate books.
+- API surface: no endpoint paths or params changed (gate grep shows only cont. 13's `CobController` return types); behaviour changes documented above.
+
+#### Build Verification
+- `GlPostingIT` 6/6, `CobJobsIT` 9/9, `PaymentServiceIT` 3/3 against PostgreSQL 16.
+- Backend `mvn test` **706/706** (was 690); `-Pfull-integration` **735/735** (was 713; OpenAPI snapshot regenerated — diff is only the 10 new activity values + `PAYMENT`). Web **1147/1147** (was 1146).
+
+#### Confirmed Platform Versions
+| Directory | Last commit | Notes |
+|-----------|-------------|-------|
+| `backend/` | this PR | Spring Boot 3.5.16; Flyway V54; 735/735 full-integration |
+| `web/` | this PR | Angular 21.2.23; 1147 tests |
+| `card-service/` | `ad374f9` (#113) | Unchanged |
+| `fep-service/` | `9a5e3f9` (#109) | Unchanged |
+
 ### Session 125 (cont. 14) — 2026-09-25
 **End-of-day (CoB) fixes, PR B of 2: interest now posts to the general ledger, and the four jobs run in sequence from one trigger. Fixing the GL surfaced three older defects that meant no journal entry had ever been written.**
 

@@ -5,10 +5,14 @@ import { PageResponse } from '../../core/models/api-response.model';
 
 // ── Financial Activity Accounts ────────────────────────────────────────────────
 
+/** Must match the backend enum FinancialActivityAccount.FinancialActivity exactly. */
 export type FinancialActivityType =
-  | 'ASSET_FUND_SOURCE' | 'ASSET_LOAN_PORTFOLIO' | 'ASSET_RECEIVABLE' | 'ASSET_OVERPAYMENT_LIABILITY'
-  | 'LIABILITY_LINKED_TO_FLOAT' | 'LIABILITY_PAYMENT_GATEWAY' | 'LIABILITY_TRANSFER_IN_SUSPENSE'
-  | 'INCOME_INTEREST' | 'INCOME_FEE' | 'EXPENSE_DEPRECIATION' | 'EXPENSE_LOAN_LOSSES';
+  | 'ASSET_FUND_SOURCE' | 'ASSET_CASH_AT_TELLER' | 'ASSET_INTEREST_RECEIVABLE' | 'ASSET_LOAN_PORTFOLIO'
+  | 'ASSET_OVERDRAFT_PORTFOLIO' | 'ASSET_FX_POSITION' | 'ASSET_FX_POSITION_EQUIVALENT'
+  | 'LIABILITY_SAVINGS_CONTROL' | 'LIABILITY_TRANSFER_IN_SUSPENSE'
+  | 'INCOME_INTEREST' | 'INCOME_FEES' | 'INCOME_FX_GAIN_LOSS'
+  | 'EXPENSE_LOAN_LOSS_PROVISION' | 'EXPENSE_WRITE_OFF' | 'EXPENSE_INTEREST_ON_SAVINGS'
+  | 'EXPENSE_CASH_OVER_SHORT';
 
 export interface FinancialActivityAccount {
   id: string;

@@ -194,13 +194,16 @@ export class TellerDetailComponent implements OnInit {
   }
 
   submitCashTxn(): void {
-    if (!this.teller || !this.selectedSession || this.cashTxnAmount <= 0) return;
+    // Every till movement is posted against a customer account (Cash at Teller ↔ savings
+    // control), so the backend rejects a cash transaction without one.
+    const accountId = this.cashTxnAccountId.trim();
+    if (!this.teller || !this.selectedSession || this.cashTxnAmount <= 0 || !accountId) return;
     this.modalWorking = true;
     const req: CashTransactionRequest = {
       transactionType: this.cashTxnType,
       amount:          this.cashTxnAmount,
       currencyCode:    this.selectedSession.currencyCode,
-      accountId:       this.cashTxnAccountId || undefined,
+      accountId,
       description:     this.cashTxnDescription || undefined,
     };
     this.svc.recordTransaction(this.teller.id, this.selectedSession.id, req).subscribe({

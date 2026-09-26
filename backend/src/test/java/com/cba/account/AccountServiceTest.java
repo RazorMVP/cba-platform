@@ -49,7 +49,7 @@ class AccountServiceTest {
     @Mock ApplicationEventPublisher eventPublisher;
     @Mock TenantService tenantService;
     @Mock GlobalConfigurationRepository globalConfigRepository;
-    @Mock com.cba.accounting.GlAccountingService glAccountingService;
+    @Mock AccountGlPosting accountGlPosting;
 
     @InjectMocks AccountService accountService;
 
@@ -379,6 +379,22 @@ class AccountServiceTest {
 
             assertThat(resp).isNotNull();
             assertThat(activeAccount.getBalance()).isEqualByComparingTo("1200.00");
+            // Posted against Cash at Teller with the balance before the deposit.
+            verify(accountGlPosting).postCashMovement(eq(activeAccount),
+                argThat(before -> before.compareTo(new BigDecimal("1000.00")) == 0), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("a GL rejection (unmapped activity) propagates, so the deposit rolls back")
+        void deposit_glRejected_propagates() {
+            when(accountRepository.findByIdWithLock(accountId)).thenReturn(Optional.of(activeAccount));
+            when(accountRepository.save(any())).thenReturn(activeAccount);
+            when(accountGlPosting.postCashMovement(any(), any(), any(), any(), any()))
+                .thenThrow(CbaException.badRequest("ACTIVITY_NOT_MAPPED", "unmapped"));
+
+            assertThatThrownBy(() -> accountService.deposit(accountId, new BigDecimal("10.00"), "t", "u"))
+                .isInstanceOf(CbaException.class).hasMessageContaining("unmapped");
+            verify(transactionRepository, never()).save(any());
         }
 
         @Test
@@ -674,11 +690,8 @@ class AccountServiceTest {
             assertThat(resp).isNotNull();
             verify(auditLogService).log(eq("ACCOUNT"), any(), eq("POST_INTEREST"), any(), any());
             // Interest is an expense of the bank: DR interest expense / CR customer deposits.
-            verify(glAccountingService).postByActivity(
-                eq(com.cba.accounting.FinancialActivityAccount.FinancialActivity.EXPENSE_INTEREST_ON_SAVINGS),
-                eq(com.cba.accounting.FinancialActivityAccount.FinancialActivity.LIABILITY_SAVINGS_CONTROL),
-                any(BigDecimal.class), any(), any(), any(),
-                eq(com.cba.accounting.JournalEntry.EntityType.ACCOUNT), eq(accountId));
+            verify(accountGlPosting).postInterestCredit(eq(activeAccount),
+                argThat(before -> before.compareTo(new BigDecimal("1000.00")) == 0), any(), any(), any());
         }
 
         @Test

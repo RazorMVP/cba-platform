@@ -163,9 +163,10 @@ describe('TellerDetailComponent', () => {
       c.sessionTxns = [];
       c.openCashTxnModal('CASH_IN');
       c.cashTxnAmount = 100;
+      c.cashTxnAccountId = ' acc-1 ';
       c.submitCashTxn();
       expect(svc.recordTransaction).toHaveBeenCalledWith('t1', 'sess-1', expect.objectContaining({
-        transactionType: 'CASH_IN', amount: 100, currencyCode: 'USD',
+        transactionType: 'CASH_IN', amount: 100, currencyCode: 'USD', accountId: 'acc-1',
       }));
       expect(c.sessionTxns.map(t => t.id)).toContain('tx-2');
       expect(c.activeModal).toBeNull();
@@ -175,6 +176,17 @@ describe('TellerDetailComponent', () => {
       const c = make();
       c.selectedSession = null;
       c.cashTxnAmount = 100;
+      c.cashTxnAccountId = 'acc-1';
+      c.submitCashTxn();
+      expect(svc.recordTransaction).not.toHaveBeenCalled();
+    });
+
+    it('submitCashTxn is a no-op without an account (every till movement posts against one)', () => {
+      const c = make();
+      c.selectedSession = session();
+      c.openCashTxnModal('CASH_IN');
+      c.cashTxnAmount = 100;
+      c.cashTxnAccountId = '   ';
       c.submitCashTxn();
       expect(svc.recordTransaction).not.toHaveBeenCalled();
     });

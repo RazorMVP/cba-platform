@@ -23,7 +23,7 @@ These are the verified-working versions for all production components. Update th
 | **thumbnailator** | 0.4.20 | Server-side image resize for `ClientImageService` — max 500×500, JPEG output |
 | **ZXing** | 3.5.3 | Server-side QR PNG generation (`core` + `javase`) — Session 105 |
 | **spring-boot-starter-data-redis** | 3.5.16 (managed) | Redis fixed-window rate limiting (Lua INCR+EXPIRE) — Session 106 |
-| **Last git commit** | Session 125 cont. 8 (`ad374f9`) | Session 125 — Spring Boot 3.5.0 → 3.5.16 (#111); six security pins ahead of the BOM (Tomcat 10.1.60, Netty 4.1.138, PostgreSQL 42.7.13, httpcore5 5.4.3, httpclient5 5.6.4, log4j2 2.26.1) + 14 time-boxed Spring suppressions so `owasp-check` passes **while still blocking at CVSS 7** (#113); MinIO test image → quay.io and 3 SpotBugs findings fixed (#114). `-Pfull-integration`: **704/704**. |
+| **Last git commit** | Session 125 cont. 15 (GL posting PR 1; Flyway V54; `-Pfull-integration` **735/735**) | Earlier: cont. 8 (`ad374f9`) — Spring Boot 3.5.0 → 3.5.16 (#111); six security pins ahead of the BOM (Tomcat 10.1.60, Netty 4.1.138, PostgreSQL 42.7.13, httpcore5 5.4.3, httpclient5 5.6.4, log4j2 2.26.1) + 14 time-boxed Spring suppressions so `owasp-check` passes **while still blocking at CVSS 7** (#113); MinIO test image → quay.io and 3 SpotBugs findings fixed (#114). `-Pfull-integration`: **704/704**. |
 
 ### Angular Web App (`web/`)
 
@@ -327,7 +327,7 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 - Full session lifecycle: open session with opening float → cash-in/cash-out transactions → close with settlement reconciliation
 - Settlement: `closing_balance = opening_balance + Σ(CASH_IN) - Σ(CASH_OUT)`; `difference = actual_cash - closing_balance`
 - DB constraint: `UNIQUE (cashier_id, session_date)` — one session per cashier per day
-- Cash transactions optionally linked to a customer `Account`; account balance and immutable `Transaction` record updated atomically
+- Cash transactions **must** name a customer `Account` (`400 ACCOUNT_REQUIRED`) in the till's currency; they go through `AccountService.deposit/withdraw` (lock, holds, floors, GL journal). Session close posts any over/short to `EXPENSE_CASH_OVER_SHORT` _(Session 125 cont. 15)_
 - Endpoints: `POST /api/v1/tellers`, `POST /api/v1/tellers/{id}/activate`, `POST /api/v1/tellers/{id}/cashiers`, `POST /api/v1/tellers/{id}/cashiers/{cId}/sessions`, `POST /api/v1/tellers/{id}/sessions/{sId}/transactions`, `POST /api/v1/tellers/{id}/sessions/{sId}/settle`
 - Flyway migration: `V5__teller_module.sql`
 
@@ -361,7 +361,7 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 ### 14. GL / Accounting Module
 - Double-entry journal with auto-posting + manual journal entries (Option C)
 - `FinancialActivityAccount` maps abstract activities (ASSET_LOAN_PORTFOLIO, INCOME_INTEREST, etc.) to concrete GL codes
-- `GlAccountingService.postDoubleEntry()` / `postByActivity()` — **only savings interest calls them** (nightly accrual + `?command=postInterest`: DR `EXPENSE_INTEREST_ON_SAVINGS` / CR `LIABILITY_SAVINGS_CONTROL`). Payments, loans, fees and teller cash still post nothing to the GL _(Session 125 cont. 14)_
+- **Every deposit-account balance change posts through `account.AccountGlPosting`** in the same transaction: deposits, withdrawals, teller cash, transfers/standing orders, reversals, savings interest _(Session 125 cont. 15)_. Rules: product GL link → activity mapping → **reject** (`ACTIVITY_NOT_MAPPED`); positive balance = savings control, below zero = overdraft portfolio (asset); `GlAccountingService.postJournal` requires balance **per currency**; cross-currency legs go through `ASSET_FX_POSITION` / `_EQUIVALENT` using the `functional-currency` global config. **Not posting yet:** loans, charges, external payments, term deposits, shares, treasury. Before recommending any accounting treatment, cite the IFRS/IAS/Basel/CBN source
 - **Journal writes had never worked before cont. 14**: `transaction_id` (NOT NULL) was unmapped, the V8 activity rows weren't enum names, and lazy `GlAccount` proxies broke Jackson. Every journal line now carries a shared `transactionId`; GL entities with lazy relations need class-level `@JsonIgnoreProperties({"hibernateLazyInitializer","handler"})`
 - `GlAccountingService.postManualEntries()` — requires balanced debits/credits; blocks DML SQL
 - Package: `com.cba.accounting`

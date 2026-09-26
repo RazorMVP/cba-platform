@@ -3174,7 +3174,7 @@
                 "reverse"
               ]
             },
-            "description": "Reverse a completed payment. Creates offsetting ledger entries. Cannot reverse payments older than 24 hours without ADMIN role.",
+            "description": "Reverse a completed payment. Creates offsetting ledger entries. Cannot reverse payments older than 24 hours without ADMIN role.\n\n**Cross-currency** (fixed Session 125 cont. 15): the destination gives back the amount it was credited in its own currency (`destinationAmount`), not the source amount; the reversal's `amount`/`currencyCode` are the destination's. The reversal posts its own GL journal (entity `PAYMENT`) dated today; FX equivalents use today's spot rate and any difference is a realised exchange difference (IAS 21 \u00a728).",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"reason\": \"Duplicate payment \\u2014 customer request\"\n}",
@@ -4699,7 +4699,7 @@
                 "settle"
               ]
             },
-            "description": "Close the session with physical cash reconciliation. The system calculates `closing_balance` from transaction totals. `difference = actualCash - closing_balance`. A shortage or surplus is recorded for audit.",
+            "description": "Close the session with physical cash reconciliation. The system calculates `closing_balance` from transaction totals. `difference = actualCash - closing_balance`. A shortage or surplus is recorded for audit.\n\nA non-zero `difference` (actual \u2212 expected) is posted so Cash at Teller matches the count: over \u2192 DR Cash at Teller / CR Cash Over and Short (`EXPENSE_CASH_OVER_SHORT`); short \u2192 the reverse.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"actualCash\": \"4750.00\",\n  \"settlementNote\": \"Cash counted and verified by supervisor. $10 shortage \\u2014 under investigation.\"\n}",
@@ -4840,7 +4840,7 @@
                 "transactions"
               ]
             },
-            "description": "Record a CASH_IN (deposit) or CASH_OUT (withdrawal) transaction. When `accountId` is provided, the linked customer account balance is updated atomically and an immutable ledger entry is created. Use `transactionType: CASH_OUT` for withdrawals.",
+            "description": "Record a CASH_IN (deposit) or CASH_OUT (withdrawal) transaction. When `accountId` is provided, the linked customer account balance is updated atomically and an immutable ledger entry is created. Use `transactionType: CASH_OUT` for withdrawals.\n\n**accountId is required** (Session 125 cont. 15). Every till movement is posted to the GL against a customer account (Cash at Teller \u2194 the account's savings control), so a transaction with no account is rejected with `400 ACCOUNT_REQUIRED`. The currency (default: the session's) must match both the till and the account (`400 CURRENCY_MISMATCH`). The balance change goes through the account deposit/withdraw path: the account is locked, holds / minimum balance / lock-in apply, and the journal is written in the same transaction (`400 ACTIVITY_NOT_MAPPED` if a GL mapping is missing).",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"transactionType\": \"CASH_IN\",\n  \"amount\": \"250.00\",\n  \"currencyCode\": \"USD\",\n  \"accountId\": \"{{accountId}}\",\n  \"description\": \"Customer deposit \\u2014 savings account\"\n}",
@@ -4883,6 +4883,50 @@
             {
               "lang": "Ruby (Net::HTTP)",
               "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/api/v1/tellers/{{tellerId}}/sessions/{{sessionId}}/transactions')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Post.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq.body = \"{\\\"transactionType\\\": \\\"CASH_IN\\\", \\\"amount\\\": \\\"250.00\\\", \\\"currencyCode\\\": \\\"USD\\\", \\\"accountId\\\": \\\"{{accountId}}\\\", \\\"description\\\": \\\"Customer deposit \\\\u2014 savings account\\\"}\"\nputs http.request(req).body"
+            }
+          ],
+          "response": [
+            {
+              "name": "400 \u2014 no account",
+              "originalRequest": {},
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"ACCOUNT_REQUIRED\",\n      \"message\": \"A teller cash transaction must name the customer account it credits or debits\",\n      \"field\": null\n    }\n  ]\n}"
+            },
+            {
+              "name": "400 \u2014 currency mismatch",
+              "originalRequest": {},
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"CURRENCY_MISMATCH\",\n      \"message\": \"Cash in KES cannot move through a USD till into a USD account\",\n      \"field\": null\n    }\n  ]\n}"
+            },
+            {
+              "name": "400 \u2014 GL mapping missing",
+              "originalRequest": {},
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"ACTIVITY_NOT_MAPPED\",\n      \"message\": \"Financial activity ASSET_CASH_AT_TELLER has no GL account mapping\",\n      \"field\": null\n    }\n  ]\n}"
             }
           ]
         }

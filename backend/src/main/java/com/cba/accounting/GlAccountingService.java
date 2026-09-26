@@ -29,6 +29,71 @@ public class GlAccountingService {
 
     // ── Auto-posting (called by domain services) ──────────────────────────────
 
+    /** One journal line: a GL account, a side, a positive amount and the currency it is in. */
+    public record JournalLine(GlAccount account, JournalEntry.EntryType side,
+                              BigDecimal amount, String currencyCode) {
+        public static JournalLine debit(GlAccount account, BigDecimal amount, String currencyCode) {
+            return new JournalLine(account, JournalEntry.EntryType.DEBIT, amount, currencyCode);
+        }
+        public static JournalLine credit(GlAccount account, BigDecimal amount, String currencyCode) {
+            return new JournalLine(account, JournalEntry.EntryType.CREDIT, amount, currencyCode);
+        }
+    }
+
+    /**
+     * Post a multi-line journal atomically; returns its transaction id.
+     * Must be called within the originating transaction so it rolls back together.
+     *
+     * <p>Zero-amount lines are dropped. Debits must equal credits <em>in each currency</em>:
+     * a cross-currency posting balances through FX position accounts, never by adding
+     * amounts in different currencies. Every account must be an enabled DETAIL account.
+     */
+    @Transactional
+    public String postJournal(List<JournalLine> lines, LocalDate transactionDate, String description,
+                              JournalEntry.EntityType entityType, UUID entityId, String referenceNumber) {
+        List<JournalLine> posted = lines.stream().filter(l -> l.amount().signum() != 0).toList();
+        if (posted.isEmpty()) {
+            throw new IllegalStateException("Journal has no non-zero lines: " + description);
+        }
+        java.util.Map<String, BigDecimal> netByCurrency = new java.util.TreeMap<>();
+        for (JournalLine line : posted) {
+            if (line.amount().signum() < 0) {
+                throw new IllegalStateException("Journal line amounts must be positive: " + line);
+            }
+            GlAccount account = line.account();
+            if (account.isDisabled() || account.getUsage() != GlAccount.Usage.DETAIL) {
+                throw CbaException.badRequest("GL_ACCOUNT_NOT_POSTABLE",
+                        "GL account " + account.getGlCode() + " is disabled or a header account");
+            }
+            BigDecimal signed = line.side() == JournalEntry.EntryType.DEBIT ? line.amount() : line.amount().negate();
+            netByCurrency.merge(line.currencyCode(), signed, BigDecimal::add);
+        }
+        netByCurrency.forEach((currency, net) -> {
+            if (net.signum() != 0) {
+                throw new IllegalStateException("Unbalanced journal in " + currency + " (net " + net + "): " + description);
+            }
+        });
+
+        String transactionId = newTransactionId("GL");
+        for (JournalLine line : posted) {
+            JournalEntry entry = buildEntry(transactionId, line.account(), line.side(), line.amount(),
+                    line.currencyCode(), transactionDate, description, entityType, entityId);
+            entry.setReferenceNumber(referenceNumber);
+            journalEntryRepository.save(entry);
+        }
+        log.debug("GL posted {} ({} lines) for entity {}:{}", transactionId, posted.size(), entityType, entityId);
+        return transactionId;
+    }
+
+    /** The GL account mapped to a financial activity; rejects the transaction when unmapped. */
+    @Transactional(readOnly = true)
+    public GlAccount activityAccount(FinancialActivityAccount.FinancialActivity activity) {
+        return financialActivityRepo.findByFinancialActivity(activity)
+                .map(FinancialActivityAccount::getGlAccount)
+                .orElseThrow(() -> CbaException.badRequest("ACTIVITY_NOT_MAPPED",
+                        "Financial activity " + activity + " has no GL account mapping"));
+    }
+
     /**
      * Post a debit/credit pair atomically.
      * Must be called within the originating transaction so it rolls back together.
@@ -42,17 +107,9 @@ public class GlAccountingService {
 
         GlAccount debitAccount  = resolveByCode(debitGlCode);
         GlAccount creditAccount = resolveByCode(creditGlCode);
-        String transactionId = newTransactionId("GL");
-
-        JournalEntry debit = buildEntry(transactionId, debitAccount, JournalEntry.EntryType.DEBIT,
-                amount, currencyCode, transactionDate, description, entityType, entityId);
-        JournalEntry credit = buildEntry(transactionId, creditAccount, JournalEntry.EntryType.CREDIT,
-                amount, currencyCode, transactionDate, description, entityType, entityId);
-
-        journalEntryRepository.save(debit);
-        journalEntryRepository.save(credit);
-        log.debug("GL posted: DR {} CR {} {} {} for entity {}:{}", debitGlCode, creditGlCode,
-                amount, currencyCode, entityType, entityId);
+        postJournal(List.of(JournalLine.debit(debitAccount, amount, currencyCode),
+                            JournalLine.credit(creditAccount, amount, currencyCode)),
+                transactionDate, description, entityType, entityId, null);
     }
 
     /**

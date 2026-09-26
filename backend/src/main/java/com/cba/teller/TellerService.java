@@ -1,11 +1,10 @@
 package com.cba.teller;
 
 import com.cba.account.Account;
+import com.cba.account.AccountGlPosting;
 import com.cba.account.AccountRepository;
+import com.cba.account.AccountService;
 import com.cba.account.AccountStatus;
-import com.cba.account.Transaction;
-import com.cba.account.TransactionRepository;
-import com.cba.account.TransactionType;
 import com.cba.audit.AuditLogService;
 import com.cba.common.exception.CbaException;
 import com.cba.teller.dto.*;
@@ -29,7 +28,8 @@ public class TellerService {
     private final TellerSessionRepository sessionRepository;
     private final CashTransactionRepository cashTransactionRepository;
     private final AccountRepository accountRepository;
-    private final TransactionRepository transactionRepository;
+    private final AccountService accountService;
+    private final AccountGlPosting accountGlPosting;
     private final AuditLogService auditLogService;
 
     // ── Teller CRUD ──────────────────────────────────────────────────
@@ -170,6 +170,12 @@ public class TellerService {
         session.setClosedAt(Instant.now());
 
         TellerSession saved = sessionRepository.save(session);
+        // The count is the fact: book the difference so Cash at Teller matches the till.
+        if (session.getDifference().signum() != 0) {
+            accountGlPosting.postCashCountDifference(session.getDifference(), session.getCurrencyCode(),
+                    LocalDate.now(), "Teller cash " + (session.getDifference().signum() > 0 ? "over" : "short")
+                    + " at session close", sessionId);
+        }
         auditLogService.log("TellerSession", sessionId.toString(), "CLOSE",
                 null, java.util.Map.of("closingBalance", expectedClosing, "difference", session.getDifference()));
         return SessionResponse.from(saved);
@@ -198,28 +204,34 @@ public class TellerService {
                     "Session " + sessionId + " is closed — cannot record transactions");
         }
 
-        Account account = null;
-        if (request.accountId() != null) {
-            account = accountRepository.findById(request.accountId())
-                    .orElseThrow(() -> CbaException.notFound("Account", request.accountId()));
-            if (account.getStatus() != AccountStatus.ACTIVE) {
-                throw CbaException.badRequest("ACCOUNT_NOT_ACTIVE",
-                        "Account " + request.accountId() + " is not active");
-            }
+        // Cash only enters or leaves the till against a customer account: that account's
+        // savings control is the other side of the Cash at Teller journal. With no account
+        // there is nothing to post against, and an unposted cash movement is not allowed.
+        if (request.accountId() == null) {
+            throw CbaException.badRequest("ACCOUNT_REQUIRED",
+                    "A teller cash transaction must name the customer account it credits or debits");
+        }
+        Account account = accountRepository.findById(request.accountId())
+                .orElseThrow(() -> CbaException.notFound("Account", request.accountId()));
+        if (account.getStatus() != AccountStatus.ACTIVE) {
+            throw CbaException.badRequest("ACCOUNT_NOT_ACTIVE",
+                    "Account " + request.accountId() + " is not active");
+        }
+        String currency = request.currencyCode() != null
+                ? request.currencyCode().toUpperCase(Locale.ROOT) : session.getCurrencyCode();
+        if (!currency.equalsIgnoreCase(session.getCurrencyCode())
+                || !currency.equalsIgnoreCase(account.getCurrencyCode())) {
+            throw CbaException.badRequest("CURRENCY_MISMATCH",
+                    "Cash in " + currency + " cannot move through a " + session.getCurrencyCode()
+                    + " till into a " + account.getCurrencyCode() + " account");
+        }
 
-            // Mirror cash movement into the account's transaction ledger
-            if (request.transactionType() == CashTransactionType.CASH_IN) {
-                account.setBalance(account.getBalance().add(request.amount()));
-                recordAccountTransaction(account, TransactionType.DEPOSIT, request.amount(), "Teller cash deposit");
-            } else {
-                if (account.getBalance().compareTo(request.amount()) < 0) {
-                    throw CbaException.badRequest("INSUFFICIENT_FUNDS",
-                            "Insufficient balance for cash withdrawal");
-                }
-                account.setBalance(account.getBalance().subtract(request.amount()));
-                recordAccountTransaction(account, TransactionType.WITHDRAWAL, request.amount(), "Teller cash withdrawal");
-            }
-            accountRepository.save(account);
+        // AccountService locks the account, applies holds, floors and lock-in, writes the
+        // account transaction and posts the GL journal — the same path as a counter deposit.
+        if (request.transactionType() == CashTransactionType.CASH_IN) {
+            accountService.deposit(account.getId(), request.amount(), "Teller cash deposit", "teller");
+        } else {
+            accountService.withdraw(account.getId(), request.amount(), "Teller cash withdrawal", "teller");
         }
 
         CashTransaction tx = new CashTransaction();
@@ -229,7 +241,7 @@ public class TellerService {
         tx.setAccount(account);
         tx.setTransactionType(request.transactionType());
         tx.setAmount(request.amount());
-        tx.setCurrencyCode(request.currencyCode() != null ? request.currencyCode().toUpperCase(Locale.ROOT) : session.getCurrencyCode());
+        tx.setCurrencyCode(currency);
         tx.setDescription(request.description());
         tx.setReferenceNumber("CASH-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase(Locale.ROOT));
 
@@ -271,11 +283,4 @@ public class TellerService {
         teller.setEndDate(request.endDate());
     }
 
-    private void recordAccountTransaction(Account account, TransactionType type,
-                                          BigDecimal amount, String description) {
-        String ref = "CASH-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase(Locale.ROOT);
-        Transaction tx = Transaction.of(account, type, amount, account.getBalance(),
-                description, ref, "teller");
-        transactionRepository.save(tx);
-    }
 }

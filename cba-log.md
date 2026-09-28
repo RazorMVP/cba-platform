@@ -57,6 +57,24 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 16) — 2026-09-28
+**CI: the web Vercel job failed on every pull request because PR builds used `--prod` while the deploy was a preview.**
+
+| File | Change |
+|------|--------|
+| `.github/workflows/web-ci.yml` | Pull/build as preview unless the event is a push to `main`; only that path uses `--prod` (it is the only `--prod` deploy). Fixes PRs and `develop` pushes |
+| `CLAUDE.md` | Vercel flow corrected (develop was documented as `build --prod`) + gotcha note |
+
+- Found while merging #118: its `Build & Deploy → Vercel` job failed with `The "--prebuilt" option was used with the target environment "preview", but the prebuilt output … was built with target environment "production"`. The last 8 web-ci PR runs (Dependabot included) all failed the same way; `main` pushes passed.
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+- Build verification: YAML parses (jobs `test`, `security`, `deploy`, `e2e`); the fix is proven by this PR's own `Build & Deploy → Vercel` run.
+
+#### Confirmed Platform Versions
+| Directory | Last commit | Notes |
+|-----------|-------------|-------|
+| `backend/` | unchanged | — |
+| `web/` | unchanged | CI workflow only |
+
 ### Session 125 (cont. 12) — 2026-09-24
 **`docker compose --profile app up` now brings the stack up. Before this, the backend container crash-looped on every start and no app container could ever report healthy.**
 

@@ -57,6 +57,25 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 17) — 2026-09-28
+**CI: per-workflow gate jobs so `main` can be protected by a ruleset. `main` had no branch protection at all — no required checks, direct pushes allowed.**
+
+| File | Change |
+|------|--------|
+| `.github/workflows/backend-ci.yml`, `card-service-ci.yml`, `web-ci.yml` | Path filters moved from `on:` into a `changes` job (`git diff` against the PR base / push `before`; unknown base → run everything). Gated jobs `needs: changes` + `if: …run == 'true'`. New `gate` job per workflow (`Backend CI gate`, `Card Service CI gate`, `Web CI gate`): passes on success/skipped, fails on failure/cancelled |
+| `.github/workflows/web-ci.yml` | `Lint & Test` also runs `ng build --configuration production`, so the web gate proves the build without Vercel secrets |
+| `CLAUDE.md` | Ruleset + gate pattern documented |
+
+- Why: a required check from a path-filtered workflow that doesn't trigger stays "Expected" and blocks unrelated PRs; and backend/card-service share job names, so requiring a job name would let either satisfy it.
+- Verified locally: change detection against real commits (docs-only `9f8b2a2` → backend false; `523bb35` → backend true; `62e6a95` → web true / backend false; unknown and empty base → true); gate `jq` logic (skipped/success pass, failure/cancelled fail); `ng build --configuration production` succeeds; all three workflows parse.
+- The ruleset itself is created after this PR merges (a repo setting, not a file).
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
+#### Confirmed Platform Versions
+| Directory | Last commit | Notes |
+|-----------|-------------|-------|
+| `backend/`, `web/` | unchanged | CI workflows only |
+
 ### Session 125 (cont. 16) — 2026-09-28
 **CI: the web Vercel job failed on every pull request because PR builds used `--prod` while the deploy was a preview.**
 

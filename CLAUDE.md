@@ -2988,9 +2988,11 @@ CoreBanking/                          ← monorepo root (this repo)
 
 ```
 PR opened       → vercel build → vercel deploy --prebuilt        → Preview URL auto-commented on PR
-Push to develop → vercel build --prod → vercel deploy --prebuilt → Staging alias
+Push to develop → vercel build → vercel deploy --prebuilt        → Preview (staging)
 Push to main    → vercel build --prod → vercel deploy --prebuilt --prod → Production
 ```
+
+> **Build target must match deploy target _(Session 125 cont. 16)_.** `vercel deploy --prebuilt` (preview) refuses output built with `--prod` ("prebuilt output … was built with target environment production"). Until cont. 16 the PR and develop builds used `--prod`, so the `Build & Deploy → Vercel` job failed on **every** web PR, Dependabot's included. Only `push` to `main` builds and deploys with `--prod`.
 
 **Required GitHub Secrets for Vercel**:
 ```

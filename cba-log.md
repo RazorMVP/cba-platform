@@ -62,7 +62,7 @@ _None — all Phase 1 backend modules are now complete._
 
 | File | Change |
 |------|--------|
-| `.github/workflows/web-ci.yml` | Pull/build as preview unless the event is a push to `main`; only that path uses `--prod` (it is the only `--prod` deploy). Fixes PRs and `develop` pushes |
+| `.github/workflows/web-ci.yml` | Pull/build as preview unless the event is a push to `main`; only that path uses `--prod` (it is the only `--prod` deploy). Fixes PRs and `develop` pushes. **Second bug, hidden behind the first:** the `deploy` job had no `permissions:` block, so the read-only default token got `403 Resource not accessible by integration` on "Comment preview URL on PR" — it had never been reached before. Job now grants `contents: read` + `pull-requests: write` only |
 | `CLAUDE.md` | Vercel flow corrected (develop was documented as `build --prod`) + gotcha note |
 
 - Found while merging #118: its `Build & Deploy → Vercel` job failed with `The "--prebuilt" option was used with the target environment "preview", but the prebuilt output … was built with target environment "production"`. The last 8 web-ci PR runs (Dependabot included) all failed the same way; `main` pushes passed.

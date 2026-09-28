@@ -78,6 +78,11 @@ jobs:
     name: Build & Deploy → Vercel
     runs-on: ubuntu-latest
     needs: [test, security]
+    # The repo's default token is read-only; commenting the preview URL on the
+    # PR needs pull-requests: write. Nothing else in this job writes to GitHub.
+    permissions:
+      contents: read
+      pull-requests: write
     outputs:
       vercel-url: ${{ steps.deploy-preview.outputs.url }}
     defaults:

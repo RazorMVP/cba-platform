@@ -20,6 +20,7 @@ import java.util.UUID;
 public class GlAccountingController {
 
     private final GlAccountingService glService;
+    private final OpeningBalanceService openingBalanceService;
     private final GlAccountRepository glAccountRepository;
     private final JournalEntryRepository journalEntryRepository;
     private final GlClosureRepository glClosureRepository;
@@ -103,6 +104,25 @@ public class GlAccountingController {
             @RequestParam LocalDate fromDate,
             @RequestParam LocalDate toDate) {
         return ResponseEntity.ok(ApiResponse.ok(glService.getTrialBalance(fromDate, toDate)));
+    }
+
+    // ── Opening balances (one-time migration journal) ─────────────────────────
+
+    @GetMapping("/api/v1/journalentries/opening-balances")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Preview the opening-balance journal; after posting, the GL vs customer-balance "
+            + "reconciliation and the migration clearing balance (must be zero)")
+    public ResponseEntity<ApiResponse<OpeningBalanceService.OpeningBalances>> previewOpeningBalances(
+            @RequestParam(defaultValue = "DEPOSITS") OpeningBalanceService.Scope scope) {
+        return ResponseEntity.ok(ApiResponse.ok(openingBalanceService.preview(scope)));
+    }
+
+    @PostMapping("/api/v1/journalentries/opening-balances")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Post the one-time opening-balance journal against the migration clearing account")
+    public ResponseEntity<ApiResponse<OpeningBalanceService.OpeningBalances>> postOpeningBalances(
+            @RequestParam(defaultValue = "DEPOSITS") OpeningBalanceService.Scope scope) {
+        return ResponseEntity.ok(ApiResponse.ok(openingBalanceService.post(scope)));
     }
 
     // ── Financial Activity Accounts ───────────────────────────────────────────

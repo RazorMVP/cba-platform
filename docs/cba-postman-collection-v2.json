@@ -10394,6 +10394,123 @@
               "body": "{\n  \"data\": {\n    \"fromDate\": \"2026-04-01\",\n    \"toDate\": \"2026-04-25\",\n    \"rows\": [\n      {\n        \"glCode\": \"1001\",\n        \"accountName\": \"Cash at Bank\",\n        \"accountType\": \"ASSET\",\n        \"openingBalance\": 1500000.0,\n        \"debitMovement\": 250000.0,\n        \"creditMovement\": 80000.0,\n        \"closingBalance\": 1670000.0\n      },\n      {\n        \"glCode\": \"4001\",\n        \"accountName\": \"Interest Income\",\n        \"accountType\": \"INCOME\",\n        \"openingBalance\": -120000.0,\n        \"debitMovement\": 0.0,\n        \"creditMovement\": 50000.0,\n        \"closingBalance\": -170000.0\n      }\n    ],\n    \"totalDebitMovement\": 250000.0,\n    \"totalCreditMovement\": 250000.0,\n    \"totalClosingDebit\": 1670000.0,\n    \"totalClosingCredit\": 1670000.0,\n    \"balanced\": true\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
             }
           ]
+        },
+        {
+          "name": "Preview opening balances / reconciliation",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/journalentries/opening-balances?scope=DEPOSITS",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "journalentries",
+                "opening-balances"
+              ],
+              "query": [
+                {
+                  "key": "scope",
+                  "value": "DEPOSITS",
+                  "description": "Sub-ledger to bring forward. DEPOSITS only for now (loans, term deposits and shares follow with their GL posting)."
+                }
+              ]
+            },
+            "description": "ADMIN. Before posting: the lines the one-time opening-balance journal would post, per control account and currency (customerBalance - ledgerBalance, debit-positive: a deposit control's balance is negative). After posting: the GL vs customer-balance reconciliation - every openingAmount should be 0; anything else is a ledger break. Always returns the migration clearing account (GL 3900) balance per currency and clearingIsZero, which must be true once the legacy trial balance is loaded.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK - before posting",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"scope\": \"DEPOSITS\",\n    \"date\": \"2026-09-29\",\n    \"posted\": false,\n    \"transactionId\": null,\n    \"lines\": [\n      {\n        \"glAccountId\": \"30000000-0000-0000-0000-000000000011\",\n        \"glCode\": \"2001\",\n        \"glName\": \"Customer Deposits\",\n        \"currency\": \"USD\",\n        \"customerBalance\": -29771.25,\n        \"ledgerBalance\": 0,\n        \"openingAmount\": -29771.25\n      },\n      {\n        \"glAccountId\": \"30000000-0000-0000-0000-000000000006\",\n        \"glCode\": \"1102\",\n        \"glName\": \"Overdrafts (Loans and Advances to Customers)\",\n        \"currency\": \"USD\",\n        \"customerBalance\": 30.00,\n        \"ledgerBalance\": 0,\n        \"openingAmount\": 30.00\n      }\n    ],\n    \"clearingGlCode\": \"3900\",\n    \"clearingBalance\": {},\n    \"clearingIsZero\": true\n  },\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Post opening-balance journal (one-time)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/journalentries/opening-balances?scope=DEPOSITS",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "journalentries",
+                "opening-balances"
+              ],
+              "query": [
+                {
+                  "key": "scope",
+                  "value": "DEPOSITS",
+                  "description": "Sub-ledger to bring forward. DEPOSITS only for now (loans, term deposits and shares follow with their GL posting)."
+                }
+              ]
+            },
+            "description": "ADMIN. Posts each control account's customerBalance - ledgerBalance against EQUITY_MIGRATION_CLEARING (GL 3900) in the same currency, exactly as the balances stand (ISA 510: no accrued interest booked on migration day). Entity OPENING_BALANCE, reference OPENING-DEPOSITS, dated today. Then load the rest of the legacy trial balance against GL 3900 with manual journals until clearingIsZero is true. Once only: 409 OPENING_BALANCES_ALREADY_POSTED on a second call. 400 ACTIVITY_NOT_MAPPED when balances have no control account or 3900 is unmapped.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK - posted",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"scope\": \"DEPOSITS\",\n    \"date\": \"2026-09-29\",\n    \"posted\": true,\n    \"transactionId\": \"GL-4f1c2a9e\",\n    \"lines\": [\n      {\n        \"glAccountId\": \"30000000-0000-0000-0000-000000000011\",\n        \"glCode\": \"2001\",\n        \"glName\": \"Customer Deposits\",\n        \"currency\": \"USD\",\n        \"customerBalance\": -29771.25,\n        \"ledgerBalance\": 0,\n        \"openingAmount\": -29771.25\n      },\n      {\n        \"glAccountId\": \"30000000-0000-0000-0000-000000000006\",\n        \"glCode\": \"1102\",\n        \"glName\": \"Overdrafts (Loans and Advances to Customers)\",\n        \"currency\": \"USD\",\n        \"customerBalance\": 30.00,\n        \"ledgerBalance\": 0,\n        \"openingAmount\": 30.00\n      }\n    ],\n    \"clearingGlCode\": \"3900\",\n    \"clearingBalance\": {\n      \"USD\": 29741.25\n    },\n    \"clearingIsZero\": false\n  },\n  \"errors\": []\n}"
+            },
+            {
+              "name": "409 Conflict - already posted",
+              "status": "Conflict",
+              "code": 409,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"errors\": [\n    {\n      \"code\": \"OPENING_BALANCES_ALREADY_POSTED\",\n      \"message\": \"The opening-balance journal for DEPOSITS has already been posted\",\n      \"field\": null\n    }\n  ]\n}"
+            }
+          ]
         }
       ]
     },
@@ -10892,6 +11009,57 @@
                 }
               ],
               "body": "{\n  \"data\": {\n    \"id\": \"413\",\n    \"jobName\": \"standingOrderExecutionJob\",\n    \"businessDate\": \"2026-09-24\",\n    \"startTime\": \"2026-09-24T19:32:02.010Z\",\n    \"endTime\": \"2026-09-24T19:32:02.144Z\",\n    \"status\": \"FAILED\",\n    \"errorMessage\": \"org.springframework.dao.DataAccessResourceFailureException: Unable to acquire JDBC Connection\"\n  },\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Trigger FX Revaluation job",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/fxRevaluationJob/run",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs",
+                "fxRevaluationJob",
+                "run"
+              ]
+            },
+            "description": "Runs the job now, synchronously, for today's business date, and returns the finished run. The call returns 200 even when the job itself ends FAILED: check data.status (SUCCESS / FAILED). 404 for an unknown job name; 409 COB_JOB_ALREADY_RUNNING if that job is already running. Last job of Close of Business (IAS 21 \u00a723, \u00a728): for each foreign currency, moves the FX position equivalent tagged with that currency to -position x closing rate and posts the difference to INCOME_FX_GAIN_LOSS. A rerun on the same day posts nothing; a currency with an open position and no active rate makes the run FAILED with nothing posted.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK - run succeeded",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"431\",\n    \"jobName\": \"fxRevaluationJob\",\n    \"businessDate\": \"2026-09-29\",\n    \"startTime\": \"2026-09-29T22:55:04.120Z\",\n    \"endTime\": \"2026-09-29T22:55:04.310Z\",\n    \"status\": \"SUCCESS\",\n    \"errorMessage\": null\n  },\n  \"errors\": []\n}"
             }
           ]
         },

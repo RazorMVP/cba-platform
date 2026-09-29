@@ -37,7 +37,12 @@ public class FinancialActivityAccount {
         /** Realised and revaluation exchange differences (IAS 21 §28). */
         INCOME_FX_GAIN_LOSS,
         /** Teller cash count differences at session close. */
-        EXPENSE_CASH_OVER_SHORT
+        EXPENSE_CASH_OVER_SHORT,
+        /**
+         * Offset of the opening-balance journal and of the legacy trial balance loaded
+         * against it. Must be zero in every currency once migration is complete.
+         */
+        EQUITY_MIGRATION_CLEARING
     }
 
     @Id

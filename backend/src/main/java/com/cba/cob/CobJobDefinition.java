@@ -8,41 +8,46 @@ import java.util.Arrays;
 import java.util.Optional;
 
 /**
- * The nightly Close-of-Business jobs, in schedule order. One place that ties each
- * job's Spring Batch name to its bean, its Quartz trigger and its display name, so
- * the scheduler, the manual trigger and the CoB Scheduler screen can't drift apart.
+ * The nightly Close-of-Business jobs, <b>in run order</b>. One place that ties each
+ * job's Spring Batch name to its bean and display name, so the nightly sequence,
+ * the manual trigger and the CoB Scheduler screen can't drift apart.
+ *
+ * <p>The declaration order is the execution order: {@link CobRunner} runs the jobs
+ * one after another from a single Quartz trigger ({@link #TRIGGER_NAME}).
  */
 public enum CobJobDefinition {
 
     STANDING_ORDERS ("standingOrderExecutionJob", "Standing Order Execution",
-                     "standingOrderExecutionBatchJob", "standingOrderTrigger"),
+                     "standingOrderExecutionBatchJob"),
     DORMANCY        ("dormancyClassificationJob", "Dormancy Classification",
-                     "dormancyClassificationBatchJob", "dormancyTrigger"),
+                     "dormancyClassificationBatchJob"),
     INTEREST_ACCRUAL("interestAccrualJob", "Interest Accrual",
-                     "interestAccrualBatchJob", "interestAccrualTrigger"),
+                     "interestAccrualBatchJob"),
     ARREARS         ("arrearsClassificationJob", "Arrears Classification",
-                     "arrearsClassificationBatchJob", "arrearsTrigger");
+                     "arrearsClassificationBatchJob");
 
     /** Job parameter every CoB run carries: the ISO business date the run is for. */
     public static final String BUSINESS_DATE = "businessDate";
+
+    /** The one Quartz trigger that starts the whole sequence. */
     public static final String TRIGGER_GROUP = "cob";
+    public static final String TRIGGER_NAME = "closeOfBusinessTrigger";
+    public static final String QUARTZ_JOB_NAME = "closeOfBusiness";
+    public static final String CRON = "0 55 23 * * ?"; // 23:55 daily, server time
 
     private final String jobName;
     private final String displayName;
     private final String beanName;
-    private final String triggerName;
 
-    CobJobDefinition(String jobName, String displayName, String beanName, String triggerName) {
+    CobJobDefinition(String jobName, String displayName, String beanName) {
         this.jobName = jobName;
         this.displayName = displayName;
         this.beanName = beanName;
-        this.triggerName = triggerName;
     }
 
     public String jobName()     { return jobName; }
     public String displayName() { return displayName; }
     public String beanName()    { return beanName; }
-    public String triggerName() { return triggerName; }
 
     public static Optional<CobJobDefinition> byJobName(String jobName) {
         return Arrays.stream(values()).filter(d -> d.jobName.equals(jobName)).findFirst();

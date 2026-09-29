@@ -17,6 +17,7 @@ public class FinancialActivityAccount {
 
     public enum FinancialActivity {
         ASSET_FUND_SOURCE,
+        ASSET_CASH_AT_TELLER,
         ASSET_INTEREST_RECEIVABLE,
         ASSET_LOAN_PORTFOLIO,
         LIABILITY_SAVINGS_CONTROL,
@@ -24,7 +25,9 @@ public class FinancialActivityAccount {
         INCOME_INTEREST,
         INCOME_FEES,
         EXPENSE_LOAN_LOSS_PROVISION,
-        EXPENSE_WRITE_OFF
+        EXPENSE_WRITE_OFF,
+        /** Debit side of interest credited to savings; credit side is LIABILITY_SAVINGS_CONTROL. */
+        EXPENSE_INTEREST_ON_SAVINGS
     }
 
     @Id

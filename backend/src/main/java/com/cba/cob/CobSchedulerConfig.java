@@ -5,77 +5,33 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Quartz triggers for the nightly Close-of-Business jobs (server time).
+ * The single Quartz trigger for Close of Business (23:55 server time).
  *
- * Job execution order:
- *  1. standing-orders         (23:55) — execute scheduled payments first
- *  2. dormancy-classification (23:56) — flag inactive accounts
- *  3. interest-accrual        (23:57) — accrue on post-payment balances
- *  4. arrears-classification  (23:59) — classify after interest
+ * It starts {@link CloseOfBusinessQuartzJob}, which runs the jobs one after another
+ * in {@link CobJobDefinition} order — standing orders → dormancy → interest accrual
+ * → arrears — each starting only when the previous one has finished.
  *
- * Manual runs and the job list shown on the CoB Scheduler screen live in
- * {@link CobJobService}.
+ * The four per-job triggers this replaced are deleted by migration V53: Quartz
+ * persists triggers in the database, so removing their beans alone would leave
+ * them firing.
  */
 @Configuration
 public class CobSchedulerConfig {
 
-    // ── Quartz job detail beans ───────────────────────────────────────────────
-
     @Bean
-    public JobDetail standingOrderJobDetail() {
-        return jobDetail("standingOrderExecution", CobJobDefinition.STANDING_ORDERS);
-    }
-
-    @Bean
-    public JobDetail interestAccrualJobDetail() {
-        return jobDetail("interestAccrual", CobJobDefinition.INTEREST_ACCRUAL);
-    }
-
-    @Bean
-    public JobDetail dormancyJobDetail() {
-        return jobDetail("dormancyClassification", CobJobDefinition.DORMANCY);
-    }
-
-    @Bean
-    public JobDetail arrearsJobDetail() {
-        return jobDetail("arrearsClassification", CobJobDefinition.ARREARS);
-    }
-
-    // ── Cron triggers ─────────────────────────────────────────────────────────
-
-    @Bean
-    public Trigger standingOrderTrigger(JobDetail standingOrderJobDetail) {
-        return trigger(standingOrderJobDetail, CobJobDefinition.STANDING_ORDERS, "0 55 23 * * ?"); // 23:55 daily
-    }
-
-    @Bean
-    public Trigger interestAccrualTrigger(JobDetail interestAccrualJobDetail) {
-        return trigger(interestAccrualJobDetail, CobJobDefinition.INTEREST_ACCRUAL, "0 57 23 * * ?"); // 23:57 daily
-    }
-
-    @Bean
-    public Trigger dormancyTrigger(JobDetail dormancyJobDetail) {
-        return trigger(dormancyJobDetail, CobJobDefinition.DORMANCY, "0 56 23 * * ?"); // 23:56 daily
-    }
-
-    @Bean
-    public Trigger arrearsTrigger(JobDetail arrearsJobDetail) {
-        return trigger(arrearsJobDetail, CobJobDefinition.ARREARS, "0 59 23 * * ?"); // 23:59 daily
-    }
-
-    private static JobDetail jobDetail(String identity, CobJobDefinition job) {
-        return JobBuilder.newJob(QuartzJobBridge.class)
-                .withIdentity(identity, CobJobDefinition.TRIGGER_GROUP)
-                .usingJobData("jobBeanName", job.beanName())
+    public JobDetail closeOfBusinessJobDetail() {
+        return JobBuilder.newJob(CloseOfBusinessQuartzJob.class)
+                .withIdentity(CobJobDefinition.QUARTZ_JOB_NAME, CobJobDefinition.TRIGGER_GROUP)
                 .storeDurably()
                 .build();
     }
 
-    private static Trigger trigger(JobDetail detail, CobJobDefinition job, String cron) {
+    @Bean
+    public Trigger closeOfBusinessTrigger(JobDetail closeOfBusinessJobDetail) {
         return TriggerBuilder.newTrigger()
-                .forJob(detail)
-                .withIdentity(job.triggerName(), CobJobDefinition.TRIGGER_GROUP)
-                .withSchedule(CronScheduleBuilder.cronSchedule(cron))
+                .forJob(closeOfBusinessJobDetail)
+                .withIdentity(CobJobDefinition.TRIGGER_NAME, CobJobDefinition.TRIGGER_GROUP)
+                .withSchedule(CronScheduleBuilder.cronSchedule(CobJobDefinition.CRON))
                 .build();
     }
 }

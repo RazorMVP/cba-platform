@@ -10,6 +10,8 @@ import java.util.UUID;
 @Entity
 @Table(name = "journal_entries")
 @Getter @Setter @NoArgsConstructor
+// reversalOf is a lazy self-reference: hide the Hibernate proxy internals from Jackson.
+@com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class JournalEntry {
 
     public enum EntryType { DEBIT, CREDIT }
@@ -18,6 +20,14 @@ public class JournalEntry {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
+
+    /**
+     * Groups the lines of one posting (a debit/credit pair, a manual journal, a
+     * reversal). The column has been NOT NULL since V8 but was never mapped, so
+     * every journal insert failed until Session 125 cont. 14.
+     */
+    @Column(name = "transaction_id", nullable = false, length = 100)
+    private String transactionId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "gl_account_id", nullable = false)

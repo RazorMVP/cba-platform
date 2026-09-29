@@ -10644,7 +10644,7 @@
                 "jobs"
               ]
             },
-            "description": "The four nightly CoB jobs in schedule order (23:55 standing orders, 23:56 dormancy, 23:57 interest accrual, 23:59 arrears), each with its cron expression, next scheduled run, and the outcome of the most recent run (scheduled or manual). previousRunStatus is SUCCESS, FAILED or RUNNING, or null if the job never ran.",
+            "description": "The four nightly CoB jobs in run order (standing orders, dormancy, interest accrual, arrears). They run in sequence from one trigger at 23:55, each starting when the previous one finishes, so all four share the same cronExpression and nextRunTime. Each entry has its cron expression, next scheduled run, and the outcome of the most recent run (scheduled or manual). previousRunStatus is SUCCESS, FAILED or RUNNING, or null if the job never ran.",
             "auth": {
               "type": "bearer",
               "bearer": [

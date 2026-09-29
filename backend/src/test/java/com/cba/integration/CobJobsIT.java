@@ -1,6 +1,7 @@
 package com.cba.integration;
 
 import com.cba.cob.CobJobDefinition;
+import com.cba.cob.CobRunner;
 import com.cba.cob.CobJobService;
 import com.cba.cob.CobJobView;
 import com.cba.cob.CobRunView;
@@ -49,6 +50,9 @@ class CobJobsIT extends AbstractIntegrationTest {
     @Autowired @Qualifier("standingOrderExecutionBatchJob") Job standingOrderJob;
     @Autowired @Qualifier("dormancyClassificationBatchJob") Job dormancyJob;
     @Autowired @Qualifier("arrearsClassificationBatchJob") Job arrearsJob;
+    @Autowired @Qualifier("interestAccrualBatchJob") Job interestJob;
+    @Autowired CobRunner cobRunner;
+    @Autowired org.springframework.boot.test.web.client.TestRestTemplate rest;
 
     @AfterEach
     void restoreDemoLoan() throws Exception {
@@ -128,6 +132,86 @@ class CobJobsIT extends AbstractIntegrationTest {
         JobExecution before = run(arrearsJob, BEFORE_FIRST_PENDING_DUE);
         assertThat(before.getStatus()).isEqualTo(BatchStatus.COMPLETED);
         assertThat(loanStatus(DEMO_LOAN)).isEqualTo("ACTIVE");
+    }
+
+    // ── Interest accrual → GL ─────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("interest accrual: every credit posts a balanced DR interest expense / CR customer deposits pair")
+    void interestAccrual_postsBalancedJournalPair() throws Exception {
+        // 36,500.00 at the seeded 2.50% → exactly 2.5000 a day.
+        UUID account = account("TST-INT", new BigDecimal("36500.00"), LocalDate.of(2025, 1, 1));
+        LocalDate businessDate = LocalDate.now();
+
+        JobExecution execution = run(interestJob, businessDate);
+
+        assertThat(execution.getStatus()).isEqualTo(BatchStatus.COMPLETED);
+        assertThat(balance(account)).isEqualByComparingTo("36502.50");
+        List<java.util.Map<String, Object>> lines = jdbc.queryForList("""
+                SELECT je.entry_type, je.amount, je.transaction_id, je.transaction_date, ga.gl_code
+                FROM journal_entries je JOIN gl_accounts ga ON ga.id = je.gl_account_id
+                WHERE je.entity_id = ? ORDER BY je.entry_type""", account);
+        assertThat(lines).hasSize(2);
+        assertThat(lines).extracting(l -> l.get("entry_type") + ":" + l.get("gl_code"))
+                .containsExactly("CREDIT:2001", "DEBIT:5002");
+        assertThat(lines).allSatisfy(l -> {
+            assertThat((BigDecimal) l.get("amount")).isEqualByComparingTo("2.5000");
+            assertThat(l.get("transaction_date").toString()).isEqualTo(businessDate.toString());
+        });
+        assertThat(lines.get(0).get("transaction_id"))
+                .as("both lines of one posting share a transaction id")
+                .isEqualTo(lines.get(1).get("transaction_id"));
+
+        // The GL screens serialize these entities with a lazy GlAccount proxy. Before the
+        // Jackson fix both returned 500 — hidden until now because the tables were empty
+        // (journal) or unloadable (activity names that weren't enum constants).
+        assertThat(rest.getForEntity("/api/v1/journalentries?from={d}&to={d}", String.class,
+                businessDate, businessDate).getStatusCode().value()).isEqualTo(200);
+        assertThat(rest.getForEntity("/api/v1/financialactivityaccounts", String.class)
+                .getStatusCode().value()).isEqualTo(200);
+    }
+
+    @Test
+    @DisplayName("interest accrual: with no GL mapping the job fails and credits nobody")
+    void interestAccrual_withoutGlMapping_failsWithoutCrediting() throws Exception {
+        UUID account = account("TST-INT-NOGL", new BigDecimal("36500.00"), LocalDate.of(2025, 1, 1));
+        UUID glAccount = jdbc.queryForObject(
+                "SELECT gl_account_id FROM financial_activity_accounts WHERE financial_activity = 'EXPENSE_INTEREST_ON_SAVINGS'",
+                UUID.class);
+        jdbc.update("DELETE FROM financial_activity_accounts WHERE financial_activity = 'EXPENSE_INTEREST_ON_SAVINGS'");
+        try {
+            JobExecution execution = run(interestJob, LocalDate.now());
+
+            assertThat(execution.getStatus()).isEqualTo(BatchStatus.FAILED);
+            assertThat(balance(account)).isEqualByComparingTo("36500.00");
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM journal_entries WHERE entity_id = ?",
+                    Long.class, account)).isZero();
+        } finally {
+            jdbc.update("INSERT INTO financial_activity_accounts (financial_activity, gl_account_id) "
+                    + "VALUES ('EXPENSE_INTEREST_ON_SAVINGS', ?)", glAccount);
+        }
+    }
+
+    // ── Sequencing ────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("sequence: runs all four jobs in order, each starting after the previous one ended")
+    void cobRunner_runsJobsInSequence() {
+        // 2021-01-01: dormancy and standing orders match only this class's own old data,
+        // and arrears puts the demo loan back to ACTIVE.
+        List<JobExecution> executions = cobRunner.runAll(LocalDate.of(2021, 1, 1));
+
+        assertThat(executions).extracting(e -> e.getJobInstance().getJobName()).containsExactly(
+                "standingOrderExecutionJob", "dormancyClassificationJob",
+                "interestAccrualJob", "arrearsClassificationJob");
+        assertThat(executions).allSatisfy(e -> assertThat(e.getStatus()).isEqualTo(BatchStatus.COMPLETED));
+        for (int i = 1; i < executions.size(); i++) {
+            assertThat(executions.get(i).getStartTime())
+                    .as("%s must start after %s ended",
+                            executions.get(i).getJobInstance().getJobName(),
+                            executions.get(i - 1).getJobInstance().getJobName())
+                    .isAfterOrEqualTo(executions.get(i - 1).getEndTime());
+        }
     }
 
     // ── CoB Scheduler screen API ──────────────────────────────────────────────

@@ -6,9 +6,15 @@ import lombok.*;
 
 import java.util.UUID;
 
+/**
+ * Referenced lazily (FinancialActivityAccount, JournalEntry, the parent account), so
+ * Jackson meets it as a Hibernate proxy. Hide the proxy's internals or serialization
+ * fails with "No serializer found for ByteBuddyInterceptor" (HTTP 500).
+ */
 @Entity
 @Table(name = "gl_accounts")
 @Getter @Setter @NoArgsConstructor
+@com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class GlAccount extends AuditableEntity {
 
     public enum AccountType { ASSET, LIABILITY, EQUITY, INCOME, EXPENSE }

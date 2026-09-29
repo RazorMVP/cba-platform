@@ -42,10 +42,11 @@ public class GlAccountingService {
 
         GlAccount debitAccount  = resolveByCode(debitGlCode);
         GlAccount creditAccount = resolveByCode(creditGlCode);
+        String transactionId = newTransactionId("GL");
 
-        JournalEntry debit = buildEntry(debitAccount, JournalEntry.EntryType.DEBIT,
+        JournalEntry debit = buildEntry(transactionId, debitAccount, JournalEntry.EntryType.DEBIT,
                 amount, currencyCode, transactionDate, description, entityType, entityId);
-        JournalEntry credit = buildEntry(creditAccount, JournalEntry.EntryType.CREDIT,
+        JournalEntry credit = buildEntry(transactionId, creditAccount, JournalEntry.EntryType.CREDIT,
                 amount, currencyCode, transactionDate, description, entityType, entityId);
 
         journalEntryRepository.save(debit);
@@ -93,6 +94,7 @@ public class GlAccountingService {
         }
 
         String actor = resolveActor();
+        String transactionId = newTransactionId("MJ");
         List<JournalEntry> entries = new java.util.ArrayList<>();
 
         for (ManualJournalRequest.EntryLine line : request.debits()) {
@@ -101,7 +103,7 @@ public class GlAccountingService {
                 throw CbaException.badRequest("MANUAL_ENTRY_NOT_ALLOWED",
                         "GL account " + line.glCode() + " does not allow manual entries");
             }
-            entries.add(journalEntryRepository.save(buildEntry(account,
+            entries.add(journalEntryRepository.save(buildEntry(transactionId, account,
                     JournalEntry.EntryType.DEBIT, line.amount(), request.currencyCode(),
                     request.transactionDate(), request.comments(),
                     JournalEntry.EntityType.MANUAL, null)));
@@ -112,7 +114,7 @@ public class GlAccountingService {
                 throw CbaException.badRequest("MANUAL_ENTRY_NOT_ALLOWED",
                         "GL account " + line.glCode() + " does not allow manual entries");
             }
-            entries.add(journalEntryRepository.save(buildEntry(account,
+            entries.add(journalEntryRepository.save(buildEntry(transactionId, account,
                     JournalEntry.EntryType.CREDIT, line.amount(), request.currencyCode(),
                     request.transactionDate(), request.comments(),
                     JournalEntry.EntityType.MANUAL, null)));
@@ -134,7 +136,7 @@ public class GlAccountingService {
         JournalEntry.EntryType reversalType = original.getEntryType() == JournalEntry.EntryType.DEBIT
                 ? JournalEntry.EntryType.CREDIT : JournalEntry.EntryType.DEBIT;
 
-        JournalEntry reversal = buildEntry(original.getGlAccount(), reversalType,
+        JournalEntry reversal = buildEntry(newTransactionId("REV"), original.getGlAccount(), reversalType,
                 original.getAmount(), original.getCurrencyCode(),
                 LocalDate.now(), "Reversal of entry " + entryId,
                 original.getEntityType(), original.getEntityId());
@@ -253,10 +255,16 @@ public class GlAccountingService {
                         "Financial activity " + activity + " has no GL account mapping"));
     }
 
-    private JournalEntry buildEntry(GlAccount account, JournalEntry.EntryType type,
+    /** One id per posting, shared by all its lines (journal_entries.transaction_id). */
+    private static String newTransactionId(String prefix) {
+        return prefix + "-" + UUID.randomUUID();
+    }
+
+    private JournalEntry buildEntry(String transactionId, GlAccount account, JournalEntry.EntryType type,
                                     BigDecimal amount, String currency, LocalDate date,
                                     String description, JournalEntry.EntityType entityType, UUID entityId) {
         JournalEntry e = new JournalEntry();
+        e.setTransactionId(transactionId);
         e.setGlAccount(account);
         e.setEntryType(type);
         e.setAmount(amount);

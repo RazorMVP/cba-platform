@@ -123,9 +123,10 @@ public class CobJobService {
         return instance == null ? null : jobExplorer.getLastJobExecution(instance);
     }
 
+    /** All jobs share the one CoB trigger: they run in sequence from its fire time. */
     private Trigger trigger(CobJobDefinition job) {
         try {
-            return scheduler.getTrigger(TriggerKey.triggerKey(job.triggerName(), CobJobDefinition.TRIGGER_GROUP));
+            return scheduler.getTrigger(TriggerKey.triggerKey(CobJobDefinition.TRIGGER_NAME, CobJobDefinition.TRIGGER_GROUP));
         } catch (SchedulerException e) {
             log.warn("Could not read Quartz trigger for {}: {}", job.jobName(), e.getMessage());
             return null;

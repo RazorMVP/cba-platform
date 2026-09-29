@@ -2,6 +2,10 @@ package com.cba.integration;
 
 import com.cba.account.AccountService;
 import com.cba.account.dto.TransactionResponse;
+import com.cba.accounting.GlAccountingService;
+import com.cba.accounting.GlAccountingService.TrialBalanceRow;
+import com.cba.accounting.JournalEntry;
+import com.cba.accounting.ManualJournalRequest;
 import com.cba.common.exception.CbaException;
 import com.cba.payment.PaymentService;
 import com.cba.payment.dto.PaymentResponse;
@@ -13,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -35,6 +40,7 @@ class GlPostingIT extends AbstractIntegrationTest {
     @Autowired AccountService accountService;
     @Autowired PaymentService paymentService;
     @Autowired JdbcTemplate jdbc;
+    @Autowired GlAccountingService glAccountingService;
 
     @Test
     @DisplayName("deposit: DR 1001 Cash on Hand / CR 2001 Customer Deposits, same reference")
@@ -137,7 +143,36 @@ class GlPostingIT extends AbstractIntegrationTest {
         }
     }
 
+    @Test
+    @DisplayName("manual journal reversed: both count in the trial balance, net zero; every currency balances")
+    void manualReversal_trialBalanceNetsToZero() {
+        LocalDate today = LocalDate.now();
+        TrialBalanceRow before = row(glAccountingService.getTrialBalance(today, today), "5003", "USD");
+
+        List<JournalEntry> posted = glAccountingService.postManualEntries(new ManualJournalRequest(
+                today, "USD", "it manual",
+                List.of(new ManualJournalRequest.EntryLine("5003", new BigDecimal("12.34"), null)),
+                List.of(new ManualJournalRequest.EntryLine("4003", new BigDecimal("12.34"), null))));
+        GlAccountingService.JournalReversal reversal = glAccountingService.reverseJournalEntry(posted.get(0).getId());
+
+        assertThat(reversal.lines()).hasSize(2);
+        var tb = glAccountingService.getTrialBalance(today, today);
+        TrialBalanceRow after = row(tb, "5003", "USD");
+        assertThat(after.debitMovement().subtract(before.debitMovement())).isEqualByComparingTo("12.34");
+        assertThat(after.creditMovement().subtract(before.creditMovement())).isEqualByComparingTo("12.34");
+        assertThat(after.closingBalance()).isEqualByComparingTo(before.closingBalance());
+        assertThat(tb.currencies()).isNotEmpty().allSatisfy(c ->
+                assertThat(c.balanced()).as("%s balanced", c.currencyCode()).isTrue());
+        assertThat(tb.balanced()).isTrue();
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /** The account's row in one currency, or zeros if it has no lines yet. */
+    private static TrialBalanceRow row(GlAccountingService.TrialBalanceResponse tb, String glCode, String ccy) {
+        return tb.rows().stream().filter(r -> r.glCode().equals(glCode) && r.currencyCode().equals(ccy)).findFirst()
+                .orElse(new TrialBalanceRow(glCode, "", "", ccy, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO));
+    }
 
     private UUID account(String number, String currency, String balance) {
         UUID id = UUID.randomUUID();

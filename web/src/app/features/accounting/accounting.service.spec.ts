@@ -45,9 +45,9 @@ describe('AccountingService', () => {
     expect(api.get).toHaveBeenCalledWith('/glaccounts', { type: 'ASSET' });
   });
 
-  it('journal entries page at size 50 and reverse posts an empty body', () => {
-    service.listJournalEntries({ glAccountId: 'gl1' }).subscribe();
-    expect(api.getPage).toHaveBeenCalledWith('/journalentries', 0, 50, { glAccountId: 'gl1' });
+  it('journal entries: list sends the required from/to, reverse posts an empty body', () => {
+    service.listJournalEntries('2026-06-01', '2026-06-30').subscribe();
+    expect(api.get).toHaveBeenCalledWith('/journalentries', { from: '2026-06-01', to: '2026-06-30' });
     service.reverseJournalEntry('je1').subscribe();
     expect(api.post).toHaveBeenCalledWith('/journalentries/je1/reverse', {});
   });

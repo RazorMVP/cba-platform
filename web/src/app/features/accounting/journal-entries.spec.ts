@@ -11,9 +11,9 @@ type Svc = Record<
 
 function entry(over: Partial<JournalEntry> = {}): JournalEntry {
   return {
-    id: 'je1', transactionId: 'tx1', entryDate: '2026-06-01', glAccountId: 'gl1',
-    glAccountCode: '1001', glAccountName: 'Cash', type: 'DEBIT', amount: 100,
-    createdByType: 'USER', reversed: false, ...over,
+    id: 'je1', transactionId: 'tx1', transactionDate: '2026-06-01', postedAt: '2026-06-01T10:00:00Z',
+    glAccountId: 'gl1', glAccountCode: '1001', glAccountName: 'Cash', entryType: 'DEBIT', amount: 100,
+    currencyCode: 'USD', entityType: 'MANUAL', manual: true, reversed: false, ...over,
   };
 }
 
@@ -25,7 +25,7 @@ function acc(over: Partial<GlAccount> = {}): GlAccount {
 }
 
 function page(content: JournalEntry[]) {
-  return of({ content, totalElements: content.length, totalPages: 1, size: 50, number: 0 });
+  return of(content);
 }
 
 describe('JournalEntriesComponent', () => {
@@ -34,11 +34,11 @@ describe('JournalEntriesComponent', () => {
   beforeEach(() => {
     svc = {
       listJournalEntries: vi.fn().mockReturnValue(
-        page([entry({ id: 'd', type: 'DEBIT', amount: 100 }), entry({ id: 'c', type: 'CREDIT', amount: 100 })]),
+        page([entry({ id: 'd', entryType: 'DEBIT', amount: 100 }), entry({ id: 'c', entryType: 'CREDIT', amount: 100 })]),
       ),
-      listGlAccounts: vi.fn().mockReturnValue(of([acc()])),
-      createManualJournalEntry: vi.fn().mockReturnValue(of({ transactionId: 'tx2' })),
-      reverseJournalEntry: vi.fn().mockReturnValue(of({ transactionId: 'rev1' })),
+      listGlAccounts: vi.fn().mockReturnValue(of([acc(), acc({ id: 'gl2', glCode: '4001', name: 'Fees' })])),
+      createManualJournalEntry: vi.fn().mockReturnValue(of([])),
+      reverseJournalEntry: vi.fn().mockReturnValue(of({ reversedTransactionId: 'tx1', reversalTransactionId: 'REV-1', lines: [] })),
     };
     TestBed.configureTestingModule({
       imports: [JournalEntriesComponent],
@@ -54,10 +54,10 @@ describe('JournalEntriesComponent', () => {
 
   it('loads journal entries and GL accounts on init', () => {
     const c = make();
-    expect(svc.listJournalEntries).toHaveBeenCalled();
+    expect(svc.listJournalEntries).toHaveBeenCalledWith(c.dateFrom, c.dateTo);
     expect(svc.listGlAccounts).toHaveBeenCalled();
-    expect(c.glAccounts).toHaveLength(1);
-    expect(c.totalItems).toBe(2);
+    expect(c.glAccounts).toHaveLength(2);
+    expect(c.totalItems).toBe(1); // one journal (two lines)
     expect(c.loading).toBe(false);
   });
 
@@ -82,11 +82,49 @@ describe('JournalEntriesComponent', () => {
 
     it('keeps separate transactions in separate groups, newest date first', () => {
       svc.listJournalEntries.mockReturnValue(page([
-        entry({ id: 'a', transactionId: 'old', entryDate: '2026-01-01' }),
-        entry({ id: 'b', transactionId: 'new', entryDate: '2026-06-01' }),
+        entry({ id: 'a', transactionId: 'old', transactionDate: '2026-01-01' }),
+        entry({ id: 'b', transactionId: 'new', transactionDate: '2026-06-01' }),
       ]));
       const c = make();
       expect(c.groups.map(g => g.transactionId)).toEqual(['new', 'old']);
+    });
+
+    it('maps API fields: manual → USER, sub-ledger → SYSTEM, reversal lines flag the group', () => {
+      svc.listJournalEntries.mockReturnValue(page([
+        entry({ id: 'm', transactionId: 'MJ-1' }),
+        entry({ id: 's', transactionId: 'GL-1', manual: false, entityType: 'ACCOUNT', currencyCode: 'KES' }),
+        entry({ id: 'r', transactionId: 'REV-1', reversalOfId: 'm' }),
+      ]));
+      const c = make();
+      const byId = new Map(c.groups.map(g => [g.transactionId, g]));
+      expect(byId.get('MJ-1')!.createdByType).toBe('USER');
+      expect(byId.get('GL-1')!.createdByType).toBe('SYSTEM');
+      expect(byId.get('GL-1')!.currencyCode).toBe('KES');
+      expect(byId.get('REV-1')!.isReversal).toBe(true);
+      expect(byId.get('MJ-1')!.isReversal).toBe(false);
+    });
+  });
+
+  describe('filters (applied client-side; the API filters by date only)', () => {
+    beforeEach(() => {
+      svc.listJournalEntries.mockReturnValue(page([
+        entry({ id: 'm', transactionId: 'MJ-1', glAccountCode: '5003' }),
+        entry({ id: 's', transactionId: 'GL-1', manual: false, entityType: 'ACCOUNT', glAccountCode: '2001' }),
+      ]));
+    });
+
+    it('type filter keeps only manual or only automated journals', () => {
+      const c = make();
+      c.typeFilter = 'SYSTEM';
+      c.loadEntries();
+      expect(c.groups.map(g => g.transactionId)).toEqual(['GL-1']);
+    });
+
+    it('GL code filter matches any line of the journal', () => {
+      const c = make();
+      c.glCodeQuery = '500';
+      c.loadEntries();
+      expect(c.groups.map(g => g.transactionId)).toEqual(['MJ-1']);
     });
   });
 
@@ -152,6 +190,7 @@ describe('JournalEntriesComponent', () => {
       const c = make();
       c.openCreateModal();
       c.entryDate = '2026-06-10';
+      c.entryCurrency = 'kes';
       c.entryRef = 'R1';
       c.debitLines = [{ glAccountId: 'gl1', amount: 100, comments: 'd' }, { glAccountId: '', amount: null, comments: '' }];
       c.creditLines = [{ glAccountId: 'gl2', amount: 100, comments: '' }];
@@ -159,13 +198,24 @@ describe('JournalEntriesComponent', () => {
       expect(svc.createManualJournalEntry).toHaveBeenCalledWith(
         expect.objectContaining({
           transactionDate: '2026-06-10',
+          currencyCode: 'KES',
           referenceNumber: 'R1',
-          debits: [{ glAccountId: 'gl1', amount: 100, comments: 'd' }],
-          credits: [{ glAccountId: 'gl2', amount: 100, comments: undefined }],
+          debits: [{ glCode: '1001', amount: 100, description: 'd' }],
+          credits: [{ glCode: '4001', amount: 100, description: undefined }],
         }),
       );
       expect(c.showCreateModal).toBe(false);
       expect(svc.listJournalEntries).toHaveBeenCalledTimes(2);
+    });
+
+    it('does nothing without a 3-letter currency', () => {
+      const c = make();
+      c.openCreateModal();
+      c.entryCurrency = 'US';
+      c.debitLines = [{ glAccountId: 'gl1', amount: 100, comments: '' }];
+      c.creditLines = [{ glAccountId: 'gl2', amount: 100, comments: '' }];
+      c.submitCreate();
+      expect(svc.createManualJournalEntry).not.toHaveBeenCalled();
     });
 
     it('surfaces an error on failure', () => {
@@ -198,6 +248,16 @@ describe('JournalEntriesComponent', () => {
       c.submitReverse();
       expect(c.reverseError).toBe('Reversal failed.');
       expect(c.reverseWorking).toBe(false);
+    });
+
+    it("shows the API's own message (e.g. a sub-ledger journal can't be reversed here)", () => {
+      svc.reverseJournalEntry.mockReturnValue(throwError(() => ({
+        error: { errors: [{ code: 'SUBLEDGER_JOURNAL_NOT_REVERSIBLE', message: 'reverse the source transaction instead' }] },
+      })));
+      const c = make();
+      c.openReverseModal(c.groups[0]);
+      c.submitReverse();
+      expect(c.reverseError).toBe('reverse the source transaction instead');
     });
   });
 

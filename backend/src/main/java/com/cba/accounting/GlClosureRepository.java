@@ -12,4 +12,7 @@ public interface GlClosureRepository extends JpaRepository<GlClosure, UUID> {
     Optional<GlClosure> findByOfficeIdAndClosingDate(UUID officeId, LocalDate closingDate);
 
     boolean existsByOfficeIdAndClosingDateGreaterThanEqual(UUID officeId, LocalDate date);
+
+    /** True when any office's closure is on or after {@code date}. */
+    boolean existsByClosingDateGreaterThanEqual(LocalDate date);
 }

@@ -185,18 +185,45 @@ class GlAccountingServiceTest {
         }
 
         @Test
-        @DisplayName("throws when debit and credit count mismatch")
-        void unequalCount_throws() {
+        @DisplayName("one debit against two credits posts: lines needn't pair up, only the amounts must balance")
+        void unequalLineCount_balanced_posts() {
+            GlAccount fees = buildGlAccount("4001", "Fees", GlAccount.AccountType.INCOME);
+            when(glAccountRepository.findByGlCode("1000")).thenReturn(Optional.of(debitAccount));
+            when(glAccountRepository.findByGlCode("4000")).thenReturn(Optional.of(creditAccount));
+            when(glAccountRepository.findByGlCode("4001")).thenReturn(Optional.of(fees));
+            when(journalEntryRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
             ManualJournalRequest req = new ManualJournalRequest(
-                LocalDate.now(), "USD", "Unbalanced",
-                List.of(new ManualJournalRequest.EntryLine("1000", new BigDecimal("100.00"), null),
-                        new ManualJournalRequest.EntryLine("1001", new BigDecimal("50.00"), null)),
-                List.of(new ManualJournalRequest.EntryLine("4000", new BigDecimal("150.00"), null))
-            );
+                LocalDate.now(), "usd", "Split",
+                List.of(new ManualJournalRequest.EntryLine("1000", new BigDecimal("150.00"), null)),
+                List.of(new ManualJournalRequest.EntryLine("4000", new BigDecimal("100.00"), null),
+                        new ManualJournalRequest.EntryLine("4001", new BigDecimal("50.00"), null)));
+
+            List<JournalEntry> result = glAccountingService.postManualEntries(req);
+
+            assertThat(result).hasSize(3);
+            assertThat(result).allSatisfy(e -> {
+                assertThat(e.getCurrencyCode()).isEqualTo("USD");
+                assertThat(e.getEntityType()).isEqualTo(JournalEntry.EntityType.MANUAL);
+                assertThat(e.getTransactionId()).startsWith("MJ-").isEqualTo(result.get(0).getTransactionId());
+            });
+        }
+
+        @Test
+        @DisplayName("a date inside a closed period is rejected (GL_PERIOD_CLOSED) and nothing is saved")
+        void closedPeriod_rejected() {
+            when(glAccountRepository.findByGlCode("1000")).thenReturn(Optional.of(debitAccount));
+            when(glAccountRepository.findByGlCode("4000")).thenReturn(Optional.of(creditAccount));
+            when(glClosureRepository.existsByClosingDateGreaterThanEqual(any())).thenReturn(true);
+
+            ManualJournalRequest req = new ManualJournalRequest(
+                LocalDate.now().minusDays(40), "USD", "Backdated",
+                List.of(new ManualJournalRequest.EntryLine("1000", new BigDecimal("100.00"), null)),
+                List.of(new ManualJournalRequest.EntryLine("4000", new BigDecimal("100.00"), null)));
 
             assertThatThrownBy(() -> glAccountingService.postManualEntries(req))
-                .isInstanceOf(CbaException.class)
-                .hasMessageContaining("equal number");
+                .isInstanceOf(CbaException.class).hasMessageContaining("closed");
+            verify(journalEntryRepository, never()).save(any());
         }
 
         @Test
@@ -237,26 +264,65 @@ class GlAccountingServiceTest {
     @DisplayName("reverseJournalEntry")
     class ReverseJournalEntry {
 
-        @Test
-        @DisplayName("creates reversal entry and marks original as reversed")
-        void reversal_success() {
-            UUID entryId = UUID.randomUUID();
-            JournalEntry original = new JournalEntry();
-            original.setId(entryId);
-            original.setGlAccount(debitAccount);
-            original.setEntryType(JournalEntry.EntryType.DEBIT);
-            original.setAmount(new BigDecimal("100.00"));
-            original.setCurrencyCode("USD");
-            original.setTransactionDate(LocalDate.now());
-            original.setEntityType(JournalEntry.EntityType.ACCOUNT);
+        private JournalEntry line(GlAccount account, JournalEntry.EntryType side, String amount,
+                                  JournalEntry.EntityType entityType) {
+            JournalEntry e = new JournalEntry();
+            e.setId(UUID.randomUUID());
+            e.setTransactionId("MJ-1");
+            e.setGlAccount(account);
+            e.setEntryType(side);
+            e.setAmount(new BigDecimal(amount));
+            e.setCurrencyCode("USD");
+            e.setTransactionDate(LocalDate.now().minusDays(1));
+            e.setEntityType(entityType);
+            return e;
+        }
 
-            when(journalEntryRepository.findById(entryId)).thenReturn(Optional.of(original));
+        @Test
+        @DisplayName("reverses every line of the journal as one balanced journal; originals marked reversed")
+        void reversal_wholeJournal() {
+            JournalEntry dr = line(debitAccount, JournalEntry.EntryType.DEBIT, "100.00", JournalEntry.EntityType.MANUAL);
+            JournalEntry cr = line(creditAccount, JournalEntry.EntryType.CREDIT, "100.00", JournalEntry.EntityType.MANUAL);
+            when(journalEntryRepository.findById(dr.getId())).thenReturn(Optional.of(dr));
+            when(journalEntryRepository.findByTransactionIdOrderByIdAsc("MJ-1")).thenReturn(List.of(dr, cr));
             when(journalEntryRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            glAccountingService.reverseJournalEntry(entryId);
+            GlAccountingService.JournalReversal r = glAccountingService.reverseJournalEntry(dr.getId());
 
-            assertThat(original.isReversed()).isTrue();
-            verify(journalEntryRepository, times(2)).save(any());
+            assertThat(r.reversedTransactionId()).isEqualTo("MJ-1");
+            assertThat(r.reversalTransactionId()).startsWith("REV-");
+            assertThat(r.lines()).hasSize(2);
+            assertThat(r.lines().get(0).getEntryType()).isEqualTo(JournalEntry.EntryType.CREDIT);
+            assertThat(r.lines().get(0).getGlAccount()).isSameAs(debitAccount);
+            assertThat(r.lines().get(0).getReversalOf()).isSameAs(dr);
+            assertThat(r.lines().get(1).getEntryType()).isEqualTo(JournalEntry.EntryType.DEBIT);
+            assertThat(r.lines().get(1).getReversalOf()).isSameAs(cr);
+            assertThat(r.lines()).allSatisfy(l -> assertThat(l.getReferenceNumber()).isEqualTo("MJ-1"));
+            assertThat(dr.isReversed()).isTrue();
+            assertThat(cr.isReversed()).isTrue();
+        }
+
+        @Test
+        @DisplayName("a journal posted by a sub-ledger is not reversible in the GL (reverse its source)")
+        void subLedgerJournal_rejected() {
+            JournalEntry dr = line(debitAccount, JournalEntry.EntryType.DEBIT, "100.00", JournalEntry.EntityType.ACCOUNT);
+            when(journalEntryRepository.findById(dr.getId())).thenReturn(Optional.of(dr));
+
+            assertThatThrownBy(() -> glAccountingService.reverseJournalEntry(dr.getId()))
+                .isInstanceOf(CbaException.class).hasMessageContaining("reverse the source transaction");
+            verify(journalEntryRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("a reversal can't itself be reversed")
+        void reversalOfReversal_rejected() {
+            JournalEntry original = line(debitAccount, JournalEntry.EntryType.DEBIT, "100.00", JournalEntry.EntityType.MANUAL);
+            JournalEntry reversal = line(debitAccount, JournalEntry.EntryType.CREDIT, "100.00", JournalEntry.EntityType.MANUAL);
+            reversal.setReversalOf(original);
+            when(journalEntryRepository.findById(reversal.getId())).thenReturn(Optional.of(reversal));
+
+            assertThatThrownBy(() -> glAccountingService.reverseJournalEntry(reversal.getId()))
+                .isInstanceOf(CbaException.class).hasMessageContaining("itself a reversal");
         }
 
         @Test
@@ -270,16 +336,14 @@ class GlAccountingServiceTest {
         }
 
         @Test
-        @DisplayName("throws when entry already reversed")
+        @DisplayName("throws when the journal is already reversed")
         void alreadyReversed_throws() {
-            UUID entryId = UUID.randomUUID();
-            JournalEntry original = new JournalEntry();
-            original.setId(entryId);
-            original.setReversed(true);
+            JournalEntry dr = line(debitAccount, JournalEntry.EntryType.DEBIT, "100.00", JournalEntry.EntityType.MANUAL);
+            dr.setReversed(true);
+            when(journalEntryRepository.findById(dr.getId())).thenReturn(Optional.of(dr));
+            when(journalEntryRepository.findByTransactionIdOrderByIdAsc("MJ-1")).thenReturn(List.of(dr));
 
-            when(journalEntryRepository.findById(entryId)).thenReturn(Optional.of(original));
-
-            assertThatThrownBy(() -> glAccountingService.reverseJournalEntry(entryId))
+            assertThatThrownBy(() -> glAccountingService.reverseJournalEntry(dr.getId()))
                 .isInstanceOf(CbaException.class)
                 .hasMessageContaining("already reversed");
         }

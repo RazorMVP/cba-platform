@@ -9981,7 +9981,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/journalentries",
+              "raw": "{{baseUrl}}/api/v1/journalentries?from=2026-09-01&to=2026-09-29",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -9989,9 +9989,21 @@
                 "api",
                 "v1",
                 "journalentries"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-09-01",
+                  "description": "Required. First transaction date (YYYY-MM-DD)"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-09-29",
+                  "description": "Required. Last transaction date (YYYY-MM-DD)"
+                }
               ]
             },
-            "description": "",
+            "description": "ADMIN/TELLER. Every journal line dated between from and to (up to 1000). Each line: id, transactionId (shared by all lines of one journal: GL- automatic, MJ- manual, REV- reversal), transactionDate, postedAt, glAccountId, glAccountCode, glAccountName, entryType (DEBIT/CREDIT), amount, currencyCode, positionCurrency (FX position equivalent lines only), entityType, entityId, referenceNumber, description, manual (true for journals created in the GL), reversed, reversalOfId (set on reversal lines).",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -10026,7 +10038,7 @@
                 "journalentries"
               ]
             },
-            "description": "",
+            "description": "ADMIN. A manual journal (MJ-, entity MANUAL) in one currency: any number of debit and credit lines {glCode, amount >= 0.01, description?}; debits must equal credits by amount (lines needn't pair up). Only accounts with manual entries allowed. Rejected: 400 UNBALANCED_ENTRY, MANUAL_ENTRY_NOT_ALLOWED, GL_ACCOUNT_NOT_FOUND, GL_ACCOUNT_NOT_POSTABLE, GL_PERIOD_CLOSED (dated on or before a GL closure). Returns the posted lines.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -10039,7 +10051,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"officeId\": \"{{officeId}}\",\n  \"transactionDate\": \"2026-04-08\",\n  \"currencyCode\": \"USD\",\n  \"comments\": \"Manual adjustment\",\n  \"debits\": [\n    {\n      \"glAccountId\": \"{{debitGlId}}\",\n      \"amount\": 1000.0\n    }\n  ],\n  \"credits\": [\n    {\n      \"glAccountId\": \"{{creditGlId}}\",\n      \"amount\": 1000.0\n    }\n  ]\n}",
+              "raw": "{\n  \"transactionDate\": \"2026-09-29\",\n  \"currencyCode\": \"USD\",\n  \"comments\": \"Manual adjustment\",\n  \"referenceNumber\": \"ADJ-2026-001\",\n  \"debits\": [\n    {\n      \"glCode\": \"1001\",\n      \"amount\": 1500.0\n    }\n  ],\n  \"credits\": [\n    {\n      \"glCode\": \"4002\",\n      \"amount\": 1000.0\n    },\n    {\n      \"glCode\": \"4003\",\n      \"amount\": 500.0\n    }\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -10072,7 +10084,7 @@
                 "reverse"
               ]
             },
-            "description": "",
+            "description": "ADMIN. {{journalEntryId}} is any line of the journal. Reverses the WHOLE manual journal: one new balanced journal (REV-, dated today, referenceNumber = the original transaction id) with every line on the opposite side; the originals stay, marked reversed. Returns {reversedTransactionId, reversalTransactionId, lines}. Only manual journals: a journal posted by a sub-ledger (deposit, transfer, interest, teller cash, FX revaluation, opening balances) returns 400 SUBLEDGER_JOURNAL_NOT_REVERSIBLE - reverse its source instead (e.g. POST /payments/{id}/reverse). 400 CANNOT_REVERSE_REVERSAL, ALREADY_REVERSED, GL_PERIOD_CLOSED.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -10384,14 +10396,14 @@
                 }
               ]
             },
-            "description": "Generate a trial balance for a date range. Returns opening balance (movements before fromDate), debit/credit movements within the period, and closing balance per GL account, grouped by account type (ASSET\u2192LIABILITY\u2192EQUITY\u2192INCOME\u2192EXPENSE). The `balanced` flag confirms \u03a3 debits = \u03a3 credits."
+            "description": "Trial balance per GL account AND currency for a date range: opening balance (lines before fromDate), debit/credit movement in the range, closing balance. Amounts in different currencies are never added together: currencies[] gives each currency's totals and its own balanced flag (period debits = credits AND closing debits = closing credits); top-level balanced = every currency balances. A reversed journal and its reversal both count and net to zero."
           },
           "response": [
             {
               "name": "200 OK \u2014 Balanced trial balance",
               "status": "OK",
               "code": 200,
-              "body": "{\n  \"data\": {\n    \"fromDate\": \"2026-04-01\",\n    \"toDate\": \"2026-04-25\",\n    \"rows\": [\n      {\n        \"glCode\": \"1001\",\n        \"accountName\": \"Cash at Bank\",\n        \"accountType\": \"ASSET\",\n        \"openingBalance\": 1500000.0,\n        \"debitMovement\": 250000.0,\n        \"creditMovement\": 80000.0,\n        \"closingBalance\": 1670000.0\n      },\n      {\n        \"glCode\": \"4001\",\n        \"accountName\": \"Interest Income\",\n        \"accountType\": \"INCOME\",\n        \"openingBalance\": -120000.0,\n        \"debitMovement\": 0.0,\n        \"creditMovement\": 50000.0,\n        \"closingBalance\": -170000.0\n      }\n    ],\n    \"totalDebitMovement\": 250000.0,\n    \"totalCreditMovement\": 250000.0,\n    \"totalClosingDebit\": 1670000.0,\n    \"totalClosingCredit\": 1670000.0,\n    \"balanced\": true\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+              "body": "{\n  \"data\": {\n    \"fromDate\": \"2026-09-01\",\n    \"toDate\": \"2026-09-29\",\n    \"rows\": [\n      {\n        \"glCode\": \"1001\",\n        \"accountName\": \"Cash on Hand\",\n        \"accountType\": \"ASSET\",\n        \"currencyCode\": \"USD\",\n        \"openingBalance\": 1500.0,\n        \"debitMovement\": 250.0,\n        \"creditMovement\": 80.0,\n        \"closingBalance\": 1670.0\n      },\n      {\n        \"glCode\": \"2001\",\n        \"accountName\": \"Customer Deposits\",\n        \"accountType\": \"LIABILITY\",\n        \"currencyCode\": \"USD\",\n        \"openingBalance\": -1500.0,\n        \"debitMovement\": 80.0,\n        \"creditMovement\": 250.0,\n        \"closingBalance\": -1670.0\n      }\n    ],\n    \"currencies\": [\n      {\n        \"currencyCode\": \"USD\",\n        \"totalDebitMovement\": 330.0,\n        \"totalCreditMovement\": 330.0,\n        \"totalClosingDebit\": 1670.0,\n        \"totalClosingCredit\": 1670.0,\n        \"balanced\": true\n      }\n    ],\n    \"balanced\": true\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
             }
           ]
         },

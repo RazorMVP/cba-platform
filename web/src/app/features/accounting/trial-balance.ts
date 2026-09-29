@@ -37,11 +37,14 @@ export class TrialBalanceComponent implements OnInit {
 
   exportCsv(): void {
     if (!this.report) return;
-    const header = 'GL Code,Account Name,Account Type,Opening Balance,Debit Movement,Credit Movement,Closing Balance\n';
+    const header = 'Currency,GL Code,Account Name,Account Type,Opening Balance,Debit Movement,Credit Movement,Closing Balance\n';
     const rows = this.report.rows.map(r =>
-      `"${r.glCode}","${r.accountName}","${r.accountType}",${r.openingBalance},${r.debitMovement},${r.creditMovement},${r.closingBalance}`
+      `"${r.currencyCode}","${r.glCode}","${r.accountName}","${r.accountType}",${r.openingBalance},${r.debitMovement},${r.creditMovement},${r.closingBalance}`
     ).join('\n');
-    const totals = `,,TOTALS,,${this.report.totalDebitMovement},${this.report.totalCreditMovement},`;
+    // One totals line per currency: amounts in different currencies are never added together.
+    const totals = this.report.currencies.map(c =>
+      `"${c.currencyCode}",,TOTALS,,,${c.totalDebitMovement},${c.totalCreditMovement},`
+    ).join('\n');
     const blob = new Blob([header + rows + '\n' + totals], { type: 'text/csv' });
     const a    = document.createElement('a');
     a.href     = URL.createObjectURL(blob);
@@ -49,11 +52,17 @@ export class TrialBalanceComponent implements OnInit {
     a.click();
   }
 
-  groupedRows(): { type: string; rows: TrialBalanceResponse['rows'] }[] {
+  /** The rows in one currency. */
+  rowsFor(currencyCode: string): TrialBalanceResponse['rows'] {
+    return this.report ? this.report.rows.filter(r => r.currencyCode === currencyCode) : [];
+  }
+
+  /** One currency's rows, grouped by account type in chart order. */
+  groupedRows(currencyCode: string): { type: string; rows: TrialBalanceResponse['rows'] }[] {
     if (!this.report) return [];
     const order = ['ASSET', 'LIABILITY', 'EQUITY', 'INCOME', 'EXPENSE'];
     const map   = new Map<string, TrialBalanceResponse['rows']>();
-    for (const r of this.report.rows) {
+    for (const r of this.rowsFor(currencyCode)) {
       const list = map.get(r.accountType) ?? [];
       list.push(r);
       map.set(r.accountType, list);

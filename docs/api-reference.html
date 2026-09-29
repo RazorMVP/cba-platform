@@ -1993,6 +1993,17 @@ difference = actual_cash - closing_balance</pre>
 <p><strong>Account resolution:</strong> the deposit product's own GL link (<code>savingsControlAccount</code>, <code>overdraftPortfolioControlAccount</code>, <code>interestOnSavingsAccount</code>) first, then the financial-activity mapping; with neither the request is <strong>rejected</strong> (<code>400 ACTIVITY_NOT_MAPPED</code>) and nothing moves. A credit balance posts to savings control (liability); the part of a balance below zero posts to the overdraft portfolio (asset — an overdraft is a loan, not a negative deposit). Every journal must balance <em>per currency</em>, and only enabled DETAIL accounts accept postings (<code>400 GL_ACCOUNT_NOT_POSTABLE</code>). Cross-currency postings, interest and teller over/short need the <code>functional-currency</code> global configuration (seeded from the default tenant; <code>400 FUNCTIONAL_CURRENCY_NOT_CONFIGURED</code>) and an active rate from each foreign currency to it (<code>400 EXCHANGE_RATE_NOT_CONFIGURED</code>). External (SWIFT/SEPA) payments, loans, charges, term deposits, shares and treasury do not post yet.</p>
 <p><strong>Financial activities:</strong> <code>ASSET_FUND_SOURCE</code>, <code>ASSET_CASH_AT_TELLER</code>, <code>ASSET_INTEREST_RECEIVABLE</code>, <code>ASSET_LOAN_PORTFOLIO</code>, <code>ASSET_OVERDRAFT_PORTFOLIO</code>, <code>ASSET_FX_POSITION</code>, <code>ASSET_FX_POSITION_EQUIVALENT</code>, <code>LIABILITY_SAVINGS_CONTROL</code>, <code>LIABILITY_TRANSFER_IN_SUSPENSE</code>, <code>INCOME_INTEREST</code>, <code>INCOME_FEES</code>, <code>INCOME_FX_GAIN_LOSS</code>, <code>EXPENSE_LOAN_LOSS_PROVISION</code>, <code>EXPENSE_WRITE_OFF</code>, <code>EXPENSE_INTEREST_ON_SAVINGS</code>, <code>EXPENSE_CASH_OVER_SHORT</code>, <code>EQUITY_MIGRATION_CLEARING</code>. V54 seeds GL 1102 Overdrafts, 1200 FX Position, 1201 FX Position Equivalent, 4003 Net FX Gains and 5003 Cash Over and Short; V56 seeds GL 3900 Legacy Balance Migration Clearing (only where the V8 chart exists). Journal entries on the FX position equivalent carry <code>positionCurrency</code>, the foreign currency whose position they value (null on every other line).</p>
 
+<h3>Journal entries — list, manual post, reversal</h3>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/journalentries?from=YYYY-MM-DD&amp;to=YYYY-MM-DD</td><td>Every journal line dated in the range (both params required; up to 1000 lines).</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/journalentries</td><td>Post a manual journal (<code>MJ-…</code>, entity <code>MANUAL</code>): <code>transactionDate</code>, <code>currencyCode</code> (3 letters), optional <code>comments</code> and <code>referenceNumber</code>, and any number of <code>debits</code>/<code>credits</code> lines <code>{glCode, amount ≥ 0.01, description?}</code>. Debits must equal credits by amount — the lines needn't pair up. Returns the posted lines.</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/journalentries/{id}/reverse</td><td>Reverse the <strong>whole</strong> journal that line <code>{id}</code> belongs to: one new balanced journal (<code>REV-…</code>, dated today, <code>referenceNumber</code> = the original transaction id) with every line on the opposite side; the original lines stay and are marked <code>reversed</code>. Returns <code>{reversedTransactionId, reversalTransactionId, lines}</code>.</td><td>ADMIN</td></tr>
+</table>
+<p><strong>Line fields</strong> (list, post and reversal): <code>id</code>, <code>transactionId</code>, <code>transactionDate</code>, <code>postedAt</code>, <code>glAccountId</code>, <code>glAccountCode</code>, <code>glAccountName</code>, <code>entryType</code> (<code>DEBIT</code>/<code>CREDIT</code>), <code>amount</code>, <code>currencyCode</code>, <code>positionCurrency</code>, <code>entityType</code>, <code>entityId</code>, <code>referenceNumber</code>, <code>description</code>, <code>manual</code> (true for journals created in the GL), <code>reversed</code>, <code>reversalOfId</code> (set on reversal lines).</p>
+<p><strong>Reversal rules:</strong> only manual journals are reversed here. A journal a sub-ledger posted (deposit, transfer, interest, teller cash, FX revaluation, opening balances) returns <code>400 SUBLEDGER_JOURNAL_NOT_REVERSIBLE</code> — reverse its source (e.g. <code>POST /payments/{id}/reverse</code>) so the balance and the journal move together; this is the rule Oracle General Ledger applies. <code>400 CANNOT_REVERSE_REVERSAL</code> for a reversal, <code>400 ALREADY_REVERSED</code> for a journal already reversed.</p>
+<p><strong>Closed periods:</strong> no journal — manual, automatic or reversal — may be dated on or before a GL closure (<code>POST /glclosures</code>); it is rejected with <code>400 GL_PERIOD_CLOSED</code>. Journal lines carry no office, so a closure for any office closes the ledger up to its date. Other errors: <code>400 UNBALANCED_ENTRY</code>, <code>400 MANUAL_ENTRY_NOT_ALLOWED</code>, <code>400 GL_ACCOUNT_NOT_FOUND</code>, <code>400 GL_ACCOUNT_NOT_POSTABLE</code>.</p>
+
 <h3>Opening balances (one-time migration journal)</h3>
 <p>Brings customer balances that pre-date GL posting into the ledger exactly as they are (ISA 510 — no accrued interest or other income is booked on migration day). For each control account and currency it posts <code>customerBalance − ledgerBalance</code> (so movements already posted since go-live aren't counted twice) against the clearing account <code>EQUITY_MIGRATION_CLEARING</code> (GL 3900) in the same currency. The rest of the legacy trial balance (cash, nostro, capital, retained earnings) is then loaded against 3900 as manual journals; <strong>once migration is complete 3900 must be zero in every currency</strong>. Scope <code>DEPOSITS</code> covers deposit accounts (savings control and overdraft portfolio); loans, term deposits and shares get their own scope with their GL posting.</p>
 <table>
@@ -2627,7 +2638,7 @@ Content-Type: application/json
 <!-- TRIAL BALANCE — Session 113 ─────────────────────────────────────────── -->
 <section id="trial-balance">
 <h2>Trial Balance <span style="font-size:.75rem;font-weight:400;color:#1d4ed8;background:#dbeafe;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Session 113</span></h2>
-<p>Generates a full trial balance for a given date range. Returns per-GL-account opening balance (movements before <code>fromDate</code>), debit movement, credit movement, and closing balance. Accounts are grouped by type (ASSET → LIABILITY → EQUITY → INCOME → EXPENSE). The <code>balanced</code> flag confirms Σ debits = Σ credits for the period — a mismatch indicates missing or asymmetric journal entries.</p>
+<p>A trial balance <strong>per GL account and currency</strong> for a date range: opening balance (lines before <code>fromDate</code>), debit and credit movement in the range, and closing balance. Double entry holds within each currency, never across them, so amounts in different currencies are never added together: <code>currencies[]</code> gives each currency's totals and its own <code>balanced</code> flag — true when the period's debits equal its credits <em>and</em> the closing debit balances equal the closing credit balances. The top-level <code>balanced</code> is true when every currency balances. A reversed journal and its reversal both count, so together they net to zero.</p>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
 <tr><td>GET</td><td>/api/v1/accounting/trial-balance</td><td>Generate trial balance — query params: <code>fromDate</code> (YYYY-MM-DD), <code>toDate</code> (YYYY-MM-DD)</td><td>ADMIN, TELLER</td></tr>
@@ -2635,29 +2646,24 @@ Content-Type: application/json
 <h4>Response shape</h4>
 <pre><code>{
   "data": {
-    "fromDate": "2026-04-01",
-    "toDate": "2026-04-25",
+    "fromDate": "2026-09-01",
+    "toDate": "2026-09-29",
     "rows": [
-      {
-        "glCode": "1001",
-        "accountName": "Cash at Bank",
-        "accountType": "ASSET",
-        "openingBalance": 1500000.0000,
-        "debitMovement": 250000.0000,
-        "creditMovement": 80000.0000,
-        "closingBalance": 1670000.0000
-      }
+      { "glCode": "1001", "accountName": "Cash on Hand", "accountType": "ASSET", "currencyCode": "USD",
+        "openingBalance": 1500.0000, "debitMovement": 250.0000, "creditMovement": 80.0000, "closingBalance": 1670.0000 },
+      { "glCode": "2001", "accountName": "Customer Deposits", "accountType": "LIABILITY", "currencyCode": "USD",
+        "openingBalance": -1500.0000, "debitMovement": 80.0000, "creditMovement": 250.0000, "closingBalance": -1670.0000 }
     ],
-    "totalDebitMovement": 250000.0000,
-    "totalCreditMovement": 250000.0000,
-    "totalClosingDebit": 1670000.0000,
-    "totalClosingCredit": 1670000.0000,
+    "currencies": [
+      { "currencyCode": "USD", "totalDebitMovement": 330.0000, "totalCreditMovement": 330.0000,
+        "totalClosingDebit": 1670.0000, "totalClosingCredit": 1670.0000, "balanced": true }
+    ],
     "balanced": true
   },
   "meta": {},
   "errors": []
 }</code></pre>
-<p><strong>Notes:</strong> Only <code>DETAIL</code>-usage, non-disabled GL accounts appear. <code>openingBalance</code> is net (positive = net debit, negative = net credit) of all non-reversed journal entries before <code>fromDate</code>. <code>closingBalance = openingBalance + debitMovement − creditMovement</code>.</p>
+<p><strong>Notes:</strong> Only <code>DETAIL</code> accounts with at least one line up to <code>toDate</code> appear — disabled accounts included, since leaving out a balance would unbalance the report. Balances are debit-positive (negative = net credit). <code>closingBalance = openingBalance + debitMovement − creditMovement</code>. A functional-currency view (translated at IAS 21 rates) is not produced.</p>
 </section>
 
 <!-- PROVISIONING CRITERIA ───────────────────────────────────────────────── -->
@@ -3219,9 +3225,9 @@ Content-Type: application/json
 <tr><td>POST</td><td>/api/v1/glaccounts</td><td>Create GL account</td><td>ADMIN</td></tr>
 <tr><td>PUT</td><td>/api/v1/glaccounts/{id}</td><td>Update GL account</td><td>ADMIN</td></tr>
 <tr><td>DELETE</td><td>/api/v1/glaccounts/{id}</td><td>Delete GL account</td><td>ADMIN</td></tr>
-<tr><td>GET</td><td>/api/v1/journalentries</td><td>List journal entries</td><td>ADMIN</td></tr>
-<tr><td>POST</td><td>/api/v1/journalentries</td><td>Create manual journal entry</td><td>ADMIN</td></tr>
-<tr><td>POST</td><td>/api/v1/journalentries/{id}/reverse</td><td>Reverse journal entry</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/journalentries</td><td>List journal lines between <code>from</code> and <code>to</code> (both required)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/journalentries</td><td>Post a manual journal (one currency; debits = credits)</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/journalentries/{id}/reverse</td><td>Reverse the whole manual journal the line belongs to</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/api/v1/glclosures</td><td>List GL closures</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/glclosures</td><td>Close accounting period</td><td>ADMIN</td></tr>
 <!-- Reports -->

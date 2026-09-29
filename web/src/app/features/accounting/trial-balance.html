@@ -45,96 +45,104 @@
 
   <!-- Report -->
   @if (report && !loading) {
-    <!-- Totals summary -->
-    <div class="summary-row">
-      <div class="summary-card">
-        <span class="summary-label">Period Debits</span>
-        <span class="summary-value">{{ report.totalDebitMovement | number:'1.2-2' }}</span>
+    <!-- One trial balance per currency: double entry balances within a currency, never across them. -->
+    @for (cur of report.currencies; track cur.currencyCode) {
+      <div class="section-header">
+        <h2 class="section-title">{{ cur.currencyCode }}</h2>
+        <span class="balance-badge" [class.balance-badge--ok]="cur.balanced" [class.balance-badge--err]="!cur.balanced">
+          <span class="material-icons">{{ cur.balanced ? 'check_circle' : 'error' }}</span>
+          {{ cur.balanced ? 'Balanced' : 'OUT OF BALANCE' }}
+        </span>
       </div>
-      <div class="summary-card">
-        <span class="summary-label">Period Credits</span>
-        <span class="summary-value">{{ report.totalCreditMovement | number:'1.2-2' }}</span>
-      </div>
-      <div class="summary-card">
-        <span class="summary-label">Closing Debit Total</span>
-        <span class="summary-value">{{ report.totalClosingDebit | number:'1.2-2' }}</span>
-      </div>
-      <div class="summary-card">
-        <span class="summary-label">Closing Credit Total</span>
-        <span class="summary-value">{{ report.totalClosingCredit | number:'1.2-2' }}</span>
-      </div>
-    </div>
 
-    <!-- Account type sections -->
-    @for (group of groupedRows(); track group.type) {
-      <div class="section-card">
-        <div class="section-header">
-          <h3 class="section-title">{{ group.type }}</h3>
-          <span class="section-count">{{ group.rows.length }} accounts</span>
+      <div class="summary-row">
+        <div class="summary-card">
+          <span class="summary-label">Period Debits</span>
+          <span class="summary-value">{{ cur.totalDebitMovement | number:'1.2-2' }}</span>
         </div>
+        <div class="summary-card">
+          <span class="summary-label">Period Credits</span>
+          <span class="summary-value">{{ cur.totalCreditMovement | number:'1.2-2' }}</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">Closing Debit Total</span>
+          <span class="summary-value">{{ cur.totalClosingDebit | number:'1.2-2' }}</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">Closing Credit Total</span>
+          <span class="summary-value">{{ cur.totalClosingCredit | number:'1.2-2' }}</span>
+        </div>
+      </div>
 
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>GL Code</th>
-              <th>Account Name</th>
-              <th class="col-num">Opening Balance</th>
-              <th class="col-num">Debit Movement</th>
-              <th class="col-num">Credit Movement</th>
-              <th class="col-num">Closing Balance</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (row of group.rows; track row.glCode) {
+      @for (group of groupedRows(cur.currencyCode); track group.type) {
+        <div class="section-card">
+          <div class="section-header">
+            <h3 class="section-title">{{ group.type }}</h3>
+            <span class="section-count">{{ group.rows.length }} accounts</span>
+          </div>
+
+          <table class="data-table">
+            <thead>
               <tr>
-                <td class="gl-code">{{ row.glCode }}</td>
-                <td>{{ row.accountName }}</td>
-                <td class="col-num" [class.val-positive]="row.openingBalance > 0" [class.val-negative]="row.openingBalance < 0">
-                  {{ row.openingBalance | number:'1.2-2' }}
-                </td>
-                <td class="col-num">{{ row.debitMovement | number:'1.2-2' }}</td>
-                <td class="col-num">{{ row.creditMovement | number:'1.2-2' }}</td>
-                <td class="col-num" [class.val-positive]="row.closingBalance > 0" [class.val-negative]="row.closingBalance < 0">
-                  {{ row.closingBalance | number:'1.2-2' }}
-                </td>
+                <th>GL Code</th>
+                <th>Account Name</th>
+                <th class="col-num">Opening Balance</th>
+                <th class="col-num">Debit Movement</th>
+                <th class="col-num">Credit Movement</th>
+                <th class="col-num">Closing Balance</th>
               </tr>
-            }
-          </tbody>
+            </thead>
+            <tbody>
+              @for (row of group.rows; track row.glCode) {
+                <tr>
+                  <td class="gl-code">{{ row.glCode }}</td>
+                  <td>{{ row.accountName }}</td>
+                  <td class="col-num" [class.val-positive]="row.openingBalance > 0" [class.val-negative]="row.openingBalance < 0">
+                    {{ row.openingBalance | number:'1.2-2' }}
+                  </td>
+                  <td class="col-num">{{ row.debitMovement | number:'1.2-2' }}</td>
+                  <td class="col-num">{{ row.creditMovement | number:'1.2-2' }}</td>
+                  <td class="col-num" [class.val-positive]="row.closingBalance > 0" [class.val-negative]="row.closingBalance < 0">
+                    {{ row.closingBalance | number:'1.2-2' }}
+                  </td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr class="subtotal-row">
+                <td colspan="2">{{ group.type }} SUBTOTAL</td>
+                <td class="col-num">{{ subtotal(group.rows, 'openingBalance') | number:'1.2-2' }}</td>
+                <td class="col-num">{{ subtotal(group.rows, 'debitMovement') | number:'1.2-2' }}</td>
+                <td class="col-num">{{ subtotal(group.rows, 'creditMovement') | number:'1.2-2' }}</td>
+                <td class="col-num">{{ subtotal(group.rows, 'closingBalance') | number:'1.2-2' }}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      }
+
+      <div class="grand-total-card">
+        <table class="data-table">
           <tfoot>
-            <tr class="subtotal-row">
-              <td colspan="2">{{ group.type }} SUBTOTAL</td>
-              <td class="col-num">{{ subtotal(group.rows, 'openingBalance') | number:'1.2-2' }}</td>
-              <td class="col-num">{{ subtotal(group.rows, 'debitMovement') | number:'1.2-2' }}</td>
-              <td class="col-num">{{ subtotal(group.rows, 'creditMovement') | number:'1.2-2' }}</td>
-              <td class="col-num">{{ subtotal(group.rows, 'closingBalance') | number:'1.2-2' }}</td>
+            <tr class="grand-total-row">
+              <td colspan="2">{{ cur.currencyCode }} TOTAL</td>
+              <td class="col-num">{{ subtotal(rowsFor(cur.currencyCode), 'openingBalance') | number:'1.2-2' }}</td>
+              <td class="col-num">{{ cur.totalDebitMovement | number:'1.2-2' }}</td>
+              <td class="col-num">{{ cur.totalCreditMovement | number:'1.2-2' }}</td>
+              <td class="col-num" [class.val-positive]="subtotal(rowsFor(cur.currencyCode), 'closingBalance') !== 0">
+                {{ subtotal(rowsFor(cur.currencyCode), 'closingBalance') | number:'1.2-2' }}
+              </td>
             </tr>
           </tfoot>
         </table>
       </div>
-    }
 
-    <!-- Grand total row -->
-    <div class="grand-total-card">
-      <table class="data-table">
-        <tfoot>
-          <tr class="grand-total-row">
-            <td colspan="2">GRAND TOTAL</td>
-            <td class="col-num">{{ subtotal(report.rows, 'openingBalance') | number:'1.2-2' }}</td>
-            <td class="col-num">{{ report.totalDebitMovement | number:'1.2-2' }}</td>
-            <td class="col-num">{{ report.totalCreditMovement | number:'1.2-2' }}</td>
-            <td class="col-num" [class.val-positive]="subtotal(report.rows, 'closingBalance') !== 0">
-              {{ subtotal(report.rows, 'closingBalance') | number:'1.2-2' }}
-            </td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-
-    @if (!report.balanced) {
-      <div class="imbalance-warning">
-        <span class="material-icons">warning</span>
-        Trial balance is out of balance — total debits ({{ report.totalDebitMovement | number:'1.2-2' }}) ≠ total credits ({{ report.totalCreditMovement | number:'1.2-2' }}). Check for missing journal entries.
-      </div>
+      @if (!cur.balanced) {
+        <div class="imbalance-warning">
+          <span class="material-icons">warning</span>
+          {{ cur.currencyCode }} is out of balance — period debits ({{ cur.totalDebitMovement | number:'1.2-2' }}) vs credits ({{ cur.totalCreditMovement | number:'1.2-2' }}); closing debits ({{ cur.totalClosingDebit | number:'1.2-2' }}) vs credits ({{ cur.totalClosingCredit | number:'1.2-2' }}). Check for missing or one-sided journal entries.
+        </div>
+      }
     }
   }
 

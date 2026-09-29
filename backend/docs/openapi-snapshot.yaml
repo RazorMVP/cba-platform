@@ -856,6 +856,17 @@ components:
         meta:
           $ref: "#/components/schemas/PageMeta"
       type: "object"
+    ApiResponseJournalReversalResponse:
+      properties:
+        data:
+          $ref: "#/components/schemas/JournalReversalResponse"
+        errors:
+          items:
+            $ref: "#/components/schemas/ApiError"
+          type: "array"
+        meta:
+          $ref: "#/components/schemas/PageMeta"
+      type: "object"
     ApiResponseLiquidityPositionDto:
       properties:
         data:
@@ -1203,11 +1214,11 @@ components:
         meta:
           $ref: "#/components/schemas/PageMeta"
       type: "object"
-    ApiResponseListJournalEntry:
+    ApiResponseListJournalEntryResponse:
       properties:
         data:
           items:
-            $ref: "#/components/schemas/JournalEntry"
+            $ref: "#/components/schemas/JournalEntryResponse"
           type: "array"
         errors:
           items:
@@ -4383,6 +4394,21 @@ components:
           - "UNAVAILABLE"
           type: "string"
       type: "object"
+    CurrencyTotals:
+      properties:
+        balanced:
+          type: "boolean"
+        currencyCode:
+          type: "string"
+        totalClosingCredit:
+          type: "number"
+        totalClosingDebit:
+          type: "number"
+        totalCreditMovement:
+          type: "number"
+        totalDebitMovement:
+          type: "number"
+      type: "object"
     Customer:
       properties:
         activationDate:
@@ -6085,7 +6111,7 @@ components:
             type: "string"
           type: "array"
       type: "object"
-    JournalEntry:
+    JournalEntryResponse:
       properties:
         amount:
           type: "number"
@@ -6111,11 +6137,18 @@ components:
           - "DEBIT"
           - "CREDIT"
           type: "string"
-        glAccount:
-          $ref: "#/components/schemas/GlAccount"
+        glAccountCode:
+          type: "string"
+        glAccountId:
+          format: "uuid"
+          type: "string"
+        glAccountName:
+          type: "string"
         id:
           format: "uuid"
           type: "string"
+        manual:
+          type: "boolean"
         positionCurrency:
           type: "string"
         postedAt:
@@ -6123,14 +6156,26 @@ components:
           type: "string"
         referenceNumber:
           type: "string"
-        reversalOf:
-          $ref: "#/components/schemas/JournalEntry"
+        reversalOfId:
+          format: "uuid"
+          type: "string"
         reversed:
           type: "boolean"
         transactionDate:
           format: "date"
           type: "string"
         transactionId:
+          type: "string"
+      type: "object"
+    JournalReversalResponse:
+      properties:
+        lines:
+          items:
+            $ref: "#/components/schemas/JournalEntryResponse"
+          type: "array"
+        reversalTransactionId:
+          type: "string"
+        reversedTransactionId:
           type: "string"
       type: "object"
     LinkRequest:
@@ -7264,13 +7309,16 @@ components:
           minItems: 1
           type: "array"
         currencyCode:
-          minLength: 1
+          maxLength: 3
+          minLength: 3
           type: "string"
         debits:
           items:
             $ref: "#/components/schemas/EntryLine"
           minItems: 1
           type: "array"
+        referenceNumber:
+          type: "string"
         transactionDate:
           format: "date"
           type: "string"
@@ -11387,6 +11435,10 @@ components:
       properties:
         balanced:
           type: "boolean"
+        currencies:
+          items:
+            $ref: "#/components/schemas/CurrencyTotals"
+          type: "array"
         fromDate:
           format: "date"
           type: "string"
@@ -11397,14 +11449,6 @@ components:
         toDate:
           format: "date"
           type: "string"
-        totalClosingCredit:
-          type: "number"
-        totalClosingDebit:
-          type: "number"
-        totalCreditMovement:
-          type: "number"
-        totalDebitMovement:
-          type: "number"
       type: "object"
     TrialBalanceRow:
       properties:
@@ -11416,6 +11460,8 @@ components:
           type: "number"
         creditMovement:
           type: "number"
+        currencyCode:
+          type: "string"
         debitMovement:
           type: "number"
         glCode:
@@ -16017,7 +16063,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ApiResponseListJournalEntry"
+                $ref: "#/components/schemas/ApiResponseListJournalEntryResponse"
           description: "OK"
       summary: "List journal entries for a date range"
       tags:
@@ -16035,9 +16081,10 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ApiResponseListJournalEntry"
+                $ref: "#/components/schemas/ApiResponseListJournalEntryResponse"
           description: "OK"
-      summary: "Post manual journal entries (balanced debit/credit pairs)"
+      summary: "Post a manual journal: any number of debit and credit lines, balanced,\
+        \ in one currency"
       tags:
       - "GL Accounting"
   /api/v1/journalentries/opening-balances:
@@ -16100,9 +16147,10 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ApiResponseVoid"
+                $ref: "#/components/schemas/ApiResponseJournalReversalResponse"
           description: "OK"
-      summary: "Reverse a journal entry"
+      summary: "Reverse the whole manual journal the entry belongs to; sub-ledger\
+        \ journals are reversed at their source"
       tags:
       - "GL Accounting"
   /api/v1/loan-products:

@@ -12,8 +12,10 @@ export interface JournalEntryGroup {
   entryDate:     string;
   reference?:    string;
   comments?:     string;
-  createdByType: string;
+  createdByType: string;   // 'USER' = manual journal, 'SYSTEM' = posted by a sub-ledger
+  currencyCode:  string;
   reversed:      boolean;
+  isReversal:    boolean;
   debits:        JournalEntry[];
   credits:       JournalEntry[];
   totalDebit:    number;
@@ -65,6 +67,7 @@ export class JournalEntriesComponent implements OnInit {
   createError     = '';
 
   entryDate   = '';
+  entryCurrency = 'USD';
   entryRef    = '';
   entryNote   = '';
   debitLines:  JournalLine[] = [this.blankLine(), this.blankLine()];
@@ -87,21 +90,25 @@ export class JournalEntriesComponent implements OnInit {
   }
 
   loadEntries(): void {
+    if (!this.dateFrom || !this.dateTo) { this.error = 'Choose a date range.'; this.loading = false; return; }
     this.loading = true;
-    const params: Record<string, string> = {};
-    if (this.dateFrom)   params['fromDate']     = this.dateFrom;
-    if (this.dateTo)     params['toDate']       = this.dateTo;
-    if (this.typeFilter) params['manualEntries'] = this.typeFilter === 'USER' ? 'true' : 'false';
-    if (this.glCodeQuery) params['glAccountCode'] = this.glCodeQuery;
-
-    this.svc.listJournalEntries(params).subscribe({
-      next: page => {
-        this.groups     = this.groupEntries(page.content ?? []);
-        this.totalItems = page.totalElements ?? 0;
+    this.error   = '';
+    this.svc.listJournalEntries(this.dateFrom, this.dateTo).subscribe({
+      next: entries => {
+        this.groups     = this.applyFilters(this.groupEntries(entries ?? []));
+        this.totalItems = this.groups.length;
         this.loading    = false;
       },
-      error: () => { this.error = 'Failed to load journal entries.'; this.loading = false; },
+      error: err => { this.error = this.messageOf(err, 'Failed to load journal entries.'); this.loading = false; },
     });
+  }
+
+  /** Type and GL-code filters are applied here: the API filters by date only. */
+  private applyFilters(groups: JournalEntryGroup[]): JournalEntryGroup[] {
+    const code = this.glCodeQuery.trim().toLowerCase();
+    return groups.filter(g =>
+      (!this.typeFilter || g.createdByType === this.typeFilter) &&
+      (!code || [...g.debits, ...g.credits].some(e => e.glAccountCode.toLowerCase().includes(code))));
   }
 
   private groupEntries(entries: JournalEntry[]): JournalEntryGroup[] {
@@ -110,11 +117,13 @@ export class JournalEntriesComponent implements OnInit {
       if (!map.has(e.transactionId)) {
         map.set(e.transactionId, {
           transactionId: e.transactionId,
-          entryDate:     e.entryDate,
-          reference:     e.referenceNumber,
-          comments:      e.comments,
-          createdByType: e.createdByType,
+          entryDate:     e.transactionDate,
+          reference:     e.referenceNumber ?? undefined,
+          comments:      e.description ?? undefined,
+          createdByType: e.manual ? 'USER' : 'SYSTEM',
+          currencyCode:  e.currencyCode,
           reversed:      e.reversed,
+          isReversal:    !!e.reversalOfId,
           debits:        [],
           credits:       [],
           totalDebit:    0,
@@ -122,7 +131,7 @@ export class JournalEntriesComponent implements OnInit {
         });
       }
       const g = map.get(e.transactionId)!;
-      if (e.type === 'DEBIT')  { g.debits.push(e);  g.totalDebit  += e.amount; }
+      if (e.entryType === 'DEBIT') { g.debits.push(e);  g.totalDebit  += e.amount; }
       else                     { g.credits.push(e); g.totalCredit += e.amount; }
     }
     return Array.from(map.values()).sort(
@@ -149,7 +158,7 @@ export class JournalEntriesComponent implements OnInit {
         this.reverseWorking   = false;
         this.loadEntries();
       },
-      error: () => { this.reverseError = 'Reversal failed.'; this.reverseWorking = false; },
+      error: err => { this.reverseError = this.messageOf(err, 'Reversal failed.'); this.reverseWorking = false; },
     });
   }
 
@@ -164,6 +173,7 @@ export class JournalEntriesComponent implements OnInit {
     this.entryRef        = '';
     this.entryNote       = '';
     this.entryDate       = new Date().toISOString().slice(0, 10);
+    this.entryCurrency   = 'USD';
     this.debitLines      = [this.blankLine(), this.blankLine()];
     this.creditLines     = [this.blankLine(), this.blankLine()];
   }
@@ -179,12 +189,11 @@ export class JournalEntriesComponent implements OnInit {
   }
 
   submitCreate(): void {
-    if (!this.isBalanced || !this.entryDate) return;
+    if (!this.isBalanced || !this.entryDate || this.entryCurrency.trim().length !== 3) return;
     this.createWorking = true;
     const req: ManualJournalRequest = {
       transactionDate: this.entryDate,
-      locale: 'en',
-      dateFormat: 'yyyy-MM-dd',
+      currencyCode:    this.entryCurrency.trim().toUpperCase(),
       referenceNumber: this.entryRef  || undefined,
       comments:        this.entryNote || undefined,
       debits:  this.toLines(this.debitLines),
@@ -196,7 +205,10 @@ export class JournalEntriesComponent implements OnInit {
         this.createWorking   = false;
         this.loadEntries();
       },
-      error: () => { this.createError = 'Failed to post entry. Ensure accounts are valid and balanced.'; this.createWorking = false; },
+      error: err => {
+        this.createError = this.messageOf(err, 'Failed to post entry. Ensure accounts are valid and balanced.');
+        this.createWorking = false;
+      },
     });
   }
 
@@ -212,9 +224,21 @@ export class JournalEntriesComponent implements OnInit {
   private sumLines(lines: JournalLine[]): number {
     return lines.reduce((s, l) => s + (l.amount ?? 0), 0);
   }
+  /** The API takes GL codes; the form picks accounts by id. */
   private toLines(lines: JournalLine[]): ManualJournalLine[] {
     return lines
       .filter(l => l.glAccountId && (l.amount ?? 0) > 0)
-      .map(l => ({ glAccountId: l.glAccountId, amount: l.amount!, comments: l.comments || undefined }));
+      .map(l => ({
+        glCode: this.glAccounts.find(a => a.id === l.glAccountId)?.glCode ?? '',
+        amount: l.amount!,
+        description: l.comments || undefined,
+      }))
+      .filter(l => l.glCode);
+  }
+
+  /** The API's own error message (e.g. SUBLEDGER_JOURNAL_NOT_REVERSIBLE, GL_PERIOD_CLOSED), else a fallback. */
+  private messageOf(err: unknown, fallback: string): string {
+    const e = err as { error?: { errors?: { message?: string }[] } } | null;
+    return e?.error?.errors?.[0]?.message || fallback;
   }
 }

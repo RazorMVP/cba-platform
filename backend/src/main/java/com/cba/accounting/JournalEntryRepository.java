@@ -15,6 +15,9 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, UUID
     List<JournalEntry> findByEntityTypeAndEntityId(
             JournalEntry.EntityType entityType, UUID entityId);
 
+    /** Every line of one journal. */
+    List<JournalEntry> findByTransactionIdOrderByIdAsc(String transactionId);
+
     java.util.Optional<JournalEntry> findFirstByEntityTypeAndReferenceNumber(
             JournalEntry.EntityType entityType, String referenceNumber);
 

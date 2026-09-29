@@ -27,7 +27,17 @@ public class FinancialActivityAccount {
         EXPENSE_LOAN_LOSS_PROVISION,
         EXPENSE_WRITE_OFF,
         /** Debit side of interest credited to savings; credit side is LIABILITY_SAVINGS_CONTROL. */
-        EXPENSE_INTEREST_ON_SAVINGS
+        EXPENSE_INTEREST_ON_SAVINGS,
+        /** Overdrawn deposit balances: a loan to the customer, not a negative deposit. */
+        ASSET_OVERDRAFT_PORTFOLIO,
+        /** Cross-currency position, posted in each foreign currency. */
+        ASSET_FX_POSITION,
+        /** Functional-currency equivalent of ASSET_FX_POSITION. */
+        ASSET_FX_POSITION_EQUIVALENT,
+        /** Realised and revaluation exchange differences (IAS 21 §28). */
+        INCOME_FX_GAIN_LOSS,
+        /** Teller cash count differences at session close. */
+        EXPENSE_CASH_OVER_SHORT
     }
 
     @Id

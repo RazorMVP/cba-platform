@@ -31,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 import java.util.Locale;
 
@@ -49,6 +50,7 @@ public class PaymentService {
     private final StandingOrderRepository       standingOrderRepository;
     private final ApplicationEventPublisher     eventPublisher;
     private final com.cba.payment.gateway.ExternalPaymentGateway externalPaymentGateway;
+    private final com.cba.account.AccountGlPosting accountGlPosting;
 
     @Lazy
     @Autowired(required = false)
@@ -130,6 +132,8 @@ public class PaymentService {
         payment = paymentRepository.save(payment);
 
         // Apply double-entry: debit source in source currency, credit destination in its currency
+        BigDecimal srcBefore = source.getBalance();
+        BigDecimal dstBefore = destination.getBalance();
         BigDecimal srcOnHold = accountHoldRepository.sumActiveHoldsByAccount(source.getId());
         BigDecimal srcEffectiveAvailable = source.getBalance().subtract(srcOnHold)
                 .subtract(source.computeEffectiveFloor());
@@ -138,8 +142,13 @@ public class PaymentService {
         accountRepository.save(source);
         accountRepository.save(destination);
 
-        // Immutable transaction records (each account's ledger in its own currency)
+        // Same transaction as the balance change: a missing GL mapping, exchange rate or
+        // functional currency rejects the transfer instead of leaving it unposted.
         String ref = payment.getReferenceNumber();
+        accountGlPosting.postTransfer(source, srcBefore, destination, dstBefore, LocalDate.now(),
+            "Transfer " + source.getAccountNumber() + " → " + destination.getAccountNumber(), ref, payment.getId());
+
+        // Immutable transaction records (each account's ledger in its own currency)
         transactionRepository.save(Transaction.of(source, TransactionType.TRANSFER_DEBIT,
             request.amount(), source.getBalance(),
             "Transfer to " + destination.getAccountNumber(), ref, createdBy));
@@ -244,19 +253,26 @@ public class PaymentService {
         // Re-assign to correct roles
         if (!src.getId().equals(srcId)) { Account tmp = src; src = dst; dst = tmp; }
 
-        // Swap: credit back source, debit destination
-        src.credit(original.getAmount());
+        // Swap: credit back source, debit destination, each in its own currency. A
+        // cross-currency payment credited the destination its converted amount, so that
+        // is what comes back out of it (not the source-currency amount).
+        BigDecimal srcAmount = original.getAmount();
+        BigDecimal dstAmount = original.isCrossCurrency() && original.getDestinationAmount() != null
+                ? original.getDestinationAmount() : original.getAmount();
+        BigDecimal srcBefore = src.getBalance();
+        BigDecimal dstBefore = dst.getBalance();
+        src.credit(srcAmount);
         BigDecimal dstOnHold = accountHoldRepository.sumActiveHoldsByAccount(dst.getId());
         BigDecimal dstEffectiveAvailable = dst.getBalance().subtract(dstOnHold)
                 .subtract(dst.computeEffectiveFloor());
-        dst.debit(original.getAmount(), dstEffectiveAvailable);
+        dst.debit(dstAmount, dstEffectiveAvailable);
         accountRepository.save(src);
         accountRepository.save(dst);
 
         String ref = "REV-" + original.getReferenceNumber();
-        Transaction srcTx = Transaction.of(src, TransactionType.TRANSFER_CREDIT, original.getAmount(),
+        Transaction srcTx = Transaction.of(src, TransactionType.TRANSFER_CREDIT, srcAmount,
                 src.getBalance(), "Reversal of " + original.getReferenceNumber(), ref, reversedBy);
-        Transaction dstTx = Transaction.of(dst, TransactionType.TRANSFER_DEBIT, original.getAmount(),
+        Transaction dstTx = Transaction.of(dst, TransactionType.TRANSFER_DEBIT, dstAmount,
                 dst.getBalance(), "Reversal of " + original.getReferenceNumber(), ref, reversedBy);
         transactionRepository.save(srcTx);
         transactionRepository.save(dstTx);
@@ -272,14 +288,28 @@ public class PaymentService {
         reversal.setReferenceNumber(ref);
         reversal.setSourceAccount(original.getDestinationAccount());
         reversal.setDestinationAccount(original.getSourceAccount());
-        reversal.setAmount(original.getAmount());
-        reversal.setCurrencyCode(original.getCurrencyCode());
+        reversal.setAmount(dstAmount);
+        reversal.setCurrencyCode(dst.getCurrencyCode());
+        if (original.isCrossCurrency()) {
+            reversal.setCrossCurrency(true);
+            reversal.setSourceCurrency(dst.getCurrencyCode());
+            reversal.setSourceAmount(dstAmount);
+            reversal.setDestinationCurrency(src.getCurrencyCode());
+            reversal.setDestinationAmount(srcAmount);
+            reversal.setExchangeRateUsed(original.getExchangeRateUsed());
+        }
         reversal.setPaymentType(PaymentType.INTERNAL_TRANSFER);
         reversal.setStatus(PaymentStatus.COMPLETED);
         reversal.setDescription("Reversal: " + request.reason());
         reversal.setExecutedDate(Instant.now());
         reversal.setReversalOf(original);
         Payment saved = paymentRepository.save(reversal);
+
+        // The reversal is a new transaction on today's date: customer amounts come back
+        // exactly, FX equivalents use today's spot rate and any difference is realised
+        // (IAS 21 §21, §28). The original journal stays as posted.
+        accountGlPosting.postTransfer(dst, dstBefore, src, srcBefore, LocalDate.now(),
+                "Reversal of " + original.getReferenceNumber(), ref, saved.getId());
 
         auditLogService.log("Payment", paymentId.toString(), "REVERSE", PaymentStatus.COMPLETED.name(), PaymentStatus.REVERSED.name());
         log.info("Payment reversed: {} by {}", original.getReferenceNumber(), reversedBy);

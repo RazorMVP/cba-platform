@@ -1,7 +1,7 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { AccountingService, FinancialActivityAccount, FinancialActivityRequest } from './accounting.service';
+import { AccountingService, FinancialActivityAccount, FinancialActivityRequest, FinancialActivityType } from './accounting.service';
 
 @Component({
   selector: 'app-financial-activity-accounts',
@@ -28,18 +28,24 @@ export class FinancialActivityAccountsComponent implements OnInit {
   // GL accounts for picker (DETAIL type only)
   glAccounts: { id: string; glCode: string; name: string }[] = [];
 
-  readonly activityLabels: Record<string, string> = {
-    ASSET_FUND_SOURCE:              'Asset — Fund Source',
+  // One entry per backend FinancialActivity constant; the backend rejects any other value.
+  readonly activityLabels: Record<FinancialActivityType, string> = {
+    ASSET_FUND_SOURCE:              'Asset — Fund Source (Cash at Bank)',
+    ASSET_CASH_AT_TELLER:           'Asset — Cash at Teller',
+    ASSET_INTEREST_RECEIVABLE:      'Asset — Interest Receivable',
     ASSET_LOAN_PORTFOLIO:           'Asset — Loan Portfolio',
-    ASSET_RECEIVABLE:               'Asset — Receivable',
-    ASSET_OVERPAYMENT_LIABILITY:    'Asset — Overpayment / Liability',
-    LIABILITY_LINKED_TO_FLOAT:      'Liability — Linked to Float',
-    LIABILITY_PAYMENT_GATEWAY:      'Liability — Payment Gateway',
+    ASSET_OVERDRAFT_PORTFOLIO:      'Asset — Overdraft Portfolio',
+    ASSET_FX_POSITION:              'Asset — FX Position',
+    ASSET_FX_POSITION_EQUIVALENT:   'Asset — FX Position Equivalent',
+    LIABILITY_SAVINGS_CONTROL:      'Liability — Savings Control',
     LIABILITY_TRANSFER_IN_SUSPENSE: 'Liability — Transfer in Suspense',
     INCOME_INTEREST:                'Income — Interest',
-    INCOME_FEE:                     'Income — Fee',
-    EXPENSE_DEPRECIATION:           'Expense — Depreciation',
-    EXPENSE_LOAN_LOSSES:            'Expense — Loan Losses',
+    INCOME_FEES:                    'Income — Fees',
+    INCOME_FX_GAIN_LOSS:            'Income — Net FX Gains',
+    EXPENSE_LOAN_LOSS_PROVISION:    'Expense — Loan Loss Provision',
+    EXPENSE_WRITE_OFF:              'Expense — Write-off',
+    EXPENSE_INTEREST_ON_SAVINGS:    'Expense — Interest on Savings',
+    EXPENSE_CASH_OVER_SHORT:        'Expense — Cash Over and Short',
   };
 
   ngOnInit(): void {
@@ -99,7 +105,7 @@ export class FinancialActivityAccountsComponent implements OnInit {
   }
 
   activityLabel(activity: string): string {
-    return this.activityLabels[activity] ?? activity;
+    return this.activityLabels[activity as FinancialActivityType] ?? activity;
   }
 
   glAccountLabel(id: string): string {
@@ -107,5 +113,5 @@ export class FinancialActivityAccountsComponent implements OnInit {
     return g ? `${g.glCode} — ${g.name}` : id;
   }
 
-  activities = Object.keys(this.activityLabels);
+  activities = Object.keys(this.activityLabels) as FinancialActivityType[];
 }

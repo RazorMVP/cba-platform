@@ -32,7 +32,8 @@ class TellerServiceTest {
     @Mock TellerSessionRepository sessionRepository;
     @Mock CashTransactionRepository cashTransactionRepository;
     @Mock AccountRepository accountRepository;
-    @Mock TransactionRepository transactionRepository;
+    @Mock com.cba.account.AccountService accountService;
+    @Mock com.cba.account.AccountGlPosting accountGlPosting;
     @Mock AuditLogService auditLogService;
 
     @InjectMocks TellerService tellerService;
@@ -295,6 +296,24 @@ class TellerServiceTest {
             assertThat(session.getClosingBalance()).isEqualByComparingTo("1200.00");
             assertThat(session.getDifference()).isEqualByComparingTo("0.00");
             assertThat(session.getStatus()).isEqualTo(SessionStatus.CLOSED);
+            verifyNoInteractions(accountGlPosting); // nothing over or short, nothing to post
+        }
+
+        @Test
+        @DisplayName("posts a shortage to Cash Over and Short so Cash at Teller matches the count")
+        void closeSession_short_postsDifference() {
+            CloseSessionRequest req = new CloseSessionRequest(new BigDecimal("1190.00"), "short 10");
+            when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
+            when(cashTransactionRepository.sumBySessionIdAndType(sessionId, CashTransactionType.CASH_IN))
+                .thenReturn(new BigDecimal("300.00"));
+            when(cashTransactionRepository.sumBySessionIdAndType(sessionId, CashTransactionType.CASH_OUT))
+                .thenReturn(new BigDecimal("100.00"));
+            when(sessionRepository.save(any())).thenReturn(session);
+
+            tellerService.closeSession(sessionId, req);
+
+            verify(accountGlPosting).postCashCountDifference(
+                argThat(d -> d.compareTo(new BigDecimal("-10.00")) == 0), eq("USD"), any(), any(), eq(sessionId));
         }
 
         @Test
@@ -317,28 +336,22 @@ class TellerServiceTest {
     class RecordCashTransaction {
 
         @Test
-        @DisplayName("records cash-in without account link")
+        @DisplayName("rejects cash with no account: there is no GL account to post it against")
         void recordCashTransaction_cashIn_noAccount() {
             CashTransactionRequest req = new CashTransactionRequest(
                 CashTransactionType.CASH_IN, new BigDecimal("200.00"), "USD", null, "deposit"
             );
-            CashTransaction ct = new CashTransaction();
-            ct.setId(UUID.randomUUID());
-            ct.setSession(session);
-            ct.setTeller(teller);
-            ct.setCashier(cashier);
-            ct.setTransactionType(CashTransactionType.CASH_IN);
-            ct.setAmount(new BigDecimal("200.00"));
-
             when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
-            when(cashTransactionRepository.save(any())).thenReturn(ct);
 
-            var resp = tellerService.recordCashTransaction(sessionId, req);
-            assertThat(resp).isNotNull();
+            assertThatThrownBy(() -> tellerService.recordCashTransaction(sessionId, req))
+                .isInstanceOf(CbaException.class)
+                .hasMessageContaining("customer account");
+            verifyNoInteractions(accountService);
+            verify(cashTransactionRepository, never()).save(any());
         }
 
         @Test
-        @DisplayName("records cash-in linked to active account and updates balance")
+        @DisplayName("cash-in goes through AccountService.deposit (lock, GL journal)")
         void recordCashTransaction_cashIn_withAccount() {
             UUID accountId = UUID.randomUUID();
             Account account = buildActiveAccount(accountId, new BigDecimal("500.00"));
@@ -350,17 +363,17 @@ class TellerServiceTest {
 
             when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
             when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
-            when(accountRepository.save(any())).thenReturn(account);
-            when(transactionRepository.save(any())).thenReturn(mock(Transaction.class));
             when(cashTransactionRepository.save(any())).thenReturn(ct);
 
             var resp = tellerService.recordCashTransaction(sessionId, req);
             assertThat(resp).isNotNull();
-            assertThat(account.getBalance()).isEqualByComparingTo("700.00");
+            verify(accountService).deposit(eq(accountId), argThat(a -> a.compareTo(new BigDecimal("200.00")) == 0),
+                any(), eq("teller"));
+            verify(accountService, never()).withdraw(any(), any(), any(), any());
         }
 
         @Test
-        @DisplayName("records cash-out and debits account balance")
+        @DisplayName("cash-out goes through AccountService.withdraw (holds, floor, GL journal)")
         void recordCashTransaction_cashOut_withAccount() {
             UUID accountId = UUID.randomUUID();
             Account account = buildActiveAccount(accountId, new BigDecimal("500.00"));
@@ -372,12 +385,28 @@ class TellerServiceTest {
 
             when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
             when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
-            when(accountRepository.save(any())).thenReturn(account);
-            when(transactionRepository.save(any())).thenReturn(mock(Transaction.class));
             when(cashTransactionRepository.save(any())).thenReturn(ct);
 
             tellerService.recordCashTransaction(sessionId, req);
-            assertThat(account.getBalance()).isEqualByComparingTo("400.00");
+            verify(accountService).withdraw(eq(accountId), argThat(a -> a.compareTo(new BigDecimal("100.00")) == 0),
+                any(), eq("teller"));
+        }
+
+        @Test
+        @DisplayName("rejects cash in a currency other than the till's and the account's")
+        void recordCashTransaction_currencyMismatch_throws() {
+            UUID accountId = UUID.randomUUID();
+            Account account = buildActiveAccount(accountId, new BigDecimal("500.00"));
+            CashTransactionRequest req = new CashTransactionRequest(
+                CashTransactionType.CASH_IN, new BigDecimal("100.00"), "KES", accountId, null
+            );
+            when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
+            when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
+
+            assertThatThrownBy(() -> tellerService.recordCashTransaction(sessionId, req))
+                .isInstanceOf(CbaException.class).hasMessageContaining("KES");
+            verifyNoInteractions(accountService);
+            verify(cashTransactionRepository, never()).save(any());
         }
 
         @Test
@@ -395,7 +424,7 @@ class TellerServiceTest {
         }
 
         @Test
-        @DisplayName("throws when cash-out exceeds account balance")
+        @DisplayName("an AccountService rejection (insufficient funds) records no cash movement")
         void recordCashTransaction_insufficientFunds_throws() {
             UUID accountId = UUID.randomUUID();
             Account account = buildActiveAccount(accountId, new BigDecimal("50.00"));
@@ -406,10 +435,13 @@ class TellerServiceTest {
 
             when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
             when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
+            when(accountService.withdraw(any(), any(), any(), any()))
+                .thenThrow(CbaException.badRequest("BELOW_MINIMUM_BALANCE", "Insufficient available balance"));
 
             assertThatThrownBy(() -> tellerService.recordCashTransaction(sessionId, req))
                 .isInstanceOf(CbaException.class)
                 .hasMessageContaining("Insufficient");
+            verify(cashTransactionRepository, never()).save(any());
         }
 
         @Test

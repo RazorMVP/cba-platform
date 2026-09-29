@@ -1,14 +1,12 @@
 package com.cba.cob;
 
 import com.cba.account.Account;
+import com.cba.account.AccountGlPosting;
 import com.cba.account.AccountRepository;
 import com.cba.account.AccountStatus;
 import com.cba.account.Transaction;
 import com.cba.account.TransactionRepository;
 import com.cba.account.TransactionType;
-import com.cba.accounting.FinancialActivityAccount.FinancialActivity;
-import com.cba.accounting.GlAccountingService;
-import com.cba.accounting.JournalEntry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
@@ -41,11 +39,12 @@ import java.util.Map;
  * <p>For every account credited it writes, in the same chunk transaction:
  * <ul>
  *   <li>the balance change and an INTEREST_CREDIT {@link Transaction}, and</li>
- *   <li>the GL double entry: DR {@code EXPENSE_INTEREST_ON_SAVINGS} /
- *       CR {@code LIABILITY_SAVINGS_CONTROL}, dated by the business date.</li>
+ *   <li>the GL double entry: DR interest on savings / CR savings control, dated by the
+ *       business date — each resolved from the deposit product's GL links, else from
+ *       {@code EXPENSE_INTEREST_ON_SAVINGS} / {@code LIABILITY_SAVINGS_CONTROL}.</li>
  * </ul>
- * If either financial activity has no GL mapping the chunk rolls back and the job
- * fails — interest is never credited to a customer without its ledger entry.
+ * If an account has no GL mapping the chunk rolls back and the job fails — interest is
+ * never credited to a customer without its ledger entry.
  *
  * <p>Paging is safe here: the job changes balances, never status, so the ACTIVE
  * result set doesn't shift under the reader.
@@ -57,7 +56,7 @@ public class InterestAccrualJob {
 
     private final AccountRepository accountRepository;
     private final TransactionRepository transactionRepository;
-    private final GlAccountingService glAccountingService;
+    private final AccountGlPosting accountGlPosting;
 
     record AccrualResult(Account account, BigDecimal interestAmount) {}
 
@@ -126,21 +125,19 @@ public class InterestAccrualJob {
             for (AccrualResult result : results) {
                 Account account = result.account();
                 accounts.add(account);
+                String reference = "INT-" + System.currentTimeMillis() + "-" + account.getId().toString().substring(0, 8);
                 transactions.add(Transaction.of(
                         account,
                         TransactionType.INTEREST_CREDIT,
                         result.interestAmount(),
                         account.getBalance(),
                         "Daily interest accrual",
-                        "INT-" + System.currentTimeMillis() + "-" + account.getId().toString().substring(0, 8),
+                        reference,
                         "system"
                 ));
-                glAccountingService.postByActivity(
-                        FinancialActivity.EXPENSE_INTEREST_ON_SAVINGS,
-                        FinancialActivity.LIABILITY_SAVINGS_CONTROL,
-                        result.interestAmount(), account.getCurrencyCode(), businessDate,
-                        "Daily interest accrual " + account.getAccountNumber(),
-                        JournalEntry.EntityType.ACCOUNT, account.getId());
+                accountGlPosting.postInterestCredit(account,
+                        account.getBalance().subtract(result.interestAmount()), businessDate,
+                        "Daily interest accrual " + account.getAccountNumber(), reference);
             }
 
             accountRepository.saveAll(accounts);

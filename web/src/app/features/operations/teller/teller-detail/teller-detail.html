@@ -414,9 +414,9 @@
           </div>
         </div>
         <div class="form-field">
-          <label class="form-label">Account ID <span class="form-hint">(optional — links to customer account)</span></label>
+          <label class="form-label">Account ID <span class="form-hint">(required — the customer account credited or debited)</span></label>
           <input class="form-input" type="text" [(ngModel)]="cashTxnAccountId"
-                 placeholder="Paste account UUID to link" />
+                 placeholder="Paste account UUID" />
         </div>
         <div class="form-field">
           <label class="form-label">Description <span class="form-hint">(optional)</span></label>
@@ -428,7 +428,7 @@
       <div class="modal__footer">
         <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
         <button [class]="cashTxnType === 'CASH_IN' ? 'btn-success' : 'btn-warning'"
-                (click)="submitCashTxn()" [disabled]="modalWorking || cashTxnAmount <= 0">
+                (click)="submitCashTxn()" [disabled]="modalWorking || cashTxnAmount <= 0 || !cashTxnAccountId.trim()">
           @if (modalWorking) { <span class="spinner"></span> }
           {{ cashTxnType === 'CASH_IN' ? 'Record Cash In' : 'Record Cash Out' }}
         </button>

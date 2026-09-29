@@ -5254,6 +5254,11 @@ components:
           - "EXPENSE_LOAN_LOSS_PROVISION"
           - "EXPENSE_WRITE_OFF"
           - "EXPENSE_INTEREST_ON_SAVINGS"
+          - "ASSET_OVERDRAFT_PORTFOLIO"
+          - "ASSET_FX_POSITION"
+          - "ASSET_FX_POSITION_EQUIVALENT"
+          - "INCOME_FX_GAIN_LOSS"
+          - "EXPENSE_CASH_OVER_SHORT"
           type: "string"
         glAccount:
           $ref: "#/components/schemas/GlAccount"
@@ -5276,6 +5281,11 @@ components:
           - "EXPENSE_LOAN_LOSS_PROVISION"
           - "EXPENSE_WRITE_OFF"
           - "EXPENSE_INTEREST_ON_SAVINGS"
+          - "ASSET_OVERDRAFT_PORTFOLIO"
+          - "ASSET_FX_POSITION"
+          - "ASSET_FX_POSITION_EQUIVALENT"
+          - "INCOME_FX_GAIN_LOSS"
+          - "EXPENSE_CASH_OVER_SHORT"
           type: "string"
         glAccountId:
           format: "uuid"
@@ -6079,6 +6089,7 @@ components:
           - "ACCOUNT"
           - "TELLER_CASH"
           - "MANUAL"
+          - "PAYMENT"
           type: "string"
         entryType:
           enum:

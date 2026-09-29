@@ -89,9 +89,9 @@ describe('FinancialActivityAccountsComponent', () => {
 
     it('openEdit copies the item into the form', () => {
       const c = make();
-      c.openEdit(faa({ id: 'fa1', financialActivity: 'INCOME_FEE', glAccountId: 'glx' }));
+      c.openEdit(faa({ id: 'fa1', financialActivity: 'INCOME_FEES', glAccountId: 'glx' }));
       expect(c.editingId).toBe('fa1');
-      expect(c.form).toEqual({ financialActivity: 'INCOME_FEE', glAccountId: 'glx' });
+      expect(c.form).toEqual({ financialActivity: 'INCOME_FEES', glAccountId: 'glx' });
       expect(c.showModal).toBe(true);
     });
   });
@@ -100,9 +100,9 @@ describe('FinancialActivityAccountsComponent', () => {
     it('creates a new mapping and reloads', () => {
       const c = make();
       c.openCreate();
-      c.form = { financialActivity: 'INCOME_FEE', glAccountId: 'gl1' };
+      c.form = { financialActivity: 'INCOME_FEES', glAccountId: 'gl1' };
       c.save();
-      expect(svc.createFinancialActivityAccount).toHaveBeenCalledWith({ financialActivity: 'INCOME_FEE', glAccountId: 'gl1' });
+      expect(svc.createFinancialActivityAccount).toHaveBeenCalledWith({ financialActivity: 'INCOME_FEES', glAccountId: 'gl1' });
       expect(c.showModal).toBe(false);
       expect(svc.listFinancialActivityAccounts).toHaveBeenCalledTimes(2);
     });

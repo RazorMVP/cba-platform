@@ -3174,7 +3174,7 @@
                 "reverse"
               ]
             },
-            "description": "Reverse a completed payment. Creates offsetting ledger entries. Cannot reverse payments older than 24 hours without ADMIN role.",
+            "description": "Reverse a completed payment. Creates offsetting ledger entries. Cannot reverse payments older than 24 hours without ADMIN role.\n\n**Cross-currency** (fixed Session 125 cont. 15): the destination gives back the amount it was credited in its own currency (`destinationAmount`), not the source amount; the reversal's `amount`/`currencyCode` are the destination's. The reversal posts its own GL journal (entity `PAYMENT`) dated today; FX equivalents use today's spot rate and any difference is a realised exchange difference (IAS 21 \u00a728).",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"reason\": \"Duplicate payment \\u2014 customer request\"\n}",
@@ -4699,7 +4699,7 @@
                 "settle"
               ]
             },
-            "description": "Close the session with physical cash reconciliation. The system calculates `closing_balance` from transaction totals. `difference = actualCash - closing_balance`. A shortage or surplus is recorded for audit.",
+            "description": "Close the session with physical cash reconciliation. The system calculates `closing_balance` from transaction totals. `difference = actualCash - closing_balance`. A shortage or surplus is recorded for audit.\n\nA non-zero `difference` (actual \u2212 expected) is posted so Cash at Teller matches the count: over \u2192 DR Cash at Teller / CR Cash Over and Short (`EXPENSE_CASH_OVER_SHORT`); short \u2192 the reverse.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"actualCash\": \"4750.00\",\n  \"settlementNote\": \"Cash counted and verified by supervisor. $10 shortage \\u2014 under investigation.\"\n}",
@@ -4840,7 +4840,7 @@
                 "transactions"
               ]
             },
-            "description": "Record a CASH_IN (deposit) or CASH_OUT (withdrawal) transaction. When `accountId` is provided, the linked customer account balance is updated atomically and an immutable ledger entry is created. Use `transactionType: CASH_OUT` for withdrawals.",
+            "description": "Record a CASH_IN (deposit) or CASH_OUT (withdrawal) transaction. When `accountId` is provided, the linked customer account balance is updated atomically and an immutable ledger entry is created. Use `transactionType: CASH_OUT` for withdrawals.\n\n**accountId is required** (Session 125 cont. 15). Every till movement is posted to the GL against a customer account (Cash at Teller \u2194 the account's savings control), so a transaction with no account is rejected with `400 ACCOUNT_REQUIRED`. The currency (default: the session's) must match both the till and the account (`400 CURRENCY_MISMATCH`). The balance change goes through the account deposit/withdraw path: the account is locked, holds / minimum balance / lock-in apply, and the journal is written in the same transaction (`400 ACTIVITY_NOT_MAPPED` if a GL mapping is missing).",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"transactionType\": \"CASH_IN\",\n  \"amount\": \"250.00\",\n  \"currencyCode\": \"USD\",\n  \"accountId\": \"{{accountId}}\",\n  \"description\": \"Customer deposit \\u2014 savings account\"\n}",
@@ -4883,6 +4883,50 @@
             {
               "lang": "Ruby (Net::HTTP)",
               "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/api/v1/tellers/{{tellerId}}/sessions/{{sessionId}}/transactions')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Post.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq.body = \"{\\\"transactionType\\\": \\\"CASH_IN\\\", \\\"amount\\\": \\\"250.00\\\", \\\"currencyCode\\\": \\\"USD\\\", \\\"accountId\\\": \\\"{{accountId}}\\\", \\\"description\\\": \\\"Customer deposit \\\\u2014 savings account\\\"}\"\nputs http.request(req).body"
+            }
+          ],
+          "response": [
+            {
+              "name": "400 \u2014 no account",
+              "originalRequest": {},
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"ACCOUNT_REQUIRED\",\n      \"message\": \"A teller cash transaction must name the customer account it credits or debits\",\n      \"field\": null\n    }\n  ]\n}"
+            },
+            {
+              "name": "400 \u2014 currency mismatch",
+              "originalRequest": {},
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"CURRENCY_MISMATCH\",\n      \"message\": \"Cash in KES cannot move through a USD till into a USD account\",\n      \"field\": null\n    }\n  ]\n}"
+            },
+            {
+              "name": "400 \u2014 GL mapping missing",
+              "originalRequest": {},
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"ACTIVITY_NOT_MAPPED\",\n      \"message\": \"Financial activity ASSET_CASH_AT_TELLER has no GL account mapping\",\n      \"field\": null\n    }\n  ]\n}"
             }
           ]
         }
@@ -10644,7 +10688,7 @@
                 "jobs"
               ]
             },
-            "description": "",
+            "description": "The four nightly CoB jobs in run order (standing orders, dormancy, interest accrual, arrears). They run in sequence from one trigger at 23:55, each starting when the previous one finishes, so all four share the same cronExpression and nextRunTime. Each entry has its cron expression, next scheduled run, and the outcome of the most recent run (scheduled or manual). previousRunStatus is SUCCESS, FAILED or RUNNING, or null if the job never ran.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -10656,7 +10700,21 @@
               ]
             }
           },
-          "response": []
+          "response": [
+            {
+              "name": "200 OK (first two of four jobs shown)",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": [\n    {\n      \"jobName\": \"standingOrderExecutionJob\",\n      \"displayName\": \"Standing Order Execution\",\n      \"cronExpression\": \"0 55 23 * * ?\",\n      \"nextRunTime\": \"2026-09-24T22:55:00Z\",\n      \"previousRunStartTime\": \"2026-09-23T22:55:00.105Z\",\n      \"previousRunEndTime\": \"2026-09-23T22:55:01.422Z\",\n      \"previousRunStatus\": \"SUCCESS\",\n      \"active\": true,\n      \"currentlyRunning\": false\n    },\n    {\n      \"jobName\": \"dormancyClassificationJob\",\n      \"displayName\": \"Dormancy Classification\",\n      \"cronExpression\": \"0 56 23 * * ?\",\n      \"nextRunTime\": \"2026-09-24T22:56:00Z\",\n      \"previousRunStartTime\": \"2026-09-23T22:56:00.081Z\",\n      \"previousRunEndTime\": \"2026-09-23T22:56:00.390Z\",\n      \"previousRunStatus\": \"SUCCESS\",\n      \"active\": true,\n      \"currentlyRunning\": false\n    }\n  ],\n  \"errors\": []\n}"
+            }
+          ]
         },
         {
           "name": "Trigger Interest Accrual job",
@@ -10681,7 +10739,7 @@
                 "run"
               ]
             },
-            "description": "",
+            "description": "Runs the job now, synchronously, for today's business date, and returns the finished run. The call returns 200 even when the job itself ends FAILED: check data.status (SUCCESS / FAILED). 404 for an unknown job name; 409 COB_JOB_ALREADY_RUNNING if that job is already running.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -10693,7 +10751,34 @@
               ]
             }
           },
-          "response": []
+          "response": [
+            {
+              "name": "200 OK \u2014 run succeeded",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"412\",\n    \"jobName\": \"interestAccrualJob\",\n    \"businessDate\": \"2026-09-24\",\n    \"startTime\": \"2026-09-24T19:31:10.204Z\",\n    \"endTime\": \"2026-09-24T19:31:10.611Z\",\n    \"status\": \"SUCCESS\",\n    \"errorMessage\": null\n  },\n  \"errors\": []\n}"
+            },
+            {
+              "name": "409 Conflict \u2014 already running",
+              "status": "Conflict",
+              "code": 409,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"errors\": [\n    {\n      \"code\": \"COB_JOB_ALREADY_RUNNING\",\n      \"message\": \"Job interestAccrualJob is already running\",\n      \"field\": null\n    }\n  ]\n}"
+            }
+          ]
         },
         {
           "name": "Trigger Arrears Classification job",
@@ -10718,7 +10803,7 @@
                 "run"
               ]
             },
-            "description": "",
+            "description": "Runs the job now, synchronously, for today's business date, and returns the finished run. The call returns 200 even when the job itself ends FAILED: check data.status (SUCCESS / FAILED). 404 for an unknown job name; 409 COB_JOB_ALREADY_RUNNING if that job is already running.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -10730,7 +10815,21 @@
               ]
             }
           },
-          "response": []
+          "response": [
+            {
+              "name": "200 OK \u2014 run succeeded",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"412\",\n    \"jobName\": \"arrearsClassificationJob\",\n    \"businessDate\": \"2026-09-24\",\n    \"startTime\": \"2026-09-24T19:31:10.204Z\",\n    \"endTime\": \"2026-09-24T19:31:10.611Z\",\n    \"status\": \"SUCCESS\",\n    \"errorMessage\": null\n  },\n  \"errors\": []\n}"
+            }
+          ]
         },
         {
           "name": "Trigger Standing Orders job",
@@ -10755,7 +10854,7 @@
                 "run"
               ]
             },
-            "description": "",
+            "description": "Runs the job now, synchronously, for today's business date, and returns the finished run. The call returns 200 even when the job itself ends FAILED: check data.status (SUCCESS / FAILED). 404 for an unknown job name; 409 COB_JOB_ALREADY_RUNNING if that job is already running. Each due order runs in its own transaction; an order that fails (e.g. insufficient funds) is skipped and stays due for the next run, without affecting the others.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -10767,7 +10866,85 @@
               ]
             }
           },
-          "response": []
+          "response": [
+            {
+              "name": "200 OK \u2014 run succeeded",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"412\",\n    \"jobName\": \"standingOrderExecutionJob\",\n    \"businessDate\": \"2026-09-24\",\n    \"startTime\": \"2026-09-24T19:31:10.204Z\",\n    \"endTime\": \"2026-09-24T19:31:10.611Z\",\n    \"status\": \"SUCCESS\",\n    \"errorMessage\": null\n  },\n  \"errors\": []\n}"
+            },
+            {
+              "name": "200 OK \u2014 job ran but FAILED",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"413\",\n    \"jobName\": \"standingOrderExecutionJob\",\n    \"businessDate\": \"2026-09-24\",\n    \"startTime\": \"2026-09-24T19:32:02.010Z\",\n    \"endTime\": \"2026-09-24T19:32:02.144Z\",\n    \"status\": \"FAILED\",\n    \"errorMessage\": \"org.springframework.dao.DataAccessResourceFailureException: Unable to acquire JDBC Connection\"\n  },\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Trigger Dormancy Classification job",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/dormancyClassificationJob/run",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs",
+                "dormancyClassificationJob",
+                "run"
+              ]
+            },
+            "description": "Runs the job now, synchronously, for today's business date, and returns the finished run. The call returns 200 even when the job itself ends FAILED: check data.status (SUCCESS / FAILED). 404 for an unknown job name; 409 COB_JOB_ALREADY_RUNNING if that job is already running. Marks ACTIVE accounts with no transactions for 90 days (dated by the business date) as DORMANT and expires their holds.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK \u2014 run succeeded",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"412\",\n    \"jobName\": \"dormancyClassificationJob\",\n    \"businessDate\": \"2026-09-24\",\n    \"startTime\": \"2026-09-24T19:31:10.204Z\",\n    \"endTime\": \"2026-09-24T19:31:10.611Z\",\n    \"status\": \"SUCCESS\",\n    \"errorMessage\": null\n  },\n  \"errors\": []\n}"
+            }
+          ]
         },
         {
           "name": "Interest Accrual job history",
@@ -10792,7 +10969,7 @@
                 "history"
               ]
             },
-            "description": "",
+            "description": "The 30 most recent runs of the job, newest first, scheduled and manual alike, read from Spring Batch's execution records. errorMessage is the first line of the failure, null on success. 404 for an unknown job name.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -10804,7 +10981,21 @@
               ]
             }
           },
-          "response": []
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"410\",\n      \"jobName\": \"interestAccrualJob\",\n      \"businessDate\": \"2026-09-24\",\n      \"startTime\": \"2026-09-24T19:31:10.204Z\",\n      \"endTime\": \"2026-09-24T19:31:10.611Z\",\n      \"status\": \"SUCCESS\",\n      \"errorMessage\": null\n    }\n  ],\n  \"errors\": []\n}"
+            }
+          ]
         }
       ]
     },
@@ -14574,6 +14765,73 @@
           "response": []
         },
         {
+          "name": "Send campaign to recipients",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recipients\": [\n    { \"customerId\": \"{{customerId}}\", \"mobileNo\": \"+254700000000\" },\n    { \"customerId\": null, \"mobileNo\": \"+254711111111\" }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/smscampaigns/{{campaignId}}/send",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "smscampaigns",
+                "{{campaignId}}",
+                "send"
+              ]
+            },
+            "description": "Dispatches the campaign message to each recipient through the active SMS provider. In dev/sandbox the provider is NONE (simulated — messages become SENT without a real gateway); set app.sms.provider=HTTP with app.sms.http.* to dispatch through a real gateway. Returns { total, sent, failed, invalid, provider }.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK — dispatch counts",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/smscampaigns/{{campaignId}}/send"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": { \"total\": 2, \"sent\": 2, \"failed\": 0, \"invalid\": 0, \"provider\": \"NONE\" },\n  \"meta\": {},\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
           "name": "Delete campaign",
           "request": {
             "method": "DELETE",
@@ -15959,6 +16217,70 @@
       "name": "37 \u00b7 Credit Bureau",
       "description": "Credit bureau integration and loan-product mappings",
       "item": [
+        {
+          "name": "Run credit check",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"nationalId\": \"NID-12345\",\n  \"fullName\": \"Jane Doe\",\n  \"country\": \"KE\",\n  \"loanProductId\": \"{{loanProductId}}\",\n  \"minScore\": 600\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/creditbureaus/check",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "creditbureaus",
+                "check"
+              ]
+            },
+            "description": "Pulls a report through the active provider (SIMULATED=deterministic score, no bureau; set app.creditbureau.provider=HTTP + app.creditbureau.http.* for a real bureau) and applies pass/fail policy. HIT passes when score >= minScore; NO_HIT/UNAVAILABLE only fails when the loan product mandates the check. Returns { report, mandatory, passed, provider }.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK \u2014 passed",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": { "raw": "{{baseUrl}}/api/v1/creditbureaus/check" }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"report\": { \"status\": \"HIT\", \"score\": 712, \"band\": \"GOOD\", \"reference\": \"SIM-1a2b3c\", \"message\": null },\n    \"mandatory\": true,\n    \"passed\": true,\n    \"provider\": \"SIMULATED\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            }
+          ]
+        },
         {
           "name": "List integrations",
           "request": {
@@ -17743,6 +18065,53 @@
               "status": "OK",
               "code": 200,
               "body": "{\n  \"data\": [\n    {\n      \"id\": \"uuid\",\n      \"userId\": \"dev-bypass-admin\",\n      \"platform\": \"ANDROID\",\n      \"deviceLabel\": \"Samsung Galaxy S24\",\n      \"active\": true,\n      \"registeredAt\": \"2026-04-19T09:00:00Z\"\n    }\n  ],\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Send Push To User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"customer-123\",\n  \"title\": \"Payment received\",\n  \"body\": \"Your account was credited 5,000.00\",\n  \"data\": { \"accountId\": \"{{accountId}}\", \"type\": \"CREDIT\" }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/push",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "push"
+              ]
+            },
+            "description": "Fans out a push to all active devices of the target user via the active provider. In dev the provider is NONE (simulated — no Firebase/APNs); set app.push.provider=HTTP + app.push.http.* for a real relay. Dead tokens (404/410/UNREGISTERED) are auto-deactivated. Returns { total, sent, failed, deactivated, provider }. ADMIN only."
+          },
+          "response": [
+            {
+              "name": "200 OK — fan-out counts",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"data\": { \"total\": 2, \"sent\": 2, \"failed\": 0, \"deactivated\": 0, \"provider\": \"NONE\" },\n  \"errors\": []\n}"
             }
           ]
         },

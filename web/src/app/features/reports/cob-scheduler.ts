@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ReportService, CobJob, CobJobHistory } from './report.service';
@@ -10,9 +10,8 @@ import { ReportService, CobJob, CobJobHistory } from './report.service';
   templateUrl: './cob-scheduler.html',
   styleUrl: './cob-scheduler.scss',
 })
-export class CobSchedulerComponent implements OnInit, OnDestroy {
+export class CobSchedulerComponent implements OnInit {
   private readonly svc = inject(ReportService);
-  private refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
   jobs:    CobJob[] = [];
   loading  = true;
@@ -31,10 +30,6 @@ export class CobSchedulerComponent implements OnInit, OnDestroy {
     this.loadJobs();
   }
 
-  ngOnDestroy(): void {
-    if (this.refreshTimer) clearTimeout(this.refreshTimer);
-  }
-
   loadJobs(): void {
     this.svc.listJobs().subscribe({
       next: list => { this.jobs = list; this.loading = false; },
@@ -47,10 +42,14 @@ export class CobSchedulerComponent implements OnInit, OnDestroy {
     this.runningJobs.add(key);
     this.runErrors.delete(key);
     this.svc.runJob(key).subscribe({
-      next: () => {
+      next: run => {
         this.runningJobs.delete(key);
-        // Refresh job list after a short delay to reflect status update
-        this.refreshTimer = setTimeout(() => this.loadJobs(), 2500);
+        // The request returns 200 even when the job itself FAILS — surface that.
+        if (run?.status === 'FAILED') {
+          this.runErrors.set(key, `Run failed: ${run.errorMessage ?? 'see Run History'}`);
+        }
+        // The run is synchronous, so the new status is already there.
+        this.loadJobs();
         // Also reload history if this job is selected
         if (this.selectedJob?.jobName === key) {
           this.loadHistory(job);

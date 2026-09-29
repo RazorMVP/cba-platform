@@ -36,13 +36,14 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
     java.math.BigDecimal sumAllActiveBalances();
 
     /**
-     * Finds ACTIVE accounts with no transactions since the cutoff date.
-     * Used by the nightly dormancy classification CoB job.
+     * IDs of ACTIVE accounts with no transactions since the cutoff date. Used by the
+     * nightly dormancy CoB job, which snapshots the IDs up front: the job moves each
+     * account out of ACTIVE, so a paged read over this query would skip accounts.
      */
-    @Query("SELECT a FROM Account a WHERE a.status = com.cba.account.AccountStatus.ACTIVE " +
+    @Query("SELECT a.id FROM Account a WHERE a.status = com.cba.account.AccountStatus.ACTIVE " +
            "AND (a.lastTransactionDate IS NULL OR a.lastTransactionDate < :cutoffDate) " +
-           "AND a.openedDate < :cutoffDate")
-    Page<Account> findCandidatesForDormancy(LocalDate cutoffDate, Pageable pageable);
+           "AND a.openedDate < :cutoffDate ORDER BY a.id")
+    java.util.List<UUID> findDormancyCandidateIds(LocalDate cutoffDate);
 
     // ── Deposit analytics ─────────────────────────────────────────────
 

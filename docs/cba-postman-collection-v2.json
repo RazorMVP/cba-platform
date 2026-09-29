@@ -10644,7 +10644,7 @@
                 "jobs"
               ]
             },
-            "description": "",
+            "description": "The four nightly CoB jobs in schedule order (23:55 standing orders, 23:56 dormancy, 23:57 interest accrual, 23:59 arrears), each with its cron expression, next scheduled run, and the outcome of the most recent run (scheduled or manual). previousRunStatus is SUCCESS, FAILED or RUNNING, or null if the job never ran.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -10656,7 +10656,21 @@
               ]
             }
           },
-          "response": []
+          "response": [
+            {
+              "name": "200 OK (first two of four jobs shown)",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": [\n    {\n      \"jobName\": \"standingOrderExecutionJob\",\n      \"displayName\": \"Standing Order Execution\",\n      \"cronExpression\": \"0 55 23 * * ?\",\n      \"nextRunTime\": \"2026-09-24T22:55:00Z\",\n      \"previousRunStartTime\": \"2026-09-23T22:55:00.105Z\",\n      \"previousRunEndTime\": \"2026-09-23T22:55:01.422Z\",\n      \"previousRunStatus\": \"SUCCESS\",\n      \"active\": true,\n      \"currentlyRunning\": false\n    },\n    {\n      \"jobName\": \"dormancyClassificationJob\",\n      \"displayName\": \"Dormancy Classification\",\n      \"cronExpression\": \"0 56 23 * * ?\",\n      \"nextRunTime\": \"2026-09-24T22:56:00Z\",\n      \"previousRunStartTime\": \"2026-09-23T22:56:00.081Z\",\n      \"previousRunEndTime\": \"2026-09-23T22:56:00.390Z\",\n      \"previousRunStatus\": \"SUCCESS\",\n      \"active\": true,\n      \"currentlyRunning\": false\n    }\n  ],\n  \"errors\": []\n}"
+            }
+          ]
         },
         {
           "name": "Trigger Interest Accrual job",
@@ -10681,7 +10695,7 @@
                 "run"
               ]
             },
-            "description": "",
+            "description": "Runs the job now, synchronously, for today's business date, and returns the finished run. The call returns 200 even when the job itself ends FAILED: check data.status (SUCCESS / FAILED). 404 for an unknown job name; 409 COB_JOB_ALREADY_RUNNING if that job is already running.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -10693,7 +10707,34 @@
               ]
             }
           },
-          "response": []
+          "response": [
+            {
+              "name": "200 OK \u2014 run succeeded",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"412\",\n    \"jobName\": \"interestAccrualJob\",\n    \"businessDate\": \"2026-09-24\",\n    \"startTime\": \"2026-09-24T19:31:10.204Z\",\n    \"endTime\": \"2026-09-24T19:31:10.611Z\",\n    \"status\": \"SUCCESS\",\n    \"errorMessage\": null\n  },\n  \"errors\": []\n}"
+            },
+            {
+              "name": "409 Conflict \u2014 already running",
+              "status": "Conflict",
+              "code": 409,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"errors\": [\n    {\n      \"code\": \"COB_JOB_ALREADY_RUNNING\",\n      \"message\": \"Job interestAccrualJob is already running\",\n      \"field\": null\n    }\n  ]\n}"
+            }
+          ]
         },
         {
           "name": "Trigger Arrears Classification job",
@@ -10718,7 +10759,7 @@
                 "run"
               ]
             },
-            "description": "",
+            "description": "Runs the job now, synchronously, for today's business date, and returns the finished run. The call returns 200 even when the job itself ends FAILED: check data.status (SUCCESS / FAILED). 404 for an unknown job name; 409 COB_JOB_ALREADY_RUNNING if that job is already running.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -10730,7 +10771,21 @@
               ]
             }
           },
-          "response": []
+          "response": [
+            {
+              "name": "200 OK \u2014 run succeeded",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"412\",\n    \"jobName\": \"arrearsClassificationJob\",\n    \"businessDate\": \"2026-09-24\",\n    \"startTime\": \"2026-09-24T19:31:10.204Z\",\n    \"endTime\": \"2026-09-24T19:31:10.611Z\",\n    \"status\": \"SUCCESS\",\n    \"errorMessage\": null\n  },\n  \"errors\": []\n}"
+            }
+          ]
         },
         {
           "name": "Trigger Standing Orders job",
@@ -10755,7 +10810,7 @@
                 "run"
               ]
             },
-            "description": "",
+            "description": "Runs the job now, synchronously, for today's business date, and returns the finished run. The call returns 200 even when the job itself ends FAILED: check data.status (SUCCESS / FAILED). 404 for an unknown job name; 409 COB_JOB_ALREADY_RUNNING if that job is already running. Each due order runs in its own transaction; an order that fails (e.g. insufficient funds) is skipped and stays due for the next run, without affecting the others.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -10767,7 +10822,85 @@
               ]
             }
           },
-          "response": []
+          "response": [
+            {
+              "name": "200 OK \u2014 run succeeded",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"412\",\n    \"jobName\": \"standingOrderExecutionJob\",\n    \"businessDate\": \"2026-09-24\",\n    \"startTime\": \"2026-09-24T19:31:10.204Z\",\n    \"endTime\": \"2026-09-24T19:31:10.611Z\",\n    \"status\": \"SUCCESS\",\n    \"errorMessage\": null\n  },\n  \"errors\": []\n}"
+            },
+            {
+              "name": "200 OK \u2014 job ran but FAILED",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"413\",\n    \"jobName\": \"standingOrderExecutionJob\",\n    \"businessDate\": \"2026-09-24\",\n    \"startTime\": \"2026-09-24T19:32:02.010Z\",\n    \"endTime\": \"2026-09-24T19:32:02.144Z\",\n    \"status\": \"FAILED\",\n    \"errorMessage\": \"org.springframework.dao.DataAccessResourceFailureException: Unable to acquire JDBC Connection\"\n  },\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Trigger Dormancy Classification job",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/dormancyClassificationJob/run",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs",
+                "dormancyClassificationJob",
+                "run"
+              ]
+            },
+            "description": "Runs the job now, synchronously, for today's business date, and returns the finished run. The call returns 200 even when the job itself ends FAILED: check data.status (SUCCESS / FAILED). 404 for an unknown job name; 409 COB_JOB_ALREADY_RUNNING if that job is already running. Marks ACTIVE accounts with no transactions for 90 days (dated by the business date) as DORMANT and expires their holds.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK \u2014 run succeeded",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"412\",\n    \"jobName\": \"dormancyClassificationJob\",\n    \"businessDate\": \"2026-09-24\",\n    \"startTime\": \"2026-09-24T19:31:10.204Z\",\n    \"endTime\": \"2026-09-24T19:31:10.611Z\",\n    \"status\": \"SUCCESS\",\n    \"errorMessage\": null\n  },\n  \"errors\": []\n}"
+            }
+          ]
         },
         {
           "name": "Interest Accrual job history",
@@ -10792,7 +10925,7 @@
                 "history"
               ]
             },
-            "description": "",
+            "description": "The 30 most recent runs of the job, newest first, scheduled and manual alike, read from Spring Batch's execution records. errorMessage is the first line of the failure, null on success. 404 for an unknown job name.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -10804,7 +10937,21 @@
               ]
             }
           },
-          "response": []
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"410\",\n      \"jobName\": \"interestAccrualJob\",\n      \"businessDate\": \"2026-09-24\",\n      \"startTime\": \"2026-09-24T19:31:10.204Z\",\n      \"endTime\": \"2026-09-24T19:31:10.611Z\",\n      \"status\": \"SUCCESS\",\n      \"errorMessage\": null\n    }\n  ],\n  \"errors\": []\n}"
+            }
+          ]
         }
       ]
     },

@@ -378,13 +378,14 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 
 ### 16. CoB Scheduler Module (Close of Business)
 - Spring Batch jobs + Quartz triggers; both schemas managed by Flyway V10 (`initialize-schema: never`); 5 missing Quartz tables added in V24
-- Nightly schedule: standing-orders (23:55) → interest-accrual (23:57) → arrears (23:59)
+- Nightly schedule: standing-orders (23:55) → dormancy (23:56) → interest-accrual (23:57) → arrears (23:59)
+- **`CobJobDefinition` enum is the single job catalogue**; dates come from the `businessDate` job parameter (`@StepScope` beans), never `LocalDate.now()` in a singleton. `CobJobsIT` launches every job against real PostgreSQL — keep it: `RepositoryItemReader` resolves its method by reflection, so reader bugs only fail at run time (standing orders + arrears failed every night Apr–Sep 2026; see cba-log Session 125 cont. 13)
 - `QuartzJobBridge extends QuartzJobBean` bridges Quartz → Spring Batch; looks up bean by `jobBeanName` job data key
 - **`@Bean` naming**: Spring Batch auto-registers beans by the name passed to `JobBuilder`; the `@Bean` annotation must use a **different** name to avoid `NoUniqueBeanDefinitionException`. Convention: `@Bean("standingOrderExecutionBatchJob")`, `@Bean("interestAccrualBatchJob")`, `@Bean("arrearsClassificationBatchJob")` — the `BatchJob` suffix disambiguates from the internal Batch job name
-- `CobSchedulerConfig` uses explicit constructor with `@Qualifier("*BatchJob")` — do NOT use `@RequiredArgsConstructor` with `@Qualifier` on fields (Lombok ignores field annotations in constructor injection)
-- Entity: `CobJobHistory`; Package: `com.cba.cob`
-- Endpoints: `GET /api/v1/jobs`, `POST /api/v1/jobs/{jobName}/run`, `GET /api/v1/jobs/{jobName}/history`
-- Valid job names: `standingOrderExecutionJob`, `interestAccrualJob`, `arrearsClassificationJob`
+- Never put `@Qualifier` on fields with `@RequiredArgsConstructor` — Lombok drops field annotations from the generated constructor
+- Entity: `CobJobHistory` (manual runs only); Package: `com.cba.cob`. Run history API reads Spring Batch's `batch_job_execution`, so nightly runs show
+- Endpoints: `GET /api/v1/jobs`, `POST /api/v1/jobs/{jobName}/run` (synchronous — returns 200 even when the job FAILS; check `status`), `GET /api/v1/jobs/{jobName}/history`
+- Valid job names: `standingOrderExecutionJob`, `dormancyClassificationJob`, `interestAccrualJob`, `arrearsClassificationJob`
 
 ### 17. Batch API Module
 - Executes multiple sub-requests in a single HTTP call (Mifos-compatible)

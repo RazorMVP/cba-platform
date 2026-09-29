@@ -53,10 +53,11 @@ public class StandingOrderExecutionJob {
                 .build();
     }
 
+    /** Takes the step-scoped tasklet proxy; its job parameters bind when the step runs. */
     @Bean
-    public Step standingOrderStep(JobRepository jobRepository) {
+    public Step standingOrderStep(JobRepository jobRepository, Tasklet standingOrderTasklet) {
         return new StepBuilder("standingOrderStep", jobRepository)
-                .tasklet(standingOrderTasklet(null, null), new ResourcelessTransactionManager())
+                .tasklet(standingOrderTasklet, new ResourcelessTransactionManager())
                 .build();
     }
 

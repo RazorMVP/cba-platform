@@ -57,6 +57,34 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 18) — 2026-09-28
+**Security: OWASP gate unblocked for backend + card-service. CVE-2026-41707 (Spring Security DPoP replay cache, 7.4) has no public fix in the 6.5 line and is reachable by default, so it gets a compensating control before its suppression; Jackson bumped to 2.21.7.**
+
+| File | Change |
+|------|--------|
+| `backend/.../config/DPoPRejectionFilter.java`, `card-service/.../config/DPoPRejectionFilter.java` | NEW — `HIGHEST_PRECEDENCE` servlet filter (before Spring Security) rejecting any `Authorization: DPoP` with `401 DPOP_NOT_SUPPORTED` |
+| `DPoPRejectionFilterTest` (×2, 4 each), `DPoPRejectionIT` (backend, 2), `DPoPRejectionIntegrationTest` (card-service, both security chains) | Unit + real-HTTP proof the filter runs first (only it emits `DPOP_NOT_SUPPORTED`) |
+| `backend/pom.xml`, `card-service/pom.xml` | `jackson-bom.version` 2.21.7 (CVE-2026-54515 fixed in 2.21.5) |
+| `docs/owasp-suppressions.xml` | CVE-2026-41707 only, `until="2026-12-22Z"`, justification = the filter, not "unused" |
+| `docs/api-reference.html`, `docs/card-api-reference.html` (+ `docs-site/static`) | DPoP not supported / `DPOP_NOT_SUPPORTED`; removed the false "supports FAPI 2.0 (PAR + DPoP + PKCE)" claim |
+| `CLAUDE.md` | OWASP policy step 3: compensating control when reachable + unfixable |
+
+#### Key findings
+- Of the 13 new CVEs in the gate output, **only CVE-2026-41707 is ≥ 7** (fails `failBuildOnCVSS=7`); the rest are listed but below threshold.
+- Fix exists only in Spring Security 6.5.12 (not on Maven Central; newest public 6.5.x is 6.5.11) and 7.0.6.1 (needs Spring Boot 4).
+- **Reachable by default** — verified in the 6.5.11 source: `OAuth2ResourceServerConfigurer` applies `DPoPAuthenticationConfigurer` whenever `DPoPProofJwtDecoderFactory` is on the classpath, unconditionally. An "unused" suppression would have been false.
+- No legitimate caller uses DPoP (Keycloak realm issues no DPoP-bound tokens), so rejecting the scheme breaks nothing.
+
+#### Build Verification
+- Backend `-Pfull-integration` **710/710** (incl. MinIO locally); card-service `-Pfull-integration` **129/129**; card-service OpenAPI snapshot unchanged. Resolved Jackson = 2.21.7 in both. OWASP result itself is verified by this PR's CI (NVD database not available locally).
+- API surface: no endpoint/param changes (gate grep); behaviour change (DPoP → 401) documented in both API references. No Postman edits owed.
+
+#### Confirmed Platform Versions
+| Directory | Last commit | Notes |
+|-----------|-------------|-------|
+| `backend/` | this PR | Spring Boot 3.5.16 + 7 security pins (Jackson 2.21.7 added) |
+| `card-service/` | this PR | Same pins; 129/129 |
+
 ### Session 125 (cont. 17) — 2026-09-28
 **CI: per-workflow gate jobs so `main` can be protected by a ruleset. `main` had no branch protection at all — no required checks, direct pushes allowed.**
 

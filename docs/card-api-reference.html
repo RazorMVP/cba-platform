@@ -187,6 +187,7 @@ It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port
   <tr><td><code>/api/v1/**</code></td><td>JWT (Keycloak realm <code>cba</code>)</td><td><code>Authorization: Bearer {jwt}</code></td></tr>
   <tr><td><code>/card-api/v1/**</code></td><td>JWT <em>or</em> API Key (dual-mode)</td><td><code>Authorization: Bearer {jwt}</code> or <code>Authorization: ApiKey cba_{key}</code></td></tr>
 </table>
+<p><strong>DPoP is not supported.</strong> A request whose <code>Authorization</code> header uses the <code>DPoP</code> scheme is rejected on every path with <code>401</code> and error code <code>DPOP_NOT_SUPPORTED</code>, before any security chain runs — a compensating control for CVE-2026-41707 (Spring Security 6.5 DPoP replay cache; fixed only in Spring Security 7).</p>
 
 <h3>RBAC Roles</h3>
 <table>

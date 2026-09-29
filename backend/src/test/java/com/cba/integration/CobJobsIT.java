@@ -203,7 +203,7 @@ class CobJobsIT extends AbstractIntegrationTest {
 
         assertThat(executions).extracting(e -> e.getJobInstance().getJobName()).containsExactly(
                 "standingOrderExecutionJob", "dormancyClassificationJob",
-                "interestAccrualJob", "arrearsClassificationJob");
+                "interestAccrualJob", "arrearsClassificationJob", "fxRevaluationJob");
         assertThat(executions).allSatisfy(e -> assertThat(e.getStatus()).isEqualTo(BatchStatus.COMPLETED));
         for (int i = 1; i < executions.size(); i++) {
             assertThat(executions.get(i).getStartTime())
@@ -223,7 +223,7 @@ class CobJobsIT extends AbstractIntegrationTest {
 
         assertThat(jobs).extracting(CobJobView::jobName).containsExactly(
                 "standingOrderExecutionJob", "dormancyClassificationJob",
-                "interestAccrualJob", "arrearsClassificationJob");
+                "interestAccrualJob", "arrearsClassificationJob", "fxRevaluationJob");
         assertThat(jobs).allSatisfy(job -> {
             assertThat(job.displayName()).isNotBlank();
             assertThat(job.cronExpression()).isNotBlank();

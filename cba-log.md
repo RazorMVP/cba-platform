@@ -57,6 +57,48 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 20) — 2026-09-29
+**GL posting PR 1b: nightly FX revaluation (IAS 21 §23, §28) and the one-time opening-balance journal against a migration clearing account that must end at zero. Also fixes foreign-currency interest and teller over/short, which #120 booked in the foreign currency (IAS 21 §21).**
+
+#### Decisions (standards checked first)
+| Decision | Source |
+|---|---|
+| Revalue each open FX position at the closing rate daily; difference to P&L (4003) | IAS 21 §23, §28; CBN daily net open position |
+| Income and expenses in a foreign currency are booked in the functional currency at the spot rate | IAS 21 §21 |
+| Opening journal offsets a **migration clearing account (GL 3900)** that must reach zero once the legacy trial balance is loaded — user chose "a" over the original permanent "Opening Balance" equity account | SAP legacy-data-transfer offset account ("must be zero after migration"); ISA 510 "correctly brought forward" |
+| No accrued interest booked on migration day | ISA 510; IAS 8 §5, §19 (legacy gaps are retrospective) |
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `accounting/FxRevaluationService.java`, `cob/FxRevaluationJob.java`, `cob/CobJobDefinition.java` | NEW job, last in CoB: per currency, 1201 carrying amount → `−position × closing rate`, difference to 4003 (entity `FX_REVALUATION`, ref `FXREV-{date}-{ccy}`). Rerun = no-op; a missing rate fails the run with nothing posted; an untagged 1201 balance fails it too |
+| `db/migration/V55__fx_position_currency.sql`, `JournalEntry.positionCurrency`, `JournalLine.withPosition` | 1201 lines tagged with the currency they value; backfill from the opposite-side 1200 line in the same journal (exact: the two legs of a transfer always move in opposite directions); single-line reversals copy it |
+| `account/AccountGlPosting.java` | `balanceWith(pnl)`: interest and over/short in a foreign currency go through the FX position, P&L line in the functional currency. Transfers' residual uses the same helper |
+| `accounting/FunctionalCurrency.java` | NEW shared lookup of `functional-currency` (was private to `AccountGlPosting`) |
+| `accounting/OpeningBalanceService.java`, `GlAccountingController` | NEW `GET/POST /api/v1/journalentries/opening-balances?scope=DEPOSITS` (ADMIN). Posts `customer − ledger` per control account/currency against 3900 once (advisory lock; `409 OPENING_BALANCES_ALREADY_POSTED`). Customer and ledger totals come from **one** SQL statement (same snapshot). After posting, GET is the reconciliation |
+| `db/migration/V56__migration_clearing_account.sql`, `FinancialActivity.EQUITY_MIGRATION_CLEARING`, `EntityType.OPENING_BALANCE` | GL 3900 Legacy Balance Migration Clearing (equity, manual journals allowed), mapped |
+| `test/.../FxRevaluationIT.java` (2), `OpeningBalanceIT.java` (1), `AccountGlPostingTest.java` (+3), `CobJobsIT.java` | Short KES position + rate rise = loss, 1201 KES = −position × rate, rerun posts nothing, missing rate posts nothing; opening lifecycle preview → post → reconciled → deposit stays reconciled → 409 → clearing loaded to zero |
+| `web/.../accounting.service.ts`, `financial-activity-accounts.ts`, `reports/cob-scheduler.html` | New activity + label; CoB subtitle lists FX revaluation |
+| `backend/docs/openapi-snapshot.yaml`, `docs/api-reference.html`, `docs/cba-postman-collection-v2.json`, `CLAUDE.md` | 2 new endpoints + schemas, enum values, CoB 5th job, posting table rows; 3 Postman requests (preview, post, run FX revaluation) |
+
+#### Key Patterns / Decisions
+- **Found by the IT:** the opening journal's own response showed an empty clearing balance — `JdbcTemplate` doesn't flush Hibernate's pending inserts. `flush()` before the JDBC read.
+- **Found while reading the ledger code, not fixed here (next PR):** `reverseJournalEntry` reverses one line, not the journal; the trial balance drops reversed originals but counts their reversals, and sums currencies together. The web `JournalEntry` type doesn't match the API (`entryDate`/`type` vs `transactionDate`/`entryType`, no `currencyCode`).
+- Scope `DEPOSITS` only: loans, term deposits and shares get their opening scope with their GL posting (PR 2/3), so their balances aren't brought forward before their movements post.
+
+#### Build Verification
+- Backend `-Pfull-integration` **747/747** (was 735; +2 `FxRevaluationIT`, +1 `OpeningBalanceIT`, +3 `AccountGlPostingTest`, `CobJobsIT` lists 5 jobs). OpenAPI snapshot regenerated: 2 endpoints, `OpeningBalances`/`OpeningLine` schemas, `positionCurrency`, `FX_REVALUATION`, `OPENING_BALANCE`, `EQUITY_MIGRATION_CLEARING`.
+- Web `ng test` **1147/1147** (115 files).
+- SpotBugs: verified by this PR's CI (can't run on the local Java 25). SQL in the new services is constant (no concatenation).
+- Gate grep: 2 new endpoints (`GET`/`POST /api/v1/journalentries/opening-balances`, `scope` param) → api-reference (section + matrix) and Postman updated.
+
+#### Confirmed Platform Versions
+| Directory | Last commit | Notes |
+|-----------|-------------|-------|
+| `backend/` | this PR | Spring Boot 3.5.16; Flyway V56; 747/747 full-integration |
+| `web/` | this PR | Angular 21.2.23; 1147/1147 |
+| `card-service/` | `2e4a5bf` (#127) | Unchanged |
+
 ### Session 125 (cont. 19) — 2026-09-29
 **Backend CI: the S3 integration test could never pass on a runner — quay.io now refuses anonymous MinIO pulls. Swapped to Adobe S3Mock.**
 

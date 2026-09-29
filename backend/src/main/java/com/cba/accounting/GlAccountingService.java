@@ -29,9 +29,19 @@ public class GlAccountingService {
 
     // ── Auto-posting (called by domain services) ──────────────────────────────
 
-    /** One journal line: a GL account, a side, a positive amount and the currency it is in. */
+    /**
+     * One journal line: a GL account, a side, a positive amount and the currency it is in.
+     * {@code positionCurrency} is set only on FX position equivalent lines: the foreign
+     * currency whose position the functional-currency amount values.
+     */
     public record JournalLine(GlAccount account, JournalEntry.EntryType side,
-                              BigDecimal amount, String currencyCode) {
+                              BigDecimal amount, String currencyCode, String positionCurrency) {
+        public JournalLine(GlAccount account, JournalEntry.EntryType side, BigDecimal amount, String currencyCode) {
+            this(account, side, amount, currencyCode, null);
+        }
+        public JournalLine withPosition(String currency) {
+            return new JournalLine(account, side, amount, currencyCode, currency);
+        }
         public static JournalLine debit(GlAccount account, BigDecimal amount, String currencyCode) {
             return new JournalLine(account, JournalEntry.EntryType.DEBIT, amount, currencyCode);
         }
@@ -79,6 +89,7 @@ public class GlAccountingService {
             JournalEntry entry = buildEntry(transactionId, line.account(), line.side(), line.amount(),
                     line.currencyCode(), transactionDate, description, entityType, entityId);
             entry.setReferenceNumber(referenceNumber);
+            entry.setPositionCurrency(line.positionCurrency());
             journalEntryRepository.save(entry);
         }
         log.debug("GL posted {} ({} lines) for entity {}:{}", transactionId, posted.size(), entityType, entityId);
@@ -198,6 +209,7 @@ public class GlAccountingService {
                 LocalDate.now(), "Reversal of entry " + entryId,
                 original.getEntityType(), original.getEntityId());
         reversal.setReversalOf(original);
+        reversal.setPositionCurrency(original.getPositionCurrency());
         journalEntryRepository.save(reversal);
 
         original.setReversed(true);

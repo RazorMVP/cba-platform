@@ -1771,6 +1771,17 @@ components:
         meta:
           $ref: "#/components/schemas/PageMeta"
       type: "object"
+    ApiResponseOpeningBalances:
+      properties:
+        data:
+          $ref: "#/components/schemas/OpeningBalances"
+        errors:
+          items:
+            $ref: "#/components/schemas/ApiError"
+          type: "array"
+        meta:
+          $ref: "#/components/schemas/PageMeta"
+      type: "object"
     ApiResponsePageAccountingRule:
       properties:
         data:
@@ -5259,6 +5270,7 @@ components:
           - "ASSET_FX_POSITION_EQUIVALENT"
           - "INCOME_FX_GAIN_LOSS"
           - "EXPENSE_CASH_OVER_SHORT"
+          - "EQUITY_MIGRATION_CLEARING"
           type: "string"
         glAccount:
           $ref: "#/components/schemas/GlAccount"
@@ -5286,6 +5298,7 @@ components:
           - "ASSET_FX_POSITION_EQUIVALENT"
           - "INCOME_FX_GAIN_LOSS"
           - "EXPENSE_CASH_OVER_SHORT"
+          - "EQUITY_MIGRATION_CLEARING"
           type: "string"
         glAccountId:
           format: "uuid"
@@ -6090,6 +6103,8 @@ components:
           - "TELLER_CASH"
           - "MANUAL"
           - "PAYMENT"
+          - "FX_REVALUATION"
+          - "OPENING_BALANCE"
           type: "string"
         entryType:
           enum:
@@ -6100,6 +6115,8 @@ components:
           $ref: "#/components/schemas/GlAccount"
         id:
           format: "uuid"
+          type: "string"
+        positionCurrency:
           type: "string"
         postedAt:
           format: "date-time"
@@ -7454,6 +7471,50 @@ components:
           type: "number"
       required:
       - "openingBalance"
+      type: "object"
+    OpeningBalances:
+      properties:
+        clearingBalance:
+          additionalProperties:
+            type: "number"
+          type: "object"
+        clearingGlCode:
+          type: "string"
+        clearingIsZero:
+          type: "boolean"
+        date:
+          format: "date"
+          type: "string"
+        lines:
+          items:
+            $ref: "#/components/schemas/OpeningLine"
+          type: "array"
+        posted:
+          type: "boolean"
+        scope:
+          enum:
+          - "DEPOSITS"
+          type: "string"
+        transactionId:
+          type: "string"
+      type: "object"
+    OpeningLine:
+      properties:
+        currency:
+          type: "string"
+        customerBalance:
+          type: "number"
+        glAccountId:
+          format: "uuid"
+          type: "string"
+        glCode:
+          type: "string"
+        glName:
+          type: "string"
+        ledgerBalance:
+          type: "number"
+        openingAmount:
+          type: "number"
       type: "object"
     OrgResponse:
       properties:
@@ -15977,6 +16038,51 @@ paths:
                 $ref: "#/components/schemas/ApiResponseListJournalEntry"
           description: "OK"
       summary: "Post manual journal entries (balanced debit/credit pairs)"
+      tags:
+      - "GL Accounting"
+  /api/v1/journalentries/opening-balances:
+    get:
+      operationId: "previewOpeningBalances"
+      parameters:
+      - in: "query"
+        name: "scope"
+        required: false
+        schema:
+          default: "DEPOSITS"
+          enum:
+          - "DEPOSITS"
+          type: "string"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseOpeningBalances"
+          description: "OK"
+      summary: "Preview the opening-balance journal; after posting, the GL vs customer-balance\
+        \ reconciliation and the migration clearing balance (must be zero)"
+      tags:
+      - "GL Accounting"
+    post:
+      operationId: "postOpeningBalances"
+      parameters:
+      - in: "query"
+        name: "scope"
+        required: false
+        schema:
+          default: "DEPOSITS"
+          enum:
+          - "DEPOSITS"
+          type: "string"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseOpeningBalances"
+          description: "OK"
+      summary: "Post the one-time opening-balance journal against the migration clearing\
+        \ account"
       tags:
       - "GL Accounting"
   /api/v1/journalentries/{id}/reverse:

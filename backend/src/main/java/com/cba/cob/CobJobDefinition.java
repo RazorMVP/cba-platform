@@ -24,7 +24,10 @@ public enum CobJobDefinition {
     INTEREST_ACCRUAL("interestAccrualJob", "Interest Accrual",
                      "interestAccrualBatchJob"),
     ARREARS         ("arrearsClassificationJob", "Arrears Classification",
-                     "arrearsClassificationBatchJob");
+                     "arrearsClassificationBatchJob"),
+    /** Last: revalues the positions after every other job has posted its movements. */
+    FX_REVALUATION  ("fxRevaluationJob", "FX Revaluation",
+                     "fxRevaluationBatchJob");
 
     /** Job parameter every CoB run carries: the ISO business date the run is for. */
     public static final String BUSINESS_DATE = "businessDate";

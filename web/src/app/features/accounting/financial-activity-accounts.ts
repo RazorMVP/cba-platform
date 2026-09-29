@@ -46,6 +46,7 @@ export class FinancialActivityAccountsComponent implements OnInit {
     EXPENSE_WRITE_OFF:              'Expense — Write-off',
     EXPENSE_INTEREST_ON_SAVINGS:    'Expense — Interest on Savings',
     EXPENSE_CASH_OVER_SHORT:        'Expense — Cash Over and Short',
+    EQUITY_MIGRATION_CLEARING:      'Equity — Legacy Balance Migration Clearing',
   };
 
   ngOnInit(): void {

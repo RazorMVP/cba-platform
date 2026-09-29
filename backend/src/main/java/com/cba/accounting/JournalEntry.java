@@ -15,7 +15,7 @@ import java.util.UUID;
 public class JournalEntry {
 
     public enum EntryType { DEBIT, CREDIT }
-    public enum EntityType { LOAN, ACCOUNT, TELLER_CASH, MANUAL, PAYMENT }
+    public enum EntityType { LOAN, ACCOUNT, TELLER_CASH, MANUAL, PAYMENT, FX_REVALUATION, OPENING_BALANCE }
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -42,6 +42,14 @@ public class JournalEntry {
 
     @Column(name = "currency_code", nullable = false, length = 3)
     private String currencyCode;
+
+    /**
+     * On FX position equivalent lines only: the foreign currency whose position this
+     * functional-currency amount values. The revaluation job needs each currency's
+     * carrying amount separately (IAS 21 §23); null on every other line.
+     */
+    @Column(name = "position_currency", length = 3)
+    private String positionCurrency;
 
     /** ISO date for the business date of the transaction (may differ from posted_at for CoB). */
     @Column(name = "transaction_date", nullable = false)

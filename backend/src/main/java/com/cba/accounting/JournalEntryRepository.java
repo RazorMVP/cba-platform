@@ -15,6 +15,9 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, UUID
     List<JournalEntry> findByEntityTypeAndEntityId(
             JournalEntry.EntityType entityType, UUID entityId);
 
+    java.util.Optional<JournalEntry> findFirstByEntityTypeAndReferenceNumber(
+            JournalEntry.EntityType entityType, String referenceNumber);
+
     Page<JournalEntry> findByTransactionDateBetween(
             LocalDate from, LocalDate to, Pageable pageable);
 

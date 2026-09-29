@@ -1,6 +1,7 @@
 package com.cba.account;
 
 import com.cba.accounting.FinancialActivityAccount.FinancialActivity;
+import com.cba.accounting.FunctionalCurrency;
 import com.cba.accounting.GlAccount;
 import com.cba.accounting.GlAccountingService;
 import com.cba.accounting.GlAccountingService.JournalLine;
@@ -9,8 +10,6 @@ import com.cba.common.exception.CbaException;
 import com.cba.currency.ExchangeRate;
 import com.cba.currency.ExchangeRateService;
 import com.cba.product.DepositProduct;
-import com.cba.system.GlobalConfiguration;
-import com.cba.system.GlobalConfigurationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,7 +26,6 @@ import java.time.LocalDate;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.TreeMap;
 import java.util.UUID;
 
@@ -45,7 +43,7 @@ import static org.mockito.Mockito.*;
 class AccountGlPostingTest {
 
     @Mock GlAccountingService gl;
-    @Mock GlobalConfigurationRepository globalConfigRepository;
+    @Mock FunctionalCurrency functionalCurrency;
     @Mock ExchangeRateService exchangeRateService;
     @InjectMocks AccountGlPosting posting;
 
@@ -58,6 +56,7 @@ class AccountGlPostingTest {
         }
         when(gl.activityAccount(any())).thenAnswer(inv -> mapped.get(inv.<FinancialActivity>getArgument(0)));
         when(gl.postJournal(anyList(), any(), any(), any(), any(), any())).thenReturn("GL-1");
+        functionalCurrency("USD");
     }
 
     // ── Cash ────────────────────────────────────────────────────────────────
@@ -138,6 +137,32 @@ class AccountGlPostingTest {
             line(FinancialActivity.EXPENSE_INTEREST_ON_SAVINGS, "DEBIT", "0.1370", "USD"));
     }
 
+    @Test
+    @DisplayName("interest on a foreign-currency account: expense in the functional currency, exposure via the FX position (IAS 21 §21)")
+    void foreignInterest() {
+        rate("KES", "USD", "0.0074");
+        Account a = account("KES", "10100.00");
+        posting.postInterestCredit(a, new BigDecimal("10000.00"), LocalDate.now(), "i", "INT-2");
+
+        assertThat(lines()).containsExactlyInAnyOrder(
+            line(FinancialActivity.LIABILITY_SAVINGS_CONTROL, "CREDIT", "100.00", "KES"),
+            // The bank now owes 100 KES more: a short KES position, carried at 0.74 USD.
+            line(FinancialActivity.ASSET_FX_POSITION, "DEBIT", "100.00", "KES"),
+            line(FinancialActivity.ASSET_FX_POSITION_EQUIVALENT, "CREDIT", "0.7400", "USD").withPosition("KES"),
+            line(FinancialActivity.EXPENSE_INTEREST_ON_SAVINGS, "DEBIT", "0.7400", "USD"));
+    }
+
+    @Test
+    @DisplayName("interest without a configured functional currency is rejected (its currency can't be classified)")
+    void interestWithoutFunctionalCurrency() {
+        when(functionalCurrency.get()).thenThrow(CbaException.badRequest("FUNCTIONAL_CURRENCY_NOT_CONFIGURED", "x"));
+        Account a = account("USD", "1000.1370");
+
+        assertThatThrownBy(() -> posting.postInterestCredit(a, new BigDecimal("1000.0000"), LocalDate.now(), "i", "INT-3"))
+            .isInstanceOf(CbaException.class);
+        verify(gl, never()).postJournal(anyList(), any(), any(), any(), any(), any());
+    }
+
     // ── Transfers ───────────────────────────────────────────────────────────
 
     @Test
@@ -169,7 +194,7 @@ class AccountGlPostingTest {
             line(FinancialActivity.LIABILITY_SAVINGS_CONTROL, "DEBIT", "100.00", "USD"),
             line(FinancialActivity.LIABILITY_SAVINGS_CONTROL, "CREDIT", "13550.00", "KES"),
             line(FinancialActivity.ASSET_FX_POSITION, "DEBIT", "13550.00", "KES"),
-            line(FinancialActivity.ASSET_FX_POSITION_EQUIVALENT, "CREDIT", "100.2700", "USD"),
+            line(FinancialActivity.ASSET_FX_POSITION_EQUIVALENT, "CREDIT", "100.2700", "USD").withPosition("KES"),
             // The bank now owes KES worth 100.27 USD for 100 USD received: a 0.27 loss.
             line(FinancialActivity.INCOME_FX_GAIN_LOSS, "DEBIT", "0.2700", "USD"));
     }
@@ -189,16 +214,17 @@ class AccountGlPostingTest {
         List<JournalLine> lines = lines();
         assertThat(lines).contains(
             line(FinancialActivity.ASSET_FX_POSITION, "CREDIT", "13550.00", "KES"),
-            line(FinancialActivity.ASSET_FX_POSITION_EQUIVALENT, "DEBIT", "100.2700", "USD"),
+            line(FinancialActivity.ASSET_FX_POSITION_EQUIVALENT, "DEBIT", "100.2700", "USD").withPosition("KES"),
             line(FinancialActivity.ASSET_FX_POSITION, "DEBIT", "1250.00", "GHS"),
-            line(FinancialActivity.ASSET_FX_POSITION_EQUIVALENT, "CREDIT", "100.0000", "USD"),
+            line(FinancialActivity.ASSET_FX_POSITION_EQUIVALENT, "CREDIT", "100.0000", "USD").withPosition("GHS"),
             line(FinancialActivity.INCOME_FX_GAIN_LOSS, "CREDIT", "0.2700", "USD"));
     }
 
     @Test
     @DisplayName("cross-currency without a configured functional currency is rejected")
     void crossCurrencyWithoutFunctionalCurrency() {
-        when(globalConfigRepository.findByName("functional-currency")).thenReturn(Optional.empty());
+        when(functionalCurrency.get()).thenThrow(CbaException.badRequest("FUNCTIONAL_CURRENCY_NOT_CONFIGURED",
+            "Global configuration 'functional-currency' must be set"));
         Account src = account("USD", "900.00");
         Account dst = account("KES", "13550.00");
 
@@ -229,6 +255,19 @@ class AccountGlPostingTest {
             line(FinancialActivity.EXPENSE_CASH_OVER_SHORT, "CREDIT", "5.00", "USD"));
     }
 
+    @Test
+    @DisplayName("foreign cash over at close: gain in the functional currency; the extra KES held is a long position")
+    void foreignCashOver() {
+        rate("KES", "USD", "0.0074");
+        posting.postCashCountDifference(new BigDecimal("500.00"), "KES", LocalDate.now(), "over", UUID.randomUUID());
+
+        assertThat(lines()).containsExactlyInAnyOrder(
+            line(FinancialActivity.ASSET_CASH_AT_TELLER, "DEBIT", "500.00", "KES"),
+            line(FinancialActivity.ASSET_FX_POSITION, "CREDIT", "500.00", "KES"),
+            line(FinancialActivity.ASSET_FX_POSITION_EQUIVALENT, "DEBIT", "3.7000", "USD").withPosition("KES"),
+            line(FinancialActivity.EXPENSE_CASH_OVER_SHORT, "CREDIT", "3.7000", "USD"));
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────────
 
     /** The posted lines; also asserts the journal balances in every currency. */
@@ -249,11 +288,7 @@ class AccountGlPostingTest {
     }
 
     private void functionalCurrency(String ccy) {
-        GlobalConfiguration c = new GlobalConfiguration();
-        c.setName("functional-currency");
-        c.setStringValue(ccy);
-        c.setEnabled(true);
-        when(globalConfigRepository.findByName("functional-currency")).thenReturn(Optional.of(c));
+        when(functionalCurrency.get()).thenReturn(ccy);
     }
 
     private void rate(String from, String to, String rate) {

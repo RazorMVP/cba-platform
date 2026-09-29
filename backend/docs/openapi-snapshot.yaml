@@ -6090,6 +6090,7 @@ components:
           - "TELLER_CASH"
           - "MANUAL"
           - "PAYMENT"
+          - "FX_REVALUATION"
           type: "string"
         entryType:
           enum:
@@ -6100,6 +6101,8 @@ components:
           $ref: "#/components/schemas/GlAccount"
         id:
           format: "uuid"
+          type: "string"
+        positionCurrency:
           type: "string"
         postedAt:
           format: "date-time"

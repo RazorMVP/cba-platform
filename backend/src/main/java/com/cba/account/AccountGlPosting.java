@@ -1,14 +1,13 @@
 package com.cba.account;
 
 import com.cba.accounting.FinancialActivityAccount.FinancialActivity;
+import com.cba.accounting.FunctionalCurrency;
 import com.cba.accounting.GlAccount;
 import com.cba.accounting.GlAccountingService;
 import com.cba.accounting.GlAccountingService.JournalLine;
 import com.cba.accounting.JournalEntry;
-import com.cba.common.exception.CbaException;
 import com.cba.currency.ExchangeRateService;
 import com.cba.product.DepositProduct;
-import com.cba.system.GlobalConfigurationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -36,10 +35,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AccountGlPosting {
 
-    static final String FUNCTIONAL_CURRENCY = "functional-currency";
-
     private final GlAccountingService gl;
-    private final GlobalConfigurationRepository globalConfigRepository;
+    private final FunctionalCurrency functionalCurrency;
     private final ExchangeRateService exchangeRateService;
 
     /** Teller cash in or out: the counter-entry is Cash at Teller. */
@@ -51,12 +48,14 @@ public class AccountGlPosting {
         return gl.postJournal(lines, date, description, JournalEntry.EntityType.ACCOUNT, account.getId(), reference);
     }
 
-    /** Interest credited to the customer: an interest expense of the bank. */
+    /**
+     * Interest credited to the customer: an interest expense of the bank, recorded in the
+     * functional currency (see {@link #balanceWith}).
+     */
     public String postInterestCredit(Account account, BigDecimal balanceBefore, LocalDate date,
                                      String description, String reference) {
         List<JournalLine> lines = new ArrayList<>(balanceChangeLines(account, balanceBefore));
-        lines.add(counterLine(interestOnSavings(account.getProduct()),
-                account.getBalance().subtract(balanceBefore), account.getCurrencyCode()));
+        balanceWith(lines, interestOnSavings(account.getProduct()), account.getCurrencyCode());
         return gl.postJournal(lines, date, description, JournalEntry.EntityType.ACCOUNT, account.getId(), reference);
     }
 
@@ -77,23 +76,24 @@ public class AccountGlPosting {
         String srcCcy = source.getCurrencyCode();
         String dstCcy = destination.getCurrencyCode();
         if (!srcCcy.equalsIgnoreCase(dstCcy)) {
-            String functional = functionalCurrency();
+            String functional = functionalCurrency.get();
             // Signed movement of each customer balance: positive = the bank owes more.
             addFxLeg(lines, srcCcy, source.getBalance().subtract(sourceBefore), functional);
             addFxLeg(lines, dstCcy, destination.getBalance().subtract(destinationBefore), functional);
-            addFunctionalResidual(lines, functional);
+            balanceResidual(lines, functional, gl.activityAccount(FinancialActivity.INCOME_FX_GAIN_LOSS));
         }
         return gl.postJournal(lines, date, description, JournalEntry.EntityType.PAYMENT, paymentId, reference);
     }
 
-    /** Teller count difference at session close: over is a gain, short a loss. */
+    /**
+     * Teller count difference at session close: over is a gain, short a loss, recorded in
+     * the functional currency (see {@link #balanceWith}).
+     */
     public String postCashCountDifference(BigDecimal difference, String currency, LocalDate date,
                                           String description, UUID sessionId) {
-        GlAccount cash = gl.activityAccount(FinancialActivity.ASSET_CASH_AT_TELLER);
-        GlAccount overShort = gl.activityAccount(FinancialActivity.EXPENSE_CASH_OVER_SHORT);
-        List<JournalLine> lines = difference.signum() > 0
-                ? List.of(JournalLine.debit(cash, difference, currency), JournalLine.credit(overShort, difference, currency))
-                : List.of(JournalLine.debit(overShort, difference.negate(), currency), JournalLine.credit(cash, difference.negate(), currency));
+        List<JournalLine> lines = new ArrayList<>(4);
+        lines.add(counterLine(gl.activityAccount(FinancialActivity.ASSET_CASH_AT_TELLER), difference, currency));
+        balanceWith(lines, gl.activityAccount(FinancialActivity.EXPENSE_CASH_OVER_SHORT), currency);
         return gl.postJournal(lines, date, description, JournalEntry.EntityType.TELLER_CASH, sessionId, null);
     }
 
@@ -139,26 +139,47 @@ public class AccountGlPosting {
         BigDecimal equivalent = increase.abs().multiply(rate).setScale(4, RoundingMode.HALF_UP);
         GlAccount position = gl.activityAccount(FinancialActivity.ASSET_FX_POSITION);
         GlAccount positionEquivalent = gl.activityAccount(FinancialActivity.ASSET_FX_POSITION_EQUIVALENT);
+        // The equivalent line is tagged with the currency it values, so the revaluation
+        // job can carry each currency's position at its own closing rate (IAS 21 §23).
         if (increase.signum() > 0) {
             lines.add(JournalLine.debit(position, increase, currency));
-            lines.add(JournalLine.credit(positionEquivalent, equivalent, functional));
+            lines.add(JournalLine.credit(positionEquivalent, equivalent, functional).withPosition(currency));
         } else {
             lines.add(JournalLine.credit(position, increase.negate(), currency));
-            lines.add(JournalLine.debit(positionEquivalent, equivalent, functional));
+            lines.add(JournalLine.debit(positionEquivalent, equivalent, functional).withPosition(currency));
         }
     }
 
-    /** Posts any functional-currency imbalance (rate and rounding differences) to FX gain/loss. */
-    private void addFunctionalResidual(List<JournalLine> lines, String functional) {
-        BigDecimal net = lines.stream()
-                .filter(l -> l.currencyCode().equalsIgnoreCase(functional))
+    /**
+     * Balances the lines with an income or expense account. Income and expenses are
+     * recorded in the functional currency at the spot rate (IAS 21 §21): in a foreign
+     * currency the imbalance first goes through the FX position, so the bank's exposure
+     * from it is revalued with the rest of the position, and the P&amp;L line is the
+     * functional-currency equivalent.
+     */
+    private void balanceWith(List<JournalLine> lines, GlAccount incomeOrExpense, String currency) {
+        String functional = functionalCurrency.get();
+        if (!currency.equalsIgnoreCase(functional)) {
+            addFxLeg(lines, currency, net(lines, currency).negate(), functional);
+        }
+        balanceResidual(lines, functional, incomeOrExpense);
+    }
+
+    /** Puts the functional-currency imbalance (rate and rounding differences) on {@code account}. */
+    private static void balanceResidual(List<JournalLine> lines, String functional, GlAccount account) {
+        BigDecimal net = net(lines, functional);
+        if (net.signum() == 0) return;
+        lines.add(net.signum() > 0
+                ? JournalLine.credit(account, net, functional)
+                : JournalLine.debit(account, net.negate(), functional));
+    }
+
+    /** Debits minus credits of the lines in {@code currency}. */
+    private static BigDecimal net(List<JournalLine> lines, String currency) {
+        return lines.stream()
+                .filter(l -> l.currencyCode().equalsIgnoreCase(currency))
                 .map(l -> l.side() == JournalEntry.EntryType.DEBIT ? l.amount() : l.amount().negate())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        if (net.signum() == 0) return;
-        GlAccount fxGainLoss = gl.activityAccount(FinancialActivity.INCOME_FX_GAIN_LOSS);
-        lines.add(net.signum() > 0
-                ? JournalLine.credit(fxGainLoss, net, functional)
-                : JournalLine.debit(fxGainLoss, net.negate(), functional));
     }
 
     // ── Account resolution: product link first, then activity mapping ────────
@@ -176,15 +197,6 @@ public class AccountGlPosting {
     private GlAccount interestOnSavings(DepositProduct p) {
         return p != null && p.getInterestOnSavingsAccount() != null
                 ? p.getInterestOnSavingsAccount() : gl.activityAccount(FinancialActivity.EXPENSE_INTEREST_ON_SAVINGS);
-    }
-
-    /** The ledger's single functional currency (IAS 21 §17); rejects when not configured. */
-    String functionalCurrency() {
-        return globalConfigRepository.findByName(FUNCTIONAL_CURRENCY)
-                .filter(c -> c.isEnabled() && c.getStringValue() != null && !c.getStringValue().isBlank())
-                .map(c -> c.getStringValue().trim().toUpperCase(java.util.Locale.ROOT))
-                .orElseThrow(() -> CbaException.badRequest("FUNCTIONAL_CURRENCY_NOT_CONFIGURED",
-                        "Global configuration '" + FUNCTIONAL_CURRENCY + "' must be set before cross-currency postings"));
     }
 
     private static BigDecimal positivePart(BigDecimal v) {

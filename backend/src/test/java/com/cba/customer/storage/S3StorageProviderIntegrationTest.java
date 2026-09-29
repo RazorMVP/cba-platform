@@ -23,8 +23,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * End-to-end integration test for {@link S3StorageProvider} against a real MinIO container
- * (S3-compatible) — exercising the actual AWS SDK v2 client, {@code forcePathStyle},
+ * End-to-end integration test for {@link S3StorageProvider} against a real S3-compatible
+ * server — exercising the actual AWS SDK v2 client, {@code forcePathStyle},
  * {@code endpointOverride}, and a genuine PUT/GET/DELETE round trip over the network.
  *
  * <p>This is the S3 path a production deployment uses with {@code app.image.storage=S3}
@@ -32,30 +32,27 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * config, credentials, and byte round-trip actually work.
  */
 @Testcontainers
-@DisplayName("S3StorageProvider — end-to-end against a MinIO container")
+@DisplayName("S3StorageProvider — end-to-end against an S3-compatible container (S3Mock)")
 class S3StorageProviderIntegrationTest {
 
     private static final String BUCKET = "cba-images";
-    private static final String ACCESS = "minioadmin";
-    private static final String SECRET = "minioadmin";
+    private static final String ACCESS = "test-access-key";
+    private static final String SECRET = "test-secret-key";
 
     @Container
-    static final GenericContainer<?> MINIO =
-            // quay.io, NOT Docker Hub: MinIO stopped publishing free images there, so
-            // `minio/minio` now fails with "pull access denied … repository does not
-            // exist", breaking this test — and the whole backend `test` job — on every
-            // run. quay.io/minio/minio still serves the community releases.
-            // Pinned to a release tag rather than `latest` so the test cannot shift
-            // under us; this is the last plain community release (2025-09-07).
-            new GenericContainer<>(DockerImageName.parse("quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z"))
-                    .withExposedPorts(9000)
-                    .withEnv("MINIO_ROOT_USER", ACCESS)
-                    .withEnv("MINIO_ROOT_PASSWORD", SECRET)
-                    .withCommand("server", "/data")
-                    .waitingFor(Wait.forHttp("/minio/health/ready").forPort(9000).forStatusCode(200));
+    static final GenericContainer<?> S3 =
+            // Adobe S3Mock (Apache-2.0, Docker Hub), not MinIO. MinIO withdrew its free
+            // images twice: Docker Hub `minio/minio` ("pull access denied", Session 125
+            // cont. 9), then quay.io/minio/minio started answering anonymous pulls with
+            // 401 UNAUTHORIZED (cont. 19). It only passed locally from a cached image;
+            // every CI runner failed after the 420 s pull timeout. S3Mock implements the
+            // S3 REST API the SDK speaks and accepts any credentials. Pinned, not `latest`.
+            new GenericContainer<>(DockerImageName.parse("adobe/s3mock:5.2.3"))
+                    .withExposedPorts(9090)
+                    .waitingFor(Wait.forHttp("/").forPort(9090).forStatusCode(200));
 
     private static String endpoint() {
-        return "http://" + MINIO.getHost() + ":" + MINIO.getMappedPort(9000);
+        return "http://" + S3.getHost() + ":" + S3.getMappedPort(9090);
     }
 
     @BeforeAll
@@ -72,7 +69,7 @@ class S3StorageProviderIntegrationTest {
     }
 
     @Test
-    @DisplayName("store → retrieve → delete round-trips real bytes through MinIO")
+    @DisplayName("store → retrieve → delete round-trips real bytes through an S3 endpoint")
     void storeRetrieveDelete() {
         S3StorageProvider provider = new S3StorageProvider(BUCKET, "us-east-1", ACCESS, SECRET, endpoint());
         UUID customerId = UUID.randomUUID();

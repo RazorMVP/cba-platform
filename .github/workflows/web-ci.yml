@@ -3,14 +3,8 @@ name: Web CI/CD (Angular → Vercel)
 on:
   push:
     branches: [main, develop]
-    paths:
-      - 'web/**'
-      - '.github/workflows/web-ci.yml'
   pull_request:
     branches: [main, develop]
-    paths:
-      - 'web/**'
-      - '.github/workflows/web-ci.yml'
 
 # ── NOTE ──────────────────────────────────────────────────────────────────────
 # Angular web/ is the production frontend (restored Session 59).
@@ -18,10 +12,44 @@ on:
 # ──────────────────────────────────────────────────────────────────────────────
 
 jobs:
+  # ─── Change detection ────────────────────────────────────────────────────────
+  # Path filtering happens here, not in `on:`, so the gate below reports on EVERY
+  # pull request. A required check whose workflow never triggers stays "Expected"
+  # forever and blocks unrelated PRs.
+  changes:
+    name: Detect web changes
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.diff.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          HEAD: ${{ github.sha }}
+          PATTERN: '^(web/|\.github/workflows/web\-ci\.yml$)'
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then BASE="$PR_BASE"; else BASE="$PUSH_BEFORE"; fi
+          # New branch, force push or unknown base: run everything rather than guess.
+          if [ -z "$BASE" ] || ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if git diff --name-only "$BASE" "$HEAD" | grep -qE "$PATTERN"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   # ─── Lint + Unit Tests ────────────────────────────────────────────────────────
   test:
     name: Lint & Test (Angular)
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     defaults:
       run:
         working-directory: web
@@ -44,6 +72,11 @@ jobs:
       - name: Unit tests (Karma)
         run: npx ng test --watch=false --coverage
 
+      # Proves the app compiles for production without Vercel secrets, which
+      # Dependabot and fork PRs don't get; the Web CI gate relies on this.
+      - name: Production build
+        run: npx ng build --configuration production
+
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
@@ -54,6 +87,8 @@ jobs:
   security:
     name: Security Audit (npm)
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     defaults:
       run:
         working-directory: web
@@ -78,6 +113,11 @@ jobs:
     name: Build & Deploy → Vercel
     runs-on: ubuntu-latest
     needs: [test, security]
+    # The repo's default token is read-only; commenting the preview URL on the
+    # PR needs pull-requests: write. Nothing else in this job writes to GitHub.
+    permissions:
+      contents: read
+      pull-requests: write
     outputs:
       vercel-url: ${{ steps.deploy-preview.outputs.url }}
     defaults:
@@ -103,20 +143,23 @@ jobs:
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
 
+      # The build target must match the deploy target: `vercel deploy --prebuilt`
+      # refuses a production build for a preview deploy. Only a push to main
+      # deploys with --prod; PRs and develop deploy previews.
       - name: Pull Vercel environment (preview)
-        if: github.event_name == 'pull_request'
+        if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
         run: vercel pull --yes --environment=preview --token="${VERCEL_TOKEN}"
 
       - name: Pull Vercel environment (production)
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: vercel pull --yes --environment=production --token="${VERCEL_TOKEN}"
 
       - name: Build Angular (preview)
-        if: github.event_name == 'pull_request'
-        run: vercel build --prod --token="${VERCEL_TOKEN}"
+        if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+        run: vercel build --token="${VERCEL_TOKEN}"
 
       - name: Build Angular (production)
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: vercel build --prod --token="${VERCEL_TOKEN}"
 
       - name: Deploy preview to Vercel
@@ -196,3 +239,21 @@ jobs:
         with:
           name: playwright-report
           path: web/playwright-report/
+
+  # ─── Required check ──────────────────────────────────────────────────────────
+  # The one check the `main` ruleset requires for this workflow. Passes when the
+  # jobs below succeeded or were skipped (nothing relevant changed); fails if any
+  # failed or was cancelled. Named uniquely: backend and card-service share job
+  # names, so requiring e.g. "OWASP Dependency Check" would match either.
+  gate:
+    name: Web CI gate
+    if: always()
+    needs: [changes, test, security]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any gated job failed or was cancelled
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$NEEDS" | jq -e 'all(.[]; .result == "success" or .result == "skipped")' > /dev/null

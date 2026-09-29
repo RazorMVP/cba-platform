@@ -57,6 +57,88 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 19) — 2026-09-29
+**Backend CI: the S3 integration test could never pass on a runner — quay.io now refuses anonymous MinIO pulls. Swapped to Adobe S3Mock.**
+
+| File | Change |
+|------|--------|
+| `backend/.../storage/S3StorageProviderIntegrationTest.java` | `quay.io/minio/minio:RELEASE.2025-09-07…` → `adobe/s3mock:5.2.3` (port 9090, `GET /` readiness, any credentials); same AWS SDK v2 PUT/GET/DELETE + `NoSuchKey` round trip |
+| `CLAUDE.md` | MinIO note replaced; "a local pass from a cached image proves nothing" |
+
+- Root cause (not a flake): every retry logged `unauthorized: access to the requested resource is not authorized`; anonymous `HEAD /v2/minio/minio/manifests/...` → **401**, repository API → "Requires authentication". The test passed locally only because the image was cached. Failed identically on #118, #126, #127.
+- Verified: anonymous `docker pull adobe/s3mock:5.2.3` works; `GET /` → 200 in 4 s; `S3StorageProviderIntegrationTest` 1/1 against S3Mock.
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
+#### Confirmed Platform Versions
+| Directory | Last commit | Notes |
+|-----------|-------------|-------|
+| `backend/` | this PR | test image only |
+
+### Session 125 (cont. 18) — 2026-09-28
+**Security: OWASP gate unblocked for backend + card-service. CVE-2026-41707 (Spring Security DPoP replay cache, 7.4) has no public fix in the 6.5 line and is reachable by default, so it gets a compensating control before its suppression; Jackson bumped to 2.21.7.**
+
+| File | Change |
+|------|--------|
+| `backend/.../config/DPoPRejectionFilter.java`, `card-service/.../config/DPoPRejectionFilter.java` | NEW — `HIGHEST_PRECEDENCE` servlet filter (before Spring Security) rejecting any `Authorization: DPoP` with `401 DPOP_NOT_SUPPORTED` |
+| `DPoPRejectionFilterTest` (×2, 4 each), `DPoPRejectionIT` (backend, 2), `DPoPRejectionIntegrationTest` (card-service, both security chains) | Unit + real-HTTP proof the filter runs first (only it emits `DPOP_NOT_SUPPORTED`) |
+| `backend/pom.xml`, `card-service/pom.xml` | `jackson-bom.version` 2.21.7 (CVE-2026-54515 fixed in 2.21.5) |
+| `docs/owasp-suppressions.xml` | CVE-2026-41707 only, `until="2026-12-22Z"`, justification = the filter, not "unused" |
+| `docs/api-reference.html`, `docs/card-api-reference.html` (+ `docs-site/static`) | DPoP not supported / `DPOP_NOT_SUPPORTED`; removed the false "supports FAPI 2.0 (PAR + DPoP + PKCE)" claim |
+| `CLAUDE.md` | OWASP policy step 3: compensating control when reachable + unfixable |
+
+#### Key findings
+- Of the 13 new CVEs in the gate output, **only CVE-2026-41707 is ≥ 7** (fails `failBuildOnCVSS=7`); the rest are listed but below threshold.
+- Fix exists only in Spring Security 6.5.12 (not on Maven Central; newest public 6.5.x is 6.5.11) and 7.0.6.1 (needs Spring Boot 4).
+- **Reachable by default** — verified in the 6.5.11 source: `OAuth2ResourceServerConfigurer` applies `DPoPAuthenticationConfigurer` whenever `DPoPProofJwtDecoderFactory` is on the classpath, unconditionally. An "unused" suppression would have been false.
+- No legitimate caller uses DPoP (Keycloak realm issues no DPoP-bound tokens), so rejecting the scheme breaks nothing.
+
+#### Build Verification
+- Backend `-Pfull-integration` **710/710** (incl. MinIO locally); card-service `-Pfull-integration` **129/129**; card-service OpenAPI snapshot unchanged. Resolved Jackson = 2.21.7 in both. OWASP result itself is verified by this PR's CI (NVD database not available locally).
+- API surface: no endpoint/param changes (gate grep); behaviour change (DPoP → 401) documented in both API references. No Postman edits owed.
+
+#### Confirmed Platform Versions
+| Directory | Last commit | Notes |
+|-----------|-------------|-------|
+| `backend/` | `2e4a5bf` (#127) | Spring Boot 3.5.16 + 7 security pins (Jackson 2.21.7 added) |
+| `card-service/` | `2e4a5bf` (#127) | Same pins; 129/129 |
+
+### Session 125 (cont. 17) — 2026-09-28
+**CI: per-workflow gate jobs so `main` can be protected by a ruleset. `main` had no branch protection at all — no required checks, direct pushes allowed.**
+
+| File | Change |
+|------|--------|
+| `.github/workflows/backend-ci.yml`, `card-service-ci.yml`, `web-ci.yml` | Path filters moved from `on:` into a `changes` job (`git diff` against the PR base / push `before`; unknown base → run everything). Gated jobs `needs: changes` + `if: …run == 'true'`. New `gate` job per workflow (`Backend CI gate`, `Card Service CI gate`, `Web CI gate`): passes on success/skipped, fails on failure/cancelled |
+| `.github/workflows/web-ci.yml` | `Lint & Test` also runs `ng build --configuration production`, so the web gate proves the build without Vercel secrets |
+| `CLAUDE.md` | Ruleset + gate pattern documented |
+
+- Why: a required check from a path-filtered workflow that doesn't trigger stays "Expected" and blocks unrelated PRs; and backend/card-service share job names, so requiring a job name would let either satisfy it.
+- Verified locally: change detection against real commits (docs-only `9f8b2a2` → backend false; `523bb35` → backend true; `62e6a95` → web true / backend false; unknown and empty base → true); gate `jq` logic (skipped/success pass, failure/cancelled fail); `ng build --configuration production` succeeds; all three workflows parse.
+- The ruleset itself is created after this PR merges (a repo setting, not a file).
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
+#### Confirmed Platform Versions
+| Directory | Last commit | Notes |
+|-----------|-------------|-------|
+| `backend/`, `web/` | unchanged | CI workflows only |
+
+### Session 125 (cont. 16) — 2026-09-28
+**CI: the web Vercel job failed on every pull request because PR builds used `--prod` while the deploy was a preview.**
+
+| File | Change |
+|------|--------|
+| `.github/workflows/web-ci.yml` | Pull/build as preview unless the event is a push to `main`; only that path uses `--prod` (it is the only `--prod` deploy). Fixes PRs and `develop` pushes. **Second bug, hidden behind the first:** the `deploy` job had no `permissions:` block, so the read-only default token got `403 Resource not accessible by integration` on "Comment preview URL on PR" — it had never been reached before. Job now grants `contents: read` + `pull-requests: write` only |
+| `CLAUDE.md` | Vercel flow corrected (develop was documented as `build --prod`) + gotcha note |
+
+- Found while merging #118: its `Build & Deploy → Vercel` job failed with `The "--prebuilt" option was used with the target environment "preview", but the prebuilt output … was built with target environment "production"`. The last 8 web-ci PR runs (Dependabot included) all failed the same way; `main` pushes passed.
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+- Build verification: YAML parses (jobs `test`, `security`, `deploy`, `e2e`); the fix is proven by this PR's own `Build & Deploy → Vercel` run.
+
+#### Confirmed Platform Versions
+| Directory | Last commit | Notes |
+|-----------|-------------|-------|
+| `backend/` | unchanged | — |
+| `web/` | unchanged | CI workflow only |
+
 ### Session 125 (cont. 15) — 2026-09-25
 **GL posting, PR 1 of 3: deposits, withdrawals, teller cash, internal transfers (incl. standing orders), payment reversals and savings interest now post a balanced journal in the same transaction as the balance change. A missing GL mapping rejects the transaction.**
 

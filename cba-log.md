@@ -57,6 +57,23 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 19) — 2026-09-29
+**Backend CI: the S3 integration test could never pass on a runner — quay.io now refuses anonymous MinIO pulls. Swapped to Adobe S3Mock.**
+
+| File | Change |
+|------|--------|
+| `backend/.../storage/S3StorageProviderIntegrationTest.java` | `quay.io/minio/minio:RELEASE.2025-09-07…` → `adobe/s3mock:5.2.3` (port 9090, `GET /` readiness, any credentials); same AWS SDK v2 PUT/GET/DELETE + `NoSuchKey` round trip |
+| `CLAUDE.md` | MinIO note replaced; "a local pass from a cached image proves nothing" |
+
+- Root cause (not a flake): every retry logged `unauthorized: access to the requested resource is not authorized`; anonymous `HEAD /v2/minio/minio/manifests/...` → **401**, repository API → "Requires authentication". The test passed locally only because the image was cached. Failed identically on #118, #126, #127.
+- Verified: anonymous `docker pull adobe/s3mock:5.2.3` works; `GET /` → 200 in 4 s; `S3StorageProviderIntegrationTest` 1/1 against S3Mock.
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
+#### Confirmed Platform Versions
+| Directory | Last commit | Notes |
+|-----------|-------------|-------|
+| `backend/` | this PR | test image only |
+
 ### Session 125 (cont. 18) — 2026-09-28
 **Security: OWASP gate unblocked for backend + card-service. CVE-2026-41707 (Spring Security DPoP replay cache, 7.4) has no public fix in the 6.5 line and is reachable by default, so it gets a compensating control before its suppression; Jackson bumped to 2.21.7.**
 
@@ -82,8 +99,8 @@ _None — all Phase 1 backend modules are now complete._
 #### Confirmed Platform Versions
 | Directory | Last commit | Notes |
 |-----------|-------------|-------|
-| `backend/` | this PR | Spring Boot 3.5.16 + 7 security pins (Jackson 2.21.7 added) |
-| `card-service/` | this PR | Same pins; 129/129 |
+| `backend/` | `2e4a5bf` (#127) | Spring Boot 3.5.16 + 7 security pins (Jackson 2.21.7 added) |
+| `card-service/` | `2e4a5bf` (#127) | Same pins; 129/129 |
 
 ### Session 125 (cont. 17) — 2026-09-28
 **CI: per-workflow gate jobs so `main` can be protected by a ruleset. `main` had no branch protection at all — no required checks, direct pushes allowed.**

@@ -327,6 +327,26 @@
     <cve>CVE-2026-59282</cve>
   </suppress>
 
+  <!-- DPoP replay-cache eviction (CVSS 7.4). Session 125 cont. 18.
+       ⚠️ Spring's DPoP support IS on the request path by default: in 6.5.11,
+       OAuth2ResourceServerConfigurer applies DPoPAuthenticationConfigurer whenever
+       DPoPProofJwtDecoderFactory is on the classpath, with no switch to disable it.
+       So this entry does NOT rest on "not used" — it rests on a compensating control. -->
+  <suppress until="2026-12-22Z">
+    <notes>Fixed only in Spring Security 6.5.12 (not published to Maven Central; 6.5.11 is the
+      newest open-source 6.5.x) and 7.0.6.1 (requires Spring Boot 4). Compensating control:
+      DPoPRejectionFilter (backend com.cba.config, card-service com.cba.card.config) runs at
+      HIGHEST_PRECEDENCE, before Spring Security, and rejects every request whose Authorization
+      header uses the DPoP scheme with 401 DPOP_NOT_SUPPORTED, so DPoPProofJwtDecoderFactory's
+      replay cache never receives input. Proven over HTTP by DPoPRejectionIT (backend) and
+      DPoPRejectionIntegrationTest (card-service, both security chains). No legitimate caller
+      uses DPoP: the Keycloak realm issues no DPoP-bound tokens. Exploitation would also need
+      an intercepted valid DPoP proof. Remove this entry AND the filter when upgrading to a
+      fixed Spring Security; enabling DPoP for FAPI 2.0 requires that upgrade first.</notes>
+    <packageUrl regex="true">^pkg:maven/org\.springframework\.security/.*$</packageUrl>
+    <cve>CVE-2026-41707</cve>
+  </suppress>
+
   <!-- Spring Security: WebAuthn + embedded UnboundID LDAP server.
        Attributed by dependency-check to spring-security-core AND
        spring-security-oauth2-resource-server, hence the group-level PURL —

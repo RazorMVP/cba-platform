@@ -259,7 +259,7 @@ details.endpoint[open] .endpoint-body{display:block}
 <h2>Authentication</h2>
 <p>The CBA platform uses <strong>OAuth 2.0 / OpenID Connect</strong> via <strong>Keycloak 23+</strong>. All API requests must include a valid Bearer token.</p>
 
-<div class="callout info">The platform also supports <strong>FAPI 2.0</strong> (PAR + DPoP + PKCE) for Open Banking endpoints. Standard backoffice endpoints use regular Bearer tokens.</div>
+<div class="callout info"><strong>FAPI 2.0 is a target, not yet complete:</strong> PKCE is supported; <strong>DPoP is not</strong>. Any request whose <code>Authorization</code> header uses the <code>DPoP</code> scheme is rejected with <code>401 DPOP_NOT_SUPPORTED</code> before authentication runs, on every endpoint — a compensating control for CVE-2026-41707 in Spring Security 6.5's DPoP replay cache (fixed only in Spring Security 7). Use <code>Authorization: Bearer</code>. DPoP arrives with the Spring Security 7 / Spring Boot 4 upgrade.</div>
 
 <h3>Authentication Overview</h3>
 <p>Every API request must be authenticated. Unauthenticated requests return HTTP <code>401</code>. Requests authenticated but lacking the required role return HTTP <code>403</code>.</p>

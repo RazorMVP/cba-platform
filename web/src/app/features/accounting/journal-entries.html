@@ -58,6 +58,7 @@
             <div class="entry-group__meta">
               <span class="entry-date">{{ g.entryDate | date:'mediumDate' }}</span>
               <span class="entry-txn-id mono muted">{{ g.transactionId | slice:0:8 }}…</span>
+              <span class="entry-ref muted mono">{{ g.currencyCode }}</span>
               @if (g.reference) {
                 <span class="entry-ref muted">Ref: {{ g.reference }}</span>
               }
@@ -71,7 +72,11 @@
               @if (g.reversed) {
                 <app-status-badge variant="neutral" label="Reversed" />
               }
-              @if (!g.reversed && g.createdByType === 'USER') {
+              @if (g.isReversal) {
+                <app-status-badge variant="neutral" label="Reversal" />
+              }
+              <!-- Only manual journals are reversed here; sub-ledger postings are reversed at their source. -->
+              @if (!g.reversed && !g.isReversal && g.createdByType === 'USER') {
                 <button class="btn-reverse" (click)="openReverseModal(g)">
                   <span class="material-icons">undo</span> Reverse
                 </button>
@@ -171,6 +176,10 @@
           <div class="form-field form-field--third">
             <label class="form-label">Transaction Date <span class="required">*</span></label>
             <input class="form-input" type="date" [(ngModel)]="entryDate" />
+          </div>
+          <div class="form-field form-field--third">
+            <label class="form-label">Currency <span class="required">*</span></label>
+            <input class="form-input mono" type="text" maxlength="3" [(ngModel)]="entryCurrency" placeholder="USD" />
           </div>
           <div class="form-field form-field--third">
             <label class="form-label">Reference <span class="form-hint">(optional)</span></label>

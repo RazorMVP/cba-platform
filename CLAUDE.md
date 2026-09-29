@@ -23,7 +23,7 @@ These are the verified-working versions for all production components. Update th
 | **thumbnailator** | 0.4.20 | Server-side image resize for `ClientImageService` — max 500×500, JPEG output |
 | **ZXing** | 3.5.3 | Server-side QR PNG generation (`core` + `javase`) — Session 105 |
 | **spring-boot-starter-data-redis** | 3.5.16 (managed) | Redis fixed-window rate limiting (Lua INCR+EXPIRE) — Session 106 |
-| **Last git commit** | Session 125 cont. 20 (GL posting PR 1b — FX revaluation + opening-balance journal; Flyway V56; `-Pfull-integration` **747/747**). Earlier: cont. 15 (GL posting PR 1, #120, V54, 735/735) | Earlier: cont. 8 (`ad374f9`) — Spring Boot 3.5.0 → 3.5.16 (#111); six security pins ahead of the BOM (Tomcat 10.1.60, Netty 4.1.138, PostgreSQL 42.7.13, httpcore5 5.4.3, httpclient5 5.6.4, log4j2 2.26.1) + 14 time-boxed Spring suppressions so `owasp-check` passes **while still blocking at CVSS 7** (#113); MinIO test image → quay.io and 3 SpotBugs findings fixed (#114). `-Pfull-integration`: **704/704**. |
+| **Last git commit** | Session 125 cont. 21 (ledger fixes — whole-journal reversal, per-currency trial balance, closed periods enforced, journal DTO; `-Pfull-integration` **751/751**). Earlier: cont. 20 (#129, FX revaluation + opening balances, V56, 747/747); cont. 15 (#120, V54) | Earlier: cont. 8 (`ad374f9`) — Spring Boot 3.5.0 → 3.5.16 (#111); six security pins ahead of the BOM (Tomcat 10.1.60, Netty 4.1.138, PostgreSQL 42.7.13, httpcore5 5.4.3, httpclient5 5.6.4, log4j2 2.26.1) + 14 time-boxed Spring suppressions so `owasp-check` passes **while still blocking at CVSS 7** (#113); MinIO test image → quay.io and 3 SpotBugs findings fixed (#114). `-Pfull-integration`: **704/704**. |
 
 ### Angular Web App (`web/`)
 
@@ -370,7 +370,10 @@ Each module follows the pattern: Entity → Repository → Service (@Transaction
 - Package: `com.cba.accounting`
 - Entities: `GlAccount`, `JournalEntry`, `FinancialActivityAccount`, `GlClosure`
 - Endpoints: `GET /api/v1/glaccounts`, `POST/GET /api/v1/journalentries`, `POST /api/v1/journalentries/{id}/reverse`, `GET/POST /api/v1/journalentries/opening-balances`, `POST/GET /api/v1/glclosures`
-- **Known defects (next PR):** `reverseJournalEntry` reverses one line, not the whole journal (unbalances the ledger); the trial balance excludes reversed originals but counts their reversals (a reversed 100 shows −100) and sums different currencies in one row
+- **Reversal = whole journal, manual journals only** _(cont. 21)_: `reverseJournalEntry` posts one `REV-` journal with every line flipped and marks the originals `reversed`; sub-ledger journals → `400 SUBLEDGER_JOURNAL_NOT_REVERSIBLE` (reverse the source, e.g. payment reversal — Oracle GL rule), reversal of a reversal / already reversed → 400. **Never filter `is_reversed` when summing balances**: the reversal lines already cancel the originals
+- **Trial balance is per account AND currency** _(cont. 21)_: `currencies[]` each with its own `balanced` (period debits = credits and closing debits = credits); never add amounts in different currencies. Disabled accounts with lines are included
+- **Closed periods are enforced** _(cont. 21)_: every posting goes through `GlAccountingService.write()`, which rejects a date on or before any GL closure (`GL_PERIOD_CLOSED`). `validateNotClosed` was an empty stub until then
+- **Journal endpoints return `JournalEntryResponse`** (flat: `glAccountCode`/`glAccountName`, `manual`, `reversalOfId`), never the entity. Manual journals: any line count, balanced by amount, one currency, `@Valid` per line
 - Financial Activity Accounts CRUD: `GET/POST/PUT/DELETE /api/v1/financialactivityaccounts` — maps abstract activities to concrete GL codes; implemented via inner `FinancialActivityRequest` record in `GlAccountingController`
 
 ### 15. Reports Module

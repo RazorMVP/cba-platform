@@ -49,30 +49,37 @@ public class GlAccountingController {
 
     @PostMapping("/api/v1/journalentries")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Post manual journal entries (balanced debit/credit pairs)")
-    public ResponseEntity<ApiResponse<List<JournalEntry>>> postManualEntries(
+    @Operation(summary = "Post a manual journal: any number of debit and credit lines, balanced, in one currency")
+    public ResponseEntity<ApiResponse<List<JournalEntryResponse>>> postManualEntries(
             @Valid @RequestBody ManualJournalRequest req) {
-        return ResponseEntity.ok(ApiResponse.ok(glService.postManualEntries(req)));
+        return ResponseEntity.ok(ApiResponse.ok(
+                glService.postManualEntries(req).stream().map(JournalEntryResponse::from).toList()));
     }
 
     @GetMapping("/api/v1/journalentries")
     @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
     @Operation(summary = "List journal entries for a date range")
-    public ResponseEntity<ApiResponse<List<JournalEntry>>> listEntries(
+    public ResponseEntity<ApiResponse<List<JournalEntryResponse>>> listEntries(
             @RequestParam LocalDate from,
             @RequestParam LocalDate to) {
         return ResponseEntity.ok(ApiResponse.ok(
                 journalEntryRepository.findByTransactionDateBetween(from, to,
-                        org.springframework.data.domain.PageRequest.of(0, 1000)).getContent()));
+                        org.springframework.data.domain.PageRequest.of(0, 1000)).getContent()
+                        .stream().map(JournalEntryResponse::from).toList()));
     }
 
     @PostMapping("/api/v1/journalentries/{id}/reverse")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Reverse a journal entry")
-    public ResponseEntity<ApiResponse<Void>> reverseEntry(@PathVariable UUID id) {
-        glService.reverseJournalEntry(id);
-        return ResponseEntity.ok(ApiResponse.ok(null));
+    @Operation(summary = "Reverse the whole manual journal the entry belongs to; sub-ledger journals are reversed at their source")
+    public ResponseEntity<ApiResponse<JournalReversalResponse>> reverseEntry(@PathVariable UUID id) {
+        GlAccountingService.JournalReversal r = glService.reverseJournalEntry(id);
+        return ResponseEntity.ok(ApiResponse.ok(new JournalReversalResponse(r.reversedTransactionId(),
+                r.reversalTransactionId(), r.lines().stream().map(JournalEntryResponse::from).toList())));
     }
+
+    /** The reversed journal's id, the new reversal journal's id, and the reversal's lines. */
+    record JournalReversalResponse(String reversedTransactionId, String reversalTransactionId,
+                                   List<JournalEntryResponse> lines) {}
 
     // ── GL Closures ───────────────────────────────────────────────────────────
 

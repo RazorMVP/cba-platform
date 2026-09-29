@@ -8,7 +8,7 @@ type Svc = Record<'getTrialBalance', ReturnType<typeof vi.fn>>;
 
 function row(over: Partial<TrialBalanceRow> = {}): TrialBalanceRow {
   return {
-    glCode: '1001', accountName: 'Cash', accountType: 'ASSET',
+    glCode: '1001', accountName: 'Cash', accountType: 'ASSET', currencyCode: 'USD',
     openingBalance: 100, debitMovement: 50, creditMovement: 20, closingBalance: 130, ...over,
   };
 }
@@ -17,8 +17,9 @@ function report(over: Partial<TrialBalanceResponse> = {}): TrialBalanceResponse 
   return {
     fromDate: '2026-06-01', toDate: '2026-06-30',
     rows: [row()],
-    totalDebitMovement: 50, totalCreditMovement: 20,
-    totalClosingDebit: 130, totalClosingCredit: 0, balanced: true, ...over,
+    currencies: [{ currencyCode: 'USD', totalDebitMovement: 50, totalCreditMovement: 20,
+                   totalClosingDebit: 130, totalClosingCredit: 0, balanced: false }],
+    balanced: false, ...over,
   };
 }
 
@@ -65,7 +66,8 @@ describe('TrialBalanceComponent', () => {
     it('returns empty when there is no report', () => {
       const c = make();
       c.report = null;
-      expect(c.groupedRows()).toEqual([]);
+      expect(c.groupedRows('USD')).toEqual([]);
+      expect(c.rowsFor('USD')).toEqual([]);
     });
 
     it('groups rows by account type in canonical order', () => {
@@ -78,9 +80,22 @@ describe('TrialBalanceComponent', () => {
           row({ glCode: '1002', accountType: 'ASSET' }),
         ],
       });
-      const groups = c.groupedRows();
+      const groups = c.groupedRows('USD');
       expect(groups.map(g => g.type)).toEqual(['ASSET', 'LIABILITY', 'EXPENSE']);
       expect(groups[0].rows).toHaveLength(2);
+    });
+
+    it('keeps currencies apart: each currency groups only its own rows', () => {
+      const c = make();
+      c.report = report({
+        rows: [
+          row({ glCode: '2001', accountType: 'LIABILITY', currencyCode: 'USD' }),
+          row({ glCode: '2001', accountType: 'LIABILITY', currencyCode: 'KES' }),
+          row({ glCode: '1200', accountType: 'ASSET', currencyCode: 'KES' }),
+        ],
+      });
+      expect(c.rowsFor('USD')).toHaveLength(1);
+      expect(c.groupedRows('KES').map(g => g.type)).toEqual(['ASSET', 'LIABILITY']);
     });
   });
 
@@ -119,7 +134,6 @@ describe('TrialBalanceComponent', () => {
       const c = make();
       c.report = report({
         rows: [row({ glCode: '1001', accountName: 'Cash', accountType: 'ASSET', openingBalance: 100, debitMovement: 50, creditMovement: 20, closingBalance: 130 })],
-        totalDebitMovement: 50, totalCreditMovement: 20,
       });
 
       // URL.createObjectURL receives the constructed Blob — read its content back.
@@ -144,9 +158,9 @@ describe('TrialBalanceComponent', () => {
 
       c.exportCsv();
 
-      expect(csv).toContain('GL Code,Account Name,Account Type');
-      expect(csv).toContain('"1001","Cash","ASSET",100,50,20,130');
-      expect(csv).toContain(',,TOTALS,,50,20,');
+      expect(csv).toContain('Currency,GL Code,Account Name,Account Type');
+      expect(csv).toContain('"USD","1001","Cash","ASSET",100,50,20,130');
+      expect(csv).toContain('"USD",,TOTALS,,,50,20,');
       expect(click).toHaveBeenCalled();
 
       vi.unstubAllGlobals();

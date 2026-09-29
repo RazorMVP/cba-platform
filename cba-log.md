@@ -57,6 +57,44 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 21) — 2026-09-29
+**Ledger fixes: journal reversal reverses the whole journal (manual journals only), the trial balance is per currency and counts reversals correctly, GL closures are enforced, and the journal-entry and trial-balance screens work against the real API.**
+
+#### Defects fixed
+| # | Defect | Effect | Fix |
+|---|--------|--------|-----|
+| 1 | `reverseJournalEntry` reversed one line | Reversing one side of a journal unbalanced the ledger | Reverses every line of the journal as one `REV-` journal; originals marked reversed |
+| 2 | Any journal could be reversed in the GL | Reversing a deposit's journal left the ledger out of step with the customer balance | Manual journals only; sub-ledger journals → `SUBLEDGER_JOURNAL_NOT_REVERSIBLE` (Oracle GL: "Subledger journal entries cannot be reversed in GL") |
+| 3 | Trial balance dropped reversed originals but counted their reversals | A reversed 100 showed as −100 | Every line counts; reversal and original net to zero |
+| 4 | Trial balance summed USD, KES, GHS… in one row and one `balanced` flag | Meaningless totals | Rows per account and currency; `currencies[]` each balanced on its own (movement and closing) |
+| 5 | `validateNotClosed` was an empty stub | GL closures blocked nothing | Every posting (automatic, manual, reversal) rejects a date on or before a closure (`GL_PERIOD_CLOSED`) |
+| 6 | Manual journals required equal numbers of debit and credit lines, skipped the posting checks, and never validated line amounts (`@Valid` missing) | 1 debit / 2 credits rejected; a negative amount reached the ledger as a 500 | Balanced by amount only; same `write()` checks as automatic postings; `@Valid` lines, 3-letter currency |
+| 7 | Journal-entries screen: list sent `fromDate`/`toDate`/paging (API needs `from`/`to`, returns a list); read `entryDate`/`type`/`createdByType` (none exist); manual form sent `glAccountId`, no currency | The screen never loaded and manual entry never posted | API returns a flat `JournalEntryResponse`; web aligned (from/to, client-side filters, GL codes, currency field, API error messages); trial-balance screen per currency |
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `accounting/GlAccountingService.java` | `write()` shared by all postings (balance per currency, DETAIL/enabled, closed period); manual journals via `write("MJ")`; whole-journal manual-only reversal returning `JournalReversal`; per-currency trial balance (`CurrencyTotals`) |
+| `accounting/JournalEntryResponse.java` | NEW flat DTO for journal lines |
+| `accounting/GlAccountingController.java` | Journal endpoints return DTOs; reverse returns `{reversedTransactionId, reversalTransactionId, lines}` |
+| `accounting/ManualJournalRequest.java` | `@Valid` lines, `@Size(3)` currency, optional `referenceNumber` |
+| `accounting/JournalEntryRepository.java`, `GlClosureRepository.java` | `findByTransactionIdOrderByIdAsc`, `existsByClosingDateGreaterThanEqual` |
+| `test/.../GlAccountingServiceTest.java` | +1:2 manual journal, closed period, whole-journal reversal, sub-ledger rejected, reversal-of-reversal rejected |
+| `test/.../GlPostingIT.java` | Manual journal + reversal: trial balance shows both, closing unchanged, every currency balanced |
+| `web/.../accounting.service.ts`, `journal-entries.ts/.html`, `trial-balance.ts/.html` + specs | Aligned to the API; per-currency trial balance; reversal only offered on unreversed manual journals |
+| `backend/docs/openapi-snapshot.yaml`, `docs/api-reference.html`, `docs/cba-postman-collection-v2.json`, `CLAUDE.md` | New shapes and rules; Postman list gets required `from`/`to`, manual body uses `glCode` |
+
+#### Build Verification
+- Backend `-Pfull-integration` **751/751** (was 747). OpenAPI snapshot regenerated (`JournalEntryResponse`, `JournalReversalResponse`, `CurrencyTotals`).
+- Web `ng test` **1153/1153** (was 1147); `ng build --configuration production` succeeds.
+- Gate grep: endpoint paths unchanged; response bodies of `GET/POST /journalentries`, `POST /journalentries/{id}/reverse` and `GET /accounting/trial-balance` changed → api-reference, Postman and OpenAPI snapshot updated.
+
+#### Confirmed Platform Versions
+| Directory | Last commit | Notes |
+|-----------|-------------|-------|
+| `backend/` | this PR | Spring Boot 3.5.16; Flyway V56 (no migration); 751/751 |
+| `web/` | this PR | Angular 21.2.23; 1153/1153 |
+
 ### Session 125 (cont. 20) — 2026-09-29
 **GL posting PR 1b: nightly FX revaluation (IAS 21 §23, §28) and the one-time opening-balance journal against a migration clearing account that must end at zero. Also fixes foreign-currency interest and teller over/short, which #120 booked in the foreign currency (IAS 21 §21).**
 

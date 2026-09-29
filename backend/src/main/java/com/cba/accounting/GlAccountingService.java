@@ -61,6 +61,20 @@ public class GlAccountingService {
     @Transactional
     public String postJournal(List<JournalLine> lines, LocalDate transactionDate, String description,
                               JournalEntry.EntityType entityType, UUID entityId, String referenceNumber) {
+        return write("GL", lines, transactionDate, description, entityType, entityId, referenceNumber)
+                .get(0).getTransactionId();
+    }
+
+    /**
+     * Validates and saves one journal; returns its lines in order. Every posting — automatic,
+     * manual or reversal — goes through here, so they all get the same checks: positive
+     * amounts, balance per currency, enabled DETAIL accounts, and no date inside a closed
+     * period.
+     */
+    private List<JournalEntry> write(String prefix, List<JournalLine> lines, LocalDate transactionDate,
+                                     String description, JournalEntry.EntityType entityType, UUID entityId,
+                                     String referenceNumber) {
+        validateNotClosed(transactionDate);
         List<JournalLine> posted = lines.stream().filter(l -> l.amount().signum() != 0).toList();
         if (posted.isEmpty()) {
             throw new IllegalStateException("Journal has no non-zero lines: " + description);
@@ -84,16 +98,17 @@ public class GlAccountingService {
             }
         });
 
-        String transactionId = newTransactionId("GL");
+        String transactionId = newTransactionId(prefix);
+        List<JournalEntry> saved = new java.util.ArrayList<>(posted.size());
         for (JournalLine line : posted) {
             JournalEntry entry = buildEntry(transactionId, line.account(), line.side(), line.amount(),
                     line.currencyCode(), transactionDate, description, entityType, entityId);
             entry.setReferenceNumber(referenceNumber);
             entry.setPositionCurrency(line.positionCurrency());
-            journalEntryRepository.save(entry);
+            saved.add(journalEntryRepository.save(entry));
         }
         log.debug("GL posted {} ({} lines) for entity {}:{}", transactionId, posted.size(), entityType, entityId);
-        return transactionId;
+        return saved;
     }
 
     /** The GL account mapped to a financial activity; rejects the transaction when unmapped. */
@@ -142,78 +157,91 @@ public class GlAccountingService {
 
     // ── Manual journal entries ────────────────────────────────────────────────
 
+    /**
+     * A manual journal: any number of debit and credit lines in one currency, balanced by
+     * amount. It goes through the same checks as automatic postings, and only accounts
+     * that allow manual entries can take it.
+     */
     @Transactional
     public List<JournalEntry> postManualEntries(ManualJournalRequest request) {
-        validateNotClosed(request.transactionDate());
-
-        if (request.debits().size() != request.credits().size()) {
-            throw CbaException.badRequest("UNBALANCED_ENTRY",
-                    "Manual journal must have equal number of debit and credit lines");
-        }
-
         BigDecimal totalDebits  = request.debits().stream().map(ManualJournalRequest.EntryLine::amount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal totalCredits = request.credits().stream().map(ManualJournalRequest.EntryLine::amount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-
         if (totalDebits.compareTo(totalCredits) != 0) {
             throw CbaException.badRequest("UNBALANCED_ENTRY",
                     "Debits (" + totalDebits + ") must equal credits (" + totalCredits + ")");
         }
 
-        String actor = resolveActor();
-        String transactionId = newTransactionId("MJ");
-        List<JournalEntry> entries = new java.util.ArrayList<>();
+        String currency = request.currencyCode().trim().toUpperCase(java.util.Locale.ROOT);
+        List<JournalLine> lines = new java.util.ArrayList<>();
+        request.debits().forEach(l -> lines.add(JournalLine.debit(manualAccount(l.glCode()), l.amount(), currency)));
+        request.credits().forEach(l -> lines.add(JournalLine.credit(manualAccount(l.glCode()), l.amount(), currency)));
 
-        for (ManualJournalRequest.EntryLine line : request.debits()) {
-            GlAccount account = resolveByCode(line.glCode());
-            if (!account.isManualEntriesAllowed()) {
-                throw CbaException.badRequest("MANUAL_ENTRY_NOT_ALLOWED",
-                        "GL account " + line.glCode() + " does not allow manual entries");
-            }
-            entries.add(journalEntryRepository.save(buildEntry(transactionId, account,
-                    JournalEntry.EntryType.DEBIT, line.amount(), request.currencyCode(),
-                    request.transactionDate(), request.comments(),
-                    JournalEntry.EntityType.MANUAL, null)));
-        }
-        for (ManualJournalRequest.EntryLine line : request.credits()) {
-            GlAccount account = resolveByCode(line.glCode());
-            if (!account.isManualEntriesAllowed()) {
-                throw CbaException.badRequest("MANUAL_ENTRY_NOT_ALLOWED",
-                        "GL account " + line.glCode() + " does not allow manual entries");
-            }
-            entries.add(journalEntryRepository.save(buildEntry(transactionId, account,
-                    JournalEntry.EntryType.CREDIT, line.amount(), request.currencyCode(),
-                    request.transactionDate(), request.comments(),
-                    JournalEntry.EntityType.MANUAL, null)));
-        }
-
-        auditLogService.log("JOURNAL_ENTRY", entries.get(0).getId().toString(),
-                "MANUAL_POSTED", null, "actor=" + actor + ",amount=" + totalDebits);
+        List<JournalEntry> entries = write("MJ", lines, request.transactionDate(), request.comments(),
+                JournalEntry.EntityType.MANUAL, null, request.referenceNumber());
+        auditLogService.log("JOURNAL_ENTRY", entries.get(0).getTransactionId(),
+                "MANUAL_POSTED", null, "actor=" + resolveActor() + ",amount=" + totalDebits + " " + currency);
         return entries;
     }
 
+    private GlAccount manualAccount(String glCode) {
+        GlAccount account = resolveByCode(glCode);
+        if (!account.isManualEntriesAllowed()) {
+            throw CbaException.badRequest("MANUAL_ENTRY_NOT_ALLOWED",
+                    "GL account " + glCode + " does not allow manual entries");
+        }
+        return account;
+    }
+
+    /** The journal a reversal posted, and the one it reversed. */
+    public record JournalReversal(String reversedTransactionId, String reversalTransactionId,
+                                  List<JournalEntry> lines) {}
+
+    /**
+     * Reverses the whole journal that {@code entryId} belongs to: one new journal with every
+     * line on the opposite side, dated today; the originals stay and are marked reversed.
+     *
+     * <p>Only journals created in the GL (manual journals) can be reversed here. A journal a
+     * sub-ledger posted — a deposit, transfer, interest credit — is reversed at its source
+     * (for example the payment reversal), which reverses the balance and the journal
+     * together; reversing only the journal would leave the ledger out of step with the
+     * customer balances. Oracle General Ledger applies the same rule.
+     */
     @Transactional
-    public void reverseJournalEntry(UUID entryId) {
-        JournalEntry original = journalEntryRepository.findById(entryId)
+    public JournalReversal reverseJournalEntry(UUID entryId) {
+        JournalEntry entry = journalEntryRepository.findById(entryId)
                 .orElseThrow(() -> CbaException.notFound("JournalEntry", entryId.toString()));
-        if (original.isReversed()) {
-            throw CbaException.badRequest("ALREADY_REVERSED", "Entry " + entryId + " is already reversed");
+        if (entry.getEntityType() != JournalEntry.EntityType.MANUAL) {
+            throw CbaException.badRequest("SUBLEDGER_JOURNAL_NOT_REVERSIBLE",
+                    "Journal " + entry.getTransactionId() + " was posted by " + entry.getEntityType()
+                            + "; reverse the source transaction instead");
+        }
+        if (entry.getReversalOf() != null) {
+            throw CbaException.badRequest("CANNOT_REVERSE_REVERSAL",
+                    "Journal " + entry.getTransactionId() + " is itself a reversal");
+        }
+        List<JournalEntry> originals = journalEntryRepository.findByTransactionIdOrderByIdAsc(entry.getTransactionId());
+        if (originals.stream().anyMatch(JournalEntry::isReversed)) {
+            throw CbaException.badRequest("ALREADY_REVERSED",
+                    "Journal " + entry.getTransactionId() + " is already reversed");
         }
 
-        JournalEntry.EntryType reversalType = original.getEntryType() == JournalEntry.EntryType.DEBIT
-                ? JournalEntry.EntryType.CREDIT : JournalEntry.EntryType.DEBIT;
-
-        JournalEntry reversal = buildEntry(newTransactionId("REV"), original.getGlAccount(), reversalType,
-                original.getAmount(), original.getCurrencyCode(),
-                LocalDate.now(), "Reversal of entry " + entryId,
-                original.getEntityType(), original.getEntityId());
-        reversal.setReversalOf(original);
-        reversal.setPositionCurrency(original.getPositionCurrency());
-        journalEntryRepository.save(reversal);
-
-        original.setReversed(true);
-        journalEntryRepository.save(original);
+        List<JournalLine> lines = originals.stream().map(o -> new JournalLine(o.getGlAccount(),
+                o.getEntryType() == JournalEntry.EntryType.DEBIT ? JournalEntry.EntryType.CREDIT : JournalEntry.EntryType.DEBIT,
+                o.getAmount(), o.getCurrencyCode(), o.getPositionCurrency())).toList();
+        List<JournalEntry> reversal = write("REV", lines, LocalDate.now(),
+                "Reversal of journal " + entry.getTransactionId(),
+                JournalEntry.EntityType.MANUAL, entry.getEntityId(), entry.getTransactionId());
+        for (int k = 0; k < originals.size(); k++) {
+            reversal.get(k).setReversalOf(originals.get(k));
+            originals.get(k).setReversed(true);
+        }
+        journalEntryRepository.saveAll(reversal);
+        journalEntryRepository.saveAll(originals);
+        auditLogService.log("JOURNAL_ENTRY", entry.getTransactionId(), "REVERSED", null,
+                "actor=" + resolveActor() + ",reversal=" + reversal.get(0).getTransactionId());
+        return new JournalReversal(entry.getTransactionId(), reversal.get(0).getTransactionId(), reversal);
     }
 
     // ── GL Closure ────────────────────────────────────────────────────────────
@@ -246,40 +274,58 @@ public class GlAccountingService {
 
     // ── Trial Balance ─────────────────────────────────────────────────────────
 
+    /** One GL account in one currency. Balances are debit-positive. */
     public record TrialBalanceRow(
             String glCode,
             String accountName,
             String accountType,
+            String currencyCode,
             BigDecimal openingBalance,
             BigDecimal debitMovement,
             BigDecimal creditMovement,
             BigDecimal closingBalance) {}
 
-    public record TrialBalanceResponse(
-            LocalDate fromDate,
-            LocalDate toDate,
-            List<TrialBalanceRow> rows,
+    /**
+     * Totals for one currency. Double entry holds within each currency, never across
+     * them, so each currency is balanced on its own: the period's debits equal its
+     * credits, and the closing debit balances equal the closing credit balances.
+     */
+    public record CurrencyTotals(
+            String currencyCode,
             BigDecimal totalDebitMovement,
             BigDecimal totalCreditMovement,
             BigDecimal totalClosingDebit,
             BigDecimal totalClosingCredit,
             boolean balanced) {}
 
+    public record TrialBalanceResponse(
+            LocalDate fromDate,
+            LocalDate toDate,
+            List<TrialBalanceRow> rows,
+            List<CurrencyTotals> currencies,
+            boolean balanced) {}
+
+    /**
+     * Trial balance per GL account and currency, over every journal line up to {@code toDate}.
+     * A reversed journal and its reversal both count, so together they net to zero.
+     * Accounts with no lines at all are left out.
+     */
     @Transactional(readOnly = true)
     public TrialBalanceResponse getTrialBalance(LocalDate fromDate, LocalDate toDate) {
         String sql = """
                 SELECT ga.gl_code,
                        ga.name,
                        ga.account_type,
+                       je.currency_code,
                        COALESCE(SUM(CASE WHEN je.transaction_date < ? AND je.entry_type = 'DEBIT'  THEN je.amount ELSE 0 END)
                               - SUM(CASE WHEN je.transaction_date < ? AND je.entry_type = 'CREDIT' THEN je.amount ELSE 0 END), 0) AS opening_balance,
                        COALESCE(SUM(CASE WHEN je.transaction_date BETWEEN ? AND ? AND je.entry_type = 'DEBIT'  THEN je.amount ELSE 0 END), 0) AS debit_movement,
                        COALESCE(SUM(CASE WHEN je.transaction_date BETWEEN ? AND ? AND je.entry_type = 'CREDIT' THEN je.amount ELSE 0 END), 0) AS credit_movement
                 FROM gl_accounts ga
-                LEFT JOIN journal_entries je ON je.gl_account_id = ga.id AND je.is_reversed = FALSE
-                WHERE ga.usage = 'DETAIL' AND ga.disabled = FALSE
-                GROUP BY ga.id, ga.gl_code, ga.name, ga.account_type
-                ORDER BY ga.account_type, ga.gl_code
+                JOIN journal_entries je ON je.gl_account_id = ga.id AND je.transaction_date <= ?
+                WHERE ga.usage = 'DETAIL'
+                GROUP BY ga.id, ga.gl_code, ga.name, ga.account_type, je.currency_code
+                ORDER BY je.currency_code, ga.account_type, ga.gl_code
                 """;
 
         List<TrialBalanceRow> rows = jdbcTemplate.query(
@@ -288,25 +334,31 @@ public class GlAccountingService {
                     BigDecimal opening = rs.getBigDecimal("opening_balance");
                     BigDecimal debit   = rs.getBigDecimal("debit_movement");
                     BigDecimal credit  = rs.getBigDecimal("credit_movement");
-                    BigDecimal closing = opening.add(debit).subtract(credit);
                     return new TrialBalanceRow(
                             rs.getString("gl_code"),
                             rs.getString("name"),
                             rs.getString("account_type"),
-                            opening, debit, credit, closing);
+                            rs.getString("currency_code"),
+                            opening, debit, credit, opening.add(debit).subtract(credit));
                 },
-                fromDate, fromDate, fromDate, toDate, fromDate, toDate);
+                fromDate, fromDate, fromDate, toDate, fromDate, toDate, toDate);
 
-        BigDecimal totalDebit   = rows.stream().map(TrialBalanceRow::debitMovement).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal totalCredit  = rows.stream().map(TrialBalanceRow::creditMovement).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal closingDebit  = rows.stream().filter(r -> r.closingBalance().compareTo(BigDecimal.ZERO) > 0)
-                .map(TrialBalanceRow::closingBalance).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal closingCredit = rows.stream().filter(r -> r.closingBalance().compareTo(BigDecimal.ZERO) < 0)
-                .map(r -> r.closingBalance().negate()).reduce(BigDecimal.ZERO, BigDecimal::add);
+        java.util.Map<String, List<TrialBalanceRow>> byCurrency = new java.util.TreeMap<>();
+        rows.forEach(r -> byCurrency.computeIfAbsent(r.currencyCode(), k -> new java.util.ArrayList<>()).add(r));
+        List<CurrencyTotals> currencies = byCurrency.entrySet().stream().map(e -> {
+            List<TrialBalanceRow> rs = e.getValue();
+            BigDecimal debit  = rs.stream().map(TrialBalanceRow::debitMovement).reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal credit = rs.stream().map(TrialBalanceRow::creditMovement).reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal closingDebit = rs.stream().map(TrialBalanceRow::closingBalance)
+                    .filter(b -> b.signum() > 0).reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal closingCredit = rs.stream().map(TrialBalanceRow::closingBalance)
+                    .filter(b -> b.signum() < 0).map(BigDecimal::negate).reduce(BigDecimal.ZERO, BigDecimal::add);
+            return new CurrencyTotals(e.getKey(), debit, credit, closingDebit, closingCredit,
+                    debit.compareTo(credit) == 0 && closingDebit.compareTo(closingCredit) == 0);
+        }).toList();
 
-        return new TrialBalanceResponse(fromDate, toDate, rows,
-                totalDebit, totalCredit, closingDebit, closingCredit,
-                totalDebit.compareTo(totalCredit) == 0);
+        return new TrialBalanceResponse(fromDate, toDate, rows, currencies,
+                currencies.stream().allMatch(CurrencyTotals::balanced));
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -345,9 +397,16 @@ public class GlAccountingService {
         return e;
     }
 
+    /**
+     * No journal may be dated on or before a GL closure (Fineract accounting closures).
+     * Journal lines carry no office, so a closure for any office closes the ledger up to
+     * its date.
+     */
     private void validateNotClosed(LocalDate date) {
-        // For manual entries, check no closure exists for any office on this date.
-        // A production system would check the specific office of the requesting user.
+        if (glClosureRepository.existsByClosingDateGreaterThanEqual(date)) {
+            throw CbaException.badRequest("GL_PERIOD_CLOSED",
+                    "The ledger is closed up to a date on or after " + date + "; post with a later date");
+        }
     }
 
     private String resolveActor() {

@@ -61,42 +61,52 @@ export interface GlAccountRequest {
 
 // ── Journal Entries ────────────────────────────────────────────────────────────
 
-export type JournalEntryType        = 'DEBIT' | 'CREDIT';
-export type JournalEntryCreatedBy   = 'USER' | 'SYSTEM';
+export type JournalEntryType = 'DEBIT' | 'CREDIT';
 
+/** One journal line, as GET /journalentries returns it (backend JournalEntryResponse). */
 export interface JournalEntry {
   id: string;
   transactionId: string;
-  entryDate: string;
+  transactionDate: string;
+  postedAt: string;
   glAccountId: string;
   glAccountCode: string;
   glAccountName: string;
-  type: JournalEntryType;
+  entryType: JournalEntryType;
   amount: number;
-  officeId?: string;
-  referenceNumber?: string;
-  comments?: string;
-  createdByType: JournalEntryCreatedBy;
+  currencyCode: string;
+  positionCurrency?: string | null;
+  entityType?: string | null;
+  entityId?: string | null;
+  referenceNumber?: string | null;
+  description?: string | null;
+  /** Created in the GL (a manual journal): the only kind the GL can reverse. */
+  manual: boolean;
   reversed: boolean;
-  reversalId?: string;
-  entityType?: string;
-  entityId?: string;
+  /** Set on reversal lines: the line this one reverses. */
+  reversalOfId?: string | null;
 }
 
 export interface ManualJournalLine {
-  glAccountId: string;
+  glCode: string;
   amount: number;
-  comments?: string;
+  description?: string;
 }
 
+/** A manual journal in one currency; any number of lines, debits must equal credits. */
 export interface ManualJournalRequest {
   transactionDate: string;
-  locale: string;
-  dateFormat: string;
-  referenceNumber?: string;
+  currencyCode: string;
   comments?: string;
+  referenceNumber?: string;
   debits: ManualJournalLine[];
   credits: ManualJournalLine[];
+}
+
+export interface JournalReversal {
+  reversedTransactionId: string;
+  reversalTransactionId: string;
+  lines: JournalEntry[];
 }
 
 // ── GL Closures ────────────────────────────────────────────────────────────────
@@ -146,24 +156,34 @@ export interface ProvisioningCriteriaRequest {
 
 // ── Trial Balance ─────────────────────────────────────────────────────────────
 
+/** One GL account in one currency; balances are debit-positive. */
 export interface TrialBalanceRow {
   glCode: string;
   accountName: string;
   accountType: GlAccountType;
+  currencyCode: string;
   openingBalance: number;
   debitMovement: number;
   creditMovement: number;
   closingBalance: number;
 }
 
-export interface TrialBalanceResponse {
-  fromDate: string;
-  toDate: string;
-  rows: TrialBalanceRow[];
+/** Totals for one currency: double entry balances within a currency, never across them. */
+export interface TrialBalanceCurrencyTotals {
+  currencyCode: string;
   totalDebitMovement: number;
   totalCreditMovement: number;
   totalClosingDebit: number;
   totalClosingCredit: number;
+  balanced: boolean;
+}
+
+export interface TrialBalanceResponse {
+  fromDate: string;
+  toDate: string;
+  rows: TrialBalanceRow[];
+  currencies: TrialBalanceCurrencyTotals[];
+  /** True when every currency balances. */
   balanced: boolean;
 }
 
@@ -234,14 +254,16 @@ export class AccountingService {
   }
 
   // Journal Entries
-  listJournalEntries(params?: Record<string, string>): Observable<PageResponse<JournalEntry>> {
-    return this.api.getPage<JournalEntry>('/journalentries', 0, 50, params);
+  /** Every journal line dated between from and to (ISO dates, both required by the API). */
+  listJournalEntries(from: string, to: string): Observable<JournalEntry[]> {
+    return this.api.get<JournalEntry[]>('/journalentries', { from, to });
   }
-  createManualJournalEntry(req: ManualJournalRequest): Observable<{ transactionId: string }> {
-    return this.api.post<{ transactionId: string }>('/journalentries', req);
+  createManualJournalEntry(req: ManualJournalRequest): Observable<JournalEntry[]> {
+    return this.api.post<JournalEntry[]>('/journalentries', req);
   }
-  reverseJournalEntry(id: string): Observable<{ transactionId: string }> {
-    return this.api.post<{ transactionId: string }>(`/journalentries/${id}/reverse`, {});
+  /** Reverses the whole manual journal the line belongs to. */
+  reverseJournalEntry(id: string): Observable<JournalReversal> {
+    return this.api.post<JournalReversal>(`/journalentries/${id}/reverse`, {});
   }
 
   // GL Closures

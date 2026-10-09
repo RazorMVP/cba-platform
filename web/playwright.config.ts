@@ -1,4 +1,5 @@
-import { defineConfig, devices } from '@playwright/test'
+import { defineConfig, devices } from '@playwright/test';
+import { STORAGE_STATE } from './e2e/global-setup';
 
 /**
  * E2E config for the Angular backoffice. Runs against a DEPLOYED URL (no local
@@ -8,19 +9,20 @@ import { defineConfig, devices } from '@playwright/test'
  * tests — they assert the app boots, the chrome renders, navigation works, and
  * the SPA serves deep links, all of which hold under graceful API degradation.
  */
-const BASE_URL = process.env.BASE_URL ?? 'https://cba-web-nine.vercel.app'
+const BASE_URL = process.env.BASE_URL ?? 'https://cba-web-nine.vercel.app';
 
 export default defineConfig({
   testDir: './e2e',
+  // Gets the Vercel Deployment Protection bypass cookie for preview deployments.
+  globalSetup: './e2e/global-setup.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? 'html' : 'list',
   use: {
     baseURL: BASE_URL,
+    storageState: STORAGE_STATE,
     trace: 'on-first-retry',
   },
-  projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-  ],
-})
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+});

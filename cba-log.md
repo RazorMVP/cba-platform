@@ -57,6 +57,61 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 24) — 2026-10-09
+**E2E tests reach the app: Playwright gets past Vercel Deployment Protection on preview deployments with the automation bypass secret.**
+
+Every web PR's `E2E Tests (Playwright)` failed: the preview URL served Vercel's login page (`toHaveTitle(/Nubbank/)` received `"Login – Vercel"`). Nothing in the repo sent a bypass; the user created the Protection Bypass for Automation secret and added it as the repo secret `VERCEL_AUTOMATION_BYPASS_SECRET`.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/e2e/global-setup.ts` | NEW: one request to the preview with `x-vercel-protection-bypass` + `x-vercel-set-bypass-cookie: true`; stores the bypass cookie as `storageState`. Fails fast with the status if the bypass is refused. No secret (local runs vs the public production alias) → empty state |
+| `web/playwright.config.ts` | `globalSetup`, `use.storageState` |
+| `.github/workflows/web-ci.yml` | E2E step gets `VERCEL_AUTOMATION_BYPASS_SECRET` via `env:` |
+| `.gitignore` | `web/playwright/.auth/` |
+| `CLAUDE.md` | How E2E passes protection; don't use `extraHTTPHeaders` |
+
+#### Key Patterns / Decisions
+- **The secret goes to the deployment's origin only.** `use.extraHTTPHeaders` would send it with every request the page makes, Google Fonts included. The browser then carries Vercel's host-only cookie, not the secret.
+- Header names checked against Vercel's docs (Context7, `/vercel/vercel`).
+
+#### Build Verification
+- Local `npx playwright test` against the production alias: **5/5** (config and global setup load; no-secret path). The bypass path can only run in CI: this PR's own E2E job is the check.
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
+#### Confirmed Platform Versions
+| Directory | Last commit | Notes |
+|-----------|-------------|-------|
+| `web/` | this PR | Playwright 1.61.1; no app code changed |
+
+### Session 125 (cont. 23) — 2026-10-09
+**Web security patch: 7 new npm advisories (2 critical, 5 high) failed the `Security Audit (npm)` job, and with it the required `Web CI gate`, on every PR (found blocking #135). All fixed within Angular 21 by raising floors and re-resolving the lockfile.**
+
+| Advisory | Package | Severity | Fixed by |
+|---|---|---|---|
+| GHSA-67c8-pqhq-4rmx — prototype pollution → RCE in `ThreadPool.options` | `piscina` (via `@angular/build`) | critical | `@angular/build` 21.2.26 |
+| GHSA-ff3f-86qr-9cv3 — SSR denial of service via numeric URL matrix parameters | `@angular/router` | high | 21.2.25 |
+| GHSA-6qxp-vccf-f47h — OAuth credentials sent to a server-chosen authorization server | `@modelcontextprotocol/sdk` (via `@angular/cli`) | high | `@angular/cli` 21.2.26 |
+| GHSA-ch52-4w7c-c8xp — `max-stale` can disclose cross-user cached responses | `http-cache-semantics` | high | re-resolve |
+| GHSA-68fv-2mgg-jv7q — event-loop DoS via indexed source-map offsets | `source-map-js` | high | re-resolve |
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/package.json` | Framework floors `^21.2.23` → `^21.2.25`; `@angular/build`, `@angular/cli` `^21.2.24` → `^21.2.26` (raised floors, so a regenerated lockfile can't fall back) |
+| `web/package-lock.json` | Clean re-resolve (`rm -rf node_modules package-lock.json && npm install`) — the Session 124 procedure; `npm audit fix` cannot bump direct dependencies |
+| `CLAUDE.md` | Angular / CLI version rows |
+
+#### Build Verification
+- `npm audit --audit-level=high`: **0 vulnerabilities** (was 7).
+- `ng test` **1153/1153** (main's count); `ng build --configuration production` succeeds. `zone.js` unchanged (0.16.3), so no browser re-verification is needed.
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
+#### Confirmed Platform Versions
+| Directory | Last commit | Notes |
+|-----------|-------------|-------|
+| `web/` | this PR | Angular 21.2.25, CLI/build 21.2.26, Material 21.2.14, zone.js 0.16.3, TypeScript 5.9.3 |
+
 ### Session 125 (cont. 22) — 2026-10-09
 **GL posting PR 2a: every loan money movement now moves real money and posts a balanced journal — disbursement, repayment (linked account or teller cash), loan charges (recognised, paid, waived) and foreclosure. The web loan screen's approve/disburse/reject/repay calls reach real endpoints for the first time.**
 

@@ -9,4 +9,6 @@ import java.util.UUID;
 @Repository
 public interface LoanChargeRepository extends JpaRepository<LoanCharge, UUID> {
     Page<LoanCharge> findByLoanId(UUID loanId, Pageable pageable);
+
+    java.util.List<LoanCharge> findByLoanIdOrderByCreatedAtAsc(UUID loanId);
 }

@@ -99,8 +99,30 @@ public class AccountGlPosting {
 
     // ── Lines ────────────────────────────────────────────────────────────────
 
+    /**
+     * Adds an income or expense line of {@code amount} in {@code currency}, recorded in the
+     * functional currency (IAS 21 §21). In a foreign currency the amount first goes through
+     * the FX position, exactly as {@link #balanceWith} does. Call it after every
+     * balance-sheet line of the journal is in: the functional-currency lines must balance
+     * before each call, so the residual it books is this amount's equivalent alone.
+     */
+    public void addProfitOrLoss(List<JournalLine> lines, GlAccount account, BigDecimal amount,
+                                JournalEntry.EntryType side, String currency) {
+        if (amount.signum() == 0) return;
+        String functional = functionalCurrency.get();
+        if (currency.equalsIgnoreCase(functional)) {
+            lines.add(new JournalLine(account, side, amount, currency));
+            return;
+        }
+        // An income credit leaves the foreign currency short of credits: the position
+        // takes the credit, and its equivalent becomes the functional-currency income.
+        BigDecimal increase = side == JournalEntry.EntryType.CREDIT ? amount.negate() : amount;
+        addFxLeg(lines, currency, increase, functional);
+        balanceResidual(lines, functional, account);
+    }
+
     /** Lines that move the account's GL balance from {@code before} to its current balance. */
-    List<JournalLine> balanceChangeLines(Account account, BigDecimal before) {
+    public List<JournalLine> balanceChangeLines(Account account, BigDecimal before) {
         BigDecimal after = account.getBalance();
         String ccy = account.getCurrencyCode();
         List<JournalLine> lines = new ArrayList<>(2);

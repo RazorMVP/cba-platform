@@ -13,6 +13,8 @@ public record CashTransactionResponse(
         UUID tellerId,
         UUID cashierId,
         UUID accountId,
+        /** Set for cash received against a loan (no deposit account involved). */
+        UUID loanId,
         CashTransactionType transactionType,
         BigDecimal amount,
         String currencyCode,
@@ -27,6 +29,7 @@ public record CashTransactionResponse(
                 t.getTeller().getId(),
                 t.getCashier().getId(),
                 t.getAccount() != null ? t.getAccount().getId() : null,
+                t.getLoanId(),
                 t.getTransactionType(),
                 t.getAmount(),
                 t.getCurrencyCode(),

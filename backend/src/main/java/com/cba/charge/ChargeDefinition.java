@@ -45,6 +45,13 @@ public class ChargeDefinition {
     @Column(nullable = false)
     private boolean penalty = false;
 
+    /**
+     * GL income account for this charge. Empty: the loan product's fee or penalty income
+     * link, then the INCOME_FEES / INCOME_PENALTIES mapping.
+     */
+    @Column(name = "income_account_id")
+    private UUID incomeAccountId;
+
     @Column(name = "free_withdrawal", nullable = false)
     private boolean freeWithdrawal = false;
 

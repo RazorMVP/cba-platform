@@ -113,7 +113,7 @@
           </button>
         }
         @if (canForeclose) {
-          <button class="btn-danger" (click)="showForecloseModal = true; forecloseReason = ''; forecloseError = ''">
+          <button class="btn-danger" (click)="openForeclose()">
             <span class="material-icons">gavel</span> Foreclose
           </button>
         }
@@ -731,13 +731,29 @@
           <label class="form-label">Payment Date</label>
           <input type="date" class="form-input" [(ngModel)]="repaymentDate" />
         </div>
+        <div class="form-group">
+          <label class="form-label">Paid From</label>
+          <select class="form-input" [(ngModel)]="repaymentMethod">
+            <option value="ACCOUNT">Linked account (debit)</option>
+            <option value="CASH">Cash at teller</option>
+          </select>
+        </div>
+        @if (repaymentMethod === 'CASH') {
+          <div class="form-group">
+            <label class="form-label">Teller Session ID <span class="required">*</span></label>
+            <input type="text" class="form-input" placeholder="Open session receiving the cash"
+                   [(ngModel)]="repaymentTellerSessionId" />
+          </div>
+        }
         @if (repaymentError) {
           <div class="form-error">{{ repaymentError }}</div>
         }
       </div>
       <div class="modal__footer">
         <button class="btn-ghost" (click)="showRepaymentModal = false">Cancel</button>
-        <button class="btn-primary" [disabled]="!repaymentAmount || repaymentSaving" (click)="submitRepayment()">
+        <button class="btn-primary"
+                [disabled]="!repaymentAmount || repaymentSaving || (repaymentMethod === 'CASH' && !repaymentTellerSessionId.trim())"
+                (click)="submitRepayment()">
           {{ repaymentSaving ? 'Saving…' : 'Record Payment' }}
         </button>
       </div>
@@ -755,9 +771,9 @@
       </div>
       <div class="modal__body">
         <div class="form-group">
-          <label class="form-label">Approved Amount (USD)</label>
-          <input type="number" class="form-input" step="0.01" [(ngModel)]="approveAmount" />
-          <p class="form-hint">Leave unchanged to approve the full requested amount.</p>
+          <label class="form-label">Approved Amount</label>
+          <input type="number" class="form-input" [ngModel]="approveAmount" readonly />
+          <p class="form-hint">The full requested principal is approved.</p>
         </div>
       </div>
       <div class="modal__footer">
@@ -973,12 +989,37 @@
       <div class="modal__body">
         <div class="modal__warning">
           <span class="material-icons">warning</span>
-          Foreclosure is a <strong>terminal state</strong>. The collateral recovery process begins and the loan balance is cleared.
+          Foreclosure settles the loan early and is a <strong>terminal state</strong>. The borrower pays the amount
+          below; interest on instalments not yet due is cancelled.
         </div>
         <div class="form-group">
           <label class="form-label">Foreclosure Date</label>
-          <input type="date" class="form-input" [(ngModel)]="forecloseDate" />
+          <input type="date" class="form-input" [(ngModel)]="forecloseDate" (change)="loadForeclosureQuote()" />
         </div>
+        @if (forecloseQuote) {
+          <div class="form-group">
+            <label class="form-label">Amount to Collect</label>
+            <p class="form-hint">
+              Principal {{ forecloseQuote.principal | number:'1.2-2' }} · Interest due {{ forecloseQuote.interest | number:'1.2-2' }}
+              · Fees {{ forecloseQuote.fees + forecloseQuote.charges | number:'1.2-2' }}
+            </p>
+            <strong>{{ forecloseQuote.currencyCode }} {{ forecloseQuote.total | number:'1.2-2' }}</strong>
+          </div>
+        }
+        <div class="form-group">
+          <label class="form-label">Paid From</label>
+          <select class="form-input" [(ngModel)]="forecloseMethod">
+            <option value="ACCOUNT">Linked account (debit)</option>
+            <option value="CASH">Cash at teller</option>
+          </select>
+        </div>
+        @if (forecloseMethod === 'CASH') {
+          <div class="form-group">
+            <label class="form-label">Teller Session ID <span class="required">*</span></label>
+            <input type="text" class="form-input" placeholder="Open session receiving the cash"
+                   [(ngModel)]="forecloseTellerSessionId" />
+          </div>
+        }
         <div class="form-group">
           <label class="form-label">Reason <span class="required">*</span></label>
           <textarea class="form-textarea" rows="3"
@@ -992,7 +1033,8 @@
       <div class="modal__footer">
         <button class="btn-ghost" [disabled]="forecloseSaving" (click)="showForecloseModal = false">Cancel</button>
         <button class="btn-danger"
-          [disabled]="!forecloseReason.trim() || forecloseSaving"
+          [disabled]="!forecloseReason.trim() || forecloseSaving || !forecloseQuote
+                      || (forecloseMethod === 'CASH' && !forecloseTellerSessionId.trim())"
           (click)="submitForeclose()">
           @if (forecloseSaving) { <span class="spinner"></span> }
           Confirm Foreclosure

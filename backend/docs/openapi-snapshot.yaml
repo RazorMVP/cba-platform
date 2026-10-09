@@ -724,6 +724,17 @@ components:
         meta:
           $ref: "#/components/schemas/PageMeta"
       type: "object"
+    ApiResponseForeclosureQuote:
+      properties:
+        data:
+          $ref: "#/components/schemas/ForeclosureQuote"
+        errors:
+          items:
+            $ref: "#/components/schemas/ApiError"
+          type: "array"
+        meta:
+          $ref: "#/components/schemas/PageMeta"
+      type: "object"
     ApiResponseFraudAlert:
       properties:
         data:
@@ -3033,6 +3044,9 @@ components:
         id:
           format: "uuid"
           type: "string"
+        loanId:
+          format: "uuid"
+          type: "string"
         referenceNumber:
           type: "string"
         sessionId:
@@ -3240,6 +3254,9 @@ components:
           format: "int32"
           type: "integer"
         id:
+          format: "uuid"
+          type: "string"
+        incomeAccountId:
           format: "uuid"
           type: "string"
         name:
@@ -3749,6 +3766,9 @@ components:
           - "SHARE_PURCHASE"
           type: "string"
         currencyCode:
+          type: "string"
+        incomeAccountId:
+          format: "uuid"
           type: "string"
         name:
           type: "string"
@@ -5284,10 +5304,12 @@ components:
           - "ASSET_CASH_AT_TELLER"
           - "ASSET_INTEREST_RECEIVABLE"
           - "ASSET_LOAN_PORTFOLIO"
+          - "ASSET_FEES_RECEIVABLE"
           - "LIABILITY_SAVINGS_CONTROL"
           - "LIABILITY_TRANSFER_IN_SUSPENSE"
           - "INCOME_INTEREST"
           - "INCOME_FEES"
+          - "INCOME_PENALTIES"
           - "EXPENSE_LOAN_LOSS_PROVISION"
           - "EXPENSE_WRITE_OFF"
           - "EXPENSE_INTEREST_ON_SAVINGS"
@@ -5312,10 +5334,12 @@ components:
           - "ASSET_CASH_AT_TELLER"
           - "ASSET_INTEREST_RECEIVABLE"
           - "ASSET_LOAN_PORTFOLIO"
+          - "ASSET_FEES_RECEIVABLE"
           - "LIABILITY_SAVINGS_CONTROL"
           - "LIABILITY_TRANSFER_IN_SUSPENSE"
           - "INCOME_INTEREST"
           - "INCOME_FEES"
+          - "INCOME_PENALTIES"
           - "EXPENSE_LOAN_LOSS_PROVISION"
           - "EXPENSE_WRITE_OFF"
           - "EXPENSE_INTEREST_ON_SAVINGS"
@@ -5527,9 +5551,40 @@ components:
         foreclosureDate:
           format: "date"
           type: "string"
+        paymentMethod:
+          type: "string"
         reason:
           minLength: 1
           type: "string"
+        sourceAccountId:
+          format: "uuid"
+          type: "string"
+        tellerSessionId:
+          format: "uuid"
+          type: "string"
+      type: "object"
+    ForeclosureQuote:
+      properties:
+        charges:
+          type: "number"
+        currencyCode:
+          type: "string"
+        date:
+          format: "date"
+          type: "string"
+        fees:
+          type: "number"
+        interest:
+          type: "number"
+        loanAccountNumber:
+          type: "string"
+        loanId:
+          format: "uuid"
+          type: "string"
+        principal:
+          type: "number"
+        total:
+          type: "number"
       type: "object"
     FraudAlert:
       properties:
@@ -6429,8 +6484,6 @@ components:
           - "PERCENT_OF_INTEREST"
           - "PERCENT_OF_AMOUNT_AND_INTEREST"
           type: "string"
-        chargeDefinition:
-          $ref: "#/components/schemas/ChargeDefinition"
         chargeTimeType:
           enum:
           - "DISBURSEMENT"
@@ -6454,11 +6507,12 @@ components:
         id:
           format: "uuid"
           type: "string"
+        incomeRecognizedOn:
+          format: "date"
+          type: "string"
         installmentNumber:
           format: "int32"
           type: "integer"
-        loan:
-          $ref: "#/components/schemas/Loan"
         name:
           type: "string"
         paid:
@@ -7042,6 +7096,12 @@ components:
         paymentMethod:
           type: "string"
         referenceNumber:
+          type: "string"
+        sourceAccountId:
+          format: "uuid"
+          type: "string"
+        tellerSessionId:
+          format: "uuid"
           type: "string"
       required:
       - "amount"
@@ -9328,6 +9388,17 @@ components:
         tier:
           type: "string"
       type: "object"
+    PayChargeRequest:
+      properties:
+        paymentMethod:
+          type: "string"
+        sourceAccountId:
+          format: "uuid"
+          type: "string"
+        tellerSessionId:
+          format: "uuid"
+          type: "string"
+      type: "object"
     PaymentResponse:
       properties:
         amount:
@@ -9854,6 +9925,12 @@ components:
         organizationName:
           type: "string"
         password:
+          type: "string"
+      type: "object"
+    RejectLoanRequest:
+      properties:
+        reason:
+          minLength: 1
           type: "string"
       type: "object"
     RepaymentAnalyticsResponse:
@@ -16427,6 +16504,9 @@ paths:
       - "Loans"
   /api/v1/loans/{id}/disburse:
     put:
+      description: "Credits the linked account and posts DR loan portfolio / CR savings\
+        \ control. 400 CURRENCY_MISMATCH when the account is not in the loan product's\
+        \ currency."
       operationId: "disburseLoan"
       parameters:
       - in: "path"
@@ -16449,6 +16529,9 @@ paths:
       - "Loans"
   /api/v1/loans/{id}/foreclose:
     post:
+      description: "Collects the foreclosure quote for foreclosureDate from paymentMethod\
+        \ ACCOUNT (default) or CASH (tellerSessionId), clears the loan's assets and\
+        \ cancels interest on instalments not yet due. Status becomes FORECLOSED."
       operationId: "forecloseLoan"
       parameters:
       - in: "path"
@@ -16472,7 +16555,67 @@ paths:
           description: "OK"
       security:
       - oauth2: []
-      summary: "Foreclose a loan — terminal state for secured-asset recovery"
+      summary: "Foreclose (settle early) a loan"
+      tags:
+      - "Loans"
+  /api/v1/loans/{id}/foreclosure-quote:
+    get:
+      description: "Outstanding principal, plus interest and scheduled fees on instalments\
+        \ due by the date, plus recognised unpaid charges. Interest on later instalments\
+        \ is not charged."
+      operationId: "getForeclosureQuote"
+      parameters:
+      - in: "path"
+        name: "id"
+        required: true
+        schema:
+          format: "uuid"
+          type: "string"
+      - in: "query"
+        name: "date"
+        required: false
+        schema:
+          format: "date"
+          type: "string"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseForeclosureQuote"
+          description: "OK"
+      security:
+      - oauth2: []
+      summary: "Amount needed to settle the loan on a date"
+      tags:
+      - "Loans"
+  /api/v1/loans/{id}/reject:
+    put:
+      operationId: "rejectLoan"
+      parameters:
+      - in: "path"
+        name: "id"
+        required: true
+        schema:
+          format: "uuid"
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RejectLoanRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseLoanResponse"
+          description: "OK"
+      security:
+      - oauth2: []
+      summary: "Reject a loan application (SUBMITTED, UNDER_REVIEW or APPROVED; nothing\
+        \ is posted)"
       tags:
       - "Loans"
   /api/v1/loans/{id}/repayment-schedule:
@@ -16499,6 +16642,10 @@ paths:
       - "Loans"
   /api/v1/loans/{id}/repayments:
     post:
+      description: "paymentMethod ACCOUNT (default: linked account, or sourceAccountId)\
+        \ or CASH (tellerSessionId required; recorded in the till). Posts DR source\
+        \ / CR loan portfolio, interest receivable and fees receivable. 400 REPAYMENT_EXCEEDS_OUTSTANDING\
+        \ if the amount is more than the schedule still owes."
       operationId: "makeRepayment"
       parameters:
       - in: "path"
@@ -16678,6 +16825,10 @@ paths:
       - "Loan Charges"
   /api/v1/loans/{loanId}/charges/{chargeId}/pay:
     post:
+      description: "Collects the outstanding amount from the borrower's linked account\
+        \ (default), another of their accounts (sourceAccountId), or teller cash (paymentMethod=CASH\
+        \ + tellerSessionId), and posts DR source / CR fees receivable. 400 CHARGE_NOT_DUE\
+        \ before a fee's due date."
       operationId: "pay"
       parameters:
       - in: "path"
@@ -16692,6 +16843,11 @@ paths:
         schema:
           format: "uuid"
           type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PayChargeRequest"
       responses:
         "200":
           content:

@@ -2,11 +2,9 @@ package com.cba.loan;
 
 import com.cba.account.Account;
 import com.cba.account.AccountRepository;
-import com.cba.account.AccountStatus;
-import com.cba.account.Transaction;
-import com.cba.account.TransactionRepository;
-import com.cba.account.TransactionType;
 import com.cba.audit.AuditLogService;
+import com.cba.charge.LoanCharge;
+import com.cba.charge.LoanChargeRepository;
 import com.cba.common.exception.CbaException;
 import com.cba.customer.Customer;
 import com.cba.customer.CustomerRepository;
@@ -17,6 +15,7 @@ import com.cba.loan.dto.LoanRepaymentResponse;
 import com.cba.loan.dto.LoanResponse;
 import com.cba.loan.dto.RepaymentScheduleResponse;
 import com.cba.loan.dto.ForecloseRequest;
+import com.cba.loan.dto.ForeclosureQuote;
 import com.cba.loan.dto.WaiveInterestRequest;
 import com.cba.loan.dto.WriteOffRequest;
 import com.cba.notification.LoanEvent;
@@ -44,10 +43,11 @@ public class LoanService {
     private final CustomerRepository customerRepository;
     private final LoanProductRepository loanProductRepository;
     private final AccountRepository accountRepository;
-    private final TransactionRepository transactionRepository;
     private final RepaymentScheduleEngine scheduleEngine;
     private final AuditLogService auditLogService;
     private final ApplicationEventPublisher eventPublisher;
+    private final LoanGlPosting loanGlPosting;
+    private final LoanChargeRepository loanChargeRepository;
 
     private static final String LOAN_TYPE = "LN";
 
@@ -118,23 +118,10 @@ public class LoanService {
             throw CbaException.badRequest("INVALID_LOAN_STATE", "Loan must be APPROVED before disbursement");
         }
 
-        Account account = accountRepository.findByIdWithLock(loan.getLinkedAccount().getId())
-            .orElseThrow(() -> CbaException.notFound("Account", loan.getLinkedAccount().getId()));
-
-        if (account.getStatus() != AccountStatus.ACTIVE) {
-            throw CbaException.badRequest("ACCOUNT_NOT_ACTIVE", "Disbursement account is not active");
-        }
-
-        // Credit loan amount to linked account
+        // Credits the linked account (lock, status check, transaction record) and posts
+        // DR loan portfolio / CR savings control in this transaction.
         BigDecimal amount = loan.getApprovedAmount();
-        account.credit(amount);
-        accountRepository.save(account);
-
-        // Create transaction record
-        Transaction tx = Transaction.of(account, TransactionType.LOAN_DISBURSEMENT, amount,
-            account.getBalance(), "Loan disbursement: " + loan.getLoanAccountNumber(),
-            "DISB-" + loan.getLoanAccountNumber(), "system");
-        transactionRepository.save(tx);
+        loanGlPosting.postDisbursement(loan, amount, LocalDate.now());
 
         // Build repayment schedule
         LocalDate firstDueDate = LocalDate.now().plusMonths(1);
@@ -186,63 +173,109 @@ public class LoanService {
                     "Loan must be ACTIVE or IN_ARREARS to accept repayments");
         }
 
+        LocalDate date = paymentDate(loan, request.paymentDate());
+        LoanPaymentSource source = LoanPaymentSource.of(
+                request.paymentMethod(), request.sourceAccountId(), request.tellerSessionId());
         BigDecimal payment = request.amount();
-        BigDecimal remaining = payment;
 
-        // Allocation order: fees → interest → principal (Fineract convention)
-        BigDecimal feePortion = BigDecimal.ZERO;
-        BigDecimal interestPortion = BigDecimal.ZERO;
-        BigDecimal principalPortion = BigDecimal.ZERO;
-
-        for (LoanRepaymentSchedule installment : loan.getRepaymentSchedule()) {
-            if (installment.getStatus() == LoanRepaymentSchedule.InstallmentStatus.PAID || remaining.compareTo(BigDecimal.ZERO) == 0) continue;
-
-            BigDecimal feesDue = installment.getFeesDue().subtract(installment.getFeesPaid() != null ? installment.getFeesPaid() : BigDecimal.ZERO);
-            BigDecimal interestDue = installment.getInterestDue().subtract(installment.getInterestPaid() != null ? installment.getInterestPaid() : BigDecimal.ZERO);
-            BigDecimal principalDue = installment.getPrincipalDue().subtract(installment.getPrincipalPaid() != null ? installment.getPrincipalPaid() : BigDecimal.ZERO);
-
-            BigDecimal feeApplied = feesDue.min(remaining);
-            remaining = remaining.subtract(feeApplied);
-            feePortion = feePortion.add(feeApplied);
-
-            BigDecimal interestApplied = interestDue.min(remaining);
-            remaining = remaining.subtract(interestApplied);
-            interestPortion = interestPortion.add(interestApplied);
-
-            BigDecimal principalApplied = principalDue.min(remaining);
-            remaining = remaining.subtract(principalApplied);
-            principalPortion = principalPortion.add(principalApplied);
-
-            installment.setFeesPaid((installment.getFeesPaid() != null ? installment.getFeesPaid() : BigDecimal.ZERO).add(feeApplied));
-            installment.setInterestPaid((installment.getInterestPaid() != null ? installment.getInterestPaid() : BigDecimal.ZERO).add(interestApplied));
-            installment.setPrincipalPaid((installment.getPrincipalPaid() != null ? installment.getPrincipalPaid() : BigDecimal.ZERO).add(principalApplied));
-
-            BigDecimal totalPaid = installment.getPrincipalPaid().add(installment.getInterestPaid());
-            if (totalPaid.compareTo(installment.getPrincipalDue().add(installment.getInterestDue())) >= 0) {
-                installment.setStatus(LoanRepaymentSchedule.InstallmentStatus.PAID);
-                installment.setPaidDate(request.paymentDate() != null ? request.paymentDate() : LocalDate.now());
-            }
+        // Money the schedule does not owe has nowhere to go in the ledger: reject it
+        // rather than take it from the customer and lose it.
+        BigDecimal owed = scheduledOutstanding(loan);
+        if (payment.compareTo(owed) > 0) {
+            throw CbaException.badRequest("REPAYMENT_EXCEEDS_OUTSTANDING",
+                    "Repayment " + payment + " exceeds the " + owed + " still owed on the schedule");
         }
 
-        BigDecimal actualPrincipal = payment.subtract(remaining).subtract(interestPortion).subtract(feePortion);
-        if (actualPrincipal.compareTo(BigDecimal.ZERO) < 0) actualPrincipal = BigDecimal.ZERO;
+        LoanGlPosting.Allocation allocation = allocate(loan, payment, date);
+        loanGlPosting.postRepayment(loan, source, allocation, date, "RPMT",
+                "Loan repayment " + loan.getLoanAccountNumber());
 
-        loan.setOutstandingBalance(loan.getOutstandingBalance().subtract(principalPortion));
-        if (loan.getOutstandingBalance().compareTo(BigDecimal.ZERO) <= 0) {
+        loan.setOutstandingBalance(loan.getOutstandingBalance().subtract(allocation.principal()));
+        if (loan.getOutstandingBalance().signum() <= 0) {
             loan.setOutstandingBalance(BigDecimal.ZERO);
             loan.setStatus(LoanStatus.CLOSED_OBLIGATIONS_MET);
         }
 
         Loan saved = loanRepository.save(loan);
         auditLogService.log("LOAN", loanId.toString(), "REPAYMENT", null,
-                java.util.Map.of("amount", payment, "principalPortion", principalPortion, "interestPortion", interestPortion));
+                java.util.Map.of("amount", payment, "principalPortion", allocation.principal(),
+                        "interestPortion", allocation.interest(), "feePortion", allocation.fees(),
+                        "paymentMethod", source.method().name()));
 
         return new LoanRepaymentResponse(
                 saved.getId(), saved.getLoanAccountNumber(),
-                payment, principalPortion, interestPortion, feePortion,
-                saved.getOutstandingBalance(),
-                request.paymentDate() != null ? request.paymentDate() : LocalDate.now(),
-                request.paymentMethod(), request.referenceNumber());
+                payment, allocation.principal(), allocation.interest(), allocation.fees(),
+                saved.getOutstandingBalance(), date,
+                source.method().name(), request.referenceNumber());
+    }
+
+    /**
+     * Applies {@code payment} to unpaid instalments in due-date order, each one's fees,
+     * then interest, then principal (Fineract's default strategy), and returns the split.
+     */
+    private LoanGlPosting.Allocation allocate(Loan loan, BigDecimal payment, LocalDate date) {
+        BigDecimal remaining = payment;
+        BigDecimal fees = BigDecimal.ZERO, interest = BigDecimal.ZERO, principal = BigDecimal.ZERO;
+        for (LoanRepaymentSchedule i : loan.getRepaymentSchedule()) {
+            if (remaining.signum() == 0) break;
+            if (i.getStatus() == LoanRepaymentSchedule.InstallmentStatus.PAID) continue;
+
+            BigDecimal fee = unpaidFees(i).min(remaining);
+            remaining = remaining.subtract(fee);
+            BigDecimal intr = unpaidInterest(i).min(remaining);
+            remaining = remaining.subtract(intr);
+            BigDecimal prin = unpaidPrincipal(i).min(remaining);
+            remaining = remaining.subtract(prin);
+
+            i.setFeesPaid(i.getFeesPaid().add(fee));
+            i.setInterestPaid(i.getInterestPaid().add(intr));
+            i.setPrincipalPaid(i.getPrincipalPaid().add(prin));
+            markPaidStatus(i, date);
+            fees = fees.add(fee);
+            interest = interest.add(intr);
+            principal = principal.add(prin);
+        }
+        return new LoanGlPosting.Allocation(principal, interest, fees);
+    }
+
+    /** Settles the loan early for the foreclosure quote, collected from the borrower. */
+    @Transactional(readOnly = true)
+    public ForeclosureQuote getForeclosureQuote(UUID loanId, LocalDate date) {
+        Loan loan = findById(loanId);
+        requireOpen(loan, "be foreclosed");
+        return quote(loan, date != null ? date : LocalDate.now());
+    }
+
+    private ForeclosureQuote quote(Loan loan, LocalDate date) {
+        BigDecimal interest = BigDecimal.ZERO, fees = BigDecimal.ZERO;
+        for (LoanRepaymentSchedule i : loan.getRepaymentSchedule()) {
+            if (i.getStatus() == LoanRepaymentSchedule.InstallmentStatus.PAID || i.getDueDate().isAfter(date)) continue;
+            interest = interest.add(unpaidInterest(i));
+            fees = fees.add(unpaidFees(i));
+        }
+        BigDecimal charges = loanChargeRepository.findByLoanIdOrderByCreatedAtAsc(loan.getId()).stream()
+                .filter(c -> c.getIncomeRecognizedOn() != null && !c.isPaid() && !c.isWaived())
+                .map(LoanCharge::getAmountOutstanding)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal principal = loan.getOutstandingBalance();
+        return new ForeclosureQuote(loan.getId(), loan.getLoanAccountNumber(), date, LoanGlPosting.currency(loan),
+                principal, interest, fees, charges, principal.add(interest).add(fees).add(charges));
+    }
+
+    @Transactional
+    public LoanResponse rejectLoan(UUID loanId, String reason) {
+        Loan loan = findById(loanId);
+        if (loan.getStatus() != LoanStatus.SUBMITTED && loan.getStatus() != LoanStatus.UNDER_REVIEW
+                && loan.getStatus() != LoanStatus.APPROVED) {
+            throw CbaException.badRequest("INVALID_LOAN_STATE",
+                    "Only SUBMITTED, UNDER_REVIEW or APPROVED loans can be rejected");
+        }
+        LoanStatus old = loan.getStatus();
+        loan.setStatus(LoanStatus.REJECTED);
+        Loan saved = loanRepository.save(loan);
+        auditLogService.log("LOAN", loanId.toString(), "REJECTED", old.name(),
+                java.util.Map.of("status", LoanStatus.REJECTED.name(), "reason", reason));
+        return toResponse(saved);
     }
 
     @Transactional
@@ -322,19 +355,111 @@ public class LoanService {
     public LoanResponse forecloseLoan(UUID loanId, ForecloseRequest request) {
         Loan loan = findById(loanId);
 
-        if (loan.getStatus() != LoanStatus.ACTIVE && loan.getStatus() != LoanStatus.IN_ARREARS) {
-            throw CbaException.badRequest("INVALID_LOAN_STATE",
-                "Only ACTIVE or IN_ARREARS loans can be foreclosed");
+        requireOpen(loan, "be foreclosed");
+        LocalDate date = paymentDate(loan, request.foreclosureDate());
+        LoanPaymentSource source = LoanPaymentSource.of(
+                request.paymentMethod(), request.sourceAccountId(), request.tellerSessionId());
+        ForeclosureQuote q = quote(loan, date);
+
+        // The borrower pays the quote; it clears the portfolio, the receivables for
+        // interest and fees already due, and recognised charges.
+        loanGlPosting.postRepayment(loan, source,
+                new LoanGlPosting.Allocation(q.principal(), q.interest(), q.fees().add(q.charges())),
+                date, "FCLS", "Loan foreclosure " + loan.getLoanAccountNumber());
+
+        // Instalments due by the date are paid in full. Later ones keep their principal
+        // (paid now) but lose their interest and fees: not yet earned, never recognised.
+        BigDecimal cancelledInterest = BigDecimal.ZERO;
+        for (LoanRepaymentSchedule i : loan.getRepaymentSchedule()) {
+            if (i.getStatus() == LoanRepaymentSchedule.InstallmentStatus.PAID) continue;
+            if (i.getDueDate().isAfter(date)) {
+                cancelledInterest = cancelledInterest.add(unpaidInterest(i));
+                i.setInterestDue(i.getInterestPaid());
+                i.setFeesDue(i.getFeesPaid());
+                i.setTotalDue(i.getPrincipalDue().add(i.getInterestDue()).add(i.getFeesDue()));
+            } else {
+                i.setInterestPaid(i.getInterestDue());
+                i.setFeesPaid(i.getFeesDue());
+            }
+            i.setPrincipalPaid(i.getPrincipalDue());
+            markPaidStatus(i, date);
+        }
+        // Recognised charges were just paid; charges not yet income are cancelled.
+        for (LoanCharge c : loanChargeRepository.findByLoanIdOrderByCreatedAtAsc(loanId)) {
+            if (c.isPaid() || c.isWaived() || c.getAmountOutstanding().signum() <= 0) continue;
+            if (c.getIncomeRecognizedOn() != null) {
+                c.setAmountPaid(c.getAmountPaid().add(c.getAmountOutstanding()));
+                c.setPaid(true);
+            } else {
+                c.setAmountWaived(c.getAmountWaived().add(c.getAmountOutstanding()));
+                c.setWaived(true);
+            }
+            c.setAmountOutstanding(BigDecimal.ZERO);
+            loanChargeRepository.save(c);
         }
 
+        LoanStatus old = loan.getStatus();
         loan.setStatus(LoanStatus.FORECLOSED);
         loan.setOutstandingBalance(BigDecimal.ZERO);
 
         Loan saved = loanRepository.save(loan);
-        auditLogService.log("LOAN", loanId.toString(), "FORECLOSED",
-            loan.getStatus().name(), LoanStatus.FORECLOSED.name());
-        log.info("Loan foreclosed: {} — reason: {}", saved.getLoanAccountNumber(), request.reason());
+        auditLogService.log("LOAN", loanId.toString(), "FORECLOSED", old.name(),
+            java.util.Map.of("status", LoanStatus.FORECLOSED.name(), "amountPaid", q.total(),
+                "cancelledFutureInterest", cancelledInterest, "reason", request.reason()));
+        log.info("Loan foreclosed: {} — paid {}", saved.getLoanAccountNumber(), q.total());
         return toResponse(saved);
+    }
+
+    // ── Schedule helpers ─────────────────────────────────────────────────────
+
+    private static BigDecimal unpaidFees(LoanRepaymentSchedule i) {
+        return i.getFeesDue().subtract(i.getFeesPaid()).max(BigDecimal.ZERO);
+    }
+
+    private static BigDecimal unpaidInterest(LoanRepaymentSchedule i) {
+        return i.getInterestDue().subtract(i.getInterestPaid()).max(BigDecimal.ZERO);
+    }
+
+    private static BigDecimal unpaidPrincipal(LoanRepaymentSchedule i) {
+        return i.getPrincipalDue().subtract(i.getPrincipalPaid()).max(BigDecimal.ZERO);
+    }
+
+    /** Everything still owed on the schedule: fees, interest and principal. */
+    private static BigDecimal scheduledOutstanding(Loan loan) {
+        return loan.getRepaymentSchedule().stream()
+                .filter(i -> i.getStatus() != LoanRepaymentSchedule.InstallmentStatus.PAID)
+                .map(i -> unpaidFees(i).add(unpaidInterest(i)).add(unpaidPrincipal(i)))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private static void markPaidStatus(LoanRepaymentSchedule i, LocalDate date) {
+        i.setTotalPaid(i.getPrincipalPaid().add(i.getInterestPaid()).add(i.getFeesPaid()));
+        if (unpaidFees(i).add(unpaidInterest(i)).add(unpaidPrincipal(i)).signum() == 0) {
+            i.setStatus(LoanRepaymentSchedule.InstallmentStatus.PAID);
+            i.setPaidDate(date);
+        } else if (i.getTotalPaid().signum() > 0) {
+            i.setStatus(LoanRepaymentSchedule.InstallmentStatus.PARTIALLY_PAID);
+        }
+    }
+
+    private static void requireOpen(Loan loan, String action) {
+        if (loan.getStatus() != LoanStatus.ACTIVE && loan.getStatus() != LoanStatus.IN_ARREARS) {
+            throw CbaException.badRequest("INVALID_LOAN_STATE", "Only ACTIVE or IN_ARREARS loans can " + action);
+        }
+    }
+
+    /** Defaults to today; never in the future or before disbursement. */
+    private static LocalDate paymentDate(Loan loan, LocalDate requested) {
+        LocalDate today = LocalDate.now();
+        LocalDate date = requested != null ? requested : today;
+        if (date.isAfter(today)) {
+            throw CbaException.badRequest("FUTURE_PAYMENT_DATE", "Payment date " + date + " is in the future");
+        }
+        if (loan.getDisbursementDate() != null && date.isBefore(loan.getDisbursementDate())) {
+            throw CbaException.badRequest("PAYMENT_BEFORE_DISBURSEMENT",
+                    "Payment date " + date + " is before the disbursement on " + loan.getDisbursementDate());
+        }
+        return date;
     }
 
     private void validateLoanParameters(LoanApplicationRequest req, LoanProduct product) {

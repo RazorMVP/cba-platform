@@ -8,8 +8,15 @@ import {
   LoanCharge, AvailableCharge, Guarantor, Collateral, AuditEntry,
   LoanCreateRequest, LoanRescheduleRequest, CreateRescheduleRequest,
   ReagingRequest, CreateReagingRequest, FrequencyType,
-  LoanNote, LoanDocument,
+  LoanNote, LoanDocument, LoanPayment, ForeclosureQuote,
 } from '../loan.service';
+import { switchMap } from 'rxjs';
+
+/** The API's own error text (envelope errors[0].message), or the fallback. */
+function apiMessage(err: unknown, fallback: string): string {
+  const e = err as { error?: { errors?: { message?: string }[] } };
+  return e?.error?.errors?.[0]?.message ?? fallback;
+}
 
 export type LoanTab = 'summary' | 'schedule' | 'charges' | 'collateral' | 'documents' | 'notes' | 'audit' | 'reschedule' | 'reaging';
 
@@ -83,6 +90,8 @@ export class LoanDetailComponent implements OnInit {
   repaymentDate = new Date().toISOString().slice(0, 10);
   repaymentSaving = false;
   repaymentError = '';
+  repaymentMethod: 'ACCOUNT' | 'CASH' = 'ACCOUNT';
+  repaymentTellerSessionId = '';
 
   // Reject modal
   showRejectModal = false;
@@ -117,6 +126,9 @@ export class LoanDetailComponent implements OnInit {
   forecloseDate = new Date().toISOString().slice(0, 10);
   forecloseSaving = false;
   forecloseError = '';
+  forecloseMethod: 'ACCOUNT' | 'CASH' = 'ACCOUNT';
+  forecloseTellerSessionId = '';
+  forecloseQuote: ForeclosureQuote | null = null;
 
   // Notes tab
   notes: LoanNote[] = [];
@@ -265,7 +277,7 @@ export class LoanDetailComponent implements OnInit {
   submitApprove(): void {
     if (!this.loan) return;
     this.approveSaving = true;
-    this.svc.approve(this.loan.id, this.approveAmount ?? undefined).subscribe({
+    this.svc.approve(this.loan.id).subscribe({
       next:  l  => { this.loan = l; this.showApproveModal = false; this.approveSaving = false; },
       error: () => { this.approveSaving = false; },
     });
@@ -289,7 +301,12 @@ export class LoanDetailComponent implements OnInit {
     if (!this.loan || !this.repaymentAmount) return;
     this.repaymentSaving = true;
     this.repaymentError = '';
-    this.svc.recordRepayment(this.loan.id, this.repaymentAmount, this.repaymentDate).subscribe({
+    const loanId = this.loan.id;
+    this.svc.recordRepayment(loanId, this.repaymentAmount, this.repaymentDate, this.paymentFrom(
+      this.repaymentMethod, this.repaymentTellerSessionId)).pipe(
+      // The response is the allocation, not the loan: reload the loan for its new balance.
+      switchMap(() => this.svc.get(loanId)),
+    ).subscribe({
       next: l => {
         this.loan = l;
         this.showRepaymentModal = false;
@@ -299,7 +316,34 @@ export class LoanDetailComponent implements OnInit {
         this.scheduleLoaded = false;
         this.schedule = [];
       },
-      error: () => { this.repaymentError = 'Repayment failed. Please check the amount and try again.'; this.repaymentSaving = false; },
+      error: err => {
+        this.repaymentError = apiMessage(err, 'Repayment failed. Please check the amount and try again.');
+        this.repaymentSaving = false;
+      },
+    });
+  }
+
+  /** The request fields for where a loan payment comes from. */
+  private paymentFrom(method: 'ACCOUNT' | 'CASH', tellerSessionId: string): LoanPayment {
+    return method === 'CASH'
+      ? { paymentMethod: 'CASH', tellerSessionId: tellerSessionId.trim() }
+      : { paymentMethod: 'ACCOUNT' };
+  }
+
+  openForeclose(): void {
+    if (!this.loan) return;
+    this.forecloseReason = '';
+    this.forecloseError = '';
+    this.loadForeclosureQuote();
+    this.showForecloseModal = true;
+  }
+
+  loadForeclosureQuote(): void {
+    if (!this.loan) return;
+    this.forecloseQuote = null;
+    this.svc.getForeclosureQuote(this.loan.id, this.forecloseDate || undefined).subscribe({
+      next: q => { this.forecloseQuote = q; },
+      error: err => { this.forecloseError = apiMessage(err, 'Could not load the settlement amount.'); },
     });
   }
 
@@ -424,9 +468,13 @@ export class LoanDetailComponent implements OnInit {
     if (!this.loan || !this.forecloseReason.trim()) return;
     this.forecloseSaving = true;
     this.forecloseError = '';
-    this.svc.foreclose(this.loan.id, this.forecloseReason.trim(), this.forecloseDate || undefined).subscribe({
+    this.svc.foreclose(this.loan.id, this.forecloseReason.trim(), this.forecloseDate || undefined,
+      this.paymentFrom(this.forecloseMethod, this.forecloseTellerSessionId)).subscribe({
       next: l => { this.loan = l; this.showForecloseModal = false; this.forecloseReason = ''; this.forecloseSaving = false; },
-      error: () => { this.forecloseError = 'Failed to foreclose loan. Please try again.'; this.forecloseSaving = false; },
+      error: err => {
+        this.forecloseError = apiMessage(err, 'Failed to foreclose loan. Please try again.');
+        this.forecloseSaving = false;
+      },
     });
   }
 

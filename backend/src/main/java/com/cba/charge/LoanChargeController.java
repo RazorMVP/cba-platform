@@ -35,11 +35,16 @@ public class LoanChargeController {
         return ApiResponse.ok(chargeService.addLoanCharge(loanId, req));
     }
 
-    @Operation(summary = "Pay an outstanding charge on a loan")
+    @Operation(summary = "Pay an outstanding charge on a loan",
+               description = "Collects the outstanding amount from the borrower's linked account (default), "
+                       + "another of their accounts (sourceAccountId), or teller cash (paymentMethod=CASH + "
+                       + "tellerSessionId), and posts DR source / CR fees receivable. 400 CHARGE_NOT_DUE before "
+                       + "a fee's due date.")
     @PostMapping("/{chargeId}/pay")
     @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
-    public ApiResponse<LoanCharge> pay(@PathVariable UUID loanId, @PathVariable UUID chargeId) {
-        return ApiResponse.ok(chargeService.payLoanCharge(loanId, chargeId));
+    public ApiResponse<LoanCharge> pay(@PathVariable UUID loanId, @PathVariable UUID chargeId,
+                                       @RequestBody(required = false) ChargeService.PayChargeRequest req) {
+        return ApiResponse.ok(chargeService.payLoanCharge(loanId, chargeId, req));
     }
 
     @Operation(summary = "Waive an outstanding charge on a loan")

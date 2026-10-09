@@ -250,6 +250,41 @@ public class TellerService {
         return CashTransactionResponse.from(saved);
     }
 
+    /**
+     * Records cash entering or leaving an open till for a loan (repayment, foreclosure,
+     * charge payment), so the session's expected closing balance includes it. The caller
+     * posts the journal, with Cash at Teller on one side, in the same transaction.
+     *
+     * @return the till record's reference number
+     */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public String recordLoanCash(UUID sessionId, CashTransactionType type, BigDecimal amount,
+                                 String currency, UUID loanId, String description) {
+        TellerSession session = findSessionById(sessionId);
+        if (session.getStatus() != SessionStatus.OPEN) {
+            throw CbaException.badRequest("SESSION_NOT_OPEN",
+                    "Session " + sessionId + " is closed — cannot record transactions");
+        }
+        if (!currency.equalsIgnoreCase(session.getCurrencyCode())) {
+            throw CbaException.badRequest("CURRENCY_MISMATCH",
+                    "Cash in " + currency + " cannot move through a " + session.getCurrencyCode() + " till");
+        }
+        CashTransaction tx = new CashTransaction();
+        tx.setSession(session);
+        tx.setTeller(session.getTeller());
+        tx.setCashier(session.getCashier());
+        tx.setLoanId(loanId);
+        tx.setTransactionType(type);
+        tx.setAmount(amount);
+        tx.setCurrencyCode(session.getCurrencyCode());
+        tx.setDescription(description);
+        tx.setReferenceNumber("CASH-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase(Locale.ROOT));
+        CashTransaction saved = cashTransactionRepository.save(tx);
+        auditLogService.log("CashTransaction", saved.getId().toString(), "RECORD", null,
+                java.util.Map.of("loanId", loanId, "type", type, "amount", amount));
+        return saved.getReferenceNumber();
+    }
+
     @Transactional(readOnly = true)
     public List<CashTransactionResponse> getSessionTransactions(UUID sessionId) {
         findSessionById(sessionId);

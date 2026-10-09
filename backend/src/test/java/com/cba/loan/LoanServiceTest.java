@@ -7,6 +7,8 @@ import com.cba.account.AccountType;
 import com.cba.account.Transaction;
 import com.cba.account.TransactionRepository;
 import com.cba.audit.AuditLogService;
+import com.cba.charge.LoanCharge;
+import com.cba.charge.LoanChargeRepository;
 import com.cba.common.exception.CbaException;
 import com.cba.customer.Customer;
 import com.cba.customer.CustomerRepository;
@@ -56,6 +58,8 @@ class LoanServiceTest {
     @Mock RepaymentScheduleEngine scheduleEngine;
     @Mock AuditLogService auditLogService;
     @Mock ApplicationEventPublisher eventPublisher;
+    @Mock LoanGlPosting loanGlPosting;
+    @Mock LoanChargeRepository loanChargeRepository;
 
     @InjectMocks LoanService loanService;
 
@@ -238,20 +242,20 @@ class LoanServiceTest {
     class DisburseLoan {
 
         @Test
-        @DisplayName("disburses approved loan and credits account")
+        @DisplayName("disburses approved loan: credits the account and posts the journal")
         void disburseLoan_approved_credits() {
             activeLoan.setStatus(LoanStatus.APPROVED);
 
             when(loanRepository.findById(loanId)).thenReturn(Optional.of(activeLoan));
-            when(accountRepository.findByIdWithLock(accountId)).thenReturn(Optional.of(activeAccount));
-            when(accountRepository.save(any())).thenReturn(activeAccount);
-            when(transactionRepository.save(any())).thenReturn(mock(Transaction.class));
             when(scheduleEngine.generateAnnuitySchedule(any(), any(), any(), anyInt(), any()))
                 .thenReturn(List.of());
             when(loanRepository.save(any())).thenReturn(activeLoan);
 
             LoanResponse resp = loanService.disburseLoan(loanId);
+
             assertThat(resp).isNotNull();
+            assertThat(activeLoan.getStatus()).isEqualTo(LoanStatus.ACTIVE);
+            verify(loanGlPosting).postDisbursement(activeLoan, new BigDecimal("10000.00"), LocalDate.now());
         }
 
         @Test
@@ -271,10 +275,85 @@ class LoanServiceTest {
             activeAccount.setStatus(AccountStatus.DORMANT);
 
             when(loanRepository.findById(loanId)).thenReturn(Optional.of(activeLoan));
-            when(accountRepository.findByIdWithLock(accountId)).thenReturn(Optional.of(activeAccount));
+            when(loanGlPosting.postDisbursement(any(), any(), any()))
+                .thenThrow(CbaException.badRequest("ACCOUNT_NOT_ACTIVE", "dormant"));
 
             assertThatThrownBy(() -> loanService.disburseLoan(loanId))
                 .isInstanceOf(CbaException.class);
+            assertThat(activeLoan.getStatus()).isEqualTo(LoanStatus.APPROVED);
+            verifyNoInteractions(scheduleEngine);
+        }
+    }
+
+    @Nested
+    @DisplayName("makeRepayment")
+    class Repayment {
+
+        @BeforeEach
+        void schedule() {
+            activeLoan.setDisbursementDate(LocalDate.now().minusMonths(2));
+            activeLoan.setOutstandingBalance(new BigDecimal("1700.00"));
+            activeLoan.getRepaymentSchedule().add(installment(1, LocalDate.now().minusDays(5), "800.00", "100.00"));
+            activeLoan.getRepaymentSchedule().add(installment(2, LocalDate.now().plusDays(25), "900.00", "50.00"));
+            lenient().when(loanRepository.findById(loanId)).thenReturn(Optional.of(activeLoan));
+            lenient().when(loanRepository.save(any())).thenReturn(activeLoan);
+        }
+
+        @Test
+        @DisplayName("allocates interest then principal per instalment and posts the split")
+        void repayment_allocates_andPosts() {
+            LoanRepaymentResponse resp = loanService.makeRepayment(loanId,
+                    new LoanRepaymentRequest(new BigDecimal("1000.00"), null, null, null, null));
+
+            // Instalment 1: 100 interest + 800 principal; instalment 2: 50 interest + 50 principal.
+            assertThat(resp.interestPortion()).isEqualByComparingTo("150.00");
+            assertThat(resp.principalPortion()).isEqualByComparingTo("850.00");
+            assertThat(resp.outstandingBalanceAfter()).isEqualByComparingTo("850.00");
+            assertThat(resp.paymentMethod()).isEqualTo("ACCOUNT");
+            assertThat(activeLoan.getRepaymentSchedule().get(0).getStatus())
+                    .isEqualTo(LoanRepaymentSchedule.InstallmentStatus.PAID);
+            assertThat(activeLoan.getRepaymentSchedule().get(1).getStatus())
+                    .isEqualTo(LoanRepaymentSchedule.InstallmentStatus.PARTIALLY_PAID);
+            verify(loanGlPosting).postRepayment(eq(activeLoan),
+                    eq(new LoanPaymentSource(LoanPaymentSource.Method.ACCOUNT, null, null)),
+                    eq(new LoanGlPosting.Allocation(new BigDecimal("850.00"), new BigDecimal("150.00"),
+                            BigDecimal.ZERO.setScale(2))),
+                    eq(LocalDate.now()), eq("RPMT"), anyString());
+        }
+
+        @Test
+        @DisplayName("paying the whole schedule closes the loan")
+        void repayment_full_closesLoan() {
+            loanService.makeRepayment(loanId, new LoanRepaymentRequest(new BigDecimal("1850.00"), null, null, null, null));
+
+            assertThat(activeLoan.getStatus()).isEqualTo(LoanStatus.CLOSED_OBLIGATIONS_MET);
+            assertThat(activeLoan.getOutstandingBalance()).isEqualByComparingTo(BigDecimal.ZERO);
+        }
+
+        @Test
+        @DisplayName("more than the schedule owes is rejected, nothing collected")
+        void repayment_overpayment_rejected() {
+            assertThatThrownBy(() -> loanService.makeRepayment(loanId,
+                    new LoanRepaymentRequest(new BigDecimal("1850.01"), null, null, null, null)))
+                    .isInstanceOf(CbaException.class).hasMessageContaining("exceeds");
+            verifyNoInteractions(loanGlPosting);
+        }
+
+        @Test
+        @DisplayName("cash needs a teller session")
+        void repayment_cashWithoutSession_rejected() {
+            assertThatThrownBy(() -> loanService.makeRepayment(loanId,
+                    new LoanRepaymentRequest(new BigDecimal("100.00"), null, "CASH", null, null)))
+                    .isInstanceOf(CbaException.class).hasMessageContaining("teller session");
+            verifyNoInteractions(loanGlPosting);
+        }
+
+        @Test
+        @DisplayName("a future payment date is rejected")
+        void repayment_futureDate_rejected() {
+            assertThatThrownBy(() -> loanService.makeRepayment(loanId,
+                    new LoanRepaymentRequest(new BigDecimal("100.00"), LocalDate.now().plusDays(1), null, null, null)))
+                    .isInstanceOf(CbaException.class).hasMessageContaining("future");
         }
     }
 
@@ -399,14 +478,38 @@ class LoanServiceTest {
     class Foreclose {
 
         @Test
-        @DisplayName("forecloses active loan")
-        void foreclose_active_succeeds() {
+        @DisplayName("collects the quote: principal, interest already due, recognised charges")
+        void foreclose_active_collectsQuote() {
+            activeLoan.setDisbursementDate(LocalDate.now().minusMonths(2));
+            activeLoan.setOutstandingBalance(new BigDecimal("1700.00"));
+            activeLoan.getRepaymentSchedule().add(installment(1, LocalDate.now().minusDays(5), "800.00", "100.00"));
+            activeLoan.getRepaymentSchedule().add(installment(2, LocalDate.now().plusDays(25), "900.00", "50.00"));
+            LoanCharge penalty = new LoanCharge();
+            penalty.setName("Late fee");
+            penalty.setAmount(new BigDecimal("20.00"));
+            penalty.setAmountOutstanding(new BigDecimal("20.00"));
+            penalty.setIncomeRecognizedOn(LocalDate.now());
+            LoanCharge futureFee = new LoanCharge();
+            futureFee.setName("Statement fee");
+            futureFee.setAmount(new BigDecimal("5.00"));
+            futureFee.setAmountOutstanding(new BigDecimal("5.00"));
+
             when(loanRepository.findById(loanId)).thenReturn(Optional.of(activeLoan));
             when(loanRepository.save(any())).thenReturn(activeLoan);
+            when(loanChargeRepository.findByLoanIdOrderByCreatedAtAsc(loanId)).thenReturn(List.of(penalty, futureFee));
 
-            ForecloseRequest req = new ForecloseRequest(LocalDate.now(), "legal action");
-            LoanResponse resp = loanService.forecloseLoan(loanId, req);
-            assertThat(resp).isNotNull();
+            loanService.forecloseLoan(loanId, new ForecloseRequest(LocalDate.now(), "early settlement"));
+
+            verify(loanGlPosting).postRepayment(eq(activeLoan), any(),
+                    eq(new LoanGlPosting.Allocation(new BigDecimal("1700.00"), new BigDecimal("100.00"),
+                            new BigDecimal("20.00"))),
+                    eq(LocalDate.now()), eq("FCLS"), anyString());
+            assertThat(activeLoan.getStatus()).isEqualTo(LoanStatus.FORECLOSED);
+            assertThat(activeLoan.getOutstandingBalance()).isEqualByComparingTo(BigDecimal.ZERO);
+            // Interest on the instalment not yet due is cancelled, never collected.
+            assertThat(activeLoan.getRepaymentSchedule().get(1).getInterestDue()).isEqualByComparingTo(BigDecimal.ZERO);
+            assertThat(penalty.isPaid()).isTrue();
+            assertThat(futureFee.isWaived()).isTrue();
         }
 
         @Test
@@ -418,6 +521,18 @@ class LoanServiceTest {
             assertThatThrownBy(() -> loanService.forecloseLoan(loanId, new ForecloseRequest(LocalDate.now(), "legal")))
                 .isInstanceOf(CbaException.class);
         }
+    }
+
+    private LoanRepaymentSchedule installment(int no, LocalDate due, String principal, String interest) {
+        LoanRepaymentSchedule s = new LoanRepaymentSchedule();
+        s.setLoan(activeLoan);
+        s.setInstallmentNo(no);
+        s.setDueDate(due);
+        s.setPrincipalDue(new BigDecimal(principal));
+        s.setInterestDue(new BigDecimal(interest));
+        s.setFeesDue(BigDecimal.ZERO.setScale(2));
+        s.setTotalDue(new BigDecimal(principal).add(new BigDecimal(interest)));
+        return s;
     }
 
     private Loan buildLoan(LoanStatus status) {

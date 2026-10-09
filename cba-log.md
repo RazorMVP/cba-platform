@@ -57,6 +57,68 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 22) — 2026-10-09
+**GL posting PR 2a: every loan money movement now moves real money and posts a balanced journal — disbursement, repayment (linked account or teller cash), loan charges (recognised, paid, waived) and foreclosure. The web loan screen's approve/disburse/reject/repay calls reach real endpoints for the first time.**
+
+#### Decisions (standards checked first; user "go 6a", TypeSafe jev-1.13.0 second opinion agreed on all six)
+| # | Decision | Source |
+|---|---|---|
+| 1a | Repayments from the borrower's account **or** teller cash, chosen per payment | Product choice |
+| 2a | Origination fees by the full effective-interest method (built in 2b; disbursement fees rejected until then) | IFRS 9 B5.4.1–B5.4.2 |
+| 3a | Fees income when due, penalties when charged; per-charge income account; penalties on 90+ dpd loans to suspense (2b) | IFRS 15 §31, IFRS 9 B5.4.3, CBN Prudential Guidelines |
+| 4b | IFRS 9 expected-credit-loss allowance built inside PR 2 (2c), not deferred: write-off then debits the allowance, so it is written once | IFRS 9 §5.5, §5.4.4, B5.5.37, §5.5.11 |
+| 5a | Interest waivers (accrued and future) as a modification loss (2d) | IFRS 9 §5.4.3 |
+| 6a | ECL = PD × LGD × EAD with risk-team PD/LGD tables (2c) | IFRS 9 §5.5.17 |
+| — | Split: 2a money flows → 2b accrual/DPD/suspense/EIR → 2c ECL + write-off + CBN regulatory risk reserve → 2d waivers + loans opening balance | — |
+
+#### Defects fixed
+| # | Defect | Effect | Fix |
+|---|--------|--------|-----|
+| 1 | Disbursement credited the account directly | No journal; GL 1100 never moved | `creditForSubledger` + DR 1100 / CR 2001 in the same transaction |
+| 2 | Repayment debited nothing | The loan balance fell with no money received | Money comes from the account (withdrawal rules) or the till; CR portfolio / interest receivable / fees receivable |
+| 3 | Overpayment was silently dropped | Money beyond the schedule vanished | `400 REPAYMENT_EXCEEDS_OUTSTANDING`, nothing taken |
+| 4 | Foreclosure zeroed the balance with no payment | Loans could be closed for free | Collects a foreclosure quote; future interest cancelled, never charged |
+| 5 | Charge pay/waive only flipped flags; waive set `amountWaived = amount` even after part-payment | No journal; wrong waived amount | Recognise / pay / waive post; waive takes the outstanding amount; posted charges can't be deleted |
+| 6 | Web loan screen called `?command=` approve / disburse / reject / repayment | Approve, disburse, reject and repay had never reached the backend | `PUT /{id}/approve`, `/disburse`, `/reject`; `POST /{id}/repayments`; new `PUT /{id}/reject` |
+| 7 | `approveLoan` read `jwt.getClaimAsString` with no null check | NPE under the dev auth bypass | `system` when there is no JWT |
+| 8 | `LoanCharge` serialised its lazy `loan` / `chargeDefinition` | Lazy-proxy serialisation; the loan graph carries PII | `@JsonIgnore` on both |
+| 9 | Installment `totalPaid` never updated; PAID ignored fees | Schedule totals wrong | `markPaidStatus` sets totals and PAID / PARTIALLY_PAID |
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `db/migration/V57__loan_gl_posting.sql` | GL 1103 Loan Fees and Penalties Receivable, 4004 Penalty Income; maps `ASSET_FEES_RECEIVABLE`, `INCOME_PENALTIES`, `INCOME_FEES`→4002 (was unmapped); `charge_definitions.income_account_id`, `loan_charges.income_recognized_on`, `cash_transactions.loan_id` |
+| `loan/LoanGlPosting.java` | NEW: disbursement, repayment, charge recognition/payment/waiver journals; money source (account via `AccountService` or till via `TellerService`); product link → activity mapping → reject |
+| `loan/LoanPaymentSource.java` | NEW: `ACCOUNT` (default) / `CASH` + teller session parsing |
+| `loan/LoanService.java` | Disburse/repay/foreclose post; allocation per instalment; overpayment, future-date and pre-disbursement guards; `getForeclosureQuote`, `rejectLoan` |
+| `loan/LoanController.java`, `loan/dto/*` | `PUT /{id}/reject`, `GET /{id}/foreclosure-quote`; repayment/foreclose bodies gain `sourceAccountId`, `tellerSessionId` (old constructors kept) |
+| `charge/ChargeService.java`, `LoanCharge`, `ChargeDefinition`, `LoanChargeController`, `LoanChargeRepository` | Recognition rules, pay with payment source, waive reverses income (IFRS 15 §87-88), delete guard, `incomeAccountId` (validated INCOME detail) |
+| `account/AccountService.java` | `debitForSubledger` / `creditForSubledger` (`MANDATORY`); withdrawal checks extracted to `checkDebitAllowed` (withdraw unchanged) |
+| `account/AccountGlPosting.java` | Public `balanceChangeLines`, new `addProfitOrLoss` (functional-currency P&L through the FX position) |
+| `teller/TellerService.java`, `CashTransaction`, `CashTransactionResponse` | `recordLoanCash` (till `CASH_IN` with `loanId`); response gains `loanId` |
+| `test/.../LoanGlPostingIT.java` | NEW (3): full lifecycle against PostgreSQL — every journal line, balances, till record, 1100 nets to zero; overpayment and insufficient funds post nothing |
+| `test/.../LoanServiceTest.java`, `ChargeServiceTest.java` | Disburse/repay/foreclose/charge rules (+12) |
+| `web/.../loan.service.ts`, `loan-detail.ts/.html` + specs, `accounting.service.ts`, `financial-activity-accounts.ts` | Real endpoints; "Paid from" (account / teller cash) on repay and foreclose; foreclosure quote; API error text shown; approve amount read-only; two new activities |
+| `backend/docs/openapi-snapshot.yaml`, `docs/api-reference.html`, `docs/cba-postman-collection-v2.json`, `docs-site/static/*` | 2 new endpoints, new bodies/fields, loan posting rows; Postman: Reject Loan, Get Foreclosure Quote, fixed charge-pay path. `docs-site` copies re-synced (they had missed #129 and #130) |
+
+#### Key Patterns / Decisions
+- **Repayments clear receivables; income comes only from accrual.** Until 2b's accrual job runs, interest paid credits 1101 with no prior accrual, so 1101 can run a credit balance. 2b accrues from each loan's disbursement date and clears it. Chosen so 2b adds accrual without changing repayment postings.
+- Fees due later are not income until due (recognised by the 2b nightly job), and can't be paid before then (`CHARGE_NOT_DUE`).
+- A payment from an account goes through the same withdrawal rules as a counter withdrawal; the account must belong to the borrower and be in the loan's currency.
+- Teller cash for a loan is a till record with `loanId`, so session settlement includes it.
+
+#### Build Verification
+- Backend `-Pfull-integration` **766/766** (was 751). OpenAPI snapshot regenerated.
+- Web `ng test` **1156/1156** (115 files); `ng build --configuration production` succeeds.
+- Gate grep: new `PUT /loans/{id}/reject`, `GET /loans/{id}/foreclosure-quote` (`date`), optional body on `POST /loans/{loanId}/charges/{chargeId}/pay`; body changes on repayments, foreclose, charge definitions and teller transactions → api-reference, Postman and snapshot updated.
+- First full run failed with "cannot find symbol" on main classes: the known IDE/Maven `clean` race; rerun green.
+
+#### Confirmed Platform Versions
+| Directory | Last commit | Notes |
+|-----------|-------------|-------|
+| `backend/` | this PR | Spring Boot 3.5.16; Flyway **V57**; 766/766 |
+| `web/` | this PR | Angular 21.2.23; 1156/1156 |
+
 ### Session 125 (cont. 21) — 2026-09-29
 **Ledger fixes: journal reversal reverses the whole journal (manual journals only), the trial balance is per currency and counts reversals correctly, GL closures are enforced, and the journal-entry and trial-balance screens work against the real API.**
 

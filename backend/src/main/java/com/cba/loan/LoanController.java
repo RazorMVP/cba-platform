@@ -7,6 +7,8 @@ import com.cba.loan.dto.LoanRepaymentResponse;
 import com.cba.loan.dto.LoanResponse;
 import com.cba.loan.dto.RepaymentScheduleResponse;
 import com.cba.loan.dto.ForecloseRequest;
+import com.cba.loan.dto.ForeclosureQuote;
+import com.cba.loan.dto.RejectLoanRequest;
 import com.cba.loan.dto.WaiveInterestRequest;
 import com.cba.loan.dto.WriteOffRequest;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -24,6 +27,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -68,15 +72,38 @@ public class LoanController {
     public ResponseEntity<ApiResponse<LoanResponse>> approveLoan(
             @PathVariable UUID id,
             @AuthenticationPrincipal Jwt jwt) {
-        String approvedBy = jwt.getClaimAsString("preferred_username");
+        // No JWT under the dev auth bypass: record the approver as "system" instead of failing.
+        String approvedBy = jwt != null ? jwt.getClaimAsString("preferred_username") : "system";
         return ResponseEntity.ok(ApiResponse.ok(loanService.approveLoan(id, approvedBy)));
+    }
+
+    @PutMapping("/{id}/reject")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
+    @Operation(summary = "Reject a loan application (SUBMITTED, UNDER_REVIEW or APPROVED; nothing is posted)")
+    public ResponseEntity<ApiResponse<LoanResponse>> rejectLoan(
+            @PathVariable UUID id,
+            @Valid @RequestBody RejectLoanRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(loanService.rejectLoan(id, request.reason())));
     }
 
     @PutMapping("/{id}/disburse")
     @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
-    @Operation(summary = "Disburse an approved loan to the linked account")
+    @Operation(summary = "Disburse an approved loan to the linked account",
+               description = "Credits the linked account and posts DR loan portfolio / CR savings control. "
+                       + "400 CURRENCY_MISMATCH when the account is not in the loan product's currency.")
     public ResponseEntity<ApiResponse<LoanResponse>> disburseLoan(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(loanService.disburseLoan(id)));
+    }
+
+    @GetMapping("/{id}/foreclosure-quote")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
+    @Operation(summary = "Amount needed to settle the loan on a date",
+               description = "Outstanding principal, plus interest and scheduled fees on instalments due by the "
+                       + "date, plus recognised unpaid charges. Interest on later instalments is not charged.")
+    public ResponseEntity<ApiResponse<ForeclosureQuote>> getForeclosureQuote(
+            @PathVariable UUID id,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return ResponseEntity.ok(ApiResponse.ok(loanService.getForeclosureQuote(id, date)));
     }
 
     @GetMapping("/{id}/repayment-schedule")
@@ -89,7 +116,11 @@ public class LoanController {
 
     @PostMapping("/{id}/repayments")
     @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
-    @Operation(summary = "Record a loan repayment (fees → interest → principal allocation)")
+    @Operation(summary = "Record a loan repayment (fees → interest → principal allocation)",
+               description = "paymentMethod ACCOUNT (default: linked account, or sourceAccountId) or CASH "
+                       + "(tellerSessionId required; recorded in the till). Posts DR source / CR loan portfolio, "
+                       + "interest receivable and fees receivable. 400 REPAYMENT_EXCEEDS_OUTSTANDING if the amount "
+                       + "is more than the schedule still owes.")
     public ResponseEntity<ApiResponse<LoanRepaymentResponse>> makeRepayment(
             @PathVariable UUID id,
             @Valid @RequestBody LoanRepaymentRequest request) {
@@ -124,7 +155,10 @@ public class LoanController {
 
     @PostMapping("/{id}/foreclose")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Foreclose a loan — terminal state for secured-asset recovery")
+    @Operation(summary = "Foreclose (settle early) a loan",
+               description = "Collects the foreclosure quote for foreclosureDate from paymentMethod ACCOUNT "
+                       + "(default) or CASH (tellerSessionId), clears the loan's assets and cancels interest on "
+                       + "instalments not yet due. Status becomes FORECLOSED.")
     public ResponseEntity<ApiResponse<LoanResponse>> forecloseLoan(
             @PathVariable UUID id,
             @Valid @RequestBody ForecloseRequest request) {

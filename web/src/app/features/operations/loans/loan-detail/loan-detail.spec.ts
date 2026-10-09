@@ -8,7 +8,7 @@ import {
 
 type Svc = Record<
   'get' | 'getSchedule' | 'create' | 'approve' | 'disburse' | 'reject' |
-  'writeOff' | 'undoWriteOff' | 'waiveInterest' | 'foreclose' | 'recordRepayment' |
+  'writeOff' | 'undoWriteOff' | 'waiveInterest' | 'foreclose' | 'getForeclosureQuote' | 'recordRepayment' |
   'getCharges' | 'addCharge' | 'payCharge' | 'waiveCharge' | 'deleteCharge' |
   'listAvailableCharges' | 'getGuarantors' | 'getCollateral' | 'getNotes' | 'addNote' |
   'getDocuments' | 'getAuditLog' | 'listRescheduleRequests' | 'createRescheduleRequest' |
@@ -55,6 +55,10 @@ describe('LoanDetailComponent', () => {
       undoWriteOff: vi.fn().mockReturnValue(of(loan({ status: 'ACTIVE' }))),
       waiveInterest: vi.fn().mockReturnValue(of(loan())),
       foreclose: vi.fn().mockReturnValue(of(loan({ status: 'FORECLOSED' }))),
+      getForeclosureQuote: vi.fn().mockReturnValue(of({
+        loanId: 'loan-1', loanAccountNumber: 'L0001', date: '2026-06-01', currencyCode: 'USD',
+        principal: 4000, interest: 100, fees: 0, charges: 0, total: 4100,
+      })),
       recordRepayment: vi.fn().mockReturnValue(of(loan({ outstandingBalance: 3000 }))),
       getCharges: vi.fn().mockReturnValue(of([charge()])),
       addCharge: vi.fn().mockReturnValue(of(charge({ id: 'ch2' }))),
@@ -150,11 +154,10 @@ describe('LoanDetailComponent', () => {
   });
 
   describe('lifecycle actions', () => {
-    it('submitApprove approves with the optional amount', () => {
+    it('submitApprove approves the full principal', () => {
       const c = make();
-      c.approveAmount = 9000;
       c.submitApprove();
-      expect(svc.approve).toHaveBeenCalledWith('loan-1', 9000);
+      expect(svc.approve).toHaveBeenCalledWith('loan-1');
       expect(c.loan?.status).toBe('APPROVED');
       expect(c.showApproveModal).toBe(false);
     });
@@ -177,15 +180,45 @@ describe('LoanDetailComponent', () => {
       expect(c.loan?.status).toBe('REJECTED');
     });
 
-    it('submitRepayment records the repayment and invalidates the schedule cache', () => {
+    it('submitRepayment debits the linked account, reloads the loan and invalidates the schedule', () => {
       const c = make();
+      svc.get.mockReturnValue(of(loan({ outstandingBalance: 3000 })));
       c.scheduleLoaded = true;
       c.repaymentAmount = 1000;
       c.submitRepayment();
-      expect(svc.recordRepayment).toHaveBeenCalledWith('loan-1', 1000, c.repaymentDate);
+      expect(svc.recordRepayment).toHaveBeenCalledWith('loan-1', 1000, c.repaymentDate, { paymentMethod: 'ACCOUNT' });
       expect(c.loan?.outstandingBalance).toBe(3000);
       expect(c.scheduleLoaded).toBe(false);
       expect(c.showRepaymentModal).toBe(false);
+    });
+
+    it('submitRepayment in cash names the teller session', () => {
+      const c = make();
+      c.repaymentAmount = 500;
+      c.repaymentMethod = 'CASH';
+      c.repaymentTellerSessionId = ' sess-1 ';
+      c.submitRepayment();
+      expect(svc.recordRepayment).toHaveBeenCalledWith('loan-1', 500, c.repaymentDate,
+        { paymentMethod: 'CASH', tellerSessionId: 'sess-1' });
+    });
+
+    it('submitRepayment shows the API error message', () => {
+      svc.recordRepayment.mockReturnValue(throwError(() => ({
+        error: { errors: [{ code: 'REPAYMENT_EXCEEDS_OUTSTANDING', message: 'Repayment 9 exceeds the 5 still owed' }] },
+      })));
+      const c = make();
+      c.repaymentAmount = 9;
+      c.submitRepayment();
+      expect(c.repaymentError).toBe('Repayment 9 exceeds the 5 still owed');
+      expect(c.repaymentSaving).toBe(false);
+    });
+
+    it('openForeclose loads the settlement quote', () => {
+      const c = make();
+      c.openForeclose();
+      expect(svc.getForeclosureQuote).toHaveBeenCalledWith('loan-1', c.forecloseDate);
+      expect(c.forecloseQuote?.total).toBe(4100);
+      expect(c.showForecloseModal).toBe(true);
     });
 
     it('submitWriteOff surfaces an error on failure', () => {

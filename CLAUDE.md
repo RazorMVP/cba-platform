@@ -29,8 +29,8 @@ These are the verified-working versions for all production components. Update th
 
 | Component | Version | Notes |
 |-----------|---------|-------|
-| **Angular** | 21.2.23 | `@angular/core` + framework packages; floors raised `^21.2.0` → `^21.2.23` (Session 124, security) |
-| **Angular CLI / @angular/build** | 21.2.24 | Used for `vercel build --prod` (CI); `^21.2.24` |
+| **Angular** | 21.2.25 | `@angular/core` + framework packages; floors `^21.2.25` (Session 125 cont. 23, security — router SSR DoS GHSA-ff3f-86qr-9cv3; was `^21.2.23` since Session 124) |
+| **Angular CLI / @angular/build** | 21.2.26 | Used for `vercel build --prod` (CI); `^21.2.26` (cont. 23 — clears critical `piscina` GHSA-67c8-pqhq-4rmx and high `@modelcontextprotocol/sdk`, `http-cache-semantics`, `source-map-js`) |
 | **Angular Material / CDK** | 21.2.14 | `^21.2.14` |
 | **PrimeNG** | 21.1.10 | UI component library |
 | **RxJS** | 7.8.x | Reactive extensions; `~7.8.0` pinned |

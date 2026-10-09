@@ -84,6 +84,8 @@ yarn-error.log*
 # ── Test Artifacts ────────────────────────────────────────────────────────────
 web/playwright-report/
 web/test-results/
+# Playwright storage state (holds the Vercel bypass cookie in CI)
+web/playwright/.auth/
 
 # ── Stray root-level screenshots (UI-review artifacts; real assets live in subdirs)
 /*.png

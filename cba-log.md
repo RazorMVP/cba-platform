@@ -57,6 +57,33 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 24) — 2026-10-09
+**E2E tests reach the app: Playwright gets past Vercel Deployment Protection on preview deployments with the automation bypass secret.**
+
+Every web PR's `E2E Tests (Playwright)` failed: the preview URL served Vercel's login page (`toHaveTitle(/Nubbank/)` received `"Login – Vercel"`). Nothing in the repo sent a bypass; the user created the Protection Bypass for Automation secret and added it as the repo secret `VERCEL_AUTOMATION_BYPASS_SECRET`.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/e2e/global-setup.ts` | NEW: one request to the preview with `x-vercel-protection-bypass` + `x-vercel-set-bypass-cookie: true`; stores the bypass cookie as `storageState`. Fails fast with the status if the bypass is refused. No secret (local runs vs the public production alias) → empty state |
+| `web/playwright.config.ts` | `globalSetup`, `use.storageState` |
+| `.github/workflows/web-ci.yml` | E2E step gets `VERCEL_AUTOMATION_BYPASS_SECRET` via `env:` |
+| `.gitignore` | `web/playwright/.auth/` |
+| `CLAUDE.md` | How E2E passes protection; don't use `extraHTTPHeaders` |
+
+#### Key Patterns / Decisions
+- **The secret goes to the deployment's origin only.** `use.extraHTTPHeaders` would send it with every request the page makes, Google Fonts included. The browser then carries Vercel's host-only cookie, not the secret.
+- Header names checked against Vercel's docs (Context7, `/vercel/vercel`).
+
+#### Build Verification
+- Local `npx playwright test` against the production alias: **5/5** (config and global setup load; no-secret path). The bypass path can only run in CI: this PR's own E2E job is the check.
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
+#### Confirmed Platform Versions
+| Directory | Last commit | Notes |
+|-----------|-------------|-------|
+| `web/` | this PR | Playwright 1.61.1; no app code changed |
+
 ### Session 125 (cont. 21) — 2026-09-29
 **Ledger fixes: journal reversal reverses the whole journal (manual journals only), the trial balance is per currency and counts reversals correctly, GL closures are enforced, and the journal-entry and trial-balance screens work against the real API.**
 

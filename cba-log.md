@@ -57,6 +57,34 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 23) — 2026-10-09
+**Web security patch: 7 new npm advisories (2 critical, 5 high) failed the `Security Audit (npm)` job, and with it the required `Web CI gate`, on every PR (found blocking #135). All fixed within Angular 21 by raising floors and re-resolving the lockfile.**
+
+| Advisory | Package | Severity | Fixed by |
+|---|---|---|---|
+| GHSA-67c8-pqhq-4rmx — prototype pollution → RCE in `ThreadPool.options` | `piscina` (via `@angular/build`) | critical | `@angular/build` 21.2.26 |
+| GHSA-ff3f-86qr-9cv3 — SSR denial of service via numeric URL matrix parameters | `@angular/router` | high | 21.2.25 |
+| GHSA-6qxp-vccf-f47h — OAuth credentials sent to a server-chosen authorization server | `@modelcontextprotocol/sdk` (via `@angular/cli`) | high | `@angular/cli` 21.2.26 |
+| GHSA-ch52-4w7c-c8xp — `max-stale` can disclose cross-user cached responses | `http-cache-semantics` | high | re-resolve |
+| GHSA-68fv-2mgg-jv7q — event-loop DoS via indexed source-map offsets | `source-map-js` | high | re-resolve |
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/package.json` | Framework floors `^21.2.23` → `^21.2.25`; `@angular/build`, `@angular/cli` `^21.2.24` → `^21.2.26` (raised floors, so a regenerated lockfile can't fall back) |
+| `web/package-lock.json` | Clean re-resolve (`rm -rf node_modules package-lock.json && npm install`) — the Session 124 procedure; `npm audit fix` cannot bump direct dependencies |
+| `CLAUDE.md` | Angular / CLI version rows |
+
+#### Build Verification
+- `npm audit --audit-level=high`: **0 vulnerabilities** (was 7).
+- `ng test` **1153/1153** (main's count); `ng build --configuration production` succeeds. `zone.js` unchanged (0.16.3), so no browser re-verification is needed.
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
+#### Confirmed Platform Versions
+| Directory | Last commit | Notes |
+|-----------|-------------|-------|
+| `web/` | this PR | Angular 21.2.25, CLI/build 21.2.26, Material 21.2.14, zone.js 0.16.3, TypeScript 5.9.3 |
+
 ### Session 125 (cont. 21) — 2026-09-29
 **Ledger fixes: journal reversal reverses the whole journal (manual journals only), the trial balance is per currency and counts reversals correctly, GL closures are enforced, and the journal-entry and trial-balance screens work against the real API.**
 

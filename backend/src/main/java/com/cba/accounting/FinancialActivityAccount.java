@@ -20,10 +20,14 @@ public class FinancialActivityAccount {
         ASSET_CASH_AT_TELLER,
         ASSET_INTEREST_RECEIVABLE,
         ASSET_LOAN_PORTFOLIO,
+        /** Loan fees and penalties charged and not yet paid. */
+        ASSET_FEES_RECEIVABLE,
         LIABILITY_SAVINGS_CONTROL,
         LIABILITY_TRANSFER_IN_SUSPENSE,
         INCOME_INTEREST,
         INCOME_FEES,
+        /** Penalties charged on loans: income when charged. */
+        INCOME_PENALTIES,
         EXPENSE_LOAN_LOSS_PROVISION,
         EXPENSE_WRITE_OFF,
         /** Debit side of interest credited to savings; credit side is LIABILITY_SAVINGS_CONTROL. */

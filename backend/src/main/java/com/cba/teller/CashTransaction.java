@@ -37,6 +37,10 @@ public class CashTransaction {
     @JoinColumn(name = "account_id")
     private Account account;
 
+    /** Set instead of {@code account} for cash received against a loan. */
+    @Column(name = "loan_id")
+    private UUID loanId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "transaction_type", nullable = false, length = 20)
     private CashTransactionType transactionType;

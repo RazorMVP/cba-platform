@@ -5,13 +5,14 @@ import { LoanService } from './loan.service';
 
 describe('LoanService', () => {
   let service: LoanService;
-  let api: Record<'get' | 'getPage' | 'post' | 'delete' | 'command', ReturnType<typeof vi.fn>>;
+  let api: Record<'get' | 'getPage' | 'post' | 'put' | 'delete' | 'command', ReturnType<typeof vi.fn>>;
 
   beforeEach(() => {
     api = {
       get: vi.fn().mockReturnValue(of({})),
       getPage: vi.fn().mockReturnValue(of({ content: [] })),
       post: vi.fn().mockReturnValue(of({})),
+      put: vi.fn().mockReturnValue(of({})),
       delete: vi.fn().mockReturnValue(of({})),
       command: vi.fn().mockReturnValue(of({})),
     };
@@ -39,28 +40,43 @@ describe('LoanService', () => {
     expect(api.post).toHaveBeenCalledWith('/loans', body);
   });
 
-  describe('lifecycle commands (Mifos command pattern)', () => {
-    it('approve() sends the approved amount', () => {
-      service.approve('l1', 900).subscribe();
-      expect(api.command).toHaveBeenCalledWith('/loans/l1', 'approve', { approvedAmount: 900 });
-    });
-
-    it('disburse() sends no body', () => {
+  // The backend has PUT /{id}/approve|disburse|reject and POST /{id}/repayments, not the
+  // ?command= pattern: the old calls had never reached an endpoint.
+  describe('lifecycle endpoints', () => {
+    it('approve / disburse / reject use PUT on their own paths', () => {
+      service.approve('l1').subscribe();
+      expect(api.put).toHaveBeenCalledWith('/loans/l1/approve', {});
       service.disburse('l1').subscribe();
-      expect(api.command).toHaveBeenCalledWith('/loans/l1', 'disburse');
-    });
-
-    it('reject() sends the reason', () => {
+      expect(api.put).toHaveBeenCalledWith('/loans/l1/disburse', {});
       service.reject('l1', 'incomplete').subscribe();
-      expect(api.command).toHaveBeenCalledWith('/loans/l1', 'reject', { reason: 'incomplete' });
+      expect(api.put).toHaveBeenCalledWith('/loans/l1/reject', { reason: 'incomplete' });
+      expect(api.command).not.toHaveBeenCalled();
     });
 
-    it('recordRepayment() maps to transactionAmount/transactionDate', () => {
+    it('recordRepayment() posts amount/paymentDate, from the linked account by default', () => {
       service.recordRepayment('l1', 250, '2026-06-01').subscribe();
-      expect(api.command).toHaveBeenCalledWith('/loans/l1', 'repayment', {
-        transactionAmount: 250,
-        transactionDate: '2026-06-01',
+      expect(api.post).toHaveBeenCalledWith('/loans/l1/repayments', {
+        amount: 250,
+        paymentDate: '2026-06-01',
+        paymentMethod: 'ACCOUNT',
       });
+    });
+
+    it('recordRepayment() in cash names the teller session', () => {
+      service.recordRepayment('l1', 250, '2026-06-01', { paymentMethod: 'CASH', tellerSessionId: 's1' }).subscribe();
+      expect(api.post).toHaveBeenCalledWith('/loans/l1/repayments', {
+        amount: 250,
+        paymentDate: '2026-06-01',
+        paymentMethod: 'CASH',
+        tellerSessionId: 's1',
+      });
+    });
+
+    it('getForeclosureQuote() passes the date only when given', () => {
+      service.getForeclosureQuote('l1', '2026-06-01').subscribe();
+      expect(api.get).toHaveBeenCalledWith('/loans/l1/foreclosure-quote', { date: '2026-06-01' });
+      service.getForeclosureQuote('l1').subscribe();
+      expect(api.get).toHaveBeenCalledWith('/loans/l1/foreclosure-quote', undefined);
     });
   });
 
@@ -82,6 +98,7 @@ describe('LoanService', () => {
       expect(api.post).toHaveBeenCalledWith('/loans/l1/foreclose', {
         reason: 'early',
         foreclosureDate: '2026-06-01',
+        paymentMethod: 'ACCOUNT',
       });
     });
   });
@@ -116,7 +133,7 @@ describe('LoanService', () => {
 
     it('payCharge / waiveCharge / deleteCharge route correctly', () => {
       service.payCharge('l1', 'lc1').subscribe();
-      expect(api.post).toHaveBeenCalledWith('/loans/l1/charges/lc1/pay', {});
+      expect(api.post).toHaveBeenCalledWith('/loans/l1/charges/lc1/pay', { paymentMethod: 'ACCOUNT' });
       service.waiveCharge('l1', 'lc1').subscribe();
       expect(api.post).toHaveBeenCalledWith('/loans/l1/charges/lc1/waive', {});
       service.deleteCharge('l1', 'lc1').subscribe();

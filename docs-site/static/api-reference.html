@@ -1118,8 +1118,21 @@ Where:
     <span class="endpoint-summary">Approve a loan</span>
   </summary>
   <div class="endpoint-body">
-    <pre>{ "approvedAmount": "10000.00", "approvalNote": "Documents verified", "expectedDisbursementDate": "2026-04-10" }</pre>
-    <p>Generating repayment schedule. Requires ADMIN role.</p>
+    <p><strong>Request body:</strong> none. Approves the full requested principal (<code>approvedAmount = principalAmount</code>); the approver is the JWT's <code>preferred_username</code> (<code>system</code> under the dev auth bypass). ADMIN, TELLER.</p>
+    <p><strong>Valid from states:</strong> <code>SUBMITTED</code>, <code>UNDER_REVIEW</code></p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method PUT">PUT</span>
+    <span class="endpoint-path">/api/v1/loans/{id}/reject</span>
+    <span class="endpoint-summary">Reject a loan application</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "reason": "Incomplete documents" }</pre>
+    <p>Moves the loan to <code>REJECTED</code>. No money has moved, so nothing is posted. ADMIN, TELLER.</p>
+    <p><strong>Valid from states:</strong> <code>SUBMITTED</code>, <code>UNDER_REVIEW</code>, <code>APPROVED</code></p>
   </div>
 </details>
 
@@ -1130,8 +1143,8 @@ Where:
     <span class="endpoint-summary">Disburse a loan</span>
   </summary>
   <div class="endpoint-body">
-    <pre>{ "disbursementDate": "2026-04-10", "disbursementAccountId": "..." }</pre>
-    <p>Funds are credited to the customer's account atomically.</p>
+    <p><strong>Request body:</strong> none. Credits the approved amount to the loan's linked account (locked, must be <code>ACTIVE</code>), writes a <code>LOAN_DISBURSEMENT</code> transaction and posts, in the same transaction: <strong>DR loan portfolio</strong> (product link, else <code>ASSET_LOAN_PORTFOLIO</code> → 1100) / <strong>CR savings control</strong> (2001). Builds the repayment schedule.</p>
+    <p><strong>Errors:</strong> <code>400 CURRENCY_MISMATCH</code> (linked account not in the loan product's currency), <code>400 ACCOUNT_NOT_ACTIVE</code>, <code>400 ACTIVITY_NOT_MAPPED</code>.</p>
   </div>
 </details>
 
@@ -1153,8 +1166,30 @@ Where:
     <span class="endpoint-summary">Make a repayment</span>
   </summary>
   <div class="endpoint-body">
-    <pre>{ "amount": "950.00", "paymentDate": "2026-05-01", "paymentMethod": "BANK_TRANSFER" }</pre>
-    <p>Payment allocated: fees first → interest → principal.</p>
+    <pre>{ "amount": "950.00", "paymentDate": "2026-05-01", "paymentMethod": "ACCOUNT" }
+{ "amount": "950.00", "paymentMethod": "CASH", "tellerSessionId": "..." }</pre>
+    <p>Allocated per instalment in due-date order: fees → interest → principal. The money comes from <code>paymentMethod</code>:</p>
+    <ul>
+      <li><code>ACCOUNT</code> (default) — the linked account, or <code>sourceAccountId</code> (another account of the borrower, same currency). Same rules as a withdrawal: holds, minimum balance, lock-in.</li>
+      <li><code>CASH</code> — received at the open teller session <code>tellerSessionId</code>; recorded as a till <code>CASH_IN</code> with <code>loanId</code>, so the session's expected closing balance includes it.</li>
+    </ul>
+    <p><strong>Journal (same transaction):</strong> DR savings control or Cash at Teller (1001) / CR loan portfolio (principal), <strong>interest receivable 1101</strong> (interest) and <strong>fees receivable 1103</strong> (fees). Loans are accrual-based: a repayment clears receivables and never touches profit or loss; income is recognised by accrual (GL posting PR 2b).</p>
+    <p><strong>Response:</strong> <code>{ loanId, loanAccountNumber, amountPaid, principalPortion, interestPortion, feePortion, outstandingBalanceAfter, paymentDate, paymentMethod, referenceNumber }</code>. Paying the whole schedule closes the loan (<code>CLOSED_OBLIGATIONS_MET</code>).</p>
+    <p><strong>Errors:</strong> <code>400 REPAYMENT_EXCEEDS_OUTSTANDING</code> (more than the schedule still owes — nothing is taken), <code>400 INVALID_PAYMENT_METHOD</code>, <code>400 TELLER_SESSION_REQUIRED</code>, <code>400 SOURCE_ACCOUNT_NOT_BORROWERS</code>, <code>400 FUTURE_PAYMENT_DATE</code>, <code>400 PAYMENT_BEFORE_DISBURSEMENT</code>, <code>400 BELOW_MINIMUM_BALANCE</code>, <code>400 SESSION_NOT_OPEN</code>, <code>400 CURRENCY_MISMATCH</code>.</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/loans/{id}/foreclosure-quote</span>
+    <span class="endpoint-summary">Amount to settle the loan on a date</span>
+  </summary>
+  <div class="endpoint-body">
+    <p><strong>Query:</strong> <code>date</code> (optional, ISO date; default today). ADMIN, TELLER.</p>
+    <pre>{ "loanId": "...", "loanAccountNumber": "001-LN-0001234", "date": "2026-06-01", "currencyCode": "USD",
+  "principal": 1050.00, "interest": 12.50, "fees": 0.00, "charges": 25.00, "total": 1087.50 }</pre>
+    <p>Outstanding principal + interest and scheduled fees on instalments due by <code>date</code> + recognised unpaid charges. Interest on instalments not yet due has not been earned and is not charged.</p>
   </div>
 </details>
 
@@ -1191,10 +1226,10 @@ Where:
     <span class="endpoint-summary">Foreclose loan — terminal state</span>
   </summary>
   <div class="endpoint-body">
-    <pre>{ "reason": "Collateral seized and liquidated", "foreclosureDate": "2026-04-18" }</pre>
-    <p>Moves the loan to the terminal <code>FORECLOSED</code> state. Outstanding balance is zeroed (collateral recovery is handled out-of-band). Requires ADMIN role.</p>
+    <pre>{ "reason": "Early settlement", "foreclosureDate": "2026-04-18", "paymentMethod": "CASH", "tellerSessionId": "..." }</pre>
+    <p>Settles the loan early: collects the <a href="#loans">foreclosure quote</a> for <code>foreclosureDate</code> from <code>paymentMethod</code> (<code>ACCOUNT</code> default, or <code>CASH</code> + <code>tellerSessionId</code>), posts DR source / CR portfolio, interest receivable and fees receivable, pays recognised charges, cancels unrecognised ones and the interest on instalments not yet due, and moves the loan to the terminal <code>FORECLOSED</code> state. Requires ADMIN role.</p>
     <p><strong>Valid from states:</strong> <code>ACTIVE</code>, <code>IN_ARREARS</code></p>
-    <p><strong>Fields:</strong> <code>reason</code> (required), <code>foreclosureDate</code> (optional, ISO date)</p>
+    <p><strong>Fields:</strong> <code>reason</code> (required), <code>foreclosureDate</code> (optional, ISO date, not in the future), <code>paymentMethod</code>, <code>sourceAccountId</code>, <code>tellerSessionId</code></p>
   </div>
 </details>
 </section>
@@ -1699,6 +1734,7 @@ difference = actual_cash - closing_balance</pre>
   <div class="endpoint-body">
     <pre>{ "transactionType": "CASH_IN", "amount": "250.00", "accountId": "...", "description": "Customer deposit" }</pre>
     <p><code>accountId</code> is <strong>required</strong>: every till movement is posted to the GL against a customer account (DR/CR Cash at Teller ↔ the account's savings control), so a cash transaction with no account is rejected (<code>400 ACCOUNT_REQUIRED</code>). The currency (default: the session's) must match both the till and the account (<code>400 CURRENCY_MISMATCH</code>). The balance change goes through the same path as <code>POST /accounts/{id}/deposit|withdraw</code>: the account is locked, holds, minimum balance and lock-in apply, and the GL journal is written in the same transaction.</p>
+    <p><strong>Loan cash:</strong> a loan repayment, foreclosure or charge paid with <code>paymentMethod: CASH</code> records its <code>CASH_IN</code> in the session itself, with <code>loanId</code> set and <code>accountId</code> null (the journal is DR Cash at Teller / CR the loan's assets). Listed session transactions include <code>loanId</code>, so the expected closing balance counts that cash.</p>
   </div>
 </details>
 
@@ -1963,15 +1999,15 @@ difference = actual_cash - closing_balance</pre>
 <!-- COB SCHEDULER ───────────────────────────────────────────────────────── -->
 <section id="cob">
 <h2>Close of Business (CoB) Scheduler <span style="font-size:.75rem;font-weight:400;color:#065f46;background:#d1fae5;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Live</span></h2>
-<p>Spring Batch jobs run nightly <strong>in sequence</strong> from a single Quartz trigger at 23:55 server time: standing-order execution → dormancy classification → interest accrual → arrears classification. Each job starts only when the previous one has finished; a failed job is logged and the next one still runs. All four list entries therefore show the same <code>cronExpression</code> and <code>nextRunTime</code>. Each job is also manually triggerable via API. Every run carries a <code>businessDate</code> job parameter, and the jobs date their work by it rather than by the clock.</p>
+<p>Spring Batch jobs run nightly <strong>in sequence</strong> from a single Quartz trigger at 23:55 server time: standing-order execution → dormancy classification → interest accrual → arrears classification → FX revaluation. Each job starts only when the previous one has finished; a failed job is logged and the next one still runs. All five list entries therefore show the same <code>cronExpression</code> and <code>nextRunTime</code>. Each job is also manually triggerable via API. Every run carries a <code>businessDate</code> job parameter, and the jobs date their work by it rather than by the clock.</p>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
-<tr><td>GET</td><td>/api/v1/jobs</td><td>List the four CoB jobs in schedule order. Each entry: <code>jobName</code>, <code>displayName</code>, <code>cronExpression</code>, <code>nextRunTime</code>, <code>previousRunStartTime</code>, <code>previousRunEndTime</code>, <code>previousRunStatus</code> (<code>SUCCESS</code> / <code>FAILED</code> / <code>RUNNING</code>, null if never run), <code>active</code> (false when the Quartz trigger is paused), <code>currentlyRunning</code>. Covers scheduled and manual runs.</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/jobs</td><td>List the five CoB jobs in schedule order. Each entry: <code>jobName</code>, <code>displayName</code>, <code>cronExpression</code>, <code>nextRunTime</code>, <code>previousRunStartTime</code>, <code>previousRunEndTime</code>, <code>previousRunStatus</code> (<code>SUCCESS</code> / <code>FAILED</code> / <code>RUNNING</code>, null if never run), <code>active</code> (false when the Quartz trigger is paused), <code>currentlyRunning</code>. Covers scheduled and manual runs.</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/jobs/{jobName}/run</td><td>Run a CoB job now, synchronously, for today's business date. Returns the finished run (same shape as a history entry) — <strong>check <code>status</code>: the call returns 200 even when the job itself ends <code>FAILED</code></strong>. <code>404</code> unknown job name; <code>409</code> <code>COB_JOB_ALREADY_RUNNING</code> if that job is running.</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/api/v1/jobs/{jobName}/history</td><td>The 30 most recent runs, newest first, scheduled and manual alike. Each entry: <code>id</code> (Spring Batch execution id), <code>jobName</code>, <code>businessDate</code>, <code>startTime</code>, <code>endTime</code>, <code>status</code>, <code>errorMessage</code> (first line of the failure; null on success). <code>404</code> unknown job name.</td><td>ADMIN</td></tr>
 </table>
-<p><strong>Valid job names:</strong> <code>standingOrderExecutionJob</code>, <code>dormancyClassificationJob</code>, <code>interestAccrualJob</code>, <code>arrearsClassificationJob</code></p>
-<p><strong>Implementation:</strong> the single trigger fires <code>CloseOfBusinessQuartzJob</code> (<code>@DisallowConcurrentExecution</code>), which calls <code>CobRunner.runAll(businessDate)</code> to launch the Spring Batch jobs one after another in <code>CobJobDefinition</code> order. <strong>Interest accrual posts to the GL</strong>: every credit writes DR <code>EXPENSE_INTEREST_ON_SAVINGS</code> / CR <code>LIABILITY_SAVINGS_CONTROL</code> in the same transaction as the balance change; if either activity has no GL mapping the job fails and credits nobody. Run history is read from Spring Batch's own execution tables (<code>batch_job_execution</code>), so nightly runs appear alongside manual ones; <code>cob_job_history</code> is still written by manual runs only. Standing orders run one transaction per order, so a failed order can't roll back the others and stays due for the next run. Quartz schema managed by Flyway V10 (<code>initialize-schema: never</code>).</p>
+<p><strong>Valid job names:</strong> <code>standingOrderExecutionJob</code>, <code>dormancyClassificationJob</code>, <code>interestAccrualJob</code>, <code>arrearsClassificationJob</code>, <code>fxRevaluationJob</code></p>
+<p><strong>Implementation:</strong> the single trigger fires <code>CloseOfBusinessQuartzJob</code> (<code>@DisallowConcurrentExecution</code>), which calls <code>CobRunner.runAll(businessDate)</code> to launch the Spring Batch jobs one after another in <code>CobJobDefinition</code> order. <strong>Interest accrual posts to the GL</strong>: every credit writes DR <code>EXPENSE_INTEREST_ON_SAVINGS</code> / CR <code>LIABILITY_SAVINGS_CONTROL</code> in the same transaction as the balance change; if either activity has no GL mapping the job fails and credits nobody. Run history is read from Spring Batch's own execution tables (<code>batch_job_execution</code>), so nightly runs appear alongside manual ones; <code>cob_job_history</code> is still written by manual runs only. Standing orders run one transaction per order, so a failed order can't roll back the others and stays due for the next run. Quartz schema managed by Flyway V10 (<code>initialize-schema: never</code>). <strong>FX revaluation</strong> runs last (IAS 21 §23, §28): for each foreign currency it moves the functional-currency carrying amount of the FX position (<code>ASSET_FX_POSITION_EQUIVALENT</code> lines tagged with that currency) to <code>−position × closing rate</code> and posts the difference to <code>INCOME_FX_GAIN_LOSS</code> (entity <code>FX_REVALUATION</code>, reference <code>FXREV-{date}-{currency}</code>). The closing rate is the active rate at run time (rates have no history). A rerun on the same day posts nothing; a currency with an open position and no active rate fails the run and nothing is posted.</p>
 </section>
 
 <!-- ACCOUNTING ──────────────────────────────────────────────────────────── -->
@@ -1985,11 +2021,41 @@ difference = actual_cash - closing_balance</pre>
 <tr><td>Deposit / teller cash in (<code>POST /accounts/{id}/deposit</code>, teller <code>CASH_IN</code>)</td><td>DR Cash at Teller / CR savings control</td><td><code>ACCOUNT</code></td></tr>
 <tr><td>Withdrawal / teller cash out</td><td>DR savings control / CR Cash at Teller</td><td><code>ACCOUNT</code></td></tr>
 <tr><td>Internal transfer, standing order, payment reversal</td><td>DR source control / CR destination control; cross-currency legs balance through <code>ASSET_FX_POSITION</code> (in the foreign currency) and <code>ASSET_FX_POSITION_EQUIVALENT</code> (in the functional currency) at the spot rate, residual to <code>INCOME_FX_GAIN_LOSS</code> (IAS 21 §21, §28)</td><td><code>PAYMENT</code></td></tr>
-<tr><td>Savings interest (nightly accrual, <code>?command=postInterest</code>)</td><td>DR interest on savings / CR savings control</td><td><code>ACCOUNT</code></td></tr>
-<tr><td>Teller session over / short</td><td>DR/CR Cash at Teller ↔ <code>EXPENSE_CASH_OVER_SHORT</code></td><td><code>TELLER_CASH</code></td></tr>
+<tr><td>Savings interest (nightly accrual, <code>?command=postInterest</code>)</td><td>DR interest on savings / CR savings control. On a foreign-currency account the expense is booked in the functional currency at the spot rate (IAS 21 §21): CR savings control and DR FX position in the foreign currency, DR interest on savings and CR FX position equivalent in the functional currency</td><td><code>ACCOUNT</code></td></tr>
+<tr><td>Teller session over / short</td><td>DR/CR Cash at Teller ↔ <code>EXPENSE_CASH_OVER_SHORT</code>; in a foreign currency the gain or loss is booked in the functional currency through the FX position, as for interest</td><td><code>TELLER_CASH</code></td></tr>
+<tr><td>FX revaluation (nightly, last CoB job)</td><td>DR/CR FX position equivalent ↔ <code>INCOME_FX_GAIN_LOSS</code>, per foreign currency</td><td><code>FX_REVALUATION</code></td></tr>
+<tr><td>Opening balances (one-time, <code>POST /journalentries/opening-balances</code>)</td><td>Each control account ↔ <code>EQUITY_MIGRATION_CLEARING</code>, per currency</td><td><code>OPENING_BALANCE</code></td></tr>
+<tr><td>Loan disbursement (<code>DISB-…</code>)</td><td>DR loan portfolio / CR the linked account's savings control</td><td><code>LOAN</code></td></tr>
+<tr><td>Loan repayment / foreclosure (<code>RPMT-…</code> / <code>FCLS-…</code>)</td><td>DR savings control (ACCOUNT) or Cash at Teller (CASH) / CR loan portfolio (principal), <code>ASSET_INTEREST_RECEIVABLE</code> (interest), <code>ASSET_FEES_RECEIVABLE</code> (fees and charges). Accrual basis (IFRS 9 §5.4.1): cash clears receivables, never income</td><td><code>LOAN</code></td></tr>
+<tr><td>Loan charge recognised (<code>CHG-…</code>)</td><td>DR <code>ASSET_FEES_RECEIVABLE</code> / CR the charge's income account → product fee/penalty link → <code>INCOME_FEES</code> / <code>INCOME_PENALTIES</code> (booked in the functional currency, as for interest). Penalties when charged, fees when due (IFRS 15 §31)</td><td><code>LOAN</code></td></tr>
+<tr><td>Loan charge paid / waived (<code>CHGP-…</code> / <code>CHGW-…</code>)</td><td>Paid: DR money source / CR fees receivable. Waived after recognition: DR the income account / CR fees receivable (IFRS 15 §87-88)</td><td><code>LOAN</code></td></tr>
 </table>
-<p><strong>Account resolution:</strong> the deposit product's own GL link (<code>savingsControlAccount</code>, <code>overdraftPortfolioControlAccount</code>, <code>interestOnSavingsAccount</code>) first, then the financial-activity mapping; with neither the request is <strong>rejected</strong> (<code>400 ACTIVITY_NOT_MAPPED</code>) and nothing moves. A credit balance posts to savings control (liability); the part of a balance below zero posts to the overdraft portfolio (asset — an overdraft is a loan, not a negative deposit). Every journal must balance <em>per currency</em>, and only enabled DETAIL accounts accept postings (<code>400 GL_ACCOUNT_NOT_POSTABLE</code>). Cross-currency postings need the <code>functional-currency</code> global configuration (seeded from the default tenant; <code>400 FUNCTIONAL_CURRENCY_NOT_CONFIGURED</code>) and an active rate from each foreign currency to it (<code>400 EXCHANGE_RATE_NOT_CONFIGURED</code>). External (SWIFT/SEPA) payments, loans, charges, term deposits, shares and treasury do not post yet.</p>
-<p><strong>Financial activities:</strong> <code>ASSET_FUND_SOURCE</code>, <code>ASSET_CASH_AT_TELLER</code>, <code>ASSET_INTEREST_RECEIVABLE</code>, <code>ASSET_LOAN_PORTFOLIO</code>, <code>ASSET_OVERDRAFT_PORTFOLIO</code>, <code>ASSET_FX_POSITION</code>, <code>ASSET_FX_POSITION_EQUIVALENT</code>, <code>LIABILITY_SAVINGS_CONTROL</code>, <code>LIABILITY_TRANSFER_IN_SUSPENSE</code>, <code>INCOME_INTEREST</code>, <code>INCOME_FEES</code>, <code>INCOME_FX_GAIN_LOSS</code>, <code>EXPENSE_LOAN_LOSS_PROVISION</code>, <code>EXPENSE_WRITE_OFF</code>, <code>EXPENSE_INTEREST_ON_SAVINGS</code>, <code>EXPENSE_CASH_OVER_SHORT</code>. V54 seeds GL 1102 Overdrafts, 1200 FX Position, 1201 FX Position Equivalent, 4003 Net FX Gains and 5003 Cash Over and Short (only where the V8 chart exists).</p>
+<p><strong>Account resolution:</strong> the deposit product's own GL link (<code>savingsControlAccount</code>, <code>overdraftPortfolioControlAccount</code>, <code>interestOnSavingsAccount</code>) first, then the financial-activity mapping; with neither the request is <strong>rejected</strong> (<code>400 ACTIVITY_NOT_MAPPED</code>) and nothing moves. A credit balance posts to savings control (liability); the part of a balance below zero posts to the overdraft portfolio (asset — an overdraft is a loan, not a negative deposit). Every journal must balance <em>per currency</em>, and only enabled DETAIL accounts accept postings (<code>400 GL_ACCOUNT_NOT_POSTABLE</code>). Cross-currency postings, interest and teller over/short need the <code>functional-currency</code> global configuration (seeded from the default tenant; <code>400 FUNCTIONAL_CURRENCY_NOT_CONFIGURED</code>) and an active rate from each foreign currency to it (<code>400 EXCHANGE_RATE_NOT_CONFIGURED</code>). Loan interest accrual, write-off, interest waivers and the loan loss allowance (GL posting PR 2b–2d), external (SWIFT/SEPA) payments, term deposits, shares and treasury do not post yet.</p>
+<p><strong>Financial activities:</strong> <code>ASSET_FUND_SOURCE</code>, <code>ASSET_CASH_AT_TELLER</code>, <code>ASSET_INTEREST_RECEIVABLE</code>, <code>ASSET_LOAN_PORTFOLIO</code>, <code>ASSET_FEES_RECEIVABLE</code>, <code>INCOME_PENALTIES</code>, <code>ASSET_OVERDRAFT_PORTFOLIO</code>, <code>ASSET_FX_POSITION</code>, <code>ASSET_FX_POSITION_EQUIVALENT</code>, <code>LIABILITY_SAVINGS_CONTROL</code>, <code>LIABILITY_TRANSFER_IN_SUSPENSE</code>, <code>INCOME_INTEREST</code>, <code>INCOME_FEES</code>, <code>INCOME_FX_GAIN_LOSS</code>, <code>EXPENSE_LOAN_LOSS_PROVISION</code>, <code>EXPENSE_WRITE_OFF</code>, <code>EXPENSE_INTEREST_ON_SAVINGS</code>, <code>EXPENSE_CASH_OVER_SHORT</code>, <code>EQUITY_MIGRATION_CLEARING</code>. V54 seeds GL 1102 Overdrafts, 1200 FX Position, 1201 FX Position Equivalent, 4003 Net FX Gains and 5003 Cash Over and Short; V56 seeds GL 3900 Legacy Balance Migration Clearing (only where the V8 chart exists). Journal entries on the FX position equivalent carry <code>positionCurrency</code>, the foreign currency whose position they value (null on every other line).</p>
+
+<h3>Journal entries — list, manual post, reversal</h3>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/journalentries?from=YYYY-MM-DD&amp;to=YYYY-MM-DD</td><td>Every journal line dated in the range (both params required; up to 1000 lines).</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/journalentries</td><td>Post a manual journal (<code>MJ-…</code>, entity <code>MANUAL</code>): <code>transactionDate</code>, <code>currencyCode</code> (3 letters), optional <code>comments</code> and <code>referenceNumber</code>, and any number of <code>debits</code>/<code>credits</code> lines <code>{glCode, amount ≥ 0.01, description?}</code>. Debits must equal credits by amount — the lines needn't pair up. Returns the posted lines.</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/journalentries/{id}/reverse</td><td>Reverse the <strong>whole</strong> journal that line <code>{id}</code> belongs to: one new balanced journal (<code>REV-…</code>, dated today, <code>referenceNumber</code> = the original transaction id) with every line on the opposite side; the original lines stay and are marked <code>reversed</code>. Returns <code>{reversedTransactionId, reversalTransactionId, lines}</code>.</td><td>ADMIN</td></tr>
+</table>
+<p><strong>Line fields</strong> (list, post and reversal): <code>id</code>, <code>transactionId</code>, <code>transactionDate</code>, <code>postedAt</code>, <code>glAccountId</code>, <code>glAccountCode</code>, <code>glAccountName</code>, <code>entryType</code> (<code>DEBIT</code>/<code>CREDIT</code>), <code>amount</code>, <code>currencyCode</code>, <code>positionCurrency</code>, <code>entityType</code>, <code>entityId</code>, <code>referenceNumber</code>, <code>description</code>, <code>manual</code> (true for journals created in the GL), <code>reversed</code>, <code>reversalOfId</code> (set on reversal lines).</p>
+<p><strong>Reversal rules:</strong> only manual journals are reversed here. A journal a sub-ledger posted (deposit, transfer, interest, teller cash, FX revaluation, opening balances) returns <code>400 SUBLEDGER_JOURNAL_NOT_REVERSIBLE</code> — reverse its source (e.g. <code>POST /payments/{id}/reverse</code>) so the balance and the journal move together; this is the rule Oracle General Ledger applies. <code>400 CANNOT_REVERSE_REVERSAL</code> for a reversal, <code>400 ALREADY_REVERSED</code> for a journal already reversed.</p>
+<p><strong>Closed periods:</strong> no journal — manual, automatic or reversal — may be dated on or before a GL closure (<code>POST /glclosures</code>); it is rejected with <code>400 GL_PERIOD_CLOSED</code>. Journal lines carry no office, so a closure for any office closes the ledger up to its date. Other errors: <code>400 UNBALANCED_ENTRY</code>, <code>400 MANUAL_ENTRY_NOT_ALLOWED</code>, <code>400 GL_ACCOUNT_NOT_FOUND</code>, <code>400 GL_ACCOUNT_NOT_POSTABLE</code>.</p>
+
+<h3>Opening balances (one-time migration journal)</h3>
+<p>Brings customer balances that pre-date GL posting into the ledger exactly as they are (ISA 510 — no accrued interest or other income is booked on migration day). For each control account and currency it posts <code>customerBalance − ledgerBalance</code> (so movements already posted since go-live aren't counted twice) against the clearing account <code>EQUITY_MIGRATION_CLEARING</code> (GL 3900) in the same currency. The rest of the legacy trial balance (cash, nostro, capital, retained earnings) is then loaded against 3900 as manual journals; <strong>once migration is complete 3900 must be zero in every currency</strong>. Scope <code>DEPOSITS</code> covers deposit accounts (savings control and overdraft portfolio); loans, term deposits and shares get their own scope with their GL posting.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/journalentries/opening-balances?scope=DEPOSITS</td><td>Preview. Before posting: the lines the journal would post. After posting: the reconciliation — every <code>openingAmount</code> should be 0; anything else is a ledger break. Always returns the clearing balance per currency and <code>clearingIsZero</code>.</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/journalentries/opening-balances?scope=DEPOSITS</td><td>Post the journal (entity <code>OPENING_BALANCE</code>, reference <code>OPENING-DEPOSITS</code>, dated today). Once only: a second call returns <code>409 OPENING_BALANCES_ALREADY_POSTED</code>. <code>400 ACTIVITY_NOT_MAPPED</code> if balances have no control account or 3900 isn't mapped.</td><td>ADMIN</td></tr>
+</table>
+<p><strong>Response:</strong> <code>scope</code>, <code>date</code>, <code>posted</code>, <code>transactionId</code>, <code>lines[]</code> (<code>glAccountId</code>, <code>glCode</code>, <code>glName</code>, <code>currency</code>, <code>customerBalance</code>, <code>ledgerBalance</code>, <code>openingAmount</code> — all debit-positive, so a deposit control's balance is negative), <code>clearingGlCode</code>, <code>clearingBalance</code> (currency → debit-positive balance), <code>clearingIsZero</code>.</p>
+<pre>{ "data": { "scope": "DEPOSITS", "date": "2026-09-29", "posted": true, "transactionId": "GL-…",
+  "lines": [ { "glCode": "2001", "glName": "Customer Deposits", "currency": "USD",
+               "customerBalance": -29771.25, "ledgerBalance": 0, "openingAmount": -29771.25 } ],
+  "clearingGlCode": "3900", "clearingBalance": { "USD": 29771.25 }, "clearingIsZero": false } }</pre>
 
 <h3>Financial Activity Accounts</h3>
 <p>Maps abstract financial activities (e.g. <code>ASSET_LOAN_PORTFOLIO</code>, <code>INCOME_INTEREST</code>) to concrete GL account codes. These mappings drive the automatic journal posting engine — without them, auto-posting throws a configuration error.</p>
@@ -2017,12 +2083,14 @@ difference = actual_cash - closing_balance</pre>
 <tr><td>DELETE</td><td>/api/v1/charges/{id}</td><td>Delete charge definition</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/api/v1/loans/{loanId}/charges</td><td>List loan charges</td><td>Authenticated</td></tr>
 <tr><td>POST</td><td>/api/v1/loans/{loanId}/charges</td><td>Add charge to loan</td><td>ADMIN, TELLER</td></tr>
-<tr><td>POST</td><td>/api/v1/loans/{loanId}/charges/{id}/waive</td><td>Waive loan charge</td><td>ADMIN, TELLER</td></tr>
-<tr><td>DELETE</td><td>/api/v1/loans/{loanId}/charges/{id}</td><td>Delete loan charge</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{loanId}/charges/{id}/pay</td><td>Pay the outstanding amount. Optional body <code>{paymentMethod: ACCOUNT|CASH, sourceAccountId?, tellerSessionId?}</code>; no body = the linked account. DR source / CR fees receivable. <code>400 CHARGE_NOT_DUE</code> before a fee's due date, <code>400 CHARGE_SETTLED</code></td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{loanId}/charges/{id}/waive</td><td>Waive the outstanding amount; reverses income already recognised (DR income / CR fees receivable)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>DELETE</td><td>/api/v1/loans/{loanId}/charges/{id}</td><td>Delete a charge with nothing posted; <code>400 CHARGE_HAS_POSTINGS</code> otherwise (waive it)</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/api/v1/clients/{customerId}/charges</td><td>List client charges</td><td>Authenticated</td></tr>
 <tr><td>POST</td><td>/api/v1/clients/{customerId}/charges</td><td>Add charge to client</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/clients/{customerId}/charges/{id}/waive</td><td>Waive client charge</td><td>ADMIN, TELLER</td></tr>
 </table>
+<p><strong>Loan charges and the GL.</strong> Adding a charge to an <code>ACTIVE</code>/<code>IN_ARREARS</code> loan recognises it as income at once when it is a penalty, or a fee with no due date or one already due: DR fees receivable (1103) / CR its income account (<code>incomeRecognizedOn</code> is set). A fee due later is recorded but not yet income, and cannot be paid before its due date. Rules: the charge must be in the loan's currency (<code>400 CHARGE_CURRENCY_MISMATCH</code>); <code>DISBURSEMENT</code> charges are rejected (<code>400 ORIGINATION_FEE_NOT_SUPPORTED</code>) because an origination fee belongs in the effective interest rate (IFRS 9 B5.4.2); <code>amount</code> may be omitted for a FLAT charge. The income account is the charge definition's <code>incomeAccountId</code> (create/update body; must be an enabled INCOME detail account, else <code>400 INVALID_INCOME_ACCOUNT</code>), then the loan product's fee or penalty income link, then <code>INCOME_FEES</code> (4002) / <code>INCOME_PENALTIES</code> (4004).</p>
 <p><strong>Charge types:</strong> <code>LOAN</code>, <code>SAVINGS</code>, <code>CLIENT</code>, <code>SHARE</code> — <strong>Time types:</strong> <code>DISBURSEMENT</code>, <code>SPECIFIED_DUE_DATE</code>, <code>INSTALLMENT_FEE</code>, <code>OVERDUE_INSTALLMENT</code>, <code>ANNUAL_FEE</code>, <code>MONTHLY_FEE</code> — <strong>Calculations:</strong> <code>FLAT</code>, <code>PERCENT_OF_AMOUNT</code>, <code>PERCENT_OF_INTEREST</code></p>
 </section>
 
@@ -2612,7 +2680,7 @@ Content-Type: application/json
 <!-- TRIAL BALANCE — Session 113 ─────────────────────────────────────────── -->
 <section id="trial-balance">
 <h2>Trial Balance <span style="font-size:.75rem;font-weight:400;color:#1d4ed8;background:#dbeafe;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Session 113</span></h2>
-<p>Generates a full trial balance for a given date range. Returns per-GL-account opening balance (movements before <code>fromDate</code>), debit movement, credit movement, and closing balance. Accounts are grouped by type (ASSET → LIABILITY → EQUITY → INCOME → EXPENSE). The <code>balanced</code> flag confirms Σ debits = Σ credits for the period — a mismatch indicates missing or asymmetric journal entries.</p>
+<p>A trial balance <strong>per GL account and currency</strong> for a date range: opening balance (lines before <code>fromDate</code>), debit and credit movement in the range, and closing balance. Double entry holds within each currency, never across them, so amounts in different currencies are never added together: <code>currencies[]</code> gives each currency's totals and its own <code>balanced</code> flag — true when the period's debits equal its credits <em>and</em> the closing debit balances equal the closing credit balances. The top-level <code>balanced</code> is true when every currency balances. A reversed journal and its reversal both count, so together they net to zero.</p>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
 <tr><td>GET</td><td>/api/v1/accounting/trial-balance</td><td>Generate trial balance — query params: <code>fromDate</code> (YYYY-MM-DD), <code>toDate</code> (YYYY-MM-DD)</td><td>ADMIN, TELLER</td></tr>
@@ -2620,29 +2688,24 @@ Content-Type: application/json
 <h4>Response shape</h4>
 <pre><code>{
   "data": {
-    "fromDate": "2026-04-01",
-    "toDate": "2026-04-25",
+    "fromDate": "2026-09-01",
+    "toDate": "2026-09-29",
     "rows": [
-      {
-        "glCode": "1001",
-        "accountName": "Cash at Bank",
-        "accountType": "ASSET",
-        "openingBalance": 1500000.0000,
-        "debitMovement": 250000.0000,
-        "creditMovement": 80000.0000,
-        "closingBalance": 1670000.0000
-      }
+      { "glCode": "1001", "accountName": "Cash on Hand", "accountType": "ASSET", "currencyCode": "USD",
+        "openingBalance": 1500.0000, "debitMovement": 250.0000, "creditMovement": 80.0000, "closingBalance": 1670.0000 },
+      { "glCode": "2001", "accountName": "Customer Deposits", "accountType": "LIABILITY", "currencyCode": "USD",
+        "openingBalance": -1500.0000, "debitMovement": 80.0000, "creditMovement": 250.0000, "closingBalance": -1670.0000 }
     ],
-    "totalDebitMovement": 250000.0000,
-    "totalCreditMovement": 250000.0000,
-    "totalClosingDebit": 1670000.0000,
-    "totalClosingCredit": 1670000.0000,
+    "currencies": [
+      { "currencyCode": "USD", "totalDebitMovement": 330.0000, "totalCreditMovement": 330.0000,
+        "totalClosingDebit": 1670.0000, "totalClosingCredit": 1670.0000, "balanced": true }
+    ],
     "balanced": true
   },
   "meta": {},
   "errors": []
 }</code></pre>
-<p><strong>Notes:</strong> Only <code>DETAIL</code>-usage, non-disabled GL accounts appear. <code>openingBalance</code> is net (positive = net debit, negative = net credit) of all non-reversed journal entries before <code>fromDate</code>. <code>closingBalance = openingBalance + debitMovement − creditMovement</code>.</p>
+<p><strong>Notes:</strong> Only <code>DETAIL</code> accounts with at least one line up to <code>toDate</code> appear — disabled accounts included, since leaving out a balance would unbalance the report. Balances are debit-positive (negative = net credit). <code>closingBalance = openingBalance + debitMovement − creditMovement</code>. A functional-currency view (translated at IAS 21 rates) is not produced.</p>
 </section>
 
 <!-- PROVISIONING CRITERIA ───────────────────────────────────────────────── -->
@@ -3063,15 +3126,17 @@ Content-Type: application/json
 <tr><td>GET</td><td>/api/v1/loans/{id}</td><td>Get loan</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/loans</td><td>Apply for loan</td><td>ADMIN, TELLER</td></tr>
 <tr><td>PUT</td><td>/api/v1/loans/{id}/approve</td><td>Approve loan</td><td>ADMIN</td></tr>
-<tr><td>PUT</td><td>/api/v1/loans/{id}/disburse</td><td>Disburse loan</td><td>ADMIN</td></tr>
+<tr><td>PUT</td><td>/api/v1/loans/{id}/disburse</td><td>Disburse loan (DR 1100 / CR 2001)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/api/v1/loans/{id}/reject</td><td>Reject loan application</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/loans/{id}/foreclosure-quote</td><td>Amount to settle the loan on a date</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/loans/{id}?command=reject</td><td>Reject loan</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/loans/{id}?command=withdrawnByApplicant</td><td>Withdraw loan</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/loans/{id}?command=writeOff</td><td>Write off loan</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/loans/{id}/undo-write-off</td><td>Undo write-off (WRITTEN_OFF → IN_ARREARS)</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/loans/{id}/waive-interest</td><td>Waive outstanding interest on all pending installments</td><td>ADMIN</td></tr>
-<tr><td>POST</td><td>/api/v1/loans/{id}/foreclose</td><td>Foreclose loan — terminal FORECLOSED state</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}/foreclose</td><td>Settle early for the foreclosure quote (ACCOUNT or CASH) — terminal FORECLOSED state</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/api/v1/loans/{id}/repayment-schedule</td><td>Repayment schedule</td><td>ADMIN, TELLER</td></tr>
-<tr><td>POST</td><td>/api/v1/loans/{id}/repayments</td><td>Make repayment</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}/repayments</td><td>Make repayment from the linked account or teller cash (posts to GL)</td><td>ADMIN, TELLER</td></tr>
 <!-- Loan Charges -->
 <tr><td>GET</td><td>/api/v1/charges</td><td>List charge definitions</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/charges</td><td>Create charge definition</td><td>ADMIN</td></tr>
@@ -3079,7 +3144,7 @@ Content-Type: application/json
 <tr><td>DELETE</td><td>/api/v1/charges/{id}</td><td>Delete charge</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/api/v1/loans/{id}/charges</td><td>List loan charges</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/loans/{id}/charges</td><td>Add loan charge</td><td>ADMIN</td></tr>
-<tr><td>POST</td><td>/api/v1/loans/{id}/charges/{cId}?command=pay</td><td>Pay charge</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}/charges/{cId}/pay</td><td>Pay charge (linked account or teller cash; posts to GL)</td><td>ADMIN, TELLER</td></tr>
 <tr><td>DELETE</td><td>/api/v1/loans/{id}/charges/{cId}</td><td>Remove charge</td><td>ADMIN</td></tr>
 <!-- Loan Guarantors & Collateral -->
 <tr><td>GET</td><td>/api/v1/loans/{id}/guarantors</td><td>List guarantors</td><td>ADMIN</td></tr>
@@ -3204,9 +3269,9 @@ Content-Type: application/json
 <tr><td>POST</td><td>/api/v1/glaccounts</td><td>Create GL account</td><td>ADMIN</td></tr>
 <tr><td>PUT</td><td>/api/v1/glaccounts/{id}</td><td>Update GL account</td><td>ADMIN</td></tr>
 <tr><td>DELETE</td><td>/api/v1/glaccounts/{id}</td><td>Delete GL account</td><td>ADMIN</td></tr>
-<tr><td>GET</td><td>/api/v1/journalentries</td><td>List journal entries</td><td>ADMIN</td></tr>
-<tr><td>POST</td><td>/api/v1/journalentries</td><td>Create manual journal entry</td><td>ADMIN</td></tr>
-<tr><td>POST</td><td>/api/v1/journalentries/{id}/reverse</td><td>Reverse journal entry</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/journalentries</td><td>List journal lines between <code>from</code> and <code>to</code> (both required)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/journalentries</td><td>Post a manual journal (one currency; debits = credits)</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/journalentries/{id}/reverse</td><td>Reverse the whole manual journal the line belongs to</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/api/v1/glclosures</td><td>List GL closures</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/glclosures</td><td>Close accounting period</td><td>ADMIN</td></tr>
 <!-- Reports -->
@@ -3386,6 +3451,8 @@ Content-Type: application/json
 <tr><td>DELETE</td><td>/api/v1/accountingrules/{id}</td><td>Delete accounting rule</td><td>ADMIN</td></tr>
 <!-- Trial Balance — Session 113 -->
 <tr><td>GET</td><td>/api/v1/accounting/trial-balance</td><td>Generate trial balance for date range</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/journalentries/opening-balances</td><td>Preview the opening-balance journal / reconciliation and migration clearing balance</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/journalentries/opening-balances</td><td>Post the one-time opening-balance journal</td><td>ADMIN</td></tr>
 <!-- Provisioning Criteria -->
 <tr><td>GET</td><td>/api/v1/provisioningcriteria</td><td>List provisioning criteria</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/provisioningcriteria</td><td>Create criteria + definitions</td><td>ADMIN</td></tr>

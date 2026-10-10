@@ -2,7 +2,12 @@ package com.cba.charge;
 
 import com.cba.common.exception.CbaException;
 import com.cba.customer.Customer;
+import com.cba.accounting.GlAccountRepository;
 import com.cba.loan.Loan;
+import com.cba.loan.LoanGlPosting;
+import com.cba.loan.LoanPaymentSource;
+import com.cba.loan.LoanStatus;
+import com.cba.product.LoanProduct;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -34,6 +39,8 @@ class ChargeServiceTest {
     @Mock LoanChargeRepository loanChargeRepository;
     @Mock ClientChargeRepository clientChargeRepository;
     @Mock EntityManager entityManager;
+    @Mock LoanGlPosting loanGlPosting;
+    @Mock GlAccountRepository glAccountRepository;
 
     @InjectMocks ChargeService chargeService;
 
@@ -158,12 +165,20 @@ class ChargeServiceTest {
         private LoanCharge loanCharge;
         private Loan loan;
 
+        private static final BigDecimal FIFTY = new BigDecimal("50.00");
+
         @BeforeEach
         void setUpLoanCharge() {
             loanChargeId = UUID.randomUUID();
 
+            LoanProduct product = new LoanProduct();
+            product.setCurrencyCode("USD");
             loan = new Loan();
             loan.setId(loanId);
+            loan.setProduct(product);
+            loan.setStatus(LoanStatus.ACTIVE);
+
+            chargeDef.setChargeTimeType(ChargeDefinition.ChargeTimeType.SPECIFIED_DUE_DATE);
 
             loanCharge = new LoanCharge();
             loanCharge.setId(loanChargeId);
@@ -171,10 +186,16 @@ class ChargeServiceTest {
             loanCharge.setChargeDefinition(chargeDef);
             loanCharge.setName("Processing Fee");
             loanCharge.setCurrencyCode("USD");
-            loanCharge.setChargeTimeType(ChargeDefinition.ChargeTimeType.DISBURSEMENT);
+            loanCharge.setChargeTimeType(ChargeDefinition.ChargeTimeType.SPECIFIED_DUE_DATE);
             loanCharge.setChargeCalculation(ChargeDefinition.ChargeCalculation.FLAT);
-            loanCharge.setAmount(new BigDecimal("50.00"));
-            loanCharge.setAmountOutstanding(new BigDecimal("50.00"));
+            loanCharge.setAmount(FIFTY);
+            loanCharge.setAmountOutstanding(FIFTY);
+        }
+
+        private LoanCharge add(BigDecimal amount, LocalDate dueDate) {
+            when(entityManager.find(Loan.class, loanId)).thenReturn(loan);
+            when(chargeRepository.findById(chargeDefId)).thenReturn(Optional.of(chargeDef));
+            return chargeService.addLoanCharge(loanId, new ChargeService.AddChargeRequest(chargeDefId, amount, dueDate));
         }
 
         @Test
@@ -188,17 +209,56 @@ class ChargeServiceTest {
         }
 
         @Test
-        @DisplayName("addLoanCharge creates loan charge when loan exists")
-        void addLoanCharge_success() {
-            when(entityManager.find(Loan.class, loanId)).thenReturn(loan);
-            when(chargeRepository.findById(chargeDefId)).thenReturn(Optional.of(chargeDef));
-            when(loanChargeRepository.save(any())).thenReturn(loanCharge);
+        @DisplayName("a fee due today is income now: DR fees receivable / CR fee income")
+        void addLoanCharge_dueToday_recognisesIncome() {
+            when(loanChargeRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
-            ChargeService.AddChargeRequest req = new ChargeService.AddChargeRequest(
-                chargeDefId, new BigDecimal("50.00"), LocalDate.now());
-            LoanCharge result = chargeService.addLoanCharge(loanId, req);
-            assertThat(result).isNotNull();
-            verify(loanChargeRepository).save(any(LoanCharge.class));
+            LoanCharge result = add(FIFTY, LocalDate.now());
+
+            assertThat(result.getIncomeRecognizedOn()).isEqualTo(LocalDate.now());
+            verify(loanGlPosting).postChargeRecognition(eq(loan), any(LoanCharge.class), eq(FIFTY), eq(LocalDate.now()));
+        }
+
+        @Test
+        @DisplayName("a fee due later is not income yet: nothing posted")
+        void addLoanCharge_futureFee_notRecognised() {
+            when(loanChargeRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+            LoanCharge result = add(FIFTY, LocalDate.now().plusDays(10));
+
+            assertThat(result.getIncomeRecognizedOn()).isNull();
+            verifyNoInteractions(loanGlPosting);
+        }
+
+        @Test
+        @DisplayName("a penalty is income when charged, whatever its due date")
+        void addLoanCharge_penalty_recognisedNow() {
+            chargeDef.setPenalty(true);
+            when(loanChargeRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+            LoanCharge result = add(FIFTY, LocalDate.now().plusDays(10));
+
+            assertThat(result.getIncomeRecognizedOn()).isEqualTo(LocalDate.now());
+            verify(loanGlPosting).postChargeRecognition(eq(loan), any(LoanCharge.class), eq(FIFTY), any());
+        }
+
+        @Test
+        @DisplayName("a disbursement fee is rejected: it belongs in the effective interest rate")
+        void addLoanCharge_originationFee_rejected() {
+            chargeDef.setChargeTimeType(ChargeDefinition.ChargeTimeType.DISBURSEMENT);
+
+            assertThatThrownBy(() -> add(FIFTY, null))
+                .isInstanceOf(CbaException.class).hasMessageContaining("effective interest rate");
+            verify(loanChargeRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("a charge in another currency than the loan is rejected")
+        void addLoanCharge_currencyMismatch_rejected() {
+            chargeDef.setCurrencyCode("KES");
+
+            assertThatThrownBy(() -> add(FIFTY, null))
+                .isInstanceOf(CbaException.class).hasMessageContaining("KES");
         }
 
         @Test
@@ -206,21 +266,35 @@ class ChargeServiceTest {
         void addLoanCharge_loanNotFound_throws() {
             when(entityManager.find(Loan.class, loanId)).thenReturn(null);
 
-            ChargeService.AddChargeRequest req = new ChargeService.AddChargeRequest(
-                chargeDefId, new BigDecimal("50.00"), LocalDate.now());
+            ChargeService.AddChargeRequest req = new ChargeService.AddChargeRequest(chargeDefId, FIFTY, LocalDate.now());
             assertThatThrownBy(() -> chargeService.addLoanCharge(loanId, req))
                 .isInstanceOf(CbaException.class);
         }
 
         @Test
-        @DisplayName("payLoanCharge marks charge as paid")
+        @DisplayName("paying a recognised charge collects it from the linked account by default")
         void payLoanCharge_success() {
+            loanCharge.setIncomeRecognizedOn(LocalDate.now());
             when(loanChargeRepository.findById(loanChargeId)).thenReturn(Optional.of(loanCharge));
-            when(loanChargeRepository.save(any())).thenReturn(loanCharge);
+            when(loanChargeRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
-            LoanCharge result = chargeService.payLoanCharge(loanId, loanChargeId);
+            LoanCharge result = chargeService.payLoanCharge(loanId, loanChargeId, null);
+
             assertThat(result.isPaid()).isTrue();
+            assertThat(result.getAmountPaid()).isEqualByComparingTo(FIFTY);
             assertThat(result.getAmountOutstanding()).isEqualByComparingTo(BigDecimal.ZERO);
+            verify(loanGlPosting).postChargePayment(eq(loan), eq(loanCharge),
+                eq(new LoanPaymentSource(LoanPaymentSource.Method.ACCOUNT, null, null)), eq(FIFTY), any());
+        }
+
+        @Test
+        @DisplayName("a fee not yet due cannot be paid")
+        void payLoanCharge_notDue_throws() {
+            when(loanChargeRepository.findById(loanChargeId)).thenReturn(Optional.of(loanCharge));
+
+            assertThatThrownBy(() -> chargeService.payLoanCharge(loanId, loanChargeId, null))
+                .isInstanceOf(CbaException.class).hasMessageContaining("cannot be paid before");
+            verifyNoInteractions(loanGlPosting);
         }
 
         @Test
@@ -229,29 +303,54 @@ class ChargeServiceTest {
             UUID wrongLoanId = UUID.randomUUID();
             when(loanChargeRepository.findById(loanChargeId)).thenReturn(Optional.of(loanCharge));
 
-            assertThatThrownBy(() -> chargeService.payLoanCharge(wrongLoanId, loanChargeId))
+            assertThatThrownBy(() -> chargeService.payLoanCharge(wrongLoanId, loanChargeId, null))
                 .isInstanceOf(CbaException.class);
         }
 
         @Test
-        @DisplayName("waiveLoanCharge marks charge as waived")
-        void waiveLoanCharge_success() {
+        @DisplayName("waiving a recognised charge reverses its income")
+        void waiveLoanCharge_recognised_reversesIncome() {
+            loanCharge.setIncomeRecognizedOn(LocalDate.now());
             when(loanChargeRepository.findById(loanChargeId)).thenReturn(Optional.of(loanCharge));
-            when(loanChargeRepository.save(any())).thenReturn(loanCharge);
+            when(loanChargeRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
             LoanCharge result = chargeService.waiveLoanCharge(loanId, loanChargeId);
+
             assertThat(result.isWaived()).isTrue();
+            assertThat(result.getAmountWaived()).isEqualByComparingTo(FIFTY);
             assertThat(result.getAmountOutstanding()).isEqualByComparingTo(BigDecimal.ZERO);
+            verify(loanGlPosting).postChargeWaiver(eq(loan), eq(loanCharge), eq(FIFTY), any());
         }
 
         @Test
-        @DisplayName("deleteLoanCharge removes the loan charge")
+        @DisplayName("waiving a charge that was never income posts nothing")
+        void waiveLoanCharge_unrecognised_noPosting() {
+            when(loanChargeRepository.findById(loanChargeId)).thenReturn(Optional.of(loanCharge));
+            when(loanChargeRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+            assertThat(chargeService.waiveLoanCharge(loanId, loanChargeId).isWaived()).isTrue();
+            verifyNoInteractions(loanGlPosting);
+        }
+
+        @Test
+        @DisplayName("deleteLoanCharge removes a charge with nothing posted")
         void deleteLoanCharge_success() {
             when(loanChargeRepository.findById(loanChargeId)).thenReturn(Optional.of(loanCharge));
 
             assertThatCode(() -> chargeService.deleteLoanCharge(loanId, loanChargeId))
                 .doesNotThrowAnyException();
             verify(loanChargeRepository).delete(loanCharge);
+        }
+
+        @Test
+        @DisplayName("a charge already in the ledger cannot be deleted")
+        void deleteLoanCharge_posted_rejected() {
+            loanCharge.setIncomeRecognizedOn(LocalDate.now());
+            when(loanChargeRepository.findById(loanChargeId)).thenReturn(Optional.of(loanCharge));
+
+            assertThatThrownBy(() -> chargeService.deleteLoanCharge(loanId, loanChargeId))
+                .isInstanceOf(CbaException.class).hasMessageContaining("waive it instead");
+            verify(loanChargeRepository, never()).delete(any());
         }
     }
 

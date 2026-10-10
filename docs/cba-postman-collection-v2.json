@@ -2114,49 +2114,36 @@
                 "approve"
               ]
             },
-            "description": "Approve a loan application. This generates the repayment schedule based on the approved principal and term.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"approvedAmount\": \"10000.00\",\n  \"approvalNote\": \"All documents verified. Risk score: LOW.\",\n  \"expectedDisbursementDate\": \"2026-04-10\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+            "description": "Approve a SUBMITTED / UNDER_REVIEW loan for its full requested principal. No request body. ADMIN, TELLER."
           },
           "x-code-samples": [
             {
               "lang": "cURL",
-              "source": "curl -X POST '{{base_url}}/api/v1/loans/{{loanId}}/approve' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -d '{\n  \"approvedAmount\": \"10000.00\",\n  \"approvalNote\": \"All documents verified. Risk score: LOW.\",\n  \"expectedDisbursementDate\": \"2026-04-10\"\n}'"
+              "source": "curl -X PUT '{{base_url}}/api/v1/loans/{{loanId}}/approve' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'X-Tenant-ID: {{tenant_id}}'"
             },
             {
               "lang": "JavaScript (fetch)",
-              "source": "fetch('{{base_url}}/api/v1/loans/{{loanId}}/approve', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  },\n  body: JSON.stringify({\"approvedAmount\": \"10000.00\", \"approvalNote\": \"All documents verified. Risk score: LOW.\", \"expectedDisbursementDate\": \"2026-04-10\"})\n}).then(r => r.json()).then(console.log);"
+              "source": "fetch('{{base_url}}/api/v1/loans/{{loanId}}/approve', {\n  method: 'PUT',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  }\n}).then(r => r.json()).then(console.log);"
             },
             {
               "lang": "Python (requests)",
-              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/api/v1/loans/{{loanId}}/approve',\n    headers={\n        'Authorization': 'Bearer {{access_token}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    },\n    json={\"approvedAmount\": \"10000.00\", \"approvalNote\": \"All documents verified. Risk score: LOW.\", \"expectedDisbursementDate\": \"2026-04-10\"}\n)\nprint(response.json())"
+              "source": "import requests\nr = requests.put('{{base_url}}/api/v1/loans/{{loanId}}/approve', headers={'Authorization': 'Bearer {{access_token}}', 'X-Tenant-ID': '{{tenant_id}}'})\nprint(r.json())"
             },
             {
-              "lang": "Java (OkHttp)",
-              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/api/v1/loans/{{loanId}}/approve\")\n    .post(RequestBody.create(\"{\\\"approvedAmount\\\": \\\"10000.00\\\", \\\"approvalNote\\\": \\\"All documents verified. Risk score: LOW.\\\", \\\"expectedDisbursementDate\\\": \\\"2026-04-10\\\"}\", MediaType.parse(\"application/json\")))\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
-            },
-            {
-              "lang": "C# (HttpClient)",
-              "source": "var client = new HttpClient();\nclient.DefaultRequestHeaders.Authorization =\n    new AuthenticationHeaderValue(\"Bearer\", \"{{access_token}}\");\nclient.DefaultRequestHeaders.Add(\"X-Tenant-ID\", \"{{tenant_id}}\");\nvar content = new StringContent(\"{\\\"approvedAmount\\\": \\\"10000.00\\\", \\\"approvalNote\\\": \\\"All documents verified. Risk score: LOW.\\\", \\\"expectedDisbursementDate\\\": \\\"2026-04-10\\\"}\", Encoding.UTF8, \"application/json\");\nvar response = await client.PostAsync(\"{{base_url}}/api/v1/loans/{{loanId}}/approve\", content);\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
-            },
-            {
-              "lang": "PHP (cURL)",
-              "source": "<?php\n$ch = curl_init();\ncurl_setopt_array($ch, [\n    CURLOPT_URL => '{{base_url}}/api/v1/loans/{{loanId}}/approve',\n    CURLOPT_CUSTOMREQUEST => 'POST',\n    CURLOPT_POSTFIELDS => json_encode({\"approvedAmount\": \"10000.00\", \"approvalNote\": \"All documents verified. Risk score: LOW.\", \"expectedDisbursementDate\": \"2026-04-10\"}),\n    CURLOPT_HTTPHEADER => [\n        'Authorization: Bearer {{access_token}}',\n        'Content-Type: application/json',\n        'X-Tenant-ID: {{tenant_id}}'\n    ],\n    CURLOPT_RETURNTRANSFER => true\n]);\necho curl_exec($ch);\ncurl_close($ch);"
+              "lang": "Java (HttpClient)",
+              "source": "HttpRequest req = HttpRequest.newBuilder(URI.create(\"{{base_url}}/api/v1/loans/{{loanId}}/approve\"))\n    .header(\"Authorization\", \"Bearer {{access_token}}\")\n    .header(\"Content-Type\", \"application/json\")\n    .method(\"PUT\", HttpRequest.BodyPublishers.noBody())\n    .build();\nHttpResponse<String> res = HttpClient.newHttpClient().send(req, HttpResponse.BodyHandlers.ofString());"
             },
             {
               "lang": "Go (net/http)",
-              "source": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n    \"strings\"\n    \"io/ioutil\"\n)\n\nfunc main() {\n    body := strings.NewReader(\"{\\\"approvedAmount\\\": \\\"10000.00\\\", \\\"approvalNote\\\": \\\"All documents verified. Risk score: LOW.\\\", \\\"expectedDisbursementDate\\\": \\\"2026-04-10\\\"}\")\nreq, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/loans/{{loanId}}/approve\", body)\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"Content-Type\", \"application/json\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := new(http.Client).Do(req)\n    defer resp.Body.Close()\n    b, _ := ioutil.ReadAll(resp.Body)\n    fmt.Println(string(b))\n}"
+              "source": "req, _ := http.NewRequest(\"PUT\", \"{{base_url}}/api/v1/loans/{{loanId}}/approve\", nil)\nreq.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\nreq.Header.Set(\"Content-Type\", \"application/json\")\nres, _ := http.DefaultClient.Do(req)"
             },
             {
-              "lang": "Ruby (Net::HTTP)",
-              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/api/v1/loans/{{loanId}}/approve')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Post.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq.body = \"{\\\"approvedAmount\\\": \\\"10000.00\\\", \\\"approvalNote\\\": \\\"All documents verified. Risk score: LOW.\\\", \\\"expectedDisbursementDate\\\": \\\"2026-04-10\\\"}\"\nputs http.request(req).body"
+              "lang": "Ruby (net/http)",
+              "source": "uri = URI('{{base_url}}/api/v1/loans/{{loanId}}/approve')\nreq = Net::HTTP::Put.new(uri, 'Authorization' => 'Bearer {{access_token}}', 'Content-Type' => 'application/json')\nres = Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |h| h.request(req) }"
+            },
+            {
+              "lang": "C# (HttpClient)",
+              "source": "var req = new HttpRequestMessage(new HttpMethod(\"PUT\"), \"{{base_url}}/api/v1/loans/{{loanId}}/approve\") { Content = null };\nreq.Headers.Add(\"Authorization\", \"Bearer {{access_token}}\");\nvar res = await new HttpClient().SendAsync(req);"
             }
           ]
         },
@@ -2187,49 +2174,36 @@
                 "disburse"
               ]
             },
-            "description": "Disburse approved loan funds to the customer's account. Status transitions to DISBURSED then ACTIVE.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"disbursementDate\": \"2026-04-10\",\n  \"disbursementAccountId\": \"{{accountId}}\",\n  \"actualDisbursementAmount\": \"10000.00\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+            "description": "Disburse an APPROVED loan into its linked account (must be ACTIVE and in the loan product's currency). Credits the account, writes a LOAN_DISBURSEMENT transaction and posts DR loan portfolio (1100) / CR savings control (2001) in the same transaction. 400 CURRENCY_MISMATCH, ACCOUNT_NOT_ACTIVE, ACTIVITY_NOT_MAPPED."
           },
           "x-code-samples": [
             {
               "lang": "cURL",
-              "source": "curl -X POST '{{base_url}}/api/v1/loans/{{loanId}}/disburse' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -d '{\n  \"disbursementDate\": \"2026-04-10\",\n  \"disbursementAccountId\": \"{{accountId}}\",\n  \"actualDisbursementAmount\": \"10000.00\"\n}'"
+              "source": "curl -X PUT '{{base_url}}/api/v1/loans/{{loanId}}/disburse' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'X-Tenant-ID: {{tenant_id}}'"
             },
             {
               "lang": "JavaScript (fetch)",
-              "source": "fetch('{{base_url}}/api/v1/loans/{{loanId}}/disburse', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  },\n  body: JSON.stringify({\"disbursementDate\": \"2026-04-10\", \"disbursementAccountId\": \"{{accountId}}\", \"actualDisbursementAmount\": \"10000.00\"})\n}).then(r => r.json()).then(console.log);"
+              "source": "fetch('{{base_url}}/api/v1/loans/{{loanId}}/disburse', {\n  method: 'PUT',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  }\n}).then(r => r.json()).then(console.log);"
             },
             {
               "lang": "Python (requests)",
-              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/api/v1/loans/{{loanId}}/disburse',\n    headers={\n        'Authorization': 'Bearer {{access_token}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    },\n    json={\"disbursementDate\": \"2026-04-10\", \"disbursementAccountId\": \"{{accountId}}\", \"actualDisbursementAmount\": \"10000.00\"}\n)\nprint(response.json())"
+              "source": "import requests\nr = requests.put('{{base_url}}/api/v1/loans/{{loanId}}/disburse', headers={'Authorization': 'Bearer {{access_token}}', 'X-Tenant-ID': '{{tenant_id}}'})\nprint(r.json())"
             },
             {
-              "lang": "Java (OkHttp)",
-              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/api/v1/loans/{{loanId}}/disburse\")\n    .post(RequestBody.create(\"{\\\"disbursementDate\\\": \\\"2026-04-10\\\", \\\"disbursementAccountId\\\": \\\"{{accountId}}\\\", \\\"actualDisbursementAmount\\\": \\\"10000.00\\\"}\", MediaType.parse(\"application/json\")))\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
-            },
-            {
-              "lang": "C# (HttpClient)",
-              "source": "var client = new HttpClient();\nclient.DefaultRequestHeaders.Authorization =\n    new AuthenticationHeaderValue(\"Bearer\", \"{{access_token}}\");\nclient.DefaultRequestHeaders.Add(\"X-Tenant-ID\", \"{{tenant_id}}\");\nvar content = new StringContent(\"{\\\"disbursementDate\\\": \\\"2026-04-10\\\", \\\"disbursementAccountId\\\": \\\"{{accountId}}\\\", \\\"actualDisbursementAmount\\\": \\\"10000.00\\\"}\", Encoding.UTF8, \"application/json\");\nvar response = await client.PostAsync(\"{{base_url}}/api/v1/loans/{{loanId}}/disburse\", content);\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
-            },
-            {
-              "lang": "PHP (cURL)",
-              "source": "<?php\n$ch = curl_init();\ncurl_setopt_array($ch, [\n    CURLOPT_URL => '{{base_url}}/api/v1/loans/{{loanId}}/disburse',\n    CURLOPT_CUSTOMREQUEST => 'POST',\n    CURLOPT_POSTFIELDS => json_encode({\"disbursementDate\": \"2026-04-10\", \"disbursementAccountId\": \"{{accountId}}\", \"actualDisbursementAmount\": \"10000.00\"}),\n    CURLOPT_HTTPHEADER => [\n        'Authorization: Bearer {{access_token}}',\n        'Content-Type: application/json',\n        'X-Tenant-ID: {{tenant_id}}'\n    ],\n    CURLOPT_RETURNTRANSFER => true\n]);\necho curl_exec($ch);\ncurl_close($ch);"
+              "lang": "Java (HttpClient)",
+              "source": "HttpRequest req = HttpRequest.newBuilder(URI.create(\"{{base_url}}/api/v1/loans/{{loanId}}/disburse\"))\n    .header(\"Authorization\", \"Bearer {{access_token}}\")\n    .header(\"Content-Type\", \"application/json\")\n    .method(\"PUT\", HttpRequest.BodyPublishers.noBody())\n    .build();\nHttpResponse<String> res = HttpClient.newHttpClient().send(req, HttpResponse.BodyHandlers.ofString());"
             },
             {
               "lang": "Go (net/http)",
-              "source": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n    \"strings\"\n    \"io/ioutil\"\n)\n\nfunc main() {\n    body := strings.NewReader(\"{\\\"disbursementDate\\\": \\\"2026-04-10\\\", \\\"disbursementAccountId\\\": \\\"{{accountId}}\\\", \\\"actualDisbursementAmount\\\": \\\"10000.00\\\"}\")\nreq, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/loans/{{loanId}}/disburse\", body)\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"Content-Type\", \"application/json\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := new(http.Client).Do(req)\n    defer resp.Body.Close()\n    b, _ := ioutil.ReadAll(resp.Body)\n    fmt.Println(string(b))\n}"
+              "source": "req, _ := http.NewRequest(\"PUT\", \"{{base_url}}/api/v1/loans/{{loanId}}/disburse\", nil)\nreq.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\nreq.Header.Set(\"Content-Type\", \"application/json\")\nres, _ := http.DefaultClient.Do(req)"
             },
             {
-              "lang": "Ruby (Net::HTTP)",
-              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/api/v1/loans/{{loanId}}/disburse')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Post.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq.body = \"{\\\"disbursementDate\\\": \\\"2026-04-10\\\", \\\"disbursementAccountId\\\": \\\"{{accountId}}\\\", \\\"actualDisbursementAmount\\\": \\\"10000.00\\\"}\"\nputs http.request(req).body"
+              "lang": "Ruby (net/http)",
+              "source": "uri = URI('{{base_url}}/api/v1/loans/{{loanId}}/disburse')\nreq = Net::HTTP::Put.new(uri, 'Authorization' => 'Bearer {{access_token}}', 'Content-Type' => 'application/json')\nres = Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |h| h.request(req) }"
+            },
+            {
+              "lang": "C# (HttpClient)",
+              "source": "var req = new HttpRequestMessage(new HttpMethod(\"PUT\"), \"{{base_url}}/api/v1/loans/{{loanId}}/disburse\") { Content = null };\nreq.Headers.Add(\"Authorization\", \"Bearer {{access_token}}\");\nvar res = await new HttpClient().SendAsync(req);"
             }
           ]
         },
@@ -2324,10 +2298,10 @@
                 "repayments"
               ]
             },
-            "description": "Record a loan repayment. The payment is applied to outstanding fees first, then interest, then principal (standard Fineract allocation strategy).",
+            "description": "Record a loan repayment, allocated per instalment in due-date order: fees, then interest, then principal. paymentMethod ACCOUNT (default) debits the linked account, or sourceAccountId (another account of the borrower, same currency) under withdrawal rules; CASH needs tellerSessionId and is recorded as a till CASH_IN with the loanId. Posts DR savings control or Cash at Teller (1001) / CR loan portfolio (principal), interest receivable 1101 (interest) and fees receivable 1103 (fees). Loans are accrual-based: a repayment clears receivables and never touches income. 400 REPAYMENT_EXCEEDS_OUTSTANDING (nothing is taken), INVALID_PAYMENT_METHOD, TELLER_SESSION_REQUIRED, SOURCE_ACCOUNT_NOT_BORROWERS, FUTURE_PAYMENT_DATE, PAYMENT_BEFORE_DISBURSEMENT, BELOW_MINIMUM_BALANCE, SESSION_NOT_OPEN, CURRENCY_MISMATCH.\n\nCash example: {\"amount\": \"950.00\", \"paymentMethod\": \"CASH\", \"tellerSessionId\": \"{{tellerSessionId}}\"}",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"amount\": \"950.00\",\n  \"paymentDate\": \"2026-05-01\",\n  \"paymentMethod\": \"BANK_TRANSFER\",\n  \"referenceNumber\": \"TXN-2026050100123\"\n}",
+              "raw": "{\n  \"amount\": \"950.00\",\n  \"paymentDate\": \"2026-05-01\",\n  \"paymentMethod\": \"ACCOUNT\",\n  \"referenceNumber\": \"TXN-2026050100123\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2338,35 +2312,59 @@
           "x-code-samples": [
             {
               "lang": "cURL",
-              "source": "curl -X POST '{{base_url}}/api/v1/loans/{{loanId}}/repayments' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -d '{\n  \"amount\": \"950.00\",\n  \"paymentDate\": \"2026-05-01\",\n  \"paymentMethod\": \"BANK_TRANSFER\",\n  \"referenceNumber\": \"TXN-2026050100123\"\n}'"
+              "source": "curl -X POST '{{base_url}}/api/v1/loans/{{loanId}}/repayments' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"amount\": \"950.00\", \"paymentDate\": \"2026-05-01\", \"paymentMethod\": \"ACCOUNT\", \"referenceNumber\": \"TXN-2026050100123\"}'"
             },
             {
               "lang": "JavaScript (fetch)",
-              "source": "fetch('{{base_url}}/api/v1/loans/{{loanId}}/repayments', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  },\n  body: JSON.stringify({\"amount\": \"950.00\", \"paymentDate\": \"2026-05-01\", \"paymentMethod\": \"BANK_TRANSFER\", \"referenceNumber\": \"TXN-2026050100123\"})\n}).then(r => r.json()).then(console.log);"
+              "source": "fetch('{{base_url}}/api/v1/loans/{{loanId}}/repayments', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  },\n  body: JSON.stringify({\"amount\": \"950.00\", \"paymentDate\": \"2026-05-01\", \"paymentMethod\": \"ACCOUNT\", \"referenceNumber\": \"TXN-2026050100123\"})\n}).then(r => r.json()).then(console.log);"
             },
             {
               "lang": "Python (requests)",
-              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/api/v1/loans/{{loanId}}/repayments',\n    headers={\n        'Authorization': 'Bearer {{access_token}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    },\n    json={\"amount\": \"950.00\", \"paymentDate\": \"2026-05-01\", \"paymentMethod\": \"BANK_TRANSFER\", \"referenceNumber\": \"TXN-2026050100123\"}\n)\nprint(response.json())"
+              "source": "import requests\nr = requests.post('{{base_url}}/api/v1/loans/{{loanId}}/repayments', headers={'Authorization': 'Bearer {{access_token}}', 'X-Tenant-ID': '{{tenant_id}}'}, json={\"amount\": \"950.00\", \"paymentDate\": \"2026-05-01\", \"paymentMethod\": \"ACCOUNT\", \"referenceNumber\": \"TXN-2026050100123\"})\nprint(r.json())"
             },
             {
-              "lang": "Java (OkHttp)",
-              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/api/v1/loans/{{loanId}}/repayments\")\n    .post(RequestBody.create(\"{\\\"amount\\\": \\\"950.00\\\", \\\"paymentDate\\\": \\\"2026-05-01\\\", \\\"paymentMethod\\\": \\\"BANK_TRANSFER\\\", \\\"referenceNumber\\\": \\\"TXN-2026050100123\\\"}\", MediaType.parse(\"application/json\")))\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
-            },
-            {
-              "lang": "C# (HttpClient)",
-              "source": "var client = new HttpClient();\nclient.DefaultRequestHeaders.Authorization =\n    new AuthenticationHeaderValue(\"Bearer\", \"{{access_token}}\");\nclient.DefaultRequestHeaders.Add(\"X-Tenant-ID\", \"{{tenant_id}}\");\nvar content = new StringContent(\"{\\\"amount\\\": \\\"950.00\\\", \\\"paymentDate\\\": \\\"2026-05-01\\\", \\\"paymentMethod\\\": \\\"BANK_TRANSFER\\\", \\\"referenceNumber\\\": \\\"TXN-2026050100123\\\"}\", Encoding.UTF8, \"application/json\");\nvar response = await client.PostAsync(\"{{base_url}}/api/v1/loans/{{loanId}}/repayments\", content);\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
-            },
-            {
-              "lang": "PHP (cURL)",
-              "source": "<?php\n$ch = curl_init();\ncurl_setopt_array($ch, [\n    CURLOPT_URL => '{{base_url}}/api/v1/loans/{{loanId}}/repayments',\n    CURLOPT_CUSTOMREQUEST => 'POST',\n    CURLOPT_POSTFIELDS => json_encode({\"amount\": \"950.00\", \"paymentDate\": \"2026-05-01\", \"paymentMethod\": \"BANK_TRANSFER\", \"referenceNumber\": \"TXN-2026050100123\"}),\n    CURLOPT_HTTPHEADER => [\n        'Authorization: Bearer {{access_token}}',\n        'Content-Type: application/json',\n        'X-Tenant-ID: {{tenant_id}}'\n    ],\n    CURLOPT_RETURNTRANSFER => true\n]);\necho curl_exec($ch);\ncurl_close($ch);"
+              "lang": "Java (HttpClient)",
+              "source": "HttpRequest req = HttpRequest.newBuilder(URI.create(\"{{base_url}}/api/v1/loans/{{loanId}}/repayments\"))\n    .header(\"Authorization\", \"Bearer {{access_token}}\")\n    .header(\"Content-Type\", \"application/json\")\n    .method(\"POST\", HttpRequest.BodyPublishers.ofString(\"{\\\"amount\\\": \\\"950.00\\\", \\\"paymentDate\\\": \\\"2026-05-01\\\", \\\"paymentMethod\\\": \\\"ACCOUNT\\\", \\\"referenceNumber\\\": \\\"TXN-2026050100123\\\"}\"))\n    .build();\nHttpResponse<String> res = HttpClient.newHttpClient().send(req, HttpResponse.BodyHandlers.ofString());"
             },
             {
               "lang": "Go (net/http)",
-              "source": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n    \"strings\"\n    \"io/ioutil\"\n)\n\nfunc main() {\n    body := strings.NewReader(\"{\\\"amount\\\": \\\"950.00\\\", \\\"paymentDate\\\": \\\"2026-05-01\\\", \\\"paymentMethod\\\": \\\"BANK_TRANSFER\\\", \\\"referenceNumber\\\": \\\"TXN-2026050100123\\\"}\")\nreq, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/loans/{{loanId}}/repayments\", body)\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"Content-Type\", \"application/json\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := new(http.Client).Do(req)\n    defer resp.Body.Close()\n    b, _ := ioutil.ReadAll(resp.Body)\n    fmt.Println(string(b))\n}"
+              "source": "req, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/loans/{{loanId}}/repayments\", strings.NewReader(`{\"amount\": \"950.00\", \"paymentDate\": \"2026-05-01\", \"paymentMethod\": \"ACCOUNT\", \"referenceNumber\": \"TXN-2026050100123\"}`))\nreq.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\nreq.Header.Set(\"Content-Type\", \"application/json\")\nres, _ := http.DefaultClient.Do(req)"
             },
             {
-              "lang": "Ruby (Net::HTTP)",
-              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/api/v1/loans/{{loanId}}/repayments')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Post.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq.body = \"{\\\"amount\\\": \\\"950.00\\\", \\\"paymentDate\\\": \\\"2026-05-01\\\", \\\"paymentMethod\\\": \\\"BANK_TRANSFER\\\", \\\"referenceNumber\\\": \\\"TXN-2026050100123\\\"}\"\nputs http.request(req).body"
+              "lang": "Ruby (net/http)",
+              "source": "uri = URI('{{base_url}}/api/v1/loans/{{loanId}}/repayments')\nreq = Net::HTTP::Post.new(uri, 'Authorization' => 'Bearer {{access_token}}', 'Content-Type' => 'application/json')\nreq.body = '{\"amount\": \"950.00\", \"paymentDate\": \"2026-05-01\", \"paymentMethod\": \"ACCOUNT\", \"referenceNumber\": \"TXN-2026050100123\"}'\nres = Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |h| h.request(req) }"
+            },
+            {
+              "lang": "C# (HttpClient)",
+              "source": "var req = new HttpRequestMessage(new HttpMethod(\"POST\"), \"{{base_url}}/api/v1/loans/{{loanId}}/repayments\") { Content = new StringContent(\"{\\\"amount\\\": \\\"950.00\\\", \\\"paymentDate\\\": \\\"2026-05-01\\\", \\\"paymentMethod\\\": \\\"ACCOUNT\\\", \\\"referenceNumber\\\": \\\"TXN-2026050100123\\\"}\", Encoding.UTF8, \"application/json\") };\nreq.Headers.Add(\"Authorization\", \"Bearer {{access_token}}\");\nvar res = await new HttpClient().SendAsync(req);"
+            }
+          ],
+          "response": [
+            {
+              "name": "201 \u2014 repayment split",
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"loanId\": \"{{loanId}}\",\n    \"loanAccountNumber\": \"001-LN-0001234\",\n    \"amountPaid\": 950.0,\n    \"principalPortion\": 850.0,\n    \"interestPortion\": 100.0,\n    \"feePortion\": 0.0,\n    \"outstandingBalanceAfter\": 9150.0,\n    \"paymentDate\": \"2026-05-01\",\n    \"paymentMethod\": \"ACCOUNT\",\n    \"referenceNumber\": \"TXN-2026050100123\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            },
+            {
+              "name": "400 \u2014 more than owed",
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"REPAYMENT_EXCEEDS_OUTSTANDING\",\n      \"message\": \"Repayment 50000.00 exceeds the 11250.00 still owed on the schedule\",\n      \"field\": null\n    }\n  ]\n}"
             }
           ]
         },
@@ -2589,6 +2587,159 @@
           ]
         },
         {
+          "name": "Reject Loan",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/loans/{{loanId}}/reject",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "loans",
+                "{{loanId}}",
+                "reject"
+              ]
+            },
+            "description": "Reject a SUBMITTED, UNDER_REVIEW or APPROVED loan. No money has moved, so nothing is posted. ADMIN, TELLER.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Incomplete documents\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "x-code-samples": [
+            {
+              "lang": "cURL",
+              "source": "curl -X PUT '{{base_url}}/api/v1/loans/{{loanId}}/reject' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"reason\": \"Incomplete documents\"}'"
+            },
+            {
+              "lang": "JavaScript (fetch)",
+              "source": "fetch('{{base_url}}/api/v1/loans/{{loanId}}/reject', {\n  method: 'PUT',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  },\n  body: JSON.stringify({\"reason\": \"Incomplete documents\"})\n}).then(r => r.json()).then(console.log);"
+            },
+            {
+              "lang": "Python (requests)",
+              "source": "import requests\nr = requests.put('{{base_url}}/api/v1/loans/{{loanId}}/reject', headers={'Authorization': 'Bearer {{access_token}}', 'X-Tenant-ID': '{{tenant_id}}'}, json={\"reason\": \"Incomplete documents\"})\nprint(r.json())"
+            },
+            {
+              "lang": "Java (HttpClient)",
+              "source": "HttpRequest req = HttpRequest.newBuilder(URI.create(\"{{base_url}}/api/v1/loans/{{loanId}}/reject\"))\n    .header(\"Authorization\", \"Bearer {{access_token}}\")\n    .header(\"Content-Type\", \"application/json\")\n    .method(\"PUT\", HttpRequest.BodyPublishers.ofString(\"{\\\"reason\\\": \\\"Incomplete documents\\\"}\"))\n    .build();\nHttpResponse<String> res = HttpClient.newHttpClient().send(req, HttpResponse.BodyHandlers.ofString());"
+            },
+            {
+              "lang": "Go (net/http)",
+              "source": "req, _ := http.NewRequest(\"PUT\", \"{{base_url}}/api/v1/loans/{{loanId}}/reject\", strings.NewReader(`{\"reason\": \"Incomplete documents\"}`))\nreq.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\nreq.Header.Set(\"Content-Type\", \"application/json\")\nres, _ := http.DefaultClient.Do(req)"
+            },
+            {
+              "lang": "Ruby (net/http)",
+              "source": "uri = URI('{{base_url}}/api/v1/loans/{{loanId}}/reject')\nreq = Net::HTTP::Put.new(uri, 'Authorization' => 'Bearer {{access_token}}', 'Content-Type' => 'application/json')\nreq.body = '{\"reason\": \"Incomplete documents\"}'\nres = Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |h| h.request(req) }"
+            },
+            {
+              "lang": "C# (HttpClient)",
+              "source": "var req = new HttpRequestMessage(new HttpMethod(\"PUT\"), \"{{base_url}}/api/v1/loans/{{loanId}}/reject\") { Content = new StringContent(\"{\\\"reason\\\": \\\"Incomplete documents\\\"}\", Encoding.UTF8, \"application/json\") };\nreq.Headers.Add(\"Authorization\", \"Bearer {{access_token}}\");\nvar res = await new HttpClient().SendAsync(req);"
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Get Foreclosure Quote",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/loans/{{loanId}}/foreclosure-quote",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "loans",
+                "{{loanId}}",
+                "foreclosure-quote"
+              ],
+              "query": [
+                {
+                  "key": "date",
+                  "value": "2026-06-01",
+                  "description": "Optional ISO date; default today",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Amount to settle the loan on a date: outstanding principal + interest and scheduled fees on instalments due by the date + recognised unpaid charges. Interest on later instalments is not charged. ADMIN, TELLER."
+          },
+          "x-code-samples": [
+            {
+              "lang": "cURL",
+              "source": "curl -X GET '{{base_url}}/api/v1/loans/{{loanId}}/foreclosure-quote' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'X-Tenant-ID: {{tenant_id}}'"
+            },
+            {
+              "lang": "JavaScript (fetch)",
+              "source": "fetch('{{base_url}}/api/v1/loans/{{loanId}}/foreclosure-quote', {\n  method: 'GET',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  }\n}).then(r => r.json()).then(console.log);"
+            },
+            {
+              "lang": "Python (requests)",
+              "source": "import requests\nr = requests.get('{{base_url}}/api/v1/loans/{{loanId}}/foreclosure-quote', headers={'Authorization': 'Bearer {{access_token}}', 'X-Tenant-ID': '{{tenant_id}}'})\nprint(r.json())"
+            },
+            {
+              "lang": "Java (HttpClient)",
+              "source": "HttpRequest req = HttpRequest.newBuilder(URI.create(\"{{base_url}}/api/v1/loans/{{loanId}}/foreclosure-quote\"))\n    .header(\"Authorization\", \"Bearer {{access_token}}\")\n    .header(\"Content-Type\", \"application/json\")\n    .method(\"GET\", HttpRequest.BodyPublishers.noBody())\n    .build();\nHttpResponse<String> res = HttpClient.newHttpClient().send(req, HttpResponse.BodyHandlers.ofString());"
+            },
+            {
+              "lang": "Go (net/http)",
+              "source": "req, _ := http.NewRequest(\"GET\", \"{{base_url}}/api/v1/loans/{{loanId}}/foreclosure-quote\", nil)\nreq.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\nreq.Header.Set(\"Content-Type\", \"application/json\")\nres, _ := http.DefaultClient.Do(req)"
+            },
+            {
+              "lang": "Ruby (net/http)",
+              "source": "uri = URI('{{base_url}}/api/v1/loans/{{loanId}}/foreclosure-quote')\nreq = Net::HTTP::Get.new(uri, 'Authorization' => 'Bearer {{access_token}}', 'Content-Type' => 'application/json')\nres = Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |h| h.request(req) }"
+            },
+            {
+              "lang": "C# (HttpClient)",
+              "source": "var req = new HttpRequestMessage(new HttpMethod(\"GET\"), \"{{base_url}}/api/v1/loans/{{loanId}}/foreclosure-quote\") { Content = null };\nreq.Headers.Add(\"Authorization\", \"Bearer {{access_token}}\");\nvar res = await new HttpClient().SendAsync(req);"
+            }
+          ],
+          "response": [
+            {
+              "name": "200 \u2014 quote",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"loanId\": \"{{loanId}}\",\n    \"loanAccountNumber\": \"001-LN-0001234\",\n    \"date\": \"2026-06-01\",\n    \"currencyCode\": \"USD\",\n    \"principal\": 1050.0,\n    \"interest\": 12.5,\n    \"fees\": 0.0,\n    \"charges\": 25.0,\n    \"total\": 1087.5\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
           "name": "Foreclose Loan",
           "request": {
             "method": "POST",
@@ -2615,10 +2766,10 @@
                 "foreclose"
               ]
             },
-            "description": "Forecloses a loan \u2014 moves it to the terminal FORECLOSED state and zeroes the outstanding balance. Collateral recovery is handled out-of-band. Valid from ACTIVE or IN_ARREARS.",
+            "description": "Settle the loan early. Collects the foreclosure quote for foreclosureDate (default today, not in the future) from paymentMethod ACCOUNT (default; or sourceAccountId) or CASH (tellerSessionId), posts DR source / CR portfolio, interest receivable and fees receivable, pays recognised charges, cancels unrecognised charges and the interest on instalments not yet due, and moves the loan to FORECLOSED. ADMIN.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"reason\": \"Collateral seized and liquidated per court order\",\n  \"foreclosureDate\": \"2026-04-18\"\n}",
+              "raw": "{\n  \"reason\": \"Early settlement\",\n  \"foreclosureDate\": \"2026-04-18\",\n  \"paymentMethod\": \"ACCOUNT\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2643,27 +2794,31 @@
           "x-code-samples": [
             {
               "lang": "cURL",
-              "source": "curl -X POST '{{base_url}}/api/v1/loans/{{loanId}}/foreclose' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -d '{\n  \"reason\": \"Collateral seized and liquidated per court order\",\n  \"foreclosureDate\": \"2026-04-18\"\n}'"
+              "source": "curl -X POST '{{base_url}}/api/v1/loans/{{loanId}}/foreclose' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"reason\": \"Early settlement\", \"foreclosureDate\": \"2026-04-18\", \"paymentMethod\": \"ACCOUNT\"}'"
             },
             {
               "lang": "JavaScript (fetch)",
-              "source": "fetch('{{base_url}}/api/v1/loans/{{loanId}}/foreclose', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  },\n  body: JSON.stringify({reason: 'Collateral seized and liquidated per court order', foreclosureDate: '2026-04-18'})\n}).then(r => r.json()).then(console.log);"
+              "source": "fetch('{{base_url}}/api/v1/loans/{{loanId}}/foreclose', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  },\n  body: JSON.stringify({\"reason\": \"Early settlement\", \"foreclosureDate\": \"2026-04-18\", \"paymentMethod\": \"ACCOUNT\"})\n}).then(r => r.json()).then(console.log);"
             },
             {
               "lang": "Python (requests)",
-              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/api/v1/loans/{{loanId}}/foreclose',\n    headers={\n        'Authorization': 'Bearer {{access_token}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    },\n    json={'reason': 'Collateral seized and liquidated per court order', 'foreclosureDate': '2026-04-18'}\n)\nprint(response.json())"
+              "source": "import requests\nr = requests.post('{{base_url}}/api/v1/loans/{{loanId}}/foreclose', headers={'Authorization': 'Bearer {{access_token}}', 'X-Tenant-ID': '{{tenant_id}}'}, json={\"reason\": \"Early settlement\", \"foreclosureDate\": \"2026-04-18\", \"paymentMethod\": \"ACCOUNT\"})\nprint(r.json())"
             },
             {
-              "lang": "Java (OkHttp)",
-              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/api/v1/loans/{{loanId}}/foreclose\")\n    .post(RequestBody.create(\"{\\\"reason\\\": \\\"Collateral seized and liquidated per court order\\\", \\\"foreclosureDate\\\": \\\"2026-04-18\\\"}\", MediaType.parse(\"application/json\")))\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
+              "lang": "Java (HttpClient)",
+              "source": "HttpRequest req = HttpRequest.newBuilder(URI.create(\"{{base_url}}/api/v1/loans/{{loanId}}/foreclose\"))\n    .header(\"Authorization\", \"Bearer {{access_token}}\")\n    .header(\"Content-Type\", \"application/json\")\n    .method(\"POST\", HttpRequest.BodyPublishers.ofString(\"{\\\"reason\\\": \\\"Early settlement\\\", \\\"foreclosureDate\\\": \\\"2026-04-18\\\", \\\"paymentMethod\\\": \\\"ACCOUNT\\\"}\"))\n    .build();\nHttpResponse<String> res = HttpClient.newHttpClient().send(req, HttpResponse.BodyHandlers.ofString());"
             },
             {
               "lang": "Go (net/http)",
-              "source": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n    \"strings\"\n)\n\nfunc main() {\n    body := strings.NewReader(`{\"reason\": \"Collateral seized and liquidated per court order\", \"foreclosureDate\": \"2026-04-18\"}`)\n    req, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/loans/{{loanId}}/foreclose\", body)\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"Content-Type\", \"application/json\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := new(http.Client).Do(req)\n    defer resp.Body.Close()\n    fmt.Println(resp.Status)\n}"
+              "source": "req, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/loans/{{loanId}}/foreclose\", strings.NewReader(`{\"reason\": \"Early settlement\", \"foreclosureDate\": \"2026-04-18\", \"paymentMethod\": \"ACCOUNT\"}`))\nreq.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\nreq.Header.Set(\"Content-Type\", \"application/json\")\nres, _ := http.DefaultClient.Do(req)"
             },
             {
-              "lang": "Ruby (Net::HTTP)",
-              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/api/v1/loans/{{loanId}}/foreclose')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Post.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq.body = {reason: 'Collateral seized and liquidated per court order', foreclosureDate: '2026-04-18'}.to_json\nputs http.request(req).body"
+              "lang": "Ruby (net/http)",
+              "source": "uri = URI('{{base_url}}/api/v1/loans/{{loanId}}/foreclose')\nreq = Net::HTTP::Post.new(uri, 'Authorization' => 'Bearer {{access_token}}', 'Content-Type' => 'application/json')\nreq.body = '{\"reason\": \"Early settlement\", \"foreclosureDate\": \"2026-04-18\", \"paymentMethod\": \"ACCOUNT\"}'\nres = Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |h| h.request(req) }"
+            },
+            {
+              "lang": "C# (HttpClient)",
+              "source": "var req = new HttpRequestMessage(new HttpMethod(\"POST\"), \"{{base_url}}/api/v1/loans/{{loanId}}/foreclose\") { Content = new StringContent(\"{\\\"reason\\\": \\\"Early settlement\\\", \\\"foreclosureDate\\\": \\\"2026-04-18\\\", \\\"paymentMethod\\\": \\\"ACCOUNT\\\"}\", Encoding.UTF8, \"application/json\") };\nreq.Headers.Add(\"Authorization\", \"Bearer {{access_token}}\");\nvar res = await new HttpClient().SendAsync(req);"
             }
           ]
         },
@@ -6294,7 +6449,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/loans/{{loanId}}/charges/{{loanChargeId}}",
+              "raw": "{{baseUrl}}/api/v1/loans/{{loanId}}/charges/{{loanChargeId}}/pay",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -6304,16 +6459,11 @@
                 "loans",
                 "{{loanId}}",
                 "charges",
-                "{{loanChargeId}}"
-              ],
-              "query": [
-                {
-                  "key": "command",
-                  "value": "pay"
-                }
+                "{{loanChargeId}}",
+                "pay"
               ]
             },
-            "description": "",
+            "description": "Pay a charge's outstanding amount. Body optional: paymentMethod ACCOUNT (default \u2014 linked account, or sourceAccountId) or CASH with tellerSessionId. Posts DR source / CR fees receivable (1103). 400 CHARGE_NOT_DUE before a fee's due date; 400 CHARGE_SETTLED if nothing is outstanding.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -6323,9 +6473,48 @@
                   "type": "string"
                 }
               ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paymentMethod\": \"ACCOUNT\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
-          "response": []
+          "response": [],
+          "x-code-samples": [
+            {
+              "lang": "cURL",
+              "source": "curl -X POST '{{baseUrl}}/api/v1/loans/{{loanId}}/charges/{{loanChargeId}}/pay' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"paymentMethod\": \"ACCOUNT\"}'"
+            },
+            {
+              "lang": "JavaScript (fetch)",
+              "source": "fetch('{{baseUrl}}/api/v1/loans/{{loanId}}/charges/{{loanChargeId}}/pay', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  },\n  body: JSON.stringify({\"paymentMethod\": \"ACCOUNT\"})\n}).then(r => r.json()).then(console.log);"
+            },
+            {
+              "lang": "Python (requests)",
+              "source": "import requests\nr = requests.post('{{baseUrl}}/api/v1/loans/{{loanId}}/charges/{{loanChargeId}}/pay', headers={'Authorization': 'Bearer {{access_token}}', 'X-Tenant-ID': '{{tenant_id}}'}, json={\"paymentMethod\": \"ACCOUNT\"})\nprint(r.json())"
+            },
+            {
+              "lang": "Java (HttpClient)",
+              "source": "HttpRequest req = HttpRequest.newBuilder(URI.create(\"{{baseUrl}}/api/v1/loans/{{loanId}}/charges/{{loanChargeId}}/pay\"))\n    .header(\"Authorization\", \"Bearer {{access_token}}\")\n    .header(\"Content-Type\", \"application/json\")\n    .method(\"POST\", HttpRequest.BodyPublishers.ofString(\"{\\\"paymentMethod\\\": \\\"ACCOUNT\\\"}\"))\n    .build();\nHttpResponse<String> res = HttpClient.newHttpClient().send(req, HttpResponse.BodyHandlers.ofString());"
+            },
+            {
+              "lang": "Go (net/http)",
+              "source": "req, _ := http.NewRequest(\"POST\", \"{{baseUrl}}/api/v1/loans/{{loanId}}/charges/{{loanChargeId}}/pay\", strings.NewReader(`{\"paymentMethod\": \"ACCOUNT\"}`))\nreq.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\nreq.Header.Set(\"Content-Type\", \"application/json\")\nres, _ := http.DefaultClient.Do(req)"
+            },
+            {
+              "lang": "Ruby (net/http)",
+              "source": "uri = URI('{{baseUrl}}/api/v1/loans/{{loanId}}/charges/{{loanChargeId}}/pay')\nreq = Net::HTTP::Post.new(uri, 'Authorization' => 'Bearer {{access_token}}', 'Content-Type' => 'application/json')\nreq.body = '{\"paymentMethod\": \"ACCOUNT\"}'\nres = Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |h| h.request(req) }"
+            },
+            {
+              "lang": "C# (HttpClient)",
+              "source": "var req = new HttpRequestMessage(new HttpMethod(\"POST\"), \"{{baseUrl}}/api/v1/loans/{{loanId}}/charges/{{loanChargeId}}/pay\") { Content = new StringContent(\"{\\\"paymentMethod\\\": \\\"ACCOUNT\\\"}\", Encoding.UTF8, \"application/json\") };\nreq.Headers.Add(\"Authorization\", \"Bearer {{access_token}}\");\nvar res = await new HttpClient().SendAsync(req);"
+            }
+          ]
         },
         {
           "name": "Remove loan charge",
@@ -14976,7 +15165,7 @@
                 "send"
               ]
             },
-            "description": "Dispatches the campaign message to each recipient through the active SMS provider. In dev/sandbox the provider is NONE (simulated — messages become SENT without a real gateway); set app.sms.provider=HTTP with app.sms.http.* to dispatch through a real gateway. Returns { total, sent, failed, invalid, provider }.",
+            "description": "Dispatches the campaign message to each recipient through the active SMS provider. In dev/sandbox the provider is NONE (simulated \u2014 messages become SENT without a real gateway); set app.sms.provider=HTTP with app.sms.http.* to dispatch through a real gateway. Returns { total, sent, failed, invalid, provider }.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -14990,7 +15179,7 @@
           },
           "response": [
             {
-              "name": "200 OK — dispatch counts",
+              "name": "200 OK \u2014 dispatch counts",
               "originalRequest": {
                 "method": "POST",
                 "header": [],
@@ -16446,7 +16635,9 @@
               "originalRequest": {
                 "method": "POST",
                 "header": [],
-                "url": { "raw": "{{baseUrl}}/api/v1/creditbureaus/check" }
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/creditbureaus/check"
+                }
               },
               "status": "OK",
               "code": 200,
@@ -18283,11 +18474,11 @@
                 "push"
               ]
             },
-            "description": "Fans out a push to all active devices of the target user via the active provider. In dev the provider is NONE (simulated — no Firebase/APNs); set app.push.provider=HTTP + app.push.http.* for a real relay. Dead tokens (404/410/UNREGISTERED) are auto-deactivated. Returns { total, sent, failed, deactivated, provider }. ADMIN only."
+            "description": "Fans out a push to all active devices of the target user via the active provider. In dev the provider is NONE (simulated \u2014 no Firebase/APNs); set app.push.provider=HTTP + app.push.http.* for a real relay. Dead tokens (404/410/UNREGISTERED) are auto-deactivated. Returns { total, sent, failed, deactivated, provider }. ADMIN only."
           },
           "response": [
             {
-              "name": "200 OK — fan-out counts",
+              "name": "200 OK \u2014 fan-out counts",
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
@@ -24575,7 +24766,7 @@
                 "deliveries"
               ]
             },
-            "description": "Delivery log for a webhook. Returns list of delivery attempts ordered by createdAt DESC.\n\nEach record contains: id, eventType, deliveryUuid (idempotency key), status (PENDING|DELIVERED|FAILED), httpStatus (HTTP response code from partner endpoint), attemptCount, lastAttemptAt, createdAt.\n\nFailed deliveries are retried with exponential backoff: 15s → 60s → 5m → 30m → 2h (5 attempts max). After 5 failures the delivery is marked FAILED permanently."
+            "description": "Delivery log for a webhook. Returns list of delivery attempts ordered by createdAt DESC.\n\nEach record contains: id, eventType, deliveryUuid (idempotency key), status (PENDING|DELIVERED|FAILED), httpStatus (HTTP response code from partner endpoint), attemptCount, lastAttemptAt, createdAt.\n\nFailed deliveries are retried with exponential backoff: 15s \u2192 60s \u2192 5m \u2192 30m \u2192 2h (5 attempts max). After 5 failures the delivery is marked FAILED permanently."
           },
           "response": [
             {
@@ -24626,7 +24817,7 @@
               "body": "{\n  \"data\": [\n    {\n      \"id\": \"c3d4e5f6-...\",\n      \"consentId\": \"urn:cba:consent:abc123\",\n      \"status\": \"AUTHORISED\",\n      \"scopes\": [\"accounts_read\", \"transactions_read\"],\n      \"expiryDate\": \"2027-04-25T00:00:00Z\",\n      \"createdAt\": \"2026-04-25T10:00:00Z\"\n    }\n  ],\n  \"meta\": {},\n  \"errors\": []\n}"
             },
             {
-              "name": "200 OK (empty — no consents linked)",
+              "name": "200 OK (empty \u2014 no consents linked)",
               "status": "OK",
               "code": 200,
               "body": "{\n  \"data\": [],\n  \"meta\": {},\n  \"errors\": []\n}"
@@ -24664,7 +24855,7 @@
                 "{{consentId}}"
               ]
             },
-            "description": "Revoke a consent on behalf of the partner organisation. Sets consent status to REVOKED.\n\nSecurity: returns 404 (not 403) when the consent's tppClientId does not match orgId — prevents enumeration attacks.\n\nReturns 204 No Content on success."
+            "description": "Revoke a consent on behalf of the partner organisation. Sets consent status to REVOKED.\n\nSecurity: returns 404 (not 403) when the consent's tppClientId does not match orgId \u2014 prevents enumeration attacks.\n\nReturns 204 No Content on success."
           },
           "response": [
             {

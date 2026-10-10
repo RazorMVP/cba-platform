@@ -1,6 +1,7 @@
 package com.cba.charge;
 
 import com.cba.loan.Loan;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
@@ -20,10 +21,13 @@ public class LoanCharge {
     @Column(name = "tenant_id")
     private UUID tenantId;
 
+    // Lazy proxies: never serialised (no Hibernate Jackson module; the loan graph holds PII).
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "loan_id", nullable = false)
     private Loan loan;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "charge_definition_id")
     private ChargeDefinition chargeDefinition;
@@ -63,6 +67,13 @@ public class LoanCharge {
 
     @Column(name = "installment_number")
     private Integer installmentNumber;
+
+    /**
+     * When the charge became income (DR fees receivable / CR income). Penalties: when
+     * charged. Fees: when due. Null until then; nothing can be paid against it before.
+     */
+    @Column(name = "income_recognized_on")
+    private LocalDate incomeRecognizedOn;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now();

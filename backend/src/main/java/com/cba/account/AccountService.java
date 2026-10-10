@@ -19,6 +19,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -219,26 +220,7 @@ public class AccountService {
         Account account = accountRepository.findByIdWithLock(accountId)
             .orElseThrow(() -> CbaException.notFound("Account", accountId));
 
-        validateAccountActive(account);
-
-        if (isConfigEnabled("enforce-lockin-period-withdrawal")) {
-            LocalDate expiry = computeLockinExpiry(account.getProduct(), account.getOpenedDate());
-            if (expiry != null && !LocalDate.now().isAfter(expiry)) {
-                throw CbaException.badRequest("ACCOUNT_IN_LOCKIN_PERIOD",
-                    "Withdrawals are not permitted until the lock-in period ends on " + expiry);
-            }
-        }
-
-        BigDecimal onHold = accountHoldRepository.sumActiveHoldsByAccount(accountId);
-        BigDecimal available = account.getBalance().subtract(onHold);
-        BigDecimal floor = account.computeEffectiveFloor();
-        BigDecimal effectiveAvailable = available.subtract(floor);
-        if (effectiveAvailable.compareTo(amount) < 0) {
-            String msg = floor.compareTo(BigDecimal.ZERO) > 0
-                ? "Withdrawal would breach minimum balance requirement of " + floor
-                : "Insufficient available balance (available: " + effectiveAvailable + ")";
-            throw CbaException.badRequest("BELOW_MINIMUM_BALANCE", msg);
-        }
+        BigDecimal effectiveAvailable = checkDebitAllowed(account, amount);
         BigDecimal before = account.getBalance();
         account.debit(amount, effectiveAvailable);
         accountRepository.save(account);
@@ -249,6 +231,74 @@ public class AccountService {
         accountGlPosting.postCashMovement(account, before, LocalDate.now(),
             "Cash withdrawal " + account.getAccountNumber(), reference);
         return toTransactionResponse(transactionRepository.save(tx));
+    }
+
+    // ── Movements for another sub-ledger (loans) ──────────────────────────────
+
+    /**
+     * A deposit-account balance change made for another sub-ledger. The caller posts the
+     * journal, in the same transaction, from {@code account} (already holding the new
+     * balance) and {@code before}: the other side of the entry belongs to its sub-ledger.
+     */
+    public record BalanceChange(Account account, BigDecimal before, Transaction transaction) {}
+
+    /**
+     * Debits the account under the same rules as a withdrawal (status, lock-in, holds,
+     * minimum balance, overdraft). Requires the caller's transaction, so the balance never
+     * changes without the caller's journal.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public BalanceChange debitForSubledger(UUID accountId, BigDecimal amount, TransactionType type,
+                                           String description, String reference, String createdBy) {
+        Account account = accountRepository.findByIdWithLock(accountId)
+            .orElseThrow(() -> CbaException.notFound("Account", accountId));
+        BigDecimal effectiveAvailable = checkDebitAllowed(account, amount);
+        BigDecimal before = account.getBalance();
+        account.debit(amount, effectiveAvailable);
+        accountRepository.save(account);
+        Transaction tx = transactionRepository.save(Transaction.of(account, type, amount,
+            account.getBalance(), description, reference, createdBy));
+        return new BalanceChange(account, before, tx);
+    }
+
+    /** Credits an ACTIVE account for another sub-ledger; see {@link #debitForSubledger}. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public BalanceChange creditForSubledger(UUID accountId, BigDecimal amount, TransactionType type,
+                                            String description, String reference, String createdBy) {
+        Account account = accountRepository.findByIdWithLock(accountId)
+            .orElseThrow(() -> CbaException.notFound("Account", accountId));
+        validateAccountActive(account);
+        BigDecimal before = account.getBalance();
+        account.credit(amount);
+        accountRepository.save(account);
+        Transaction tx = transactionRepository.save(Transaction.of(account, type, amount,
+            account.getBalance(), description, reference, createdBy));
+        return new BalanceChange(account, before, tx);
+    }
+
+    /** Withdrawal rules; returns the effective available balance the debit may use. */
+    private BigDecimal checkDebitAllowed(Account account, BigDecimal amount) {
+        validateAccountActive(account);
+
+        if (isConfigEnabled("enforce-lockin-period-withdrawal")) {
+            LocalDate expiry = computeLockinExpiry(account.getProduct(), account.getOpenedDate());
+            if (expiry != null && !LocalDate.now().isAfter(expiry)) {
+                throw CbaException.badRequest("ACCOUNT_IN_LOCKIN_PERIOD",
+                    "Withdrawals are not permitted until the lock-in period ends on " + expiry);
+            }
+        }
+
+        BigDecimal onHold = accountHoldRepository.sumActiveHoldsByAccount(account.getId());
+        BigDecimal available = account.getBalance().subtract(onHold);
+        BigDecimal floor = account.computeEffectiveFloor();
+        BigDecimal effectiveAvailable = available.subtract(floor);
+        if (effectiveAvailable.compareTo(amount) < 0) {
+            String msg = floor.compareTo(BigDecimal.ZERO) > 0
+                ? "Withdrawal would breach minimum balance requirement of " + floor
+                : "Insufficient available balance (available: " + effectiveAvailable + ")";
+            throw CbaException.badRequest("BELOW_MINIMUM_BALANCE", msg);
+        }
+        return effectiveAvailable;
     }
 
     // ── Holds ─────────────────────────────────────────────────────────────────

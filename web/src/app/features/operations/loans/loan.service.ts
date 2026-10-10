@@ -55,6 +55,45 @@ export interface LoanCharge {
   paid: boolean;
   waived: boolean;
   dueForCollectionAsOfDate?: string;
+  /** When the charge became income; null for a fee not yet due (cannot be paid yet). */
+  incomeRecognizedOn?: string | null;
+}
+
+/**
+ * Where a loan payment comes from: the borrower's linked account (ACCOUNT, default; or
+ * another of their accounts via sourceAccountId) or cash at an open teller session (CASH).
+ */
+export interface LoanPayment {
+  paymentMethod: 'ACCOUNT' | 'CASH';
+  sourceAccountId?: string;
+  tellerSessionId?: string;
+}
+
+/** POST /loans/{id}/repayments response: how the payment was split. */
+export interface LoanRepaymentResult {
+  loanId: string;
+  loanAccountNumber: string;
+  amountPaid: number;
+  principalPortion: number;
+  interestPortion: number;
+  feePortion: number;
+  outstandingBalanceAfter: number;
+  paymentDate: string;
+  paymentMethod: string;
+  referenceNumber?: string;
+}
+
+/** What settling the loan on `date` costs; interest not yet due is not charged. */
+export interface ForeclosureQuote {
+  loanId: string;
+  loanAccountNumber: string;
+  date: string;
+  currencyCode: string;
+  principal: number;
+  interest: number;
+  fees: number;
+  charges: number;
+  total: number;
 }
 
 export interface AvailableCharge {
@@ -183,16 +222,17 @@ export class LoanService {
     return this.api.post<Loan>('/loans', body);
   }
 
-  approve(id: string, approvedAmount?: number): Observable<Loan> {
-    return this.api.command<Loan>(`/loans/${id}`, 'approve', { approvedAmount });
+  /** Approves the full requested principal (the API has no partial approval). */
+  approve(id: string): Observable<Loan> {
+    return this.api.put<Loan>(`/loans/${id}/approve`, {});
   }
 
   disburse(id: string): Observable<Loan> {
-    return this.api.command<Loan>(`/loans/${id}`, 'disburse');
+    return this.api.put<Loan>(`/loans/${id}/disburse`, {});
   }
 
   reject(id: string, reason: string): Observable<Loan> {
-    return this.api.command<Loan>(`/loans/${id}`, 'reject', { reason });
+    return this.api.put<Loan>(`/loans/${id}/reject`, { reason });
   }
 
   writeOff(id: string, reason: string, writeOffDate?: string): Observable<Loan> {
@@ -207,12 +247,19 @@ export class LoanService {
     return this.api.post<Loan>(`/loans/${id}/waive-interest`, { reason });
   }
 
-  foreclose(id: string, reason: string, foreclosureDate?: string): Observable<Loan> {
-    return this.api.post<Loan>(`/loans/${id}/foreclose`, { reason, foreclosureDate });
+  /** Settles the loan for its foreclosure quote, paid from the given source. */
+  foreclose(id: string, reason: string, foreclosureDate?: string,
+            payment: LoanPayment = { paymentMethod: 'ACCOUNT' }): Observable<Loan> {
+    return this.api.post<Loan>(`/loans/${id}/foreclose`, { reason, foreclosureDate, ...payment });
   }
 
-  recordRepayment(id: string, amount: number, paymentDate: string): Observable<Loan> {
-    return this.api.command<Loan>(`/loans/${id}`, 'repayment', { transactionAmount: amount, transactionDate: paymentDate });
+  getForeclosureQuote(id: string, date?: string): Observable<ForeclosureQuote> {
+    return this.api.get<ForeclosureQuote>(`/loans/${id}/foreclosure-quote`, date ? { date } : undefined);
+  }
+
+  recordRepayment(id: string, amount: number, paymentDate: string,
+                  payment: LoanPayment = { paymentMethod: 'ACCOUNT' }): Observable<LoanRepaymentResult> {
+    return this.api.post<LoanRepaymentResult>(`/loans/${id}/repayments`, { amount, paymentDate, ...payment });
   }
 
   // Charges
@@ -224,8 +271,9 @@ export class LoanService {
     return this.api.post<LoanCharge>(`/loans/${loanId}/charges`,
       { chargeDefinitionId, amount, dueDate: dueDate || null });
   }
-  payCharge(loanId: string, chargeId: string): Observable<LoanCharge> {
-    return this.api.post<LoanCharge>(`/loans/${loanId}/charges/${chargeId}/pay`, {});
+  payCharge(loanId: string, chargeId: string,
+            payment: LoanPayment = { paymentMethod: 'ACCOUNT' }): Observable<LoanCharge> {
+    return this.api.post<LoanCharge>(`/loans/${loanId}/charges/${chargeId}/pay`, payment);
   }
   waiveCharge(loanId: string, chargeId: string): Observable<LoanCharge> {
     return this.api.post<LoanCharge>(`/loans/${loanId}/charges/${chargeId}/waive`, {});

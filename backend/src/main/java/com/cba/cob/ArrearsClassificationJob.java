@@ -1,8 +1,8 @@
 package com.cba.cob;
 
 import com.cba.loan.Loan;
+import com.cba.loan.LoanAccrualService;
 import com.cba.loan.LoanRepository;
-import com.cba.loan.LoanRepaymentSchedule;
 import com.cba.loan.LoanStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -82,19 +82,9 @@ public class ArrearsClassificationJob {
     public ItemProcessor<Loan, Loan> arrearsProcessor(
             @Value("#{jobParameters['" + CobJobDefinition.BUSINESS_DATE + "']}") String businessDateParam) {
         LocalDate businessDate = CobJobDefinition.businessDate(businessDateParam);
-        return loan -> {
-            boolean hasOverdue = loan.getRepaymentSchedule().stream()
-                    .anyMatch(inst ->
-                        inst.getStatus() == LoanRepaymentSchedule.InstallmentStatus.PENDING
-                        && inst.getDueDate().isBefore(businessDate));
-
-            LoanStatus newStatus = hasOverdue ? LoanStatus.IN_ARREARS : LoanStatus.ACTIVE;
-            if (loan.getStatus() != newStatus) {
-                loan.setStatus(newStatus);
-                return loan;
-            }
-            return null; // no change — skip write
-        };
+        // Days past due and ACTIVE ↔ IN_ARREARS from the oldest unpaid instalment. A partly
+        // paid instalment is still overdue (it was missed while only PENDING counted).
+        return loan -> LoanAccrualService.updateArrears(loan, businessDate) ? loan : null;
     }
 
     @Bean

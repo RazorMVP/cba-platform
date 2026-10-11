@@ -21,5 +21,12 @@ public record LoanResponse(
         LocalDate applicationDate,
         LocalDate approvalDate,
         LocalDate disbursementDate,
-        LocalDate maturityDate
+        LocalDate maturityDate,
+        /** Days since the oldest unpaid instalment fell due. */
+        int daysPastDue,
+        /** 90+ days past due: interest and penalties held in suspense (CBN). */
+        boolean nonPerforming,
+        BigDecimal interestInSuspense,
+        /** Origination fee not yet released to interest income. */
+        BigDecimal deferredFeeRemaining
 ) {}

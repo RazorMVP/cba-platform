@@ -75,6 +75,10 @@ public class LoanCharge {
     @Column(name = "income_recognized_on")
     private LocalDate incomeRecognizedOn;
 
+    /** Recognised while the loan was non-performing: held in suspense until paid (CBN). */
+    @Column(name = "suspended", nullable = false)
+    private boolean suspended;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
 
@@ -85,7 +89,11 @@ public class LoanCharge {
     private Long version;
 
     @PrePersist
-    public void prePersist() { this.amountOutstanding = this.amount; }
+    public void prePersist() {
+        // A new charge owes its full amount, unless it is created already settled (an
+        // origination fee deducted from the disbursement).
+        if (!paid && !waived) this.amountOutstanding = this.amount;
+    }
 
     @PreUpdate
     public void preUpdate() { this.updatedAt = OffsetDateTime.now(); }

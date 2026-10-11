@@ -19,6 +19,13 @@ export interface Loan {
   disbursedDate?: string;
   closedDate?: string;
   createdAt: string;
+  /** Days since the oldest unpaid instalment fell due. */
+  daysPastDue?: number;
+  /** 90+ days past due: interest and penalties held in suspense (CBN). */
+  nonPerforming?: boolean;
+  interestInSuspense?: number;
+  /** Origination fee not yet released to interest income. */
+  deferredFeeRemaining?: number;
 }
 
 export interface RepaymentInstallment {

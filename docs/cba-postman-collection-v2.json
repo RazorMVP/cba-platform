@@ -2174,7 +2174,7 @@
                 "disburse"
               ]
             },
-            "description": "Disburse an APPROVED loan into its linked account (must be ACTIVE and in the loan product's currency). Credits the account, writes a LOAN_DISBURSEMENT transaction and posts DR loan portfolio (1100) / CR savings control (2001) in the same transaction. 400 CURRENCY_MISMATCH, ACCOUNT_NOT_ACTIVE, ACTIVITY_NOT_MAPPED."
+            "description": "Disburse an APPROVED loan into its linked account (must be ACTIVE and in the loan product's currency). The account receives the principal less origination fees (the product's originationFee plus DISBURSEMENT charges added before disbursement). Posts DR loan portfolio (1100, principal) / CR savings control (2001, principal - fee) / CR deferred loan fees (1104, fee), released to interest income by the nightly loanAccrualJob (IFRS 9 B5.4.2). 400 ORIGINATION_FEE_EXCEEDS_PRINCIPAL, CURRENCY_MISMATCH, ACCOUNT_NOT_ACTIVE, ACTIVITY_NOT_MAPPED."
           },
           "x-code-samples": [
             {

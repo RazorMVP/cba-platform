@@ -243,13 +243,68 @@ class ChargeServiceTest {
         }
 
         @Test
-        @DisplayName("a disbursement fee is rejected: it belongs in the effective interest rate")
-        void addLoanCharge_originationFee_rejected() {
+        @DisplayName("a disbursement fee after disbursement is rejected: it is deducted at disbursement")
+        void addLoanCharge_originationFeeAfterDisbursement_rejected() {
             chargeDef.setChargeTimeType(ChargeDefinition.ChargeTimeType.DISBURSEMENT);
 
             assertThatThrownBy(() -> add(FIFTY, null))
-                .isInstanceOf(CbaException.class).hasMessageContaining("effective interest rate");
+                .isInstanceOf(CbaException.class).hasMessageContaining("before the loan is disbursed");
             verify(loanChargeRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("a disbursement fee before disbursement is recorded, not income yet")
+        void addLoanCharge_originationFeeBeforeDisbursement_recorded() {
+            chargeDef.setChargeTimeType(ChargeDefinition.ChargeTimeType.DISBURSEMENT);
+            loan.setStatus(LoanStatus.APPROVED);
+            when(loanChargeRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+            LoanCharge result = add(FIFTY, null);
+
+            assertThat(result.getIncomeRecognizedOn()).isNull();
+            verifyNoInteractions(loanGlPosting);
+        }
+
+        @Test
+        @DisplayName("a penalty on a non-performing loan goes to suspense, not income")
+        void addLoanCharge_penaltyOnNonPerformingLoan_suspended() {
+            chargeDef.setPenalty(true);
+            loan.setNonPerforming(true);
+            when(loanChargeRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+            LoanCharge result = add(FIFTY, null);
+
+            assertThat(result.isSuspended()).isTrue();
+            verify(loanGlPosting).postChargeToSuspense(eq(loan), any(LoanCharge.class), eq(FIFTY), any());
+            verify(loanGlPosting, never()).postChargeRecognition(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("paying a suspended penalty releases it from suspense to income")
+        void payLoanCharge_suspended_releasesSuspense() {
+            loanCharge.setIncomeRecognizedOn(LocalDate.now());
+            loanCharge.setSuspended(true);
+            when(loanChargeRepository.findById(loanChargeId)).thenReturn(Optional.of(loanCharge));
+            when(loanChargeRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+            LoanCharge result = chargeService.payLoanCharge(loanId, loanChargeId, null);
+
+            assertThat(result.isSuspended()).isFalse();
+            verify(loanGlPosting).postChargeSuspenseRelease(eq(loan), eq(loanCharge), eq(FIFTY), any());
+        }
+
+        @Test
+        @DisplayName("waiving a suspended penalty clears it against suspense, never touching income")
+        void waiveLoanCharge_suspended_clearsAgainstSuspense() {
+            loanCharge.setIncomeRecognizedOn(LocalDate.now());
+            loanCharge.setSuspended(true);
+            when(loanChargeRepository.findById(loanChargeId)).thenReturn(Optional.of(loanCharge));
+            when(loanChargeRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+            chargeService.waiveLoanCharge(loanId, loanChargeId);
+
+            verify(loanGlPosting).postSuspendedChargeWaiver(eq(loan), eq(loanCharge), eq(FIFTY), any());
+            verify(loanGlPosting, never()).postChargeWaiver(any(), any(), any(), any());
         }
 
         @Test

@@ -55,8 +55,12 @@ public class LoanGlPosting {
         }
     }
 
-    /** DR loan portfolio / CR the linked account's savings control (or overdraft). */
-    public String postDisbursement(Loan loan, BigDecimal amount, LocalDate date) {
+    /**
+     * DR loan portfolio (principal) / CR the linked account (principal − fee) / CR deferred
+     * loan fees (fee). The fee is deducted from the proceeds and deferred: it is part of
+     * the effective interest rate (IFRS 9 B5.4.2), released to interest income by accrual.
+     */
+    public String postDisbursement(Loan loan, BigDecimal principal, BigDecimal fee, LocalDate date) {
         String ccy = currency(loan);
         String no = loan.getLoanAccountNumber();
         String reference = "DISB-" + no;
@@ -67,12 +71,115 @@ public class LoanGlPosting {
         requireCurrency(accountRepository.findById(linked.getId())
                 .orElseThrow(() -> CbaException.notFound("Account", linked.getId())), ccy);
 
-        BalanceChange change = accountService.creditForSubledger(linked.getId(), amount,
+        BalanceChange change = accountService.creditForSubledger(linked.getId(), principal.subtract(fee),
                 TransactionType.LOAN_DISBURSEMENT, "Loan disbursement: " + no, reference, "system");
         List<JournalLine> lines = new ArrayList<>();
-        lines.add(JournalLine.debit(portfolio(loan.getProduct()), amount, ccy));
+        lines.add(JournalLine.debit(portfolio(loan.getProduct()), principal, ccy));
         lines.addAll(accountGl.balanceChangeLines(change.account(), change.before()));
+        addCredit(lines, gl.activityAccount(FinancialActivity.ASSET_DEFERRED_LOAN_FEES), fee, ccy);
         return gl.postJournal(lines, date, "Loan disbursement " + no, JournalEntry.EntityType.LOAN, loan.getId(), reference);
+    }
+
+    /**
+     * One accrual run for a loan. Interest: DR interest receivable / CR interest income, or
+     * CR income in suspense when the loan is non-performing (CBN). Fee: DR deferred loan
+     * fees / CR interest income — the fee was received in cash, so it is released even on
+     * a non-performing loan. Returns null when there is nothing to post.
+     */
+    public String postAccrual(Loan loan, BigDecimal interest, BigDecimal fee, boolean toSuspense, LocalDate date) {
+        if (interest.signum() <= 0 && fee.signum() <= 0) return null;
+        String ccy = currency(loan);
+        List<JournalLine> lines = new ArrayList<>();
+        addDebit(lines, gl.activityAccount(FinancialActivity.ASSET_INTEREST_RECEIVABLE), interest, ccy);
+        addDebit(lines, gl.activityAccount(FinancialActivity.ASSET_DEFERRED_LOAN_FEES), fee, ccy);
+        if (toSuspense) {
+            addCredit(lines, suspense(), interest, ccy);
+            accountGl.addProfitOrLoss(lines, interestIncome(loan.getProduct()), fee, JournalEntry.EntryType.CREDIT, ccy);
+        } else {
+            accountGl.addProfitOrLoss(lines, interestIncome(loan.getProduct()), interest.add(fee),
+                    JournalEntry.EntryType.CREDIT, ccy);
+        }
+        return gl.postJournal(lines, date, "Interest accrual " + loan.getLoanAccountNumber() + " to " + date,
+                JournalEntry.EntityType.LOAN, loan.getId(), reference("ACR", loan));
+    }
+
+    /**
+     * The loan has become non-performing: income already recognised but not received
+     * leaves profit or loss for suspense (CBN). DR interest income / CR suspense for the
+     * interest; DR each penalty's income account / CR suspense for unpaid penalties.
+     */
+    public String postSuspension(Loan loan, BigDecimal interest, List<LoanCharge> penalties, LocalDate date) {
+        BigDecimal penaltyTotal = penalties.stream().map(LoanCharge::getAmountOutstanding)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (interest.signum() <= 0 && penaltyTotal.signum() <= 0) return null;
+        String ccy = currency(loan);
+        List<JournalLine> lines = new ArrayList<>();
+        addCredit(lines, suspense(), interest.add(penaltyTotal), ccy);
+        accountGl.addProfitOrLoss(lines, interestIncome(loan.getProduct()), interest, JournalEntry.EntryType.DEBIT, ccy);
+        for (LoanCharge c : penalties) {
+            accountGl.addProfitOrLoss(lines, chargeIncome(loan.getProduct(), c), c.getAmountOutstanding(),
+                    JournalEntry.EntryType.DEBIT, ccy);
+        }
+        return gl.postJournal(lines, date, "Loan " + loan.getLoanAccountNumber() + " non-performing: income to suspense",
+                JournalEntry.EntityType.LOAN, loan.getId(), reference("SUSP", loan));
+    }
+
+    /** Interest held in suspense has been received in cash: DR suspense / CR interest income. */
+    public String postInterestSuspenseRelease(Loan loan, BigDecimal amount, LocalDate date) {
+        return postSuspenseRelease(loan, interestIncome(loan.getProduct()), amount, date, "Interest received");
+    }
+
+    /** A suspended penalty has been paid: DR suspense / CR its income account. */
+    public String postChargeSuspenseRelease(Loan loan, LoanCharge charge, BigDecimal amount, LocalDate date) {
+        return postSuspenseRelease(loan, chargeIncome(loan.getProduct(), charge), amount, date,
+                "Charge " + charge.getName() + " received");
+    }
+
+    /** A penalty charged on a non-performing loan: DR fees receivable / CR suspense (not income). */
+    public String postChargeToSuspense(Loan loan, LoanCharge charge, BigDecimal amount, LocalDate date) {
+        String ccy = currency(loan);
+        List<JournalLine> lines = new ArrayList<>();
+        lines.add(JournalLine.debit(gl.activityAccount(FinancialActivity.ASSET_FEES_RECEIVABLE), amount, ccy));
+        lines.add(JournalLine.credit(suspense(), amount, ccy));
+        return gl.postJournal(lines, date, "Penalty " + charge.getName() + " on non-performing loan "
+                + loan.getLoanAccountNumber() + " (suspense)", JournalEntry.EntityType.LOAN, loan.getId(), reference("CHGS", loan));
+    }
+
+    /** A suspended charge is waived: it was never income, so DR suspense / CR fees receivable. */
+    public String postSuspendedChargeWaiver(Loan loan, LoanCharge charge, BigDecimal amount, LocalDate date) {
+        String ccy = currency(loan);
+        List<JournalLine> lines = new ArrayList<>();
+        lines.add(JournalLine.debit(suspense(), amount, ccy));
+        lines.add(JournalLine.credit(gl.activityAccount(FinancialActivity.ASSET_FEES_RECEIVABLE), amount, ccy));
+        return gl.postJournal(lines, date, "Suspended charge " + charge.getName() + " waived on loan "
+                + loan.getLoanAccountNumber(), JournalEntry.EntityType.LOAN, loan.getId(), reference("CHGW", loan));
+    }
+
+    /**
+     * The loan is settled. Interest received ahead of accrual and the origination fee not
+     * yet released are income now: the loan is derecognised (IFRS 9 §3.2.3, B5.4.6).
+     * DR interest receivable / DR deferred loan fees / CR interest income.
+     */
+    public String postCloseOut(Loan loan, BigDecimal prepaidInterest, BigDecimal deferredFee, LocalDate date) {
+        if (prepaidInterest.signum() <= 0 && deferredFee.signum() <= 0) return null;
+        String ccy = currency(loan);
+        List<JournalLine> lines = new ArrayList<>();
+        addDebit(lines, gl.activityAccount(FinancialActivity.ASSET_INTEREST_RECEIVABLE), prepaidInterest, ccy);
+        addDebit(lines, gl.activityAccount(FinancialActivity.ASSET_DEFERRED_LOAN_FEES), deferredFee, ccy);
+        accountGl.addProfitOrLoss(lines, interestIncome(loan.getProduct()),
+                prepaidInterest.max(BigDecimal.ZERO).add(deferredFee.max(BigDecimal.ZERO)), JournalEntry.EntryType.CREDIT, ccy);
+        return gl.postJournal(lines, date, "Loan " + loan.getLoanAccountNumber() + " settled: remaining income recognised",
+                JournalEntry.EntityType.LOAN, loan.getId(), reference("CLOSE", loan));
+    }
+
+    private String postSuspenseRelease(Loan loan, GlAccount income, BigDecimal amount, LocalDate date, String what) {
+        if (amount.signum() <= 0) return null;
+        String ccy = currency(loan);
+        List<JournalLine> lines = new ArrayList<>();
+        lines.add(JournalLine.debit(suspense(), amount, ccy));
+        accountGl.addProfitOrLoss(lines, income, amount, JournalEntry.EntryType.CREDIT, ccy);
+        return gl.postJournal(lines, date, what + " on non-performing loan " + loan.getLoanAccountNumber()
+                + ": released from suspense", JournalEntry.EntityType.LOAN, loan.getId(), reference("SREL", loan));
     }
 
     /**
@@ -192,8 +299,21 @@ public class LoanGlPosting {
                 ? p.getIncomeFromFeesAccount() : gl.activityAccount(FinancialActivity.INCOME_FEES);
     }
 
+    private GlAccount interestIncome(LoanProduct p) {
+        return p.getInterestOnLoanAccount() != null
+                ? p.getInterestOnLoanAccount() : gl.activityAccount(FinancialActivity.INCOME_INTEREST);
+    }
+
+    private GlAccount suspense() {
+        return gl.activityAccount(FinancialActivity.LIABILITY_INCOME_IN_SUSPENSE);
+    }
+
     private static void addCredit(List<JournalLine> lines, GlAccount account, BigDecimal amount, String ccy) {
         if (amount.signum() > 0) lines.add(JournalLine.credit(account, amount, ccy));
+    }
+
+    private static void addDebit(List<JournalLine> lines, GlAccount account, BigDecimal amount, String ccy) {
+        if (amount.signum() > 0) lines.add(JournalLine.debit(account, amount, ccy));
     }
 
     private static String reference(String kind, Loan loan) {

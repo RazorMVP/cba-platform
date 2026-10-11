@@ -5305,6 +5305,8 @@ components:
           - "ASSET_INTEREST_RECEIVABLE"
           - "ASSET_LOAN_PORTFOLIO"
           - "ASSET_FEES_RECEIVABLE"
+          - "ASSET_DEFERRED_LOAN_FEES"
+          - "LIABILITY_INCOME_IN_SUSPENSE"
           - "LIABILITY_SAVINGS_CONTROL"
           - "LIABILITY_TRANSFER_IN_SUSPENSE"
           - "INCOME_INTEREST"
@@ -5335,6 +5337,8 @@ components:
           - "ASSET_INTEREST_RECEIVABLE"
           - "ASSET_LOAN_PORTFOLIO"
           - "ASSET_FEES_RECEIVABLE"
+          - "ASSET_DEFERRED_LOAN_FEES"
+          - "LIABILITY_INCOME_IN_SUSPENSE"
           - "LIABILITY_SAVINGS_CONTROL"
           - "LIABILITY_TRANSFER_IN_SUSPENSE"
           - "INCOME_INTEREST"
@@ -6380,12 +6384,24 @@ components:
           type: "string"
         customer:
           $ref: "#/components/schemas/Customer"
+        daysPastDue:
+          format: "int32"
+          type: "integer"
+        deferredFee:
+          type: "number"
+        deferredFeeRemaining:
+          type: "number"
         disbursementDate:
           format: "date"
           type: "string"
         id:
           format: "uuid"
           type: "string"
+        interestAccruedThrough:
+          format: "date"
+          type: "string"
+        interestInSuspense:
+          type: "number"
         interestRate:
           type: "number"
         linkedAccount:
@@ -6395,10 +6411,18 @@ components:
         maturityDate:
           format: "date"
           type: "string"
+        nonPerforming:
+          type: "boolean"
+        nonPerformingSince:
+          format: "date"
+          type: "string"
         notes:
           type: "string"
         outstandingBalance:
           type: "number"
+        overdueSince:
+          format: "date"
+          type: "string"
         principalAmount:
           type: "number"
         product:
@@ -6518,6 +6542,8 @@ components:
         paid:
           type: "boolean"
         penalty:
+          type: "boolean"
+        suspended:
           type: "boolean"
         tenantId:
           format: "uuid"
@@ -7136,6 +7162,10 @@ components:
         dueDate:
           format: "date"
           type: "string"
+        feeAmortisation:
+          type: "number"
+        feeAmortised:
+          type: "number"
         feesDue:
           type: "number"
         feesPaid:
@@ -7146,6 +7176,8 @@ components:
         installmentNo:
           format: "int32"
           type: "integer"
+        interestAccrued:
+          type: "number"
         interestDue:
           type: "number"
         interestPaid:
@@ -7243,12 +7275,19 @@ components:
           type: "string"
         customerName:
           type: "string"
+        daysPastDue:
+          format: "int32"
+          type: "integer"
+        deferredFeeRemaining:
+          type: "number"
         disbursementDate:
           format: "date"
           type: "string"
         id:
           format: "uuid"
           type: "string"
+        interestInSuspense:
+          type: "number"
         interestRate:
           type: "number"
         loanAccountNumber:
@@ -7256,6 +7295,8 @@ components:
         maturityDate:
           format: "date"
           type: "string"
+        nonPerforming:
+          type: "boolean"
         outstandingBalance:
           type: "number"
         principalAmount:

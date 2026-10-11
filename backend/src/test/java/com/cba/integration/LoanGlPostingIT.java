@@ -49,16 +49,17 @@ class LoanGlPostingIT extends AbstractIntegrationTest {
         UUID account = account("LN-GL", "500.00");
         UUID loanId = approvedLoan(account, "1200.00");
 
-        // 1. Disbursement: DR 1100 loan portfolio / CR 2001 customer deposits.
+        // 1. Disbursement: DR 1100 loan portfolio / CR 2001 customer deposits, net of the demo
+        //    product's 50.00 origination fee, which is deferred (CR 1104, IFRS 9 B5.4.2).
         loanService.disburseLoan(loanId);
-        assertThat(balance(account)).isEqualByComparingTo("1700.00");
+        assertThat(balance(account)).isEqualByComparingTo("1650.00");
         assertThat(lines(loanId, "DISB-%")).containsExactlyInAnyOrder(
-                "DEBIT 1100 1200.0000 USD", "CREDIT 2001 1200.0000 USD");
+                "DEBIT 1100 1200.0000 USD", "CREDIT 2001 1150.0000 USD", "CREDIT 1104 50.0000 USD");
 
         // 2. Repayment from the linked account clears principal and interest receivable.
         LoanRepaymentResponse r = loanService.makeRepayment(loanId,
                 new LoanRepaymentRequest(new BigDecimal("150.00"), null, null, null, null));
-        assertThat(balance(account)).isEqualByComparingTo("1550.00");
+        assertThat(balance(account)).isEqualByComparingTo("1500.00");
         List<String> repayment = lines(loanId, "RPMT-%");
         assertThat(repayment).contains("DEBIT 2001 150.0000 USD",
                 "CREDIT 1100 " + r.principalPortion().setScale(4) + " USD");
@@ -77,7 +78,7 @@ class LoanGlPostingIT extends AbstractIntegrationTest {
         assertThat(lines(loanId, "CHG-%")).containsExactlyInAnyOrder(
                 "DEBIT 1103 25.0000 USD", "CREDIT 4004 25.0000 USD");
         chargeService.payLoanCharge(loanId, charge.getId(), null);
-        assertThat(balance(account)).isEqualByComparingTo("1525.00");
+        assertThat(balance(account)).isEqualByComparingTo("1475.00");
         assertThat(lines(loanId, "CHGP-%")).containsExactlyInAnyOrder(
                 "DEBIT 2001 25.0000 USD", "CREDIT 1103 25.0000 USD");
 
@@ -94,11 +95,14 @@ class LoanGlPostingIT extends AbstractIntegrationTest {
         assertThat(jdbc.queryForObject(
                 "SELECT amount FROM cash_transactions WHERE loan_id = ? AND session_id = ?",
                 BigDecimal.class, loanId, session)).isEqualByComparingTo(quote.total());
-        assertThat(balance(account)).as("cash foreclosure leaves the account alone").isEqualByComparingTo("1525.00");
+        assertThat(balance(account)).as("cash foreclosure leaves the account alone").isEqualByComparingTo("1475.00");
 
-        // Every journal balances, and the portfolio is back to zero for this loan.
+        // Every journal balances; the portfolio, interest receivable and deferred fee are
+        // back to zero for this loan (settlement releases the unamortised fee to income).
         assertBalancedPerJournal(loanId);
         assertThat(netDebit(loanId, "1100")).isEqualByComparingTo("0");
+        assertThat(netDebit(loanId, "1101")).isEqualByComparingTo("0");
+        assertThat(netDebit(loanId, "1104")).isEqualByComparingTo("0");
     }
 
     @Test
@@ -111,7 +115,7 @@ class LoanGlPostingIT extends AbstractIntegrationTest {
         assertThatThrownBy(() -> loanService.makeRepayment(loanId,
                 new LoanRepaymentRequest(new BigDecimal("5000.00"), null, null, null, null)))
                 .isInstanceOf(CbaException.class).hasMessageContaining("exceeds");
-        assertThat(balance(account)).isEqualByComparingTo("1100.00");
+        assertThat(balance(account)).isEqualByComparingTo("1050.00"); // 500 + 600 − 50 fee
         assertThat(lines(loanId, "RPMT-%")).isEmpty();
     }
 

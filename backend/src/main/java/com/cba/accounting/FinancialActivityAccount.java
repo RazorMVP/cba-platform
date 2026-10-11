@@ -22,6 +22,10 @@ public class FinancialActivityAccount {
         ASSET_LOAN_PORTFOLIO,
         /** Loan fees and penalties charged and not yet paid. */
         ASSET_FEES_RECEIVABLE,
+        /** Contra-asset: origination fees not yet released to interest income (IFRS 9 B5.4.2). */
+        ASSET_DEFERRED_LOAN_FEES,
+        /** Interest and penalties on non-performing loans, not income until received (CBN). */
+        LIABILITY_INCOME_IN_SUSPENSE,
         LIABILITY_SAVINGS_CONTROL,
         LIABILITY_TRANSFER_IN_SUSPENSE,
         INCOME_INTEREST,

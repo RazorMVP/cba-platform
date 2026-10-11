@@ -57,6 +57,51 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 25) — 2026-10-11
+**GL posting PR 2b: loans earn income day by day. Nightly interest accrual (catching up from disbursement), days past due, the CBN 90-day suspense rule, and origination fees deducted at disbursement and released by the effective interest method.**
+
+#### Decisions (standards checked first; user "1a 2a")
+| Decision | Source |
+|---|---|
+| Origination fee deducted from the proceeds (customer receives principal − fee) | IFRS 9 B5.4.2 (both collection methods account the same) |
+| Fee = product `originationFee` (auto-applied) + `DISBURSEMENT` charges added before disbursement | User choice 2a |
+| Non-performing at 90 days or more past due | CBN Prudential Guidelines; IFRS 9 B5.5.37 (default no later than 90 dpd) |
+| Accrued unpaid interest and unpaid penalties move to suspense; suspense becomes income only as cash arrives (no release on cure) | CBN (interest on NPLs on a cash basis) |
+| Fee amortisation continues on non-performing loans | The fee was received in cash at disbursement; CBN suspense covers uncollected income |
+| Settlement recognises interest received ahead of accrual and the unreleased fee | IFRS 9 §3.2.3 (derecognition), B5.4.6 |
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `db/migration/V58__loan_accrual.sql` | GL 1104 Deferred Loan Origination Fees (contra-asset), 2200 Interest and Fees in Suspense; `ASSET_DEFERRED_LOAN_FEES`, `LIABILITY_INCOME_IN_SUSPENSE`; loan accrual/dpd/NPL/suspense/deferred-fee columns; per-instalment `interest_accrued`, `fee_amortisation`, `fee_amortised`; `loan_charges.suspended` |
+| `loan/LoanAccrualService.java` | NEW: arrears/dpd, non-performing classification, due-fee recognition, daily accrual (pro rata within each period), close-out |
+| `loan/EffectiveInterest.java` | NEW: daily effective rate on the schedule's cash flows; each period's fee share, summing exactly to the fee |
+| `cob/LoanAccrualJob.java`, `CobJobDefinition` | NEW `loanAccrualJob` after arrears, before FX revaluation; one transaction per loan; any failure fails the run after the others post |
+| `cob/ArrearsClassificationJob.java` | Uses `updateArrears`: days past due, and **part-paid overdue instalments now count** (only PENDING did, so a part-paid missed instalment never put a loan in arrears) |
+| `loan/LoanGlPosting.java` | Disbursement net of fee; accrual, suspension, suspense release, penalty-to-suspense, suspended-charge waiver and close-out journals |
+| `loan/LoanService.java` | Fees at disbursement; accrue before repayment/foreclosure; release suspense on interest received; close-out on payoff and foreclosure; quote includes interest earned this period |
+| `charge/ChargeService.java`, `LoanCharge` | Disbursement charges allowed before disbursement only; penalties on NPLs to suspense; paying releases, waiving clears against suspense; `prePersist` keeps a charge created already settled |
+| `loan/dto/LoanResponse.java`, `web/.../loan.service.ts`, accounting activity types/labels | `daysPastDue`, `nonPerforming`, `interestInSuspense`, `deferredFeeRemaining`; two new activities |
+| `test/.../LoanAccrualIT.java` | NEW: disburse with fee → accrue → non-performing → repay in full against PostgreSQL; 1100/1101/1104/2200 net to zero and income = scheduled interest + fee |
+| `test/.../LoanAccrualServiceTest.java` (7), `EffectiveInterestTest.java` (3), `LoanServiceTest`, `ChargeServiceTest`, `LoanGlPostingIT`, `CobJobsIT` | Accrual rules, EIR, fees at disbursement, suspense paths; IT balances net of the demo product's 50.00 fee; job list |
+| `backend/docs/openapi-snapshot.yaml`, `docs/api-reference.html`, Postman, `docs-site/static/*`, `CLAUDE.md` | New response fields, posting rows, sixth CoB job, charge rules |
+
+#### Key Patterns / Decisions
+- **Accrual targets, not increments:** each run sets an instalment's accrued interest to `accruedBy(interestDue, periodStart, due, date)` (rounded down) and posts the difference, so catch-up, re-runs and rounding can't drift; on the due date it reaches the full instalment interest.
+- Arrears and accrual share one days-past-due function (`LoanAccrualService.updateArrears`).
+- The demo USD loan product has `origination_fee = 50.00` in seed data, so every disbursement of it now deducts and defers 50.00.
+
+#### Build Verification
+- Backend `-Pfull-integration` **783/783** (was 766). OpenAPI snapshot regenerated (`LoanResponse` fields). A first run hit the known IDE/MapStruct race (`CustomerMapperImpl`); rerun green.
+- Web `ng test` **1156/1156**.
+- Gate grep: no endpoint/param change; response shape (`LoanResponse`) and behaviour (disbursement net of fee, sixth CoB job, charge rules) documented in api-reference, Postman and the snapshot.
+
+#### Confirmed Platform Versions
+| Directory | Last commit | Notes |
+|-----------|-------------|-------|
+| `backend/` | this PR | Spring Boot 3.5.16; Flyway **V58**; 783/783 |
+| `web/` | this PR | Angular 21.2.25; 1156/1156 |
+
 ### Session 125 (cont. 24) — 2026-10-09
 **E2E tests reach the app: Playwright gets past Vercel Deployment Protection on preview deployments with the automation bypass secret.**
 

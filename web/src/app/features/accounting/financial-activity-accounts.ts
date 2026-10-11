@@ -35,6 +35,8 @@ export class FinancialActivityAccountsComponent implements OnInit {
     ASSET_INTEREST_RECEIVABLE:      'Asset — Interest Receivable',
     ASSET_LOAN_PORTFOLIO:           'Asset — Loan Portfolio',
     ASSET_FEES_RECEIVABLE:          'Asset — Loan Fees and Penalties Receivable',
+    ASSET_DEFERRED_LOAN_FEES:       'Asset (contra) — Deferred Loan Origination Fees',
+    LIABILITY_INCOME_IN_SUSPENSE:   'Liability — Interest and Fees in Suspense',
     ASSET_OVERDRAFT_PORTFOLIO:      'Asset — Overdraft Portfolio',
     ASSET_FX_POSITION:              'Asset — FX Position',
     ASSET_FX_POSITION_EQUIVALENT:   'Asset — FX Position Equivalent',

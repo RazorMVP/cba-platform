@@ -135,11 +135,12 @@ public class ChargeService {
             throw CbaException.badRequest("LOAN_NOT_OPEN", "Charges cannot be added to a " + loan.getStatus() + " loan");
         }
         ChargeDefinition def = getCharge(req.chargeDefinitionId());
-        if (def.getChargeTimeType() == ChargeDefinition.ChargeTimeType.DISBURSEMENT) {
-            // An origination fee is part of the effective interest rate (IFRS 9 B5.4.2):
-            // it is spread over the loan's life, never income on the day it is charged.
-            throw CbaException.badRequest("ORIGINATION_FEE_NOT_SUPPORTED",
-                "Disbursement fees are recognised through the effective interest rate, which is not built yet");
+        if (def.getChargeTimeType() == ChargeDefinition.ChargeTimeType.DISBURSEMENT
+                && !PRE_DISBURSEMENT.contains(loan.getStatus())) {
+            // An origination fee is deducted from the proceeds at disbursement and spread
+            // through the effective interest rate (IFRS 9 B5.4.2); afterwards it is too late.
+            throw CbaException.badRequest("ORIGINATION_FEE_AFTER_DISBURSEMENT",
+                "Disbursement charges can only be added before the loan is disbursed");
         }
         String loanCurrency = LoanGlPosting.currency(loan);
         if (!loanCurrency.equalsIgnoreCase(def.getCurrencyCode())) {
@@ -168,7 +169,13 @@ public class ChargeService {
         boolean incomeNow = OPEN_LOAN.contains(loan.getStatus())
             && (lc.isPenalty() || req.dueDate() == null || !req.dueDate().isAfter(today));
         if (incomeNow) {
-            loanGlPosting.postChargeRecognition(loan, lc, amount, today);
+            if (loan.isNonPerforming() && lc.isPenalty()) {
+                // Non-performing loan: the penalty is held in suspense, not income (CBN).
+                loanGlPosting.postChargeToSuspense(loan, lc, amount, today);
+                lc.setSuspended(true);
+            } else {
+                loanGlPosting.postChargeRecognition(loan, lc, amount, today);
+            }
             lc.setIncomeRecognizedOn(today);
         }
         return loanChargeRepository.save(lc);
@@ -192,6 +199,11 @@ public class ChargeService {
         LoanPaymentSource source = LoanPaymentSource.of(r.paymentMethod(), r.sourceAccountId(), r.tellerSessionId());
         BigDecimal amount = lc.getAmountOutstanding();
         loanGlPosting.postChargePayment(lc.getLoan(), lc, source, amount, LocalDate.now());
+        if (lc.isSuspended()) {
+            // Received in cash: a suspended penalty becomes income now (CBN cash basis).
+            loanGlPosting.postChargeSuspenseRelease(lc.getLoan(), lc, amount, LocalDate.now());
+            lc.setSuspended(false);
+        }
         lc.setAmountPaid(lc.getAmountPaid().add(amount));
         lc.setAmountOutstanding(BigDecimal.ZERO);
         lc.setPaid(true);
@@ -210,7 +222,11 @@ public class ChargeService {
         if (lc.isPaid() || lc.isWaived() || outstanding.signum() <= 0) {
             throw CbaException.badRequest("CHARGE_SETTLED", "Charge " + lc.getName() + " has nothing outstanding to waive");
         }
-        if (lc.getIncomeRecognizedOn() != null) {
+        if (lc.isSuspended()) {
+            // Never income: the waiver just clears the receivable against suspense.
+            loanGlPosting.postSuspendedChargeWaiver(lc.getLoan(), lc, outstanding, LocalDate.now());
+            lc.setSuspended(false);
+        } else if (lc.getIncomeRecognizedOn() != null) {
             loanGlPosting.postChargeWaiver(lc.getLoan(), lc, outstanding, LocalDate.now());
         }
         lc.setWaived(true);

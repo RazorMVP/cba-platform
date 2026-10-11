@@ -25,6 +25,9 @@ public enum CobJobDefinition {
                      "interestAccrualBatchJob"),
     ARREARS         ("arrearsClassificationJob", "Arrears Classification",
                      "arrearsClassificationBatchJob"),
+    /** After arrears (days past due are current); before FX revaluation (posts income). */
+    LOAN_ACCRUAL    ("loanAccrualJob", "Loan Interest Accrual",
+                     "loanAccrualBatchJob"),
     /** Last: revalues the positions after every other job has posted its movements. */
     FX_REVALUATION  ("fxRevaluationJob", "FX Revaluation",
                      "fxRevaluationBatchJob");

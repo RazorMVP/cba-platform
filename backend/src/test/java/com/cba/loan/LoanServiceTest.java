@@ -60,6 +60,7 @@ class LoanServiceTest {
     @Mock ApplicationEventPublisher eventPublisher;
     @Mock LoanGlPosting loanGlPosting;
     @Mock LoanChargeRepository loanChargeRepository;
+    @Mock LoanAccrualService loanAccrualService;
 
     @InjectMocks LoanService loanService;
 
@@ -255,7 +256,51 @@ class LoanServiceTest {
 
             assertThat(resp).isNotNull();
             assertThat(activeLoan.getStatus()).isEqualTo(LoanStatus.ACTIVE);
-            verify(loanGlPosting).postDisbursement(activeLoan, new BigDecimal("10000.00"), LocalDate.now());
+            verify(loanGlPosting).postDisbursement(activeLoan, new BigDecimal("10000.00"), BigDecimal.ZERO, LocalDate.now());
+            assertThat(activeLoan.getInterestAccruedThrough()).isEqualTo(LocalDate.now());
+        }
+
+        @Test
+        @DisplayName("origination fees (product + disbursement charges) are deducted and deferred")
+        void disburseLoan_withFees_deductsAndDefers() {
+            activeLoan.setStatus(LoanStatus.APPROVED);
+            loanProduct.setOriginationFee(new BigDecimal("150.00"));
+            LoanCharge processing = new LoanCharge();
+            processing.setName("Processing");
+            processing.setChargeTimeType(com.cba.charge.ChargeDefinition.ChargeTimeType.DISBURSEMENT);
+            processing.setAmount(new BigDecimal("50.00"));
+            processing.setAmountOutstanding(new BigDecimal("50.00"));
+            when(loanRepository.findById(loanId)).thenReturn(Optional.of(activeLoan));
+            when(loanChargeRepository.findByLoanIdOrderByCreatedAtAsc(loanId)).thenReturn(List.of(processing));
+            when(scheduleEngine.generateAnnuitySchedule(any(), any(), any(), anyInt(), any()))
+                .thenReturn(new ArrayList<>(List.of(
+                    installment(1, LocalDate.now().plusMonths(1), "5000.00", "100.00"),
+                    installment(2, LocalDate.now().plusMonths(2), "5000.00", "50.00"))));
+            when(loanRepository.save(any())).thenReturn(activeLoan);
+
+            loanService.disburseLoan(loanId);
+
+            verify(loanGlPosting).postDisbursement(activeLoan, new BigDecimal("10000.00"), new BigDecimal("200.00"),
+                LocalDate.now());
+            assertThat(activeLoan.getDeferredFee()).isEqualByComparingTo("200.00");
+            assertThat(activeLoan.getDeferredFeeRemaining()).isEqualByComparingTo("200.00");
+            assertThat(processing.isPaid()).isTrue();
+            // The fee is spread over the periods by the effective interest method, summing exactly.
+            assertThat(activeLoan.getRepaymentSchedule().stream().map(LoanRepaymentSchedule::getFeeAmortisation)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)).isEqualByComparingTo("200.00");
+            verify(loanChargeRepository, times(2)).save(any(LoanCharge.class)); // processing + product fee record
+        }
+
+        @Test
+        @DisplayName("fees at least the principal are rejected before any money moves")
+        void disburseLoan_feeTooLarge_rejected() {
+            activeLoan.setStatus(LoanStatus.APPROVED);
+            loanProduct.setOriginationFee(new BigDecimal("10000.00"));
+            when(loanRepository.findById(loanId)).thenReturn(Optional.of(activeLoan));
+
+            assertThatThrownBy(() -> loanService.disburseLoan(loanId))
+                .isInstanceOf(CbaException.class).hasMessageContaining("not less than");
+            verifyNoInteractions(loanGlPosting);
         }
 
         @Test
@@ -275,7 +320,7 @@ class LoanServiceTest {
             activeAccount.setStatus(AccountStatus.DORMANT);
 
             when(loanRepository.findById(loanId)).thenReturn(Optional.of(activeLoan));
-            when(loanGlPosting.postDisbursement(any(), any(), any()))
+            when(loanGlPosting.postDisbursement(any(), any(), any(), any()))
                 .thenThrow(CbaException.badRequest("ACCOUNT_NOT_ACTIVE", "dormant"));
 
             assertThatThrownBy(() -> loanService.disburseLoan(loanId))
@@ -501,9 +546,12 @@ class LoanServiceTest {
             loanService.forecloseLoan(loanId, new ForecloseRequest(LocalDate.now(), "early settlement"));
 
             verify(loanGlPosting).postRepayment(eq(activeLoan), any(),
-                    eq(new LoanGlPosting.Allocation(new BigDecimal("1700.00"), new BigDecimal("100.00"),
+                    // Interest: 100.00 overdue + 5 of 30 days of the current period's 50.00 (earned, accrued).
+                    eq(new LoanGlPosting.Allocation(new BigDecimal("1700.00"), new BigDecimal("108.3333"),
                             new BigDecimal("20.00"))),
                     eq(LocalDate.now()), eq("FCLS"), anyString());
+            verify(loanAccrualService).accrueThrough(activeLoan, LocalDate.now());
+            verify(loanAccrualService).closeOut(activeLoan, LocalDate.now());
             assertThat(activeLoan.getStatus()).isEqualTo(LoanStatus.FORECLOSED);
             assertThat(activeLoan.getOutstandingBalance()).isEqualByComparingTo(BigDecimal.ZERO);
             // Interest on the instalment not yet due is cancelled, never collected.

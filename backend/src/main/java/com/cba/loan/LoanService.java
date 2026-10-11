@@ -3,6 +3,7 @@ package com.cba.loan;
 import com.cba.account.Account;
 import com.cba.account.AccountRepository;
 import com.cba.audit.AuditLogService;
+import com.cba.charge.ChargeDefinition;
 import com.cba.charge.LoanCharge;
 import com.cba.charge.LoanChargeRepository;
 import com.cba.common.exception.CbaException;
@@ -48,6 +49,7 @@ public class LoanService {
     private final ApplicationEventPublisher eventPublisher;
     private final LoanGlPosting loanGlPosting;
     private final LoanChargeRepository loanChargeRepository;
+    private final LoanAccrualService loanAccrualService;
 
     private static final String LOAN_TYPE = "LN";
 
@@ -118,19 +120,44 @@ public class LoanService {
             throw CbaException.badRequest("INVALID_LOAN_STATE", "Loan must be APPROVED before disbursement");
         }
 
-        // Credits the linked account (lock, status check, transaction record) and posts
-        // DR loan portfolio / CR savings control in this transaction.
         BigDecimal amount = loan.getApprovedAmount();
-        loanGlPosting.postDisbursement(loan, amount, LocalDate.now());
+        LocalDate today = LocalDate.now();
 
-        // Build repayment schedule
-        LocalDate firstDueDate = LocalDate.now().plusMonths(1);
+        // Origination fees: the product's fee plus disbursement charges added to the loan.
+        // Deducted from the proceeds and deferred (IFRS 9 B5.4.2).
+        List<LoanCharge> feeCharges = loanChargeRepository.findByLoanIdOrderByCreatedAtAsc(id).stream()
+            .filter(c -> c.getChargeTimeType() == ChargeDefinition.ChargeTimeType.DISBURSEMENT
+                && !c.isPaid() && !c.isWaived())
+            .toList();
+        BigDecimal productFee = loan.getProduct().getOriginationFee() != null
+            ? loan.getProduct().getOriginationFee() : BigDecimal.ZERO;
+        BigDecimal fee = feeCharges.stream().map(LoanCharge::getAmountOutstanding)
+            .reduce(productFee, BigDecimal::add);
+        if (fee.compareTo(amount) >= 0) {
+            throw CbaException.badRequest("ORIGINATION_FEE_EXCEEDS_PRINCIPAL",
+                "Origination fees " + fee + " are not less than the amount lent " + amount);
+        }
+
+        // Credits the linked account with amount − fee (lock, status check, transaction
+        // record) and posts DR portfolio / CR savings control / CR deferred loan fees.
+        loanGlPosting.postDisbursement(loan, amount, fee, today);
+        settleOriginationFees(loan, feeCharges, productFee);
+
+        // Build repayment schedule; each period carries its effective-interest share of the fee.
+        LocalDate firstDueDate = today.plusMonths(1);
         List<LoanRepaymentSchedule> schedule = scheduleEngine.generateAnnuitySchedule(
             loan, amount, loan.getInterestRate(), loan.getTermMonths(), firstDueDate);
+        List<BigDecimal> feeShares = EffectiveInterest.feeAmortisation(amount, fee, today, schedule);
+        for (int k = 0; k < schedule.size(); k++) {
+            schedule.get(k).setFeeAmortisation(feeShares.get(k));
+        }
 
         loan.setStatus(LoanStatus.ACTIVE);
         loan.setOutstandingBalance(amount);
-        loan.setDisbursementDate(LocalDate.now());
+        loan.setDisbursementDate(today);
+        loan.setInterestAccruedThrough(today);
+        loan.setDeferredFee(fee);
+        loan.setDeferredFeeRemaining(fee);
         loan.setMaturityDate(firstDueDate.plusMonths(loan.getTermMonths() - 1L));
         loan.getRepaymentSchedule().clear();
         loan.getRepaymentSchedule().addAll(schedule);
@@ -186,14 +213,19 @@ public class LoanService {
                     "Repayment " + payment + " exceeds the " + owed + " still owed on the schedule");
         }
 
+        // Income up to the payment date first, so the receivable (and any suspense) is current.
+        loanAccrualService.accrueThrough(loan, date);
+
         LoanGlPosting.Allocation allocation = allocate(loan, payment, date);
         loanGlPosting.postRepayment(loan, source, allocation, date, "RPMT",
                 "Loan repayment " + loan.getLoanAccountNumber());
+        releaseSuspense(loan, allocation.interest(), date);
 
         loan.setOutstandingBalance(loan.getOutstandingBalance().subtract(allocation.principal()));
         if (loan.getOutstandingBalance().signum() <= 0) {
             loan.setOutstandingBalance(BigDecimal.ZERO);
             loan.setStatus(LoanStatus.CLOSED_OBLIGATIONS_MET);
+            loanAccrualService.closeOut(loan, date);
         }
 
         Loan saved = loanRepository.save(loan);
@@ -246,10 +278,23 @@ public class LoanService {
         return quote(loan, date != null ? date : LocalDate.now());
     }
 
+    /**
+     * Interest and scheduled fees due by {@code date}, plus the interest earned so far in
+     * the current period (already accrued as income) — but not interest of later days.
+     */
     private ForeclosureQuote quote(Loan loan, LocalDate date) {
         BigDecimal interest = BigDecimal.ZERO, fees = BigDecimal.ZERO;
+        LocalDate periodStart = loan.getDisbursementDate();
         for (LoanRepaymentSchedule i : loan.getRepaymentSchedule()) {
-            if (i.getStatus() == LoanRepaymentSchedule.InstallmentStatus.PAID || i.getDueDate().isAfter(date)) continue;
+            LocalDate start = periodStart;
+            periodStart = i.getDueDate();
+            if (i.getStatus() == LoanRepaymentSchedule.InstallmentStatus.PAID) continue;
+            if (i.getDueDate().isAfter(date)) {
+                BigDecimal earned = start == null ? BigDecimal.ZERO
+                    : LoanAccrualService.accruedBy(i.getInterestDue(), start, i.getDueDate(), date);
+                interest = interest.add(earned.subtract(i.getInterestPaid()).max(BigDecimal.ZERO));
+                continue;
+            }
             interest = interest.add(unpaidInterest(i));
             fees = fees.add(unpaidFees(i));
         }
@@ -359,22 +404,28 @@ public class LoanService {
         LocalDate date = paymentDate(loan, request.foreclosureDate());
         LoanPaymentSource source = LoanPaymentSource.of(
                 request.paymentMethod(), request.sourceAccountId(), request.tellerSessionId());
+        // Income up to the foreclosure date first: the quote collects interest earned so far.
+        loanAccrualService.accrueThrough(loan, date);
         ForeclosureQuote q = quote(loan, date);
 
         // The borrower pays the quote; it clears the portfolio, the receivables for
-        // interest and fees already due, and recognised charges.
+        // interest (due and accrued) and fees already due, and recognised charges.
         loanGlPosting.postRepayment(loan, source,
                 new LoanGlPosting.Allocation(q.principal(), q.interest(), q.fees().add(q.charges())),
                 date, "FCLS", "Loan foreclosure " + loan.getLoanAccountNumber());
+        releaseSuspense(loan, q.interest(), date);
 
         // Instalments due by the date are paid in full. Later ones keep their principal
-        // (paid now) but lose their interest and fees: not yet earned, never recognised.
+        // (paid now) and the interest earned to date; the rest of their interest and their
+        // fees are cancelled: not yet earned, never recognised.
         BigDecimal cancelledInterest = BigDecimal.ZERO;
         for (LoanRepaymentSchedule i : loan.getRepaymentSchedule()) {
             if (i.getStatus() == LoanRepaymentSchedule.InstallmentStatus.PAID) continue;
             if (i.getDueDate().isAfter(date)) {
-                cancelledInterest = cancelledInterest.add(unpaidInterest(i));
-                i.setInterestDue(i.getInterestPaid());
+                BigDecimal kept = i.getInterestAccrued().max(i.getInterestPaid());
+                cancelledInterest = cancelledInterest.add(i.getInterestDue().subtract(kept).max(BigDecimal.ZERO));
+                i.setInterestDue(kept);
+                i.setInterestPaid(kept);
                 i.setFeesDue(i.getFeesPaid());
                 i.setTotalDue(i.getPrincipalDue().add(i.getInterestDue()).add(i.getFeesDue()));
             } else {
@@ -398,6 +449,9 @@ public class LoanService {
             loanChargeRepository.save(c);
         }
 
+        // Settled: the origination fee still deferred is income now.
+        loanAccrualService.closeOut(loan, date);
+
         LoanStatus old = loan.getStatus();
         loan.setStatus(LoanStatus.FORECLOSED);
         loan.setOutstandingBalance(BigDecimal.ZERO);
@@ -408,6 +462,43 @@ public class LoanService {
                 "cancelledFutureInterest", cancelledInterest, "reason", request.reason()));
         log.info("Loan foreclosed: {} — paid {}", saved.getLoanAccountNumber(), q.total());
         return toResponse(saved);
+    }
+
+    /**
+     * Interest received on a non-performing loan comes out of suspense into income: cash
+     * basis (CBN). Up to what suspense holds; the rest was income already.
+     */
+    private void releaseSuspense(Loan loan, BigDecimal interestReceived, LocalDate date) {
+        BigDecimal release = interestReceived.min(loan.getInterestInSuspense());
+        if (release.signum() <= 0) return;
+        loanGlPosting.postInterestSuspenseRelease(loan, release, date);
+        loan.setInterestInSuspense(loan.getInterestInSuspense().subtract(release));
+    }
+
+    /**
+     * Marks the disbursement charges paid (deducted from the proceeds) and records the
+     * product's origination fee as a paid charge, so the charges tab shows what was taken.
+     */
+    private void settleOriginationFees(Loan loan, List<LoanCharge> feeCharges, BigDecimal productFee) {
+        for (LoanCharge c : feeCharges) {
+            c.setAmountPaid(c.getAmountPaid().add(c.getAmountOutstanding()));
+            c.setAmountOutstanding(BigDecimal.ZERO);
+            c.setPaid(true);
+            loanChargeRepository.save(c);
+        }
+        if (productFee.signum() > 0) {
+            LoanCharge c = new LoanCharge();
+            c.setLoan(loan);
+            c.setName("Origination fee");
+            c.setCurrencyCode(LoanGlPosting.currency(loan));
+            c.setChargeTimeType(ChargeDefinition.ChargeTimeType.DISBURSEMENT);
+            c.setChargeCalculation(ChargeDefinition.ChargeCalculation.FLAT);
+            c.setAmount(productFee);
+            c.setAmountPaid(productFee);
+            c.setAmountOutstanding(BigDecimal.ZERO);
+            c.setPaid(true);
+            loanChargeRepository.save(c);
+        }
     }
 
     // ── Schedule helpers ─────────────────────────────────────────────────────
@@ -492,7 +583,8 @@ public class LoanService {
             l.getPrincipalAmount(), l.getApprovedAmount(), l.getOutstandingBalance(),
             l.getInterestRate(), l.getTermMonths(), l.getStatus(),
             l.getApplicationDate(), l.getApprovalDate(),
-            l.getDisbursementDate(), l.getMaturityDate()
+            l.getDisbursementDate(), l.getMaturityDate(),
+            l.getDaysPastDue(), l.isNonPerforming(), l.getInterestInSuspense(), l.getDeferredFeeRemaining()
         );
     }
 

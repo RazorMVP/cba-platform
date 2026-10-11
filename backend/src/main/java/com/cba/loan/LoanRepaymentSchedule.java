@@ -58,6 +58,17 @@ public class LoanRepaymentSchedule {
     @Column(name = "total_paid", nullable = false, precision = 19, scale = 4)
     private BigDecimal totalPaid = BigDecimal.ZERO;
 
+    /** Interest of this instalment accrued so far (reaches interestDue on the due date). */
+    @Column(name = "interest_accrued", nullable = false, precision = 19, scale = 4)
+    private BigDecimal interestAccrued = BigDecimal.ZERO;
+
+    /** This instalment period's share of the origination fee (effective interest method), and how much is released. */
+    @Column(name = "fee_amortisation", nullable = false, precision = 19, scale = 4)
+    private BigDecimal feeAmortisation = BigDecimal.ZERO;
+
+    @Column(name = "fee_amortised", nullable = false, precision = 19, scale = 4)
+    private BigDecimal feeAmortised = BigDecimal.ZERO;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private InstallmentStatus status = InstallmentStatus.PENDING;

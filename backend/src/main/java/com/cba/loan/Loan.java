@@ -87,6 +87,35 @@ public class Loan extends AuditableEntity {
     @Column(name = "write_off_reason", columnDefinition = "TEXT")
     private String writeOffReason;
 
+    /** Last day interest (and fee amortisation) was accrued for; null = never. */
+    @Column(name = "interest_accrued_through")
+    private LocalDate interestAccruedThrough;
+
+    /** Days since the oldest unpaid instalment fell due (0 when nothing is overdue). */
+    @Column(name = "days_past_due", nullable = false)
+    private int daysPastDue;
+
+    @Column(name = "overdue_since")
+    private LocalDate overdueSince;
+
+    /** 90+ days past due: accruals and penalties go to suspense, not income (CBN). */
+    @Column(name = "non_performing", nullable = false)
+    private boolean nonPerforming;
+
+    @Column(name = "non_performing_since")
+    private LocalDate nonPerformingSince;
+
+    /** Interest held in suspense: accrued, unpaid, not income until received. */
+    @Column(name = "interest_in_suspense", nullable = false, precision = 19, scale = 4)
+    private BigDecimal interestInSuspense = BigDecimal.ZERO;
+
+    /** Origination fees deducted at disbursement (IFRS 9 B5.4.2), and what is still deferred. */
+    @Column(name = "deferred_fee", nullable = false, precision = 19, scale = 4)
+    private BigDecimal deferredFee = BigDecimal.ZERO;
+
+    @Column(name = "deferred_fee_remaining", nullable = false, precision = 19, scale = 4)
+    private BigDecimal deferredFeeRemaining = BigDecimal.ZERO;
+
     @OneToMany(mappedBy = "loan", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("installmentNo ASC")
     private List<LoanRepaymentSchedule> repaymentSchedule = new ArrayList<>();

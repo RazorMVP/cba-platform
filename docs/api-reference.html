@@ -1157,6 +1157,9 @@ Where:
   </summary>
   <div class="endpoint-body">
     <p>Returns all installments with due dates, principal, interest, fees, and current status (PENDING / PAID / OVERDUE).</p>
+    <p><strong>Access:</strong> ADMIN and TELLER see any loan. A CUSTOMER sees only a loan they borrowed — the loan's customer must have
+    the caller's Keycloak subject — and gets <code>404 LOAN_NOT_FOUND</code> for any other, so loan ids can't be probed.
+    <code>GET /api/v1/loans/{id}</code> follows the same rule (and gives a customer the redacted view described above).</p>
   </div>
 </details>
 
@@ -3192,7 +3195,7 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <tr><td>GET</td><td>/api/v1/transactions</td><td>All transactions paginated — dashboard recent activity</td><td>ADMIN, TELLER</td></tr>
 <!-- Loans -->
 <tr><td>GET</td><td>/api/v1/loans</td><td>List loans</td><td>ADMIN, TELLER</td></tr>
-<tr><td>GET</td><td>/api/v1/loans/{id}</td><td>Get loan</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/loans/{id}</td><td>Get loan (a customer: own loans only, redacted; 404 otherwise)</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
 <tr><td>POST</td><td>/api/v1/loans</td><td>Apply for loan</td><td>ADMIN, TELLER</td></tr>
 <tr><td>PUT</td><td>/api/v1/loans/{id}/approve</td><td>Approve loan</td><td>ADMIN</td></tr>
 <tr><td>PUT</td><td>/api/v1/loans/{id}/disburse</td><td>Disburse loan (DR 1100 / CR 2001)</td><td>ADMIN, TELLER</td></tr>
@@ -3204,7 +3207,7 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <tr><td>POST</td><td>/api/v1/loans/{id}/undo-write-off</td><td>Undo write-off: reversing journal on the write-off date (not after recoveries)</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/loans/{id}/waive-interest</td><td>Waive outstanding interest on all pending installments</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/loans/{id}/foreclose</td><td>Settle early for the foreclosure quote (ACCOUNT or CASH) — terminal FORECLOSED state</td><td>ADMIN</td></tr>
-<tr><td>GET</td><td>/api/v1/loans/{id}/repayment-schedule</td><td>Repayment schedule</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/loans/{id}/repayment-schedule</td><td>Repayment schedule (a customer: own loans only; 404 otherwise)</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
 <tr><td>POST</td><td>/api/v1/loans/{id}/repayments</td><td>Make repayment from the linked account or teller cash (posts to GL)</td><td>ADMIN, TELLER</td></tr>
 <!-- Loan Charges -->
 <tr><td>GET</td><td>/api/v1/charges</td><td>List charge definitions</td><td>ADMIN</td></tr>

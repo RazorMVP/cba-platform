@@ -1979,7 +1979,7 @@
                 "{{loanId}}"
               ]
             },
-            "description": "Retrieve loan details including current status, outstanding balance, and next payment date."
+            "description": "Retrieve loan details including current status, outstanding balance, and next payment date. Access: ADMIN and TELLER see any loan; a CUSTOMER only a loan they borrowed (the loan's customer has the caller's Keycloak subject), else 404 LOAN_NOT_FOUND."
           },
           "x-code-samples": [
             {
@@ -2234,7 +2234,7 @@
                 "repayment-schedule"
               ]
             },
-            "description": "Retrieve the full repayment schedule showing all installments: due dates, principal, interest, fees, and status."
+            "description": "Retrieve the full repayment schedule showing all installments: due dates, principal, interest, fees, and status. Access: ADMIN and TELLER see any loan; a CUSTOMER only a loan they borrowed (the loan's customer has the caller's Keycloak subject), else 404 LOAN_NOT_FOUND."
           },
           "x-code-samples": [
             {

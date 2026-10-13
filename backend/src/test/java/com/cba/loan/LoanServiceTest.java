@@ -669,6 +669,23 @@ class LoanServiceTest {
     }
 
     @Test
+    @DisplayName("ownership: only the borrower's own Keycloak subject passes; anything else is 404")
+    void requireOwnedBy() {
+        activeCustomer.setKeycloakId("kc-owner");
+        when(loanRepository.findById(loanId)).thenReturn(Optional.of(activeLoan));
+
+        assertThatCode(() -> loanService.requireOwnedBy(loanId, "kc-owner")).doesNotThrowAnyException();
+        assertThatThrownBy(() -> loanService.requireOwnedBy(loanId, "kc-someone-else"))
+            .isInstanceOf(CbaException.class).hasMessageContaining("not found");
+        assertThatThrownBy(() -> loanService.requireOwnedBy(loanId, null))
+            .isInstanceOf(CbaException.class).hasMessageContaining("not found");
+
+        activeCustomer.setKeycloakId(null); // a borrower with no login owns nothing a caller can claim
+        assertThatThrownBy(() -> loanService.requireOwnedBy(loanId, "kc-owner"))
+            .isInstanceOf(CbaException.class);
+    }
+
+    @Test
     @DisplayName("customer view drops the bank's internal credit-risk and write-off approval figures")
     void forCustomer_redactsInternalFields() {
         writtenOff();

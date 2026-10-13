@@ -57,6 +57,28 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 27) — 2026-10-13
+**Loan ownership: a CUSTOMER can read only their own loan and schedule (`GET /api/v1/loans/{id}`, `/repayment-schedule`); any other loan is 404. Stacked on PR 2c (#145).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `loan/LoanService.java` | `requireOwnedBy(loanId, keycloakSubject)`: the borrower's `keycloakId` must equal the caller's JWT subject; mismatch, no subject or a borrower with no login → `404 LOAN_NOT_FOUND` (no 403, so ids can't be probed — same rule as self-service) |
+| `loan/LoanController.java` | Both customer-reachable GETs call it for any caller without ADMIN/TELLER; `@Operation` descriptions say so |
+| `test/.../LoanControllerTest.java` | NEW (4): other customer's loan → 404 and no data read; own loan → redacted view; staff skip the check; non-JWT customer → treated as not the owner |
+| `test/.../LoanServiceTest.java` | `requireOwnedBy` cases |
+| `docs/api-reference.html`, Postman, `docs-site/static/*`, `backend/docs/openapi-snapshot.yaml` | Access rule; matrix rows now list CUSTOMER |
+
+#### Found by the audit, not fixed here (needs its own PR — see below)
+A read-only audit of every other endpoint open to CUSTOMER (outside self-service and open banking) found **no ownership check anywhere else**:
+- **Live today (GET/DELETE):** `GET /customers/{id}` (PII), `GET /clients/{id}/images[/data]` (KYC photo), `GET /accounts/{id}`, `/transactions`, `/statement`, `/template`, `GET /payments/{id}`, `GET /payments/accounts/{accountId}`, `GET/DELETE /clients/{id}/beneficiaries[/{id}]`, the global in-app notification inbox, and (`isAuthenticated()`) the fixed/recurring deposit and share account GETs.
+- **Latent (POST/PUT, blocked today only by SecurityConfig's URL rule that limits non-GET `/api/v1/**` to ADMIN/TELLER):** `POST /payments/transfer` and `POST /payments/qr/decode-and-pay` (debit any account), beneficiary create/update, deposit/share applications for any customer, survey scorecards, `POST /twofactor/verify` (consumes any user's OTP by token alone).
+- **To verify:** `SecurityConfig` sets `JwtGrantedAuthoritiesConverter.setAuthoritiesClaimName("realm_access.roles")`; Spring reads that as one top-level claim name, so real Keycloak tokens may yield no `ROLE_*` at all (roles would work only through the dev auth bypass).
+
+#### Build Verification
+- `LoanControllerTest` 4/4, `LoanServiceTest` 40/40. OpenAPI snapshot regenerated (descriptions).
+- Gate grep: no mapping/param change; behaviour change (customer access rule) documented in api-reference, Postman and the snapshot.
+
 ### Session 125 (cont. 26) — 2026-10-13
 **GL posting PR 2c: IFRS 9 loss allowance on every open loan, write-off against the allowance (with the CBN approval and one-year rules), recoveries, undo by reversing journal, and the CBN regulatory risk reserve. Loan write-off had posted nothing to the GL until now.**
 

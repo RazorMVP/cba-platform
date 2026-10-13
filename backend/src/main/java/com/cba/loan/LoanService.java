@@ -177,6 +177,21 @@ public class LoanService {
         return toResponse(saved);
     }
 
+    /**
+     * A customer may only see their own loans: the loan's borrower must be the customer
+     * whose Keycloak subject is {@code keycloakSubject}. Anything else — another
+     * customer's loan, no subject, a borrower with no login — is 404, not 403, so loan
+     * ids can't be probed (same rule as self-service).
+     */
+    @Transactional(readOnly = true)
+    public void requireOwnedBy(UUID loanId, String keycloakSubject) {
+        Loan loan = findById(loanId);
+        String owner = loan.getCustomer().getKeycloakId();
+        if (keycloakSubject == null || owner == null || !owner.equals(keycloakSubject)) {
+            throw CbaException.notFound("Loan", loanId);
+        }
+    }
+
     @Transactional(readOnly = true)
     public LoanResponse getLoan(UUID id) {
         return toResponse(findById(id));

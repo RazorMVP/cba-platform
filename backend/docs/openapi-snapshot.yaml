@@ -16734,6 +16734,8 @@ paths:
       - "Loans"
   /api/v1/loans/{id}:
     get:
+      description: "Staff see any loan. A CUSTOMER sees only their own (404 otherwise),\
+        \ without the bank's internal credit-risk figures."
       operationId: "getLoan"
       parameters:
       - in: "path"
@@ -16894,6 +16896,8 @@ paths:
       - "Loans"
   /api/v1/loans/{id}/repayment-schedule:
     get:
+      description: "Staff see any loan's schedule. A CUSTOMER sees only their own\
+        \ loan's (404 otherwise)."
       operationId: "getRepaymentSchedule"
       parameters:
       - in: "path"

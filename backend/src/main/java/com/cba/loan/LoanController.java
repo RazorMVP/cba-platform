@@ -53,10 +53,25 @@ public class LoanController {
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'TELLER', 'CUSTOMER')")
-    @Operation(summary = "Get loan details")
+    @Operation(summary = "Get loan details",
+               description = "Staff see any loan. A CUSTOMER sees only their own (404 otherwise), without the bank's internal credit-risk figures.")
     public ResponseEntity<ApiResponse<LoanResponse>> getLoan(@PathVariable UUID id) {
+        requireAccess(id);
         LoanResponse loan = loanService.getLoan(id);
         return ResponseEntity.ok(ApiResponse.ok(isStaff() ? loan : loan.forCustomer()));
+    }
+
+    /** Staff see every loan; a customer only their own (404 otherwise). */
+    private void requireAccess(UUID loanId) {
+        if (!isStaff()) {
+            loanService.requireOwnedBy(loanId, callerSubject());
+        }
+    }
+
+    /** The caller's Keycloak subject, or null when the caller is not a JWT-authenticated user. */
+    private static String callerSubject() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.getPrincipal() instanceof Jwt jwt ? jwt.getSubject() : null;
     }
 
     /** ADMIN or TELLER: sees the bank's internal credit-risk figures; a customer does not. */
@@ -118,9 +133,11 @@ public class LoanController {
 
     @GetMapping("/{id}/repayment-schedule")
     @PreAuthorize("hasAnyRole('ADMIN', 'TELLER', 'CUSTOMER')")
-    @Operation(summary = "Get the full amortization / repayment schedule")
+    @Operation(summary = "Get the full amortization / repayment schedule",
+               description = "Staff see any loan's schedule. A CUSTOMER sees only their own loan's (404 otherwise).")
     public ResponseEntity<ApiResponse<List<RepaymentScheduleResponse>>> getRepaymentSchedule(
             @PathVariable UUID id) {
+        requireAccess(id);
         return ResponseEntity.ok(ApiResponse.ok(loanService.getRepaymentSchedule(id)));
     }
 

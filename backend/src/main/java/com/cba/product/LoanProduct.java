@@ -142,6 +142,12 @@ public class LoanProduct extends AuditableEntity {
     @Column(name = "late_payment_fee", nullable = false, precision = 19, scale = 4)
     private BigDecimal latePaymentFee = BigDecimal.ZERO;
 
+    // ── Credit risk ──────────────────────────────────────────────────
+
+    /** Loss given default, % of exposure (IFRS 9 ECL = EAD × PD × LGD). Risk-team value. */
+    @Column(name = "lgd_percentage", nullable = false, precision = 5, scale = 2)
+    private BigDecimal lgdPercentage = new BigDecimal("45.00");
+
     // ── Attribute overrides ──────────────────────────────────────────
 
     @Embedded

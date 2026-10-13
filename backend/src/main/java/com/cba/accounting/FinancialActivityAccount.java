@@ -32,6 +32,9 @@ public class FinancialActivityAccount {
         INCOME_FEES,
         /** Penalties charged on loans: income when charged. */
         INCOME_PENALTIES,
+        /** Contra-asset: IFRS 9 expected credit losses on loans (credit balance). */
+        ASSET_LOAN_LOSS_ALLOWANCE,
+        /** Impairment gains and losses on loans, incl. recoveries of amounts written off (IFRS 9 §5.5.8). */
         EXPENSE_LOAN_LOSS_PROVISION,
         EXPENSE_WRITE_OFF,
         /** Debit side of interest credited to savings; credit side is LIABILITY_SAVINGS_CONTROL. */
@@ -50,7 +53,11 @@ public class FinancialActivityAccount {
          * Offset of the opening-balance journal and of the legacy trial balance loaded
          * against it. Must be zero in every currency once migration is complete.
          */
-        EQUITY_MIGRATION_CLEARING
+        EQUITY_MIGRATION_CLEARING,
+        /** Retained earnings (general reserve): the source of regulatory risk reserve transfers. */
+        EQUITY_RETAINED_EARNINGS,
+        /** Non-distributable: CBN prudential provisions in excess of the IFRS 9 allowance. */
+        EQUITY_REGULATORY_RISK_RESERVE
     }
 
     @Id

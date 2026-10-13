@@ -28,6 +28,12 @@ public interface LoanRepository extends JpaRepository<Loan, UUID> {
            "WHERE s.loan = l AND s.dueDate < :today AND s.status = 'PENDING')")
     List<Loan> findLoansWithOverdueInstallments(LocalDate today);
 
+    /** Per currency and IFRS 9 stage: [currency, stage, loans, principal, loss allowance, prudential provision]. */
+    @Query("SELECT l.product.currencyCode, l.eclStage, COUNT(l), SUM(l.outstandingBalance), " +
+           "SUM(l.lossAllowance), SUM(l.prudentialProvision) FROM Loan l WHERE l.status IN :statuses " +
+           "GROUP BY l.product.currencyCode, l.eclStage ORDER BY l.product.currencyCode, l.eclStage")
+    List<Object[]> provisionTotals(java.util.Collection<LoanStatus> statuses);
+
     long countByStatus(LoanStatus status);
 
     @Query("SELECT COUNT(DISTINCT s.loan.id) FROM LoanRepaymentSchedule s " +

@@ -12,6 +12,7 @@ import com.cba.accounting.GlAccountRepository;
 import com.cba.accounting.GlAccountingService;
 import com.cba.accounting.GlAccountingService.JournalLine;
 import com.cba.accounting.JournalEntry;
+import com.cba.accounting.JournalEntryRepository;
 import com.cba.charge.LoanCharge;
 import com.cba.common.exception.CbaException;
 import com.cba.product.LoanProduct;
@@ -47,6 +48,7 @@ public class LoanGlPosting {
     private final AccountRepository accountRepository;
     private final TellerService tellerService;
     private final GlAccountRepository glAccountRepository;
+    private final JournalEntryRepository journalEntryRepository;
 
     /** How a loan payment is split; each part clears its own asset account. */
     public record Allocation(BigDecimal principal, BigDecimal interest, BigDecimal fees) {
@@ -234,6 +236,103 @@ public class LoanGlPosting {
                 + loan.getLoanAccountNumber(), JournalEntry.EntityType.LOAN, loan.getId(), reference("CHGW", loan));
     }
 
+    // ── Impairment, write-off, recovery (IFRS 9 §5.5, §5.4.4) ────────────────
+
+    /** The balances a write-off derecognises; interest is signed (negative when paid ahead). */
+    public record WriteOffAmounts(BigDecimal principal, BigDecimal interest, BigDecimal fees,
+                                  BigDecimal deferredFee, BigDecimal suspense, BigDecimal allowance) {
+        /** Gross carrying amount: what the loan is carried at before the allowance. */
+        public BigDecimal gross() {
+            return principal.add(interest).add(fees).subtract(deferredFee).subtract(suspense);
+        }
+    }
+
+    /**
+     * Moves the loss allowance by {@code change} (IFRS 9 §5.5.8). An increase is an
+     * impairment loss: DR credit impairment charge / CR loan loss allowance; a decrease
+     * an impairment gain: DR allowance / CR impairment charge. Returns null for no change.
+     */
+    public String postImpairment(Loan loan, BigDecimal change, LocalDate date) {
+        if (change.signum() == 0) return null;
+        String ccy = currency(loan);
+        List<JournalLine> lines = new ArrayList<>();
+        GlAccount allowance = gl.activityAccount(FinancialActivity.ASSET_LOAN_LOSS_ALLOWANCE);
+        if (change.signum() > 0) {
+            lines.add(JournalLine.credit(allowance, change, ccy));
+            accountGl.addProfitOrLoss(lines, impairmentCharge(), change, JournalEntry.EntryType.DEBIT, ccy);
+        } else {
+            lines.add(JournalLine.debit(allowance, change.negate(), ccy));
+            accountGl.addProfitOrLoss(lines, impairmentCharge(), change.negate(), JournalEntry.EntryType.CREDIT, ccy);
+        }
+        return gl.postJournal(lines, date, "Expected credit losses on loan " + loan.getLoanAccountNumber()
+                + (change.signum() > 0 ? ": allowance increased" : ": allowance released"),
+                JournalEntry.EntityType.LOAN, loan.getId(), reference("ECL", loan));
+    }
+
+    /**
+     * Writes the loan off: there is no reasonable expectation of recovering it, so its
+     * gross carrying amount is reduced to nil (IFRS 9 §5.4.4). CR portfolio, interest and
+     * fees receivable; DR deferred fees and suspense (never income); DR the allowance; the
+     * gross amount the allowance does not cover is an impairment loss (or, if the
+     * allowance exceeds it, a gain). Write-off account: the product's link, else the
+     * credit impairment charge.
+     */
+    public String postWriteOff(Loan loan, WriteOffAmounts a, LocalDate date) {
+        String ccy = currency(loan);
+        List<JournalLine> lines = new ArrayList<>();
+        addCredit(lines, portfolio(loan.getProduct()), a.principal(), ccy);
+        GlAccount interestReceivable = gl.activityAccount(FinancialActivity.ASSET_INTEREST_RECEIVABLE);
+        addCredit(lines, interestReceivable, a.interest(), ccy);
+        addDebit(lines, interestReceivable, a.interest().negate(), ccy);
+        addCredit(lines, gl.activityAccount(FinancialActivity.ASSET_FEES_RECEIVABLE), a.fees(), ccy);
+        addDebit(lines, gl.activityAccount(FinancialActivity.ASSET_DEFERRED_LOAN_FEES), a.deferredFee(), ccy);
+        addDebit(lines, suspense(), a.suspense(), ccy);
+        addDebit(lines, gl.activityAccount(FinancialActivity.ASSET_LOAN_LOSS_ALLOWANCE), a.allowance(), ccy);
+        BigDecimal uncovered = a.gross().subtract(a.allowance());
+        GlAccount writeOff = writeOffAccount(loan.getProduct());
+        if (uncovered.signum() > 0) {
+            accountGl.addProfitOrLoss(lines, writeOff, uncovered, JournalEntry.EntryType.DEBIT, ccy);
+        } else if (uncovered.signum() < 0) {
+            accountGl.addProfitOrLoss(lines, writeOff, uncovered.negate(), JournalEntry.EntryType.CREDIT, ccy);
+        }
+        if (lines.isEmpty()) return null;
+        return gl.postJournal(lines, date, "Loan " + loan.getLoanAccountNumber() + " written off",
+                JournalEntry.EntityType.LOAN, loan.getId(), reference("WOFF", loan));
+    }
+
+    /**
+     * Cash collected on a written-off loan: nothing is left on the books to clear, so it
+     * is an impairment gain (IFRS 9 §5.5.8). DR the money source / CR the write-off account.
+     */
+    public String postRecovery(Loan loan, LoanPaymentSource source, BigDecimal amount, LocalDate date) {
+        String ccy = currency(loan);
+        String reference = reference("RECV", loan);
+        String description = "Recovery on written-off loan " + loan.getLoanAccountNumber();
+        List<JournalLine> lines = collect(loan, source, amount, TransactionType.LOAN_REPAYMENT, description, reference);
+        accountGl.addProfitOrLoss(lines, writeOffAccount(loan.getProduct()), amount, JournalEntry.EntryType.CREDIT, ccy);
+        return gl.postJournal(lines, date, description, JournalEntry.EntityType.LOAN, loan.getId(), reference);
+    }
+
+    /**
+     * Undoes a write-off: every line of the write-off journal again with the sides
+     * swapped, in the same currencies (and FX position tags). Sub-ledger journals are
+     * reversed at their source, never in the GL.
+     */
+    public String postWriteOffReversal(Loan loan, String writeOffTransactionId, LocalDate date) {
+        List<JournalEntry> original = journalEntryRepository.findByTransactionIdOrderByIdAsc(writeOffTransactionId);
+        if (original.isEmpty()) {
+            throw CbaException.badRequest("WRITE_OFF_JOURNAL_NOT_FOUND",
+                    "The write-off journal " + writeOffTransactionId + " of loan " + loan.getLoanAccountNumber() + " was not found");
+        }
+        List<JournalLine> lines = original.stream()
+                .map(e -> new JournalLine(e.getGlAccount(),
+                        e.getEntryType() == JournalEntry.EntryType.DEBIT ? JournalEntry.EntryType.CREDIT : JournalEntry.EntryType.DEBIT,
+                        e.getAmount(), e.getCurrencyCode(), e.getPositionCurrency()))
+                .toList();
+        return gl.postJournal(new ArrayList<>(lines), date, "Write-off of loan " + loan.getLoanAccountNumber() + " undone",
+                JournalEntry.EntityType.LOAN, loan.getId(), reference("WOFFREV", loan));
+    }
+
     /** The loan's currency: its product's. */
     public static String currency(Loan loan) {
         return loan.getProduct().getCurrencyCode();
@@ -302,6 +401,14 @@ public class LoanGlPosting {
     private GlAccount interestIncome(LoanProduct p) {
         return p.getInterestOnLoanAccount() != null
                 ? p.getInterestOnLoanAccount() : gl.activityAccount(FinancialActivity.INCOME_INTEREST);
+    }
+
+    private GlAccount impairmentCharge() {
+        return gl.activityAccount(FinancialActivity.EXPENSE_LOAN_LOSS_PROVISION);
+    }
+
+    private GlAccount writeOffAccount(LoanProduct p) {
+        return p.getWriteOffAccount() != null ? p.getWriteOffAccount() : impairmentCharge();
     }
 
     private GlAccount suspense() {

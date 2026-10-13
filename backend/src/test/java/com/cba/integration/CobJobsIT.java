@@ -195,7 +195,7 @@ class CobJobsIT extends AbstractIntegrationTest {
     // ── Sequencing ────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("sequence: runs all four jobs in order, each starting after the previous one ended")
+    @DisplayName("sequence: runs every job in order, each starting after the previous one ended")
     void cobRunner_runsJobsInSequence() {
         // 2021-01-01: dormancy and standing orders match only this class's own old data,
         // and arrears puts the demo loan back to ACTIVE.
@@ -203,7 +203,8 @@ class CobJobsIT extends AbstractIntegrationTest {
 
         assertThat(executions).extracting(e -> e.getJobInstance().getJobName()).containsExactly(
                 "standingOrderExecutionJob", "dormancyClassificationJob",
-                "interestAccrualJob", "arrearsClassificationJob", "loanAccrualJob", "fxRevaluationJob");
+                "interestAccrualJob", "arrearsClassificationJob", "loanAccrualJob",
+                "loanImpairmentJob", "regulatoryRiskReserveJob", "fxRevaluationJob");
         assertThat(executions).allSatisfy(e -> assertThat(e.getStatus()).isEqualTo(BatchStatus.COMPLETED));
         for (int i = 1; i < executions.size(); i++) {
             assertThat(executions.get(i).getStartTime())
@@ -217,13 +218,14 @@ class CobJobsIT extends AbstractIntegrationTest {
     // ── CoB Scheduler screen API ──────────────────────────────────────────────
 
     @Test
-    @DisplayName("scheduler API: lists all four jobs with their schedule, in run order")
+    @DisplayName("scheduler API: lists every job with its schedule, in run order")
     void listJobs_returnsDefinitionsWithSchedule() {
         List<CobJobView> jobs = cobJobService.listJobs();
 
         assertThat(jobs).extracting(CobJobView::jobName).containsExactly(
                 "standingOrderExecutionJob", "dormancyClassificationJob",
-                "interestAccrualJob", "arrearsClassificationJob", "loanAccrualJob", "fxRevaluationJob");
+                "interestAccrualJob", "arrearsClassificationJob", "loanAccrualJob",
+                "loanImpairmentJob", "regulatoryRiskReserveJob", "fxRevaluationJob");
         assertThat(jobs).allSatisfy(job -> {
             assertThat(job.displayName()).isNotBlank();
             assertThat(job.cronExpression()).isNotBlank();

@@ -48,11 +48,21 @@ public class LoanAccrualService {
     public void runCloseOfBusiness(UUID loanId, LocalDate date) {
         Loan loan = loanRepository.findById(loanId).orElseThrow(() -> CbaException.notFound("Loan", loanId));
         if (loan.getStatus() != LoanStatus.ACTIVE && loan.getStatus() != LoanStatus.IN_ARREARS) return;
+        bringCurrent(loan, date);
+        loanRepository.save(loan);
+    }
+
+    /**
+     * Brings an open loan up to {@code date} in the caller's transaction: arrears,
+     * non-performing status, charges now due, accrual. The nightly run does this, and so
+     * does a write-off before it measures what to derecognise.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void bringCurrent(Loan loan, LocalDate date) {
         updateArrears(loan, date);
         classify(loan, date);
         recogniseDueCharges(loan, date);
         accrueThrough(loan, date);
-        loanRepository.save(loan);
     }
 
     // ── Arrears ──────────────────────────────────────────────────────────────

@@ -65,6 +65,9 @@ export interface LoanProduct {
   originationFee: number;
   latePaymentFee: number;
 
+  /** Loss given default, % (IFRS 9 ECL = exposure × PD × LGD). */
+  lgdPercentage?: number;
+
   // Overrides & accounting
   allowAttributeOverrides: AllowAttributeOverrides;
   fundSourceAccount?: GlAccountRef;
@@ -112,6 +115,7 @@ export interface LoanProductCreateRequest {
   inArrearsTolerance?: number;
   originationFee?: number;
   latePaymentFee?: number;
+  lgdPercentage?: number;
   allowAttributeOverrides?: Partial<AllowAttributeOverrides>;
   fundSourceAccountId?: string;
   loanPortfolioAccountId?: string;

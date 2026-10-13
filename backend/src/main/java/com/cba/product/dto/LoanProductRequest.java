@@ -100,7 +100,12 @@ public record LoanProductRequest(
         UUID overpaymentLiabilityAccountId,
 
         // ── Charges ──────────────────────────────────────────────────
-        List<UUID> chargeIds
+        List<UUID> chargeIds,
+
+        // ── Credit risk ──────────────────────────────────────────────
+        /** Loss given default, % (IFRS 9 ECL). Defaults to 45 when omitted. */
+        @DecimalMin("0.00") @DecimalMax("100.00")
+        BigDecimal lgdPercentage
 ) {
     public record AllowAttributeOverridesRequest(
             Boolean amortizationType,

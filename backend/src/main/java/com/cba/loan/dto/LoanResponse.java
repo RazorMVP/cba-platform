@@ -28,5 +28,18 @@ public record LoanResponse(
         boolean nonPerforming,
         BigDecimal interestInSuspense,
         /** Origination fee not yet released to interest income. */
-        BigDecimal deferredFeeRemaining
+        BigDecimal deferredFeeRemaining,
+        /** IFRS 9 stage at the last measurement (1, 2 or 3); null before the first. */
+        Integer eclStage,
+        /** Expected credit losses held against the loan. */
+        BigDecimal lossAllowance,
+        /** CBN prudential provision at the last measurement. */
+        BigDecimal prudentialProvision,
+        LocalDate writtenOffOn,
+        String writeOffReason,
+        String writeOffApprovalReference,
+        /** Gross carrying amount derecognised at write-off. */
+        BigDecimal writtenOffAmount,
+        /** Cash collected since the write-off. */
+        BigDecimal recoveredAmount
 ) {}

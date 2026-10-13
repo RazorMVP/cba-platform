@@ -36,7 +36,9 @@ public class CobController {
         description = "Runs the job synchronously for today's business date and returns the run, "
                     + "including status SUCCESS or FAILED. 404 for an unknown job; 409 if it is already running. "
                     + "Valid job names: standingOrderExecutionJob, dormancyClassificationJob, "
-                    + "interestAccrualJob, arrearsClassificationJob"
+                    + "interestAccrualJob, arrearsClassificationJob, loanAccrualJob, loanImpairmentJob, "
+                    + "regulatoryRiskReserveJob, fxRevaluationJob. A manual run of regulatoryRiskReserveJob "
+                    + "posts whatever the date; the nightly run posts only at month end."
     )
     public ResponseEntity<ApiResponse<CobRunView>> runJob(@PathVariable String jobName) {
         return ResponseEntity.ok(ApiResponse.ok(cobJobService.runNow(jobName)));

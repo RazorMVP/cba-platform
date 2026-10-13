@@ -70,7 +70,10 @@ public record LoanProductResponse(
         // Charges
         List<ChargeRef> charges,
 
-        boolean active
+        boolean active,
+
+        // Credit risk: loss given default, % (IFRS 9 ECL)
+        BigDecimal lgdPercentage
 ) {
     // ── Nested refs ──────────────────────────────────────────────────
 
@@ -140,7 +143,8 @@ public record LoanProductResponse(
                 GlAccountRef.of(p.getWriteOffAccount()),
                 GlAccountRef.of(p.getOverpaymentLiabilityAccount()),
                 p.getCharges().stream().map(ChargeRef::of).toList(),
-                p.isActive()
+                p.isActive(),
+                p.getLgdPercentage()
         );
     }
 }

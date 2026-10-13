@@ -2395,10 +2395,10 @@
                 "write-off"
               ]
             },
-            "description": "Write off an unrecoverable loan. This is a terminal state. The outstanding balance is moved to bad debt expense in the GL.",
+            "description": "Writes off a credit-impaired (IFRS 9 stage 3) loan against its loss allowance (IFRS 9 \u00a75.4.4). The loan is first brought current and its expected credit losses remeasured; then one journal (WOFF-) clears the portfolio, interest and fees receivable, deferred fees and suspense against the allowance, and the part the allowance does not cover is an impairment loss (product writeOffAccount, else the credit impairment charge 5004). approvalReference (board or delegated authority approval) is required: 400 WRITE_OFF_APPROVAL_REQUIRED. 400 WRITE_OFF_NOT_CREDIT_IMPAIRED below stage 3. While global configuration enforce-cbn-write-off-rules is on (default), the prudential provision must have covered the principal for a year: 400 WRITE_OFF_CBN_RULES_NOT_MET. Cash collected later through POST /loans/{id}/repayments is a recovery (impairment gain). Undo with POST /loans/{id}/undo-write-off until cash is recovered.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"writeOffDate\": \"2026-04-07\",\n  \"reason\": \"Unrecoverable \\u2014 customer insolvency declared\"\n}",
+              "raw": "{\n  \"writeOffDate\": \"2026-04-07\",\n  \"reason\": \"Unrecoverable \\u2014 customer insolvency declared\",\n  \"approvalReference\": \"BRD/2026/14\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2409,35 +2409,35 @@
           "x-code-samples": [
             {
               "lang": "cURL",
-              "source": "curl -X POST '{{base_url}}/api/v1/loans/{{loanId}}/write-off' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -d '{\n  \"writeOffDate\": \"2026-04-07\",\n  \"reason\": \"Unrecoverable \\u2014 customer insolvency declared\"\n}'"
+              "source": "curl -X POST '{{base_url}}/api/v1/loans/{{loanId}}/write-off' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -d '{\n  \"writeOffDate\": \"2026-04-07\",\n  \"reason\": \"Unrecoverable \\u2014 customer insolvency declared\", \"approvalReference\": \"BRD/2026/14\"\n}'"
             },
             {
               "lang": "JavaScript (fetch)",
-              "source": "fetch('{{base_url}}/api/v1/loans/{{loanId}}/write-off', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  },\n  body: JSON.stringify({\"writeOffDate\": \"2026-04-07\", \"reason\": \"Unrecoverable \\u2014 customer insolvency declared\"})\n}).then(r => r.json()).then(console.log);"
+              "source": "fetch('{{base_url}}/api/v1/loans/{{loanId}}/write-off', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  },\n  body: JSON.stringify({\"writeOffDate\": \"2026-04-07\", \"reason\": \"Unrecoverable \\u2014 customer insolvency declared\", \"approvalReference\": \"BRD/2026/14\"})\n}).then(r => r.json()).then(console.log);"
             },
             {
               "lang": "Python (requests)",
-              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/api/v1/loans/{{loanId}}/write-off',\n    headers={\n        'Authorization': 'Bearer {{access_token}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    },\n    json={\"writeOffDate\": \"2026-04-07\", \"reason\": \"Unrecoverable \\u2014 customer insolvency declared\"}\n)\nprint(response.json())"
+              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/api/v1/loans/{{loanId}}/write-off',\n    headers={\n        'Authorization': 'Bearer {{access_token}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    },\n    json={\"writeOffDate\": \"2026-04-07\", \"reason\": \"Unrecoverable \\u2014 customer insolvency declared\", \"approvalReference\": \"BRD/2026/14\"}\n)\nprint(response.json())"
             },
             {
               "lang": "Java (OkHttp)",
-              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/api/v1/loans/{{loanId}}/write-off\")\n    .post(RequestBody.create(\"{\\\"writeOffDate\\\": \\\"2026-04-07\\\", \\\"reason\\\": \\\"Unrecoverable \\\\u2014 customer insolvency declared\\\"}\", MediaType.parse(\"application/json\")))\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
+              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/api/v1/loans/{{loanId}}/write-off\")\n    .post(RequestBody.create(\"{\\\"writeOffDate\\\": \\\"2026-04-07\\\", \\\"reason\\\": \\\"Unrecoverable \\\\u2014 customer insolvency declared\\\", \\\"approvalReference\\\": \\\"BRD/2026/14\\\"}\", MediaType.parse(\"application/json\")))\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
             },
             {
               "lang": "C# (HttpClient)",
-              "source": "var client = new HttpClient();\nclient.DefaultRequestHeaders.Authorization =\n    new AuthenticationHeaderValue(\"Bearer\", \"{{access_token}}\");\nclient.DefaultRequestHeaders.Add(\"X-Tenant-ID\", \"{{tenant_id}}\");\nvar content = new StringContent(\"{\\\"writeOffDate\\\": \\\"2026-04-07\\\", \\\"reason\\\": \\\"Unrecoverable \\\\u2014 customer insolvency declared\\\"}\", Encoding.UTF8, \"application/json\");\nvar response = await client.PostAsync(\"{{base_url}}/api/v1/loans/{{loanId}}/write-off\", content);\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
+              "source": "var client = new HttpClient();\nclient.DefaultRequestHeaders.Authorization =\n    new AuthenticationHeaderValue(\"Bearer\", \"{{access_token}}\");\nclient.DefaultRequestHeaders.Add(\"X-Tenant-ID\", \"{{tenant_id}}\");\nvar content = new StringContent(\"{\\\"writeOffDate\\\": \\\"2026-04-07\\\", \\\"reason\\\": \\\"Unrecoverable \\\\u2014 customer insolvency declared\\\", \\\"approvalReference\\\": \\\"BRD/2026/14\\\"}\", Encoding.UTF8, \"application/json\");\nvar response = await client.PostAsync(\"{{base_url}}/api/v1/loans/{{loanId}}/write-off\", content);\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
             },
             {
               "lang": "PHP (cURL)",
-              "source": "<?php\n$ch = curl_init();\ncurl_setopt_array($ch, [\n    CURLOPT_URL => '{{base_url}}/api/v1/loans/{{loanId}}/write-off',\n    CURLOPT_CUSTOMREQUEST => 'POST',\n    CURLOPT_POSTFIELDS => json_encode({\"writeOffDate\": \"2026-04-07\", \"reason\": \"Unrecoverable \\u2014 customer insolvency declared\"}),\n    CURLOPT_HTTPHEADER => [\n        'Authorization: Bearer {{access_token}}',\n        'Content-Type: application/json',\n        'X-Tenant-ID: {{tenant_id}}'\n    ],\n    CURLOPT_RETURNTRANSFER => true\n]);\necho curl_exec($ch);\ncurl_close($ch);"
+              "source": "<?php\n$ch = curl_init();\ncurl_setopt_array($ch, [\n    CURLOPT_URL => '{{base_url}}/api/v1/loans/{{loanId}}/write-off',\n    CURLOPT_CUSTOMREQUEST => 'POST',\n    CURLOPT_POSTFIELDS => json_encode({\"writeOffDate\": \"2026-04-07\", \"reason\": \"Unrecoverable \\u2014 customer insolvency declared\", \"approvalReference\": \"BRD/2026/14\"}),\n    CURLOPT_HTTPHEADER => [\n        'Authorization: Bearer {{access_token}}',\n        'Content-Type: application/json',\n        'X-Tenant-ID: {{tenant_id}}'\n    ],\n    CURLOPT_RETURNTRANSFER => true\n]);\necho curl_exec($ch);\ncurl_close($ch);"
             },
             {
               "lang": "Go (net/http)",
-              "source": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n    \"strings\"\n    \"io/ioutil\"\n)\n\nfunc main() {\n    body := strings.NewReader(\"{\\\"writeOffDate\\\": \\\"2026-04-07\\\", \\\"reason\\\": \\\"Unrecoverable \\\\u2014 customer insolvency declared\\\"}\")\nreq, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/loans/{{loanId}}/write-off\", body)\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"Content-Type\", \"application/json\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := new(http.Client).Do(req)\n    defer resp.Body.Close()\n    b, _ := ioutil.ReadAll(resp.Body)\n    fmt.Println(string(b))\n}"
+              "source": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n    \"strings\"\n    \"io/ioutil\"\n)\n\nfunc main() {\n    body := strings.NewReader(\"{\\\"writeOffDate\\\": \\\"2026-04-07\\\", \\\"reason\\\": \\\"Unrecoverable \\\\u2014 customer insolvency declared\\\", \\\"approvalReference\\\": \\\"BRD/2026/14\\\"}\")\nreq, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/loans/{{loanId}}/write-off\", body)\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"Content-Type\", \"application/json\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := new(http.Client).Do(req)\n    defer resp.Body.Close()\n    b, _ := ioutil.ReadAll(resp.Body)\n    fmt.Println(string(b))\n}"
             },
             {
               "lang": "Ruby (Net::HTTP)",
-              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/api/v1/loans/{{loanId}}/write-off')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Post.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq.body = \"{\\\"writeOffDate\\\": \\\"2026-04-07\\\", \\\"reason\\\": \\\"Unrecoverable \\\\u2014 customer insolvency declared\\\"}\"\nputs http.request(req).body"
+              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/api/v1/loans/{{loanId}}/write-off')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Post.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq.body = \"{\\\"writeOffDate\\\": \\\"2026-04-07\\\", \\\"reason\\\": \\\"Unrecoverable \\\\u2014 customer insolvency declared\\\", \\\"approvalReference\\\": \\\"BRD/2026/14\\\"}\"\nputs http.request(req).body"
             }
           ]
         },
@@ -2464,7 +2464,7 @@
                 "undo-write-off"
               ]
             },
-            "description": "Reverses a WRITTEN_OFF loan back to IN_ARREARS. Outstanding balance is reconstructed from the repayment schedule. No request body required."
+            "description": "Undoes a write-off made in error: the write-off journal is posted again with every side swapped (WOFFREV-), dated the write-off date (a closed GL period refuses it: 400 GL_PERIOD_CLOSED), and the loan's principal, suspense, deferred fee, loss allowance and stage are restored; the status comes back from the schedule. 400 WRITE_OFF_HAS_RECOVERIES once cash has been recovered."
           },
           "response": [
             {
@@ -11214,6 +11214,159 @@
           ]
         },
         {
+          "name": "Trigger Loan Accrual job",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/loanAccrualJob/run",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs",
+                "loanAccrualJob",
+                "run"
+              ]
+            },
+            "description": "Runs the job now, synchronously, for today's business date, and returns the finished run. The call returns 200 even when the job itself ends FAILED: check data.status (SUCCESS / FAILED). 404 for an unknown job name; 409 COB_JOB_ALREADY_RUNNING if that job is already running. Loan income for every open loan (one transaction per loan): days past due, the 90-day non-performing suspense rule (CBN), charges falling due, and interest and origination-fee accrual through the business date.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK - run succeeded",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"431\",\n    \"jobName\": \"loanAccrualJob\",\n    \"businessDate\": \"2026-09-29\",\n    \"startTime\": \"2026-09-29T22:55:04.120Z\",\n    \"endTime\": \"2026-09-29T22:55:04.310Z\",\n    \"status\": \"SUCCESS\",\n    \"errorMessage\": null\n  },\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Trigger Loan Impairment job",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/loanImpairmentJob/run",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs",
+                "loanImpairmentJob",
+                "run"
+              ]
+            },
+            "description": "Runs the job now, synchronously, for today's business date, and returns the finished run. The call returns 200 even when the job itself ends FAILED: check data.status (SUCCESS / FAILED). 404 for an unknown job name; 409 COB_JOB_ALREADY_RUNNING if that job is already running. IFRS 9 expected credit losses for every open loan (one transaction per loan): stage by days past due (1 \u2264 30, 2 > 30, 3 > 90 or non-performing), ECL = exposure x PD (/api/v1/ecl/pd-rates) x the product's LGD, posting the change in the loss allowance (DR/CR credit impairment charge 5004 vs loan loss allowance 1105), and the CBN prudential provision from the active provisioning criteria.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK - run succeeded",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"431\",\n    \"jobName\": \"loanImpairmentJob\",\n    \"businessDate\": \"2026-09-29\",\n    \"startTime\": \"2026-09-29T22:55:04.120Z\",\n    \"endTime\": \"2026-09-29T22:55:04.310Z\",\n    \"status\": \"SUCCESS\",\n    \"errorMessage\": null\n  },\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Trigger Regulatory Risk Reserve job",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/regulatoryRiskReserveJob/run",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "jobs",
+                "regulatoryRiskReserveJob",
+                "run"
+              ]
+            },
+            "description": "Runs the job now, synchronously, for today's business date, and returns the finished run. The call returns 200 even when the job itself ends FAILED: check data.status (SUCCESS / FAILED). 404 for an unknown job name; 409 COB_JOB_ALREADY_RUNNING if that job is already running. CBN regulatory risk reserve: moves retained earnings (3001) to the non-distributable reserve (3002) until it equals prudential provisions less the IFRS 9 allowance (never below zero), in the functional currency. Equity only, no profit or loss. The nightly run posts only at month end; this manual run posts whatever the date. A rerun posts nothing.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK - run succeeded",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"431\",\n    \"jobName\": \"regulatoryRiskReserveJob\",\n    \"businessDate\": \"2026-09-29\",\n    \"startTime\": \"2026-09-29T22:55:04.120Z\",\n    \"endTime\": \"2026-09-29T22:55:04.310Z\",\n    \"status\": \"SUCCESS\",\n    \"errorMessage\": null\n  },\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
           "name": "Trigger FX Revaluation job",
           "request": {
             "method": "POST",
@@ -17853,7 +18006,7 @@
                 "provisioningcriteria"
               ]
             },
-            "description": "",
+            "description": "CBN prudential bands by days past due (V59 seeds the active criteria 'CBN Prudential' with these). Exactly one criteria may be active: the nightly impairment job measures each loan's prudential provision with it (400 PROVISIONING_CRITERIA_AMBIGUOUS with several). Created inactive here so it does not clash with the seeded one.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -17866,7 +18019,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"criteriaName\": \"IFRS 9 Standard Provisioning\",\n  \"active\": true,\n  \"definitions\": [\n    {\n      \"categoryName\": \"STANDARD\",\n      \"minAge\": 0,\n      \"maxAge\": 30,\n      \"provisionPercentage\": 1.0,\n      \"liabilityAccountId\": \"{{llpGlId}}\",\n      \"expenseAccountId\": \"{{provExpenseGlId}}\"\n    },\n    {\n      \"categoryName\": \"WATCH\",\n      \"minAge\": 31,\n      \"maxAge\": 90,\n      \"provisionPercentage\": 5.0,\n      \"liabilityAccountId\": \"{{llpGlId}}\",\n      \"expenseAccountId\": \"{{provExpenseGlId}}\"\n    },\n    {\n      \"categoryName\": \"SUB_STANDARD\",\n      \"minAge\": 91,\n      \"maxAge\": 180,\n      \"provisionPercentage\": 25.0,\n      \"liabilityAccountId\": \"{{llpGlId}}\",\n      \"expenseAccountId\": \"{{provExpenseGlId}}\"\n    },\n    {\n      \"categoryName\": \"DOUBTFUL\",\n      \"minAge\": 181,\n      \"maxAge\": 360,\n      \"provisionPercentage\": 50.0,\n      \"liabilityAccountId\": \"{{llpGlId}}\",\n      \"expenseAccountId\": \"{{provExpenseGlId}}\"\n    },\n    {\n      \"categoryName\": \"LOSS\",\n      \"minAge\": 361,\n      \"maxAge\": 9999,\n      \"provisionPercentage\": 100.0,\n      \"liabilityAccountId\": \"{{llpGlId}}\",\n      \"expenseAccountId\": \"{{provExpenseGlId}}\"\n    }\n  ]\n}",
+              "raw": "{\n  \"criteriaName\": \"CBN Prudential (revised)\",\n  \"active\": false,\n  \"definitions\": [\n    {\n      \"categoryName\": \"PERFORMING\",\n      \"minAge\": 0,\n      \"maxAge\": 90,\n      \"provisionPercentage\": 2.0\n    },\n    {\n      \"categoryName\": \"SUB_STANDARD\",\n      \"minAge\": 91,\n      \"maxAge\": 180,\n      \"provisionPercentage\": 10.0\n    },\n    {\n      \"categoryName\": \"DOUBTFUL\",\n      \"minAge\": 181,\n      \"maxAge\": 360,\n      \"provisionPercentage\": 50.0\n    },\n    {\n      \"categoryName\": \"LOST\",\n      \"minAge\": 361,\n      \"maxAge\": 99999,\n      \"provisionPercentage\": 100.0\n    }\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -17944,6 +18097,129 @@
               ]
             },
             "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "40b \u00b7 Expected Credit Losses (IFRS 9)",
+      "description": "IFRS 9 loan impairment parameters and position. ECL = exposure x PD x LGD; PD from this table (12-month for stage 1, lifetime for stages 2 and 3), LGD per loan product (lgdPercentage).",
+      "item": [
+        {
+          "name": "List PD rates",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ecl/pd-rates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ecl",
+                "pd-rates"
+              ]
+            },
+            "description": "Probability-of-default bands by IFRS 9 stage and days past due. ADMIN, TELLER.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Replace PD rates",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ecl/pd-rates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ecl",
+                "pd-rates"
+              ]
+            },
+            "description": "Replaces the whole PD table. Every stage (1-3) needs a band, bands may not overlap within a stage, PD 0-100; else 400 ECL_PD_RATES_INVALID. Takes effect at the next impairment run. ADMIN.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"stage\": 1,\n    \"minDpd\": 0,\n    \"maxDpd\": 30,\n    \"pdPercentage\": 2.0,\n    \"description\": \"Performing, 12-month PD\"\n  },\n  {\n    \"stage\": 2,\n    \"minDpd\": 31,\n    \"maxDpd\": 90,\n    \"pdPercentage\": 20.0,\n    \"description\": \"Significant increase in credit risk, lifetime PD\"\n  },\n  {\n    \"stage\": 3,\n    \"minDpd\": 91,\n    \"maxDpd\": 99999,\n    \"pdPercentage\": 100.0,\n    \"description\": \"Credit-impaired\"\n  }\n]",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Impairment summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ecl/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ecl",
+                "summary"
+              ]
+            },
+            "description": "Open loans by currency and IFRS 9 stage (loans, principal, lossAllowance, prudentialProvision) and the CBN regulatory risk reserve in the functional currency (prudentialProvisions, lossAllowance, target, reserveBalance, adjustment). ADMIN, TELLER.",
             "auth": {
               "type": "bearer",
               "bearer": [

@@ -3,15 +3,25 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   AccountingService, ProvisioningCriteria, ProvisioningCriteriaRequest,
-  ProvisioningDefinition, GlAccount,
+  ProvisioningDefinition, GlAccount, EclPdRate,
 } from './accounting.service';
 
+/** The API's own error text (envelope errors[0].message), or the fallback. */
+function apiMessage(err: unknown, fallback: string): string {
+  const e = err as { error?: { errors?: { message?: string }[] } };
+  return e?.error?.errors?.[0]?.message ?? fallback;
+}
+
+/**
+ * CBN Prudential Guidelines bands by days past due: a general provision on performing
+ * loans, then sub-standard, doubtful and lost. The impairment job also provides 100% of
+ * principal more than 90 days overdue on non-performing loans.
+ */
 const DEFAULT_DEFINITIONS: ProvisioningDefinition[] = [
-  { categoryName: 'STANDARD',     minAge: 0,   maxAge: 30,  provisionPercentage: 1,   liabilityAccountId: '', expenseAccountId: '' },
-  { categoryName: 'WATCH',        minAge: 31,  maxAge: 90,  provisionPercentage: 5,   liabilityAccountId: '', expenseAccountId: '' },
-  { categoryName: 'SUB_STANDARD', minAge: 91,  maxAge: 180, provisionPercentage: 25,  liabilityAccountId: '', expenseAccountId: '' },
-  { categoryName: 'DOUBTFUL',     minAge: 181, maxAge: 360, provisionPercentage: 50,  liabilityAccountId: '', expenseAccountId: '' },
-  { categoryName: 'LOSS',         minAge: 361, maxAge: 9999,provisionPercentage: 100, liabilityAccountId: '', expenseAccountId: '' },
+  { categoryName: 'PERFORMING',   minAge: 0,   maxAge: 90,    provisionPercentage: 2,   liabilityAccountId: '', expenseAccountId: '' },
+  { categoryName: 'SUB_STANDARD', minAge: 91,  maxAge: 180,   provisionPercentage: 10,  liabilityAccountId: '', expenseAccountId: '' },
+  { categoryName: 'DOUBTFUL',     minAge: 181, maxAge: 360,   provisionPercentage: 50,  liabilityAccountId: '', expenseAccountId: '' },
+  { categoryName: 'LOST',         minAge: 361, maxAge: 99999, provisionPercentage: 100, liabilityAccountId: '', expenseAccountId: '' },
 ];
 
 type ModalType = 'create' | 'edit' | 'delete' | null;
@@ -49,8 +59,16 @@ export class ProvisioningComponent implements OnInit {
   formName        = '';
   formDefinitions: ProvisioningDefinition[] = [];
 
+  // ── ECL probability-of-default table ───────────────────────────────────────
+  pdRates: EclPdRate[] = [];
+  pdForm: EclPdRate[] = [];
+  pdEditing = false;
+  pdSaving  = false;
+  pdError   = '';
+
   ngOnInit(): void {
     this.loadCriteria();
+    this.loadPdRates();
     this.svc.listGlAccounts().subscribe({
       next: list => { this.glAccounts = list; },
     });
@@ -60,6 +78,42 @@ export class ProvisioningComponent implements OnInit {
     this.svc.listProvisioningCriteria().subscribe({
       next: list => { this.criteria = list; this.loading = false; },
       error: () => { this.error = 'Failed to load provisioning criteria.'; this.loading = false; },
+    });
+  }
+
+  loadPdRates(): void {
+    this.svc.listPdRates().subscribe({
+      next: rates => { this.pdRates = rates; },
+      error: () => { this.pdError = 'Failed to load the PD table.'; },
+    });
+  }
+
+  editPdRates(): void {
+    this.pdForm    = this.pdRates.map(r => ({ ...r }));
+    this.pdEditing = true;
+    this.pdError   = '';
+  }
+
+  cancelPdRates(): void {
+    this.pdEditing = false;
+    this.pdError   = '';
+  }
+
+  addPdBand(): void {
+    this.pdForm = [...this.pdForm, { stage: 1, minDpd: 0, maxDpd: 0, pdPercentage: 0 }];
+  }
+
+  removePdBand(i: number): void {
+    this.pdForm = this.pdForm.filter((_, idx) => idx !== i);
+  }
+
+  savePdRates(): void {
+    this.pdSaving = true;
+    this.pdError  = '';
+    const rates = this.pdForm.map(r => ({ ...r, stage: Number(r.stage) as EclPdRate['stage'] }));
+    this.svc.updatePdRates(rates).subscribe({
+      next: saved => { this.pdRates = saved; this.pdEditing = false; this.pdSaving = false; },
+      error: err => { this.pdError = apiMessage(err, 'Failed to save the PD table.'); this.pdSaving = false; },
     });
   }
 

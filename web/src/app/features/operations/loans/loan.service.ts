@@ -26,6 +26,20 @@ export interface Loan {
   interestInSuspense?: number;
   /** Origination fee not yet released to interest income. */
   deferredFeeRemaining?: number;
+  /** IFRS 9 stage at the last measurement: 1, 2 or 3 (null before the first). */
+  eclStage?: number | null;
+  /** Expected credit losses held against the loan (loan loss allowance). */
+  lossAllowance?: number;
+  /** CBN prudential provision at the last measurement. */
+  prudentialProvision?: number;
+  writtenOffOn?: string | null;
+  writeOffReason?: string | null;
+  /** Board (or delegated authority) approval for the write-off. */
+  writeOffApprovalReference?: string | null;
+  /** Gross carrying amount derecognised at write-off. */
+  writtenOffAmount?: number | null;
+  /** Cash collected since the write-off. */
+  recoveredAmount?: number;
 }
 
 export interface RepaymentInstallment {
@@ -242,8 +256,9 @@ export class LoanService {
     return this.api.put<Loan>(`/loans/${id}/reject`, { reason });
   }
 
-  writeOff(id: string, reason: string, writeOffDate?: string): Observable<Loan> {
-    return this.api.post<Loan>(`/loans/${id}/write-off`, { reason, writeOffDate });
+  /** Writes a credit-impaired loan off; {@code approvalReference} is the board approval (required). */
+  writeOff(id: string, reason: string, approvalReference: string, writeOffDate?: string): Observable<Loan> {
+    return this.api.post<Loan>(`/loans/${id}/write-off`, { reason, approvalReference, writeOffDate });
   }
 
   undoWriteOff(id: string): Observable<Loan> {

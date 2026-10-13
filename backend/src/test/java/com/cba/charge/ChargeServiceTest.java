@@ -353,6 +353,20 @@ class ChargeServiceTest {
         }
 
         @Test
+        @DisplayName("a written-off loan's charges can't be paid or waived: receivables are off the books")
+        void writtenOffLoan_payAndWaive_throw() {
+            loan.setStatus(LoanStatus.WRITTEN_OFF);
+            loanCharge.setIncomeRecognizedOn(LocalDate.now());
+            when(loanChargeRepository.findById(loanChargeId)).thenReturn(Optional.of(loanCharge));
+
+            assertThatThrownBy(() -> chargeService.payLoanCharge(loanId, loanChargeId, null))
+                .isInstanceOf(CbaException.class).hasMessageContaining("written off");
+            assertThatThrownBy(() -> chargeService.waiveLoanCharge(loanId, loanChargeId))
+                .isInstanceOf(CbaException.class).hasMessageContaining("written off");
+            verifyNoInteractions(loanGlPosting);
+        }
+
+        @Test
         @DisplayName("payLoanCharge throws when charge not found for loan")
         void payLoanCharge_notFound_throws() {
             UUID wrongLoanId = UUID.randomUUID();

@@ -22,6 +22,8 @@ import com.cba.loan.dto.ForecloseRequest;
 import com.cba.loan.dto.WaiveInterestRequest;
 import com.cba.product.LoanProduct;
 import com.cba.product.LoanProductRepository;
+import com.cba.system.GlobalConfiguration;
+import com.cba.system.GlobalConfigurationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -61,6 +63,8 @@ class LoanServiceTest {
     @Mock LoanGlPosting loanGlPosting;
     @Mock LoanChargeRepository loanChargeRepository;
     @Mock LoanAccrualService loanAccrualService;
+    @Mock LoanImpairmentService loanImpairmentService;
+    @Mock GlobalConfigurationRepository globalConfigRepository;
 
     @InjectMocks LoanService loanService;
 
@@ -373,6 +377,7 @@ class LoanServiceTest {
 
             assertThat(activeLoan.getStatus()).isEqualTo(LoanStatus.CLOSED_OBLIGATIONS_MET);
             assertThat(activeLoan.getOutstandingBalance()).isEqualByComparingTo(BigDecimal.ZERO);
+            verify(loanImpairmentService).release(activeLoan, LocalDate.now());
         }
 
         @Test
@@ -450,19 +455,132 @@ class LoanServiceTest {
         }
     }
 
+    /** A loan 200 days past due: principal 1000, interest 50 accrued (in suspense), a 20 penalty in suspense. */
+    private LoanCharge impairedLoan() {
+        activeLoan.setStatus(LoanStatus.IN_ARREARS);
+        activeLoan.setDisbursementDate(LocalDate.now().minusDays(260));
+        activeLoan.setOutstandingBalance(new BigDecimal("1000.00"));
+        LoanRepaymentSchedule i = installment(1, LocalDate.now().minusDays(200), "1000.00", "50.00");
+        i.setInterestAccrued(new BigDecimal("50.00"));
+        activeLoan.getRepaymentSchedule().add(i);
+        activeLoan.setDaysPastDue(200);
+        activeLoan.setNonPerforming(true);
+        activeLoan.setInterestInSuspense(new BigDecimal("50.00"));
+        activeLoan.setDeferredFeeRemaining(new BigDecimal("10.00"));
+        activeLoan.setLossAllowance(new BigDecimal("400.00"));
+        LoanCharge penalty = new LoanCharge();
+        penalty.setName("Late fee");
+        penalty.setPenalty(true);
+        penalty.setAmount(new BigDecimal("20.00"));
+        penalty.setAmountOutstanding(new BigDecimal("20.00"));
+        penalty.setIncomeRecognizedOn(LocalDate.now().minusDays(150));
+        penalty.setSuspended(true);
+        return penalty;
+    }
+
+    private void stage(int stage) {
+        when(loanImpairmentService.remeasure(eq(activeLoan), any())).thenReturn(new LoanImpairmentService.Measurement(
+                stage, new BigDecimal("990"), new BigDecimal("100"), new BigDecimal("45"),
+                new BigDecimal("400.00"), new BigDecimal("1000.00")));
+    }
+
+    private void cbnRule(boolean on) {
+        GlobalConfiguration flag = new GlobalConfiguration();
+        flag.setName(LoanService.CBN_WRITE_OFF_RULES);
+        flag.setEnabled(true);
+        flag.setBooleanValue(on);
+        when(globalConfigRepository.findByName(LoanService.CBN_WRITE_OFF_RULES)).thenReturn(Optional.of(flag));
+    }
+
     @Nested
     @DisplayName("writeOffLoan")
     class WriteOff {
 
         @Test
-        @DisplayName("write-off active loan")
-        void writeOff_active_succeeds() {
+        @DisplayName("derecognises the gross carrying amount against the allowance (IFRS 9 §5.4.4)")
+        void writeOff_postsAgainstAllowance() {
+            LoanCharge penalty = impairedLoan();
             when(loanRepository.findById(loanId)).thenReturn(Optional.of(activeLoan));
             when(loanRepository.save(any())).thenReturn(activeLoan);
+            when(loanChargeRepository.findByLoanIdOrderByCreatedAtAsc(loanId)).thenReturn(List.of(penalty));
+            stage(3);
+            cbnRule(false);
+            when(loanGlPosting.postWriteOff(any(), any(), any())).thenReturn("GL-WOFF");
 
-            WriteOffRequest req = new WriteOffRequest(LocalDate.now(), "bad debt");
-            LoanResponse resp = loanService.writeOffLoan(loanId, req);
-            assertThat(resp).isNotNull();
+            LoanResponse resp = loanService.writeOffLoan(loanId,
+                    new WriteOffRequest(LocalDate.now(), "uncollectable", " BRD/2026/14 "));
+
+            verify(loanAccrualService).bringCurrent(activeLoan, LocalDate.now());
+            // Gross: 1000 principal + 50 interest + 20 penalty − 10 deferred fee − 70 suspense = 990.
+            LoanGlPosting.WriteOffAmounts expected = new LoanGlPosting.WriteOffAmounts(
+                    new BigDecimal("1000.00"), new BigDecimal("50.00"), new BigDecimal("20.00"),
+                    new BigDecimal("10.00"), new BigDecimal("70.00"), new BigDecimal("400.00"));
+            verify(loanGlPosting).postWriteOff(activeLoan, expected, LocalDate.now());
+            assertThat(expected.gross()).isEqualByComparingTo("990.00");
+            assertThat(resp.status()).isEqualTo(LoanStatus.WRITTEN_OFF);
+            assertThat(activeLoan.getWrittenOffAmount()).isEqualByComparingTo("990.00");
+            assertThat(activeLoan.getOutstandingBalance()).isEqualByComparingTo(BigDecimal.ZERO);
+            assertThat(activeLoan.getLossAllowance()).isEqualByComparingTo(BigDecimal.ZERO);
+            assertThat(activeLoan.getInterestInSuspense()).isEqualByComparingTo(BigDecimal.ZERO);
+            assertThat(activeLoan.getDeferredFeeRemaining()).isEqualByComparingTo(BigDecimal.ZERO);
+            assertThat(activeLoan.getWriteOffApprovalReference()).isEqualTo("BRD/2026/14");
+            assertThat(activeLoan.getWriteOffTransactionId()).isEqualTo("GL-WOFF");
+            assertThat(activeLoan.getWriteOffSnapshot()).containsEntry("principal", new BigDecimal("1000.00"))
+                    .containsEntry("lossAllowance", new BigDecimal("400.00"));
+            // The audit records the real previous status, not a hard-coded ACTIVE.
+            verify(auditLogService).log(eq("LOAN"), eq(loanId.toString()), eq("WRITE_OFF"), eq("IN_ARREARS"), any());
+        }
+
+        @Test
+        @DisplayName("rejects a write-off without a board-approval reference, before touching the GL")
+        void writeOff_withoutApproval_throws() {
+            impairedLoan();
+            when(loanRepository.findById(loanId)).thenReturn(Optional.of(activeLoan));
+
+            assertThatThrownBy(() -> loanService.writeOffLoan(loanId, new WriteOffRequest(LocalDate.now(), "bad debt")))
+                .isInstanceOf(CbaException.class).hasMessageContaining("approval reference");
+            verifyNoInteractions(loanGlPosting, loanAccrualService, loanImpairmentService);
+        }
+
+        @Test
+        @DisplayName("only a credit-impaired (stage 3) loan can be written off")
+        void writeOff_notStage3_throws() {
+            impairedLoan();
+            when(loanRepository.findById(loanId)).thenReturn(Optional.of(activeLoan));
+            stage(2);
+
+            assertThatThrownBy(() -> loanService.writeOffLoan(loanId, new WriteOffRequest(null, "bad debt", "BRD-1")))
+                .isInstanceOf(CbaException.class).hasMessageContaining("stage 2");
+            verify(loanGlPosting, never()).postWriteOff(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("CBN rule on: not fully provided for a year → rejected")
+        void writeOff_cbnRuleNotMet_throws() {
+            impairedLoan();
+            activeLoan.setFullyProvidedSince(LocalDate.now().minusMonths(6));
+            when(loanRepository.findById(loanId)).thenReturn(Optional.of(activeLoan));
+            stage(3);
+            cbnRule(true);
+
+            assertThatThrownBy(() -> loanService.writeOffLoan(loanId, new WriteOffRequest(null, "bad debt", "BRD-1")))
+                .isInstanceOf(CbaException.class).hasMessageContaining("fully provided since");
+            verify(loanGlPosting, never()).postWriteOff(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("CBN rule on: fully provided for over a year → written off")
+        void writeOff_cbnRuleMet_succeeds() {
+            LoanCharge penalty = impairedLoan();
+            activeLoan.setFullyProvidedSince(LocalDate.now().minusYears(1).minusDays(1));
+            when(loanRepository.findById(loanId)).thenReturn(Optional.of(activeLoan));
+            when(loanRepository.save(any())).thenReturn(activeLoan);
+            when(loanChargeRepository.findByLoanIdOrderByCreatedAtAsc(loanId)).thenReturn(List.of(penalty));
+            stage(3);
+            cbnRule(true);
+
+            loanService.writeOffLoan(loanId, new WriteOffRequest(null, "bad debt", "BRD-1"));
+            assertThat(activeLoan.getStatus()).isEqualTo(LoanStatus.WRITTEN_OFF);
         }
 
         @Test
@@ -471,9 +589,22 @@ class LoanServiceTest {
             activeLoan.setStatus(LoanStatus.WRITTEN_OFF);
             when(loanRepository.findById(loanId)).thenReturn(Optional.of(activeLoan));
 
-            assertThatThrownBy(() -> loanService.writeOffLoan(loanId, new WriteOffRequest(LocalDate.now(), "bad debt")))
+            assertThatThrownBy(() -> loanService.writeOffLoan(loanId, new WriteOffRequest(LocalDate.now(), "bad debt", "BRD-1")))
                 .isInstanceOf(CbaException.class);
         }
+    }
+
+    private void writtenOff() {
+        activeLoan.setStatus(LoanStatus.WRITTEN_OFF);
+        activeLoan.setDisbursementDate(LocalDate.now().minusDays(260));
+        activeLoan.setOutstandingBalance(BigDecimal.ZERO);
+        activeLoan.getRepaymentSchedule().add(installment(1, LocalDate.now().minusDays(200), "1000.00", "50.00"));
+        activeLoan.setWrittenOffOn(LocalDate.now().minusDays(10));
+        activeLoan.setWriteOffTransactionId("GL-WOFF");
+        activeLoan.setWriteOffSnapshot(new java.util.HashMap<>(java.util.Map.of(
+                "principal", new BigDecimal("1000.00"), "interestInSuspense", new BigDecimal("50.00"),
+                "deferredFeeRemaining", new BigDecimal("10.00"), "lossAllowance", new BigDecimal("400.00"),
+                "prudentialProvision", new BigDecimal("1000.00"), "eclStage", new BigDecimal("3"))));
     }
 
     @Nested
@@ -481,14 +612,49 @@ class LoanServiceTest {
     class UndoWriteOff {
 
         @Test
-        @DisplayName("undo write-off restores loan to ACTIVE")
-        void undoWriteOff_succeeds() {
-            activeLoan.setStatus(LoanStatus.WRITTEN_OFF);
+        @DisplayName("reverses the write-off journal on the write-off date and restores the balances")
+        void undoWriteOff_reversesAndRestores() {
+            writtenOff();
             when(loanRepository.findById(loanId)).thenReturn(Optional.of(activeLoan));
             when(loanRepository.save(any())).thenReturn(activeLoan);
 
-            LoanResponse resp = loanService.undoWriteOff(loanId);
-            assertThat(resp).isNotNull();
+            loanService.undoWriteOff(loanId);
+
+            verify(loanGlPosting).postWriteOffReversal(activeLoan, "GL-WOFF", LocalDate.now().minusDays(10));
+            assertThat(activeLoan.getStatus()).isEqualTo(LoanStatus.IN_ARREARS);
+            assertThat(activeLoan.getOutstandingBalance()).isEqualByComparingTo("1000.00");
+            assertThat(activeLoan.getLossAllowance()).isEqualByComparingTo("400.00");
+            assertThat(activeLoan.getInterestInSuspense()).isEqualByComparingTo("50.00");
+            assertThat(activeLoan.getEclStage()).isEqualTo(3);
+            assertThat(activeLoan.getWrittenOffOn()).isNull();
+            assertThat(activeLoan.getWriteOffSnapshot()).isNull();
+        }
+
+        @Test
+        @DisplayName("refused once cash has been recovered")
+        void undoWriteOff_afterRecovery_throws() {
+            writtenOff();
+            activeLoan.setRecoveredAmount(new BigDecimal("100.00"));
+            when(loanRepository.findById(loanId)).thenReturn(Optional.of(activeLoan));
+
+            assertThatThrownBy(() -> loanService.undoWriteOff(loanId))
+                .isInstanceOf(CbaException.class).hasMessageContaining("recovered");
+            verifyNoInteractions(loanGlPosting);
+        }
+
+        @Test
+        @DisplayName("a write-off from before GL posting has no journal: principal comes back from the schedule")
+        void undoWriteOff_legacy_restoresFromSchedule() {
+            writtenOff();
+            activeLoan.setWriteOffTransactionId(null);
+            activeLoan.setWriteOffSnapshot(null);
+            when(loanRepository.findById(loanId)).thenReturn(Optional.of(activeLoan));
+            when(loanRepository.save(any())).thenReturn(activeLoan);
+
+            loanService.undoWriteOff(loanId);
+
+            verifyNoInteractions(loanGlPosting);
+            assertThat(activeLoan.getOutstandingBalance()).isEqualByComparingTo("1000.00");
         }
 
         @Test
@@ -499,6 +665,42 @@ class LoanServiceTest {
 
             assertThatThrownBy(() -> loanService.undoWriteOff(loanId))
                 .isInstanceOf(CbaException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("recovery after write-off")
+    class Recovery {
+
+        @Test
+        @DisplayName("cash on a written-off loan is an impairment gain; the schedule keeps the legal debt")
+        void recovery_postsGain() {
+            writtenOff();
+            when(loanRepository.findById(loanId)).thenReturn(Optional.of(activeLoan));
+            when(loanRepository.save(any())).thenReturn(activeLoan);
+
+            LoanRepaymentResponse resp = loanService.makeRepayment(loanId,
+                    new LoanRepaymentRequest(new BigDecimal("300.00"), null, null, null, null));
+
+            verify(loanGlPosting).postRecovery(eq(activeLoan), any(), eq(new BigDecimal("300.00")), eq(LocalDate.now()));
+            verify(loanGlPosting, never()).postRepayment(any(), any(), any(), any(), any(), any());
+            verifyNoInteractions(loanAccrualService);
+            assertThat(activeLoan.getRecoveredAmount()).isEqualByComparingTo("300.00");
+            assertThat(resp.interestPortion()).isEqualByComparingTo("50.00");
+            assertThat(resp.principalPortion()).isEqualByComparingTo("250.00");
+            assertThat(activeLoan.getStatus()).isEqualTo(LoanStatus.WRITTEN_OFF);
+        }
+
+        @Test
+        @DisplayName("more than the borrower still owes is rejected")
+        void recovery_aboveDebt_throws() {
+            writtenOff();
+            when(loanRepository.findById(loanId)).thenReturn(Optional.of(activeLoan));
+
+            assertThatThrownBy(() -> loanService.makeRepayment(loanId,
+                    new LoanRepaymentRequest(new BigDecimal("1050.01"), null, null, null, null)))
+                .isInstanceOf(CbaException.class).hasMessageContaining("exceeds");
+            verifyNoInteractions(loanGlPosting);
         }
     }
 
@@ -552,6 +754,7 @@ class LoanServiceTest {
                     eq(LocalDate.now()), eq("FCLS"), anyString());
             verify(loanAccrualService).accrueThrough(activeLoan, LocalDate.now());
             verify(loanAccrualService).closeOut(activeLoan, LocalDate.now());
+            verify(loanImpairmentService).release(activeLoan, LocalDate.now());
             assertThat(activeLoan.getStatus()).isEqualTo(LoanStatus.FORECLOSED);
             assertThat(activeLoan.getOutstandingBalance()).isEqualByComparingTo(BigDecimal.ZERO);
             // Interest on the instalment not yet due is cancelled, never collected.

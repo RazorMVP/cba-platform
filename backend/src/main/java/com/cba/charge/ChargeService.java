@@ -188,6 +188,7 @@ public class ChargeService {
     @Transactional
     public LoanCharge payLoanCharge(UUID loanId, UUID chargeId, PayChargeRequest req) {
         LoanCharge lc = findLoanCharge(loanId, chargeId);
+        requireNotWrittenOff(lc);
         if (lc.isPaid() || lc.isWaived() || lc.getAmountOutstanding().signum() <= 0) {
             throw CbaException.badRequest("CHARGE_SETTLED", "Charge " + lc.getName() + " has nothing outstanding");
         }
@@ -218,6 +219,7 @@ public class ChargeService {
     @Transactional
     public LoanCharge waiveLoanCharge(UUID loanId, UUID chargeId) {
         LoanCharge lc = findLoanCharge(loanId, chargeId);
+        requireNotWrittenOff(lc);
         BigDecimal outstanding = lc.getAmountOutstanding();
         if (lc.isPaid() || lc.isWaived() || outstanding.signum() <= 0) {
             throw CbaException.badRequest("CHARGE_SETTLED", "Charge " + lc.getName() + " has nothing outstanding to waive");
@@ -233,6 +235,17 @@ public class ChargeService {
         lc.setAmountWaived(lc.getAmountWaived().add(outstanding));
         lc.setAmountOutstanding(BigDecimal.ZERO);
         return loanChargeRepository.save(lc);
+    }
+
+    /**
+     * A written-off loan's receivables are off the books (IFRS 9 §5.4.4): its charges can't
+     * be paid or waived. Cash collected goes through a repayment, as a recovery.
+     */
+    private static void requireNotWrittenOff(LoanCharge lc) {
+        if (lc.getLoan() != null && lc.getLoan().getStatus() == LoanStatus.WRITTEN_OFF) {
+            throw CbaException.badRequest("LOAN_WRITTEN_OFF",
+                    "Loan " + lc.getLoan().getLoanAccountNumber() + " is written off: record cash as a repayment (recovery)");
+        }
     }
 
     /** Only a charge with nothing posted can be deleted; otherwise waive it. */

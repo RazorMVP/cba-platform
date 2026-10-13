@@ -106,6 +106,7 @@ export class LoanDetailComponent implements OnInit {
   // Write-off modal
   showWriteOffModal = false;
   writeOffReason = '';
+  writeOffApprovalRef = '';
   writeOffDate = new Date().toISOString().slice(0, 10);
   writeOffSaving = false;
   writeOffError = '';
@@ -113,6 +114,7 @@ export class LoanDetailComponent implements OnInit {
   // Undo write-off confirm
   showUndoWriteOffModal = false;
   undoWriteOffSaving = false;
+  undoWriteOffError = '';
 
   // Waive interest modal
   showWaiveInterestModal = false;
@@ -348,12 +350,16 @@ export class LoanDetailComponent implements OnInit {
   }
 
   submitWriteOff(): void {
-    if (!this.loan || !this.writeOffReason.trim()) return;
+    if (!this.loan || !this.writeOffReason.trim() || !this.writeOffApprovalRef.trim()) return;
     this.writeOffSaving = true;
     this.writeOffError = '';
-    this.svc.writeOff(this.loan.id, this.writeOffReason.trim(), this.writeOffDate || undefined).subscribe({
-      next: l  => { this.loan = l; this.showWriteOffModal = false; this.writeOffReason = ''; this.writeOffSaving = false; },
-      error: () => { this.writeOffError = 'Write-off failed. Please try again.'; this.writeOffSaving = false; },
+    this.svc.writeOff(this.loan.id, this.writeOffReason.trim(), this.writeOffApprovalRef.trim(),
+      this.writeOffDate || undefined).subscribe({
+      next: l  => {
+        this.loan = l; this.showWriteOffModal = false;
+        this.writeOffReason = ''; this.writeOffApprovalRef = ''; this.writeOffSaving = false;
+      },
+      error: err => { this.writeOffError = apiMessage(err, 'Write-off failed. Please try again.'); this.writeOffSaving = false; },
     });
   }
 
@@ -441,9 +447,10 @@ export class LoanDetailComponent implements OnInit {
   submitUndoWriteOff(): void {
     if (!this.loan || this.undoWriteOffSaving) return;
     this.undoWriteOffSaving = true;
+    this.undoWriteOffError = '';
     this.svc.undoWriteOff(this.loan.id).subscribe({
       next: l => { this.loan = l; this.showUndoWriteOffModal = false; this.undoWriteOffSaving = false; },
-      error: () => { this.undoWriteOffSaving = false; },
+      error: err => { this.undoWriteOffError = apiMessage(err, 'Undo failed. Please try again.'); this.undoWriteOffSaving = false; },
     });
   }
 
@@ -516,6 +523,8 @@ export class LoanDetailComponent implements OnInit {
   get canReject():        boolean { return !!this.loan && ['SUBMITTED','UNDER_REVIEW','APPROVED'].includes(this.loan.status); }
   get canRepay():         boolean { return !!this.loan && ['ACTIVE','IN_ARREARS'].includes(this.loan.status); }
   get canWriteOff():      boolean { return !!this.loan && ['ACTIVE','IN_ARREARS'].includes(this.loan.status); }
+  /** Cash on a written-off loan is a recovery (an impairment gain), recorded like a repayment. */
+  get canRecover():       boolean { return !!this.loan && this.loan.status === 'WRITTEN_OFF'; }
   get canUndoWriteOff():  boolean { return !!this.loan && this.loan.status === 'WRITTEN_OFF'; }
   get canWaiveInterest(): boolean { return !!this.loan && ['ACTIVE','IN_ARREARS'].includes(this.loan.status); }
   get canForeclose():     boolean { return !!this.loan && ['ACTIVE','IN_ARREARS'].includes(this.loan.status); }
@@ -528,6 +537,16 @@ export class LoanDetailComponent implements OnInit {
     return this.schedule
       .filter(i => i.status === 'OVERDUE')
       .reduce((sum, i) => sum + (i.totalDue - (i.principalPaid ?? 0) - (i.interestPaid ?? 0)), 0);
+  }
+
+  /** IFRS 9 stage in words: 12-month losses for stage 1, lifetime losses for 2 and 3. */
+  eclStageLabel(stage: number | null | undefined): string {
+    switch (stage) {
+      case 1: return 'Stage 1 — performing (12-month ECL)';
+      case 2: return 'Stage 2 — significant increase in credit risk (lifetime ECL)';
+      case 3: return 'Stage 3 — credit-impaired (lifetime ECL)';
+      default: return 'Not yet measured';
+    }
   }
 
   statusVariant(s: Loan['status']): 'success'|'warning'|'error'|'info'|'neutral'|'primary' {

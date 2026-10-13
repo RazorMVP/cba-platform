@@ -669,6 +669,17 @@ components:
         meta:
           $ref: "#/components/schemas/PageMeta"
       type: "object"
+    ApiResponseEclSummary:
+      properties:
+        data:
+          $ref: "#/components/schemas/EclSummary"
+        errors:
+          items:
+            $ref: "#/components/schemas/ApiError"
+          type: "array"
+        meta:
+          $ref: "#/components/schemas/PageMeta"
+      type: "object"
     ApiResponseExchangeRateResponse:
       properties:
         data:
@@ -1349,6 +1360,19 @@ components:
         data:
           items:
             $ref: "#/components/schemas/OrgResponse"
+          type: "array"
+        errors:
+          items:
+            $ref: "#/components/schemas/ApiError"
+          type: "array"
+        meta:
+          $ref: "#/components/schemas/PageMeta"
+      type: "object"
+    ApiResponseListPdRateView:
+      properties:
+        data:
+          items:
+            $ref: "#/components/schemas/PdRateView"
           type: "array"
         errors:
           items:
@@ -5187,6 +5211,15 @@ components:
         status:
           type: "string"
       type: "object"
+    EclSummary:
+      properties:
+        regulatoryReserve:
+          $ref: "#/components/schemas/ReservePosition"
+        stages:
+          items:
+            $ref: "#/components/schemas/StageTotals"
+          type: "array"
+      type: "object"
     EntryLine:
       properties:
         amount:
@@ -5312,6 +5345,7 @@ components:
           - "INCOME_INTEREST"
           - "INCOME_FEES"
           - "INCOME_PENALTIES"
+          - "ASSET_LOAN_LOSS_ALLOWANCE"
           - "EXPENSE_LOAN_LOSS_PROVISION"
           - "EXPENSE_WRITE_OFF"
           - "EXPENSE_INTEREST_ON_SAVINGS"
@@ -5321,6 +5355,8 @@ components:
           - "INCOME_FX_GAIN_LOSS"
           - "EXPENSE_CASH_OVER_SHORT"
           - "EQUITY_MIGRATION_CLEARING"
+          - "EQUITY_RETAINED_EARNINGS"
+          - "EQUITY_REGULATORY_RISK_RESERVE"
           type: "string"
         glAccount:
           $ref: "#/components/schemas/GlAccount"
@@ -5344,6 +5380,7 @@ components:
           - "INCOME_INTEREST"
           - "INCOME_FEES"
           - "INCOME_PENALTIES"
+          - "ASSET_LOAN_LOSS_ALLOWANCE"
           - "EXPENSE_LOAN_LOSS_PROVISION"
           - "EXPENSE_WRITE_OFF"
           - "EXPENSE_INTEREST_ON_SAVINGS"
@@ -5353,6 +5390,8 @@ components:
           - "INCOME_FX_GAIN_LOSS"
           - "EXPENSE_CASH_OVER_SHORT"
           - "EQUITY_MIGRATION_CLEARING"
+          - "EQUITY_RETAINED_EARNINGS"
+          - "EQUITY_REGULATORY_RISK_RESERVE"
           type: "string"
         glAccountId:
           format: "uuid"
@@ -6190,6 +6229,7 @@ components:
           - "PAYMENT"
           - "FX_REVALUATION"
           - "OPENING_BALANCE"
+          - "REGULATORY_RESERVE"
           type: "string"
         entryType:
           enum:
@@ -6394,6 +6434,15 @@ components:
         disbursementDate:
           format: "date"
           type: "string"
+        eclMeasuredOn:
+          format: "date"
+          type: "string"
+        eclStage:
+          format: "int32"
+          type: "integer"
+        fullyProvidedSince:
+          format: "date"
+          type: "string"
         id:
           format: "uuid"
           type: "string"
@@ -6408,6 +6457,8 @@ components:
           $ref: "#/components/schemas/Account"
         loanAccountNumber:
           type: "string"
+        lossAllowance:
+          type: "number"
         maturityDate:
           format: "date"
           type: "string"
@@ -6427,6 +6478,10 @@ components:
           type: "number"
         product:
           $ref: "#/components/schemas/LoanProduct"
+        prudentialProvision:
+          type: "number"
+        recoveredAmount:
+          type: "number"
         repaymentSchedule:
           items:
             $ref: "#/components/schemas/LoanRepaymentSchedule"
@@ -6458,8 +6513,18 @@ components:
         version:
           format: "int64"
           type: "integer"
+        writeOffApprovalReference:
+          type: "string"
         writeOffReason:
           type: "string"
+        writeOffSnapshot:
+          additionalProperties:
+            type: "number"
+          type: "object"
+        writeOffTransactionId:
+          type: "string"
+        writtenOffAmount:
+          type: "number"
         writtenOffOn:
           format: "date"
           type: "string"
@@ -6673,6 +6738,8 @@ components:
           type: "string"
         latePaymentFee:
           type: "number"
+        lgdPercentage:
+          type: "number"
         loanPortfolioAccount:
           $ref: "#/components/schemas/GlAccount"
         maxInterestRate:
@@ -6825,6 +6892,10 @@ components:
           - "DECLINING_BALANCE"
           type: "string"
         latePaymentFee:
+          type: "number"
+        lgdPercentage:
+          maximum: 100.0
+          minimum: 0.0
           type: "number"
         loanPortfolioAccountId:
           format: "uuid"
@@ -6983,6 +7054,8 @@ components:
           - "DECLINING_BALANCE"
           type: "string"
         latePaymentFee:
+          type: "number"
+        lgdPercentage:
           type: "number"
         loanPortfolioAccount:
           $ref: "#/components/schemas/GlAccountRef"
@@ -7283,6 +7356,9 @@ components:
         disbursementDate:
           format: "date"
           type: "string"
+        eclStage:
+          format: "int32"
+          type: "integer"
         id:
           format: "uuid"
           type: "string"
@@ -7292,6 +7368,8 @@ components:
           type: "number"
         loanAccountNumber:
           type: "string"
+        lossAllowance:
+          type: "number"
         maturityDate:
           format: "date"
           type: "string"
@@ -7303,6 +7381,10 @@ components:
           type: "number"
         productName:
           type: "string"
+        prudentialProvision:
+          type: "number"
+        recoveredAmount:
+          type: "number"
         status:
           enum:
           - "SUBMITTED"
@@ -7319,6 +7401,15 @@ components:
         termMonths:
           format: "int32"
           type: "integer"
+        writeOffApprovalReference:
+          type: "string"
+        writeOffReason:
+          type: "string"
+        writtenOffAmount:
+          type: "number"
+        writtenOffOn:
+          format: "date"
+          type: "string"
       type: "object"
     LoginHistory:
       properties:
@@ -9513,6 +9604,54 @@ components:
           - "REVERSED"
           type: "string"
       type: "object"
+    PdRateRequest:
+      properties:
+        description:
+          maxLength: 200
+          minLength: 0
+          type: "string"
+        maxDpd:
+          format: "int32"
+          minimum: 0
+          type: "integer"
+        minDpd:
+          format: "int32"
+          minimum: 0
+          type: "integer"
+        pdPercentage:
+          maximum: 100.0
+          minimum: 0.0
+          type: "number"
+        stage:
+          format: "int32"
+          maximum: 3
+          minimum: 1
+          type: "integer"
+      required:
+      - "maxDpd"
+      - "minDpd"
+      - "pdPercentage"
+      - "stage"
+      type: "object"
+    PdRateView:
+      properties:
+        description:
+          type: "string"
+        id:
+          format: "uuid"
+          type: "string"
+        maxDpd:
+          format: "int32"
+          type: "integer"
+        minDpd:
+          format: "int32"
+          type: "integer"
+        pdPercentage:
+          type: "number"
+        stage:
+          format: "int32"
+          type: "integer"
+      type: "object"
     PeriodRequest:
       properties:
         differentialToBaseLendingRate:
@@ -10176,6 +10315,21 @@ components:
           format: "int32"
           type: "integer"
       type: "object"
+    ReservePosition:
+      properties:
+        adjustment:
+          type: "number"
+        currency:
+          type: "string"
+        lossAllowance:
+          type: "number"
+        prudentialProvisions:
+          type: "number"
+        reserveBalance:
+          type: "number"
+        target:
+          type: "number"
+      type: "object"
     ReversePaymentRequest:
       properties:
         reason:
@@ -10759,6 +10913,23 @@ components:
           type: "string"
         officeName:
           type: "string"
+      type: "object"
+    StageTotals:
+      properties:
+        currency:
+          type: "string"
+        loans:
+          format: "int64"
+          type: "integer"
+        lossAllowance:
+          type: "number"
+        principal:
+          type: "number"
+        prudentialProvision:
+          type: "number"
+        stage:
+          format: "int32"
+          type: "integer"
       type: "object"
     StandingInstruction:
       properties:
@@ -11850,6 +12021,10 @@ components:
       type: "object"
     WriteOffRequest:
       properties:
+        approvalReference:
+          maxLength: 100
+          minLength: 0
+          type: "string"
         reason:
           minLength: 1
           type: "string"
@@ -12667,7 +12842,7 @@ paths:
       - "Login History"
   /api/v1/auth/events/summary:
     get:
-      operationId: "summary"
+      operationId: "summary_1"
       parameters:
       - in: "query"
         name: "days"
@@ -14401,6 +14576,62 @@ paths:
       summary: "Update an existing deposit product"
       tags:
       - "Products"
+  /api/v1/ecl/pd-rates:
+    get:
+      description: "By IFRS 9 stage and days past due. Stage 1 PDs are 12-month, stages\
+        \ 2 and 3 lifetime."
+      operationId: "listPdRates"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListPdRateView"
+          description: "OK"
+      summary: "List the probability-of-default bands"
+      tags:
+      - "Expected Credit Losses"
+    put:
+      description: "Replaces the whole table. Every stage (1–3) needs at least one\
+        \ band, bands may not overlap within a stage, and PDs are percentages 0–100.\
+        \ 400 ECL_PD_RATES_INVALID otherwise. Takes effect at the next impairment\
+        \ run."
+      operationId: "replacePdRates"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              items:
+                $ref: "#/components/schemas/PdRateRequest"
+              type: "array"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListPdRateView"
+          description: "OK"
+      summary: "Replace the probability-of-default bands"
+      tags:
+      - "Expected Credit Losses"
+  /api/v1/ecl/summary:
+    get:
+      description: "Open loans by currency and IFRS 9 stage (count, principal, loss\
+        \ allowance, CBN prudential provision), and the regulatory risk reserve: prudential\
+        \ provisions vs the allowance in the functional currency, the reserve's target,\
+        \ its GL balance and the move still to post."
+      operationId: "summary"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseEclSummary"
+          description: "OK"
+      summary: "Impairment position of the loan book"
+      tags:
+      - "Expected Credit Losses"
   /api/v1/exchange-rates:
     get:
       operationId: "getAllRates"
@@ -16142,7 +16373,9 @@ paths:
       description: "Runs the job synchronously for today's business date and returns\
         \ the run, including status SUCCESS or FAILED. 404 for an unknown job; 409\
         \ if it is already running. Valid job names: standingOrderExecutionJob, dormancyClassificationJob,\
-        \ interestAccrualJob, arrearsClassificationJob"
+        \ interestAccrualJob, arrearsClassificationJob, loanAccrualJob, loanImpairmentJob,\
+        \ regulatoryRiskReserveJob, fxRevaluationJob. A manual run of regulatoryRiskReserveJob\
+        \ posts whatever the date; the nightly run posts only at month end."
       operationId: "runJob"
       parameters:
       - in: "path"
@@ -22298,6 +22531,9 @@ tags:
 - description: "Payment method catalogue — cash and non-cash payment types displayed\
     \ in transaction forms"
   name: "Payment Types"
+- description: "IFRS 9 loan impairment: PD table, portfolio allowance by stage, CBN\
+    \ regulatory risk reserve"
+  name: "Expected Credit Losses"
 - description: "Customer onboarding, KYC, staff assignment, and inter-branch transfers"
   name: "Customers"
 - description: "Platform-wide key-value settings — toggle feature flags, set thresholds\

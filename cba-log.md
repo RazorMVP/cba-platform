@@ -95,6 +95,66 @@ The commit review flagged sibling-gate parity in two places; both fixed here:
 - `SecurityConfigTest` 3/3, `CustomerAccessTest` 4/4, `CustomerOwnershipIT` 9/9. Full backend `-Pfull-integration` **799/799** (main 783 + 16).
 - Gate grep: no mapping/param change; access rules (behaviour) documented in api-reference, Postman and the snapshot.
 
+### Session 125 (cont. 26) — 2026-10-13
+**GL posting PR 2c: IFRS 9 loss allowance on every open loan, write-off against the allowance (with the CBN approval and one-year rules), recoveries, undo by reversing journal, and the CBN regulatory risk reserve. Loan write-off had posted nothing to the GL until now.**
+
+#### Decisions (standards checked first; user "1a 2a 3a 4a 5a", 2026-10-11)
+| Decision | Source |
+|---|---|
+| Stage 1 ≤ 30 dpd (12-month ECL), stage 2 > 30, stage 3 > 90 or non-performing (lifetime ECL) | IFRS 9 §5.5.3, §5.5.5, §5.5.11, B5.5.37 |
+| ECL = EAD × PD × LGD; PD table by stage/dpd band (risk team; placeholders 2/20/100%), LGD per product (placeholder 45%) | PR 2 decision 6a; Basel foundation-IRB 45% senior unsecured |
+| Allowance changes are impairment gains/losses; recoveries after write-off credit the impairment charge (5a) | IFRS 9 §5.5.8; IAS 1 §82(ba) |
+| Write-off derecognises the gross carrying amount against the allowance | IFRS 9 §5.4.4 |
+| Write-off only for stage 3, board approval reference required, "fully provided ≥ 1 year" enforced behind `enforce-cbn-write-off-rules` (4a) | CBN Prudential Guidelines |
+| CBN bands in the existing provisioning criteria (2a): performing 2%, 91–180 10%, 181–360 50%, >360 100%; overdue principal >90 days 100% | CBN Prudential Guidelines |
+| Regulatory risk reserve = max(0, prudential − ECL), retained earnings ↔ non-distributable reserve, month end + manual (3a) | CBN Prudential Guidelines; circular BSD/DIR/GEN/LAB/11/027 (2018) |
+| Stage-3 interest stays on CBN suspense in the GL (1a); IFRS 9 §5.4.1(b) net interest is a reporting adjustment | User choice 1a |
+| Undo write-off = exact reversing journal dated the write-off date; refused after recoveries (5a) | Sub-ledger journals reversed at source (cont. 21) |
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `db/migration/V59__loan_impairment.sql` | GL 1105 Loan Loss Allowance, 5004 Credit Impairment Charge, 3002 Regulatory Risk Reserve; activities `ASSET_LOAN_LOSS_ALLOWANCE`, `EXPENSE_LOAN_LOSS_PROVISION` (first mapping), `EQUITY_RETAINED_EARNINGS`, `EQUITY_REGULATORY_RISK_RESERVE`; loan ECL/prudential/write-off columns; `loan_products.lgd_percentage`; `ecl_pd_rates` + placeholders; "CBN Prudential" criteria; `enforce-cbn-write-off-rules` |
+| `loan/LoanImpairmentService.java` | NEW: stage, EAD, PD lookup, ECL, allowance posting, CBN prudential provision, `fully_provided_since`, release on settlement |
+| `loan/RegulatoryReserveService.java` | NEW: portfolio prudential vs allowance in the functional currency; moves 3001 ↔ 3002 to the target; month end or manual; advisory lock |
+| `loan/EclPdRate*.java`, `EclParameterService.java`, `EclController.java` | NEW: `GET/PUT /api/v1/ecl/pd-rates`, `GET /api/v1/ecl/summary` |
+| `loan/LoanGlPosting.java` | ECL, WOFF, RECV and WOFFREV journals; product `writeOffAccount` is now read |
+| `loan/LoanService.java` | Write-off rewritten (bring current, remeasure, stage 3, approval, CBN rule, WOFF, snapshot; audit records the real old status); undo reverses the journal and restores; repayments on WRITTEN_OFF loans are recoveries; allowance released on payoff/foreclosure |
+| `loan/LoanAccrualService.java` | `bringCurrent` extracted from the nightly run |
+| `charge/ChargeService.java` | Charges on a written-off loan can't be paid or waived (`LOAN_WRITTEN_OFF`) |
+| `cob/LoanImpairmentJob.java`, `cob/RegulatoryReserveJob.java`, `CobJobDefinition`, `CobJobService`, `CobController` | Two new CoB jobs before FX revaluation (8 total); `manual` job parameter on Run Now; stale job-name list in the run endpoint's description fixed |
+| `loan/dto/WriteOffRequest.java`, `LoanResponse.java`, product DTOs | `approvalReference`; ECL/write-off response fields; `lgdPercentage` |
+| `web/…/loan-detail`, `loan.service.ts` | Board approval field, API error text, accurate (undoable) write-off warning, Credit Risk card, Record Recovery on written-off loans, undo error message |
+| `web/…/provisioning.*`, `accounting.service.ts` | CBN default bands; editable IFRS 9 PD table; three new activity labels |
+| `web/…/loan-product-detail`, `product.service.ts`, `cob-scheduler.html` | LGD field; full CoB sequence text (loan accrual was missing) |
+| Tests | NEW `LoanImpairmentServiceTest` (11), `RegulatoryReserveServiceTest` (5), `EclParameterServiceTest` (4), `LoanImpairmentIT` (4, real PostgreSQL); `LoanServiceTest` write-off/undo/recovery rewritten (12), `ChargeServiceTest` (+1), `CobJobsIT` job lists; web specs (+8) |
+| `backend/docs/openapi-snapshot.yaml`, `docs/api-reference.html`, Postman, `docs-site/static/*`, `CLAUDE.md` | New endpoints, write-off section (was missing), posting rows, 8 CoB jobs, CBN bands |
+
+#### Pre-existing defects found by the codebase sweep and fixed here
+- Write-off and undo posted **nothing** to the GL; undo restored principal only.
+- Write-off audit always recorded the old status as `ACTIVE`.
+- Charges could be paid on a written-off loan, crediting a receivable already gone.
+- API reference: no POST write-off section; matrix route `?command=writeOff` (real: `/write-off`); "All five list entries" vs "six CoB jobs"; activity count "16" (was 21); the CoB sequence omitted loan accrual (also in the CoB screen). Postman had no `loanAccrualJob` trigger. `CobController` listed 4 of 6 job names.
+- The web write-off modal called the action "irreversible" although undo exists.
+
+#### Security review follow-up (same PR)
+- The commit security review flagged information disclosure: `LoanResponse` goes to borrowers through `GET /api/v1/loans/{id}` (CUSTOMER role) and `/api/v1/self/loans`, so the new board approval reference, write-off reason, IFRS 9 stage/allowance and CBN provision — and 2b's suspense and deferred-fee balances — reached customers. `LoanResponse.forCustomer()` now removes them for any caller without ADMIN/TELLER and for every self-service response. Test: `LoanServiceTest.forCustomer_redactsInternalFields`.
+- Loan ownership (`GET /api/v1/loans/{id}` let any customer read any loan) was fixed separately in #147 (`@customerAccess.isLoanBorrower`); #146 was superseded.
+
+#### Left for PR 2d
+- `waiveInterest` still posts nothing (modification loss, IFRS 9 §5.4.3); `LoanExtensionService` (reschedule/re-age/re-amortise) has no loan-status guard.
+
+#### Build Verification
+- Backend `-Pfull-integration` **816/816** (was 783); +1 unit test with the security fix (`LoanServiceTest` 39/39). OpenAPI snapshot regenerated.
+- Web `ng test` **1164/1164** (was 1156); `npm run build` succeeds (only pre-existing warnings in other templates).
+- Gate grep: the tracked-file diff shows no mapping change; the new untracked `EclController` adds `GET/PUT /api/v1/ecl/pd-rates` and `GET /api/v1/ecl/summary` — all in api-reference (section + matrix), Postman ("40b · Expected Credit Losses") and the snapshot. `WriteOffRequest.approvalReference` and the new `LoanResponse`/`LoanProduct` fields are documented too.
+
+#### Confirmed Platform Versions
+| Directory | Last commit | Notes |
+|-----------|-------------|-------|
+| `backend/` | this PR | Spring Boot 3.5.16; Flyway **V59**; 816/816 |
+| `web/` | this PR | Angular 21.2.25; 1164/1164 |
+
 ### Session 125 (cont. 25) — 2026-10-11
 **GL posting PR 2b: loans earn income day by day. Nightly interest accrual (catching up from disbursement), days past due, the CBN 90-day suspense rule, and origination fees deducted at disbursement and released by the effective interest method.**
 

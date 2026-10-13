@@ -116,6 +116,50 @@ public class Loan extends AuditableEntity {
     @Column(name = "deferred_fee_remaining", nullable = false, precision = 19, scale = 4)
     private BigDecimal deferredFeeRemaining = BigDecimal.ZERO;
 
+    // ── Impairment (IFRS 9) and the CBN prudential provision ─────────────
+
+    /** IFRS 9 stage at the last measurement: 1, 2 or 3; null before the first one. */
+    @Column(name = "ecl_stage")
+    private Integer eclStage;
+
+    /** Expected credit losses held against the loan (GL loan loss allowance). */
+    @Column(name = "loss_allowance", nullable = false, precision = 19, scale = 4)
+    private BigDecimal lossAllowance = BigDecimal.ZERO;
+
+    @Column(name = "ecl_measured_on")
+    private LocalDate eclMeasuredOn;
+
+    /** CBN prudential provision at the last measurement (feeds the regulatory risk reserve). */
+    @Column(name = "prudential_provision", nullable = false, precision = 19, scale = 4)
+    private BigDecimal prudentialProvision = BigDecimal.ZERO;
+
+    /** First day the prudential provision covered the whole principal; null when it doesn't. */
+    @Column(name = "fully_provided_since")
+    private LocalDate fullyProvidedSince;
+
+    // ── Write-off ────────────────────────────────────────────────────────
+
+    /** Board (or delegated authority) approval for the write-off. */
+    @Column(name = "write_off_approval_ref", length = 100)
+    private String writeOffApprovalReference;
+
+    /** Net carrying amount derecognised at write-off (before the allowance). */
+    @Column(name = "written_off_amount", precision = 19, scale = 4)
+    private BigDecimal writtenOffAmount;
+
+    /** Cash collected after write-off: impairment gains (IFRS 9 §5.5.8). */
+    @Column(name = "recovered_amount", nullable = false, precision = 19, scale = 4)
+    private BigDecimal recoveredAmount = BigDecimal.ZERO;
+
+    /** The write-off journal, reversed line for line by undo. */
+    @Column(name = "write_off_transaction_id", length = 64)
+    private String writeOffTransactionId;
+
+    /** Loan balances zeroed by the write-off, restored by undo. */
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "write_off_snapshot", columnDefinition = "jsonb")
+    private java.util.Map<String, BigDecimal> writeOffSnapshot;
+
     @OneToMany(mappedBy = "loan", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("installmentNo ASC")
     private List<LoanRepaymentSchedule> repaymentSchedule = new ArrayList<>();

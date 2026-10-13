@@ -8,7 +8,8 @@ import {
 
 type Svc = Record<
   'listProvisioningCriteria' | 'createProvisioningCriteria' |
-  'updateProvisioningCriteria' | 'deleteProvisioningCriteria' | 'listGlAccounts',
+  'updateProvisioningCriteria' | 'deleteProvisioningCriteria' | 'listGlAccounts' |
+  'listPdRates' | 'updatePdRates',
   ReturnType<typeof vi.fn>
 >;
 
@@ -39,6 +40,11 @@ describe('ProvisioningComponent', () => {
       createProvisioningCriteria: vi.fn().mockReturnValue(of(criteria({ id: 'pc2', criteriaName: 'New' }))),
       updateProvisioningCriteria: vi.fn().mockReturnValue(of(criteria({ id: 'pc1', criteriaName: 'Edited' }))),
       deleteProvisioningCriteria: vi.fn().mockReturnValue(of(void 0)),
+      listPdRates: vi.fn().mockReturnValue(of([
+        { id: 'pd1', stage: 1, minDpd: 0, maxDpd: 30, pdPercentage: 2 },
+        { id: 'pd3', stage: 3, minDpd: 91, maxDpd: 99999, pdPercentage: 100 },
+      ])),
+      updatePdRates: vi.fn().mockImplementation(rates => of(rates)),
       listGlAccounts: vi.fn().mockReturnValue(of([
         acc({ id: 'gl-l', accountType: 'LIABILITY' }),
         acc({ id: 'gl-e', accountType: 'EXPENSE', glCode: '6001', name: 'Loan Loss Expense' }),
@@ -102,13 +108,12 @@ describe('ProvisioningComponent', () => {
   });
 
   describe('openCreateModal', () => {
-    it('seeds the five default IFRS 9 age bands', () => {
+    it('seeds the four CBN prudential bands', () => {
       const c = make();
       c.openCreateModal();
-      expect(c.formDefinitions).toHaveLength(5);
-      expect(c.formDefinitions.map(d => d.categoryName)).toEqual(
-        ['STANDARD', 'WATCH', 'SUB_STANDARD', 'DOUBTFUL', 'LOSS'],
-      );
+      expect(c.formDefinitions.map(d => [d.categoryName, d.minAge, d.maxAge, d.provisionPercentage])).toEqual([
+        ['PERFORMING', 0, 90, 2], ['SUB_STANDARD', 91, 180, 10], ['DOUBTFUL', 181, 360, 50], ['LOST', 361, 99999, 100],
+      ]);
       expect(c.activeModal).toBe('create');
     });
   });
@@ -195,5 +200,49 @@ describe('ProvisioningComponent', () => {
     c.modalWorking = false;
     c.closeModal();
     expect(c.activeModal).toBeNull();
+  });
+
+  describe('ECL PD table', () => {
+    it('loads the PD bands', () => {
+      const c = make();
+      expect(svc.listPdRates).toHaveBeenCalled();
+      expect(c.pdRates).toHaveLength(2);
+    });
+
+    it('edits a copy, adds and removes bands, and saves the whole table', () => {
+      const c = make();
+      c.editPdRates();
+      expect(c.pdEditing).toBe(true);
+      c.addPdBand();
+      c.pdForm[2] = { stage: 2, minDpd: 31, maxDpd: 90, pdPercentage: 20 };
+      c.removePdBand(0);
+      expect(c.pdRates).toHaveLength(2); // the displayed table is untouched until saved
+      c.savePdRates();
+      expect(svc.updatePdRates).toHaveBeenCalledWith([
+        { id: 'pd3', stage: 3, minDpd: 91, maxDpd: 99999, pdPercentage: 100 },
+        { stage: 2, minDpd: 31, maxDpd: 90, pdPercentage: 20 },
+      ]);
+      expect(c.pdEditing).toBe(false);
+      expect(c.pdRates).toHaveLength(2);
+    });
+
+    it('shows the API reason when the table is rejected', () => {
+      svc.updatePdRates.mockReturnValue(throwError(() => ({
+        error: { errors: [{ message: 'Stage 3 has no PD band' }] },
+      })));
+      const c = make();
+      c.editPdRates();
+      c.savePdRates();
+      expect(c.pdError).toBe('Stage 3 has no PD band');
+      expect(c.pdEditing).toBe(true);
+      expect(c.pdSaving).toBe(false);
+    });
+
+    it('cancel leaves edit mode', () => {
+      const c = make();
+      c.editPdRates();
+      c.cancelPdRates();
+      expect(c.pdEditing).toBe(false);
+    });
   });
 });

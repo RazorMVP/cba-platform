@@ -95,6 +95,7 @@
           <div class="detail-row"><span class="detail-key">Repayment Every</span><span class="detail-val mono">{{ product.repaymentEvery }} {{ label(repaymentFreqLabels, product.repaymentFrequencyType) }}</span></div>
           <div class="detail-row"><span class="detail-key">Origination Fee</span><span class="detail-val mono">{{ product.originationFee | number:'1.2-2' }}</span></div>
           <div class="detail-row"><span class="detail-key">Late Payment Fee</span><span class="detail-val mono">{{ product.latePaymentFee | number:'1.2-2' }}</span></div>
+          <div class="detail-row"><span class="detail-key">Loss Given Default (IFRS 9)</span><span class="detail-val mono">{{ (product.lgdPercentage ?? 45) | number:'1.2-2' }}%</span></div>
         </div>
       </div>
 
@@ -415,6 +416,15 @@
             <div class="form-group">
               <label class="form-label">Late Payment Fee</label>
               <input class="form-input" type="number" [(ngModel)]="form.latePaymentFee" min="0" step="0.01" />
+            </div>
+          </div>
+
+          <h3 class="section-title" style="margin-top:1.5rem">Credit Risk</h3>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Loss Given Default (%)</label>
+              <input class="form-input" type="number" [(ngModel)]="form.lgdPercentage" min="0" max="100" step="0.01" />
+              <span class="form-hint">Share of the exposure lost if the borrower defaults. Expected credit loss = exposure × PD × LGD.</span>
             </div>
           </div>
         </div>

@@ -169,6 +169,7 @@ public class ProductService {
         // Fees
         p.setOriginationFee(r.originationFee() != null ? r.originationFee() : BigDecimal.ZERO);
         p.setLatePaymentFee(r.latePaymentFee() != null ? r.latePaymentFee() : BigDecimal.ZERO);
+        if (r.lgdPercentage() != null) p.setLgdPercentage(r.lgdPercentage());
 
         // Attribute overrides
         if (r.allowAttributeOverrides() != null) {

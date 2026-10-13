@@ -28,12 +28,21 @@ public enum CobJobDefinition {
     /** After arrears (days past due are current); before FX revaluation (posts income). */
     LOAN_ACCRUAL    ("loanAccrualJob", "Loan Interest Accrual",
                      "loanAccrualBatchJob"),
+    /** After loan accrual (receivables and days past due are current): IFRS 9 allowance + CBN provision. */
+    LOAN_IMPAIRMENT ("loanImpairmentJob", "Loan Impairment (IFRS 9 ECL)",
+                     "loanImpairmentBatchJob"),
+    /** After impairment: CBN regulatory risk reserve. Posts at month end, or when run manually. */
+    REGULATORY_RESERVE("regulatoryRiskReserveJob", "Regulatory Risk Reserve (CBN)",
+                     "regulatoryRiskReserveBatchJob"),
     /** Last: revalues the positions after every other job has posted its movements. */
     FX_REVALUATION  ("fxRevaluationJob", "FX Revaluation",
                      "fxRevaluationBatchJob");
 
     /** Job parameter every CoB run carries: the ISO business date the run is for. */
     public static final String BUSINESS_DATE = "businessDate";
+
+    /** Job parameter set on a manual run ("true"); absent on the nightly run. */
+    public static final String MANUAL = "manual";
 
     /** The one Quartz trigger that starts the whole sequence. */
     public static final String TRIGGER_GROUP = "cob";
@@ -67,6 +76,13 @@ public enum CobJobDefinition {
         return new JobParametersBuilder()
                 .addString(BUSINESS_DATE, businessDate.toString())
                 .addLong("runAt", System.currentTimeMillis())
+                .toJobParameters();
+    }
+
+    /** Parameters for a run started by hand: as {@link #parameters}, flagged {@link #MANUAL}. */
+    public static JobParameters manualParameters(LocalDate businessDate) {
+        return new JobParametersBuilder(parameters(businessDate))
+                .addString(MANUAL, "true")
                 .toJobParameters();
     }
 

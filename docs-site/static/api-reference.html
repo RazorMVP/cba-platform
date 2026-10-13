@@ -1163,7 +1163,7 @@ Where:
   </summary>
   <div class="endpoint-body">
     <p><strong>Request body:</strong> none. Credits the approved amount <strong>less origination fees</strong> to the loan's linked account (locked, must be <code>ACTIVE</code>), writes a <code>LOAN_DISBURSEMENT</code> transaction and posts, in the same transaction: <strong>DR loan portfolio</strong> (full principal; product link, else <code>ASSET_LOAN_PORTFOLIO</code> → 1100) / <strong>CR savings control</strong> (2001, principal − fee) / <strong>CR deferred loan fees</strong> (1104, fee). The fee is the product's <code>originationFee</code> plus any <code>DISBURSEMENT</code> charges added before disbursement; it is part of the effective interest rate (IFRS 9 B5.4.2) and released to interest income by the nightly accrual. Builds the repayment schedule; each instalment carries its effective-interest share of the fee.</p>
-    <p><strong>Loan responses</strong> also carry <code>daysPastDue</code>, <code>nonPerforming</code> (90+ days past due), <code>interestInSuspense</code> and <code>deferredFeeRemaining</code>. <code>400 ORIGINATION_FEE_EXCEEDS_PRINCIPAL</code> when fees are not less than the amount lent.</p>
+    <p><strong>Loan responses</strong> also carry <code>daysPastDue</code>, <code>nonPerforming</code> (90+ days past due), <code>interestInSuspense</code>, <code>deferredFeeRemaining</code>, <code>eclStage</code> (IFRS 9 stage 1–3, null before the first measurement), <code>lossAllowance</code>, <code>prudentialProvision</code> (CBN), and for a written-off loan <code>writtenOffOn</code>, <code>writeOffReason</code>, <code>writeOffApprovalReference</code>, <code>writtenOffAmount</code> and <code>recoveredAmount</code>. A caller without the ADMIN or TELLER role (and every <code>/api/v1/self/loans</code> response) gets these internal figures removed: <code>nonPerforming</code> is false and <code>interestInSuspense</code>, <code>deferredFeeRemaining</code>, <code>eclStage</code>, <code>lossAllowance</code>, <code>prudentialProvision</code>, <code>writeOffReason</code>, <code>writeOffApprovalReference</code> and <code>writtenOffAmount</code> are null. <code>400 ORIGINATION_FEE_EXCEEDS_PRINCIPAL</code> when fees are not less than the amount lent.</p>
     <p><strong>Errors:</strong> <code>400 CURRENCY_MISMATCH</code> (linked account not in the loan product's currency), <code>400 ACCOUNT_NOT_ACTIVE</code>, <code>400 ACTIVITY_NOT_MAPPED</code>.</p>
   </div>
 </details>
@@ -1216,11 +1216,41 @@ Where:
 <details class="endpoint">
   <summary class="endpoint-header">
     <span class="method POST">POST</span>
-    <span class="endpoint-path">/api/v1/loans/{id}/undo-write-off</span>
-    <span class="endpoint-summary">Undo write-off — restore loan to IN_ARREARS</span>
+    <span class="endpoint-path">/api/v1/loans/{id}/write-off</span>
+    <span class="endpoint-summary">Write off a credit-impaired loan against its loss allowance</span>
   </summary>
   <div class="endpoint-body">
-    <p>Reverses a <code>WRITTEN_OFF</code> loan back to <code>IN_ARREARS</code>. Outstanding balance is reconstructed from the repayment schedule (sum of unpaid principal across all non-PAID installments). Requires ADMIN role.</p>
+    <pre>{ "writeOffDate": "2026-10-13", "reason": "Borrower insolvent", "approvalReference": "BRD/2026/14" }</pre>
+    <p>Brings the loan current (arrears, suspense, accrual) and remeasures its expected credit losses, then derecognises its gross
+    carrying amount (IFRS 9 §5.4.4) in one journal (<code>WOFF-…</code>): CR loan portfolio, interest receivable and fees receivable;
+    DR deferred loan fees and interest/fees in suspense (never income); DR the loan loss allowance; the gross amount the allowance does
+    not cover is an impairment loss (DR the product's <code>writeOffAccount</code>, else the credit impairment charge 5004).
+    <code>writeOffDate</code> defaults to today (not in the future, not before disbursement). Requires ADMIN role.</p>
+    <p><strong>CBN rules:</strong> <code>approvalReference</code> (board or delegated authority approval, ≤ 100 chars) is required
+    (<code>400 WRITE_OFF_APPROVAL_REQUIRED</code>); only a stage 3 (credit-impaired) loan can be written off
+    (<code>400 WRITE_OFF_NOT_CREDIT_IMPAIRED</code>); and while the global configuration <code>enforce-cbn-write-off-rules</code> is
+    on (the default) the loan's prudential provision must have covered its principal for at least a year
+    (<code>400 WRITE_OFF_CBN_RULES_NOT_MET</code>).</p>
+    <p>After a write-off, cash collected through <code>POST /loans/{id}/repayments</code> is a <strong>recovery</strong>
+    (<code>RECV-…</code>: DR the money source / CR the write-off account — an impairment gain, IFRS 9 §5.5.8), capped at what the
+    borrower still owes on the schedule; the loan stays <code>WRITTEN_OFF</code> and <code>recoveredAmount</code> grows. Its charges
+    can no longer be paid or waived (<code>400 LOAN_WRITTEN_OFF</code>).</p>
+    <p><strong>Valid from states:</strong> <code>ACTIVE</code>, <code>IN_ARREARS</code></p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/loans/{id}/undo-write-off</span>
+    <span class="endpoint-summary">Undo a write-off made in error</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Posts the write-off journal again with every side swapped (<code>WOFFREV-…</code>), dated the write-off date — so a closed GL
+    period refuses it (<code>400 GL_PERIOD_CLOSED</code>) — and restores the loan's principal, suspense, deferred fee, loss allowance
+    and stage. The status comes back from the schedule (<code>ACTIVE</code> or <code>IN_ARREARS</code>). Refused once cash has been
+    recovered (<code>400 WRITE_OFF_HAS_RECOVERIES</code>). A loan written off before write-offs posted to the GL has nothing to
+    reverse: its principal comes back from the schedule. Requires ADMIN role.</p>
     <p><strong>Request body:</strong> none</p>
     <p><strong>Valid from state:</strong> <code>WRITTEN_OFF</code></p>
   </div>
@@ -1513,10 +1543,12 @@ Where:
         <tr><td><code>interestOnLoanAccountId</code></td><td>UUID</td><td></td><td>Income account — interest earned</td></tr>
         <tr><td><code>incomeFromFeesAccountId</code></td><td>UUID</td><td></td><td>Income account — fee income</td></tr>
         <tr><td><code>incomeFromPenaltiesAccountId</code></td><td>UUID</td><td></td><td>Income account — penalty income</td></tr>
-        <tr><td><code>writeOffAccountId</code></td><td>UUID</td><td></td><td>Expense account — written-off loans</td></tr>
+        <tr><td><code>writeOffAccountId</code></td><td>UUID</td><td></td><td>Expense account — the part of a write-off the loss allowance does not cover, and recoveries after write-off (default: credit impairment charge 5004)</td></tr>
         <tr><td><code>overpaymentLiabilityAccountId</code></td><td>UUID</td><td></td><td>Liability account — overpayment balance</td></tr>
         <tr><td colspan="4" style="background:#f8f9fa;font-weight:600">Charges</td></tr>
         <tr><td><code>chargeIds</code></td><td>UUID[]</td><td></td><td>Default charge definitions applied to all new loans from this product</td></tr>
+        <tr><td colspan="4" style="background:#f8f9fa;font-weight:600">Credit risk</td></tr>
+        <tr><td><code>lgdPercentage</code></td><td>Decimal</td><td></td><td>Loss given default, % (0–100, default 45): IFRS 9 expected credit loss = exposure × PD × LGD</td></tr>
       </tbody>
     </table>
     <pre>{
@@ -2019,15 +2051,15 @@ difference = actual_cash - closing_balance</pre>
 <!-- COB SCHEDULER ───────────────────────────────────────────────────────── -->
 <section id="cob">
 <h2>Close of Business (CoB) Scheduler <span style="font-size:.75rem;font-weight:400;color:#065f46;background:#d1fae5;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Live</span></h2>
-<p>Spring Batch jobs run nightly <strong>in sequence</strong> from a single Quartz trigger at 23:55 server time: standing-order execution → dormancy classification → interest accrual → arrears classification → FX revaluation. Each job starts only when the previous one has finished; a failed job is logged and the next one still runs. All five list entries therefore show the same <code>cronExpression</code> and <code>nextRunTime</code>. Each job is also manually triggerable via API. Every run carries a <code>businessDate</code> job parameter, and the jobs date their work by it rather than by the clock.</p>
+<p>Spring Batch jobs run nightly <strong>in sequence</strong> from a single Quartz trigger at 23:55 server time: standing-order execution → dormancy classification → interest accrual → arrears classification → loan accrual → loan impairment → regulatory risk reserve → FX revaluation. Each job starts only when the previous one has finished; a failed job is logged and the next one still runs. All eight list entries therefore show the same <code>cronExpression</code> and <code>nextRunTime</code>. Each job is also manually triggerable via API. Every run carries a <code>businessDate</code> job parameter, and the jobs date their work by it rather than by the clock.</p>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
-<tr><td>GET</td><td>/api/v1/jobs</td><td>List the six CoB jobs in schedule order. Each entry: <code>jobName</code>, <code>displayName</code>, <code>cronExpression</code>, <code>nextRunTime</code>, <code>previousRunStartTime</code>, <code>previousRunEndTime</code>, <code>previousRunStatus</code> (<code>SUCCESS</code> / <code>FAILED</code> / <code>RUNNING</code>, null if never run), <code>active</code> (false when the Quartz trigger is paused), <code>currentlyRunning</code>. Covers scheduled and manual runs.</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/jobs</td><td>List the eight CoB jobs in schedule order. Each entry: <code>jobName</code>, <code>displayName</code>, <code>cronExpression</code>, <code>nextRunTime</code>, <code>previousRunStartTime</code>, <code>previousRunEndTime</code>, <code>previousRunStatus</code> (<code>SUCCESS</code> / <code>FAILED</code> / <code>RUNNING</code>, null if never run), <code>active</code> (false when the Quartz trigger is paused), <code>currentlyRunning</code>. Covers scheduled and manual runs.</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/jobs/{jobName}/run</td><td>Run a CoB job now, synchronously, for today's business date. Returns the finished run (same shape as a history entry) — <strong>check <code>status</code>: the call returns 200 even when the job itself ends <code>FAILED</code></strong>. <code>404</code> unknown job name; <code>409</code> <code>COB_JOB_ALREADY_RUNNING</code> if that job is running.</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/api/v1/jobs/{jobName}/history</td><td>The 30 most recent runs, newest first, scheduled and manual alike. Each entry: <code>id</code> (Spring Batch execution id), <code>jobName</code>, <code>businessDate</code>, <code>startTime</code>, <code>endTime</code>, <code>status</code>, <code>errorMessage</code> (first line of the failure; null on success). <code>404</code> unknown job name.</td><td>ADMIN</td></tr>
 </table>
-<p><strong>Valid job names:</strong> <code>standingOrderExecutionJob</code>, <code>dormancyClassificationJob</code>, <code>interestAccrualJob</code>, <code>arrearsClassificationJob</code>, <code>loanAccrualJob</code>, <code>fxRevaluationJob</code></p>
-<p><strong>Implementation:</strong> the single trigger fires <code>CloseOfBusinessQuartzJob</code> (<code>@DisallowConcurrentExecution</code>), which calls <code>CobRunner.runAll(businessDate)</code> to launch the Spring Batch jobs one after another in <code>CobJobDefinition</code> order. <strong>Interest accrual posts to the GL</strong>: every credit writes DR <code>EXPENSE_INTEREST_ON_SAVINGS</code> / CR <code>LIABILITY_SAVINGS_CONTROL</code> in the same transaction as the balance change; if either activity has no GL mapping the job fails and credits nobody. Run history is read from Spring Batch's own execution tables (<code>batch_job_execution</code>), so nightly runs appear alongside manual ones; <code>cob_job_history</code> is still written by manual runs only. Standing orders run one transaction per order, so a failed order can't roll back the others and stays due for the next run. Quartz schema managed by Flyway V10 (<code>initialize-schema: never</code>). <strong>Arrears classification</strong> sets each open loan's <code>daysPastDue</code> from its oldest unpaid instalment (a part-paid one counts). <strong>Loan accrual</strong> (<code>loanAccrualJob</code>, after arrears) runs each open loan in its own transaction: at 90 or more days past due the loan becomes non-performing and its accrued unpaid interest and unpaid penalties move from income to <code>LIABILITY_INCOME_IN_SUSPENSE</code> (CBN; IFRS 9 B5.5.37 backstop); fees now due are recognised; then interest accrues day by day through the business date (DR interest receivable / CR interest income, or CR suspense when non-performing) and the origination fee is released (DR deferred loan fees / CR interest income). The first run catches up from each loan's disbursement date. A loan that fails is logged and the others still post; the run then ends <code>FAILED</code>. <strong>FX revaluation</strong> runs last (IAS 21 §23, §28): for each foreign currency it moves the functional-currency carrying amount of the FX position (<code>ASSET_FX_POSITION_EQUIVALENT</code> lines tagged with that currency) to <code>−position × closing rate</code> and posts the difference to <code>INCOME_FX_GAIN_LOSS</code> (entity <code>FX_REVALUATION</code>, reference <code>FXREV-{date}-{currency}</code>). The closing rate is the active rate at run time (rates have no history). A rerun on the same day posts nothing; a currency with an open position and no active rate fails the run and nothing is posted.</p>
+<p><strong>Valid job names:</strong> <code>standingOrderExecutionJob</code>, <code>dormancyClassificationJob</code>, <code>interestAccrualJob</code>, <code>arrearsClassificationJob</code>, <code>loanAccrualJob</code>, <code>loanImpairmentJob</code>, <code>regulatoryRiskReserveJob</code>, <code>fxRevaluationJob</code></p>
+<p><strong>Implementation:</strong> the single trigger fires <code>CloseOfBusinessQuartzJob</code> (<code>@DisallowConcurrentExecution</code>), which calls <code>CobRunner.runAll(businessDate)</code> to launch the Spring Batch jobs one after another in <code>CobJobDefinition</code> order. <strong>Interest accrual posts to the GL</strong>: every credit writes DR <code>EXPENSE_INTEREST_ON_SAVINGS</code> / CR <code>LIABILITY_SAVINGS_CONTROL</code> in the same transaction as the balance change; if either activity has no GL mapping the job fails and credits nobody. Run history is read from Spring Batch's own execution tables (<code>batch_job_execution</code>), so nightly runs appear alongside manual ones; <code>cob_job_history</code> is still written by manual runs only. Standing orders run one transaction per order, so a failed order can't roll back the others and stays due for the next run. Quartz schema managed by Flyway V10 (<code>initialize-schema: never</code>). <strong>Arrears classification</strong> sets each open loan's <code>daysPastDue</code> from its oldest unpaid instalment (a part-paid one counts). <strong>Loan accrual</strong> (<code>loanAccrualJob</code>, after arrears) runs each open loan in its own transaction: at 90 or more days past due the loan becomes non-performing and its accrued unpaid interest and unpaid penalties move from income to <code>LIABILITY_INCOME_IN_SUSPENSE</code> (CBN; IFRS 9 B5.5.37 backstop); fees now due are recognised; then interest accrues day by day through the business date (DR interest receivable / CR interest income, or CR suspense when non-performing) and the origination fee is released (DR deferred loan fees / CR interest income). The first run catches up from each loan's disbursement date. A loan that fails is logged and the others still post; the run then ends <code>FAILED</code>. <strong>Loan impairment</strong> (<code>loanImpairmentJob</code>, after loan accrual) measures each open loan in its own transaction: stage 1 up to 30 days past due, 2 above 30 (IFRS 9 §5.5.11), 3 above 90 or non-performing (B5.5.37); expected credit loss = exposure (gross carrying amount) × PD (from <code>/api/v1/ecl/pd-rates</code>, 12-month for stage 1, lifetime for 2 and 3) × the product's LGD; the change in the loss allowance posts as an impairment gain or loss (§5.5.8). It also measures the CBN prudential provision from the active provisioning criteria. <strong>Regulatory risk reserve</strong> (<code>regulatoryRiskReserveJob</code>) moves retained earnings to a non-distributable reserve until it equals prudential provisions less the IFRS 9 allowance (never below zero; equity only, no profit or loss). The nightly run posts only on the last day of a month; a manual run posts whatever the date. <strong>FX revaluation</strong> runs last (IAS 21 §23, §28): for each foreign currency it moves the functional-currency carrying amount of the FX position (<code>ASSET_FX_POSITION_EQUIVALENT</code> lines tagged with that currency) to <code>−position × closing rate</code> and posts the difference to <code>INCOME_FX_GAIN_LOSS</code> (entity <code>FX_REVALUATION</code>, reference <code>FXREV-{date}-{currency}</code>). The closing rate is the active rate at run time (rates have no history). A rerun on the same day posts nothing; a currency with an open position and no active rate fails the run and nothing is posted.</p>
 </section>
 
 <!-- ACCOUNTING ──────────────────────────────────────────────────────────── -->
@@ -2049,13 +2081,18 @@ difference = actual_cash - closing_balance</pre>
 <tr><td>Loan accrual (nightly, <code>ACR-…</code>)</td><td>DR <code>ASSET_INTEREST_RECEIVABLE</code> / CR interest income (product link → <code>INCOME_INTEREST</code>), or CR <code>LIABILITY_INCOME_IN_SUSPENSE</code> when non-performing; DR <code>ASSET_DEFERRED_LOAN_FEES</code> / CR interest income for the fee released</td><td><code>LOAN</code></td></tr>
 <tr><td>Loan becomes non-performing (<code>SUSP-…</code>)</td><td>DR interest income and penalty income / CR suspense, for accrued interest and penalties not yet received (CBN)</td><td><code>LOAN</code></td></tr>
 <tr><td>Cash received on suspended income (<code>SREL-…</code>)</td><td>DR suspense / CR interest or penalty income (cash basis)</td><td><code>LOAN</code></td></tr>
-<tr><td>Loan settled (<code>CLOSE-…</code>)</td><td>DR interest receivable (interest received ahead of accrual) and DR deferred loan fees (fee not yet released) / CR interest income — derecognition (IFRS 9 §3.2.3, B5.4.6)</td><td><code>LOAN</code></td></tr>
+<tr><td>Loan settled (<code>CLOSE-…</code>)</td><td>DR interest receivable (interest received ahead of accrual) and DR deferred loan fees (fee not yet released) / CR interest income — derecognition (IFRS 9 §3.2.3, B5.4.6). The loss allowance left is released (<code>ECL-…</code>)</td><td><code>LOAN</code></td></tr>
+<tr><td>Expected credit losses (nightly, <code>ECL-…</code>)</td><td>Allowance up: DR <code>EXPENSE_LOAN_LOSS_PROVISION</code> (5004) / CR <code>ASSET_LOAN_LOSS_ALLOWANCE</code> (1105). Down: the reverse (impairment gain) — IFRS 9 §5.5.8</td><td><code>LOAN</code></td></tr>
+<tr><td>Loan write-off (<code>WOFF-…</code>)</td><td>CR portfolio, interest receivable, fees receivable; DR deferred loan fees, suspense, loss allowance; uncovered remainder DR the write-off account (product link, else 5004) — IFRS 9 §5.4.4</td><td><code>LOAN</code></td></tr>
+<tr><td>Write-off undone (<code>WOFFREV-…</code>)</td><td>The write-off journal with every side swapped, dated the write-off date</td><td><code>LOAN</code></td></tr>
+<tr><td>Recovery after write-off (<code>RECV-…</code>)</td><td>DR money source / CR the write-off account (impairment gain)</td><td><code>LOAN</code></td></tr>
+<tr><td>Regulatory risk reserve (month end, <code>RRR-&lt;date&gt;</code>)</td><td>DR <code>EQUITY_RETAINED_EARNINGS</code> (3001) / CR <code>EQUITY_REGULATORY_RISK_RESERVE</code> (3002), or the reverse, in the functional currency (CBN Prudential Guidelines)</td><td><code>REGULATORY_RESERVE</code></td></tr>
 <tr><td>Loan repayment / foreclosure (<code>RPMT-…</code> / <code>FCLS-…</code>)</td><td>DR savings control (ACCOUNT) or Cash at Teller (CASH) / CR loan portfolio (principal), <code>ASSET_INTEREST_RECEIVABLE</code> (interest), <code>ASSET_FEES_RECEIVABLE</code> (fees and charges). Accrual basis (IFRS 9 §5.4.1): cash clears receivables, never income</td><td><code>LOAN</code></td></tr>
 <tr><td>Loan charge recognised (<code>CHG-…</code>)</td><td>DR <code>ASSET_FEES_RECEIVABLE</code> / CR the charge's income account → product fee/penalty link → <code>INCOME_FEES</code> / <code>INCOME_PENALTIES</code> (booked in the functional currency, as for interest). Penalties when charged, fees when due (IFRS 15 §31)</td><td><code>LOAN</code></td></tr>
 <tr><td>Loan charge paid / waived (<code>CHGP-…</code> / <code>CHGW-…</code>)</td><td>Paid: DR money source / CR fees receivable. Waived after recognition: DR the income account / CR fees receivable (IFRS 15 §87-88)</td><td><code>LOAN</code></td></tr>
 </table>
-<p><strong>Account resolution:</strong> the deposit product's own GL link (<code>savingsControlAccount</code>, <code>overdraftPortfolioControlAccount</code>, <code>interestOnSavingsAccount</code>) first, then the financial-activity mapping; with neither the request is <strong>rejected</strong> (<code>400 ACTIVITY_NOT_MAPPED</code>) and nothing moves. A credit balance posts to savings control (liability); the part of a balance below zero posts to the overdraft portfolio (asset — an overdraft is a loan, not a negative deposit). Every journal must balance <em>per currency</em>, and only enabled DETAIL accounts accept postings (<code>400 GL_ACCOUNT_NOT_POSTABLE</code>). Cross-currency postings, interest and teller over/short need the <code>functional-currency</code> global configuration (seeded from the default tenant; <code>400 FUNCTIONAL_CURRENCY_NOT_CONFIGURED</code>) and an active rate from each foreign currency to it (<code>400 EXCHANGE_RATE_NOT_CONFIGURED</code>). Loan write-off, interest waivers and the loan loss allowance (GL posting PR 2c–2d), external (SWIFT/SEPA) payments, term deposits, shares and treasury do not post yet.</p>
-<p><strong>Financial activities:</strong> <code>ASSET_FUND_SOURCE</code>, <code>ASSET_CASH_AT_TELLER</code>, <code>ASSET_INTEREST_RECEIVABLE</code>, <code>ASSET_LOAN_PORTFOLIO</code>, <code>ASSET_FEES_RECEIVABLE</code>, <code>ASSET_DEFERRED_LOAN_FEES</code>, <code>LIABILITY_INCOME_IN_SUSPENSE</code>, <code>INCOME_PENALTIES</code>, <code>ASSET_OVERDRAFT_PORTFOLIO</code>, <code>ASSET_FX_POSITION</code>, <code>ASSET_FX_POSITION_EQUIVALENT</code>, <code>LIABILITY_SAVINGS_CONTROL</code>, <code>LIABILITY_TRANSFER_IN_SUSPENSE</code>, <code>INCOME_INTEREST</code>, <code>INCOME_FEES</code>, <code>INCOME_FX_GAIN_LOSS</code>, <code>EXPENSE_LOAN_LOSS_PROVISION</code>, <code>EXPENSE_WRITE_OFF</code>, <code>EXPENSE_INTEREST_ON_SAVINGS</code>, <code>EXPENSE_CASH_OVER_SHORT</code>, <code>EQUITY_MIGRATION_CLEARING</code>. V54 seeds GL 1102 Overdrafts, 1200 FX Position, 1201 FX Position Equivalent, 4003 Net FX Gains and 5003 Cash Over and Short; V56 seeds GL 3900 Legacy Balance Migration Clearing (only where the V8 chart exists). Journal entries on the FX position equivalent carry <code>positionCurrency</code>, the foreign currency whose position they value (null on every other line).</p>
+<p><strong>Account resolution:</strong> the deposit product's own GL link (<code>savingsControlAccount</code>, <code>overdraftPortfolioControlAccount</code>, <code>interestOnSavingsAccount</code>) first, then the financial-activity mapping; with neither the request is <strong>rejected</strong> (<code>400 ACTIVITY_NOT_MAPPED</code>) and nothing moves. A credit balance posts to savings control (liability); the part of a balance below zero posts to the overdraft portfolio (asset — an overdraft is a loan, not a negative deposit). Every journal must balance <em>per currency</em>, and only enabled DETAIL accounts accept postings (<code>400 GL_ACCOUNT_NOT_POSTABLE</code>). Cross-currency postings, interest and teller over/short need the <code>functional-currency</code> global configuration (seeded from the default tenant; <code>400 FUNCTIONAL_CURRENCY_NOT_CONFIGURED</code>) and an active rate from each foreign currency to it (<code>400 EXCHANGE_RATE_NOT_CONFIGURED</code>). Loan interest waivers (GL posting PR 2d), external (SWIFT/SEPA) payments, term deposits, shares and treasury do not post yet.</p>
+<p><strong>Financial activities:</strong> <code>ASSET_FUND_SOURCE</code>, <code>ASSET_CASH_AT_TELLER</code>, <code>ASSET_INTEREST_RECEIVABLE</code>, <code>ASSET_LOAN_PORTFOLIO</code>, <code>ASSET_FEES_RECEIVABLE</code>, <code>ASSET_DEFERRED_LOAN_FEES</code>, <code>ASSET_LOAN_LOSS_ALLOWANCE</code>, <code>LIABILITY_INCOME_IN_SUSPENSE</code>, <code>INCOME_PENALTIES</code>, <code>ASSET_OVERDRAFT_PORTFOLIO</code>, <code>ASSET_FX_POSITION</code>, <code>ASSET_FX_POSITION_EQUIVALENT</code>, <code>LIABILITY_SAVINGS_CONTROL</code>, <code>LIABILITY_TRANSFER_IN_SUSPENSE</code>, <code>INCOME_INTEREST</code>, <code>INCOME_FEES</code>, <code>INCOME_FX_GAIN_LOSS</code>, <code>EXPENSE_LOAN_LOSS_PROVISION</code>, <code>EXPENSE_WRITE_OFF</code>, <code>EXPENSE_INTEREST_ON_SAVINGS</code>, <code>EXPENSE_CASH_OVER_SHORT</code>, <code>EQUITY_MIGRATION_CLEARING</code>, <code>EQUITY_RETAINED_EARNINGS</code>, <code>EQUITY_REGULATORY_RISK_RESERVE</code>. V59 seeds GL 1105 Loan Loss Allowance, 5004 Credit Impairment Charge and 3002 Regulatory Risk Reserve. V54 seeds GL 1102 Overdrafts, 1200 FX Position, 1201 FX Position Equivalent, 4003 Net FX Gains and 5003 Cash Over and Short; V56 seeds GL 3900 Legacy Balance Migration Clearing (only where the V8 chart exists). Journal entries on the FX position equivalent carry <code>positionCurrency</code>, the foreign currency whose position they value (null on every other line).</p>
 
 <h3>Journal entries — list, manual post, reversal</h3>
 <table>
@@ -2091,7 +2128,7 @@ difference = actual_cash - closing_balance</pre>
 <tr><td>PUT</td><td>/api/v1/financialactivityaccounts/{id}</td><td>Update GL account for an activity</td><td>ADMIN</td></tr>
 <tr><td>DELETE</td><td>/api/v1/financialactivityaccounts/{id}</td><td>Remove mapping</td><td>ADMIN</td></tr>
 </table>
-<p><strong>Activity types</strong> (any other value is rejected): the 16 listed under GL / Accounting above. Before Session 125 cont. 15 this page and the web screen listed seven names the backend never accepted (<code>ASSET_RECEIVABLE</code>, <code>INCOME_FEE</code>, <code>EXPENSE_LOAN_LOSSES</code>, …).</p>
+<p><strong>Activity types</strong> (any other value is rejected): the 24 listed under GL / Accounting above. Before Session 125 cont. 15 this page and the web screen listed seven names the backend never accepted (<code>ASSET_RECEIVABLE</code>, <code>INCOME_FEE</code>, <code>EXPENSE_LOAN_LOSSES</code>, …).</p>
 </section>
 
 <!-- CHARGES ─────────────────────────────────────────────────────────────── -->
@@ -2735,7 +2772,13 @@ Content-Type: application/json
 <!-- PROVISIONING CRITERIA ───────────────────────────────────────────────── -->
 <section id="provisioning-criteria">
 <h2>Provisioning Criteria</h2>
-<p>Loan loss provisioning criteria definitions (IFRS 9 / Basel II). Each criteria has named categories (STANDARD, WATCH, SUB_STANDARD, DOUBTFUL, LOSS) with age-band thresholds (days overdue) and a provision percentage. Definitions are cascaded — updating a criteria replaces all definitions atomically. Liability and expense GL accounts are linked per category.</p>
+<p>CBN prudential provisioning bands by days past due. V59 seeds the active criteria <strong>CBN Prudential</strong>:
+PERFORMING 0–90 days 2%, SUB_STANDARD 91–180 10%, DOUBTFUL 181–360 50%, LOST 361+ 100%. The nightly impairment job measures each
+loan's prudential provision with the one active criteria (<code>400 PROVISIONING_CRITERIA_NOT_CONFIGURED</code> with none,
+<code>PROVISIONING_CRITERIA_AMBIGUOUS</code> with several): a performing loan carries its band's percentage of principal; a
+non-performing one 100% of principal more than 90 days overdue plus its band's percentage of the rest. The total feeds the
+regulatory risk reserve. Definitions are cascaded — updating a criteria replaces all definitions atomically. The liability and
+expense account columns are informational: the reserve posts to equity.</p>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
 <tr><td>GET</td><td>/api/v1/provisioningcriteria</td><td>List provisioning criteria</td><td>ADMIN, TELLER</td></tr>
@@ -2744,6 +2787,27 @@ Content-Type: application/json
 <tr><td>PUT</td><td>/api/v1/provisioningcriteria/{id}</td><td>Update criteria (replaces all definitions)</td><td>ADMIN</td></tr>
 <tr><td>DELETE</td><td>/api/v1/provisioningcriteria/{id}</td><td>Delete provisioning criteria</td><td>ADMIN</td></tr>
 </table>
+</section>
+
+<!-- EXPECTED CREDIT LOSSES ──────────────────────────────────────────────── -->
+<section id="expected-credit-losses">
+<h2>Expected Credit Losses (IFRS 9)</h2>
+<p>The risk team's probability-of-default table and the loan book's impairment position. Stage 1 PDs are 12-month (IFRS 9 §5.5.5),
+stages 2 and 3 lifetime (§5.5.3). A loan's PD is the band of its stage that holds its days past due, else the stage's first band.
+V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+ 100%. Loss given default is per loan product
+(<code>lgdPercentage</code>, default 45%, the Basel foundation-IRB value for senior unsecured exposures).</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td>GET</td><td>/api/v1/ecl/pd-rates</td><td>List PD bands: <code>id</code>, <code>stage</code>, <code>minDpd</code>, <code>maxDpd</code>, <code>pdPercentage</code>, <code>description</code></td><td>ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/api/v1/ecl/pd-rates</td><td>Replace the whole table (array of <code>{stage, minDpd, maxDpd, pdPercentage, description}</code>). Every stage needs a band, bands may not overlap within a stage, PD 0–100 — else <code>400 ECL_PD_RATES_INVALID</code>. Takes effect at the next impairment run</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/ecl/summary</td><td><code>stages[]</code>: open loans per currency and stage (<code>loans</code>, <code>principal</code>, <code>lossAllowance</code>, <code>prudentialProvision</code>); <code>regulatoryReserve</code>: in the functional currency, <code>prudentialProvisions</code>, <code>lossAllowance</code>, <code>target</code> (max(0, prudential − allowance)), <code>reserveBalance</code> (GL 3002) and <code>adjustment</code> still to post</td><td>ADMIN, TELLER</td></tr>
+</table>
+<pre>PUT /api/v1/ecl/pd-rates
+[
+  { "stage": 1, "minDpd": 0,  "maxDpd": 30,    "pdPercentage": 2.0,   "description": "Performing, 12-month PD" },
+  { "stage": 2, "minDpd": 31, "maxDpd": 90,    "pdPercentage": 20.0,  "description": "SICR, lifetime PD" },
+  { "stage": 3, "minDpd": 91, "maxDpd": 99999, "pdPercentage": 100.0, "description": "Credit-impaired" }
+]</pre>
 </section>
 
 <!-- TREASURY ─────────────────────────────────────────────────────────────── -->
@@ -3155,8 +3219,8 @@ Content-Type: application/json
 <tr><td>GET</td><td>/api/v1/loans/{id}/foreclosure-quote</td><td>Amount to settle the loan on a date</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/loans/{id}?command=reject</td><td>Reject loan</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/loans/{id}?command=withdrawnByApplicant</td><td>Withdraw loan</td><td>ADMIN</td></tr>
-<tr><td>POST</td><td>/api/v1/loans/{id}?command=writeOff</td><td>Write off loan</td><td>ADMIN</td></tr>
-<tr><td>POST</td><td>/api/v1/loans/{id}/undo-write-off</td><td>Undo write-off (WRITTEN_OFF → IN_ARREARS)</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}/write-off</td><td>Write off a stage 3 loan against its allowance (board approval reference required)</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/loans/{id}/undo-write-off</td><td>Undo write-off: reversing journal on the write-off date (not after recoveries)</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/loans/{id}/waive-interest</td><td>Waive outstanding interest on all pending installments</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/loans/{id}/foreclose</td><td>Settle early for the foreclosure quote (ACCOUNT or CASH) — terminal FORECLOSED state</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/api/v1/loans/{id}/repayment-schedule</td><td>Repayment schedule</td><td>ADMIN, TELLER</td></tr>
@@ -3482,6 +3546,9 @@ Content-Type: application/json
 <tr><td>POST</td><td>/api/v1/provisioningcriteria</td><td>Create criteria + definitions</td><td>ADMIN</td></tr>
 <tr><td>PUT</td><td>/api/v1/provisioningcriteria/{id}</td><td>Update criteria (replaces definitions)</td><td>ADMIN</td></tr>
 <tr><td>DELETE</td><td>/api/v1/provisioningcriteria/{id}</td><td>Delete provisioning criteria</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/ecl/pd-rates</td><td>List IFRS 9 PD bands</td><td>ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/api/v1/ecl/pd-rates</td><td>Replace the PD table</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/ecl/summary</td><td>Impairment by currency and stage + CBN regulatory risk reserve</td><td>ADMIN, TELLER</td></tr>
 <!-- NOTIFICATIONS ADMIN ─────────────────────────────────────────────────── -->
 <section id="notifications-admin">
 <h2>Notifications Admin <span style="font-size:.75rem;font-weight:400;color:#065f46;background:#d1fae5;padding:.15em .5em;border-radius:4px;margin-left:.5rem">Live</span></h2>

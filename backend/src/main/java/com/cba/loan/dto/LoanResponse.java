@@ -28,5 +28,32 @@ public record LoanResponse(
         boolean nonPerforming,
         BigDecimal interestInSuspense,
         /** Origination fee not yet released to interest income. */
-        BigDecimal deferredFeeRemaining
-) {}
+        BigDecimal deferredFeeRemaining,
+        /** IFRS 9 stage at the last measurement (1, 2 or 3); null before the first. */
+        Integer eclStage,
+        /** Expected credit losses held against the loan. */
+        BigDecimal lossAllowance,
+        /** CBN prudential provision at the last measurement. */
+        BigDecimal prudentialProvision,
+        LocalDate writtenOffOn,
+        String writeOffReason,
+        String writeOffApprovalReference,
+        /** Gross carrying amount derecognised at write-off. */
+        BigDecimal writtenOffAmount,
+        /** Cash collected since the write-off. */
+        BigDecimal recoveredAmount
+) {
+    /**
+     * The view a borrower may see: the bank's internal credit-risk and accounting figures
+     * (suspense, deferred fee, IFRS 9 stage and allowance, CBN provision, write-off reason
+     * and board approval) are removed. Staff (ADMIN/TELLER) get the full response.
+     */
+    public LoanResponse forCustomer() {
+        return new LoanResponse(id, loanAccountNumber, customerId, customerName, productName,
+                principalAmount, approvedAmount, outstandingBalance, interestRate, termMonths, status,
+                applicationDate, approvalDate, disbursementDate, maturityDate,
+                daysPastDue, false, null, null,
+                null, null, null,
+                writtenOffOn, null, null, null, recoveredAmount);
+    }
+}

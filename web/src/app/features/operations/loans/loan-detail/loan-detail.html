@@ -92,18 +92,23 @@
             <span class="material-icons">payments</span> Record Repayment
           </button>
         }
+        @if (canRecover) {
+          <button class="btn-primary" (click)="showRepaymentModal = true; repaymentAmount = null">
+            <span class="material-icons">savings</span> Record Recovery
+          </button>
+        }
         @if (canReject) {
           <button class="btn-danger" (click)="showRejectModal = true">
             <span class="material-icons">cancel</span> Reject
           </button>
         }
         @if (canWriteOff) {
-          <button class="btn-danger" (click)="showWriteOffModal = true; writeOffReason = ''; writeOffError = ''">
+          <button class="btn-danger" (click)="showWriteOffModal = true; writeOffReason = ''; writeOffApprovalRef = ''; writeOffError = ''">
             <span class="material-icons">money_off</span> Write Off
           </button>
         }
         @if (canUndoWriteOff) {
-          <button class="btn-warning" (click)="showUndoWriteOffModal = true">
+          <button class="btn-warning" (click)="showUndoWriteOffModal = true; undoWriteOffError = ''">
             <span class="material-icons">undo</span> Undo Write-Off
           </button>
         }
@@ -217,6 +222,25 @@
                 <div class="tl-label">{{ ['IN_ARREARS','WRITTEN_OFF'].includes(loan.status) ? statusLabel(loan.status) : 'Closed' }}</div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__header"><div class="card__title">Credit Risk</div></div>
+          <div class="card__body">
+            <div class="detail-row"><span class="detail-key">Days Past Due</span><span class="detail-val">{{ loan.daysPastDue ?? 0 }}</span></div>
+            <div class="detail-row"><span class="detail-key">IFRS 9 Stage</span><span class="detail-val">{{ eclStageLabel(loan.eclStage) }}</span></div>
+            <div class="detail-row"><span class="detail-key">Loss Allowance (ECL)</span><span class="detail-val">{{ (loan.lossAllowance ?? 0) | currency:'USD':'symbol':'1.2-2' }}</span></div>
+            <div class="detail-row"><span class="detail-key">CBN Prudential Provision</span><span class="detail-val">{{ (loan.prudentialProvision ?? 0) | currency:'USD':'symbol':'1.2-2' }}</span></div>
+            <div class="detail-row"><span class="detail-key">Non-performing</span><span class="detail-val">{{ loan.nonPerforming ? 'Yes — interest held in suspense' : 'No' }}</span></div>
+            @if ((loan.interestInSuspense ?? 0) > 0) {
+              <div class="detail-row"><span class="detail-key">Interest in Suspense</span><span class="detail-val">{{ loan.interestInSuspense | currency:'USD':'symbol':'1.2-2' }}</span></div>
+            }
+            @if (loan.status === 'WRITTEN_OFF') {
+              <div class="detail-row"><span class="detail-key">Written Off</span><span class="detail-val">{{ loan.writtenOffOn | date:'mediumDate' }} — {{ (loan.writtenOffAmount ?? 0) | currency:'USD':'symbol':'1.2-2' }}</span></div>
+              <div class="detail-row"><span class="detail-key">Approval Reference</span><span class="detail-val mono">{{ loan.writeOffApprovalReference ?? '—' }}</span></div>
+              <div class="detail-row"><span class="detail-key">Recovered</span><span class="detail-val">{{ (loan.recoveredAmount ?? 0) | currency:'USD':'symbol':'1.2-2' }}</span></div>
+            }
           </div>
         </div>
 
@@ -718,10 +742,16 @@
   <div class="modal-overlay" (click)="showRepaymentModal = false">
     <div class="modal" (click)="$event.stopPropagation()">
       <div class="modal__header">
-        <h2 class="modal__title">Record Repayment</h2>
+        <h2 class="modal__title">{{ canRecover ? 'Record Recovery' : 'Record Repayment' }}</h2>
         <button class="modal__close" (click)="showRepaymentModal = false">✕</button>
       </div>
       <div class="modal__body">
+        @if (canRecover) {
+          <div class="modal__warning">
+            <span class="material-icons">info</span>
+            This loan is written off. Cash collected is recorded as a recovery: income (an impairment gain), not a reduction of a loan balance.
+          </div>
+        }
         <div class="form-group">
           <label class="form-label">Payment Amount (USD)</label>
           <input type="number" class="form-input" placeholder="0.00" step="0.01" min="0.01"
@@ -797,7 +827,8 @@
       <div class="modal__body">
         <div class="modal__warning">
           <span class="material-icons">warning</span>
-          This action is <strong>irreversible</strong>. The loan will be marked as unrecoverable and the outstanding balance written off the books.
+          The loan's balances leave the books against its loss allowance; anything the allowance does not cover is an impairment loss.
+          Only a credit-impaired (stage 3) loan can be written off. It can be undone until cash is recovered.
         </div>
         <div class="form-group">
           <label class="form-label">Write-off Date</label>
@@ -808,13 +839,18 @@
           <textarea class="form-textarea" rows="3" placeholder="e.g. Customer deceased, debt declared irrecoverable…"
                     [(ngModel)]="writeOffReason"></textarea>
         </div>
+        <div class="form-group">
+          <label class="form-label">Board Approval Reference <span class="required">*</span></label>
+          <input type="text" class="form-input" maxlength="100" placeholder="e.g. BRD/2026/14"
+                 [(ngModel)]="writeOffApprovalRef" />
+        </div>
         @if (writeOffError) {
           <div class="form-error">{{ writeOffError }}</div>
         }
       </div>
       <div class="modal__footer">
         <button class="btn-ghost" [disabled]="writeOffSaving" (click)="showWriteOffModal = false">Cancel</button>
-        <button class="btn-danger" [disabled]="!writeOffReason.trim() || writeOffSaving" (click)="submitWriteOff()">
+        <button class="btn-danger" [disabled]="!writeOffReason.trim() || !writeOffApprovalRef.trim() || writeOffSaving" (click)="submitWriteOff()">
           {{ writeOffSaving ? 'Processing…' : 'Confirm Write-Off' }}
         </button>
       </div>
@@ -928,8 +964,12 @@
       <div class="modal__body">
         <p class="confirm-text">
           Reverse the write-off for <strong>{{ loan?.loanAccountNumber }}</strong>?
-          The loan will return to <strong>IN_ARREARS</strong> with its outstanding balance restored from the repayment schedule.
+          The write-off journal is reversed on its original date and the loan's balances and loss allowance come back.
+          Not possible once cash has been recovered, or if that date's GL period is closed.
         </p>
+        @if (undoWriteOffError) {
+          <div class="form-error">{{ undoWriteOffError }}</div>
+        }
       </div>
       <div class="modal__footer">
         <button class="btn-ghost" [disabled]="undoWriteOffSaving" (click)="showUndoWriteOffModal = false">Cancel</button>

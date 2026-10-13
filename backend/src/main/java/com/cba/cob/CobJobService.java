@@ -82,7 +82,7 @@ public class CobJobService {
 
         try {
             JobExecution execution = jobLauncher.run(
-                    jobsByBeanName.get(job.beanName()), CobJobDefinition.parameters(businessDate));
+                    jobsByBeanName.get(job.beanName()), CobJobDefinition.manualParameters(businessDate));
             CobRunView run = toRunView(execution);
             history.setStatus(execution.getStatus() == BatchStatus.COMPLETED
                     ? CobJobHistory.JobStatus.COMPLETED : CobJobHistory.JobStatus.FAILED);

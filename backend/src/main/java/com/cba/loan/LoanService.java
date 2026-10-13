@@ -22,6 +22,7 @@ import com.cba.loan.dto.WriteOffRequest;
 import com.cba.notification.LoanEvent;
 import com.cba.product.LoanProduct;
 import com.cba.product.LoanProductRepository;
+import com.cba.system.GlobalConfigurationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -32,7 +33,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -50,8 +53,12 @@ public class LoanService {
     private final LoanGlPosting loanGlPosting;
     private final LoanChargeRepository loanChargeRepository;
     private final LoanAccrualService loanAccrualService;
+    private final LoanImpairmentService loanImpairmentService;
+    private final GlobalConfigurationRepository globalConfigRepository;
 
     private static final String LOAN_TYPE = "LN";
+    /** Global configuration: enforce CBN's "fully provided for at least a year" before a write-off. */
+    static final String CBN_WRITE_OFF_RULES = "enforce-cbn-write-off-rules";
 
     @Transactional
     public LoanResponse applyForLoan(LoanApplicationRequest request) {
@@ -195,9 +202,12 @@ public class LoanService {
     public LoanRepaymentResponse makeRepayment(UUID loanId, LoanRepaymentRequest request) {
         Loan loan = findById(loanId);
 
+        if (loan.getStatus() == LoanStatus.WRITTEN_OFF) {
+            return recover(loan, request);
+        }
         if (loan.getStatus() != LoanStatus.ACTIVE && loan.getStatus() != LoanStatus.IN_ARREARS) {
             throw CbaException.badRequest("INVALID_LOAN_STATE",
-                    "Loan must be ACTIVE or IN_ARREARS to accept repayments");
+                    "Loan must be ACTIVE, IN_ARREARS or WRITTEN_OFF to accept repayments");
         }
 
         LocalDate date = paymentDate(loan, request.paymentDate());
@@ -226,6 +236,7 @@ public class LoanService {
             loan.setOutstandingBalance(BigDecimal.ZERO);
             loan.setStatus(LoanStatus.CLOSED_OBLIGATIONS_MET);
             loanAccrualService.closeOut(loan, date);
+            loanImpairmentService.release(loan, date);
         }
 
         Loan saved = loanRepository.save(loan);
@@ -234,6 +245,40 @@ public class LoanService {
                         "interestPortion", allocation.interest(), "feePortion", allocation.fees(),
                         "paymentMethod", source.method().name()));
 
+        return new LoanRepaymentResponse(
+                saved.getId(), saved.getLoanAccountNumber(),
+                payment, allocation.principal(), allocation.interest(), allocation.fees(),
+                saved.getOutstandingBalance(), date,
+                source.method().name(), request.referenceNumber());
+    }
+
+    /**
+     * Cash collected on a written-off loan. Its balances are off the books, so nothing is
+     * cleared: the cash is an impairment gain (IFRS 9 §5.5.8). It is still applied to the
+     * schedule, which keeps the borrower's legal debt, and capped at that debt.
+     */
+    private LoanRepaymentResponse recover(Loan loan, LoanRepaymentRequest request) {
+        LocalDate date = paymentDate(loan, request.paymentDate());
+        if (loan.getWrittenOffOn() != null && date.isBefore(loan.getWrittenOffOn())) {
+            throw CbaException.badRequest("PAYMENT_BEFORE_WRITE_OFF",
+                    "Payment date " + date + " is before the write-off on " + loan.getWrittenOffOn());
+        }
+        LoanPaymentSource source = LoanPaymentSource.of(
+                request.paymentMethod(), request.sourceAccountId(), request.tellerSessionId());
+        BigDecimal payment = request.amount();
+        BigDecimal owed = scheduledOutstanding(loan);
+        if (payment.compareTo(owed) > 0) {
+            throw CbaException.badRequest("REPAYMENT_EXCEEDS_OUTSTANDING",
+                    "Recovery " + payment + " exceeds the " + owed + " the borrower still owes");
+        }
+        LoanGlPosting.Allocation allocation = allocate(loan, payment, date);
+        loanGlPosting.postRecovery(loan, source, payment, date);
+        loan.setRecoveredAmount(loan.getRecoveredAmount().add(payment));
+
+        Loan saved = loanRepository.save(loan);
+        auditLogService.log("LOAN", loan.getId().toString(), "RECOVERY", null,
+                Map.of("amount", payment, "recoveredToDate", saved.getRecoveredAmount(),
+                        "paymentMethod", source.method().name()));
         return new LoanRepaymentResponse(
                 saved.getId(), saved.getLoanAccountNumber(),
                 payment, allocation.principal(), allocation.interest(), allocation.fees(),
@@ -323,26 +368,91 @@ public class LoanService {
         return toResponse(saved);
     }
 
+    /**
+     * Writes a credit-impaired loan off (IFRS 9 §5.4.4): brings it current, remeasures its
+     * expected credit losses, then derecognises its gross carrying amount against the
+     * allowance. CBN: needs a board-approval reference and, unless {@value #CBN_WRITE_OFF_RULES}
+     * is switched off, a prudential provision that has covered the principal for a year.
+     * The balances written off are kept so the write-off can be undone.
+     */
     @Transactional
     public LoanResponse writeOffLoan(UUID loanId, WriteOffRequest request) {
         Loan loan = findById(loanId);
+        requireOpen(loan, "be written off");
+        if (request.approvalReference() == null || request.approvalReference().isBlank()) {
+            throw CbaException.badRequest("WRITE_OFF_APPROVAL_REQUIRED",
+                    "A write-off needs the board (or delegated authority) approval reference");
+        }
+        LocalDate date = eventDate(loan, request.writeOffDate(), "Write-off");
+        LoanStatus old = loan.getStatus();
 
-        if (loan.getStatus() != LoanStatus.ACTIVE && loan.getStatus() != LoanStatus.IN_ARREARS) {
-            throw CbaException.badRequest("INVALID_LOAN_STATE",
-                    "Only ACTIVE or IN_ARREARS loans can be written off");
+        loanAccrualService.bringCurrent(loan, date);
+        LoanImpairmentService.Measurement m = loanImpairmentService.remeasure(loan, date);
+        if (m.stage() != 3) {
+            throw CbaException.badRequest("WRITE_OFF_NOT_CREDIT_IMPAIRED",
+                    "Loan " + loan.getLoanAccountNumber() + " is in stage " + m.stage() + " (" + loan.getDaysPastDue()
+                            + " days past due): only a credit-impaired (stage 3) loan can be written off");
+        }
+        if (isConfigEnabled(CBN_WRITE_OFF_RULES)) {
+            LocalDate since = loan.getFullyProvidedSince();
+            if (since == null || since.isAfter(date.minusYears(1))) {
+                throw CbaException.badRequest("WRITE_OFF_CBN_RULES_NOT_MET",
+                        "CBN: a loan can be written off only after it has been fully provided for at least a year ("
+                                + (since == null ? "it is not fully provided" : "fully provided since " + since)
+                                + "). Switch off " + CBN_WRITE_OFF_RULES + " to override");
+            }
         }
 
-        loan.setStatus(LoanStatus.WRITTEN_OFF);
-        loan.setWrittenOffOn(request.writeOffDate() != null ? request.writeOffDate() : LocalDate.now());
-        loan.setWriteOffReason(request.reason());
+        BigDecimal fees = BigDecimal.ZERO, suspendedCharges = BigDecimal.ZERO;
+        for (LoanCharge c : loanChargeRepository.findByLoanIdOrderByCreatedAtAsc(loanId)) {
+            if (c.getIncomeRecognizedOn() == null || c.isPaid() || c.isWaived()) continue;
+            fees = fees.add(c.getAmountOutstanding());
+            if (c.isSuspended()) suspendedCharges = suspendedCharges.add(c.getAmountOutstanding());
+        }
+        LoanGlPosting.WriteOffAmounts amounts = new LoanGlPosting.WriteOffAmounts(
+                loan.getOutstandingBalance(), LoanImpairmentService.interestReceivable(loan), fees,
+                loan.getDeferredFeeRemaining(), loan.getInterestInSuspense().add(suspendedCharges),
+                loan.getLossAllowance());
+        String transactionId = loanGlPosting.postWriteOff(loan, amounts, date);
+
+        Map<String, BigDecimal> snapshot = new LinkedHashMap<>();
+        snapshot.put("principal", loan.getOutstandingBalance());
+        snapshot.put("interestInSuspense", loan.getInterestInSuspense());
+        snapshot.put("deferredFeeRemaining", loan.getDeferredFeeRemaining());
+        snapshot.put("lossAllowance", loan.getLossAllowance());
+        snapshot.put("prudentialProvision", loan.getPrudentialProvision());
+        snapshot.put("eclStage", BigDecimal.valueOf(m.stage()));
+
+        loan.setWriteOffSnapshot(snapshot);
+        loan.setWriteOffTransactionId(transactionId);
+        loan.setWrittenOffAmount(amounts.gross());
+        loan.setRecoveredAmount(BigDecimal.ZERO);
         loan.setOutstandingBalance(BigDecimal.ZERO);
+        loan.setInterestInSuspense(BigDecimal.ZERO);
+        loan.setDeferredFeeRemaining(BigDecimal.ZERO);
+        loan.setLossAllowance(BigDecimal.ZERO);
+        loan.setPrudentialProvision(BigDecimal.ZERO);
+        loan.setEclStage(null);
+        loan.setStatus(LoanStatus.WRITTEN_OFF);
+        loan.setWrittenOffOn(date);
+        loan.setWriteOffReason(request.reason());
+        loan.setWriteOffApprovalReference(request.approvalReference().trim());
 
         Loan saved = loanRepository.save(loan);
-        auditLogService.log("LOAN", loanId.toString(), "WRITE_OFF", LoanStatus.ACTIVE.name(), LoanStatus.WRITTEN_OFF.name());
-        log.info("Loan written off: {} — reason: {}", saved.getLoanAccountNumber(), request.reason());
+        auditLogService.log("LOAN", loanId.toString(), "WRITE_OFF", old.name(),
+                Map.of("status", LoanStatus.WRITTEN_OFF.name(), "writtenOffAmount", amounts.gross(),
+                        "allowanceUsed", amounts.allowance(), "approvalReference", saved.getWriteOffApprovalReference(),
+                        "reason", request.reason()));
+        log.info("Loan written off: {} — {} against an allowance of {}",
+                saved.getLoanAccountNumber(), amounts.gross(), amounts.allowance());
         return toResponse(saved);
     }
 
+    /**
+     * Undoes a write-off made in error: the write-off journal is reversed line for line,
+     * dated the write-off date (so a closed GL period refuses it), and the balances come
+     * back. Not once cash has been recovered: those recoveries are already income.
+     */
     @Transactional
     public LoanResponse undoWriteOff(UUID loanId) {
         Loan loan = findById(loanId);
@@ -350,20 +460,41 @@ public class LoanService {
         if (loan.getStatus() != LoanStatus.WRITTEN_OFF) {
             throw CbaException.badRequest("INVALID_LOAN_STATE", "Only WRITTEN_OFF loans can be un-written-off");
         }
+        if (loan.getRecoveredAmount().signum() > 0) {
+            throw CbaException.badRequest("WRITE_OFF_HAS_RECOVERIES",
+                    loan.getRecoveredAmount() + " has been recovered on loan " + loan.getLoanAccountNumber()
+                            + " since the write-off; it cannot be undone");
+        }
 
-        // Restore outstanding balance from unpaid schedule installments
-        BigDecimal restored = loan.getRepaymentSchedule().stream()
-            .filter(s -> s.getStatus() != LoanRepaymentSchedule.InstallmentStatus.PAID)
-            .map(s -> s.getPrincipalDue().subtract(s.getPrincipalPaid() != null ? s.getPrincipalPaid() : BigDecimal.ZERO))
-            .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        loan.setStatus(LoanStatus.IN_ARREARS);
-        loan.setOutstandingBalance(restored);
+        if (loan.getWriteOffTransactionId() != null) {
+            loanGlPosting.postWriteOffReversal(loan, loan.getWriteOffTransactionId(), loan.getWrittenOffOn());
+        }
+        Map<String, BigDecimal> snapshot = loan.getWriteOffSnapshot();
+        if (snapshot != null) {
+            loan.setOutstandingBalance(snapshot.getOrDefault("principal", BigDecimal.ZERO));
+            loan.setInterestInSuspense(snapshot.getOrDefault("interestInSuspense", BigDecimal.ZERO));
+            loan.setDeferredFeeRemaining(snapshot.getOrDefault("deferredFeeRemaining", BigDecimal.ZERO));
+            loan.setLossAllowance(snapshot.getOrDefault("lossAllowance", BigDecimal.ZERO));
+            loan.setPrudentialProvision(snapshot.getOrDefault("prudentialProvision", BigDecimal.ZERO));
+            BigDecimal stage = snapshot.get("eclStage");
+            loan.setEclStage(stage != null ? stage.intValue() : null);
+        } else {
+            // Written off before write-offs posted to the GL: nothing to reverse.
+            loan.setOutstandingBalance(loan.getRepaymentSchedule().stream()
+                    .filter(s -> s.getStatus() != LoanRepaymentSchedule.InstallmentStatus.PAID)
+                    .map(LoanService::unpaidPrincipal)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add));
+        }
+        LoanAccrualService.updateArrears(loan, LocalDate.now());
         loan.setWrittenOffOn(null);
         loan.setWriteOffReason(null);
+        loan.setWriteOffApprovalReference(null);
+        loan.setWrittenOffAmount(null);
+        loan.setWriteOffTransactionId(null);
+        loan.setWriteOffSnapshot(null);
 
         Loan saved = loanRepository.save(loan);
-        auditLogService.log("LOAN", loanId.toString(), "UNDO_WRITE_OFF", LoanStatus.WRITTEN_OFF.name(), LoanStatus.IN_ARREARS.name());
+        auditLogService.log("LOAN", loanId.toString(), "UNDO_WRITE_OFF", LoanStatus.WRITTEN_OFF.name(), saved.getStatus().name());
         log.info("Loan write-off reversed: {}", saved.getLoanAccountNumber());
         return toResponse(saved);
     }
@@ -449,8 +580,9 @@ public class LoanService {
             loanChargeRepository.save(c);
         }
 
-        // Settled: the origination fee still deferred is income now.
+        // Settled: the origination fee still deferred is income now; the allowance is released.
         loanAccrualService.closeOut(loan, date);
+        loanImpairmentService.release(loan, date);
 
         LoanStatus old = loan.getStatus();
         loan.setStatus(LoanStatus.FORECLOSED);
@@ -539,6 +671,25 @@ public class LoanService {
         }
     }
 
+    /** A write-off (or other event) date: defaults to today; never in the future or before disbursement. */
+    private static LocalDate eventDate(Loan loan, LocalDate requested, String what) {
+        LocalDate today = LocalDate.now();
+        LocalDate date = requested != null ? requested : today;
+        if (date.isAfter(today)) {
+            throw CbaException.badRequest("FUTURE_DATE", what + " date " + date + " is in the future");
+        }
+        if (loan.getDisbursementDate() != null && date.isBefore(loan.getDisbursementDate())) {
+            throw CbaException.badRequest("DATE_BEFORE_DISBURSEMENT",
+                    what + " date " + date + " is before the disbursement on " + loan.getDisbursementDate());
+        }
+        return date;
+    }
+
+    private boolean isConfigEnabled(String name) {
+        return globalConfigRepository.findByName(name)
+                .filter(c -> c.isEnabled() && Boolean.TRUE.equals(c.getBooleanValue())).isPresent();
+    }
+
     /** Defaults to today; never in the future or before disbursement. */
     private static LocalDate paymentDate(Loan loan, LocalDate requested) {
         LocalDate today = LocalDate.now();
@@ -584,7 +735,10 @@ public class LoanService {
             l.getInterestRate(), l.getTermMonths(), l.getStatus(),
             l.getApplicationDate(), l.getApprovalDate(),
             l.getDisbursementDate(), l.getMaturityDate(),
-            l.getDaysPastDue(), l.isNonPerforming(), l.getInterestInSuspense(), l.getDeferredFeeRemaining()
+            l.getDaysPastDue(), l.isNonPerforming(), l.getInterestInSuspense(), l.getDeferredFeeRemaining(),
+            l.getEclStage(), l.getLossAllowance(), l.getPrudentialProvision(),
+            l.getWrittenOffOn(), l.getWriteOffReason(), l.getWriteOffApprovalReference(),
+            l.getWrittenOffAmount(), l.getRecoveredAmount()
         );
     }
 

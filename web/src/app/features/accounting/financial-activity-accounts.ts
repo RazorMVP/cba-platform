@@ -37,6 +37,7 @@ export class FinancialActivityAccountsComponent implements OnInit {
     ASSET_FEES_RECEIVABLE:          'Asset — Loan Fees and Penalties Receivable',
     ASSET_DEFERRED_LOAN_FEES:       'Asset (contra) — Deferred Loan Origination Fees',
     LIABILITY_INCOME_IN_SUSPENSE:   'Liability — Interest and Fees in Suspense',
+    ASSET_LOAN_LOSS_ALLOWANCE:      'Asset (contra) — Loan Loss Allowance (IFRS 9)',
     ASSET_OVERDRAFT_PORTFOLIO:      'Asset — Overdraft Portfolio',
     ASSET_FX_POSITION:              'Asset — FX Position',
     ASSET_FX_POSITION_EQUIVALENT:   'Asset — FX Position Equivalent',
@@ -46,11 +47,13 @@ export class FinancialActivityAccountsComponent implements OnInit {
     INCOME_FEES:                    'Income — Fees',
     INCOME_PENALTIES:               'Income — Penalties',
     INCOME_FX_GAIN_LOSS:            'Income — Net FX Gains',
-    EXPENSE_LOAN_LOSS_PROVISION:    'Expense — Loan Loss Provision',
+    EXPENSE_LOAN_LOSS_PROVISION:    'Expense — Credit Impairment Charge (IFRS 9)',
     EXPENSE_WRITE_OFF:              'Expense — Write-off',
     EXPENSE_INTEREST_ON_SAVINGS:    'Expense — Interest on Savings',
     EXPENSE_CASH_OVER_SHORT:        'Expense — Cash Over and Short',
     EQUITY_MIGRATION_CLEARING:      'Equity — Legacy Balance Migration Clearing',
+    EQUITY_RETAINED_EARNINGS:       'Equity — Retained Earnings',
+    EQUITY_REGULATORY_RISK_RESERVE: 'Equity — Regulatory Risk Reserve (CBN, non-distributable)',
   };
 
   ngOnInit(): void {

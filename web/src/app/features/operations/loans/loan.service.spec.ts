@@ -81,10 +81,11 @@ describe('LoanService', () => {
   });
 
   describe('NPA / restructuring posts', () => {
-    it('writeOff() posts reason + date', () => {
-      service.writeOff('l1', 'default', '2026-06-01').subscribe();
+    it('writeOff() posts reason, board approval reference + date', () => {
+      service.writeOff('l1', 'default', 'BRD/2026/14', '2026-06-01').subscribe();
       expect(api.post).toHaveBeenCalledWith('/loans/l1/write-off', {
         reason: 'default',
+        approvalReference: 'BRD/2026/14',
         writeOffDate: '2026-06-01',
       });
     });

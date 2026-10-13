@@ -83,7 +83,7 @@ export class LoanProductDetailComponent implements OnInit {
         minTermMonths: 1, maxTermMonths: 60,
         numberOfRepayments: 12, repaymentEvery: 1,
         repaymentFrequencyType: 'MONTHS', repaymentType: 'ANNUITY',
-        originationFee: 0, latePaymentFee: 0,
+        originationFee: 0, latePaymentFee: 0, lgdPercentage: 45,
         allowAttributeOverrides: { ...DEFAULT_OVERRIDES },
         chargeIds: [],
       };
@@ -110,6 +110,7 @@ export class LoanProductDetailComponent implements OnInit {
         graceOnArrearsAgeing: p.graceOnArrearsAgeing,
         inArrearsTolerance: p.inArrearsTolerance,
         originationFee: p.originationFee, latePaymentFee: p.latePaymentFee,
+        lgdPercentage: p.lgdPercentage ?? 45,
         allowAttributeOverrides: { ...(p.allowAttributeOverrides ?? DEFAULT_OVERRIDES) },
         fundSourceAccountId:             p.fundSourceAccount?.id,
         loanPortfolioAccountId:          p.loanPortfolioAccount?.id,

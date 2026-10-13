@@ -225,9 +225,43 @@ describe('LoanDetailComponent', () => {
       svc.writeOff.mockReturnValue(throwError(() => new Error('boom')));
       const c = make();
       c.writeOffReason = 'uncollectible';
+      c.writeOffApprovalRef = 'BRD-1';
       c.submitWriteOff();
       expect(c.writeOffError).toContain('Write-off failed');
       expect(c.writeOffSaving).toBe(false);
+    });
+
+    it('submitWriteOff shows the API reason (e.g. the CBN one-year rule)', () => {
+      svc.writeOff.mockReturnValue(throwError(() => ({
+        error: { errors: [{ message: 'CBN: a loan can be written off only after it has been fully provided for at least a year' }] },
+      })));
+      const c = make();
+      c.writeOffReason = 'uncollectible';
+      c.writeOffApprovalRef = 'BRD-1';
+      c.submitWriteOff();
+      expect(c.writeOffError).toContain('fully provided');
+    });
+
+    it('submitWriteOff needs the board approval reference and sends it trimmed', () => {
+      const c = make();
+      c.writeOffReason = 'uncollectible';
+      c.submitWriteOff();
+      expect(svc.writeOff).not.toHaveBeenCalled();
+
+      c.writeOffApprovalRef = ' BRD/2026/14 ';
+      c.submitWriteOff();
+      expect(svc.writeOff).toHaveBeenCalledWith('loan-1', 'uncollectible', 'BRD/2026/14', c.writeOffDate);
+      expect(c.loan?.status).toBe('WRITTEN_OFF');
+    });
+
+    it('submitUndoWriteOff shows why an undo was refused', () => {
+      svc.undoWriteOff.mockReturnValue(throwError(() => ({
+        error: { errors: [{ message: '100.00 has been recovered on loan LN-1 since the write-off; it cannot be undone' }] },
+      })));
+      const c = make();
+      c.submitUndoWriteOff();
+      expect(c.undoWriteOffError).toContain('recovered');
+      expect(c.undoWriteOffSaving).toBe(false);
     });
   });
 
@@ -296,6 +330,13 @@ describe('LoanDetailComponent', () => {
       c.loan = loan({ status: 'WRITTEN_OFF' });
       expect(c.canUndoWriteOff).toBe(true);
       expect(c.canRepay).toBe(false);
+      expect(c.canRecover).toBe(true);
+    });
+
+    it('eclStageLabel names the IFRS 9 stage', () => {
+      expect(c.eclStageLabel(1)).toContain('12-month');
+      expect(c.eclStageLabel(3)).toContain('credit-impaired');
+      expect(c.eclStageLabel(null)).toBe('Not yet measured');
     });
 
     it('overdue aggregations compute count and outstanding totals', () => {

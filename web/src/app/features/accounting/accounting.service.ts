@@ -9,12 +9,13 @@ import { PageResponse } from '../../core/models/api-response.model';
 export type FinancialActivityType =
   | 'ASSET_FUND_SOURCE' | 'ASSET_CASH_AT_TELLER' | 'ASSET_INTEREST_RECEIVABLE' | 'ASSET_LOAN_PORTFOLIO'
   | 'ASSET_FEES_RECEIVABLE' | 'ASSET_DEFERRED_LOAN_FEES' | 'LIABILITY_INCOME_IN_SUSPENSE'
+  | 'ASSET_LOAN_LOSS_ALLOWANCE'
   | 'ASSET_OVERDRAFT_PORTFOLIO' | 'ASSET_FX_POSITION' | 'ASSET_FX_POSITION_EQUIVALENT'
   | 'LIABILITY_SAVINGS_CONTROL' | 'LIABILITY_TRANSFER_IN_SUSPENSE'
   | 'INCOME_INTEREST' | 'INCOME_FEES' | 'INCOME_PENALTIES' | 'INCOME_FX_GAIN_LOSS'
   | 'EXPENSE_LOAN_LOSS_PROVISION' | 'EXPENSE_WRITE_OFF' | 'EXPENSE_INTEREST_ON_SAVINGS'
   | 'EXPENSE_CASH_OVER_SHORT'
-  | 'EQUITY_MIGRATION_CLEARING';
+  | 'EQUITY_MIGRATION_CLEARING' | 'EQUITY_RETAINED_EARNINGS' | 'EQUITY_REGULATORY_RISK_RESERVE';
 
 export interface FinancialActivityAccount {
   id: string;
@@ -150,6 +151,16 @@ export interface ProvisioningCriteria {
   definitions: ProvisioningDefinition[];
 }
 
+/** One probability-of-default band (IFRS 9): 12-month PD for stage 1, lifetime for stages 2 and 3. */
+export interface EclPdRate {
+  id?: string;
+  stage: 1 | 2 | 3;
+  minDpd: number;
+  maxDpd: number;
+  pdPercentage: number;
+  description?: string | null;
+}
+
 export interface ProvisioningCriteriaRequest {
   criteriaName: string;
   definitions: ProvisioningDefinition[];
@@ -278,6 +289,15 @@ export class AccountingService {
   }
 
   // Provisioning
+  // Expected credit losses: the risk team's PD table
+  listPdRates(): Observable<EclPdRate[]> {
+    return this.api.get<EclPdRate[]>('/ecl/pd-rates');
+  }
+  /** Replaces the whole table; every stage needs a band and bands may not overlap. */
+  updatePdRates(rates: EclPdRate[]): Observable<EclPdRate[]> {
+    return this.api.put<EclPdRate[]>('/ecl/pd-rates', rates);
+  }
+
   listProvisioningCriteria(): Observable<ProvisioningCriteria[]> {
     return this.api.get<ProvisioningCriteria[]>('/provisioningcriteria');
   }

@@ -327,6 +327,7 @@ class ProductServiceTest {
             null, null, null,
             null,
             null, null, null, null, null, null, null, null,
+            null,
             null
         );
     }

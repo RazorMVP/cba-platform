@@ -668,6 +668,36 @@ class LoanServiceTest {
         }
     }
 
+    @Test
+    @DisplayName("customer view drops the bank's internal credit-risk and write-off approval figures")
+    void forCustomer_redactsInternalFields() {
+        writtenOff();
+        activeLoan.setWriteOffReason("insolvent");
+        activeLoan.setWriteOffApprovalReference("BRD/2026/14");
+        activeLoan.setWrittenOffAmount(new BigDecimal("990.00"));
+        activeLoan.setLossAllowance(new BigDecimal("400.00"));
+        activeLoan.setPrudentialProvision(new BigDecimal("1000.00"));
+        activeLoan.setEclStage(3);
+        activeLoan.setNonPerforming(true);
+        activeLoan.setInterestInSuspense(new BigDecimal("50.00"));
+        activeLoan.setRecoveredAmount(new BigDecimal("10.00"));
+
+        LoanResponse staff = loanService.toResponse(activeLoan);
+        LoanResponse customer = staff.forCustomer();
+
+        assertThat(staff.writeOffApprovalReference()).isEqualTo("BRD/2026/14");
+        assertThat(customer.writeOffApprovalReference()).isNull();
+        assertThat(customer.writeOffReason()).isNull();
+        assertThat(customer.writtenOffAmount()).isNull();
+        assertThat(customer.lossAllowance()).isNull();
+        assertThat(customer.prudentialProvision()).isNull();
+        assertThat(customer.eclStage()).isNull();
+        assertThat(customer.interestInSuspense()).isNull();
+        assertThat(customer.nonPerforming()).isFalse();
+        assertThat(customer.status()).isEqualTo(LoanStatus.WRITTEN_OFF);
+        assertThat(customer.recoveredAmount()).isEqualByComparingTo("10.00");
+    }
+
     @Nested
     @DisplayName("recovery after write-off")
     class Recovery {

@@ -99,11 +99,15 @@ _None — all Phase 1 backend modules are now complete._
 - API reference: no POST write-off section; matrix route `?command=writeOff` (real: `/write-off`); "All five list entries" vs "six CoB jobs"; activity count "16" (was 21); the CoB sequence omitted loan accrual (also in the CoB screen). Postman had no `loanAccrualJob` trigger. `CobController` listed 4 of 6 job names.
 - The web write-off modal called the action "irreversible" although undo exists.
 
+#### Security review follow-up (same PR)
+- The commit security review flagged information disclosure: `LoanResponse` goes to borrowers through `GET /api/v1/loans/{id}` (CUSTOMER role) and `/api/v1/self/loans`, so the new board approval reference, write-off reason, IFRS 9 stage/allowance and CBN provision — and 2b's suspense and deferred-fee balances — reached customers. `LoanResponse.forCustomer()` now removes them for any caller without ADMIN/TELLER and for every self-service response. Test: `LoanServiceTest.forCustomer_redactsInternalFields`.
+- Not fixed here (pre-existing, separate change): `GET /api/v1/loans/{id}` with the CUSTOMER role does not check that the loan belongs to the caller; `/api/v1/self/loans/{id}` does.
+
 #### Left for PR 2d
 - `waiveInterest` still posts nothing (modification loss, IFRS 9 §5.4.3); `LoanExtensionService` (reschedule/re-age/re-amortise) has no loan-status guard.
 
 #### Build Verification
-- Backend `-Pfull-integration` **816/816** (was 783). OpenAPI snapshot regenerated.
+- Backend `-Pfull-integration` **816/816** (was 783); +1 unit test with the security fix (`LoanServiceTest` 39/39). OpenAPI snapshot regenerated.
 - Web `ng test` **1164/1164** (was 1156); `npm run build` succeeds (only pre-existing warnings in other templates).
 - Gate grep: the tracked-file diff shows no mapping change; the new untracked `EclController` adds `GET/PUT /api/v1/ecl/pd-rates` and `GET /api/v1/ecl/summary` — all in api-reference (section + matrix), Postman ("40b · Expected Credit Losses") and the snapshot. `WriteOffRequest.approvalReference` and the new `LoanResponse`/`LoanProduct` fields are documented too.
 

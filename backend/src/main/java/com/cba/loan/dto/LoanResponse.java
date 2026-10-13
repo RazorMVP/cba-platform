@@ -42,4 +42,18 @@ public record LoanResponse(
         BigDecimal writtenOffAmount,
         /** Cash collected since the write-off. */
         BigDecimal recoveredAmount
-) {}
+) {
+    /**
+     * The view a borrower may see: the bank's internal credit-risk and accounting figures
+     * (suspense, deferred fee, IFRS 9 stage and allowance, CBN provision, write-off reason
+     * and board approval) are removed. Staff (ADMIN/TELLER) get the full response.
+     */
+    public LoanResponse forCustomer() {
+        return new LoanResponse(id, loanAccountNumber, customerId, customerName, productName,
+                principalAmount, approvedAmount, outstandingBalance, interestRate, termMonths, status,
+                applicationDate, approvalDate, disbursementDate, maturityDate,
+                daysPastDue, false, null, null,
+                null, null, null,
+                writtenOffOn, null, null, null, recoveredAmount);
+    }
+}

@@ -75,7 +75,8 @@ public class SelfServiceFacade {
     public List<LoanResponse> getLoans(String keycloakSub) {
         Customer customer = resolveCustomer(keycloakSub);
         return loanService.getCustomerLoans(customer.getId(),
-                PageRequest.of(0, 200, Sort.by("createdAt").descending())).getContent();
+                PageRequest.of(0, 200, Sort.by("createdAt").descending())).getContent()
+                .stream().map(LoanResponse::forCustomer).toList();
     }
 
     @Transactional(readOnly = true)
@@ -85,7 +86,7 @@ public class SelfServiceFacade {
         if (!loan.customerId().equals(customer.getId())) {
             throw CbaException.notFound("Loan", loanId.toString()); // return 404 rather than 403 to avoid enumeration
         }
-        return loan;
+        return loan.forCustomer();
     }
 
     // ── Self-Service Loan Application ─────────────────────────────────────────
@@ -109,7 +110,7 @@ public class SelfServiceFacade {
                 req.termMonths(),
                 req.notes()
         );
-        return loanService.applyForLoan(appReq);
+        return loanService.applyForLoan(appReq).forCustomer();
     }
 
     @Transactional(readOnly = true)

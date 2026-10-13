@@ -23,7 +23,9 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
@@ -53,7 +55,15 @@ public class LoanController {
     @PreAuthorize("hasAnyRole('ADMIN', 'TELLER', 'CUSTOMER')")
     @Operation(summary = "Get loan details")
     public ResponseEntity<ApiResponse<LoanResponse>> getLoan(@PathVariable UUID id) {
-        return ResponseEntity.ok(ApiResponse.ok(loanService.getLoan(id)));
+        LoanResponse loan = loanService.getLoan(id);
+        return ResponseEntity.ok(ApiResponse.ok(isStaff() ? loan : loan.forCustomer()));
+    }
+
+    /** ADMIN or TELLER: sees the bank's internal credit-risk figures; a customer does not. */
+    private static boolean isStaff() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()) || "ROLE_TELLER".equals(a.getAuthority()));
     }
 
     @GetMapping

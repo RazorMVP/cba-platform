@@ -1,6 +1,7 @@
 package com.cba.user;
 
 import com.cba.common.response.ApiResponse;
+import com.cba.config.CustomerAccess;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -27,12 +28,14 @@ public class TwoFactorController {
         return ApiResponse.ok(twoFactorService.generateToken(req));
     }
 
-    @Operation(summary = "Verify a 2FA OTP token — marks it used on success")
+    @Operation(summary = "Verify a 2FA OTP token — marks it used on success",
+               description = "Staff only. The code must have been issued to the caller (matched on the JWT subject); "
+                           + "anyone else's code, or a caller without a JWT, gets 400 TOKEN_NOT_FOUND.")
     @PostMapping("/api/v1/twofactor/verify")
-    @PreAuthorize("hasAnyRole('ADMIN','TELLER','CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<TwoFactorToken> verify(
             @RequestBody TwoFactorService.VerifyTokenRequest req) {
-        return ApiResponse.ok(twoFactorService.verifyToken(req));
+        return ApiResponse.ok(twoFactorService.verifyToken(req, CustomerAccess.callerSubject()));
     }
 
     @Operation(summary = "List all 2FA tokens for a user (ADMIN/TELLER only)")

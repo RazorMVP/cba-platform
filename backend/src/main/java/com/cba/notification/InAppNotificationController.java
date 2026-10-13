@@ -29,7 +29,7 @@ public class InAppNotificationController {
     private final PushDispatchService pushDispatchService;
 
     @GetMapping("/inbox")
-    @PreAuthorize("hasAnyRole('ADMIN','TELLER','CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     @Operation(summary = "List notifications (newest first, paginated)")
     public ResponseEntity<ApiResponse<List<InAppNotification>>> inbox(
             @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
@@ -39,7 +39,7 @@ public class InAppNotificationController {
     }
 
     @GetMapping("/inbox/unread-count")
-    @PreAuthorize("hasAnyRole('ADMIN','TELLER','CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     @Operation(summary = "Unread notification count for the calling user")
     public ResponseEntity<ApiResponse<UnreadCountResponse>> unreadCount(Authentication auth) {
         String userId = auth != null ? auth.getName() : "anonymous";

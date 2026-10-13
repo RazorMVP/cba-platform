@@ -42,13 +42,21 @@ public class TwoFactorService {
         t.setExpiresAt(OffsetDateTime.now().plusMinutes(EXPIRY_MINS));
 
         TwoFactorToken saved = tokenRepository.save(t);
-        auditLogService.log("TwoFactorToken", saved.getId().toString(), "GENERATE", null, saved);
+        // Never the code itself: an audit row must not hold a live one-time password.
+        auditLogService.log("TwoFactorToken", saved.getId().toString(), "GENERATE", null,
+            java.util.Map.of("userId", user.getId(), "deliveryMethod", saved.getDeliveryMethod().name()));
         return saved;
     }
 
+    /**
+     * Verifies a code for the caller only: the token must have been issued to the platform
+     * user whose Keycloak subject is {@code callerSubject}. A 6-digit code is guessable, so
+     * matching on the code alone would let anyone consume another user's token.
+     */
     @Transactional
-    public TwoFactorToken verifyToken(VerifyTokenRequest req) {
-        TwoFactorToken t = tokenRepository.findByTokenAndVerifiedFalse(req.token())
+    public TwoFactorToken verifyToken(VerifyTokenRequest req, String callerSubject) {
+        TwoFactorToken t = (callerSubject == null ? java.util.Optional.<TwoFactorToken>empty()
+                : tokenRepository.findByTokenAndVerifiedFalseAndUserKeycloakId(req.token(), callerSubject))
             .orElseThrow(() -> CbaException.badRequest("TOKEN_NOT_FOUND",
                 "Token not found or already verified"));
 
@@ -58,7 +66,8 @@ public class TwoFactorService {
 
         t.setVerified(true);
         TwoFactorToken saved = tokenRepository.save(t);
-        auditLogService.log("TwoFactorToken", saved.getId().toString(), "VERIFY", null, saved);
+        auditLogService.log("TwoFactorToken", saved.getId().toString(), "VERIFY", null,
+            java.util.Map.of("userId", saved.issuedToUserId(), "verified", true));
         return saved;
     }
 

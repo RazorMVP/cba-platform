@@ -57,6 +57,37 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 28) — 2026-10-13
+**Customer ownership across the API, and Keycloak roles that actually map. The audit after the loan fix (#146) found no ownership check on any CUSTOMER-reachable endpoint outside self-service, and found that real Keycloak tokens carried no roles at all.**
+
+#### What was wrong
+- **Live (GET/DELETE):** any customer could read any customer's profile (`GET /customers/{id}`), KYC photo (`/clients/{id}/images/data`), account, transactions, statement, payments, beneficiaries (and delete them), and every fixed/recurring deposit and share account (`isAuthenticated()`); the back-office notification feed was open to customers.
+- **Latent (POST/PUT, held back only by the URL rule limiting non-GET `/api/v1/**` to ADMIN/TELLER):** `POST /payments/transfer` and `POST /payments/qr/decode-and-pay` from any account, beneficiary create/update, deposit/share applications and survey scorecards for any customer, and `POST /twofactor/verify` consuming anyone's 6-digit code by value alone.
+- **Roles:** `JwtGrantedAuthoritiesConverter.setAuthoritiesClaimName("realm_access.roles")` takes a top-level claim name (Spring Security docs), and Keycloak nests roles under `realm_access` (no custom mapper in `cba-realm.json`). With a real token every `hasRole` check failed; only `DevAuthBypassFilter` made the app usable.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `config/CustomerAccess.java` | NEW `@customerAccess` bean: JWT `sub` → `customers.keycloak_id`; owner checks by SQL for customer, account, payment (either side), fixed/recurring deposit, share account |
+| 12 controllers (account, payment, wallet QR, customer, client image, beneficiary, FD/RD/share accounts, survey, in-app notifications, 2FA) | 30 `@PreAuthorize` rules: `hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.…)`; notification inbox/unread-count and 2FA verify staff only |
+| `config/SecurityConfig.java` | `realmRoles`: reads the nested `realm_access.roles` → `ROLE_<role>` |
+| `user/TwoFactorService.java`, `TwoFactorTokenRepository.java`, `TwoFactorController.java` | Verify only a code issued to the caller (`findByTokenAndVerifiedFalseAndUserKeycloakId`); the unbound lookup is removed |
+| `user/TwoFactorToken.java` | Serialises `userId` instead of the lazy `PlatformUser` (Jackson failed on the proxy: the audit write failed on every generate/verify, and the HTTP response would have too); audit rows no longer hold the OTP |
+| Tests | NEW `SecurityConfigTest` (3), `CustomerAccessTest` (4), `CustomerOwnershipIT` (7, real PostgreSQL through the method-security proxies: own vs other data, transfer from another account refused with balance unchanged, staff unrestricted, all ownership SQL against the real schema, 2FA bound to the caller, token JSON) |
+| `docs/api-reference.html`, Postman, `docs-site/static/*`, `backend/docs/openapi-snapshot.yaml`, `CLAUDE.md` | Customer access rule + role source; 2FA/inbox roles; token schema |
+
+#### Key Patterns / Decisions
+- Ownership lives in the `@PreAuthorize` expression, next to the role, so a reviewer sees both on one line; the refusal is 403 for someone else's id and for an unknown id alike (no enumeration).
+- FD/RD/share list/get were `isAuthenticated()`; they now need staff or the owning customer (a customer must pass their own `customerId` to the list).
+
+#### Follow-ups (not in this PR)
+- **card-service has no JWT role converter**: Spring's default maps `scope` → `SCOPE_*`, so its 60 `hasRole`/`hasAnyRole` checks would refuse every real Keycloak token. Same fix needed there.
+- `POST /twofactor/generate` still returns the code to the staff caller (no delivery channel yet).
+
+#### Build Verification
+- `SecurityConfigTest` 3/3, `CustomerAccessTest` 4/4, `CustomerOwnershipIT` 7/7. Full backend `-Pfull-integration` **797/797** (main 783 + 14).
+- Gate grep: no mapping/param change; access rules (behaviour) documented in api-reference, Postman and the snapshot.
+
 ### Session 125 (cont. 25) — 2026-10-11
 **GL posting PR 2b: loans earn income day by day. Nightly interest accrual (catching up from disbursement), days past due, the CBN 90-day suspense rule, and origination fees deducted at disbursement and released by the effective interest method.**
 

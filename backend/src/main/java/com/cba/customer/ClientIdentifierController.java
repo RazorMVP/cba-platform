@@ -22,7 +22,7 @@ public class ClientIdentifierController {
 
     @Operation(summary = "List all identity documents for a customer")
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<Page<ClientIdentifier>> list(@PathVariable UUID customerId, Pageable pageable) {
         return ApiResponse.ok(service.listIdentifiers(customerId, pageable));
     }

@@ -272,6 +272,25 @@ details.endpoint[open] .endpoint-body{display:block}
 <tr><td><code>CUSTOMER</code></td><td>Own account data only (self-service)</td><td>End customers via mobile app</td></tr>
 <tr><td><code>API_CLIENT</code></td><td>Third-party TPP access via Open Banking</td><td>Fintech integrators</td></tr>
 </table>
+<p><strong>Where roles come from:</strong> Keycloak's realm roles, in the token's nested <code>realm_access.roles</code> claim; each becomes
+<code>ROLE_&lt;role&gt;</code>. (Until Session 125 cont. 28 the backend read a top-level claim literally named
+<code>realm_access.roles</code>, which Keycloak never issues, so real tokens carried no roles and only the dev auth bypass worked.)</p>
+<p><strong>CUSTOMER sees only their own data.</strong> Endpoints open to the CUSTOMER role check that the caller owns the resource — the
+customer whose <code>keycloakId</code> is the token's <code>sub</code>: <code>GET /customers/{id}</code>, client images, beneficiaries,
+<code>GET /accounts/{id}</code> (and its transactions, statement and template), <code>GET /payments/{id}</code> (source or destination
+account), <code>GET /payments/accounts/{accountId}</code>, <code>POST /payments/transfer</code> and <code>POST /payments/qr/decode-and-pay</code>
+(the paying account), fixed/recurring deposit and share accounts (list with <code>?customerId=</code> = the caller, get, apply), and
+survey scorecards (<code>customerId</code>), and loans (<code>GET /loans/{id}</code>, <code>/repayment-schedule</code>: the borrower).
+Anything else — another customer's resource, an id that doesn't exist, a caller with no linked customer — is <code>403</code>, the
+same in every case so ids can't be probed. ADMIN and TELLER are not restricted; <code>/api/v1/self/**</code> always scopes to the
+caller.</p>
+<p><strong>Staff only</strong> (customers use <code>/api/v1/self/**</code>): client addresses and identifiers, client and loan charges,
+loan collateral, guarantors, reschedules, re-ageing and re-amortisation, notes, documents, maker-checker entries, data tables,
+treasury and liquidity, the notification inbox and 2FA verify. Reference catalogues (products, charge definitions, codes, holidays,
+funds, payment types, taxes, floating rates, field configuration) stay readable by any signed-in role.</p>
+<p><strong>URL rules:</strong> under <code>/api/v1/**</code>, GET and DELETE need ADMIN, TELLER or CUSTOMER and POST/PUT/PATCH need
+ADMIN or TELLER; each endpoint's own rule then applies. (DELETE had no rule before Session 125 cont. 28 and admitted any
+authenticated caller, partner and API-client tokens included.)</p>
 
 <h3>HTTP Basic Authentication (Reference Only)</h3>
 <p>For internal tooling and testing, Basic Auth is supported at the authentication endpoint:</p>
@@ -2614,7 +2633,7 @@ Content-Type: application/json
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
 <tr><td>POST</td><td>/api/v1/twofactor/generate</td><td>Generate 2FA token for user</td><td>ADMIN, TELLER</td></tr>
-<tr><td>POST</td><td>/api/v1/twofactor/verify</td><td>Verify OTP token (marks as verified)</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>POST</td><td>/api/v1/twofactor/verify</td><td>Verify OTP token (marks as verified). Only a code issued to the caller (matched on the token <code>sub</code>); anyone else's code → <code>400 TOKEN_NOT_FOUND</code>. Responses carry <code>userId</code>, not the user record; the audit log never stores the code</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/users/{userId}/twofactor</td><td>List all 2FA tokens for a user</td><td>ADMIN, TELLER</td></tr>
 </table>
 </section>
@@ -3475,7 +3494,7 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <tr><td>GET</td><td>/api/v1/search?query={q}</td><td>Global entity search</td><td>ADMIN, TELLER</td></tr>
 <!-- Two-Factor Auth -->
 <tr><td>POST</td><td>/api/v1/twofactor/generate</td><td>Generate 2FA token</td><td>ADMIN, TELLER</td></tr>
-<tr><td>POST</td><td>/api/v1/twofactor/verify</td><td>Verify 2FA token</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>POST</td><td>/api/v1/twofactor/verify</td><td>Verify 2FA token (caller's own only)</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/users/{userId}/twofactor</td><td>List 2FA tokens for user</td><td>ADMIN, TELLER</td></tr>
 <!-- Beneficiaries -->
 <tr><td>GET</td><td>/api/v1/clients/{id}/beneficiaries</td><td>List beneficiaries</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
@@ -3556,8 +3575,8 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <p>Global notification feed using a per-user <code>lastReadAt</code> horizon. Unread count = <code>COUNT WHERE createdAt &gt; lastReadAt</code>. Mark-all-read upserts <code>lastReadAt = now()</code>. All roles can read their own count/feed; content is shared globally. Flyway: <code>V42__in_app_push_notifications.sql</code>.</p>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
-<tr><td>GET</td><td>/api/v1/notifications/inbox</td><td>Paginated notification list, newest first — <code>?page=0&amp;size=20</code>. Returns <code>[ { id, type, severity, title, message, entityType, entityId, createdAt } ]</code>.</td><td>ADMIN / TELLER / CUSTOMER</td></tr>
-<tr><td>GET</td><td>/api/v1/notifications/inbox/unread-count</td><td>Unread count for calling user — <code>{ count: N }</code>. Polled by the topbar bell every 30 s.</td><td>ADMIN / TELLER / CUSTOMER</td></tr>
+<tr><td>GET</td><td>/api/v1/notifications/inbox</td><td>Paginated notification list, newest first — <code>?page=0&amp;size=20</code>. Returns <code>[ { id, type, severity, title, message, entityType, entityId, createdAt } ]</code>. The back-office event feed (no recipient), so staff only.</td><td>ADMIN / TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/notifications/inbox/unread-count</td><td>Unread count for calling user — <code>{ count: N }</code>. Polled by the topbar bell every 30 s.</td><td>ADMIN / TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/notifications/inbox/read-all</td><td>Mark all notifications read for calling user — upserts <code>user_notification_prefs.last_read_at = now()</code>.</td><td>ADMIN / TELLER / CUSTOMER</td></tr>
 </table>
 

@@ -37,7 +37,7 @@ public class MakerCheckerController {
     @Operation(summary = "Submit a command for maker-checker approval")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<MakerChecker> create(@RequestBody MakerCheckerService.CreateMakerCheckerRequest req) {
         return ApiResponse.ok(service.create(req));
     }
@@ -60,7 +60,7 @@ public class MakerCheckerController {
     @Operation(summary = "Delete a pending maker-checker entry")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public void delete(@PathVariable UUID id) {
         service.delete(id);
     }

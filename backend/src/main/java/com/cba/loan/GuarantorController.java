@@ -22,7 +22,7 @@ public class GuarantorController {
 
     @Operation(summary = "List guarantors for a loan")
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<Page<Guarantor>> list(@PathVariable UUID loanId, Pageable pageable) {
         return ApiResponse.ok(service.listGuarantors(loanId, pageable));
     }

@@ -22,7 +22,7 @@ public class RecurringDepositAccountController {
 
     @Operation(summary = "List recurring deposit accounts (optionally filtered by ?customerId=)")
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isCustomer(#customerId))")
     public ApiResponse<Page<RecurringDepositAccount>> list(
             @RequestParam(required = false) UUID customerId,
             Pageable pageable) {
@@ -31,7 +31,7 @@ public class RecurringDepositAccountController {
 
     @Operation(summary = "Get a recurring deposit account by ID")
     @GetMapping("/{id}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isRecurringDepositOwner(#id))")
     public ApiResponse<RecurringDepositAccount> get(@PathVariable UUID id) {
         return ApiResponse.ok(service.getAccount(id));
     }
@@ -39,7 +39,7 @@ public class RecurringDepositAccountController {
     @Operation(summary = "Submit a new recurring deposit application")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('ADMIN','TELLER','CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isCustomer(#req.customerId()))")
     public ApiResponse<RecurringDepositAccount> submit(@RequestBody RecurringDepositService.SubmitRdRequest req) {
         return ApiResponse.ok(service.submitApplication(req));
     }

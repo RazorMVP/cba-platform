@@ -41,7 +41,7 @@ public class CustomerController {
     // ── Read ─────────────────────────────────────────────────────────────────
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER', 'CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isCustomer(#id))")
     @Operation(summary = "Get customer by ID")
     public ResponseEntity<ApiResponse<CustomerResponse>> getCustomer(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(customerService.getCustomer(id)));

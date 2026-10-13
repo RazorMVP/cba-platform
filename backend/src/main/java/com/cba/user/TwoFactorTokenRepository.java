@@ -9,6 +9,7 @@ import java.util.UUID;
 
 @Repository
 public interface TwoFactorTokenRepository extends JpaRepository<TwoFactorToken, UUID> {
-    Optional<TwoFactorToken> findByTokenAndVerifiedFalse(String token);
+    /** An unverified token issued to the platform user with this Keycloak subject. */
+    Optional<TwoFactorToken> findByTokenAndVerifiedFalseAndUserKeycloakId(String token, String keycloakId);
     List<TwoFactorToken> findByUserId(UUID userId);
 }

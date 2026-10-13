@@ -22,7 +22,7 @@ public class DataTableController {
 
     @Operation(summary = "List registered data tables (optionally filtered by ?applicationTableName=)")
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<Page<DataTable>> list(
             @RequestParam(required = false) String applicationTableName,
             Pageable pageable) {
@@ -31,7 +31,7 @@ public class DataTableController {
 
     @Operation(summary = "Get a data table by ID")
     @GetMapping("/{id}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<DataTable> get(@PathVariable UUID id) {
         return ApiResponse.ok(service.getDataTable(id));
     }

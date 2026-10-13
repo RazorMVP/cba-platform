@@ -53,7 +53,7 @@ public class AccountController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER', 'CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isAccountOwner(#id))")
     @Operation(summary = "Get account details")
     public ResponseEntity<ApiResponse<AccountResponse>> getAccount(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(accountService.getAccount(id)));
@@ -132,7 +132,7 @@ public class AccountController {
     }
 
     @GetMapping("/{id}/transactions")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER', 'CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isAccountOwner(#id))")
     @Operation(summary = "Get paginated transaction history for an account; optionally filter by transactionType")
     public ResponseEntity<ApiResponse<Page<TransactionResponse>>> getTransactions(
             @PathVariable UUID id,
@@ -146,7 +146,7 @@ public class AccountController {
     }
 
     @GetMapping("/{id}/statement")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER', 'CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isAccountOwner(#id))")
     @Operation(summary = "Generate an account statement for a date range")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getStatement(
             @PathVariable UUID id,
@@ -179,7 +179,7 @@ public class AccountController {
     }
 
     @GetMapping("/{id}/template")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER', 'CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isAccountOwner(#id))")
     @Operation(summary = "Get the product configuration (interest rates, limits) applied to this account")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getAccountTemplate(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(accountService.getAccountTemplate(id)));

@@ -21,14 +21,14 @@ public class BeneficiaryController {
 
     @Operation(summary = "List active beneficiaries for a customer")
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','TELLER','CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isCustomer(#customerId))")
     public ApiResponse<List<Beneficiary>> list(@PathVariable UUID customerId) {
         return ApiResponse.ok(beneficiaryService.listBeneficiaries(customerId));
     }
 
     @Operation(summary = "Get a single beneficiary — returns 404 if customerId does not match (prevents enumeration)")
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','TELLER','CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isCustomer(#customerId))")
     public ApiResponse<Beneficiary> get(@PathVariable UUID customerId, @PathVariable UUID id) {
         return ApiResponse.ok(beneficiaryService.getBeneficiary(customerId, id));
     }
@@ -36,7 +36,7 @@ public class BeneficiaryController {
     @Operation(summary = "Add a new beneficiary for a customer")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('ADMIN','TELLER','CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isCustomer(#customerId))")
     public ApiResponse<Beneficiary> create(@PathVariable UUID customerId,
             @RequestBody BeneficiaryService.CreateBeneficiaryRequest req) {
         return ApiResponse.ok(beneficiaryService.createBeneficiary(customerId, req));
@@ -44,7 +44,7 @@ public class BeneficiaryController {
 
     @Operation(summary = "Update a beneficiary's details or transfer limit")
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','TELLER','CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isCustomer(#customerId))")
     public ApiResponse<Beneficiary> update(@PathVariable UUID customerId, @PathVariable UUID id,
             @RequestBody BeneficiaryService.CreateBeneficiaryRequest req) {
         return ApiResponse.ok(beneficiaryService.updateBeneficiary(customerId, id, req));
@@ -53,7 +53,7 @@ public class BeneficiaryController {
     @Operation(summary = "Soft-delete (deactivate) a beneficiary")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasAnyRole('ADMIN','TELLER','CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isCustomer(#customerId))")
     public void delete(@PathVariable UUID customerId, @PathVariable UUID id) {
         beneficiaryService.deactivate(customerId, id);
     }

@@ -17,9 +17,20 @@ public class TwoFactorToken {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    /** Not serialised: a lazy proxy (Jackson fails on it) and staff profile data; {@link #getUserId()} instead. */
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private PlatformUser user;
+
+    /**
+     * The platform user the code was issued to, serialised as {@code userId}. Not named
+     * {@code getUserId}: Spring Data would then read {@code findByUserId} as a property.
+     */
+    @com.fasterxml.jackson.annotation.JsonProperty("userId")
+    public java.util.UUID issuedToUserId() {
+        return user != null ? user.getId() : null;
+    }
 
     @Column(nullable = false, length = 20)
     private String token;

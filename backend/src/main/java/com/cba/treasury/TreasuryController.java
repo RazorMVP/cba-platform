@@ -24,14 +24,14 @@ public class TreasuryController {
 
     @Operation(summary = "List all treasury placements")
     @GetMapping("/placements")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<List<TreasuryPlacement>> listPlacements() {
         return ApiResponse.ok(service.listPlacements());
     }
 
     @Operation(summary = "Get a treasury placement by ID")
     @GetMapping("/placements/{id}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<TreasuryPlacement> getPlacement(@PathVariable UUID id) {
         return ApiResponse.ok(service.getPlacement(id));
     }
@@ -72,14 +72,14 @@ public class TreasuryController {
 
     @Operation(summary = "List all interbank positions (lending and borrowing)")
     @GetMapping("/positions")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<List<TreasuryInterbankPosition>> listPositions() {
         return ApiResponse.ok(service.listPositions());
     }
 
     @Operation(summary = "Get an interbank position by ID")
     @GetMapping("/positions/{id}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<TreasuryInterbankPosition> getPosition(@PathVariable UUID id) {
         return ApiResponse.ok(service.getPosition(id));
     }

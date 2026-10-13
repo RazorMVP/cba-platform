@@ -35,7 +35,7 @@ public class PaymentController {
     private final PaymentService paymentService;
 
     @PostMapping("/transfer")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER', 'CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isAccountOwner(#request.sourceAccountId()))")
     @Operation(summary = "Execute an internal transfer between two accounts")
     public ResponseEntity<ApiResponse<PaymentResponse>> transfer(
             @Valid @RequestBody TransferRequest request,
@@ -46,14 +46,14 @@ public class PaymentController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER', 'CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isPaymentParty(#id))")
     @Operation(summary = "Get payment details by ID")
     public ResponseEntity<ApiResponse<PaymentResponse>> getPayment(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(paymentService.getPayment(id)));
     }
 
     @GetMapping("/accounts/{accountId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER', 'CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isAccountOwner(#accountId))")
     @Operation(summary = "Get payment history for an account")
     public ResponseEntity<ApiResponse<Page<PaymentResponse>>> getAccountPayments(
             @PathVariable UUID accountId,

@@ -16335,7 +16335,7 @@
                 "verify"
               ]
             },
-            "description": "",
+            "description": "Staff only (ADMIN, TELLER). Only a code issued to the caller (matched on the token sub) can be verified; anyone else's code gets 400 TOKEN_NOT_FOUND. The response has userId instead of the user record.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -18549,7 +18549,7 @@
                 }
               ]
             },
-            "description": "Returns paginated list of in-app notifications (newest first). All authenticated roles."
+            "description": "Returns paginated list of in-app notifications (newest first). All authenticated roles. Staff only (ADMIN, TELLER): the back-office event feed."
           },
           "response": [
             {
@@ -18583,7 +18583,7 @@
                 "unread-count"
               ]
             },
-            "description": "Returns unread count for the calling user based on their lastReadAt horizon. Polled every 30 s by the topbar bell."
+            "description": "Returns unread count for the calling user based on their lastReadAt horizon. Polled every 30 s by the topbar bell. Staff only (ADMIN, TELLER)."
           },
           "response": [
             {

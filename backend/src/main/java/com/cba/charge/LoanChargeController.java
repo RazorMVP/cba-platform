@@ -22,7 +22,7 @@ public class LoanChargeController {
 
     @Operation(summary = "List charges applied to a loan")
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<Page<LoanCharge>> list(@PathVariable UUID loanId, Pageable pageable) {
         return ApiResponse.ok(chargeService.getLoanCharges(loanId, pageable));
     }

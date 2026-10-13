@@ -22,7 +22,7 @@ public class LoanReagingController {
 
     @Operation(summary = "List re-aging requests for a loan")
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<Page<LoanReagingRequest>> list(@PathVariable UUID loanId, Pageable pageable) {
         return ApiResponse.ok(service.listReaging(loanId, pageable));
     }

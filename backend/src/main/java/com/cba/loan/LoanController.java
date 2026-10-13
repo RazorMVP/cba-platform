@@ -52,7 +52,7 @@ public class LoanController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER', 'CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isLoanBorrower(#id))")
     @Operation(summary = "Get loan details")
     public ResponseEntity<ApiResponse<LoanResponse>> getLoan(@PathVariable UUID id) {
         LoanResponse loan = loanService.getLoan(id);
@@ -117,7 +117,7 @@ public class LoanController {
     }
 
     @GetMapping("/{id}/repayment-schedule")
-    @PreAuthorize("hasAnyRole('ADMIN', 'TELLER', 'CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isLoanBorrower(#id))")
     @Operation(summary = "Get the full amortization / repayment schedule")
     public ResponseEntity<ApiResponse<List<RepaymentScheduleResponse>>> getRepaymentSchedule(
             @PathVariable UUID id) {

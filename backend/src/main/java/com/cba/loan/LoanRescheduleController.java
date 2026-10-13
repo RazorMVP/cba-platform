@@ -22,7 +22,7 @@ public class LoanRescheduleController {
 
     @Operation(summary = "List reschedule requests for a loan (?loanId=)")
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<Page<LoanRescheduleRequest>> list(
             @RequestParam UUID loanId,
             Pageable pageable) {

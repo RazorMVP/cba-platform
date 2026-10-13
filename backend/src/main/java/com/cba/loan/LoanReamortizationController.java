@@ -22,7 +22,7 @@ public class LoanReamortizationController {
 
     @Operation(summary = "List re-amortization requests for a loan")
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<Page<LoanReamortizationRequest>> list(@PathVariable UUID loanId, Pageable pageable) {
         return ApiResponse.ok(service.listReamortization(loanId, pageable));
     }

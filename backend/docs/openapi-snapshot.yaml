@@ -9678,49 +9678,6 @@ components:
           format: "uuid"
           type: "string"
       type: "object"
-    PlatformUser:
-      properties:
-        createdAt:
-          format: "date-time"
-          type: "string"
-        createdBy:
-          type: "string"
-        email:
-          type: "string"
-        enabled:
-          type: "boolean"
-        firstName:
-          type: "string"
-        id:
-          format: "uuid"
-          type: "string"
-        keycloakId:
-          type: "string"
-        lastLoginAt:
-          format: "date-time"
-          type: "string"
-        lastName:
-          type: "string"
-        office:
-          $ref: "#/components/schemas/Office"
-        roles:
-          items:
-            type: "string"
-          type: "array"
-          uniqueItems: true
-        staff:
-          $ref: "#/components/schemas/Staff"
-        updatedAt:
-          format: "date-time"
-          type: "string"
-        updatedBy:
-          type: "string"
-        username:
-          type: "string"
-        version:
-          format: "int64"
-          type: "integer"
-      type: "object"
     PocketResponse:
       properties:
         accounts:
@@ -11776,8 +11733,9 @@ components:
           type: "string"
         token:
           type: "string"
-        user:
-          $ref: "#/components/schemas/PlatformUser"
+        userId:
+          format: "uuid"
+          type: "string"
         verified:
           type: "boolean"
       type: "object"
@@ -21766,6 +21724,9 @@ paths:
       - "Two-Factor Authentication"
   /api/v1/twofactor/verify:
     post:
+      description: "Staff only. The code must have been issued to the caller (matched\
+        \ on the JWT subject); anyone else's code, or a caller without a JWT, gets\
+        \ 400 TOKEN_NOT_FOUND."
       operationId: "verify"
       requestBody:
         content:

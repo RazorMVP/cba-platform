@@ -64,7 +64,7 @@ public class QrPaymentController {
     // ── Decode & Pay ──────────────────────────────────────────────────────────
 
     @PostMapping("/api/v1/payments/qr/decode-and-pay")
-    @PreAuthorize("hasAnyRole('ADMIN','TELLER','CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isAccountOwner(#req.payerAccountId()))")
     @Operation(summary = "Scan a QR code and execute a payment — token is marked used on success")
     public ResponseEntity<ApiResponse<Object>> decodeAndPay(
             @Valid @RequestBody DecodeAndPayRequest req,

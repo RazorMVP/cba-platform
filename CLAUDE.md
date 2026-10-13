@@ -2506,6 +2506,8 @@ PostgreSQL (encrypted at rest)
 - `ADMIN` — full platform access
 - `TELLER` — customer/account/loan operations
 - `CUSTOMER` — own account/loan data via self-service
+- **Roles come from Keycloak's nested `realm_access.roles`** (`SecurityConfig.realmRoles`, cont. 28). The old `JwtGrantedAuthoritiesConverter.setAuthoritiesClaimName("realm_access.roles")` read a *top-level* claim of that literal name, which Keycloak never issues — real tokens carried no roles and only `DevAuthBypassFilter` made anything work
+- **CUSTOMER sees only their own data** (cont. 28). Every endpoint outside `/self/**` that allows CUSTOMER uses `@PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isXxx(...))")`. `config.CustomerAccess` maps the JWT `sub` to `customers.keycloak_id` and checks the owner by SQL (`isCustomer`, `isAccountOwner`, `isPaymentParty`, `isFixedDepositOwner`, `isRecurringDepositOwner`, `isShareAccountOwner`); a refusal is 403 whether the id is someone else's or doesn't exist. **Any new endpoint that lets CUSTOMER in must add an ownership check** — `hasAnyRole(..., 'CUSTOMER')` alone lets any customer read anyone's data by id. Loans use `@customerAccess.isLoanBorrower`. Customer data that isn't customer-facing (addresses, identifiers, notes, documents, loan sub-resources, charges, maker-checker, data tables, treasury, the notification inbox, 2FA verify) is `hasAnyRole('ADMIN','TELLER')` — never `isAuthenticated()`, which also admits partner and API-client tokens. URL rules: GET/DELETE `/api/v1/**` need ADMIN/TELLER/CUSTOMER, POST/PUT/PATCH ADMIN/TELLER (DELETE had no rule until cont. 28)
 - `API_CLIENT` — third-party TPP access via Open Banking
 
 ### Keycloak Realm: `cba`

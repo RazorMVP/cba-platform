@@ -22,7 +22,7 @@ public class ClientChargeController {
 
     @Operation(summary = "List charges applied to a client")
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<Page<ClientCharge>> list(@PathVariable UUID customerId, Pageable pageable) {
         return ApiResponse.ok(chargeService.getClientCharges(customerId, pageable));
     }

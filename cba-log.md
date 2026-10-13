@@ -80,12 +80,19 @@ _None — all Phase 1 backend modules are now complete._
 - Ownership lives in the `@PreAuthorize` expression, next to the role, so a reviewer sees both on one line; the refusal is 403 for someone else's id and for an unknown id alike (no enumeration).
 - FD/RD/share list/get were `isAuthenticated()`; they now need staff or the owning customer (a customer must pass their own `customerId` to the list).
 
+#### Security review follow-up (same PR)
+The commit review flagged sibling-gate parity in two places; both fixed here:
+- **`SecurityConfig`:** POST/PUT/PATCH on `/api/v1/**` were limited to ADMIN/TELLER but DELETE had no rule, so it fell through to `anyRequest().authenticated()` (any caller, partner and API-client tokens included). DELETE now needs ADMIN, TELLER or CUSTOMER, then the endpoint's own rule. The `/api/v1/admin/**` ADMIN rule sat after the per-method rules and so only ever applied to DELETE; it now comes first (no controller uses that path today).
+- **`LoanController`:** on `main` the two loan GETs had no ownership check (#146 had it, stacked on #145). They now use `@customerAccess.isLoanBorrower(#id)` like everything else; #146 is superseded.
+- **`isAuthenticated()`-only endpoints with customer or bank data** (the first audit only looked at rules naming CUSTOMER): client addresses and identifiers, client/loan charges, collateral, guarantors, reschedule/re-age/re-amortise, notes, documents, maker-checker, data tables, treasury, liquidity — 31 rules now `hasAnyRole('ADMIN','TELLER')`. Reference catalogues keep `isAuthenticated()`.
+- `CustomerOwnershipIT` +2 (loans; identifiers and treasury staff only).
+
 #### Follow-ups (not in this PR)
 - **card-service has no JWT role converter**: Spring's default maps `scope` → `SCOPE_*`, so its 60 `hasRole`/`hasAnyRole` checks would refuse every real Keycloak token. Same fix needed there.
 - `POST /twofactor/generate` still returns the code to the staff caller (no delivery channel yet).
 
 #### Build Verification
-- `SecurityConfigTest` 3/3, `CustomerAccessTest` 4/4, `CustomerOwnershipIT` 7/7. Full backend `-Pfull-integration` **797/797** (main 783 + 14).
+- `SecurityConfigTest` 3/3, `CustomerAccessTest` 4/4, `CustomerOwnershipIT` 9/9. Full backend `-Pfull-integration` **799/799** (main 783 + 16).
 - Gate grep: no mapping/param change; access rules (behaviour) documented in api-reference, Postman and the snapshot.
 
 ### Session 125 (cont. 25) — 2026-10-11

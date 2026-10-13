@@ -100,6 +100,10 @@ public class SecurityConfig {
                 .requestMatchers("/open-banking/**")
                     .hasAnyRole("CUSTOMER", "API_CLIENT")
 
+                // Admin-only operations — before the per-method rules, which would match first
+                .requestMatchers("/api/v1/admin/**")
+                    .hasRole("ADMIN")
+
                 // Read-only access for all authenticated roles
                 .requestMatchers(HttpMethod.GET, "/api/v1/**")
                     .hasAnyRole("ADMIN", "TELLER", "CUSTOMER")
@@ -111,10 +115,11 @@ public class SecurityConfig {
                     .hasAnyRole("ADMIN", "TELLER")
                 .requestMatchers(HttpMethod.PATCH, "/api/v1/**")
                     .hasAnyRole("ADMIN", "TELLER")
-
-                // Admin-only operations
-                .requestMatchers("/api/v1/admin/**")
-                    .hasRole("ADMIN")
+                // DELETE had no rule and fell through to "any authenticated caller" (partner and
+                // API-client tokens included). Customers may delete only what @PreAuthorize lets
+                // them own (a beneficiary, their push device).
+                .requestMatchers(HttpMethod.DELETE, "/api/v1/**")
+                    .hasAnyRole("ADMIN", "TELLER", "CUSTOMER")
 
                 .anyRequest().authenticated()
             )

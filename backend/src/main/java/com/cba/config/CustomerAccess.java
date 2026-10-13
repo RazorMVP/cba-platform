@@ -52,6 +52,11 @@ public class CustomerAccess {
         return parties.contains(caller.get());
     }
 
+    /** The loan was borrowed by the caller. */
+    public boolean isLoanBorrower(UUID loanId) {
+        return ownerIs("SELECT customer_id FROM loans WHERE id = ?", loanId);
+    }
+
     public boolean isFixedDepositOwner(UUID id) {
         return ownerIs("SELECT customer_id FROM fixed_deposit_accounts WHERE id = ?", id);
     }

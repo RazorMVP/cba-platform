@@ -280,10 +280,17 @@ customer whose <code>keycloakId</code> is the token's <code>sub</code>: <code>GE
 <code>GET /accounts/{id}</code> (and its transactions, statement and template), <code>GET /payments/{id}</code> (source or destination
 account), <code>GET /payments/accounts/{accountId}</code>, <code>POST /payments/transfer</code> and <code>POST /payments/qr/decode-and-pay</code>
 (the paying account), fixed/recurring deposit and share accounts (list with <code>?customerId=</code> = the caller, get, apply), and
-survey scorecards (<code>customerId</code>). Anything else — another customer's resource, an id that doesn't exist, a caller with no
-linked customer — is <code>403</code>, the same in every case so ids can't be probed. ADMIN and TELLER are not restricted. Loans
-(<code>GET /loans/{id}</code>, <code>/repayment-schedule</code>) apply the same rule with <code>404</code>; <code>/api/v1/self/**</code>
-always scopes to the caller.</p>
+survey scorecards (<code>customerId</code>), and loans (<code>GET /loans/{id}</code>, <code>/repayment-schedule</code>: the borrower).
+Anything else — another customer's resource, an id that doesn't exist, a caller with no linked customer — is <code>403</code>, the
+same in every case so ids can't be probed. ADMIN and TELLER are not restricted; <code>/api/v1/self/**</code> always scopes to the
+caller.</p>
+<p><strong>Staff only</strong> (customers use <code>/api/v1/self/**</code>): client addresses and identifiers, client and loan charges,
+loan collateral, guarantors, reschedules, re-ageing and re-amortisation, notes, documents, maker-checker entries, data tables,
+treasury and liquidity, the notification inbox and 2FA verify. Reference catalogues (products, charge definitions, codes, holidays,
+funds, payment types, taxes, floating rates, field configuration) stay readable by any signed-in role.</p>
+<p><strong>URL rules:</strong> under <code>/api/v1/**</code>, GET and DELETE need ADMIN, TELLER or CUSTOMER and POST/PUT/PATCH need
+ADMIN or TELLER; each endpoint's own rule then applies. (DELETE had no rule before Session 125 cont. 28 and admitted any
+authenticated caller, partner and API-client tokens included.)</p>
 
 <h3>HTTP Basic Authentication (Reference Only)</h3>
 <p>For internal tooling and testing, Basic Auth is supported at the authentication endpoint:</p>

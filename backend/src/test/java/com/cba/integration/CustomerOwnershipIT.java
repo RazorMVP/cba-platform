@@ -3,7 +3,10 @@ package com.cba.integration;
 import com.cba.account.AccountController;
 import com.cba.common.exception.CbaException;
 import com.cba.config.CustomerAccess;
+import com.cba.customer.ClientIdentifierController;
 import com.cba.customer.CustomerController;
+import com.cba.loan.LoanController;
+import com.cba.treasury.TreasuryController;
 import com.cba.notification.InAppNotificationController;
 import com.cba.payment.PaymentController;
 import com.cba.payment.dto.TransferRequest;
@@ -52,6 +55,9 @@ class CustomerOwnershipIT extends AbstractIntegrationTest {
     @Autowired TwoFactorService twoFactorService;
     @Autowired CustomerAccess customerAccess;
     @Autowired JdbcTemplate jdbc;
+    @Autowired LoanController loanController;
+    @Autowired ClientIdentifierController identifierController;
+    @Autowired TreasuryController treasuryController;
     @Autowired com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     String previousKeycloakId;
@@ -97,6 +103,29 @@ class CustomerOwnershipIT extends AbstractIntegrationTest {
                 new TransferRequest(theirAccount, myAccount, new BigDecimal("10.00"), "it", null), jwt(SUBJECT)))
                 .isInstanceOf(AccessDeniedException.class);
         assertThat(balance(theirAccount)).isEqualByComparingTo(before);
+    }
+
+    @Test
+    @DisplayName("loans: a customer reads only a loan they borrowed")
+    void customer_loans() {
+        actAsCustomer(SUBJECT);
+        UUID theirLoan = jdbc.queryForList("SELECT id FROM loans WHERE customer_id <> ? LIMIT 1", UUID.class, DEMO_CUSTOMER)
+                .stream().findFirst().orElse(UUID.randomUUID());
+
+        assertThatThrownBy(() -> loanController.getLoan(theirLoan)).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> loanController.getRepaymentSchedule(theirLoan)).isInstanceOf(AccessDeniedException.class);
+        jdbc.queryForList("SELECT id FROM loans WHERE customer_id = ? LIMIT 1", UUID.class, DEMO_CUSTOMER).stream().findFirst()
+                .ifPresent(mine -> assertThat(customerAccess.isLoanBorrower(mine)).isTrue());
+    }
+
+    @Test
+    @DisplayName("customer identity documents and bank treasury data are staff only")
+    void customer_staffOnlyData() {
+        actAsCustomer(SUBJECT);
+
+        assertThatThrownBy(() -> identifierController.list(DEMO_CUSTOMER, PageRequest.of(0, 5)))
+                .isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> treasuryController.listPlacements()).isInstanceOf(AccessDeniedException.class);
     }
 
     @Test

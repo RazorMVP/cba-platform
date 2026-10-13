@@ -22,7 +22,7 @@ public class ShareAccountController {
 
     @Operation(summary = "List share accounts, optionally filtered by ?customerId=")
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isCustomer(#customerId))")
     public ApiResponse<Page<ShareAccount>> list(
             @RequestParam(required = false) UUID customerId,
             Pageable pageable) {
@@ -31,7 +31,7 @@ public class ShareAccountController {
 
     @Operation(summary = "Get a share account by ID")
     @GetMapping("/{id}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isShareAccountOwner(#id))")
     public ApiResponse<ShareAccount> get(@PathVariable UUID id) {
         return ApiResponse.ok(service.getAccount(id));
     }
@@ -39,7 +39,7 @@ public class ShareAccountController {
     @Operation(summary = "Submit a new share account application")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('ADMIN','TELLER','CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isCustomer(#req.customerId()))")
     public ApiResponse<ShareAccount> apply(@RequestBody ShareService.ApplySharesRequest req) {
         return ApiResponse.ok(service.applyForShares(req));
     }
@@ -62,7 +62,7 @@ public class ShareAccountController {
 
     @Operation(summary = "List share transactions for an account")
     @GetMapping("/{id}/transactions")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isShareAccountOwner(#id))")
     public ApiResponse<Page<ShareAccountTransaction>> transactions(
             @PathVariable UUID id, Pageable pageable) {
         return ApiResponse.ok(service.getTransactions(id, pageable));

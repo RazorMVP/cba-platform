@@ -22,7 +22,7 @@ public class ClientAddressController {
 
     @Operation(summary = "List all addresses for a customer")
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<Page<ClientAddress>> list(@PathVariable UUID customerId, Pageable pageable) {
         return ApiResponse.ok(service.listAddresses(customerId, pageable));
     }

@@ -22,7 +22,7 @@ public class CollateralController {
 
     @Operation(summary = "List collateral items for a loan")
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<Page<Collateral>> list(@PathVariable UUID loanId, Pageable pageable) {
         return ApiResponse.ok(service.listCollaterals(loanId, pageable));
     }

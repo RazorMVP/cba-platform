@@ -24,14 +24,14 @@ public class LiquidityController {
 
     @Operation(summary = "List liquidity positions for all currencies")
     @GetMapping("/positions")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ResponseEntity<ApiResponse<List<LiquidityService.LiquidityPositionDto>>> getAllPositions() {
         return ResponseEntity.ok(ApiResponse.ok(svc.getAllPositions()));
     }
 
     @Operation(summary = "Get the liquidity position for a specific currency code")
     @GetMapping("/positions/{currency}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ResponseEntity<ApiResponse<LiquidityService.LiquidityPositionDto>> getPosition(
             @PathVariable String currency) {
         return ResponseEntity.ok(ApiResponse.ok(svc.getPosition(currency)));
@@ -41,7 +41,7 @@ public class LiquidityController {
 
     @Operation(summary = "Get a cash flow forecast for a currency over the next N days (default 30)")
     @GetMapping("/cashflow")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ResponseEntity<ApiResponse<List<LiquidityService.CashFlowEntryDto>>> getCashFlow(
             @RequestParam String currency,
             @RequestParam(defaultValue = "30") int days) {
@@ -52,7 +52,7 @@ public class LiquidityController {
 
     @Operation(summary = "List all reserve requirement rules")
     @GetMapping("/reserves")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ResponseEntity<ApiResponse<List<LiquidityReserveRequirement>>> listReserves() {
         return ResponseEntity.ok(ApiResponse.ok(svc.listReserves()));
     }
@@ -86,7 +86,7 @@ public class LiquidityController {
 
     @Operation(summary = "Get historical liquidity snapshots for a currency")
     @GetMapping("/snapshots")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ResponseEntity<ApiResponse<List<LiquiditySnapshot>>> getSnapshots(
             @RequestParam String currency,
             @RequestParam(defaultValue = "30") int limit) {

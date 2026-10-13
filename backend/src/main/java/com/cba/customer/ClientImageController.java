@@ -24,14 +24,14 @@ public class ClientImageController {
 
     @Operation(summary = "Get image metadata for a client — always returns 200 (hasImage=false when no image exists)")
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','TELLER','CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isCustomer(#customerId))")
     public ApiResponse<ClientImageService.ImageMeta> getMeta(@PathVariable UUID customerId) {
         return ApiResponse.ok(clientImageService.getMeta(customerId));
     }
 
     @Operation(summary = "Download the raw image bytes with correct Content-Type header")
     @GetMapping("/data")
-    @PreAuthorize("hasAnyRole('ADMIN','TELLER','CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isCustomer(#customerId))")
     public ResponseEntity<byte[]> getData(@PathVariable UUID customerId) {
         ClientImageService.ImageMeta meta = clientImageService.getMeta(customerId);
         byte[] data = clientImageService.getImageData(customerId);

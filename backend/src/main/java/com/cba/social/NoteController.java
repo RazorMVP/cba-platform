@@ -22,7 +22,7 @@ public class NoteController {
 
     @Operation(summary = "List notes for an entity")
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<Page<Note>> list(
             @PathVariable String entityType,
             @PathVariable UUID entityId,
@@ -32,7 +32,7 @@ public class NoteController {
 
     @Operation(summary = "Get a single note by ID")
     @GetMapping("/{id}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<Note> get(@PathVariable String entityType,
                                   @PathVariable UUID entityId,
                                   @PathVariable UUID id) {
@@ -42,7 +42,7 @@ public class NoteController {
     @Operation(summary = "Add a note to an entity")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<Note> create(
             @PathVariable String entityType,
             @PathVariable UUID entityId,
@@ -52,7 +52,7 @@ public class NoteController {
 
     @Operation(summary = "Update a note")
     @PutMapping("/{id}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<Note> update(
             @PathVariable String entityType,
             @PathVariable UUID entityId,
@@ -64,7 +64,7 @@ public class NoteController {
     @Operation(summary = "Delete a note")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public void delete(@PathVariable String entityType,
                        @PathVariable UUID entityId,
                        @PathVariable UUID id) {

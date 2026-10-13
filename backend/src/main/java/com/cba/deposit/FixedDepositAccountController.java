@@ -22,7 +22,7 @@ public class FixedDepositAccountController {
 
     @Operation(summary = "List fixed deposit accounts (optionally filtered by ?customerId=)")
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isCustomer(#customerId))")
     public ApiResponse<Page<FixedDepositAccount>> list(
             @RequestParam(required = false) UUID customerId,
             Pageable pageable) {
@@ -31,7 +31,7 @@ public class FixedDepositAccountController {
 
     @Operation(summary = "Get a fixed deposit account by ID")
     @GetMapping("/{id}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isFixedDepositOwner(#id))")
     public ApiResponse<FixedDepositAccount> get(@PathVariable UUID id) {
         return ApiResponse.ok(service.getAccount(id));
     }
@@ -39,7 +39,7 @@ public class FixedDepositAccountController {
     @Operation(summary = "Submit a new fixed deposit application")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('ADMIN','TELLER','CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isCustomer(#req.customerId()))")
     public ApiResponse<FixedDepositAccount> submit(@RequestBody FixedDepositService.SubmitFdRequest req) {
         return ApiResponse.ok(service.submitApplication(req));
     }

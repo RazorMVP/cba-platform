@@ -22,7 +22,7 @@ public class DocumentController {
 
     @Operation(summary = "List documents for an entity")
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<Page<Document>> list(
             @PathVariable String entityType,
             @PathVariable UUID entityId,
@@ -32,7 +32,7 @@ public class DocumentController {
 
     @Operation(summary = "Get a single document by ID")
     @GetMapping("/{id}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<Document> get(
             @PathVariable String entityType,
             @PathVariable UUID entityId,
@@ -43,7 +43,7 @@ public class DocumentController {
     @Operation(summary = "Attach a document record to an entity")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ApiResponse<Document> create(
             @PathVariable String entityType,
             @PathVariable UUID entityId,
@@ -54,7 +54,7 @@ public class DocumentController {
     @Operation(summary = "Remove a document from an entity")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public void delete(
             @PathVariable String entityType,
             @PathVariable UUID entityId,

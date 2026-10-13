@@ -76,7 +76,7 @@ public class SurveyController {
     @Operation(summary = "Submit a completed scorecard for a survey")
     @PostMapping("/{id}/scorecards")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('ADMIN','TELLER','CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isCustomer(#req.customerId()))")
     public ApiResponse<SurveyScorecard> submitScorecard(
             @PathVariable UUID id,
             @RequestBody SurveyService.SubmitScorecardRequest req) {

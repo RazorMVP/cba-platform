@@ -2569,7 +2569,7 @@ Content-Type: application/json
 
 <details class="endpoint">
 <summary><span class="method get">GET</span> /api/v1/dashboard/analytics/loans</summary>
-<p>Returns loan portfolio aging breakdown. Buckets are computed from <code>LoanRepaymentSchedule.dueDate</code> — counts distinct loan IDs per overdue window. Active loans with no overdue installments contribute to <code>pctCurrent</code>.</p>
+<p>Returns loan portfolio aging breakdown. Each <code>IN_ARREARS</code> loan falls in exactly one bucket, by its oldest instalment due and not settled (<code>loans.overdue_since</code>, kept by the nightly arrears step with <code>days_past_due</code>): 1–30, 31–60, 61–90, 90+ days past due. Active loans with nothing overdue and the 1–30 bucket make up <code>pctCurrent</code>. Before V61 the buckets filtered on instalment status <code>OVERDUE</code>, which nothing stores, so every bucket was 0 (and a loan with several missed instalments could count in several).</p>
 <h4>Response — 200 OK</h4>
 <pre><code>{
   "data": {
@@ -2609,7 +2609,7 @@ Content-Type: application/json
 
 <details class="endpoint">
 <summary><span class="method get">GET</span> /api/v1/dashboard/analytics/repayments</summary>
-<p>Returns repayment collection performance for the current calendar month. Queries <code>LoanRepaymentScheduleRepository</code> for installments whose <code>dueDate</code> falls within the month. <code>collectionRate</code> = <code>amountCollected / amountDue × 100</code>, rounded to 1 decimal place. <code>overdueInstallmentCount</code> and <code>overdueBalance</code> are computed across all time (not just this month) from installments with status <code>OVERDUE</code>.</p>
+<p>Returns repayment collection performance for the current calendar month. Queries <code>LoanRepaymentScheduleRepository</code> for installments whose <code>dueDate</code> falls within the month. <code>collectionRate</code> = <code>amountCollected / amountDue × 100</code>, rounded to 1 decimal place. <code>overdueInstallmentCount</code> and <code>overdueBalance</code> cover all time (not just this month): instalments due before today and not settled (status not <code>PAID</code>/<code>WAIVED</code> — a partly paid instalment counts) on <code>ACTIVE</code>/<code>IN_ARREARS</code> loans; the balance is <code>Σ(totalDue − totalPaid)</code>. Overdue is derived from the due date, never stored: no instalment ever has status <code>OVERDUE</code> (V61; both figures were always 0 before).</p>
 <h4>Response — 200 OK</h4>
 <pre><code>{
   "data": {
@@ -3379,7 +3379,7 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <tr><td>GET</td><td>/api/v1/reports</td><td>List reports</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/api/v1/reports/{id}</td><td>Get report definition</td><td>ADMIN</td></tr>
 <tr><td>DELETE</td><td>/api/v1/reports/{id}</td><td>Delete report</td><td>ADMIN</td></tr>
-<tr><td>GET</td><td>/api/v1/runreports/{reportName}</td><td>Run report with params</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/runreports/{reportName}</td><td>Run report with params. Seeded: ActiveLoans, LoansInArrears, SavingsBalance, TellerCashPosition, CustomerAcquisition, TrialBalance, LoanProductSummary. <code>LoansInArrears</code> (V61): open loans with instalments due before today and not settled — <code>loan_account_number, customer_id, outstanding_balance, days_overdue</code> (from the oldest), <code>amount_overdue, ageing_bucket</code> (1-30 / 31-60 / 61-90 / 90+ days). Before V61 no seeded report could load (categories didn't match the enum) and LoansInArrears matched nothing</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/runreports/{reportName}/export</td><td>Export report (CSV/XLSX/PDF)</td><td>ADMIN, TELLER</td></tr>
 <!-- CoB Scheduler -->
 <tr><td>GET</td><td>/api/v1/jobs</td><td>List CoB jobs</td><td>ADMIN</td></tr>

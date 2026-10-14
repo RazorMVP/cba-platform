@@ -23,9 +23,18 @@ public interface LoanRepaymentScheduleRepository extends JpaRepository<LoanRepay
     @Query("SELECT COALESCE(SUM(s.totalPaid), 0) FROM LoanRepaymentSchedule s WHERE s.dueDate >= :start AND s.dueDate <= :end")
     BigDecimal sumCollectedBetween(LocalDate start, LocalDate end);
 
-    @Query("SELECT COUNT(s) FROM LoanRepaymentSchedule s WHERE s.status = 'OVERDUE'")
-    long countOverdue();
+    /*
+     * Overdue = fallen due before today and not settled (a partly paid instalment is still
+     * overdue), on an open loan. Derived from the due date, like Fineract: nothing stores
+     * status OVERDUE, so these queries must not filter on it (they returned nothing while
+     * they did).
+     */
 
-    @Query("SELECT COALESCE(SUM(s.totalDue - s.totalPaid), 0) FROM LoanRepaymentSchedule s WHERE s.status = 'OVERDUE'")
-    BigDecimal sumOverdueBalance();
+    @Query("SELECT COUNT(s) FROM LoanRepaymentSchedule s WHERE s.dueDate < :today "
+            + "AND s.status NOT IN ('PAID', 'WAIVED') AND s.loan.status IN ('ACTIVE', 'IN_ARREARS')")
+    long countOverdue(LocalDate today);
+
+    @Query("SELECT COALESCE(SUM(s.totalDue - s.totalPaid), 0) FROM LoanRepaymentSchedule s WHERE s.dueDate < :today "
+            + "AND s.status NOT IN ('PAID', 'WAIVED') AND s.loan.status IN ('ACTIVE', 'IN_ARREARS')")
+    BigDecimal sumOverdueBalance(LocalDate today);
 }

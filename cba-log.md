@@ -57,6 +57,48 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 31) — 2026-10-14
+**Overdue derived from the due date: the dashboard overdue figures, arrears buckets and LoansInArrears report showed nothing because they filtered on a status nothing stores. Seeded reports couldn't load at all (category enum mismatch). V61.**
+
+#### What was wrong
+| Defect | Effect |
+|---|---|
+| `LoanRepaymentScheduleRepository.countOverdue` / `sumOverdueBalance` filtered `status = 'OVERDUE'` | `GET /dashboard/analytics/repayments` overdue count and balance always 0 |
+| `LoanRepository.countLoansWithOverdueBetween/Before` filtered the same; counted any missed instalment in the window | Every arrears bucket 0; once fixed naively, a loan with several missed instalments would land in several buckets |
+| V9 `LoansInArrears` joined `status = 'OVERDUE'` and aged by `MAX(due_date)` | Report always empty; would have aged by the newest missed instalment, not the oldest |
+| V9 seeded categories `'Loans'`, `'Savings'`, `'Teller'`, `'Customers'`, `'Accounting'`, `'Products'`; `Report.category` is an enum (`LOAN`…`MIXED`) | Loading any seeded report threw `No enum constant Report.Category.Loans` — none of the 7 could be listed or run |
+| `findLoansWithOverdueInstallments` (PENDING only, ACTIVE only) | Dead code — removed |
+| Web schedule badges compared `status === 'OVERDUE'` | Overdue rows showed as "Pending" (loans list also missed the row highlight) |
+
+Nothing ever set `OVERDUE`: overdue depends on today's date, so storing it would go stale the next day and would erase PARTIALLY_PAID. Like Fineract, it is now derived: due before today, status not PAID/WAIVED (partly paid counts), loan ACTIVE/IN_ARREARS. Loans are bucketed by `loans.overdue_since` (oldest unsettled instalment, kept with `days_past_due` by `LoanAccrualService.updateArrears`) — one bucket per loan.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/.../loan/LoanRepaymentScheduleRepository.java` | `countOverdue(today)`, `sumOverdueBalance(today)` derived from the due date |
+| `backend/.../loan/LoanRepository.java` | `countInArrearsOverdueSinceBetween/Before` on `overdueSince`; dead `findLoansWithOverdueInstallments` removed |
+| `backend/.../common/DashboardController.java` | Uses the new queries (response shapes unchanged) |
+| `backend/.../loan/LoanRepaymentSchedule.java` | Javadoc: OVERDUE is never stored |
+| `backend/.../db/migration/V61__loan_overdue_derived.sql` | Report categories → enum names (default `MIXED`); LoansInArrears SQL rewritten (oldest overdue, `amount_overdue`, buckets 1-30/31-60/61-90/90+) |
+| `backend/.../integration/LoanOverdueIT.java` (new, 2) | Unpaid + partly paid past due count, paid/future don't; one bucket (61–90); dashboard endpoint; report row (70 days, amount, bucket); paying clears; all 7 seeded reports load |
+| `web/.../loans/loan.service.ts` (+spec) | `installmentDisplayStatus()`; 2 spec tests |
+| `web/.../loans/loan-detail/*`, `loans-list.*` | Badge shows OVERDUE when past due and unsettled; loans-list row highlight uses `isOverdue` |
+| `docs/api-reference.html` (+ docs-site copy) | Dashboard loans/repayments descriptions; `runreports` row (seeded reports, LoansInArrears columns) |
+| `docs/cba-postman-collection-v2.json` (+ docs-site copy) | Portfolio description; LoansInArrears description; **new** "Get Repayment Analytics" request (endpoint was missing) |
+| `CLAUDE.md` | Versions row; Loan module "overdue is derived" rule; Reports module category gotcha |
+
+#### Follow-ups (not here)
+- Web reports screen reads `reportCategory`; the API field is `category`, so the category chip/filter never shows.
+- PR 2e (reschedule / re-age schedule changes); backend → card-service token; PR 3.
+
+#### Build Verification
+- `cd backend && ./mvnw -o clean verify -Pfull-integration` → **861/861** (859 + 2), BUILD SUCCESS
+- `cd web && CI=true npx ng test --no-watch` → **1169/1169** (115 files); `npm run build` → success
+- Gate grep (tracked + untracked `LoanOverdueIT.java`): no endpoint/param surface change. Response *values* changed (overdue figures, buckets, report rows/columns), so api-reference and Postman were updated.
+
+#### Confirmed Platform Versions
+Unchanged from cont. 30 (no dependency changes).
+
 ### Session 125 (cont. 30) — 2026-10-14
 **GL posting PR 2d: loan interest waivers post to the GL — accrued interest derecognised, future interest an IFRS 9 §5.4.3 modification loss that unwinds into income; LOANS opening-balance scope; loan-extension guards. The waiver had posted nothing and corrupted the sub-ledger.**
 

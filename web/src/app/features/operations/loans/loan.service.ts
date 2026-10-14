@@ -76,6 +76,11 @@ export function isOverdue(i: RepaymentInstallment): boolean {
   return i.status === 'OVERDUE' || (!!i.dueDate && i.dueDate < todayIso());
 }
 
+/** The status to show: OVERDUE when fallen due and not settled (the API derives it, never stores it). */
+export function installmentDisplayStatus(i: RepaymentInstallment): RepaymentInstallment['status'] {
+  return isOverdue(i) ? 'OVERDUE' : i.status;
+}
+
 /** What is still owed on an instalment: its total due (net of waived interest) less what was paid. */
 export function stillOwed(i: RepaymentInstallment): number {
   const paid = i.totalPaid ?? (i.principalPaid ?? 0) + (i.interestPaid ?? 0) + (i.feesPaid ?? 0);

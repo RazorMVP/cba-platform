@@ -16,6 +16,11 @@ import java.util.UUID;
 @NoArgsConstructor
 public class LoanRepaymentSchedule {
 
+    /**
+     * OVERDUE is never stored: overdue depends on today's date, so it is derived (due date
+     * passed and not settled), and a partly paid overdue instalment stays PARTIALLY_PAID.
+     * The value is kept because V1 documents it and clients may still send or match it.
+     */
     public enum InstallmentStatus {
         PENDING, PAID, PARTIALLY_PAID, OVERDUE, WAIVED
     }

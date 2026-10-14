@@ -9,7 +9,7 @@ function apiMessage(err: unknown, fallback: string): string {
   return e?.error?.errors?.[0]?.message ?? fallback;
 }
 
-type ModalType = 'run' | 'create' | 'delete' | null;
+type ModalType = 'run' | 'delete' | null;
 
 interface ParamFormEntry {
   param:  ReportParameter;
@@ -40,9 +40,6 @@ export class ReportsListComponent implements OnInit {
     return Array.from(cats).sort((a, b) => this.categoryLabel(a).localeCompare(this.categoryLabel(b)));
   }
 
-  /** Every category, for the create form. */
-  readonly categoryOptions = Object.keys(REPORT_CATEGORY_LABELS) as ReportCategory[];
-
   categoryLabel(c: ReportCategory | undefined): string {
     return c ? REPORT_CATEGORY_LABELS[c] ?? c : '';
   }
@@ -57,15 +54,6 @@ export class ReportsListComponent implements OnInit {
   results:   Record<string, unknown>[] = [];
   resultCols: string[] = [];
   hasRun     = false;
-
-  // ── Create modal ───────────────────────────────────────────────────────────
-  createWorking = false;
-  createError   = '';
-  formName      = '';
-  formType      = 'TABLE';
-  formCategory: ReportCategory | '' = '';
-  formDesc      = '';
-  formSql       = '';
 
   // ── Delete modal ───────────────────────────────────────────────────────────
   deletingId    = '';
@@ -152,41 +140,6 @@ export class ReportsListComponent implements OnInit {
     if (!this.running) { this.activeModal = null; this.selectedReport = null; }
   }
 
-  // ── Create modal ───────────────────────────────────────────────────────────
-
-  openCreateModal(): void {
-    this.activeModal   = 'create';
-    this.formName      = '';
-    this.formType      = 'TABLE';
-    this.formCategory  = '';
-    this.formDesc      = '';
-    this.formSql       = '';
-    this.createWorking = false;
-    this.createError   = '';
-  }
-
-  submitCreate(): void {
-    if (!this.formName || !this.formSql) return;
-    this.createWorking = true;
-    this.svc.createReport({
-      reportName:     this.formName,
-      reportType:     this.formType,
-      reportCategory: this.formCategory || undefined,
-      description:    this.formDesc     || undefined,
-      reportSql:      this.formSql,
-    }).subscribe({
-      next: r => {
-        this.reports = [...this.reports, r];
-        this.applyFilter();
-        this.createWorking = false;
-        this.activeModal   = null;
-      },
-      error: err => { this.createError = apiMessage(err, 'Failed to create report.'); this.createWorking = false; },
-    });
-  }
-
-  closeCreateModal(): void { if (!this.createWorking) this.activeModal = null; }
-
   // ── Delete modal ───────────────────────────────────────────────────────────
 
   openDeleteModal(r: Report): void {
@@ -206,7 +159,7 @@ export class ReportsListComponent implements OnInit {
         this.deleteWorking = false;
         this.activeModal   = null;
       },
-      error: () => { this.deleteError = 'Cannot delete a core system report.'; this.deleteWorking = false; },
+      error: err => { this.deleteError = apiMessage(err, 'Cannot delete a core system report.'); this.deleteWorking = false; },
     });
   }
 

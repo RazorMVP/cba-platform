@@ -4,7 +4,7 @@ import { ReportsListComponent } from './reports-list';
 import { ReportService, Report, ReportParameter } from './report.service';
 
 type Svc = Record<
-  'listReports' | 'runReport' | 'getExportUrl' | 'createReport' | 'deleteReport',
+  'listReports' | 'runReport' | 'getExportUrl' | 'deleteReport',
   ReturnType<typeof vi.fn>
 >;
 
@@ -27,7 +27,6 @@ describe('ReportsListComponent', () => {
       listReports: vi.fn().mockReturnValue(of([report()])),
       runReport: vi.fn().mockReturnValue(of([{ name: 'Loan A', balance: 100 }])),
       getExportUrl: vi.fn().mockReturnValue('http://x/runreports/Active%20Loans/export?format=csv'),
-      createReport: vi.fn().mockReturnValue(of(report({ id: 'r2', reportName: 'New' }))),
       deleteReport: vi.fn().mockReturnValue(of(void 0)),
     };
     TestBed.configureTestingModule({
@@ -151,50 +150,10 @@ describe('ReportsListComponent', () => {
     });
   });
 
-  describe('create modal', () => {
-    it('submitCreate is a no-op without name/sql', () => {
-      const c = make();
-      c.openCreateModal();
-      c.submitCreate();
-      expect(svc.createReport).not.toHaveBeenCalled();
-    });
-
-    it('submitCreate appends a report and re-filters', () => {
-      const c = make();
-      c.openCreateModal();
-      c.formName = 'New';
-      c.formSql = 'SELECT 1';
-      c.submitCreate();
-      expect(svc.createReport).toHaveBeenCalledWith({
-        reportName: 'New', reportType: 'TABLE', reportCategory: undefined, description: undefined, reportSql: 'SELECT 1',
-      });
-      expect(c.reports).toHaveLength(2);
-      expect(c.activeModal).toBeNull();
-    });
-
-    it('submitCreate sends the chosen category and type as API values', () => {
-      const c = make();
-      c.openCreateModal();
-      c.formName = 'New';
-      c.formSql = 'SELECT 1';
-      c.formType = 'CHART';
-      c.formCategory = 'SAVINGS';
-      c.submitCreate();
-      expect(svc.createReport).toHaveBeenCalledWith(expect.objectContaining({ reportType: 'CHART', reportCategory: 'SAVINGS' }));
-    });
-
-    it('submitCreate shows the API error message', () => {
-      svc.createReport.mockReturnValue(throwError(() => ({
-        error: { errors: [{ code: 'INVALID_REPORT_SQL', message: 'Report SQL must start with SELECT or WITH' }] },
-      })));
-      const c = make();
-      c.openCreateModal();
-      c.formName = 'New';
-      c.formSql = 'DELETE FROM x';
-      c.submitCreate();
-      expect(c.createError).toBe('Report SQL must start with SELECT or WITH');
-      expect(c.createWorking).toBe(false);
-    });
+  it('offers no way to create reports (custom report SQL is not accepted by the API)', () => {
+    const fixture = TestBed.createComponent(ReportsListComponent);
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('New Report');
   });
 
   describe('delete modal', () => {

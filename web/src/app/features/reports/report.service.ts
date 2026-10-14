@@ -37,16 +37,6 @@ export interface Report {
   reportParameters: ReportParameter[];
 }
 
-export interface ReportRequest {
-  reportName: string;
-  /** TABLE (default) | CHART | SMS | PENTAHO */
-  reportType: string;
-  reportCategory?: ReportCategory;
-  description?: string;
-  reportSql: string;
-  reportParameters?: Omit<ReportParameter, 'id'>[];
-}
-
 // ── CoB Scheduler ──────────────────────────────────────────────────────────────
 
 export interface CobJob {
@@ -117,9 +107,6 @@ export class ReportService {
   }
   getReport(id: string): Observable<Report> {
     return this.api.get<Report>(`/reports/${id}`);
-  }
-  createReport(req: ReportRequest): Observable<Report> {
-    return this.api.post<Report>('/reports', req);
   }
   deleteReport(id: string): Observable<void> {
     return this.api.delete<void>(`/reports/${id}`);

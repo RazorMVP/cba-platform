@@ -10213,25 +10213,6 @@ components:
           format: "int64"
           type: "integer"
       type: "object"
-    ReportParameterRequest:
-      properties:
-        defaultValue:
-          maxLength: 255
-          minLength: 0
-          type: "string"
-        optional:
-          type: "boolean"
-        parameterLabel:
-          maxLength: 100
-          minLength: 0
-          type: "string"
-        parameterName:
-          maxLength: 100
-          minLength: 0
-          type: "string"
-        parameterType:
-          type: "string"
-      type: "object"
     ReportParameterResponse:
       properties:
         defaultValue:
@@ -10250,26 +10231,6 @@ components:
         sortOrder:
           format: "int32"
           type: "integer"
-      type: "object"
-    ReportRequest:
-      properties:
-        description:
-          type: "string"
-        reportCategory:
-          type: "string"
-        reportName:
-          maxLength: 100
-          minLength: 0
-          type: "string"
-        reportParameters:
-          items:
-            $ref: "#/components/schemas/ReportParameterRequest"
-          type: "array"
-        reportSql:
-          minLength: 1
-          type: "string"
-        reportType:
-          type: "string"
       type: "object"
     ReportResponse:
       properties:
@@ -19333,27 +19294,6 @@ paths:
                 $ref: "#/components/schemas/ApiResponseListReportResponse"
           description: "OK"
       summary: "List all enabled reports"
-      tags:
-      - "Reports"
-    post:
-      description: "reportSql must be one SELECT/WITH query (checked now and on every\
-        \ run); ${name} placeholders take reportParameters. Errors: REPORT_NAME_EXISTS,\
-        \ INVALID_REPORT_SQL, INVALID_REPORT_TYPE, INVALID_REPORT_CATEGORY, INVALID_REPORT_PARAMETER."
-      operationId: "createReport"
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ReportRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ApiResponseReportResponse"
-          description: "OK"
-      summary: "Create a custom report"
       tags:
       - "Reports"
   /api/v1/reports/{id}:

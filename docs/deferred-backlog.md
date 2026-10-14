@@ -7,7 +7,8 @@
 > reasonably contained (CONSENT.EXPIRED, PAYMENT.REVERSED, AUTHORIZATION.REVERSED, RATE_LIMIT.*,
 > FEP↔card-service contract). **Expanded cont. 11 (2026-07-21)** with a full-codebase sweep for
 > every remaining deferral marker (items 4–7 + the roadmap section). **Items 8–9 added Session 125
-> cont. 10 (2026-09-23)**: the CI secrets and variables that deployment and SonarCloud need.
+> cont. 10 (2026-09-23)**: the CI secrets and variables that deployment and SonarCloud need. **Item 10 added
+> Session 125 cont. 32 (2026-10-14)**: user-defined (custom) reports, withdrawn on security review.
 >
 > **Not in this list** (deliberately): intentional dev features that are correct as-is —
 > `DevAuthBypassFilter` (prod uses Keycloak), fraud/3DS last-resort scalar guards, Stitch
@@ -355,6 +356,48 @@ coverage quality gate CLAUDE.md describes is not enforced by anything**.
 
 ### Seams / files
 `.github/workflows/backend-ci.yml` (`sonar` job), repo Settings → Secrets / Variables.
+
+---
+
+## 10. Custom reports — user-defined SQL needs a sandbox first
+
+**Effort**: M · **Risk**: security — any ADMIN could read the whole database
+
+### What it is
+Letting an ADMIN create reports with their own SQL (`POST /api/v1/reports`, the Mifos "stretchy
+report" feature). The web had a "New Report" modal for it but the endpoint never existed.
+
+### Current state (cont. 32)
+- Built in PR #151, then **withdrawn before merge on security review**. The web modal was removed;
+  `POST /api/v1/reports` returns 405 (`ReportApiIT.createIsNotExposed`).
+- Report SQL comes **only from Flyway migrations** (the 7 seeded core reports).
+- `ReportService.runReport` runs stored SQL through `JdbcTemplate` in a `@Transactional(readOnly = true)`
+  transaction, after `validateSelectOnly` — a **keyword filter**, not a sandbox.
+
+### Why it can't just be switched on
+- `validateSelectOnly` checks `contains("DELETE ")` etc.: `DELETE` + newline/tab passes, and so does
+  a data-modifying CTE (`WITH x AS (DELETE …) SELECT …`). The read-only transaction probably stops
+  writes (unverified), but nothing stops reads.
+- A clean `SELECT` reads **every table** the app's DB user can: users, API-key and partner-key hashes,
+  encrypted webhook secrets, audit log, card PAN ciphertext. `pg_sleep` / huge cross joins tie up the DB.
+- ADMIN through the API never had raw table access — this would widen it to "whatever the app user can see".
+
+### What's needed
+1. A dedicated **read-only DB role** (e.g. `cba_reporting`) with `SELECT` on an allow-listed
+   **reporting schema of views only** (no base tables, no secret/hash/ciphertext columns);
+   no `EXECUTE` on server-side functions beyond the safe set; `default_transaction_read_only = on`.
+2. A second `DataSource`/`JdbcTemplate` that runs report SQL as that role, with
+   `statement_timeout` (e.g. 30 s) and a row cap.
+3. Parse instead of keyword-match: one statement only, `SELECT`/`WITH` with no data-modifying CTE
+   (a SQL parser such as JSqlParser, or `EXPLAIN` under the role).
+4. Run the 7 core reports through the same path (they read base tables today — add views for them).
+5. Then reinstate `POST /api/v1/reports` (ADMIN, maker-checker recommended) + the web modal; the
+   withdrawn implementation is in PR #151's history (`ReportRequest`, `ReportService.createReport`, `ReportApiIT`).
+
+### Seams / files
+`backend/.../report/ReportService.java` (`runReport`, `validateSelectOnly`), `ReportController`,
+a new Flyway migration (role + reporting schema + grants — role passwords via secrets, never in git),
+`infrastructure/` (docker-compose + k8s secret for the reporting role), `web/.../reports/reports-list.*`.
 
 ---
 

@@ -58,39 +58,41 @@ _None — all Phase 1 backend modules are now complete._
 ## Change History
 
 ### Session 125 (cont. 32) — 2026-10-14
-**Reports API ↔ web contract: the API returns `ReportResponse` in Mifos field names instead of the entity, `GET /api/v1/reports` works again, and `POST /api/v1/reports` exists so the web's Create modal works. Web category chip and filter show labels.**
+**Reports API ↔ web contract: the API returns `ReportResponse` in Mifos field names instead of the entity, so `GET /api/v1/reports` works again and the category chip/filter show labels. A create endpoint was built, then withdrawn on security review (user "1") — report SQL comes only from migrations; deferred-backlog item 10. Wrong-method requests return 405, not 500.**
 
 #### What was wrong (found from the #150 follow-up "category chip never shows")
 | Defect | Effect |
 |---|---|
 | `GET /api/v1/reports` returned the JPA entity; `Report.parameters` ↔ `ReportParameter.report` with no `@JsonIgnore` | **Confirmed before the fix** (ReportApiIT on the unchanged code): `HttpMessageNotWritableException: Document nesting depth (1001) exceeds the maximum allowed (1000)` via `Report["parameters"]->ReportParameter["report"]->…`. CustomerAcquisition has 2 parameters, so the whole list failed — the reports screen showed nothing |
 | Entity names vs the web's (Mifos) names: `category`/`reportCategory`, `enabled`/`useReport`, `parameters`/`reportParameters`, `required`/`optional` | Category chip/filter blank; run modal had no parameter inputs; required markers never shown |
-| Web Create modal posted to `POST /api/v1/reports` — **no such endpoint** (`ReportService.createReport` existed, unmapped) | Create always failed |
-| Create form sent `reportType: 'Table'` / `'Email'` and free-text categories | Would violate the `reports.report_type` CHECK (`TABLE|CHART|SMS|PENTAHO`) and the category enum |
+| Web "New Report" modal posted to `POST /api/v1/reports` — no such endpoint | Create always failed |
+| `GlobalExceptionHandler`'s catch-all turned `HttpRequestMethodNotSupportedException` into 500 | Any wrong-method call (e.g. POST to a GET-only path) looked like a server fault |
 
-#### Decision
-Backend returns a DTO with Mifos's names (Mifos Reports API: `reportCategory`, `useReport`, `coreReport`, `reportParameters`) — matches CLAUDE.md "mirror Mifos" and "never return entities" (`JournalEntryResponse`). The web model needed no renames. Create endpoint added (plan option 2a, approved): ADMIN only, SELECT/WITH checked at create as well as on every run.
+#### Decisions
+- Backend returns a DTO in Mifos's names (Mifos Reports API: `reportCategory`, `useReport`, `coreReport`, `reportParameters`) — matches "mirror Mifos" and "never return entities". The web model needed no renames.
+- **Create endpoint withdrawn (user "1", after the commit security review).** It had been built (plan option 2a): ADMIN-only `POST /api/v1/reports` with SELECT/WITH checked at create and run. The review was right: `validateSelectOnly` is a keyword filter (`"DELETE "` misses `DELETE` + newline; data-modifying CTEs start with `WITH`), and even a clean SELECT reads every table the app user can (key hashes, encrypted secrets, audit log) or ties up the DB. Before this PR there was no API path for report SQL at all, so the PR would have *added* the exposure. Removed from backend and web; `POST` now 405 (guard test). Proper design (read-only role on an allow-listed reporting schema, timeout, real parsing) → `docs/deferred-backlog.md` item 10.
 
 #### New/Updated Files
 | File | Change |
 |------|--------|
-| `backend/.../report/dto/ReportResponse.java` (new) | Mifos-shaped response; parameters ordered by `sortOrder`, `optional = !required` |
-| `backend/.../report/dto/ReportRequest.java` (new) | Create body with validation |
-| `backend/.../report/ReportService.java` | `createReport(ReportRequest)` (type/category/parameter validation, `INVALID_REPORT_*` codes, core = false); list/get return DTOs inside the read transaction |
-| `backend/.../report/ReportController.java` | GETs return `ReportResponse`; **new** `POST /api/v1/reports` → 201 |
-| `backend/.../report/ReportServiceTest.java` | Create mapping, defaults, invalid inputs (5 codes), duplicate |
-| `backend/.../integration/ReportApiIT.java` (new, 3) | List/get shape (no entity keys), create → listed → runnable, 4 × 400, custom delete vs core delete, TELLER refused |
-| `backend/docs/openapi-snapshot.yaml` | Report schemas; nested `Parameter` records named `ReportParameterRequest`/`ReportParameterResponse` via `@Schema` (springdoc keyed both as `Parameter` and one overwrote the other) |
-| `web/.../reports/report.service.ts` | `ReportCategory` type + `REPORT_CATEGORY_LABELS` |
-| `web/.../reports/reports-list.{ts,html,spec.ts}` | Labels on chip/filter; create category select + uppercase type values ("Email" removed); API error text; 4 new tests |
-| `docs/api-reference.html`, Postman (+ docs-site copies) | Report rows (shape, roles fixed: list/get are ADMIN, TELLER), POST row; Postman list/get examples + new "Create report" request |
-| `CLAUDE.md` | Versions row; Reports module 15 note + endpoints; follow-up removed |
+| `backend/.../report/dto/ReportResponse.java` (new) | Mifos-shaped response; parameters ordered by `sortOrder`, `optional = !required`; nested record `@Schema(name = "ReportParameterResponse")` |
+| `backend/.../report/ReportService.java` | list/get return DTOs inside the read transaction; the unmapped `createReport(Report)` removed |
+| `backend/.../report/ReportController.java` | GETs return `ReportResponse` |
+| `backend/.../common/exception/GlobalExceptionHandler.java` | `HttpRequestMethodNotSupportedException` → 405 `METHOD_NOT_ALLOWED` with `Allow` |
+| `backend/.../report/ReportServiceTest.java` | get uses the DTO; tests for the removed create method dropped |
+| `backend/.../integration/ReportApiIT.java` (new, 2) | List/get Mifos shape with no entity keys (CustomerAcquisition: CUSTOMER, 2 optional DATE params); `POST /api/v1/reports` → 405, `Allow` has GET not POST |
+| `backend/docs/openapi-snapshot.yaml` | Report schemas |
+| `web/.../reports/report.service.ts` | `ReportCategory` + `REPORT_CATEGORY_LABELS`; `createReport`/`ReportRequest` removed |
+| `web/.../reports/reports-list.{ts,html,spec.ts}` | Labels on chip/filter; "New Report" button + modal removed; delete shows the API's error text; tests updated (+ "no create" test) |
+| `docs/api-reference.html`, Postman (+ docs-site copies) | Report rows (shape; roles fixed — list/get are ADMIN, TELLER; no create, POST → 405); Postman list/get examples |
+| `docs/deferred-backlog.md` | Item 10 — custom reports need a sandbox first |
+| `CLAUDE.md` | Versions row; Reports module 15 note + endpoints |
 
 #### Build Verification
 - Before the fix: `ReportApiIT.listReports` failed with the nesting-depth error above.
-- `cd backend && ./mvnw -o clean verify -Pfull-integration` → **866/866** (861 + 3 IT + 2 unit), BUILD SUCCESS; OpenAPI snapshot regenerated
-- `cd web && CI=true npx ng test --no-watch` → **1173/1173**; `npm run build` → success
-- Gate grep (tracked + untracked): new `@PostMapping("/api/v1/reports")` + `@RequestBody ReportRequest`; GET response type changed → api-reference, Postman and the OpenAPI snapshot updated.
+- `cd backend && ./mvnw -o clean verify -Pfull-integration` → **861/861** (+2 IT, −2 unit tests of the removed create method), BUILD SUCCESS; OpenAPI snapshot regenerated
+- `cd web && CI=true npx ng test --no-watch` → **1170/1170**; `npm run build` → success
+- Gate grep (tracked + untracked): GET response type changed (`ReportResponse`); no new mapping → api-reference, Postman and the OpenAPI snapshot updated.
 
 #### Confirmed Platform Versions
 Unchanged from cont. 30 (no dependency changes).

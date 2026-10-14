@@ -2,7 +2,6 @@ package com.cba.report;
 
 import com.cba.audit.AuditLogService;
 import com.cba.common.exception.CbaException;
-import com.cba.report.dto.ReportRequest;
 import com.cba.report.dto.ReportResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -48,81 +47,6 @@ class ReportServiceTest {
     @Nested
     @DisplayName("CRUD")
     class Crud {
-
-        private ReportRequest request(String type, String category, String sql, ReportRequest.Parameter... params) {
-            return new ReportRequest("TestReport", type, category, "d", sql, List.of(params));
-        }
-
-        @Test
-        @DisplayName("createReport maps the request (Mifos names) onto a custom report and returns the DTO")
-        void createReport_success() {
-            when(reportRepository.findByReportName("TestReport")).thenReturn(Optional.empty());
-            when(reportRepository.save(any())).thenAnswer(inv -> {
-                Report saved = inv.getArgument(0);
-                saved.setId(UUID.randomUUID());
-                return saved;
-            });
-
-            ReportResponse result = service.createReport(request("chart", "loan", "SELECT 1 WHERE x = ${from}",
-                    new ReportRequest.Parameter("from", "From", "date", null, true),
-                    new ReportRequest.Parameter("to", null, null, null, false)));
-
-            assertThat(result.reportName()).isEqualTo("TestReport");
-            assertThat(result.reportType()).isEqualTo("CHART");
-            assertThat(result.reportCategory()).isEqualTo(Report.Category.LOAN);
-            assertThat(result.coreReport()).isFalse();
-            assertThat(result.useReport()).isTrue();
-            assertThat(result.reportParameters()).extracting(ReportResponse.Parameter::parameterName,
-                            ReportResponse.Parameter::parameterType, ReportResponse.Parameter::optional,
-                            ReportResponse.Parameter::sortOrder)
-                    .containsExactly(tuple("from", "DATE", true, 1), tuple("to", "STRING", false, 2));
-            verify(auditLogService).log(eq("REPORT"), anyString(), eq("CREATED"), any(), anyString());
-        }
-
-        @Test
-        @DisplayName("createReport defaults: type TABLE, category MIXED")
-        void createReport_defaults() {
-            when(reportRepository.findByReportName("TestReport")).thenReturn(Optional.empty());
-            when(reportRepository.save(any())).thenAnswer(inv -> {
-                Report saved = inv.getArgument(0);
-                saved.setId(UUID.randomUUID());
-                return saved;
-            });
-
-            ReportResponse result = service.createReport(request(null, " ", "SELECT 1"));
-            assertThat(result.reportType()).isEqualTo("TABLE");
-            assertThat(result.reportCategory()).isEqualTo(Report.Category.MIXED);
-        }
-
-        @Test
-        @DisplayName("createReport throws when name already exists")
-        void createReport_duplicateName_throws() {
-            Report r = buildReport("TestReport", "SELECT 1");
-            when(reportRepository.findByReportName("TestReport")).thenReturn(Optional.of(r));
-
-            assertThatThrownBy(() -> service.createReport(request(null, null, "SELECT 1")))
-                .isInstanceOf(CbaException.class)
-                .hasMessageContaining("already exists");
-        }
-
-        @Test
-        @DisplayName("createReport refuses non-SELECT SQL, unknown type/category and bad parameter names; saves nothing")
-        void createReport_invalid_throws() {
-            when(reportRepository.findByReportName("TestReport")).thenReturn(Optional.empty());
-
-            assertThatThrownBy(() -> service.createReport(request(null, null, "DELETE FROM loans")))
-                .hasFieldOrPropertyWithValue("errorCode", "INVALID_REPORT_SQL");
-            assertThatThrownBy(() -> service.createReport(request(null, null, "SELECT 1; DROP TABLE loans")))
-                .hasFieldOrPropertyWithValue("errorCode", "INVALID_REPORT_SQL");
-            assertThatThrownBy(() -> service.createReport(request("GRID", null, "SELECT 1")))
-                .hasFieldOrPropertyWithValue("errorCode", "INVALID_REPORT_TYPE");
-            assertThatThrownBy(() -> service.createReport(request(null, "Loans", "SELECT 1")))
-                .hasFieldOrPropertyWithValue("errorCode", "INVALID_REPORT_CATEGORY");
-            assertThatThrownBy(() -> service.createReport(request(null, null, "SELECT 1",
-                    new ReportRequest.Parameter("a-b", null, null, null, false))))
-                .hasFieldOrPropertyWithValue("errorCode", "INVALID_REPORT_PARAMETER");
-            verify(reportRepository, never()).save(any());
-        }
 
         @Test
         @DisplayName("listReports returns enabled reports")

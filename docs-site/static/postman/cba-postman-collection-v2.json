@@ -23884,7 +23884,7 @@
                         }
                       ]
                     },
-                    "description": "Fetch full card details including status, limits, PIN state. API_KEY or ADMIN/TELLER/CUSTOMER required."
+                    "description": "Fetch full card details including status, limits, PIN state. API_KEY or ADMIN/TELLER required (CUSTOMER has no access until card ownership checks exist)."
                   },
                   "response": [
                     {
@@ -23944,7 +23944,7 @@
                         }
                       ]
                     },
-                    "description": "freeze=true maps to BLOCK command (card \u2192 BLOCKED status). freeze=false maps to UNBLOCK command (card \u2192 ACTIVE). contactless/CNP/international are advisory flags not yet wired to product config. API_KEY or ADMIN/TELLER/CUSTOMER required."
+                    "description": "freeze=true maps to BLOCK command (card \u2192 BLOCKED status). freeze=false maps to UNBLOCK command (card \u2192 ACTIVE). contactless/CNP/international are advisory flags not yet wired to product config. API_KEY or ADMIN/TELLER required (CUSTOMER has no access until card ownership checks exist)."
                   },
                   "response": [
                     {
@@ -23998,7 +23998,7 @@
                         }
                       ]
                     },
-                    "description": "Update per-card spending limits (NUMERIC 19,4). Null fields left unchanged. API_KEY or ADMIN/TELLER/CUSTOMER required."
+                    "description": "Update per-card spending limits (NUMERIC 19,4). Null fields left unchanged. API_KEY or ADMIN/TELLER required (CUSTOMER has no access until card ownership checks exist)."
                   },
                   "response": [
                     {
@@ -24047,7 +24047,7 @@
                         }
                       ]
                     },
-                    "description": "Change card PIN via HSM adapter. PIN blocks must be ISO-0 format encrypted under Zone PIN Key (ZPK). HSM verifies old PIN (CA or DC command) before setting new PIN (A2 command). PIN values are never logged. API_KEY or ADMIN/TELLER/CUSTOMER required."
+                    "description": "Change card PIN via HSM adapter. PIN blocks must be ISO-0 format encrypted under Zone PIN Key (ZPK). HSM verifies old PIN (CA or DC command) before setting new PIN (A2 command). PIN values are never logged. API_KEY or ADMIN/TELLER required (CUSTOMER has no access until card ownership checks exist)."
                   },
                   "response": [
                     {
@@ -24099,7 +24099,7 @@
                         }
                       ]
                     },
-                    "description": "Full authorization log: approved and declined transactions, fraud scores, response codes, entry mode, MCC, merchant details. Ordered newest-first. API_KEY or ADMIN/TELLER/CUSTOMER required."
+                    "description": "Full authorization log: approved and declined transactions, fraud scores, response codes, entry mode, MCC, merchant details. Ordered newest-first. API_KEY or ADMIN/TELLER required (CUSTOMER has no access until card ownership checks exist)."
                   },
                   "response": [
                     {
@@ -24139,7 +24139,7 @@
                         }
                       ]
                     },
-                    "description": "Settled transactions only \u2014 authorization log filtered to response_code=00 (approved and cleared). API_KEY or ADMIN/TELLER/CUSTOMER required."
+                    "description": "Settled transactions only \u2014 authorization log filtered to response_code=00 (approved and cleared). API_KEY or ADMIN/TELLER required (CUSTOMER has no access until card ownership checks exist)."
                   },
                   "response": [
                     {

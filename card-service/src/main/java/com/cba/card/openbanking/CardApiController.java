@@ -48,7 +48,7 @@ import java.util.UUID;
  * <pre>
  *   ROLE_API_KEY  — card issuance, analytics, webhooks, history
  *   ROLE_ADMIN    — API key management
- *   ROLE_ADMIN / ROLE_TELLER / ROLE_CUSTOMER — card controls (with consent)
+ *   ROLE_ADMIN / ROLE_TELLER — card controls (CUSTOMER has no access until card ownership checks exist)
  * </pre>
  */
 @RestController
@@ -120,7 +120,7 @@ public class CardApiController {
     }
 
     @GetMapping("/cards/{id}")
-    @PreAuthorize("hasRole('API_KEY') or hasAnyRole('ADMIN', 'TELLER', 'CUSTOMER')")
+    @PreAuthorize("hasRole('API_KEY') or hasAnyRole('ADMIN', 'TELLER')")
     public ResponseEntity<ApiResponse<Card>> getCard(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(cardService.findById(id)));
     }
@@ -134,7 +134,7 @@ public class CardApiController {
      * Delegates to {@link CardService#executeCommand} for state transitions.
      */
     @PutMapping("/cards/{id}/controls")
-    @PreAuthorize("hasRole('API_KEY') or hasAnyRole('ADMIN', 'TELLER', 'CUSTOMER')")
+    @PreAuthorize("hasRole('API_KEY') or hasAnyRole('ADMIN', 'TELLER')")
     public ResponseEntity<ApiResponse<Card>> updateControls(
             @PathVariable UUID id,
             @Valid @RequestBody CardControlsRequest req) {
@@ -153,7 +153,7 @@ public class CardApiController {
 
     /** Update daily/per-transaction/monthly spending limits for a card. */
     @PutMapping("/cards/{id}/limits")
-    @PreAuthorize("hasRole('API_KEY') or hasAnyRole('ADMIN', 'TELLER', 'CUSTOMER')")
+    @PreAuthorize("hasRole('API_KEY') or hasAnyRole('ADMIN', 'TELLER')")
     public ResponseEntity<ApiResponse<CardLimit>> updateLimits(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateLimitsRequest req) {
@@ -170,7 +170,7 @@ public class CardApiController {
      * For security, PIN values are never logged; only success/failure is returned.
      */
     @PostMapping("/cards/{id}/pin/change")
-    @PreAuthorize("hasRole('API_KEY') or hasAnyRole('ADMIN', 'TELLER', 'CUSTOMER')")
+    @PreAuthorize("hasRole('API_KEY') or hasAnyRole('ADMIN', 'TELLER')")
     public ResponseEntity<ApiResponse<Map<String, String>>> changePin(
             @PathVariable UUID id,
             @Valid @RequestBody PinChangeRequest req) {
@@ -186,7 +186,7 @@ public class CardApiController {
     // ══════════════════════════════════════════════════════════════════════════
 
     @GetMapping("/cards/{id}/authorizations")
-    @PreAuthorize("hasRole('API_KEY') or hasAnyRole('ADMIN', 'TELLER', 'CUSTOMER')")
+    @PreAuthorize("hasRole('API_KEY') or hasAnyRole('ADMIN', 'TELLER')")
     public ResponseEntity<ApiResponse<List<AuthorizationLog>>> getAuthorizations(
             @PathVariable UUID id) {
 
@@ -195,7 +195,7 @@ public class CardApiController {
 
     /** Settled transactions — authorized and cleared through a settlement batch. */
     @GetMapping("/cards/{id}/transactions")
-    @PreAuthorize("hasRole('API_KEY') or hasAnyRole('ADMIN', 'TELLER', 'CUSTOMER')")
+    @PreAuthorize("hasRole('API_KEY') or hasAnyRole('ADMIN', 'TELLER')")
     public ResponseEntity<ApiResponse<List<AuthorizationLog>>> getSettledTransactions(
             @PathVariable UUID id) {
 

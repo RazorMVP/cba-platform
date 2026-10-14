@@ -1,7 +1,9 @@
 package com.cba.card.common;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -29,6 +31,13 @@ public class GlobalExceptionHandler {
                         e instanceof FieldError fe ? fe.getField() : null))
                 .toList();
         return ResponseEntity.badRequest().body(ApiResponse.errors(errors));
+    }
+
+    /** A {@code @PreAuthorize} refusal is a 403, not a server error (the catch-all below made it a 500). */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error("ACCESS_DENIED", "You do not have permission to perform this action"));
     }
 
     @ExceptionHandler(Exception.class)

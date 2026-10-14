@@ -2989,7 +2989,7 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/{id}?command=block</code></td><td>Block card (status → BLOCKED). Card remains in the system; can be unblocked.</td><td>ADMIN, TELLER</td></tr>
 <tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/{id}?command=unblock</code></td><td>Unblock card (status → ACTIVE)</td><td>ADMIN, TELLER</td></tr>
 <tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/{id}?command=cancel</code></td><td>Cancel card permanently (terminal state)</td><td>ADMIN</td></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/{id}?command=activate</code></td><td>Activate physical card from ACTIVATION_PENDING state (for cards received from bureau)</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/{id}?command=activate</code></td><td>Activate physical card from ACTIVATION_PENDING state (for cards received from bureau)</td><td>ADMIN, TELLER</td></tr>
 <tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/{id}?command=replace</code></td><td>Replace card — cancels current, issues new card against same linked entity</td><td>ADMIN, TELLER</td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/{id}/balance</code></td><td>Available balance routed by card type: DEBIT → linked account in monolith; PREPAID → internal wallet; CREDIT → revolving credit line. Returns <code>null</code> balance on graceful degradation.</td><td>ADMIN, TELLER</td></tr>
 </table>
@@ -3056,13 +3056,13 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/disputes/{id}/retrieval-requests</code></td><td>List retrieval requests for a dispute — status: PENDING / FULFILLED / EXPIRED</td><td>ADMIN, TELLER</td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/disputes/{id}/representments</code></td><td>List representments — status: PENDING / ACCEPTED / REJECTED / ESCALATED</td><td>ADMIN, TELLER</td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/disputes/reason-codes</code></td><td>Scheme reason code catalogue with timeframes; optional <code>?scheme=VISA|MASTERCARD|VERVE|AFRIGO|UNION_PAY</code>. Seeds 17 codes across 5 schemes.</td><td>ADMIN, TELLER</td></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/disputes</code></td><td>Raise a new dispute — body: <code>{"cardId","transactionRef"(RRN/DE37),"disputeReason","originalAmount","currencyCode"}</code>. DisputeReason values: UNAUTHORIZED, GOODS_NOT_RECEIVED, DUPLICATE, AMOUNT_MISMATCH, OTHER</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/disputes</code></td><td>Raise a new dispute — body: <code>{"cardId","transactionRef"(RRN/DE37),"disputeReason","originalAmount","currencyCode"}</code>. DisputeReason values: UNAUTHORIZED, GOODS_NOT_RECEIVED, DUPLICATE, AMOUNT_MISMATCH, OTHER</td><td>ADMIN, TELLER</td></tr>
 <tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/disputes/{id}/retrieval</code></td><td>Request documentation from acquirer — transitions to RETRIEVAL_REQUESTED; sets deadline from reason code <code>maxDaysToRespond</code></td><td>ADMIN, TELLER</td></tr>
 <tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/disputes/{id}/chargeback</code></td><td>Initiate formal chargeback — valid from RAISED or RETRIEVAL_REQUESTED states; body: <code>{"reasonCodeId"}</code>; sets chargebackDeadline + responseDeadline</td><td>ADMIN, TELLER</td></tr>
 <tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/disputes/{id}/representment</code></td><td>Record acquirer's representment response — body: <code>{"acquirerReason":"string"}</code>; sets preArbitrationDeadline</td><td>ADMIN, TELLER</td></tr>
 <tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/disputes/{id}/pre-arbitration</code></td><td>Escalate to scheme pre-arbitration panel</td><td>ADMIN</td></tr>
 <tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/disputes/{id}/resolve</code></td><td>Final resolution — body: <code>{"resolvedBy"(userId),"resolutionFavor":"ISSUER"|"ACQUIRER","notes":"string"}</code></td><td>ADMIN, TELLER</td></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/disputes/{id}/withdraw</code></td><td>Withdraw dispute (customer or ops decision)</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/disputes/{id}/withdraw</code></td><td>Withdraw dispute (customer or ops decision)</td><td>ADMIN, TELLER</td></tr>
 </table>
 
 <h3 id="settlement">Settlement Batches &amp; File Export</h3>
@@ -3130,22 +3130,22 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
 <tr><td><span class="method post">POST</span></td><td><code>/card-api/v1/cards</code></td><td>Issue virtual or physical card — PAN/expiry/CVV auto-generated from product BIN in dev; bureau-provided in production. virtual=true → ACTIVE; virtual=false → ISSUED + physical order created</td><td>API_KEY, ADMIN, TELLER</td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/cards</code></td><td>List cards; optional <code>?customerId=</code> filter</td><td>API_KEY, ADMIN, TELLER</td></tr>
-<tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/cards/{id}</code></td><td>Full card detail including status, PIN state, limit summary</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/cards/{id}</code></td><td>Full card detail including status, PIN state, limit summary</td><td>API_KEY, ADMIN, TELLER</td></tr>
 </table>
 
 <h4>Card Controls (FAPI 2.0 / API Key)</h4>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
-<tr><td><span class="method put">PUT</span></td><td><code>/card-api/v1/cards/{id}/controls</code></td><td>Freeze/unfreeze (maps to BLOCK/UNBLOCK); advisory flags: contactlessEnabled, cnpEnabled, internationalEnabled</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
-<tr><td><span class="method put">PUT</span></td><td><code>/card-api/v1/cards/{id}/limits</code></td><td>Update daily purchase, daily withdrawal, per-transaction, and monthly limits (NUMERIC 19,4)</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/card-api/v1/cards/{id}/pin/change</code></td><td>PIN change via HSM adapter — ISO-0 pin blocks; HSM verifies old (CA/DC) before setting new (A2); PIN never logged</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td><span class="method put">PUT</span></td><td><code>/card-api/v1/cards/{id}/controls</code></td><td>Freeze/unfreeze (maps to BLOCK/UNBLOCK); advisory flags: contactlessEnabled, cnpEnabled, internationalEnabled</td><td>API_KEY, ADMIN, TELLER</td></tr>
+<tr><td><span class="method put">PUT</span></td><td><code>/card-api/v1/cards/{id}/limits</code></td><td>Update daily purchase, daily withdrawal, per-transaction, and monthly limits (NUMERIC 19,4)</td><td>API_KEY, ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/card-api/v1/cards/{id}/pin/change</code></td><td>PIN change via HSM adapter — ISO-0 pin blocks; HSM verifies old (CA/DC) before setting new (A2); PIN never logged</td><td>API_KEY, ADMIN, TELLER</td></tr>
 </table>
 
 <h4>Authorization &amp; Transaction History</h4>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
-<tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/cards/{id}/authorizations</code></td><td>Full authorization log: approved + declined, fraud scores, response codes, entry mode, MCC, merchant. Ordered newest-first.</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
-<tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/cards/{id}/transactions</code></td><td>Settled transactions only (response_code=00 filter on authorization log)</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/cards/{id}/authorizations</code></td><td>Full authorization log: approved + declined, fraud scores, response codes, entry mode, MCC, merchant. Ordered newest-first.</td><td>API_KEY, ADMIN, TELLER</td></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/cards/{id}/transactions</code></td><td>Settled transactions only (response_code=00 filter on authorization log)</td><td>API_KEY, ADMIN, TELLER</td></tr>
 </table>
 
 <h4>Spending Analytics (API Key)</h4>
@@ -3690,7 +3690,7 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <tr><td>POST</td><td>/api/v1/cards/{id}?command=block</td><td>Block card</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/cards/{id}?command=unblock</td><td>Unblock card</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/cards/{id}?command=cancel</td><td>Cancel card (terminal)</td><td>ADMIN</td></tr>
-<tr><td>POST</td><td>/api/v1/cards/{id}?command=activate</td><td>Activate physical card</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>POST</td><td>/api/v1/cards/{id}?command=activate</td><td>Activate physical card</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/cards/{id}?command=replace</td><td>Replace card</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/cards/{id}/balance</td><td>Available balance (by card type)</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/cards/{id}/limits</td><td>Get card spending limits</td><td>ADMIN, TELLER</td></tr>
@@ -3715,13 +3715,13 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <tr><td>GET</td><td>/api/v1/cards/disputes/{id}/retrieval-requests</td><td>List retrieval requests for dispute</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/cards/disputes/{id}/representments</td><td>List representments for dispute</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/cards/disputes/reason-codes</td><td>Scheme reason code catalogue; ?scheme filter</td><td>ADMIN, TELLER</td></tr>
-<tr><td>POST</td><td>/api/v1/cards/disputes</td><td>Raise dispute</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>POST</td><td>/api/v1/cards/disputes</td><td>Raise dispute</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/cards/disputes/{id}/retrieval</td><td>Request retrieval documentation</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/cards/disputes/{id}/chargeback</td><td>Initiate chargeback (from RAISED or RETRIEVAL_REQUESTED)</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/cards/disputes/{id}/representment</td><td>Record acquirer representment</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/cards/disputes/{id}/pre-arbitration</td><td>Escalate to scheme pre-arbitration</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/cards/disputes/{id}/resolve</td><td>Final resolve (ISSUER or ACQUIRER)</td><td>ADMIN, TELLER</td></tr>
-<tr><td>POST</td><td>/api/v1/cards/disputes/{id}/withdraw</td><td>Withdraw dispute</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>POST</td><td>/api/v1/cards/disputes/{id}/withdraw</td><td>Withdraw dispute</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/cards/settlement/batches</td><td>List settlement batches</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/api/v1/cards/settlement/batches/{id}</td><td>Get batch</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/cards/settlement/batches/open</td><td>Open today's batch (idempotent)</td><td>ADMIN</td></tr>
@@ -3766,12 +3766,12 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <tr><td>DELETE</td><td>/card-api/v1/api-keys/{id}</td><td>Revoke API key</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/card-api/v1/cards</td><td>Issue card (BaaS — auto PAN/expiry/CVV from BIN)</td><td>API_KEY, ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/card-api/v1/cards</td><td>List cards; optional ?customerId= filter</td><td>API_KEY, ADMIN, TELLER</td></tr>
-<tr><td>GET</td><td>/card-api/v1/cards/{id}</td><td>Get card detail</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
-<tr><td>PUT</td><td>/card-api/v1/cards/{id}/controls</td><td>Freeze/unfreeze; advisory contactless/CNP/international flags</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
-<tr><td>PUT</td><td>/card-api/v1/cards/{id}/limits</td><td>Update spending limits (daily/per-txn/monthly)</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
-<tr><td>POST</td><td>/card-api/v1/cards/{id}/pin/change</td><td>PIN change via HSM (ISO-0 pin blocks)</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
-<tr><td>GET</td><td>/card-api/v1/cards/{id}/authorizations</td><td>Full authorization log (approved + declined)</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
-<tr><td>GET</td><td>/card-api/v1/cards/{id}/transactions</td><td>Settled transactions (response_code=00 filter)</td><td>API_KEY, ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>GET</td><td>/card-api/v1/cards/{id}</td><td>Get card detail</td><td>API_KEY, ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/card-api/v1/cards/{id}/controls</td><td>Freeze/unfreeze; advisory contactless/CNP/international flags</td><td>API_KEY, ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/card-api/v1/cards/{id}/limits</td><td>Update spending limits (daily/per-txn/monthly)</td><td>API_KEY, ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/card-api/v1/cards/{id}/pin/change</td><td>PIN change via HSM (ISO-0 pin blocks)</td><td>API_KEY, ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/card-api/v1/cards/{id}/authorizations</td><td>Full authorization log (approved + declined)</td><td>API_KEY, ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/card-api/v1/cards/{id}/transactions</td><td>Settled transactions (response_code=00 filter)</td><td>API_KEY, ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/card-api/v1/cards/{id}/analytics/by-category</td><td>Spend by MCC category; ?from&amp;to&amp;currency</td><td>API_KEY, ADMIN</td></tr>
 <tr><td>GET</td><td>/card-api/v1/cards/{id}/analytics/by-merchant</td><td>Top 20 merchants by spend; ?from&amp;to&amp;currency</td><td>API_KEY, ADMIN</td></tr>
 <tr><td>GET</td><td>/card-api/v1/analytics/summary</td><td>Monthly aggregate stats; ?cardId&amp;from&amp;to&amp;currency</td><td>API_KEY, ADMIN</td></tr>

@@ -57,6 +57,39 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 29) — 2026-10-14
+**card-service maps Keycloak realm roles. Until now its JWT chains used Spring's default converter (`scope` → `SCOPE_*`), so all 58 `@PreAuthorize` checks and the simulator URL rules refused every real Keycloak token; only `DevAuthBypassFilter` and API keys worked. Mapping the roles alone would have opened 8 endpoints to any customer, so CUSTOMER comes off them (user "1", 2026-10-13).**
+
+#### What was wrong
+- **No roles from real tokens:** `cardApiChain` and `publicChain` configured `oauth2.jwt(jwt -> {})`. Keycloak issues roles in the nested `realm_access.roles` claim (same root cause as the backend in cont. 28).
+- **Latent IDOR:** `CardApiController` get card / controls / limits / PIN change / authorizations / transactions and `DisputeController` raise / withdraw admitted CUSTOMER with no ownership check. card-service has no Keycloak user → customer link (`customers.keycloak_id` lives in the backend DB). They were safe only because no token carried roles.
+- **Refusals were 500s:** `GlobalExceptionHandler`'s catch-all turned every `@PreAuthorize` `AccessDeniedException` into `500 INTERNAL_ERROR` (logged as an error). Found by the new integration test.
+- **Test infrastructure, never exercised:** the base class's nested `@TestConfiguration` decoder was never loaded for subclasses, and `@Testcontainers`/`@Container` restarted PostgreSQL per test class while Spring reused the cached context on the old port, so a second database-using IT class timed out.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `config/SecurityConfig.java` | `jwtAuthenticationConverter` bean + `realmRoles` (`realm_access.roles` → `ROLE_<role>`, principal stays `sub`), wired into both JWT chains |
+| `openbanking/CardApiController.java`, `dispute/DisputeController.java` | 8 `@PreAuthorize` rules drop CUSTOMER (staff + API key only) |
+| `common/GlobalExceptionHandler.java` | `AccessDeniedException` → `403 ACCESS_DENIED` (mirrors the backend) |
+| `integration/AbstractCardIntegrationTest.java` | Singleton PostgreSQL container; test config `@Import`ed; decoder accepts `Bearer test-roles.ADMIN.TELLER` (Keycloak-shaped JWT), rejects everything else as before |
+| Tests | NEW `SecurityConfigTest` (3), `RealmRoleMappingIntegrationTest` (4, real HTTP through both chains: ADMIN 200, TELLER/no-role 403, CUSTOMER refused on card-by-id, simulator URL rule) |
+| `docs/card-api-reference.html`, `docs/api-reference.html`, Postman, `docs-site/static/*`, `CLAUDE.md` | Role source; CUSTOMER rows → staff/API key; card activate row corrected (it was always ADMIN/TELLER) |
+
+#### Key Patterns / Decisions
+- Option 1 of 2 (user): remove CUSTOMER rather than build ownership now. No customer-facing caller exists (Cards screens are staff-only, partners use API keys, the Flutter app isn't built). Customer card self-service needs ownership first (backend `/self/cards` proxy or a sub → customer lookup).
+- JWT `SCOPE_*` authorities are no longer produced; no card-service rule checks a scope. API-key `SCOPE_*` is unchanged.
+- Test bearer tokens use dots, not commas: `DefaultBearerTokenResolver` accepts base64url characters only.
+
+#### Follow-ups (not in this PR)
+- **Backend → card-service calls carry no `Authorization` header** (`CardServiceClient`), so the Open Banking card account merge gets 401 from card-service. Needs a service-account (client-credentials) token.
+- Customer card self-service with ownership checks.
+
+#### Build Verification
+- card-service `-Pfull-integration` **136/136** (main 129 + 7). Baseline on `main`: 122 unit tests (CLAUDE.md said 118; corrected).
+- OpenAPI snapshot unchanged (`@PreAuthorize` is not in the spec).
+- Gate grep (tracked + untracked Java): no mapping/param change; 8 `@PreAuthorize` role changes documented in card-api-reference, api-reference (section + matrix) and 6 Postman descriptions.
+
 ### Session 125 (cont. 28) — 2026-10-13
 **Customer ownership across the API, and Keycloak roles that actually map. The audit after the loan fix (#146) found no ownership check on any CUSTOMER-reachable endpoint outside self-service, and found that real Keycloak tokens carried no roles at all.**
 
@@ -88,7 +121,7 @@ The commit review flagged sibling-gate parity in two places; both fixed here:
 - `CustomerOwnershipIT` +2 (loans; identifiers and treasury staff only).
 
 #### Follow-ups (not in this PR)
-- **card-service has no JWT role converter**: Spring's default maps `scope` → `SCOPE_*`, so its 60 `hasRole`/`hasAnyRole` checks would refuse every real Keycloak token. Same fix needed there.
+- **card-service has no JWT role converter**: Spring's default maps `scope` → `SCOPE_*`, so its 60 `hasRole`/`hasAnyRole` checks would refuse every real Keycloak token. Same fix needed there. **Fixed in cont. 29.**
 - `POST /twofactor/generate` still returns the code to the staff caller (no delivery channel yet).
 
 #### Build Verification

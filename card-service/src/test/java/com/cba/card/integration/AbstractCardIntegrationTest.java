@@ -3,15 +3,20 @@ package com.cba.card.integration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.security.oauth2.jwt.BadJwtException;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Base class for card-service integration tests.
@@ -20,28 +25,37 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * backend's {@code AbstractIntegrationTest} pattern). Flyway runs all card-service
  * migrations (V1–Vn) automatically on context startup.
  *
- * <p>The inner {@link TestSecurityConfig} supplies a {@code @Primary}
- * {@link JwtDecoder} bean that immediately rejects all tokens — this prevents
- * Spring Boot from contacting Keycloak at startup while still allowing
- * the security filter chain to be configured correctly. Integration tests
- * that need authenticated endpoints should use {@code @WithMockUser} or
- * set the {@code Authorization} header directly on the {@link TestRestTemplate}.
+ * <p>The inner {@link TestSecurityConfig} (imported explicitly — a nested
+ * {@code @TestConfiguration} of a superclass is not picked up for subclasses) supplies a
+ * {@code @Primary} {@link JwtDecoder} so Spring Boot never contacts Keycloak. It rejects every
+ * token except {@link #ROLES_TOKEN} ones ({@code Bearer test-roles.ADMIN.TELLER}), which decode to
+ * a Keycloak-shaped JWT ({@code realm_access.roles}) so tests go through the real role converter.
  *
  * <p>OpenAPI snapshot tests only call the public {@code /v3/api-docs.yaml}
  * endpoint, which is permitted without authentication (see {@code SecurityConfig}).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Testcontainers
 @ActiveProfiles("test")
+@Import(AbstractCardIntegrationTest.TestSecurityConfig.class)
 public abstract class AbstractCardIntegrationTest {
 
-    @Container
+    /**
+     * One container for the whole JVM (singleton pattern, same as the backend's base class).
+     * {@code @Testcontainers}/{@code @Container} stopped it after each test class while Spring kept
+     * the cached context pointing at the old port, so the second class that touched the database
+     * timed out. Ryuk removes the container when the JVM exits.
+     */
+    @SuppressWarnings("resource")
     static final PostgreSQLContainer<?> POSTGRES =
         new PostgreSQLContainer<>("postgres:16-alpine")
             .withDatabaseName("card_test")
             .withUsername("card_user")
             .withPassword("card_pass")
             .withReuse(true);
+
+    static {
+        POSTGRES.start();
+    }
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
@@ -65,9 +79,30 @@ public abstract class AbstractCardIntegrationTest {
         @Bean
         @Primary
         JwtDecoder testJwtDecoder() {
-            // Reject every token — Keycloak is not running in tests.
-            // Public endpoints (e.g. /v3/api-docs.yaml) don't reach this decoder.
-            return token -> { throw new BadJwtException("JWT validation disabled in tests"); };
+            // Keycloak is not running in tests. Every token is rejected except ROLES_TOKEN ones,
+            // which decode to a Keycloak-shaped JWT so the real role converter can be exercised.
+            return token -> {
+                if (!token.startsWith(ROLES_TOKEN)) {
+                    throw new BadJwtException("JWT validation disabled in tests");
+                }
+                List<String> roles = Arrays.stream(token.substring(ROLES_TOKEN.length()).split("\\."))
+                        .filter(r -> !r.isEmpty())
+                        .toList();
+                Instant now = Instant.now();
+                return Jwt.withTokenValue(token)
+                        .header("alg", "none")
+                        .subject("8f6c1a52-2f3e-4c1b-9d7a-5b0e3c4d2a10")
+                        .claim("realm_access", Map.of("roles", roles))
+                        .issuedAt(now)
+                        .expiresAt(now.plusSeconds(300))
+                        .build();
+            };
         }
     }
+
+    /**
+     * Test bearer token carrying Keycloak realm roles: {@code ROLES_TOKEN + ".ADMIN.TELLER"}.
+     * Dots, not commas — the bearer-token resolver accepts base64url characters only.
+     */
+    public static final String ROLES_TOKEN = "test-roles";
 }

@@ -77,7 +77,7 @@ public class DisputeController {
     // ── Raise ─────────────────────────────────────────────────────────────────
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN','TELLER','CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ResponseEntity<ApiResponse<CardDispute>> raiseDispute(
             @Valid @RequestBody RaiseDisputeRequest req) {
         CardDispute dispute = disputeService.raiseDispute(
@@ -135,7 +135,7 @@ public class DisputeController {
 
     /** Any non-terminal -> WITHDRAWN */
     @PostMapping("/{id}/withdraw")
-    @PreAuthorize("hasAnyRole('ADMIN','TELLER','CUSTOMER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
     public ResponseEntity<ApiResponse<CardDispute>> withdraw(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(disputeService.withdraw(id)));
     }

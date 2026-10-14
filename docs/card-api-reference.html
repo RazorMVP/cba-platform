@@ -190,11 +190,12 @@ It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port
 <p><strong>DPoP is not supported.</strong> A request whose <code>Authorization</code> header uses the <code>DPoP</code> scheme is rejected on every path with <code>401</code> and error code <code>DPOP_NOT_SUPPORTED</code>, before any security chain runs — a compensating control for CVE-2026-41707 (Spring Security 6.5 DPoP replay cache; fixed only in Spring Security 7).</p>
 
 <h3>RBAC Roles</h3>
+<p>Roles come from the Keycloak token's <code>realm_access.roles</code> claim; each role <code>R</code> becomes the authority <code>ROLE_R</code> (the principal name stays <code>sub</code>). A token without the required role gets <code>403</code> with error code <code>ACCESS_DENIED</code>. <code>API_KEY</code> is not a Keycloak role: it is granted to requests that authenticate with <code>Authorization: ApiKey cba_{key}</code>.</p>
 <table>
   <tr><th>Role</th><th>Access Level</th></tr>
   <tr><td><code>ADMIN</code></td><td>Full card-service access including fraud rule management, settlement, bureau</td></tr>
   <tr><td><code>TELLER</code></td><td>Card operations: block/unblock, dispute raising, settlement view</td></tr>
-  <tr><td><code>CUSTOMER</code></td><td>Own card controls via self-service (via consent)</td></tr>
+  <tr><td><code>CUSTOMER</code></td><td>No card-service access yet: card endpoints accept CUSTOMER only once card ownership checks exist</td></tr>
   <tr><td><code>API_KEY</code></td><td>M2M BaaS integrator — card issuance, analytics, webhooks</td></tr>
 </table>
 </section>
@@ -241,7 +242,7 @@ It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port
   <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/settlement/transmissions</code></td><td>ADMIN/TELLER</td><td>List transmission records</td></tr>
   <!-- Disputes -->
   <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/disputes</code></td><td>ADMIN/TELLER</td><td>List disputes</td></tr>
-  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/disputes</code></td><td>ADMIN/TELLER/CUSTOMER</td><td>Raise dispute</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/disputes</code></td><td>ADMIN/TELLER</td><td>Raise dispute</td></tr>
   <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/disputes/{id}</code></td><td>ADMIN/TELLER</td><td>Dispute detail</td></tr>
   <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/disputes/{id}/chargeback</code></td><td>ADMIN/TELLER</td><td>Initiate chargeback</td></tr>
   <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/disputes/{id}/resolve</code></td><td>ADMIN/TELLER</td><td>Resolve dispute</td></tr>
@@ -264,9 +265,9 @@ It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port
   <tr><td><span class="badge badge-delete">DELETE</span></td><td><code>/card-api/v1/api-keys/{id}</code></td><td>ADMIN</td><td>Revoke API key</td></tr>
   <tr><td><span class="badge badge-post">POST</span></td><td><code>/card-api/v1/cards</code></td><td>API_KEY/ADMIN/TELLER</td><td>Issue card (BaaS)</td></tr>
   <tr><td><span class="badge badge-get">GET</span></td><td><code>/card-api/v1/cards</code></td><td>API_KEY/ADMIN/TELLER</td><td>List cards (BaaS)</td></tr>
-  <tr><td><span class="badge badge-put">PUT</span></td><td><code>/card-api/v1/cards/{id}/controls</code></td><td>API_KEY/CUSTOMER</td><td>Freeze/unfreeze, toggle contactless/CNP</td></tr>
-  <tr><td><span class="badge badge-put">PUT</span></td><td><code>/card-api/v1/cards/{id}/limits</code></td><td>API_KEY/CUSTOMER</td><td>Update card limits</td></tr>
-  <tr><td><span class="badge badge-post">POST</span></td><td><code>/card-api/v1/cards/{id}/pin/change</code></td><td>API_KEY/CUSTOMER</td><td>PIN change via HSM</td></tr>
+  <tr><td><span class="badge badge-put">PUT</span></td><td><code>/card-api/v1/cards/{id}/controls</code></td><td>API_KEY/ADMIN/TELLER</td><td>Freeze/unfreeze, toggle contactless/CNP</td></tr>
+  <tr><td><span class="badge badge-put">PUT</span></td><td><code>/card-api/v1/cards/{id}/limits</code></td><td>API_KEY/ADMIN/TELLER</td><td>Update card limits</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/card-api/v1/cards/{id}/pin/change</code></td><td>API_KEY/ADMIN/TELLER</td><td>PIN change via HSM</td></tr>
   <tr><td><span class="badge badge-get">GET</span></td><td><code>/card-api/v1/cards/{id}/analytics/by-category</code></td><td>API_KEY/ADMIN</td><td>Spend by MCC category</td></tr>
   <tr><td><span class="badge badge-get">GET</span></td><td><code>/card-api/v1/analytics/summary</code></td><td>API_KEY/ADMIN</td><td>Monthly spend summary</td></tr>
   <tr><td><span class="badge badge-post">POST</span></td><td><code>/card-api/v1/webhooks</code></td><td>API_KEY/ADMIN</td><td>Register webhook</td></tr>

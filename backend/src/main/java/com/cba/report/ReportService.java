@@ -2,6 +2,8 @@ package com.cba.report;
 
 import com.cba.audit.AuditLogService;
 import com.cba.common.exception.CbaException;
+import com.cba.report.dto.ReportRequest;
+import com.cba.report.dto.ReportResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -28,32 +30,92 @@ public class ReportService {
 
     // ── Report CRUD ───────────────────────────────────────────────────────────
 
+    /**
+     * A custom (never core) report. The SQL is checked here as well as on every run, so a
+     * report that could never run is refused up front.
+     */
     @Transactional
-    public Report createReport(Report report) {
-        if (reportRepository.findByReportName(report.getReportName()).isPresent()) {
+    public ReportResponse createReport(ReportRequest req) {
+        String name = req.reportName().trim();
+        if (reportRepository.findByReportName(name).isPresent()) {
             throw CbaException.badRequest("REPORT_NAME_EXISTS",
-                    "A report named '" + report.getReportName() + "' already exists");
+                    "A report named '" + name + "' already exists");
         }
+        validateSelectOnly(req.reportSql());
+
+        Report report = new Report();
+        report.setReportName(name);
+        report.setReportType(oneOf(req.reportType(), REPORT_TYPES, "TABLE", "INVALID_REPORT_TYPE", "reportType"));
+        report.setCategory(category(req.reportCategory()));
+        report.setDescription(req.description());
+        report.setReportSql(req.reportSql().trim());
+        report.setCoreReport(false);
+        report.setEnabled(true);
+        List<ReportRequest.Parameter> params = req.reportParameters() == null ? List.of() : req.reportParameters();
+        for (int i = 0; i < params.size(); i++) {
+            ReportRequest.Parameter p = params.get(i);
+            if (!p.parameterName().matches("\\w+")) {
+                throw CbaException.badRequest("INVALID_REPORT_PARAMETER",
+                        "Parameter name '" + p.parameterName() + "' may contain only letters, digits and _");
+            }
+            ReportParameter rp = new ReportParameter();
+            rp.setReport(report);
+            rp.setParameterName(p.parameterName());
+            rp.setParameterLabel(p.parameterLabel());
+            rp.setParameterType(oneOf(p.parameterType(), PARAMETER_TYPES, "STRING", "INVALID_REPORT_PARAMETER", "parameterType"));
+            rp.setDefaultValue(p.defaultValue());
+            rp.setRequired(!p.optional());
+            rp.setSortOrder(i + 1);
+            report.getParameters().add(rp);
+        }
+
         Report saved = reportRepository.save(report);
         auditLogService.log("REPORT", saved.getId().toString(), "CREATED", null,
                 "name=" + saved.getReportName());
-        return saved;
+        return ReportResponse.from(saved);
     }
 
     @Transactional(readOnly = true)
-    public List<Report> listReports() {
-        return reportRepository.findByEnabledTrue();
+    public List<ReportResponse> listReports() {
+        return reportRepository.findByEnabledTrue().stream().map(ReportResponse::from).toList();
     }
 
     @Transactional(readOnly = true)
-    public Report getReport(UUID id) {
+    public ReportResponse getReport(UUID id) {
+        return ReportResponse.from(find(id));
+    }
+
+    private Report find(UUID id) {
         return reportRepository.findById(id)
                 .orElseThrow(() -> CbaException.notFound("Report", id.toString()));
     }
 
+    private static final List<String> REPORT_TYPES = List.of("TABLE", "CHART", "SMS", "PENTAHO");
+    private static final List<String> PARAMETER_TYPES = List.of("STRING", "DATE", "NUMBER", "BOOLEAN");
+
+    /** Blank → the default; otherwise one of the allowed values (case-insensitive) or a 400. */
+    private static String oneOf(String value, List<String> allowed, String dflt, String code, String field) {
+        if (value == null || value.isBlank()) return dflt;
+        String v = value.trim().toUpperCase(Locale.ROOT);
+        if (!allowed.contains(v)) {
+            throw CbaException.badRequest(code, field + " must be one of " + allowed);
+        }
+        return v;
+    }
+
+    private static Report.Category category(String value) {
+        if (value == null || value.isBlank()) return Report.Category.MIXED;
+        try {
+            return Report.Category.valueOf(value.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw CbaException.badRequest("INVALID_REPORT_CATEGORY",
+                    "reportCategory must be one of " + java.util.Arrays.toString(Report.Category.values()));
+        }
+    }
+
     @Transactional
     public void deleteReport(UUID id) {
-        Report report = getReport(id);
+        Report report = find(id);
         if (report.isCoreReport()) {
             throw CbaException.badRequest("CORE_REPORT", "Core system reports cannot be deleted");
         }

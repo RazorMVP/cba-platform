@@ -1,7 +1,13 @@
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ReportService, Report, ReportParameter } from './report.service';
+import { ReportService, Report, ReportParameter, ReportCategory, REPORT_CATEGORY_LABELS } from './report.service';
+
+/** The API's own error text (envelope errors[0].message), or the fallback. */
+function apiMessage(err: unknown, fallback: string): string {
+  const e = err as { error?: { errors?: { message?: string }[] } };
+  return e?.error?.errors?.[0]?.message ?? fallback;
+}
 
 type ModalType = 'run' | 'create' | 'delete' | null;
 
@@ -28,9 +34,17 @@ export class ReportsListComponent implements OnInit {
   searchQuery    = '';
   categoryFilter = '';
 
-  get categories(): string[] {
-    const cats = new Set(this.reports.map(r => r.reportCategory ?? '').filter(Boolean));
-    return Array.from(cats).sort();
+  /** Categories present in the list (enum values), ordered by label. */
+  get categories(): ReportCategory[] {
+    const cats = new Set(this.reports.map(r => r.reportCategory).filter((c): c is ReportCategory => !!c));
+    return Array.from(cats).sort((a, b) => this.categoryLabel(a).localeCompare(this.categoryLabel(b)));
+  }
+
+  /** Every category, for the create form. */
+  readonly categoryOptions = Object.keys(REPORT_CATEGORY_LABELS) as ReportCategory[];
+
+  categoryLabel(c: ReportCategory | undefined): string {
+    return c ? REPORT_CATEGORY_LABELS[c] ?? c : '';
   }
 
   // ── Run modal ──────────────────────────────────────────────────────────────
@@ -48,8 +62,8 @@ export class ReportsListComponent implements OnInit {
   createWorking = false;
   createError   = '';
   formName      = '';
-  formType      = 'Table';
-  formCategory  = '';
+  formType      = 'TABLE';
+  formCategory: ReportCategory | '' = '';
   formDesc      = '';
   formSql       = '';
 
@@ -143,7 +157,7 @@ export class ReportsListComponent implements OnInit {
   openCreateModal(): void {
     this.activeModal   = 'create';
     this.formName      = '';
-    this.formType      = 'Table';
+    this.formType      = 'TABLE';
     this.formCategory  = '';
     this.formDesc      = '';
     this.formSql       = '';
@@ -167,7 +181,7 @@ export class ReportsListComponent implements OnInit {
         this.createWorking = false;
         this.activeModal   = null;
       },
-      error: () => { this.createError = 'Failed to create report.'; this.createWorking = false; },
+      error: err => { this.createError = apiMessage(err, 'Failed to create report.'); this.createWorking = false; },
     });
   }
 

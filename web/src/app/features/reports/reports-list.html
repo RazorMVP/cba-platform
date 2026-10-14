@@ -21,7 +21,7 @@
     <select class="form-select" [(ngModel)]="categoryFilter" (ngModelChange)="applyFilter()">
       <option value="">All Categories</option>
       @for (c of categories; track c) {
-        <option [value]="c">{{ c }}</option>
+        <option [value]="c">{{ categoryLabel(c) }}</option>
       }
     </select>
   </div>
@@ -73,7 +73,7 @@
               </td>
               <td>
                 @if (r.reportCategory) {
-                  <span class="category-chip">{{ r.reportCategory }}</span>
+                  <span class="category-chip">{{ categoryLabel(r.reportCategory) }}</span>
                 } @else {
                   <span class="muted">—</span>
                 }
@@ -222,18 +222,21 @@
           </div>
           <div class="form-field form-field--half">
             <label class="form-label">Category <span class="form-hint">(optional)</span></label>
-            <input class="form-input" type="text" [(ngModel)]="formCategory"
-                   placeholder="e.g. Loan" />
+            <select class="form-input" [(ngModel)]="formCategory">
+              <option value="">General</option>
+              @for (c of categoryOptions; track c) {
+                @if (c !== 'MIXED') { <option [value]="c">{{ categoryLabel(c) }}</option> }
+              }
+            </select>
           </div>
         </div>
         <div class="form-row">
           <div class="form-field form-field--half">
             <label class="form-label">Type</label>
             <select class="form-input" [(ngModel)]="formType">
-              <option>Table</option>
-              <option>Chart</option>
-              <option>SMS</option>
-              <option>Email</option>
+              <option value="TABLE">Table</option>
+              <option value="CHART">Chart</option>
+              <option value="SMS">SMS</option>
             </select>
           </div>
           <div class="form-field form-field--half">

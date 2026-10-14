@@ -10869,7 +10869,7 @@
                 "reports"
               ]
             },
-            "description": "",
+            "description": "Enabled reports, in Mifos field names: reportCategory (LOAN|SAVINGS|TELLER|CUSTOMER|ACCOUNTING|MIXED), useReport, coreReport, reportParameters[] (optional = not required, ordered by sortOrder). ADMIN, TELLER.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -10881,7 +10881,203 @@
               ]
             }
           },
-          "response": []
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/reports",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "reports"
+                  ]
+                },
+                "description": "Enabled reports, in Mifos field names: reportCategory (LOAN|SAVINGS|TELLER|CUSTOMER|ACCOUNTING|MIXED), useReport, coreReport, reportParameters[] (optional = not required, ordered by sortOrder). ADMIN, TELLER.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"40000000-0000-0000-0000-000000000005\",\n      \"reportName\": \"CustomerAcquisition\",\n      \"reportType\": \"TABLE\",\n      \"reportCategory\": \"CUSTOMER\",\n      \"description\": \"New customers by month\",\n      \"reportSql\": \"SELECT ...\",\n      \"coreReport\": true,\n      \"useReport\": true,\n      \"reportParameters\": [\n        {\n          \"id\": \"6f1c0d2e-0000-0000-0000-000000000001\",\n          \"parameterName\": \"R_startDate\",\n          \"parameterLabel\": \"Start Date\",\n          \"parameterType\": \"DATE\",\n          \"defaultValue\": null,\n          \"optional\": true,\n          \"sortOrder\": 1\n        },\n        {\n          \"id\": \"6f1c0d2e-0000-0000-0000-000000000002\",\n          \"parameterName\": \"R_endDate\",\n          \"parameterLabel\": \"End Date\",\n          \"parameterType\": \"DATE\",\n          \"defaultValue\": null,\n          \"optional\": true,\n          \"sortOrder\": 2\n        }\n      ]\n    }\n  ],\n  \"meta\": null,\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create report",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/reports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports"
+              ]
+            },
+            "description": "Creates a custom (never core) report. reportSql must be one SELECT/WITH query, checked now and on every run; ${name} placeholders take reportParameters. Defaults: reportType TABLE, reportCategory MIXED, parameterType STRING, optional false. 400: REPORT_NAME_EXISTS, INVALID_REPORT_SQL, INVALID_REPORT_TYPE, INVALID_REPORT_CATEGORY, INVALID_REPORT_PARAMETER. ADMIN only.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reportName\": \"AccountsByCurrency\",\n  \"reportType\": \"TABLE\",\n  \"reportCategory\": \"SAVINGS\",\n  \"description\": \"Accounts per currency for a status\",\n  \"reportSql\": \"SELECT currency_code, COUNT(*) AS n FROM accounts WHERE status = '${status}' GROUP BY currency_code\",\n  \"reportParameters\": [\n    {\n      \"parameterName\": \"status\",\n      \"parameterLabel\": \"Status\",\n      \"parameterType\": \"STRING\",\n      \"defaultValue\": \"ACTIVE\",\n      \"optional\": true\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/reports",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "reports"
+                  ]
+                },
+                "description": "Creates a custom (never core) report. reportSql must be one SELECT/WITH query, checked now and on every run; ${name} placeholders take reportParameters. Defaults: reportType TABLE, reportCategory MIXED, parameterType STRING, optional false. 400: REPORT_NAME_EXISTS, INVALID_REPORT_SQL, INVALID_REPORT_TYPE, INVALID_REPORT_CATEGORY, INVALID_REPORT_PARAMETER. ADMIN only.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reportName\": \"AccountsByCurrency\",\n  \"reportType\": \"TABLE\",\n  \"reportCategory\": \"SAVINGS\",\n  \"description\": \"Accounts per currency for a status\",\n  \"reportSql\": \"SELECT currency_code, COUNT(*) AS n FROM accounts WHERE status = '${status}' GROUP BY currency_code\",\n  \"reportParameters\": [\n    {\n      \"parameterName\": \"status\",\n      \"parameterLabel\": \"Status\",\n      \"parameterType\": \"STRING\",\n      \"defaultValue\": \"ACTIVE\",\n      \"optional\": true\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"7a2b3c4d-0000-0000-0000-000000000001\",\n    \"reportName\": \"AccountsByCurrency\",\n    \"reportType\": \"TABLE\",\n    \"reportCategory\": \"SAVINGS\",\n    \"description\": \"Accounts per currency for a status\",\n    \"reportSql\": \"SELECT currency_code, COUNT(*) AS n FROM accounts WHERE status = '${status}' GROUP BY currency_code\",\n    \"coreReport\": false,\n    \"useReport\": true,\n    \"reportParameters\": [\n      {\n        \"id\": \"7a2b3c4d-0000-0000-0000-000000000002\",\n        \"parameterName\": \"status\",\n        \"parameterLabel\": \"Status\",\n        \"parameterType\": \"STRING\",\n        \"defaultValue\": \"ACTIVE\",\n        \"optional\": true,\n        \"sortOrder\": 1\n      }\n    ]\n  },\n  \"meta\": null,\n  \"errors\": []\n}"
+            },
+            {
+              "name": "400 Invalid SQL",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/reports",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "reports"
+                  ]
+                },
+                "description": "Creates a custom (never core) report. reportSql must be one SELECT/WITH query, checked now and on every run; ${name} placeholders take reportParameters. Defaults: reportType TABLE, reportCategory MIXED, parameterType STRING, optional false. 400: REPORT_NAME_EXISTS, INVALID_REPORT_SQL, INVALID_REPORT_TYPE, INVALID_REPORT_CATEGORY, INVALID_REPORT_PARAMETER. ADMIN only.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reportName\": \"AccountsByCurrency\",\n  \"reportType\": \"TABLE\",\n  \"reportCategory\": \"SAVINGS\",\n  \"description\": \"Accounts per currency for a status\",\n  \"reportSql\": \"SELECT currency_code, COUNT(*) AS n FROM accounts WHERE status = '${status}' GROUP BY currency_code\",\n  \"reportParameters\": [\n    {\n      \"parameterName\": \"status\",\n      \"parameterLabel\": \"Status\",\n      \"parameterType\": \"STRING\",\n      \"defaultValue\": \"ACTIVE\",\n      \"optional\": true\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": null,\n  \"errors\": [\n    {\n      \"code\": \"INVALID_REPORT_SQL\",\n      \"message\": \"Report SQL must start with SELECT or WITH\",\n      \"field\": null\n    }\n  ]\n}"
+            }
+          ]
         },
         {
           "name": "Get report definition",
@@ -10905,7 +11101,7 @@
                 "{{reportId}}"
               ]
             },
-            "description": "",
+            "description": "One report definition, same shape as the list. 404 REPORT_NOT_FOUND. ADMIN, TELLER.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -10917,7 +11113,53 @@
               ]
             }
           },
-          "response": []
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/reports/{{reportId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "reports",
+                    "{{reportId}}"
+                  ]
+                },
+                "description": "One report definition, same shape as the list. 404 REPORT_NOT_FOUND. ADMIN, TELLER.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"40000000-0000-0000-0000-000000000005\",\n    \"reportName\": \"CustomerAcquisition\",\n    \"reportType\": \"TABLE\",\n    \"reportCategory\": \"CUSTOMER\",\n    \"description\": \"New customers by month\",\n    \"reportSql\": \"SELECT ...\",\n    \"coreReport\": true,\n    \"useReport\": true,\n    \"reportParameters\": [\n      {\n        \"id\": \"6f1c0d2e-0000-0000-0000-000000000001\",\n        \"parameterName\": \"R_startDate\",\n        \"parameterLabel\": \"Start Date\",\n        \"parameterType\": \"DATE\",\n        \"defaultValue\": null,\n        \"optional\": true,\n        \"sortOrder\": 1\n      },\n      {\n        \"id\": \"6f1c0d2e-0000-0000-0000-000000000002\",\n        \"parameterName\": \"R_endDate\",\n        \"parameterLabel\": \"End Date\",\n        \"parameterType\": \"DATE\",\n        \"defaultValue\": null,\n        \"optional\": true,\n        \"sortOrder\": 2\n      }\n    ]\n  },\n  \"meta\": null,\n  \"errors\": []\n}"
+            }
+          ]
         },
         {
           "name": "Delete report",

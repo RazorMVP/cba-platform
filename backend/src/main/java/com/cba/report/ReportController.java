@@ -1,11 +1,15 @@
 package com.cba.report;
 
 import com.cba.common.response.ApiResponse;
+import com.cba.report.dto.ReportRequest;
+import com.cba.report.dto.ReportResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -27,16 +31,28 @@ public class ReportController {
 
     @GetMapping("/api/v1/reports")
     @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
-    @Operation(summary = "List all enabled reports")
-    public ResponseEntity<ApiResponse<List<Report>>> listReports() {
+    @Operation(summary = "List all enabled reports",
+               description = "Mifos field names: reportCategory (LOAN|SAVINGS|TELLER|CUSTOMER|ACCOUNTING|MIXED), "
+                       + "useReport, coreReport, reportParameters[] (optional = not required).")
+    public ResponseEntity<ApiResponse<List<ReportResponse>>> listReports() {
         return ResponseEntity.ok(ApiResponse.ok(reportService.listReports()));
     }
 
     @GetMapping("/api/v1/reports/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
     @Operation(summary = "Get report definition by ID")
-    public ResponseEntity<ApiResponse<Report>> getReport(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<ReportResponse>> getReport(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(reportService.getReport(id)));
+    }
+
+    @PostMapping("/api/v1/reports")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Create a custom report",
+               description = "reportSql must be one SELECT/WITH query (checked now and on every run); "
+                       + "${name} placeholders take reportParameters. Errors: REPORT_NAME_EXISTS, INVALID_REPORT_SQL, "
+                       + "INVALID_REPORT_TYPE, INVALID_REPORT_CATEGORY, INVALID_REPORT_PARAMETER.")
+    public ResponseEntity<ApiResponse<ReportResponse>> createReport(@Valid @RequestBody ReportRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(reportService.createReport(request)));
     }
 
     @DeleteMapping("/api/v1/reports/{id}")

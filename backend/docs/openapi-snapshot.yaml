@@ -1433,11 +1433,11 @@ components:
         meta:
           $ref: "#/components/schemas/PageMeta"
       type: "object"
-    ApiResponseListReport:
+    ApiResponseListReportResponse:
       properties:
         data:
           items:
-            $ref: "#/components/schemas/Report"
+            $ref: "#/components/schemas/ReportResponse"
           type: "array"
         errors:
           items:
@@ -2499,10 +2499,10 @@ components:
         meta:
           $ref: "#/components/schemas/PageMeta"
       type: "object"
-    ApiResponseReport:
+    ApiResponseReportMailingJob:
       properties:
         data:
-          $ref: "#/components/schemas/Report"
+          $ref: "#/components/schemas/ReportMailingJob"
         errors:
           items:
             $ref: "#/components/schemas/ApiError"
@@ -2510,10 +2510,10 @@ components:
         meta:
           $ref: "#/components/schemas/PageMeta"
       type: "object"
-    ApiResponseReportMailingJob:
+    ApiResponseReportResponse:
       properties:
         data:
-          $ref: "#/components/schemas/ReportMailingJob"
+          $ref: "#/components/schemas/ReportResponse"
         errors:
           items:
             $ref: "#/components/schemas/ApiError"
@@ -10158,50 +10158,6 @@ components:
         totalPaid:
           type: "number"
       type: "object"
-    Report:
-      properties:
-        category:
-          enum:
-          - "LOAN"
-          - "SAVINGS"
-          - "TELLER"
-          - "CUSTOMER"
-          - "ACCOUNTING"
-          - "MIXED"
-          type: "string"
-        coreReport:
-          type: "boolean"
-        createdAt:
-          format: "date-time"
-          type: "string"
-        createdBy:
-          type: "string"
-        description:
-          type: "string"
-        enabled:
-          type: "boolean"
-        id:
-          format: "uuid"
-          type: "string"
-        parameters:
-          items:
-            $ref: "#/components/schemas/ReportParameter"
-          type: "array"
-        reportName:
-          type: "string"
-        reportSql:
-          type: "string"
-        reportType:
-          type: "string"
-        updatedAt:
-          format: "date-time"
-          type: "string"
-        updatedBy:
-          type: "string"
-        version:
-          format: "int64"
-          type: "integer"
-      type: "object"
     ReportMailingJob:
       properties:
         active:
@@ -10257,26 +10213,94 @@ components:
           format: "int64"
           type: "integer"
       type: "object"
-    ReportParameter:
+    ReportParameterRequest:
+      properties:
+        defaultValue:
+          maxLength: 255
+          minLength: 0
+          type: "string"
+        optional:
+          type: "boolean"
+        parameterLabel:
+          maxLength: 100
+          minLength: 0
+          type: "string"
+        parameterName:
+          maxLength: 100
+          minLength: 0
+          type: "string"
+        parameterType:
+          type: "string"
+      type: "object"
+    ReportParameterResponse:
       properties:
         defaultValue:
           type: "string"
         id:
           format: "uuid"
           type: "string"
+        optional:
+          type: "boolean"
         parameterLabel:
           type: "string"
         parameterName:
           type: "string"
         parameterType:
           type: "string"
-        report:
-          $ref: "#/components/schemas/Report"
-        required:
-          type: "boolean"
         sortOrder:
           format: "int32"
           type: "integer"
+      type: "object"
+    ReportRequest:
+      properties:
+        description:
+          type: "string"
+        reportCategory:
+          type: "string"
+        reportName:
+          maxLength: 100
+          minLength: 0
+          type: "string"
+        reportParameters:
+          items:
+            $ref: "#/components/schemas/ReportParameterRequest"
+          type: "array"
+        reportSql:
+          minLength: 1
+          type: "string"
+        reportType:
+          type: "string"
+      type: "object"
+    ReportResponse:
+      properties:
+        coreReport:
+          type: "boolean"
+        description:
+          type: "string"
+        id:
+          format: "uuid"
+          type: "string"
+        reportCategory:
+          enum:
+          - "LOAN"
+          - "SAVINGS"
+          - "TELLER"
+          - "CUSTOMER"
+          - "ACCOUNTING"
+          - "MIXED"
+          type: "string"
+        reportName:
+          type: "string"
+        reportParameters:
+          items:
+            $ref: "#/components/schemas/ReportParameterResponse"
+          type: "array"
+        reportSql:
+          type: "string"
+        reportType:
+          type: "string"
+        useReport:
+          type: "boolean"
       type: "object"
     RescheduleRequest:
       properties:
@@ -19298,15 +19322,38 @@ paths:
       - "Report Mailing Jobs"
   /api/v1/reports:
     get:
+      description: "Mifos field names: reportCategory (LOAN|SAVINGS|TELLER|CUSTOMER|ACCOUNTING|MIXED),\
+        \ useReport, coreReport, reportParameters[] (optional = not required)."
       operationId: "listReports"
       responses:
         "200":
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ApiResponseListReport"
+                $ref: "#/components/schemas/ApiResponseListReportResponse"
           description: "OK"
       summary: "List all enabled reports"
+      tags:
+      - "Reports"
+    post:
+      description: "reportSql must be one SELECT/WITH query (checked now and on every\
+        \ run); ${name} placeholders take reportParameters. Errors: REPORT_NAME_EXISTS,\
+        \ INVALID_REPORT_SQL, INVALID_REPORT_TYPE, INVALID_REPORT_CATEGORY, INVALID_REPORT_PARAMETER."
+      operationId: "createReport"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReportResponse"
+          description: "OK"
+      summary: "Create a custom report"
       tags:
       - "Reports"
   /api/v1/reports/{id}:
@@ -19343,7 +19390,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ApiResponseReport"
+                $ref: "#/components/schemas/ApiResponseReportResponse"
           description: "OK"
       summary: "Get report definition by ID"
       tags:

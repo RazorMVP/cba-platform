@@ -5,6 +5,15 @@ import { ApiService } from '../../core/api/api.service';
 
 // ── Reports ────────────────────────────────────────────────────────────────────
 
+/** The API's report categories (Report.Category on the backend). */
+export type ReportCategory = 'LOAN' | 'SAVINGS' | 'TELLER' | 'CUSTOMER' | 'ACCOUNTING' | 'MIXED';
+
+/** Display labels, in the order the create form offers them. */
+export const REPORT_CATEGORY_LABELS: Record<ReportCategory, string> = {
+  LOAN: 'Loans', SAVINGS: 'Savings', TELLER: 'Teller', CUSTOMER: 'Customers',
+  ACCOUNTING: 'Accounting', MIXED: 'General',
+};
+
 export interface ReportParameter {
   id: string;
   parameterName: string;
@@ -12,13 +21,15 @@ export interface ReportParameter {
   parameterLabel?: string;
   defaultValue?: string;
   optional: boolean;
+  sortOrder?: number;
 }
 
 export interface Report {
   id: string;
   reportName: string;
+  /** TABLE | CHART | SMS | PENTAHO */
   reportType: string;
-  reportCategory?: string;
+  reportCategory?: ReportCategory;
   description?: string;
   reportSql?: string;
   coreReport: boolean;
@@ -28,8 +39,9 @@ export interface Report {
 
 export interface ReportRequest {
   reportName: string;
+  /** TABLE (default) | CHART | SMS | PENTAHO */
   reportType: string;
-  reportCategory?: string;
+  reportCategory?: ReportCategory;
   description?: string;
   reportSql: string;
   reportParameters?: Omit<ReportParameter, 'id'>[];

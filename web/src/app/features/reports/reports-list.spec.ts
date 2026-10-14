@@ -13,7 +13,7 @@ function param(over: Partial<ReportParameter> = {}): ReportParameter {
 }
 function report(over: Partial<Report> = {}): Report {
   return {
-    id: 'r1', reportName: 'Active Loans', reportType: 'Table', reportCategory: 'Loans',
+    id: 'r1', reportName: 'Active Loans', reportType: 'TABLE', reportCategory: 'LOAN',
     description: 'all active loans', coreReport: false, useReport: true,
     reportParameters: [param()], ...over,
   };
@@ -57,23 +57,40 @@ describe('ReportsListComponent', () => {
     expect(c.loading).toBe(false);
   });
 
-  it('categories derive distinct sorted categories', () => {
+  it('categories derive distinct API categories, ordered by label', () => {
     const c = make();
     c.reports = [
-      report({ id: 'a', reportCategory: 'Savings' }),
-      report({ id: 'b', reportCategory: 'Loans' }),
-      report({ id: 'd', reportCategory: 'Loans' }),
+      report({ id: 'a', reportCategory: 'SAVINGS' }),
+      report({ id: 'b', reportCategory: 'LOAN' }),
+      report({ id: 'd', reportCategory: 'LOAN' }),
+      report({ id: 'e', reportCategory: 'MIXED' }),
+      report({ id: 'f', reportCategory: undefined }),
     ];
-    expect(c.categories).toEqual(['Loans', 'Savings']);
+    expect(c.categories).toEqual(['MIXED', 'LOAN', 'SAVINGS']); // General, Loans, Savings
+  });
+
+  it('categoryLabel shows readable names for the API values', () => {
+    const c = make();
+    expect(c.categoryLabel('LOAN')).toBe('Loans');
+    expect(c.categoryLabel('CUSTOMER')).toBe('Customers');
+    expect(c.categoryLabel('MIXED')).toBe('General');
+    expect(c.categoryLabel(undefined)).toBe('');
+  });
+
+  it('renders the category chip label (the API sends reportCategory)', () => {
+    svc.listReports.mockReturnValue(of([report({ reportCategory: 'ACCOUNTING' })]));
+    const fixture = TestBed.createComponent(ReportsListComponent);
+    fixture.detectChanges();
+    expect((fixture.nativeElement as HTMLElement).querySelector('.category-chip')?.textContent?.trim()).toBe('Accounting');
   });
 
   it('applyFilter narrows by category and search', () => {
     const c = make();
     c.reports = [
-      report({ id: 'a', reportName: 'Loan Book', reportCategory: 'Loans', description: '' }),
-      report({ id: 'b', reportName: 'Deposit Sum', reportCategory: 'Savings', description: '' }),
+      report({ id: 'a', reportName: 'Loan Book', reportCategory: 'LOAN', description: '' }),
+      report({ id: 'b', reportName: 'Deposit Sum', reportCategory: 'SAVINGS', description: '' }),
     ];
-    c.categoryFilter = 'Loans';
+    c.categoryFilter = 'LOAN';
     c.applyFilter();
     expect(c.filtered.map(r => r.id)).toEqual(['a']);
     c.categoryFilter = '';
@@ -148,9 +165,35 @@ describe('ReportsListComponent', () => {
       c.formName = 'New';
       c.formSql = 'SELECT 1';
       c.submitCreate();
-      expect(svc.createReport).toHaveBeenCalled();
+      expect(svc.createReport).toHaveBeenCalledWith({
+        reportName: 'New', reportType: 'TABLE', reportCategory: undefined, description: undefined, reportSql: 'SELECT 1',
+      });
       expect(c.reports).toHaveLength(2);
       expect(c.activeModal).toBeNull();
+    });
+
+    it('submitCreate sends the chosen category and type as API values', () => {
+      const c = make();
+      c.openCreateModal();
+      c.formName = 'New';
+      c.formSql = 'SELECT 1';
+      c.formType = 'CHART';
+      c.formCategory = 'SAVINGS';
+      c.submitCreate();
+      expect(svc.createReport).toHaveBeenCalledWith(expect.objectContaining({ reportType: 'CHART', reportCategory: 'SAVINGS' }));
+    });
+
+    it('submitCreate shows the API error message', () => {
+      svc.createReport.mockReturnValue(throwError(() => ({
+        error: { errors: [{ code: 'INVALID_REPORT_SQL', message: 'Report SQL must start with SELECT or WITH' }] },
+      })));
+      const c = make();
+      c.openCreateModal();
+      c.formName = 'New';
+      c.formSql = 'DELETE FROM x';
+      c.submitCreate();
+      expect(c.createError).toBe('Report SQL must start with SELECT or WITH');
+      expect(c.createWorking).toBe(false);
     });
   });
 

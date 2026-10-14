@@ -168,7 +168,7 @@
                       <td>{{ inst.principalDue | currency:'USD':'symbol':'1.0-0' }}</td>
                       <td>{{ inst.interestDue | currency:'USD':'symbol':'1.0-0' }}</td>
                       <td><app-status-badge
-                            [variant]="inst.status === 'PAID' ? 'success' : inst.status === 'OVERDUE' ? 'error' : inst.status === 'PARTIAL' ? 'warning' : 'neutral'"
+                            [variant]="inst.status === 'PAID' || inst.status === 'WAIVED' ? 'success' : inst.status === 'OVERDUE' ? 'error' : inst.status === 'PARTIALLY_PAID' ? 'warning' : 'neutral'"
                             [label]="inst.status | titlecase" /></td>
                     </tr>
                   }

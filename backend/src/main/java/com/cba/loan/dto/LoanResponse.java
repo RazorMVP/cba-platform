@@ -41,12 +41,16 @@ public record LoanResponse(
         /** Gross carrying amount derecognised at write-off. */
         BigDecimal writtenOffAmount,
         /** Cash collected since the write-off. */
-        BigDecimal recoveredAmount
+        BigDecimal recoveredAmount,
+        /** Interest waived: accrued interest derecognised plus future interest given up. */
+        BigDecimal interestWaived,
+        /** IFRS 9 §5.4.3 modification discount not yet unwound into interest income. */
+        BigDecimal modificationDiscountRemaining
 ) {
     /**
      * The view a borrower may see: the bank's internal credit-risk and accounting figures
      * (suspense, deferred fee, IFRS 9 stage and allowance, CBN provision, write-off reason
-     * and board approval) are removed. Staff (ADMIN/TELLER) get the full response.
+     * and board approval, interest waived and the modification discount) are removed. Staff (ADMIN/TELLER) get the full response.
      */
     public LoanResponse forCustomer() {
         return new LoanResponse(id, loanAccountNumber, customerId, customerName, productName,
@@ -54,6 +58,6 @@ public record LoanResponse(
                 applicationDate, approvalDate, disbursementDate, maturityDate,
                 daysPastDue, false, null, null,
                 null, null, null,
-                writtenOffOn, null, null, null, recoveredAmount);
+                writtenOffOn, null, null, null, recoveredAmount, null, null);
     }
 }

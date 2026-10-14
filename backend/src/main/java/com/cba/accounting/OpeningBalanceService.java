@@ -39,8 +39,8 @@ import java.util.UUID;
 @Slf4j
 public class OpeningBalanceService {
 
-    /** Which sub-ledger to bring forward. Loans, term deposits and shares follow with their GL posting. */
-    public enum Scope { DEPOSITS }
+    /** Which sub-ledger to bring forward. Term deposits and shares follow with their GL posting. */
+    public enum Scope { DEPOSITS, LOANS }
 
     /**
      * Customer balances vs ledger, per control account and currency, in one statement so
@@ -86,6 +86,86 @@ public class OpeningBalanceService {
             FROM target t FULL OUTER JOIN ledger l ON l.gl_id = t.gl_id AND l.ccy = t.ccy
             """;
 
+    /**
+     * Open loans (ACTIVE, IN_ARREARS) vs ledger, per control account and currency (the
+     * loan product's), debit-positive: principal on the portfolio (the product's link,
+     * else the mapping); interest accrued less received and waived; recognised unpaid
+     * charges; and, as credits, the deferred origination fee, interest and charges in
+     * suspense, the loss allowance and the modification discount. Written-off loans are
+     * left out: their schedule still shows the legal debt, the ledger nothing. Each
+     * customer row names its activity, so an unmapped one can be reported by name.
+     */
+    private static final String LOANS_SQL = """
+            WITH p AS (
+                SELECT CAST(? AS uuid) AS portfolio, CAST(? AS uuid) AS interest, CAST(? AS uuid) AS fees,
+                       CAST(? AS uuid) AS deferred_fees, CAST(? AS uuid) AS suspense,
+                       CAST(? AS uuid) AS allowance, CAST(? AS uuid) AS modification
+            ),
+            open_loans AS (
+                SELECT l.id, lp.currency_code AS ccy, COALESCE(lp.loan_portfolio_account_id, p.portfolio) AS portfolio_gl,
+                       l.outstanding_balance, l.deferred_fee_remaining, l.interest_in_suspense,
+                       l.loss_allowance, l.modification_discount_remaining
+                FROM loans l JOIN loan_products lp ON lp.id = l.product_id CROSS JOIN p
+                WHERE l.status IN ('ACTIVE', 'IN_ARREARS')
+            ),
+            recognised AS (
+                SELECT ol.ccy, c.amount_outstanding, c.suspended
+                FROM open_loans ol JOIN loan_charges c ON c.loan_id = ol.id
+                WHERE c.income_recognized_on IS NOT NULL AND NOT c.paid AND NOT c.waived
+            ),
+            control_gls AS (
+                SELECT loan_portfolio_account_id AS gl_id FROM loan_products WHERE loan_portfolio_account_id IS NOT NULL
+                UNION SELECT unnest(ARRAY[portfolio, interest, fees, deferred_fees, suspense, allowance, modification]) FROM p
+            ),
+            customer AS (
+                SELECT 'ASSET_LOAN_PORTFOLIO' AS act, portfolio_gl AS gl_id, ccy, SUM(outstanding_balance) AS net
+                FROM open_loans GROUP BY 2, 3
+                UNION ALL
+                SELECT 'ASSET_INTEREST_RECEIVABLE', p.interest, ol.ccy,
+                       SUM(s.interest_accrued - s.interest_paid - s.interest_waived)
+                FROM open_loans ol JOIN loan_repayment_schedule s ON s.loan_id = ol.id CROSS JOIN p GROUP BY 2, 3
+                UNION ALL
+                SELECT 'ASSET_FEES_RECEIVABLE', p.fees, r.ccy, SUM(r.amount_outstanding)
+                FROM recognised r CROSS JOIN p GROUP BY 2, 3
+                UNION ALL
+                SELECT 'ASSET_DEFERRED_LOAN_FEES', p.deferred_fees, ol.ccy, -SUM(ol.deferred_fee_remaining)
+                FROM open_loans ol CROSS JOIN p GROUP BY 2, 3
+                UNION ALL
+                SELECT 'LIABILITY_INCOME_IN_SUSPENSE', p.suspense, ol.ccy, -SUM(ol.interest_in_suspense)
+                FROM open_loans ol CROSS JOIN p GROUP BY 2, 3
+                UNION ALL
+                SELECT 'LIABILITY_INCOME_IN_SUSPENSE', p.suspense, r.ccy, -SUM(r.amount_outstanding)
+                FROM recognised r CROSS JOIN p WHERE r.suspended GROUP BY 2, 3
+                UNION ALL
+                SELECT 'ASSET_LOAN_LOSS_ALLOWANCE', p.allowance, ol.ccy, -SUM(ol.loss_allowance)
+                FROM open_loans ol CROSS JOIN p GROUP BY 2, 3
+                UNION ALL
+                SELECT 'ASSET_LOAN_MODIFICATION_DISCOUNT', p.modification, ol.ccy, -SUM(ol.modification_discount_remaining)
+                FROM open_loans ol CROSS JOIN p GROUP BY 2, 3
+            ),
+            target AS (
+                SELECT gl_id, CASE WHEN gl_id IS NULL THEN act END AS act, ccy, SUM(net) AS net
+                FROM customer GROUP BY 1, 2, 3
+            ),
+            ledger AS (
+                SELECT je.gl_account_id AS gl_id, je.currency_code AS ccy,
+                       SUM(CASE WHEN je.entry_type = 'DEBIT' THEN je.amount ELSE -je.amount END) AS net
+                FROM journal_entries je
+                WHERE je.gl_account_id IN (SELECT gl_id FROM control_gls WHERE gl_id IS NOT NULL)
+                GROUP BY je.gl_account_id, je.currency_code
+            )
+            SELECT COALESCE(t.gl_id, l.gl_id) AS gl_id, t.act, COALESCE(t.ccy, l.ccy) AS ccy,
+                   COALESCE(t.net, 0) AS customer_net, COALESCE(l.net, 0) AS ledger_net
+            FROM target t FULL OUTER JOIN ledger l ON l.gl_id = t.gl_id AND l.ccy = t.ccy
+            """;
+
+    /** The loan control accounts, in the order {@link #LOANS_SQL} binds them. */
+    private static final List<FinancialActivity> LOAN_ACTIVITIES = List.of(
+            FinancialActivity.ASSET_LOAN_PORTFOLIO, FinancialActivity.ASSET_INTEREST_RECEIVABLE,
+            FinancialActivity.ASSET_FEES_RECEIVABLE, FinancialActivity.ASSET_DEFERRED_LOAN_FEES,
+            FinancialActivity.LIABILITY_INCOME_IN_SUSPENSE, FinancialActivity.ASSET_LOAN_LOSS_ALLOWANCE,
+            FinancialActivity.ASSET_LOAN_MODIFICATION_DISCOUNT);
+
     private static final String CLEARING_SQL = """
             SELECT currency_code AS ccy,
                    SUM(CASE WHEN entry_type = 'DEBIT' THEN amount ELSE -amount END) AS net
@@ -119,7 +199,7 @@ public class OpeningBalanceService {
     public OpeningBalances preview(Scope scope) {
         GlAccount clearing = gl.activityAccount(FinancialActivity.EQUITY_MIGRATION_CLEARING);
         String existing = postedTransactionId(scope);
-        return result(scope, existing != null, existing, compute(), clearing);
+        return result(scope, existing != null, existing, compute(scope), clearing);
     }
 
     /** Posts the journal once; a second call for the same scope is rejected. */
@@ -133,7 +213,7 @@ public class OpeningBalanceService {
                     "The opening-balance journal for " + scope + " has already been posted");
         }
         GlAccount clearing = gl.activityAccount(FinancialActivity.EQUITY_MIGRATION_CLEARING);
-        List<OpeningLine> lines = compute();
+        List<OpeningLine> lines = compute(scope);
 
         List<JournalLine> journal = new ArrayList<>();
         Map<String, BigDecimal> offsetByCurrency = new TreeMap<>();
@@ -157,7 +237,13 @@ public class OpeningBalanceService {
         return result(scope, transactionId != null, transactionId, lines, clearing);
     }
 
-    private List<OpeningLine> compute() {
+    private List<OpeningLine> compute(Scope scope) {
+        List<OpeningLine> lines = scope == Scope.LOANS ? computeLoans() : computeDeposits();
+        lines.sort(Comparator.comparing(OpeningLine::glCode).thenComparing(OpeningLine::currency));
+        return lines;
+    }
+
+    private List<OpeningLine> computeDeposits() {
         UUID savingsDefault = mapped(FinancialActivity.LIABILITY_SAVINGS_CONTROL);
         UUID overdraftDefault = mapped(FinancialActivity.ASSET_OVERDRAFT_PORTFOLIO);
         List<OpeningLine> lines = new ArrayList<>();
@@ -176,7 +262,26 @@ public class OpeningBalanceService {
             lines.add(new OpeningLine(account.getId(), account.getGlCode(), account.getName(), ccy,
                     customer, ledger, customer.subtract(ledger)));
         }, savingsDefault, overdraftDefault, savingsDefault, overdraftDefault);
-        lines.sort(Comparator.comparing(OpeningLine::glCode).thenComparing(OpeningLine::currency));
+        return lines;
+    }
+
+    private List<OpeningLine> computeLoans() {
+        List<OpeningLine> lines = new ArrayList<>();
+        jdbcTemplate.query(LOANS_SQL, rs -> {
+            String glId = rs.getString("gl_id");
+            String ccy = rs.getString("ccy");
+            BigDecimal customer = rs.getBigDecimal("customer_net");
+            if (glId == null) {
+                // An activity not mapped is fine while nothing is owed on it (e.g. no waivers yet).
+                if (customer.signum() == 0) return;
+                throw CbaException.badRequest("ACTIVITY_NOT_MAPPED", "Loan balances of " + customer + " " + ccy
+                        + " have no GL account: map " + rs.getString("act"));
+            }
+            BigDecimal ledger = rs.getBigDecimal("ledger_net");
+            GlAccount account = glAccountRepository.findById(UUID.fromString(glId)).orElseThrow();
+            lines.add(new OpeningLine(account.getId(), account.getGlCode(), account.getName(), ccy,
+                    customer, ledger, customer.subtract(ledger)));
+        }, LOAN_ACTIVITIES.stream().map(this::mapped).toArray());
         return lines;
     }
 

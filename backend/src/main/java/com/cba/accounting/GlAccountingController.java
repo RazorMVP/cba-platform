@@ -126,7 +126,10 @@ public class GlAccountingController {
 
     @PostMapping("/api/v1/journalentries/opening-balances")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Post the one-time opening-balance journal against the migration clearing account")
+    @Operation(summary = "Post the one-time opening-balance journal against the migration clearing account",
+            description = "Once per scope: DEPOSITS (savings control, overdraft portfolio) or LOANS (portfolio, "
+                    + "interest and fees receivable, deferred fees, suspense, loss allowance, modification discount). "
+                    + "Before LOANS, migrated loans must carry their accrued interest and interest_accrued_through.")
     public ResponseEntity<ApiResponse<OpeningBalanceService.OpeningBalances>> postOpeningBalances(
             @RequestParam(defaultValue = "DEPOSITS") OpeningBalanceService.Scope scope) {
         return ResponseEntity.ok(ApiResponse.ok(openingBalanceService.post(scope)));

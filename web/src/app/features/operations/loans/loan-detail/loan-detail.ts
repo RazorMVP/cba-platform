@@ -8,7 +8,8 @@ import {
   LoanCharge, AvailableCharge, Guarantor, Collateral, AuditEntry,
   LoanCreateRequest, LoanRescheduleRequest, CreateRescheduleRequest,
   ReagingRequest, CreateReagingRequest, FrequencyType,
-  LoanNote, LoanDocument, LoanPayment, ForeclosureQuote,
+  LoanNote, LoanDocument, LoanPayment, ForeclosureQuote, WaiverScope,
+  isOverdue, stillOwed,
 } from '../loan.service';
 import { switchMap } from 'rxjs';
 
@@ -119,6 +120,9 @@ export class LoanDetailComponent implements OnInit {
   // Waive interest modal
   showWaiveInterestModal = false;
   waiveInterestReason = '';
+  waiveScope: WaiverScope = 'ALL';
+  waiveApprovalRef = '';
+  waiveDate = '';
   waiveInterestSaving = false;
   waiveInterestError = '';
 
@@ -458,16 +462,27 @@ export class LoanDetailComponent implements OnInit {
     if (!this.loan || !this.waiveInterestReason.trim()) return;
     this.waiveInterestSaving = true;
     this.waiveInterestError = '';
-    this.svc.waiveInterest(this.loan.id, this.waiveInterestReason.trim()).subscribe({
+    this.svc.waiveInterest(this.loan.id, {
+      reason: this.waiveInterestReason.trim(),
+      scope: this.waiveScope,
+      ...(this.waiveDate ? { waiveDate: this.waiveDate } : {}),
+      ...(this.waiveApprovalRef.trim() ? { approvalReference: this.waiveApprovalRef.trim() } : {}),
+    }).subscribe({
       next: l => {
         this.loan = l;
         this.showWaiveInterestModal = false;
         this.waiveInterestReason = '';
+        this.waiveApprovalRef = '';
+        this.waiveDate = '';
+        this.waiveScope = 'ALL';
         this.waiveInterestSaving = false;
         this.scheduleLoaded = false;
         this.schedule = [];
       },
-      error: () => { this.waiveInterestError = 'Failed to waive interest. Please try again.'; this.waiveInterestSaving = false; },
+      error: err => {
+        this.waiveInterestError = apiMessage(err, 'Failed to waive interest. Please try again.');
+        this.waiveInterestSaving = false;
+      },
     });
   }
 
@@ -529,14 +544,15 @@ export class LoanDetailComponent implements OnInit {
   get canWaiveInterest(): boolean { return !!this.loan && ['ACTIVE','IN_ARREARS'].includes(this.loan.status); }
   get canForeclose():     boolean { return !!this.loan && ['ACTIVE','IN_ARREARS'].includes(this.loan.status); }
 
+  /** Fallen due and not settled (for the schedule row highlight). */
+  readonly isOverdue = isOverdue;
+
   get overdueCount(): number {
-    return this.schedule.filter(i => i.status === 'OVERDUE').length;
+    return this.schedule.filter(isOverdue).length;
   }
 
   get overdueTotal(): number {
-    return this.schedule
-      .filter(i => i.status === 'OVERDUE')
-      .reduce((sum, i) => sum + (i.totalDue - (i.principalPaid ?? 0) - (i.interestPaid ?? 0)), 0);
+    return this.schedule.filter(isOverdue).reduce((sum, i) => sum + stillOwed(i), 0);
   }
 
   /** IFRS 9 stage in words: 12-month losses for stage 1, lifetime losses for 2 and 3. */
@@ -569,7 +585,7 @@ export class LoanDetailComponent implements OnInit {
   }
 
   installmentVariant(s: RepaymentInstallment['status']): 'success'|'warning'|'error'|'neutral' {
-    return s === 'PAID' ? 'success' : s === 'OVERDUE' ? 'error' : s === 'PARTIAL' ? 'warning' : 'neutral';
+    return s === 'PAID' || s === 'WAIVED' ? 'success' : s === 'OVERDUE' ? 'error' : s === 'PARTIALLY_PAID' ? 'warning' : 'neutral';
   }
 
   chargeVariant(c: LoanCharge): 'success'|'warning'|'neutral' {

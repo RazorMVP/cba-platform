@@ -113,7 +113,7 @@
           </button>
         }
         @if (canWaiveInterest) {
-          <button class="btn-secondary" (click)="showWaiveInterestModal = true; waiveInterestReason = ''; waiveInterestError = ''">
+          <button class="btn-secondary" (click)="showWaiveInterestModal = true; waiveInterestReason = ''; waiveScope = 'ALL'; waiveApprovalRef = ''; waiveDate = ''; waiveInterestError = ''">
             <span class="material-icons">remove_circle_outline</span> Waive Interest
           </button>
         }
@@ -236,6 +236,12 @@
             @if ((loan.interestInSuspense ?? 0) > 0) {
               <div class="detail-row"><span class="detail-key">Interest in Suspense</span><span class="detail-val">{{ loan.interestInSuspense | currency:'USD':'symbol':'1.2-2' }}</span></div>
             }
+            @if ((loan.interestWaived ?? 0) > 0) {
+              <div class="detail-row"><span class="detail-key">Interest Waived</span><span class="detail-val">{{ loan.interestWaived | currency:'USD':'symbol':'1.2-2' }}</span></div>
+            }
+            @if ((loan.modificationDiscountRemaining ?? 0) > 0) {
+              <div class="detail-row"><span class="detail-key">Modification Discount (to unwind)</span><span class="detail-val">{{ loan.modificationDiscountRemaining | currency:'USD':'symbol':'1.2-2' }}</span></div>
+            }
             @if (loan.status === 'WRITTEN_OFF') {
               <div class="detail-row"><span class="detail-key">Written Off</span><span class="detail-val">{{ loan.writtenOffOn | date:'mediumDate' }} — {{ (loan.writtenOffAmount ?? 0) | currency:'USD':'symbol':'1.2-2' }}</span></div>
               <div class="detail-row"><span class="detail-key">Approval Reference</span><span class="detail-val mono">{{ loan.writeOffApprovalReference ?? '—' }}</span></div>
@@ -273,12 +279,13 @@
                 <th>Total Due</th>
                 <th>Principal Paid</th>
                 <th>Interest Paid</th>
+                <th>Interest Waived</th>
                 <th>Status</th>
               </tr>
             </thead>
             <tbody>
               @for (inst of schedule; let i = $index; track inst.id) {
-                <tr [class.row--overdue]="inst.status === 'OVERDUE'" [class.row--paid]="inst.status === 'PAID'">
+                <tr [class.row--overdue]="isOverdue(inst)" [class.row--paid]="inst.status === 'PAID' || inst.status === 'WAIVED'">
                   <td class="muted">{{ i + 1 }}</td>
                   <td>{{ inst.dueDate | date:'mediumDate' }}</td>
                   <td>{{ inst.principalDue | currency:'USD':'symbol':'1.2-2' }}</td>
@@ -286,6 +293,7 @@
                   <td class="bold">{{ inst.totalDue | currency:'USD':'symbol':'1.2-2' }}</td>
                   <td class="amount--paid">{{ inst.principalPaid | currency:'USD':'symbol':'1.2-2' }}</td>
                   <td class="amount--paid">{{ inst.interestPaid | currency:'USD':'symbol':'1.2-2' }}</td>
+                  <td>{{ ((inst.interestWaived ?? 0) + (inst.interestCancelled ?? 0)) | currency:'USD':'symbol':'1.2-2' }}</td>
                   <td><app-status-badge [variant]="installmentVariant(inst.status)" [label]="inst.status | titlecase" /></td>
                 </tr>
               }
@@ -298,6 +306,7 @@
                 <td class="bold">{{ sum('totalDue') | currency:'USD':'symbol':'1.2-2' }}</td>
                 <td class="amount--paid bold">{{ sum('principalPaid') | currency:'USD':'symbol':'1.2-2' }}</td>
                 <td class="amount--paid bold">{{ sum('interestPaid') | currency:'USD':'symbol':'1.2-2' }}</td>
+                <td class="bold">{{ (sum('interestWaived') + sum('interestCancelled')) | currency:'USD':'symbol':'1.2-2' }}</td>
                 <td></td>
               </tr>
             </tfoot>
@@ -987,13 +996,31 @@
   <div class="modal-overlay" (click)="showWaiveInterestModal = false">
     <div class="modal" (click)="$event.stopPropagation()">
       <div class="modal__header">
-        <h2 class="modal__title">Waive Outstanding Interest</h2>
+        <h2 class="modal__title">Waive Interest</h2>
         <button class="modal__close" (click)="showWaiveInterestModal = false">✕</button>
       </div>
       <div class="modal__body">
         <div class="modal__warning">
           <span class="material-icons">info</span>
-          All outstanding (unpaid) interest on pending installments will be zeroed out. Principal remains unchanged.
+          Interest accrued and unpaid is written off the loan: a loss, or released from suspense on a non-performing loan.
+          Waiving future interest too changes the loan's terms: the present value of that interest is a modification loss
+          now, earned back as interest over the remaining term. Principal is unchanged.
+        </div>
+        <div class="form-group">
+          <label class="form-label">What to waive</label>
+          <label class="radio-row"><input type="radio" name="waiveScope" value="ACCRUED" [(ngModel)]="waiveScope" />
+            Accrued interest only</label>
+          <label class="radio-row"><input type="radio" name="waiveScope" value="ALL" [(ngModel)]="waiveScope" />
+            Accrued and all future interest</label>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Waiver Date</label>
+          <input type="date" class="form-input" [(ngModel)]="waiveDate" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Approval Reference</label>
+          <input type="text" class="form-input" maxlength="100" placeholder="e.g. CC/2026/07"
+                 [(ngModel)]="waiveApprovalRef" />
         </div>
         <div class="form-group">
           <label class="form-label">Reason <span class="required">*</span></label>

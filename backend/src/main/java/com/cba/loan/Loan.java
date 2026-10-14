@@ -116,6 +116,17 @@ public class Loan extends AuditableEntity {
     @Column(name = "deferred_fee_remaining", nullable = false, precision = 19, scale = 4)
     private BigDecimal deferredFeeRemaining = BigDecimal.ZERO;
 
+    /**
+     * The original effective interest rate per day (IFRS 9 §5.4.3 discounts modified cash
+     * flows at it). Set at disbursement; computed once for loans disbursed before V60.
+     */
+    @Column(name = "effective_daily_rate")
+    private Double effectiveDailyRate;
+
+    /** Modification losses not yet unwound into interest income (GL loan modification discount). */
+    @Column(name = "modification_discount_remaining", nullable = false, precision = 19, scale = 4)
+    private BigDecimal modificationDiscountRemaining = BigDecimal.ZERO;
+
     // ── Impairment (IFRS 9) and the CBN prudential provision ─────────────
 
     /** IFRS 9 stage at the last measurement: 1, 2 or 3; null before the first one. */

@@ -2,7 +2,7 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule, CurrencyPipe, DatePipe, PercentPipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge';
-import { LoanService, Loan, RepaymentInstallment } from './loan.service';
+import { LoanService, Loan, RepaymentInstallment, isOverdue, stillOwed } from './loan.service';
 
 @Component({
   selector: 'app-loans-list',
@@ -86,12 +86,10 @@ export class LoansListComponent implements OnInit {
   }
 
   get overdueCount(): number {
-    return this.schedule.filter(i => i.status === 'OVERDUE').length;
+    return this.schedule.filter(isOverdue).length;
   }
 
   get overdueTotal(): number {
-    return this.schedule
-      .filter(i => i.status === 'OVERDUE')
-      .reduce((sum, i) => sum + (i.totalDue - (i.principalPaid ?? 0) - (i.interestPaid ?? 0)), 0);
+    return this.schedule.filter(isOverdue).reduce((sum, i) => sum + stillOwed(i), 0);
   }
 }

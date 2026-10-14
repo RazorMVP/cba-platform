@@ -532,6 +532,28 @@ class LoanServiceTest {
         }
 
         @Test
+        @DisplayName("the modification discount is derecognised too, kept in the snapshot and zeroed")
+        void writeOff_withModificationDiscount() {
+            LoanCharge penalty = impairedLoan();
+            activeLoan.setModificationDiscountRemaining(new BigDecimal("15.00"));
+            when(loanRepository.findById(loanId)).thenReturn(Optional.of(activeLoan));
+            when(loanRepository.save(any())).thenReturn(activeLoan);
+            when(loanChargeRepository.findByLoanIdOrderByCreatedAtAsc(loanId)).thenReturn(List.of(penalty));
+            stage(3);
+            cbnRule(false);
+
+            loanService.writeOffLoan(loanId, new WriteOffRequest(LocalDate.now(), "uncollectable", "BRD-2"));
+
+            LoanGlPosting.WriteOffAmounts expected = new LoanGlPosting.WriteOffAmounts(
+                    new BigDecimal("1000.00"), new BigDecimal("50.00"), new BigDecimal("20.00"),
+                    new BigDecimal("10.00"), new BigDecimal("70.00"), new BigDecimal("400.00"), new BigDecimal("15.00"));
+            verify(loanGlPosting).postWriteOff(activeLoan, expected, LocalDate.now());
+            assertThat(expected.gross()).isEqualByComparingTo("975.00");
+            assertThat(activeLoan.getModificationDiscountRemaining()).isEqualByComparingTo(BigDecimal.ZERO);
+            assertThat(activeLoan.getWriteOffSnapshot()).containsEntry("modificationDiscountRemaining", new BigDecimal("15.00"));
+        }
+
+        @Test
         @DisplayName("rejects a write-off without a board-approval reference, before touching the GL")
         void writeOff_withoutApproval_throws() {
             impairedLoan();
@@ -738,15 +760,197 @@ class LoanServiceTest {
     @DisplayName("waiveInterest")
     class WaiveInterest {
 
-        @Test
-        @DisplayName("waives interest on active loan")
-        void waiveInterest_active_succeeds() {
+        private final LocalDate today = LocalDate.now();
+        private static final double RATE = 0.0005; // effective daily rate, stored at disbursement
+
+        /**
+         * Disbursed 40 days ago, accrued to today. #1 overdue (100.00 interest, all accrued);
+         * #2 current (50.00, 20.00 accrued); #3 next (25.00, nothing accrued).
+         */
+        private void openLoan() {
+            activeLoan.setDisbursementDate(today.minusDays(40));
+            activeLoan.setInterestAccruedThrough(today);
+            activeLoan.setEffectiveDailyRate(RATE);
+            activeLoan.setStatus(LoanStatus.IN_ARREARS);
+            activeLoan.setDaysPastDue(9);
+            activeLoan.getRepaymentSchedule().add(accrued(installment(1, today.minusDays(9), "800.00", "100.00"), "100.00"));
+            activeLoan.getRepaymentSchedule().add(accrued(installment(2, today.plusDays(21), "900.00", "50.00"), "20.00"));
+            activeLoan.getRepaymentSchedule().add(installment(3, today.plusDays(51), "950.00", "25.00"));
             when(loanRepository.findById(loanId)).thenReturn(Optional.of(activeLoan));
+        }
+
+        private LoanRepaymentSchedule accrued(LoanRepaymentSchedule i, String amount) {
+            i.setInterestAccrued(new BigDecimal(amount));
+            return i;
+        }
+
+        private LoanRepaymentSchedule row(int n) {
+            return activeLoan.getRepaymentSchedule().get(n - 1);
+        }
+
+        private WaiveInterestRequest request(WaiveInterestRequest.Scope scope) {
+            return new WaiveInterestRequest("hardship", scope, null, "CC/2026/07");
+        }
+
+        @Test
+        @DisplayName("ACCRUED: unpaid accrued interest is derecognised as a loss; future interest stays")
+        void accruedOnly() {
+            openLoan();
             when(loanRepository.save(any())).thenReturn(activeLoan);
 
-            WaiveInterestRequest req = new WaiveInterestRequest("goodwill");
-            LoanResponse resp = loanService.waiveInterest(loanId, req);
-            assertThat(resp).isNotNull();
+            loanService.waiveInterest(loanId, request(WaiveInterestRequest.Scope.ACCRUED));
+
+            verify(loanAccrualService).bringCurrent(activeLoan, today);
+            verify(loanGlPosting).postInterestWaiver(activeLoan, BigDecimal.ZERO, new BigDecimal("120.00"), today);
+            verify(loanGlPosting, never()).postModificationLoss(any(), any(), any());
+            assertThat(row(1).getInterestWaived()).isEqualByComparingTo("100.00");
+            assertThat(row(2).getInterestWaived()).isEqualByComparingTo("20.00");
+            assertThat(row(2).getInterestDue()).isEqualByComparingTo("50.00");
+            assertThat(row(3).getInterestDue()).isEqualByComparingTo("25.00");
+            assertThat(row(1).interestReceivable()).isEqualByComparingTo(BigDecimal.ZERO);
+            verify(loanImpairmentService).remeasure(activeLoan, today);
+        }
+
+        @Test
+        @DisplayName("ALL: future interest leaves the schedule; its present value is a modification loss that unwinds")
+        void all_modificationLoss() {
+            openLoan();
+            when(loanRepository.save(any())).thenReturn(activeLoan);
+
+            loanService.waiveInterest(loanId, request(WaiveInterestRequest.Scope.ALL));
+
+            BigDecimal expectedLoss = EffectiveInterest.presentValue(List.of(
+                    new EffectiveInterest.CashFlow(today.plusDays(21), new BigDecimal("30.00")),
+                    new EffectiveInterest.CashFlow(today.plusDays(51), new BigDecimal("25.00"))), today, RATE);
+            assertThat(expectedLoss).isBetween(new BigDecimal("53.00"), new BigDecimal("55.00"));
+            verify(loanGlPosting).postInterestWaiver(activeLoan, BigDecimal.ZERO, new BigDecimal("120.00"), today);
+            verify(loanGlPosting).postModificationLoss(activeLoan, expectedLoss, today);
+            assertThat(activeLoan.getModificationDiscountRemaining()).isEqualByComparingTo(expectedLoss);
+            // Accrual stops: what is left due is exactly what has accrued.
+            assertThat(row(2).getInterestDue()).isEqualByComparingTo("20.00");
+            assertThat(row(2).getInterestCancelled()).isEqualByComparingTo("30.00");
+            assertThat(row(3).getInterestDue()).isEqualByComparingTo(BigDecimal.ZERO);
+            assertThat(row(3).getInterestCancelled()).isEqualByComparingTo("25.00");
+            // The discount is spread over the later instalments and adds up to the loss exactly.
+            assertThat(row(2).getModificationUnwind().add(row(3).getModificationUnwind())).isEqualByComparingTo(expectedLoss);
+            assertThat(row(1).getModificationUnwind()).isEqualByComparingTo(BigDecimal.ZERO);
+        }
+
+        @Test
+        @DisplayName("non-performing: accrued interest leaves suspense (never income); no modification loss")
+        void nonPerforming_fromSuspense() {
+            openLoan();
+            activeLoan.setNonPerforming(true);
+            activeLoan.setInterestInSuspense(new BigDecimal("120.00"));
+            when(loanRepository.save(any())).thenReturn(activeLoan);
+
+            loanService.waiveInterest(loanId, request(WaiveInterestRequest.Scope.ALL));
+
+            verify(loanGlPosting).postInterestWaiver(activeLoan, new BigDecimal("120.00"), BigDecimal.ZERO.setScale(2), today);
+            verify(loanGlPosting, never()).postModificationLoss(any(), any(), any());
+            assertThat(activeLoan.getInterestInSuspense()).isEqualByComparingTo(BigDecimal.ZERO);
+            assertThat(activeLoan.getModificationDiscountRemaining()).isEqualByComparingTo(BigDecimal.ZERO);
+            assertThat(row(3).getInterestDue()).isEqualByComparingTo(BigDecimal.ZERO);
+        }
+
+        @Test
+        @DisplayName("an instalment whose only unpaid part was interest becomes WAIVED and stops counting as overdue")
+        void settledInstalment_clearsArrears() {
+            openLoan();
+            row(1).setPrincipalPaid(new BigDecimal("800.00"));
+            when(loanRepository.save(any())).thenReturn(activeLoan);
+
+            loanService.waiveInterest(loanId, request(WaiveInterestRequest.Scope.ACCRUED));
+
+            assertThat(row(1).getStatus()).isEqualTo(LoanRepaymentSchedule.InstallmentStatus.WAIVED);
+            assertThat(row(1).getTotalDue()).isEqualByComparingTo("800.00");
+            assertThat(activeLoan.getDaysPastDue()).isZero();
+            assertThat(activeLoan.getStatus()).isEqualTo(LoanStatus.ACTIVE);
+        }
+
+        @Test
+        @DisplayName("interest received ahead of accrual is not waived")
+        void paidAhead_notWaived() {
+            openLoan();
+            row(2).setInterestPaid(new BigDecimal("30.00"));
+            when(loanRepository.save(any())).thenReturn(activeLoan);
+
+            loanService.waiveInterest(loanId, request(WaiveInterestRequest.Scope.ALL));
+
+            assertThat(row(2).getInterestWaived()).isEqualByComparingTo(BigDecimal.ZERO);
+            assertThat(row(2).getInterestDue()).isEqualByComparingTo("30.00");
+            assertThat(row(2).getInterestCancelled()).isEqualByComparingTo("20.00");
+            verify(loanGlPosting).postInterestWaiver(activeLoan, BigDecimal.ZERO, new BigDecimal("100.00"), today);
+        }
+
+        @Test
+        @DisplayName("a discount from an earlier waiver is re-spread together with the new one")
+        void earlierDiscount_respread() {
+            openLoan();
+            activeLoan.setModificationDiscountRemaining(new BigDecimal("5.00"));
+            row(2).setModificationUnwind(new BigDecimal("4.00"));
+            row(2).setModificationUnwound(new BigDecimal("1.00"));
+            row(3).setModificationUnwind(new BigDecimal("2.00"));
+            when(loanRepository.save(any())).thenReturn(activeLoan);
+
+            loanService.waiveInterest(loanId, request(WaiveInterestRequest.Scope.ALL));
+
+            BigDecimal toUnwind = row(2).getModificationUnwind().subtract(row(2).getModificationUnwound())
+                    .add(row(3).getModificationUnwind());
+            assertThat(toUnwind).isEqualByComparingTo(activeLoan.getModificationDiscountRemaining());
+            assertThat(activeLoan.getModificationDiscountRemaining()).isGreaterThan(new BigDecimal("58.00"));
+        }
+
+        @Test
+        @DisplayName("the audit entry records scope, amounts and the approval reference")
+        void auditPayload() {
+            openLoan();
+            when(loanRepository.save(any())).thenReturn(activeLoan);
+
+            loanService.waiveInterest(loanId, request(WaiveInterestRequest.Scope.ACCRUED));
+
+            var captor = org.mockito.ArgumentCaptor.forClass(Object.class);
+            verify(auditLogService).log(eq("LOAN"), eq(loanId.toString()), eq("WAIVE_INTEREST"), isNull(), captor.capture());
+            @SuppressWarnings("unchecked")
+            java.util.Map<String, Object> audit = (java.util.Map<String, Object>) captor.getValue();
+            assertThat(audit)
+                    .containsEntry("scope", "ACCRUED")
+                    .containsEntry("approvalReference", "CC/2026/07")
+                    .containsEntry("accruedWaived", new BigDecimal("120.00"));
+        }
+
+        @Test
+        @DisplayName("dates: not in the future, not before the last accrual")
+        void dates() {
+            openLoan();
+            assertThatThrownBy(() -> loanService.waiveInterest(loanId,
+                    new WaiveInterestRequest("x", null, today.plusDays(1), null)))
+                .isInstanceOf(CbaException.class).hasMessageContaining("future");
+            assertThatThrownBy(() -> loanService.waiveInterest(loanId,
+                    new WaiveInterestRequest("x", null, today.minusDays(1), null)))
+                .isInstanceOf(CbaException.class).hasMessageContaining("accrued to");
+            verifyNoInteractions(loanGlPosting);
+        }
+
+        @Test
+        @DisplayName("nothing accrued and scope ACCRUED: nothing to waive")
+        void nothingToWaive() {
+            openLoan();
+            row(1).setInterestPaid(new BigDecimal("100.00"));
+            row(2).setInterestPaid(new BigDecimal("20.00"));
+
+            assertThatThrownBy(() -> loanService.waiveInterest(loanId, request(WaiveInterestRequest.Scope.ACCRUED)))
+                .isInstanceOf(CbaException.class).hasMessageContaining("no accrued interest");
+            verifyNoInteractions(loanGlPosting);
+        }
+
+        @Test
+        @DisplayName("only open loans")
+        void notOpen() {
+            activeLoan.setStatus(LoanStatus.CLOSED_OBLIGATIONS_MET);
+            when(loanRepository.findById(loanId)).thenReturn(Optional.of(activeLoan));
+            assertThatThrownBy(() -> loanService.waiveInterest(loanId, new WaiveInterestRequest("goodwill")))
+                .isInstanceOf(CbaException.class).hasMessageContaining("ACTIVE or IN_ARREARS");
         }
     }
 

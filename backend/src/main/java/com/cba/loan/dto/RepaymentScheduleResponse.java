@@ -16,7 +16,12 @@ public record RepaymentScheduleResponse(
         BigDecimal totalDue,
         BigDecimal principalPaid,
         BigDecimal interestPaid,
+        BigDecimal feesPaid,
         BigDecimal totalPaid,
+        /** Accrued interest waived (still inside interestDue; totalDue is net of it). */
+        BigDecimal interestWaived,
+        /** Future interest waived (taken out of interestDue). */
+        BigDecimal interestCancelled,
         InstallmentStatus status,
         LocalDate paidDate
 ) {}

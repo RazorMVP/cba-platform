@@ -25,13 +25,19 @@ final class EffectiveInterest {
      */
     static List<BigDecimal> feeAmortisation(BigDecimal principal, BigDecimal fee, LocalDate start,
                                             List<LoanRepaymentSchedule> schedule) {
+        return feeAmortisation(principal, fee, start, schedule,
+                dailyRate(principal.subtract(fee).doubleValue(), start, schedule));
+    }
+
+    /** As above, with the effective daily rate already known (computed once at disbursement). */
+    static List<BigDecimal> feeAmortisation(BigDecimal principal, BigDecimal fee, LocalDate start,
+                                            List<LoanRepaymentSchedule> schedule, double rate) {
         List<BigDecimal> shares = new ArrayList<>(schedule.size());
         if (fee.signum() <= 0 || schedule.isEmpty()) {
             schedule.forEach(i -> shares.add(BigDecimal.ZERO));
             return shares;
         }
         double net = principal.subtract(fee).doubleValue();
-        double rate = dailyRate(net, start, schedule);
 
         double carrying = net;
         BigDecimal allocated = BigDecimal.ZERO;
@@ -77,7 +83,74 @@ final class EffectiveInterest {
         return pv;
     }
 
+    /** The contractual payment: interest later given up by a waiver counts, so the rate stays the original one. */
     private static BigDecimal payment(LoanRepaymentSchedule i) {
-        return i.getPrincipalDue().add(i.getInterestDue()).add(i.getFeesDue());
+        return i.getPrincipalDue().add(i.getInterestDue()).add(i.getInterestCancelled()).add(i.getFeesDue());
+    }
+
+    // ── Modifications (IFRS 9 §5.4.3) ────────────────────────────────────────
+
+    /** A cash flow of a loan's schedule. */
+    record CashFlow(LocalDate due, BigDecimal amount) {}
+
+    /**
+     * The loan's original effective daily rate: stored at disbursement, else computed from
+     * the contractual schedule (loans disbursed before it was stored). Never recomputed
+     * after a modification: modified cash flows are discounted at the original rate.
+     */
+    static double originalDailyRate(Loan loan) {
+        if (loan.getEffectiveDailyRate() != null) return loan.getEffectiveDailyRate();
+        BigDecimal lent = loan.getApprovedAmount() != null ? loan.getApprovedAmount() : loan.getPrincipalAmount();
+        return dailyRate(lent.subtract(loan.getDeferredFee()).doubleValue(), loan.getDisbursementDate(),
+                loan.getRepaymentSchedule());
+    }
+
+    /** Σ amount / (1+rate)^days from {@code at} to each due date, to 4 decimals. */
+    static BigDecimal presentValue(List<CashFlow> flows, LocalDate at, double rate) {
+        double pv = 0;
+        for (CashFlow f : flows) {
+            pv += f.amount().doubleValue() / Math.pow(1 + rate, ChronoUnit.DAYS.between(at, f.due()));
+        }
+        return BigDecimal.valueOf(pv).setScale(4, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * Spreads the modification discount the loan carries at {@code date} ({@code target}:
+     * what is still to unwind, including any from earlier modifications) over the
+     * instalments due after {@code date}, so that interest revenue each period is the
+     * original effective rate on the modified gross carrying amount (IFRS 9 §5.4.3, IE68–70).
+     *
+     * <p>After each due date k, the discount still held is T_k = the loan's ledger carrying
+     * amount (principal, interest receivable, deferred fee of the later instalments) less
+     * G_k, the present value of the remaining modified cash flows at the original rate.
+     * A period unwinds T_{k−1} − T_k; T is never negative or rising, and nil after the
+     * last instalment, so the shares add up to {@code target} exactly.
+     */
+    static void spreadModificationDiscount(Loan loan, LocalDate date, double rate, BigDecimal target) {
+        List<LoanRepaymentSchedule> later = loan.getRepaymentSchedule().stream()
+                .filter(i -> i.getDueDate().isAfter(date)).toList();
+        if (later.isEmpty()) return;
+
+        List<CashFlow> flows = later.stream().map(i -> new CashFlow(i.getDueDate(), i.unpaid())).toList();
+        double g = presentValue(flows, date, rate).doubleValue();
+        BigDecimal previous = target;
+        LocalDate from = date;
+        for (int k = 0; k < later.size(); k++) {
+            LoanRepaymentSchedule i = later.get(k);
+            g = g * Math.pow(1 + rate, ChronoUnit.DAYS.between(from, i.getDueDate())) - i.unpaid().doubleValue();
+            BigDecimal held = BigDecimal.ZERO;
+            if (k < later.size() - 1) {
+                BigDecimal ledger = BigDecimal.ZERO;
+                for (LoanRepaymentSchedule j : later.subList(k + 1, later.size())) {
+                    ledger = ledger.add(j.unpaidPrincipal()).add(j.interestReceivable())
+                            .subtract(j.getFeeAmortisation().subtract(j.getFeeAmortised()));
+                }
+                held = ledger.subtract(BigDecimal.valueOf(g)).setScale(4, RoundingMode.HALF_UP)
+                        .max(BigDecimal.ZERO).min(previous);
+            }
+            i.setModificationUnwind(i.getModificationUnwound().add(previous.subtract(held)));
+            previous = held;
+            from = i.getDueDate();
+        }
     }
 }

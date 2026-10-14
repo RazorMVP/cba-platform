@@ -36,6 +36,10 @@ public class FinancialActivityAccount {
         ASSET_LOAN_LOSS_ALLOWANCE,
         /** Impairment gains and losses on loans, incl. recoveries of amounts written off (IFRS 9 §5.5.8). */
         EXPENSE_LOAN_LOSS_PROVISION,
+        /** Contra-asset: IFRS 9 §5.4.3 modification losses on loans not yet unwound into income. */
+        ASSET_LOAN_MODIFICATION_DISCOUNT,
+        /** Interest waived on loans: accrued interest derecognised and future interest given up. */
+        EXPENSE_LOAN_MODIFICATION_LOSS,
         EXPENSE_WRITE_OFF,
         /** Debit side of interest credited to savings; credit side is LIABILITY_SAVINGS_CONTROL. */
         EXPENSE_INTEREST_ON_SAVINGS,

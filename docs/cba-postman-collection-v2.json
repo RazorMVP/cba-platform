@@ -2534,10 +2534,10 @@
                 "waive-interest"
               ]
             },
-            "description": "Waives all outstanding interest on the loan by setting interestPaid = interestDue on every non-PAID installment. Principal balance is unaffected. Valid from ACTIVE or IN_ARREARS.",
+            "description": "ADMIN. Waives interest on an ACTIVE or IN_ARREARS loan. scope ACCRUED: interest accrued and unpaid only; scope ALL (default): that and all interest not yet accrued. Accrued interest is derecognised (IFRS 9 3.2.3(a)): DR suspense for the part held there (never income, CBN), DR EXPENSE_LOAN_MODIFICATION_LOSS (GL 5005) for the rest, CR interest receivable (IWV-). Future interest leaves the schedule (interestCancelled); its present value at the original effective rate is a modification loss (IFRS 9 5.4.3): DR 5005 / CR ASSET_LOAN_MODIFICATION_DISCOUNT (GL 1106, MOD-), unwound into interest income over the remaining term (MODU-). None on a non-performing loan. Arrears are recalculated and ECL remeasured. waiveDate defaults to today; approvalReference (max 100) goes to the audit log. Errors: 400 INVALID_LOAN_STATE, FUTURE_DATE, DATE_BEFORE_DISBURSEMENT, WAIVE_DATE_BEFORE_LAST_ACCRUAL, NOTHING_TO_WAIVE.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"reason\": \"Hardship waiver approved by credit committee\"\n}",
+              "raw": "{\n  \"reason\": \"Hardship waiver approved by credit committee\",\n  \"scope\": \"ALL\",\n  \"waiveDate\": \"2026-10-14\",\n  \"approvalReference\": \"CC/2026/07\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2550,39 +2550,51 @@
               "name": "200 OK \u2014 Interest waived",
               "status": "OK",
               "code": 200,
-              "body": "{\n  \"data\": {\n    \"id\": \"{{loanId}}\",\n    \"status\": \"ACTIVE\",\n    \"outstandingBalance\": 9000.00\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+              "body": "{\n  \"data\": {\n    \"id\": \"{{loanId}}\",\n    \"status\": \"ACTIVE\",\n    \"outstandingBalance\": 9000.0,\n    \"interestWaived\": 412.5,\n    \"modificationDiscountRemaining\": 361.27\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
             },
             {
               "name": "400 Bad Request \u2014 Invalid state",
               "status": "Bad Request",
               "code": 400,
               "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{\"code\": \"INVALID_LOAN_STATE\", \"message\": \"Only ACTIVE or IN_ARREARS loans can have interest waived\"}]\n}"
+            },
+            {
+              "name": "400 Bad Request \u2014 Nothing to waive",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"NOTHING_TO_WAIVE\",\n      \"message\": \"Loan 001-LN-0000123 has no accrued interest to waive\"\n    }\n  ]\n}"
+            },
+            {
+              "name": "400 Bad Request \u2014 Date before the last accrual",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"WAIVE_DATE_BEFORE_LAST_ACCRUAL\",\n      \"message\": \"Interest on loan 001-LN-0000123 has accrued to 2026-10-14; a waiver can't be dated before that\"\n    }\n  ]\n}"
             }
           ],
           "x-code-samples": [
             {
               "lang": "cURL",
-              "source": "curl -X POST '{{base_url}}/api/v1/loans/{{loanId}}/waive-interest' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -d '{\"reason\": \"Hardship waiver approved by credit committee\"}'"
+              "source": "curl -X POST '{{base_url}}/api/v1/loans/{{loanId}}/waive-interest' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -d '{\"reason\": \"Hardship waiver approved by credit committee\", \"scope\": \"ALL\", \"waiveDate\": \"2026-10-14\", \"approvalReference\": \"CC/2026/07\"}'"
             },
             {
               "lang": "JavaScript (fetch)",
-              "source": "fetch('{{base_url}}/api/v1/loans/{{loanId}}/waive-interest', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  },\n  body: JSON.stringify({reason: 'Hardship waiver approved by credit committee'})\n}).then(r => r.json()).then(console.log);"
+              "source": "fetch('{{base_url}}/api/v1/loans/{{loanId}}/waive-interest', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  },\n  body: JSON.stringify({\"reason\": \"Hardship waiver approved by credit committee\", \"scope\": \"ALL\", \"waiveDate\": \"2026-10-14\", \"approvalReference\": \"CC/2026/07\"})\n}).then(r => r.json()).then(console.log);"
             },
             {
               "lang": "Python (requests)",
-              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/api/v1/loans/{{loanId}}/waive-interest',\n    headers={\n        'Authorization': 'Bearer {{access_token}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    },\n    json={'reason': 'Hardship waiver approved by credit committee'}\n)\nprint(response.json())"
+              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/api/v1/loans/{{loanId}}/waive-interest',\n    headers={\n        'Authorization': 'Bearer {{access_token}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    },\n    json={'reason': 'Hardship waiver approved by credit committee', 'scope': 'ALL',\n          'waiveDate': '2026-10-14', 'approvalReference': 'CC/2026/07'}\n)\nprint(response.json())"
             },
             {
               "lang": "Java (OkHttp)",
-              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/api/v1/loans/{{loanId}}/waive-interest\")\n    .post(RequestBody.create(\"{\\\"reason\\\": \\\"Hardship waiver approved by credit committee\\\"}\", MediaType.parse(\"application/json\")))\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
+              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/api/v1/loans/{{loanId}}/waive-interest\")\n    .post(RequestBody.create(\"{\\\"reason\\\": \\\"Hardship waiver approved by credit committee\\\", \\\"scope\\\": \\\"ALL\\\", \\\"waiveDate\\\": \\\"2026-10-14\\\", \\\"approvalReference\\\": \\\"CC/2026/07\\\"}\", MediaType.parse(\"application/json\")))\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
             },
             {
               "lang": "Go (net/http)",
-              "source": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n    \"strings\"\n)\n\nfunc main() {\n    body := strings.NewReader(`{\"reason\": \"Hardship waiver approved by credit committee\"}`)\n    req, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/loans/{{loanId}}/waive-interest\", body)\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"Content-Type\", \"application/json\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := new(http.Client).Do(req)\n    defer resp.Body.Close()\n    fmt.Println(resp.Status)\n}"
+              "source": "package main\n\nimport (\n    \"fmt\"\n    \"io\"\n    \"net/http\"\n    \"strings\"\n)\n\nfunc main() {\n    body := strings.NewReader(`{\"reason\": \"Hardship waiver approved by credit committee\", \"scope\": \"ALL\", \"waiveDate\": \"2026-10-14\", \"approvalReference\": \"CC/2026/07\"}`)\n    req, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/loans/{{loanId}}/waive-interest\", body)\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"Content-Type\", \"application/json\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := http.DefaultClient.Do(req)\n    defer resp.Body.Close()\n    out, _ := io.ReadAll(resp.Body)\n    fmt.Println(string(out))\n}"
             },
             {
               "lang": "Ruby (Net::HTTP)",
-              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/api/v1/loans/{{loanId}}/waive-interest')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Post.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq.body = {reason: 'Hardship waiver approved by credit committee'}.to_json\nputs http.request(req).body"
+              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/api/v1/loans/{{loanId}}/waive-interest')\nreq = Net::HTTP::Post.new(uri, 'Content-Type' => 'application/json',\n  'Authorization' => 'Bearer {{access_token}}', 'X-Tenant-ID' => '{{tenant_id}}')\nreq.body = { reason: 'Hardship waiver approved by credit committee', scope: 'ALL',\n             waiveDate: '2026-10-14', approvalReference: 'CC/2026/07' }.to_json\nres = Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == 'https') { |http| http.request(req) }\nputs res.body"
             }
           ]
         },
@@ -8310,7 +8322,7 @@
                 "loanreschedule"
               ]
             },
-            "description": "",
+            "description": "Needs an ACTIVE or IN_ARREARS loan (400 INVALID_LOAN_STATE). Approval records the decision only; the schedule is not changed yet.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -8361,7 +8373,7 @@
                 }
               ]
             },
-            "description": "",
+            "description": "ADMIN. Records the decision only: the repayment schedule is not changed yet (GL posting PR 2e). The loan must be ACTIVE or IN_ARREARS (400 INVALID_LOAN_STATE) and the request PENDING (400 EXTENSION_REQUEST_NOT_PENDING); an unknown command is 400 UNKNOWN_COMMAND. Audited.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -8412,7 +8424,7 @@
                 }
               ]
             },
-            "description": "",
+            "description": "ADMIN. Records the decision only: the repayment schedule is not changed yet (GL posting PR 2e). The loan must be ACTIVE or IN_ARREARS (400 INVALID_LOAN_STATE) and the request PENDING (400 EXTENSION_REQUEST_NOT_PENDING); an unknown command is 400 UNKNOWN_COMMAND. Audited.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -8495,7 +8507,7 @@
                 "reaging"
               ]
             },
-            "description": "",
+            "description": "Needs an ACTIVE or IN_ARREARS loan (400 INVALID_LOAN_STATE). Approval records the decision only; the schedule is not changed yet.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -8624,7 +8636,7 @@
                 "reamortization"
               ]
             },
-            "description": "",
+            "description": "Needs an ACTIVE or IN_ARREARS loan (400 INVALID_LOAN_STATE). Approval records the decision only; the schedule is not changed yet.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -10616,11 +10628,11 @@
                 {
                   "key": "scope",
                   "value": "DEPOSITS",
-                  "description": "Sub-ledger to bring forward. DEPOSITS only for now (loans, term deposits and shares follow with their GL posting)."
+                  "description": "Sub-ledger to bring forward: DEPOSITS or LOANS (term deposits and shares follow with their GL posting). Posted once per scope."
                 }
               ]
             },
-            "description": "ADMIN. Before posting: the lines the one-time opening-balance journal would post, per control account and currency (customerBalance - ledgerBalance, debit-positive: a deposit control's balance is negative). After posting: the GL vs customer-balance reconciliation - every openingAmount should be 0; anything else is a ledger break. Always returns the migration clearing account (GL 3900) balance per currency and clearingIsZero, which must be true once the legacy trial balance is loaded.",
+            "description": "ADMIN. Before posting: the lines the one-time opening-balance journal would post, per control account and currency (customerBalance - ledgerBalance, debit-positive: a deposit control's balance is negative). After posting: the GL vs customer-balance reconciliation - every openingAmount should be 0; anything else is a ledger break. Always returns the migration clearing account (GL 3900) balance per currency and clearingIsZero, which must be true once the legacy trial balance is loaded. LOANS: ACTIVE and IN_ARREARS loans per account and product currency - portfolio (1100), interest receivable (accrued - paid - waived, 1101), recognised unpaid charges (1103), and as credits deferred fees (1104), suspense (2200), loss allowance (1105) and modification discount (1106); reference OPENING-LOANS. Before posting LOANS, migrated loans must carry their accrued interest and interest_accrued_through.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -10649,6 +10661,58 @@
           ]
         },
         {
+          "name": "Preview LOANS opening balances / reconciliation",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/journalentries/opening-balances?scope=LOANS",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "journalentries",
+                "opening-balances"
+              ],
+              "query": [
+                {
+                  "key": "scope",
+                  "value": "LOANS",
+                  "description": "Sub-ledger to bring forward: DEPOSITS or LOANS (term deposits and shares follow with their GL posting). Posted once per scope."
+                }
+              ]
+            },
+            "description": "ADMIN. Before posting: the lines the one-time opening-balance journal would post, per control account and currency (customerBalance - ledgerBalance, debit-positive: a deposit control's balance is negative). After posting: the GL vs customer-balance reconciliation - every openingAmount should be 0; anything else is a ledger break. Always returns the migration clearing account (GL 3900) balance per currency and clearingIsZero, which must be true once the legacy trial balance is loaded. LOANS: ACTIVE and IN_ARREARS loans per account and product currency - portfolio (1100), interest receivable (accrued - paid - waived, 1101), recognised unpaid charges (1103), and as credits deferred fees (1104), suspense (2200), loss allowance (1105) and modification discount (1106); reference OPENING-LOANS. Before posting LOANS, migrated loans must carry their accrued interest and interest_accrued_through.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK - before posting",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"scope\": \"LOANS\",\n    \"date\": \"2026-09-29\",\n    \"posted\": false,\n    \"transactionId\": null,\n    \"lines\": [\n      {\n        \"glAccountId\": \"30000000-0000-0000-0000-000000000011\",\n        \"glCode\": \"2001\",\n        \"glName\": \"Customer Deposits\",\n        \"currency\": \"USD\",\n        \"customerBalance\": -29771.25,\n        \"ledgerBalance\": 0,\n        \"openingAmount\": -29771.25\n      },\n      {\n        \"glAccountId\": \"30000000-0000-0000-0000-000000000006\",\n        \"glCode\": \"1102\",\n        \"glName\": \"Overdrafts (Loans and Advances to Customers)\",\n        \"currency\": \"USD\",\n        \"customerBalance\": 30.00,\n        \"ledgerBalance\": 0,\n        \"openingAmount\": 30.00\n      }\n    ],\n    \"clearingGlCode\": \"3900\",\n    \"clearingBalance\": {},\n    \"clearingIsZero\": true\n  },\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
           "name": "Post opening-balance journal (one-time)",
           "request": {
             "method": "POST",
@@ -10668,11 +10732,11 @@
                 {
                   "key": "scope",
                   "value": "DEPOSITS",
-                  "description": "Sub-ledger to bring forward. DEPOSITS only for now (loans, term deposits and shares follow with their GL posting)."
+                  "description": "Sub-ledger to bring forward: DEPOSITS or LOANS (term deposits and shares follow with their GL posting). Posted once per scope."
                 }
               ]
             },
-            "description": "ADMIN. Posts each control account's customerBalance - ledgerBalance against EQUITY_MIGRATION_CLEARING (GL 3900) in the same currency, exactly as the balances stand (ISA 510: no accrued interest booked on migration day). Entity OPENING_BALANCE, reference OPENING-DEPOSITS, dated today. Then load the rest of the legacy trial balance against GL 3900 with manual journals until clearingIsZero is true. Once only: 409 OPENING_BALANCES_ALREADY_POSTED on a second call. 400 ACTIVITY_NOT_MAPPED when balances have no control account or 3900 is unmapped.",
+            "description": "ADMIN. Posts each control account's customerBalance - ledgerBalance against EQUITY_MIGRATION_CLEARING (GL 3900) in the same currency, exactly as the balances stand (ISA 510: no accrued interest booked on migration day). Entity OPENING_BALANCE, reference OPENING-DEPOSITS, dated today. Then load the rest of the legacy trial balance against GL 3900 with manual journals until clearingIsZero is true. Once per scope: 409 OPENING_BALANCES_ALREADY_POSTED on a second call. 400 ACTIVITY_NOT_MAPPED when balances have no control account or 3900 is unmapped. LOANS: ACTIVE and IN_ARREARS loans per account and product currency - portfolio (1100), interest receivable (accrued - paid - waived, 1101), recognised unpaid charges (1103), and as credits deferred fees (1104), suspense (2200), loss allowance (1105) and modification discount (1106); reference OPENING-LOANS. Before posting LOANS, migrated loans must carry their accrued interest and interest_accrued_through.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -10697,6 +10761,71 @@
                 }
               ],
               "body": "{\n  \"data\": {\n    \"scope\": \"DEPOSITS\",\n    \"date\": \"2026-09-29\",\n    \"posted\": true,\n    \"transactionId\": \"GL-4f1c2a9e\",\n    \"lines\": [\n      {\n        \"glAccountId\": \"30000000-0000-0000-0000-000000000011\",\n        \"glCode\": \"2001\",\n        \"glName\": \"Customer Deposits\",\n        \"currency\": \"USD\",\n        \"customerBalance\": -29771.25,\n        \"ledgerBalance\": 0,\n        \"openingAmount\": -29771.25\n      },\n      {\n        \"glAccountId\": \"30000000-0000-0000-0000-000000000006\",\n        \"glCode\": \"1102\",\n        \"glName\": \"Overdrafts (Loans and Advances to Customers)\",\n        \"currency\": \"USD\",\n        \"customerBalance\": 30.00,\n        \"ledgerBalance\": 0,\n        \"openingAmount\": 30.00\n      }\n    ],\n    \"clearingGlCode\": \"3900\",\n    \"clearingBalance\": {\n      \"USD\": 29741.25\n    },\n    \"clearingIsZero\": false\n  },\n  \"errors\": []\n}"
+            },
+            {
+              "name": "409 Conflict - already posted",
+              "status": "Conflict",
+              "code": 409,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"errors\": [\n    {\n      \"code\": \"OPENING_BALANCES_ALREADY_POSTED\",\n      \"message\": \"The opening-balance journal for DEPOSITS has already been posted\",\n      \"field\": null\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Post LOANS opening-balance journal (one-time)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/journalentries/opening-balances?scope=LOANS",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "journalentries",
+                "opening-balances"
+              ],
+              "query": [
+                {
+                  "key": "scope",
+                  "value": "LOANS",
+                  "description": "Sub-ledger to bring forward: DEPOSITS or LOANS (term deposits and shares follow with their GL posting). Posted once per scope."
+                }
+              ]
+            },
+            "description": "ADMIN. Posts each control account's customerBalance - ledgerBalance against EQUITY_MIGRATION_CLEARING (GL 3900) in the same currency, exactly as the balances stand (ISA 510: no accrued interest booked on migration day). Entity OPENING_BALANCE, reference OPENING-DEPOSITS, dated today. Then load the rest of the legacy trial balance against GL 3900 with manual journals until clearingIsZero is true. Once per scope: 409 OPENING_BALANCES_ALREADY_POSTED on a second call. 400 ACTIVITY_NOT_MAPPED when balances have no control account or 3900 is unmapped. LOANS: ACTIVE and IN_ARREARS loans per account and product currency - portfolio (1100), interest receivable (accrued - paid - waived, 1101), recognised unpaid charges (1103), and as credits deferred fees (1104), suspense (2200), loss allowance (1105) and modification discount (1106); reference OPENING-LOANS. Before posting LOANS, migrated loans must carry their accrued interest and interest_accrued_through.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK - posted",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"scope\": \"LOANS\",\n    \"date\": \"2026-09-29\",\n    \"posted\": true,\n    \"transactionId\": \"GL-4f1c2a9e\",\n    \"lines\": [\n      {\n        \"glAccountId\": \"30000000-0000-0000-0000-000000000011\",\n        \"glCode\": \"2001\",\n        \"glName\": \"Customer Deposits\",\n        \"currency\": \"USD\",\n        \"customerBalance\": -29771.25,\n        \"ledgerBalance\": 0,\n        \"openingAmount\": -29771.25\n      },\n      {\n        \"glAccountId\": \"30000000-0000-0000-0000-000000000006\",\n        \"glCode\": \"1102\",\n        \"glName\": \"Overdrafts (Loans and Advances to Customers)\",\n        \"currency\": \"USD\",\n        \"customerBalance\": 30.00,\n        \"ledgerBalance\": 0,\n        \"openingAmount\": 30.00\n      }\n    ],\n    \"clearingGlCode\": \"3900\",\n    \"clearingBalance\": {\n      \"USD\": 29741.25\n    },\n    \"clearingIsZero\": false\n  },\n  \"errors\": []\n}"
             },
             {
               "name": "409 Conflict - already posted",

@@ -5347,6 +5347,8 @@ components:
           - "INCOME_PENALTIES"
           - "ASSET_LOAN_LOSS_ALLOWANCE"
           - "EXPENSE_LOAN_LOSS_PROVISION"
+          - "ASSET_LOAN_MODIFICATION_DISCOUNT"
+          - "EXPENSE_LOAN_MODIFICATION_LOSS"
           - "EXPENSE_WRITE_OFF"
           - "EXPENSE_INTEREST_ON_SAVINGS"
           - "ASSET_OVERDRAFT_PORTFOLIO"
@@ -5382,6 +5384,8 @@ components:
           - "INCOME_PENALTIES"
           - "ASSET_LOAN_LOSS_ALLOWANCE"
           - "EXPENSE_LOAN_LOSS_PROVISION"
+          - "ASSET_LOAN_MODIFICATION_DISCOUNT"
+          - "EXPENSE_LOAN_MODIFICATION_LOSS"
           - "EXPENSE_WRITE_OFF"
           - "EXPENSE_INTEREST_ON_SAVINGS"
           - "ASSET_OVERDRAFT_PORTFOLIO"
@@ -6440,6 +6444,9 @@ components:
         eclStage:
           format: "int32"
           type: "integer"
+        effectiveDailyRate:
+          format: "double"
+          type: "number"
         fullyProvidedSince:
           format: "date"
           type: "string"
@@ -6462,6 +6469,8 @@ components:
         maturityDate:
           format: "date"
           type: "string"
+        modificationDiscountRemaining:
+          type: "number"
         nonPerforming:
           type: "boolean"
         nonPerformingSince:
@@ -7251,12 +7260,20 @@ components:
           type: "integer"
         interestAccrued:
           type: "number"
+        interestCancelled:
+          type: "number"
         interestDue:
           type: "number"
         interestPaid:
           type: "number"
+        interestWaived:
+          type: "number"
         loan:
           $ref: "#/components/schemas/Loan"
+        modificationUnwind:
+          type: "number"
+        modificationUnwound:
+          type: "number"
         paidDate:
           format: "date"
           type: "string"
@@ -7264,6 +7281,8 @@ components:
           type: "number"
         principalPaid:
           type: "number"
+        settled:
+          type: "boolean"
         status:
           enum:
           - "PENDING"
@@ -7366,6 +7385,8 @@ components:
           type: "number"
         interestRate:
           type: "number"
+        interestWaived:
+          type: "number"
         loanAccountNumber:
           type: "string"
         lossAllowance:
@@ -7373,6 +7394,8 @@ components:
         maturityDate:
           format: "date"
           type: "string"
+        modificationDiscountRemaining:
+          type: "number"
         nonPerforming:
           type: "boolean"
         outstandingBalance:
@@ -7734,6 +7757,7 @@ components:
         scope:
           enum:
           - "DEPOSITS"
+          - "LOANS"
           type: "string"
         transactionId:
           type: "string"
@@ -10098,15 +10122,21 @@ components:
           type: "string"
         feesDue:
           type: "number"
+        feesPaid:
+          type: "number"
         id:
           format: "uuid"
           type: "string"
         installmentNo:
           format: "int32"
           type: "integer"
+        interestCancelled:
+          type: "number"
         interestDue:
           type: "number"
         interestPaid:
+          type: "number"
+        interestWaived:
           type: "number"
         paidDate:
           format: "date"
@@ -11943,8 +11973,20 @@ components:
       type: "object"
     WaiveInterestRequest:
       properties:
+        approvalReference:
+          maxLength: 100
+          minLength: 0
+          type: "string"
         reason:
           minLength: 1
+          type: "string"
+        scope:
+          enum:
+          - "ACCRUED"
+          - "ALL"
+          type: "string"
+        waiveDate:
+          format: "date"
           type: "string"
       type: "object"
     WebhookRequest:
@@ -16407,6 +16449,7 @@ paths:
           default: "DEPOSITS"
           enum:
           - "DEPOSITS"
+          - "LOANS"
           type: "string"
       responses:
         "200":
@@ -16420,6 +16463,10 @@ paths:
       tags:
       - "GL Accounting"
     post:
+      description: "Once per scope: DEPOSITS (savings control, overdraft portfolio)\
+        \ or LOANS (portfolio, interest and fees receivable, deferred fees, suspense,\
+        \ loss allowance, modification discount). Before LOANS, migrated loans must\
+        \ carry their accrued interest and interest_accrued_through."
       operationId: "postOpeningBalances"
       parameters:
       - in: "query"
@@ -16429,6 +16476,7 @@ paths:
           default: "DEPOSITS"
           enum:
           - "DEPOSITS"
+          - "LOANS"
           type: "string"
       responses:
         "200":
@@ -16626,6 +16674,8 @@ paths:
       - "Loan Reschedule"
   /api/v1/loanreschedule/{id}:
     post:
+      description: "Records the decision only: the repayment schedule is not changed\
+        \ yet. Loan must be ACTIVE or IN_ARREARS; the request must be PENDING."
       operationId: "command_7"
       parameters:
       - in: "path"
@@ -16929,6 +16979,13 @@ paths:
       - "Loans"
   /api/v1/loans/{id}/waive-interest:
     post:
+      description: "Accrued unpaid interest is derecognised (IFRS 9 §3.2.3): DR suspense\
+        \ for the part held there, DR loan modification and waiver losses for the\
+        \ rest, CR interest receivable. With scope ALL, future interest leaves the\
+        \ schedule (§5.4.3): its present value at the original effective rate is a\
+        \ loss against the loan modification discount, which unwinds into interest\
+        \ income over the remaining term (none on a non-performing loan). ECL is then\
+        \ remeasured."
       operationId: "waiveInterest"
       parameters:
       - in: "path"
@@ -16952,7 +17009,8 @@ paths:
           description: "OK"
       security:
       - oauth2: []
-      summary: "Waive all outstanding interest on an active loan"
+      summary: "Waive interest on an open loan (scope ACCRUED, or ALL = accrued and\
+        \ future)"
       tags:
       - "Loans"
   /api/v1/loans/{id}/write-off:
@@ -17312,6 +17370,8 @@ paths:
       - "Loan Re-aging"
   /api/v1/loans/{loanId}/reaging/{id}/approve:
     post:
+      description: "Records the decision only: the repayment schedule is not changed\
+        \ yet. Loan must be ACTIVE or IN_ARREARS."
       operationId: "approve_2"
       parameters:
       - in: "path"
@@ -17388,6 +17448,8 @@ paths:
       - "Loan Re-amortization"
   /api/v1/loans/{loanId}/reamortization/{id}/approve:
     post:
+      description: "Records the decision only: the repayment schedule is not changed\
+        \ yet. Loan must be ACTIVE or IN_ARREARS."
       operationId: "approve_1"
       parameters:
       - in: "path"

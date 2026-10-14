@@ -40,6 +40,10 @@ export interface Loan {
   writtenOffAmount?: number | null;
   /** Cash collected since the write-off. */
   recoveredAmount?: number;
+  /** Interest waived: accrued interest derecognised plus future interest given up. */
+  interestWaived?: number | null;
+  /** IFRS 9 §5.4.3 modification discount not yet unwound into interest income. */
+  modificationDiscountRemaining?: number | null;
 }
 
 export interface RepaymentInstallment {
@@ -51,7 +55,41 @@ export interface RepaymentInstallment {
   totalDue: number;
   principalPaid: number;
   interestPaid: number;
-  status: 'PENDING' | 'PAID' | 'PARTIAL' | 'OVERDUE';
+  feesPaid?: number;
+  totalPaid?: number;
+  /** Accrued interest waived (still inside interestDue; totalDue is net of it). */
+  interestWaived?: number;
+  /** Future interest waived (taken out of interestDue). */
+  interestCancelled?: number;
+  status: 'PENDING' | 'PAID' | 'PARTIALLY_PAID' | 'OVERDUE' | 'WAIVED';
+}
+
+/** Today as YYYY-MM-DD in local time (the schedule's due dates are local business dates). */
+function todayIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Fallen due and not settled (settled = paid, or the rest waived). The API doesn't set OVERDUE itself. */
+export function isOverdue(i: RepaymentInstallment): boolean {
+  if (i.status === 'PAID' || i.status === 'WAIVED') return false;
+  return i.status === 'OVERDUE' || (!!i.dueDate && i.dueDate < todayIso());
+}
+
+/** What is still owed on an instalment: its total due (net of waived interest) less what was paid. */
+export function stillOwed(i: RepaymentInstallment): number {
+  const paid = i.totalPaid ?? (i.principalPaid ?? 0) + (i.interestPaid ?? 0) + (i.feesPaid ?? 0);
+  return Math.max(0, i.totalDue - paid);
+}
+
+/** ACCRUED: only interest accrued and unpaid. ALL: that and every future instalment's interest. */
+export type WaiverScope = 'ACCRUED' | 'ALL';
+
+export interface WaiveInterestRequest {
+  reason: string;
+  scope: WaiverScope;
+  waiveDate?: string;
+  approvalReference?: string;
 }
 
 export interface LoanCreateRequest {
@@ -265,8 +303,12 @@ export class LoanService {
     return this.api.post<Loan>(`/loans/${id}/undo-write-off`, {});
   }
 
-  waiveInterest(id: string, reason: string): Observable<Loan> {
-    return this.api.post<Loan>(`/loans/${id}/waive-interest`, { reason });
+  /**
+   * Waives interest: accrued interest is derecognised (a loss, or out of suspense); with
+   * scope ALL future interest leaves the schedule as a modification loss that unwinds.
+   */
+  waiveInterest(id: string, request: WaiveInterestRequest): Observable<Loan> {
+    return this.api.post<Loan>(`/loans/${id}/waive-interest`, request);
   }
 
   /** Settles the loan for its foreclosure quote, paid from the given source. */

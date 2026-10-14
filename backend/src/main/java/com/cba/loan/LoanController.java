@@ -156,7 +156,12 @@ public class LoanController {
 
     @PostMapping("/{id}/waive-interest")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Waive all outstanding interest on an active loan")
+    @Operation(summary = "Waive interest on an open loan (scope ACCRUED, or ALL = accrued and future)",
+            description = "Accrued unpaid interest is derecognised (IFRS 9 §3.2.3): DR suspense for the part held "
+                    + "there, DR loan modification and waiver losses for the rest, CR interest receivable. With "
+                    + "scope ALL, future interest leaves the schedule (§5.4.3): its present value at the original "
+                    + "effective rate is a loss against the loan modification discount, which unwinds into interest "
+                    + "income over the remaining term (none on a non-performing loan). ECL is then remeasured.")
     public ResponseEntity<ApiResponse<LoanResponse>> waiveInterest(
             @PathVariable UUID id,
             @Valid @RequestBody WaiveInterestRequest request) {

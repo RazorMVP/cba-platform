@@ -57,6 +57,57 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 30) — 2026-10-14
+**GL posting PR 2d: loan interest waivers post to the GL — accrued interest derecognised, future interest an IFRS 9 §5.4.3 modification loss that unwinds into income; LOANS opening-balance scope; loan-extension guards. The waiver had posted nothing and corrupted the sub-ledger.**
+
+#### Decisions (standards checked first; user "1a 2a 3a 4a", 2026-10-14)
+| Decision | Source |
+|---|---|
+| 1a Waived accrued unpaid interest = derecognition: suspense part DR 2200 (never income), rest DR loss, CR 1101; then ECL remeasured | IFRS 9 §3.2.3(a); IFRIC agenda decision *Lessor Forgiveness of Lease Payments* (Oct 2022) by analogy; CBN Prudential Guidelines 2010 §15.8; IASB staff AP27C (Apr 2024) ¶27, ¶33 |
+| 2a Loss line = new GL 5005 Loan Modification and Waiver Losses (separate line, disclosable) | ITG AP8 (2015) ¶25–26; IFRS 7 §35J |
+| 3a Waived future interest = modification: PV at the original EIR → DR 5005 / CR 1106 Loan Modification Discount, unwound into interest income over the remaining term; none on a non-performing loan (cash-basis interest under PR 2c decision 1a) | IFRS 9 §5.4.3, Appendix A, IE68–70 |
+| 4a Reschedule / re-age / re-amortise: guards only; schedule changes = PR 2e | — |
+Refines PR 2 decision 5a ("waivers as §5.4.3 modification loss"): same amounts, the accrued part is labelled derecognition.
+
+#### What was wrong
+- `waiveInterest` set `interestPaid = interestDue` on every unpaid instalment (future ones included), posted nothing and never refreshed `totalPaid`/status: 1101 went negative in the sub-ledger (wrong ECL EAD and write-off amounts), nightly accrual kept accruing the waived interest, `closeOut` booked the waived future interest as **income** at payoff, suspense was never cleared, days past due never dropped.
+- Reschedule / re-age / re-amortise approvals changed nothing and had no guards (a REJECTED request could be approved); re-aging/re-amortisation approvals ignored the path `loanId`; an unknown reschedule command was a 500.
+- Found while here (fixed in the web only where touched): the API never sets instalment status `OVERDUE`, so the web overdue banner/totals counted nothing; the web status type said `PARTIAL` (API: `PARTIALLY_PAID`).
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `V60__loan_interest_waivers.sql` | GL 1106 (contra-asset) + 5005, activities `ASSET_LOAN_MODIFICATION_DISCOUNT` / `EXPENSE_LOAN_MODIFICATION_LOSS`; `loans.effective_daily_rate`, `modification_discount_remaining`; schedule `interest_waived`, `interest_cancelled`, `modification_unwind`, `modification_unwound`; detection query for pre-V60 waivers |
+| `loan/LoanRepaymentSchedule` | Helpers every caller now uses: `unpaidPrincipal/Interest/Fees`, `unpaid`, `interestReceivable`, `isSettled` (PAID or WAIVED), `refreshTotals` (`totalDue` net of waived), `refreshStatus` |
+| `loan/LoanService` | `waiveInterest` rewritten (scope ACCRUED/ALL, date, approval ref; IWV/MOD journals; arrears + ECL remeasure; audit); EIR stored at disbursement; allocation, quote, foreclosure, write-off/undo (snapshot) waiver-aware |
+| `loan/EffectiveInterest` | `originalDailyRate`, `presentValue`, `spreadModificationDiscount` (T_k = ledger carrying − PV of remaining modified flows; shares telescope to the discount exactly) |
+| `loan/LoanGlPosting` | `postInterestWaiver` (IWV), `postModificationLoss` (MOD), `postModificationUnwind` (MODU); write-off DR 1106; 1106/5005 resolved only when there is an amount |
+| `loan/LoanAccrualService` | Daily unwind (to 2200 when non-performing); `closeOut` releases the rest of 1106 and leftover suspense; arrears/classify waiver-aware |
+| `loan/LoanImpairmentService` | EAD less the modification discount; receivable less waived |
+| `accounting/OpeningBalanceService` | `Scope.LOANS` (one SQL: 1100/1101/1103/1104/2200/1105/1106 per product currency, ACTIVE/IN_ARREARS only; unmapped activity reported by name only when owed) |
+| `loan/LoanExtensionService` + 3 controllers | Open-loan and PENDING guards, path `loanId` check, `UNKNOWN_COMMAND`, decision audit |
+| DTOs | `WaiveInterestRequest(reason, scope, waiveDate, approvalReference)` (1-arg constructor kept); `LoanResponse` + `interestWaived`, `modificationDiscountRemaining` (null for customers); schedule + `feesPaid`, `interestWaived`, `interestCancelled` |
+| Tests | NEW `LoanWaiverIT` (5), `LoanOpeningBalanceIT` (1: legacy loan → post → reconciled through accrual, waiver, repayment); `EffectiveInterestTest` +3 (worked example: L 29.3083, unwinds 20.0633 + 9.2450), `LoanServiceTest` waivers (10) + write-off with discount, `LoanAccrualServiceTest` +4, `LoanExtensionServiceTest` guards; `OpeningBalanceIT` compares clearing deltas (scopes share 3900) |
+| Web | Waive modal (scope, date, approval ref, API errors), schedule "Interest Waived" column, Credit Risk card, WAIVED badge, overdue by due date (`isOverdue`/`stillOwed`), two activity labels |
+| Docs | `api-reference.html` (waiver, posting matrix IWV/MOD/MODU/CLOSE/WOFF, activities, LOANS scope, extension behaviour, response fields) ×2, Postman (waive body/samples/errors, LOANS preview + post, extension notes) ×2, OpenAPI snapshot, `CLAUDE.md` |
+
+#### Key Patterns / Decisions
+- `interest_due` stays "contractually payable": accrued waived interest stays inside it (`interest_waived`), future waived interest leaves it (`interest_cancelled`) — so accrual stops by itself (`accruedBy(total) ≤ total`) and report/liquidity/dashboard SQL reading `total_due` gets the net figure without changes.
+- The modification loss is the PV of the waived flows (auditable); the unwind uses the ledger carrying amount, so the straight-line-vs-EIR gap and the fee are absorbed exactly.
+- `effective_daily_rate` is never recomputed after a modification (`payment()` includes `interest_cancelled`).
+
+#### Not repaired: loans waived by the pre-V60 code
+Their inflated `interest_paid` behaves like a waiver in every formula, but income accrued on the "waived" future interest is still on 1101. Find them: audit `WAIVE_INTEREST` rows without a `scope` key (query in V60), or schedule rows with `total_paid < principal_paid + interest_paid + fees_paid`; correct 1101 by manual journal against 5005. The LOANS opening preview shows the break.
+
+#### Follow-ups (not in this PR)
+- PR 2e: reschedule / re-age / re-amortise actually change the schedule (§5.4.3 modification accounting).
+- The API never sets `OVERDUE`, so the V9 *LoansInArrears* report and `LoanRepaymentScheduleRepository` overdue queries return nothing.
+- Backend `CardServiceClient` sends no token to card-service (from cont. 29).
+
+#### Build Verification
+- Backend `-Pfull-integration` **859/859** (main 833 + 26). Web **1167/1167**, production build OK. OpenAPI snapshot regenerated.
+- Gate grep (tracked + untracked Java): no `@*Mapping`/param change; request body (`WaiveInterestRequest`), response fields, `Scope` enum value `LOANS`, new error codes and loan-extension behaviour documented in api-reference, Postman and the snapshot.
+
 ### Session 125 (cont. 29) — 2026-10-14
 **card-service maps Keycloak realm roles. Until now its JWT chains used Spring's default converter (`scope` → `SCOPE_*`), so all 58 `@PreAuthorize` checks and the simulator URL rules refused every real Keycloak token; only `DevAuthBypassFilter` and API keys worked. Mapping the roles alone would have opened 8 endpoints to any customer, so CUSTOMER comes off them (user "1", 2026-10-13).**
 

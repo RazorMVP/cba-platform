@@ -254,6 +254,40 @@ describe('LoanDetailComponent', () => {
       expect(c.loan?.status).toBe('WRITTEN_OFF');
     });
 
+    it('submitWaiveInterest sends scope, optional date and trimmed approval reference', () => {
+      const c = make();
+      c.waiveInterestReason = ' hardship ';
+      c.waiveScope = 'ACCRUED';
+      c.waiveApprovalRef = ' CC/2026/07 ';
+      c.submitWaiveInterest();
+      expect(svc.waiveInterest).toHaveBeenCalledWith('loan-1',
+        { reason: 'hardship', scope: 'ACCRUED', approvalReference: 'CC/2026/07' });
+      expect(c.showWaiveInterestModal).toBe(false);
+      expect(c.waiveScope).toBe('ALL');
+    });
+
+    it('submitWaiveInterest shows the API reason', () => {
+      svc.waiveInterest.mockReturnValue(throwError(() => ({
+        error: { errors: [{ message: 'Loan LN-1 has no accrued interest to waive' }] },
+      })));
+      const c = make();
+      c.waiveInterestReason = 'hardship';
+      c.submitWaiveInterest();
+      expect(c.waiveInterestError).toContain('no accrued interest');
+      expect(c.waiveInterestSaving).toBe(false);
+    });
+
+    it('overdue counts unsettled instalments past their due date; waived ones are settled', () => {
+      const c = make();
+      c.schedule = [
+        installment({ status: 'PENDING', dueDate: '2000-01-01', totalDue: 300, totalPaid: 100 }),
+        installment({ status: 'WAIVED', dueDate: '2000-02-01', totalDue: 200, totalPaid: 200 }),
+        installment({ status: 'PENDING', dueDate: '2999-01-01', totalDue: 400 }),
+      ];
+      expect(c.overdueCount).toBe(1);
+      expect(c.overdueTotal).toBe(200);
+    });
+
     it('submitUndoWriteOff shows why an undo was refused', () => {
       svc.undoWriteOff.mockReturnValue(throwError(() => ({
         error: { errors: [{ message: '100.00 has been recovered on loan LN-1 since the write-off; it cannot be undone' }] },
@@ -364,7 +398,8 @@ describe('LoanDetailComponent', () => {
     it('installmentVariant maps installment statuses', () => {
       expect(c.installmentVariant('PAID')).toBe('success');
       expect(c.installmentVariant('OVERDUE')).toBe('error');
-      expect(c.installmentVariant('PARTIAL')).toBe('warning');
+      expect(c.installmentVariant('PARTIALLY_PAID')).toBe('warning');
+      expect(c.installmentVariant('WAIVED')).toBe('success');
       expect(c.installmentVariant('PENDING')).toBe('neutral');
     });
 

@@ -236,14 +236,77 @@ public class LoanGlPosting {
                 + loan.getLoanAccountNumber(), JournalEntry.EntityType.LOAN, loan.getId(), reference("CHGW", loan));
     }
 
+    // ── Interest waivers (IFRS 9 §3.2.3, §5.4.3) ─────────────────────────────
+
+    /**
+     * Accrued interest waived: the bank releases the borrower from it, so that part of the
+     * receivable is derecognised (IFRS 9 §3.2.3(a)). What sits in suspense was never income
+     * (CBN): DR suspense. The rest: DR loan modification and waiver losses. CR interest
+     * receivable for both. Returns null when nothing was accrued.
+     */
+    public String postInterestWaiver(Loan loan, BigDecimal fromSuspense, BigDecimal loss, LocalDate date) {
+        if (fromSuspense.signum() <= 0 && loss.signum() <= 0) return null;
+        String ccy = currency(loan);
+        List<JournalLine> lines = new ArrayList<>();
+        lines.add(JournalLine.credit(gl.activityAccount(FinancialActivity.ASSET_INTEREST_RECEIVABLE),
+                fromSuspense.max(BigDecimal.ZERO).add(loss.max(BigDecimal.ZERO)), ccy));
+        addDebit(lines, suspense(), fromSuspense, ccy);
+        if (loss.signum() > 0) {
+            accountGl.addProfitOrLoss(lines, modificationLoss(), loss, JournalEntry.EntryType.DEBIT, ccy);
+        }
+        return gl.postJournal(lines, date, "Accrued interest waived on loan " + loan.getLoanAccountNumber(),
+                JournalEntry.EntityType.LOAN, loan.getId(), reference("IWV", loan));
+    }
+
+    /**
+     * Future interest waived modifies the loan's cash flows (IFRS 9 §5.4.3): its gross
+     * carrying amount falls to their present value at the original effective rate.
+     * DR loan modification and waiver losses / CR loan modification discount (contra-asset).
+     */
+    public String postModificationLoss(Loan loan, BigDecimal loss, LocalDate date) {
+        if (loss.signum() <= 0) return null;
+        String ccy = currency(loan);
+        List<JournalLine> lines = new ArrayList<>();
+        lines.add(JournalLine.credit(modificationDiscount(), loss, ccy));
+        accountGl.addProfitOrLoss(lines, modificationLoss(), loss, JournalEntry.EntryType.DEBIT, ccy);
+        return gl.postJournal(lines, date, "Loan " + loan.getLoanAccountNumber() + " modified: future interest waived",
+                JournalEntry.EntityType.LOAN, loan.getId(), reference("MOD", loan));
+    }
+
+    /**
+     * The modification discount unwinds: interest revenue at the original effective rate on
+     * the modified carrying amount. DR loan modification discount / CR interest income, or
+     * CR suspense when the loan is non-performing (CBN). Returns null for nothing.
+     */
+    public String postModificationUnwind(Loan loan, BigDecimal amount, boolean toSuspense, LocalDate date) {
+        if (amount.signum() <= 0) return null;
+        String ccy = currency(loan);
+        List<JournalLine> lines = new ArrayList<>();
+        lines.add(JournalLine.debit(modificationDiscount(), amount, ccy));
+        if (toSuspense) {
+            lines.add(JournalLine.credit(suspense(), amount, ccy));
+        } else {
+            accountGl.addProfitOrLoss(lines, interestIncome(loan.getProduct()), amount, JournalEntry.EntryType.CREDIT, ccy);
+        }
+        return gl.postJournal(lines, date, "Modification discount unwound on loan " + loan.getLoanAccountNumber()
+                + " to " + date, JournalEntry.EntityType.LOAN, loan.getId(), reference("MODU", loan));
+    }
+
     // ── Impairment, write-off, recovery (IFRS 9 §5.5, §5.4.4) ────────────────
 
     /** The balances a write-off derecognises; interest is signed (negative when paid ahead). */
     public record WriteOffAmounts(BigDecimal principal, BigDecimal interest, BigDecimal fees,
-                                  BigDecimal deferredFee, BigDecimal suspense, BigDecimal allowance) {
+                                  BigDecimal deferredFee, BigDecimal suspense, BigDecimal allowance,
+                                  BigDecimal modificationDiscount) {
+        public WriteOffAmounts(BigDecimal principal, BigDecimal interest, BigDecimal fees,
+                               BigDecimal deferredFee, BigDecimal suspense, BigDecimal allowance) {
+            this(principal, interest, fees, deferredFee, suspense, allowance, BigDecimal.ZERO);
+        }
+
         /** Gross carrying amount: what the loan is carried at before the allowance. */
         public BigDecimal gross() {
-            return principal.add(interest).add(fees).subtract(deferredFee).subtract(suspense);
+            return principal.add(interest).add(fees).subtract(deferredFee).subtract(suspense)
+                    .subtract(modificationDiscount);
         }
     }
 
@@ -272,7 +335,8 @@ public class LoanGlPosting {
     /**
      * Writes the loan off: there is no reasonable expectation of recovering it, so its
      * gross carrying amount is reduced to nil (IFRS 9 §5.4.4). CR portfolio, interest and
-     * fees receivable; DR deferred fees and suspense (never income); DR the allowance; the
+     * fees receivable; DR deferred fees, suspense (never income) and the modification
+     * discount; DR the allowance; the
      * gross amount the allowance does not cover is an impairment loss (or, if the
      * allowance exceeds it, a gain). Write-off account: the product's link, else the
      * credit impairment charge.
@@ -287,6 +351,9 @@ public class LoanGlPosting {
         addCredit(lines, gl.activityAccount(FinancialActivity.ASSET_FEES_RECEIVABLE), a.fees(), ccy);
         addDebit(lines, gl.activityAccount(FinancialActivity.ASSET_DEFERRED_LOAN_FEES), a.deferredFee(), ccy);
         addDebit(lines, suspense(), a.suspense(), ccy);
+        if (a.modificationDiscount().signum() > 0) {
+            lines.add(JournalLine.debit(modificationDiscount(), a.modificationDiscount(), ccy));
+        }
         addDebit(lines, gl.activityAccount(FinancialActivity.ASSET_LOAN_LOSS_ALLOWANCE), a.allowance(), ccy);
         BigDecimal uncovered = a.gross().subtract(a.allowance());
         GlAccount writeOff = writeOffAccount(loan.getProduct());
@@ -409,6 +476,15 @@ public class LoanGlPosting {
 
     private GlAccount writeOffAccount(LoanProduct p) {
         return p.getWriteOffAccount() != null ? p.getWriteOffAccount() : impairmentCharge();
+    }
+
+    /** Resolved only when there is an amount: the mapping may be absent until something is waived. */
+    private GlAccount modificationDiscount() {
+        return gl.activityAccount(FinancialActivity.ASSET_LOAN_MODIFICATION_DISCOUNT);
+    }
+
+    private GlAccount modificationLoss() {
+        return gl.activityAccount(FinancialActivity.EXPENSE_LOAN_MODIFICATION_LOSS);
     }
 
     private GlAccount suspense() {

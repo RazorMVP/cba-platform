@@ -117,8 +117,9 @@ public class LoanImpairmentService {
 
     /**
      * Gross carrying amount (exposure at default): principal, plus interest accrued and
-     * not received, plus charges recognised and unpaid, less the deferred origination fee
-     * and less what is held in suspense (never income). Never negative.
+     * not received, plus charges recognised and unpaid, less the deferred origination fee,
+     * what is held in suspense (never income) and the modification discount not yet
+     * unwound. Never negative.
      */
     static BigDecimal exposure(Loan loan, List<LoanCharge> charges) {
         BigDecimal interest = interestReceivable(loan);
@@ -131,13 +132,14 @@ public class LoanImpairmentService {
         return loan.getOutstandingBalance().add(interest).add(fees)
                 .subtract(loan.getDeferredFeeRemaining())
                 .subtract(loan.getInterestInSuspense()).subtract(suspendedCharges)
+                .subtract(loan.getModificationDiscountRemaining())
                 .max(BigDecimal.ZERO);
     }
 
-    /** The loan's interest receivable: accrued less received (negative when paid ahead). */
+    /** The loan's interest receivable: accrued less received and waived (negative when paid ahead). */
     static BigDecimal interestReceivable(Loan loan) {
         return loan.getRepaymentSchedule().stream()
-                .map(i -> i.getInterestAccrued().subtract(i.getInterestPaid()))
+                .map(LoanRepaymentSchedule::interestReceivable)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
@@ -194,9 +196,8 @@ public class LoanImpairmentService {
             return principal.multiply(rate).setScale(4, RoundingMode.HALF_UP);
         }
         BigDecimal overdue = loan.getRepaymentSchedule().stream()
-                .filter(i -> i.getStatus() != LoanRepaymentSchedule.InstallmentStatus.PAID
-                        && i.getDueDate().isBefore(date.minusDays(STAGE_3_DAYS)))
-                .map(i -> i.getPrincipalDue().subtract(i.getPrincipalPaid()).max(BigDecimal.ZERO))
+                .filter(i -> !i.isSettled() && i.getDueDate().isBefore(date.minusDays(STAGE_3_DAYS)))
+                .map(LoanRepaymentSchedule::unpaidPrincipal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .min(principal);
         return overdue.add(principal.subtract(overdue).multiply(rate)).setScale(4, RoundingMode.HALF_UP);

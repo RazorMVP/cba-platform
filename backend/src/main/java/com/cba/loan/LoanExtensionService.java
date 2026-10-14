@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -136,7 +137,7 @@ public class LoanExtensionService {
 
     @Transactional
     public LoanRescheduleRequest createReschedule(UUID loanId, RescheduleRequest req) {
-        Loan loan = findLoan(loanId);
+        Loan loan = openLoan(loanId, "be rescheduled");
         LoanRescheduleRequest r = new LoanRescheduleRequest();
         r.setLoan(loan);
         r.setRescheduleFromInstallment(req.rescheduleFromInstallment());
@@ -153,21 +154,29 @@ public class LoanExtensionService {
         return saved;
     }
 
+    /** Records the approval only: the schedule is not changed yet (that comes with PR 2e). */
     @Transactional
     public LoanRescheduleRequest approveReschedule(UUID id) {
         LoanRescheduleRequest r = rescheduleRepository.findById(id)
             .orElseThrow(() -> CbaException.notFound("LoanReschedule", id));
+        requirePending(r.getStatus() == LoanRescheduleRequest.Status.PENDING, "Reschedule", id, r.getStatus());
+        requireOpen(r.getLoan(), "be rescheduled");
         r.setStatus(LoanRescheduleRequest.Status.APPROVED);
         r.setApprovedOnDate(LocalDate.now());
-        return rescheduleRepository.save(r);
+        LoanRescheduleRequest saved = rescheduleRepository.save(r);
+        logDecision("LoanReschedule", saved.getId(), saved.getLoan(), "APPROVE", saved.getStatus().name());
+        return saved;
     }
 
     @Transactional
     public LoanRescheduleRequest rejectReschedule(UUID id) {
         LoanRescheduleRequest r = rescheduleRepository.findById(id)
             .orElseThrow(() -> CbaException.notFound("LoanReschedule", id));
+        requirePending(r.getStatus() == LoanRescheduleRequest.Status.PENDING, "Reschedule", id, r.getStatus());
         r.setStatus(LoanRescheduleRequest.Status.REJECTED);
-        return rescheduleRepository.save(r);
+        LoanRescheduleRequest saved = rescheduleRepository.save(r);
+        logDecision("LoanReschedule", saved.getId(), saved.getLoan(), "REJECT", saved.getStatus().name());
+        return saved;
     }
 
     // ── Re-aging (Fineract 1.14.0) ────────────────────────────────────
@@ -180,7 +189,7 @@ public class LoanExtensionService {
 
     @Transactional
     public LoanReagingRequest createReaging(UUID loanId, ReagingRequest req) {
-        Loan loan = findLoan(loanId);
+        Loan loan = openLoan(loanId, "be re-aged");
         LoanReagingRequest r = new LoanReagingRequest();
         r.setLoan(loan);
         r.setFrequencyNumber(req.frequencyNumber());
@@ -194,13 +203,19 @@ public class LoanExtensionService {
         return saved;
     }
 
+    /** Records the approval only: the schedule is not changed yet (that comes with PR 2e). */
     @Transactional
-    public LoanReagingRequest approveReaging(UUID id) {
+    public LoanReagingRequest approveReaging(UUID loanId, UUID id) {
         LoanReagingRequest r = reagingRepository.findById(id)
+            .filter(x -> x.getLoan().getId().equals(loanId))
             .orElseThrow(() -> CbaException.notFound("LoanReaging", id));
+        requirePending(r.getStatus() == LoanReagingRequest.Status.PENDING, "Re-aging", id, r.getStatus());
+        requireOpen(r.getLoan(), "be re-aged");
         r.setStatus(LoanReagingRequest.Status.APPROVED);
         r.setApprovedOnDate(LocalDate.now());
-        return reagingRepository.save(r);
+        LoanReagingRequest saved = reagingRepository.save(r);
+        logDecision("LoanReaging", saved.getId(), saved.getLoan(), "APPROVE", saved.getStatus().name());
+        return saved;
     }
 
     // ── Re-amortization (Fineract 1.14.0) ────────────────────────────
@@ -213,7 +228,7 @@ public class LoanExtensionService {
 
     @Transactional
     public LoanReamortizationRequest createReamortization(UUID loanId, ReamortizationRequest req) {
-        Loan loan = findLoan(loanId);
+        Loan loan = openLoan(loanId, "be re-amortised");
         LoanReamortizationRequest r = new LoanReamortizationRequest();
         r.setLoan(loan);
         r.setComment(req.comment());
@@ -223,13 +238,19 @@ public class LoanExtensionService {
         return saved;
     }
 
+    /** Records the approval only: the schedule is not changed yet (that comes with PR 2e). */
     @Transactional
-    public LoanReamortizationRequest approveReamortization(UUID id) {
+    public LoanReamortizationRequest approveReamortization(UUID loanId, UUID id) {
         LoanReamortizationRequest r = reamortizationRepository.findById(id)
+            .filter(x -> x.getLoan().getId().equals(loanId))
             .orElseThrow(() -> CbaException.notFound("LoanReamortization", id));
+        requirePending(r.getStatus() == LoanReamortizationRequest.Status.PENDING, "Re-amortisation", id, r.getStatus());
+        requireOpen(r.getLoan(), "be re-amortised");
         r.setStatus(LoanReamortizationRequest.Status.APPROVED);
         r.setApprovedOnDate(LocalDate.now());
-        return reamortizationRepository.save(r);
+        LoanReamortizationRequest saved = reamortizationRepository.save(r);
+        logDecision("LoanReamortization", saved.getId(), saved.getLoan(), "APPROVE", saved.getStatus().name());
+        return saved;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────
@@ -237,5 +258,32 @@ public class LoanExtensionService {
     private Loan findLoan(UUID loanId) {
         return loanRepository.findById(loanId)
             .orElseThrow(() -> CbaException.notFound("Loan", loanId));
+    }
+
+    private Loan openLoan(UUID loanId, String action) {
+        Loan loan = findLoan(loanId);
+        requireOpen(loan, action);
+        return loan;
+    }
+
+    private static void requireOpen(Loan loan, String action) {
+        if (loan.getStatus() != LoanStatus.ACTIVE && loan.getStatus() != LoanStatus.IN_ARREARS) {
+            throw CbaException.badRequest("INVALID_LOAN_STATE",
+                "Only ACTIVE or IN_ARREARS loans can " + action + "; loan " + loan.getLoanAccountNumber()
+                    + " is " + loan.getStatus());
+        }
+    }
+
+    private static void requirePending(boolean pending, String what, UUID id, Enum<?> status) {
+        if (!pending) {
+            throw CbaException.badRequest("EXTENSION_REQUEST_NOT_PENDING",
+                what + " request " + id + " is " + status + "; only a PENDING request can be decided");
+        }
+    }
+
+    private void logDecision(String entity, UUID id, Loan loan, String action, String status) {
+        auditLogService.log(entity, id.toString(), action, "PENDING",
+            Map.of("status", status, "loanId", loan.getId().toString(),
+                "note", "Decision recorded; the repayment schedule is unchanged"));
     }
 }

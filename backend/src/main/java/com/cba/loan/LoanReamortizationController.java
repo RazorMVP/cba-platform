@@ -37,11 +37,12 @@ public class LoanReamortizationController {
         return ApiResponse.ok(service.createReamortization(loanId, req));
     }
 
-    @Operation(summary = "Approve a pending re-amortization request")
+    @Operation(summary = "Approve a pending re-amortization request",
+            description = "Records the decision only: the repayment schedule is not changed yet. Loan must be ACTIVE or IN_ARREARS.")
     @PostMapping("/{id}/approve")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<LoanReamortizationRequest> approve(
             @PathVariable UUID loanId, @PathVariable UUID id) {
-        return ApiResponse.ok(service.approveReamortization(id));
+        return ApiResponse.ok(service.approveReamortization(loanId, id));
     }
 }

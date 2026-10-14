@@ -305,3 +305,12 @@
   }
   &__cta { flex-shrink: 0; display: inline-flex; align-items: center; gap: $space-2; font-size: $text-sm; }
 }
+
+.radio-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 14px;
+  cursor: pointer;
+}

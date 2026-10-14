@@ -14,7 +14,7 @@ public interface LoanRepaymentScheduleRepository extends JpaRepository<LoanRepay
     @Query("SELECT COUNT(s) FROM LoanRepaymentSchedule s WHERE s.dueDate >= :start AND s.dueDate <= :end")
     long countDueBetween(LocalDate start, LocalDate end);
 
-    @Query("SELECT COUNT(s) FROM LoanRepaymentSchedule s WHERE s.dueDate >= :start AND s.dueDate <= :end AND s.status = 'PAID'")
+    @Query("SELECT COUNT(s) FROM LoanRepaymentSchedule s WHERE s.dueDate >= :start AND s.dueDate <= :end AND s.status IN ('PAID', 'WAIVED')")
     long countPaidBetween(LocalDate start, LocalDate end);
 
     @Query("SELECT COALESCE(SUM(s.totalDue), 0) FROM LoanRepaymentSchedule s WHERE s.dueDate >= :start AND s.dueDate <= :end")

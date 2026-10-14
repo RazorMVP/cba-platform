@@ -65,6 +65,8 @@ class OpeningBalanceIT extends AbstractIntegrationTest {
         assertThat(line(preview, "1102", "USD").customerBalance()).as("overdraft: a debit")
                 .isGreaterThanOrEqualTo(new BigDecimal("30.00"));
 
+        // Other scopes (LOANS) share the clearing account in this database: compare the change.
+        Map<String, BigDecimal> clearingBefore = preview.clearingBalance();
         OpeningBalances posted = openingBalanceService.post(Scope.DEPOSITS);
 
         assertThat(posted.posted()).isTrue();
@@ -73,7 +75,8 @@ class OpeningBalanceIT extends AbstractIntegrationTest {
         Map<String, BigDecimal> openingByCurrency = new TreeMap<>();
         posted.lines().forEach(l -> openingByCurrency.merge(l.currency(), l.openingAmount(), BigDecimal::add));
         // A currency already reconciled (net opening 0) has no clearing line at all.
-        openingByCurrency.forEach((ccy, net) -> assertThat(posted.clearingBalance().getOrDefault(ccy, BigDecimal.ZERO))
+        openingByCurrency.forEach((ccy, net) -> assertThat(posted.clearingBalance().getOrDefault(ccy, BigDecimal.ZERO)
+                        .subtract(clearingBefore.getOrDefault(ccy, BigDecimal.ZERO)))
                 .as("clearing offsets the %s openings", ccy).isEqualByComparingTo(net.negate()));
         assertThat(posted.clearingIsZero()).as("legacy trial balance not loaded yet").isFalse();
 

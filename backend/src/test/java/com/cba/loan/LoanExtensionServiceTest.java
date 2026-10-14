@@ -21,6 +21,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -161,6 +162,7 @@ class LoanExtensionServiceTest {
         @Test
         @DisplayName("createReschedule saves with PENDING status")
         void createReschedule_success() {
+            loan.setStatus(LoanStatus.ACTIVE);
             LoanRescheduleRequest saved = new LoanRescheduleRequest();
             saved.setId(UUID.randomUUID());
             saved.setStatus(LoanRescheduleRequest.Status.PENDING);
@@ -176,32 +178,63 @@ class LoanExtensionServiceTest {
         }
 
         @Test
-        @DisplayName("approveReschedule sets APPROVED status")
-        void approveReschedule_success() {
-            UUID rescheduleId = UUID.randomUUID();
-            LoanRescheduleRequest r = new LoanRescheduleRequest();
-            r.setId(rescheduleId);
-            r.setStatus(LoanRescheduleRequest.Status.PENDING);
+        @DisplayName("a closed or written-off loan can't be rescheduled")
+        void createReschedule_closedLoan_rejected() {
+            loan.setStatus(LoanStatus.WRITTEN_OFF);
+            when(loanRepository.findById(loanId)).thenReturn(Optional.of(loan));
 
-            when(rescheduleRepository.findById(rescheduleId)).thenReturn(Optional.of(r));
-            when(rescheduleRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-            LoanRescheduleRequest result = service.approveReschedule(rescheduleId);
-            assertThat(result.getStatus()).isEqualTo(LoanRescheduleRequest.Status.APPROVED);
+            LoanExtensionService.RescheduleRequest req = new LoanExtensionService.RescheduleRequest(
+                3, null, null, 0, 0, 1, false, "hardship");
+            assertThatThrownBy(() -> service.createReschedule(loanId, req))
+                .isInstanceOf(CbaException.class).hasMessageContaining("ACTIVE or IN_ARREARS");
+            verify(rescheduleRepository, never()).save(any());
         }
 
         @Test
-        @DisplayName("rejectReschedule sets REJECTED status")
-        void rejectReschedule_success() {
-            UUID rescheduleId = UUID.randomUUID();
-            LoanRescheduleRequest r = new LoanRescheduleRequest();
-            r.setId(rescheduleId);
-
-            when(rescheduleRepository.findById(rescheduleId)).thenReturn(Optional.of(r));
+        @DisplayName("approveReschedule sets APPROVED and audits the decision")
+        void approveReschedule_success() {
+            loan.setStatus(LoanStatus.IN_ARREARS);
+            LoanRescheduleRequest r = pendingReschedule();
+            when(rescheduleRepository.findById(r.getId())).thenReturn(Optional.of(r));
             when(rescheduleRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            LoanRescheduleRequest result = service.rejectReschedule(rescheduleId);
+            LoanRescheduleRequest result = service.approveReschedule(r.getId());
+            assertThat(result.getStatus()).isEqualTo(LoanRescheduleRequest.Status.APPROVED);
+            verify(auditLogService).log(eq("LoanReschedule"), eq(r.getId().toString()), eq("APPROVE"), eq("PENDING"), any());
+        }
+
+        @Test
+        @DisplayName("rejectReschedule sets REJECTED")
+        void rejectReschedule_success() {
+            LoanRescheduleRequest r = pendingReschedule();
+            when(rescheduleRepository.findById(r.getId())).thenReturn(Optional.of(r));
+            when(rescheduleRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            LoanRescheduleRequest result = service.rejectReschedule(r.getId());
             assertThat(result.getStatus()).isEqualTo(LoanRescheduleRequest.Status.REJECTED);
+        }
+
+        @Test
+        @DisplayName("only a PENDING request can be approved or rejected")
+        void decided_requestRejected() {
+            loan.setStatus(LoanStatus.ACTIVE);
+            LoanRescheduleRequest r = pendingReschedule();
+            r.setStatus(LoanRescheduleRequest.Status.REJECTED);
+            when(rescheduleRepository.findById(r.getId())).thenReturn(Optional.of(r));
+
+            assertThatThrownBy(() -> service.approveReschedule(r.getId()))
+                .isInstanceOf(CbaException.class).hasMessageContaining("only a PENDING request");
+            assertThatThrownBy(() -> service.rejectReschedule(r.getId()))
+                .isInstanceOf(CbaException.class).hasMessageContaining("only a PENDING request");
+            verify(rescheduleRepository, never()).save(any());
+        }
+
+        private LoanRescheduleRequest pendingReschedule() {
+            LoanRescheduleRequest r = new LoanRescheduleRequest();
+            r.setId(UUID.randomUUID());
+            r.setLoan(loan);
+            r.setStatus(LoanRescheduleRequest.Status.PENDING);
+            return r;
         }
     }
 
@@ -212,6 +245,7 @@ class LoanExtensionServiceTest {
         @Test
         @DisplayName("createReaging saves with PENDING status")
         void createReaging_success() {
+            loan.setStatus(LoanStatus.ACTIVE);
             LoanReagingRequest saved = new LoanReagingRequest();
             saved.setId(UUID.randomUUID());
             saved.setStatus(LoanReagingRequest.Status.PENDING);
@@ -229,20 +263,37 @@ class LoanExtensionServiceTest {
         @Test
         @DisplayName("approveReaging sets APPROVED status")
         void approveReaging_success() {
-            UUID reagingId = UUID.randomUUID();
+            loan.setStatus(LoanStatus.ACTIVE);
             LoanReagingRequest r = new LoanReagingRequest();
-            r.setId(reagingId);
+            r.setId(UUID.randomUUID());
+            r.setLoan(loan);
+            r.setStatus(LoanReagingRequest.Status.PENDING);
 
-            when(reagingRepository.findById(reagingId)).thenReturn(Optional.of(r));
+            when(reagingRepository.findById(r.getId())).thenReturn(Optional.of(r));
             when(reagingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            LoanReagingRequest result = service.approveReaging(reagingId);
+            LoanReagingRequest result = service.approveReaging(loanId, r.getId());
             assertThat(result.getStatus()).isEqualTo(LoanReagingRequest.Status.APPROVED);
+        }
+
+        @Test
+        @DisplayName("a request of another loan is not found under this loan")
+        void approveReaging_otherLoan_notFound() {
+            LoanReagingRequest r = new LoanReagingRequest();
+            r.setId(UUID.randomUUID());
+            r.setLoan(loan);
+            r.setStatus(LoanReagingRequest.Status.PENDING);
+            when(reagingRepository.findById(r.getId())).thenReturn(Optional.of(r));
+
+            assertThatThrownBy(() -> service.approveReaging(UUID.randomUUID(), r.getId()))
+                .isInstanceOf(CbaException.class).hasMessageContaining("LoanReaging");
+            verify(reagingRepository, never()).save(any());
         }
 
         @Test
         @DisplayName("createReamortization saves with PENDING status")
         void createReamortization_success() {
+            loan.setStatus(LoanStatus.ACTIVE);
             LoanReamortizationRequest saved = new LoanReamortizationRequest();
             saved.setId(UUID.randomUUID());
             saved.setStatus(LoanReamortizationRequest.Status.PENDING);
@@ -259,14 +310,16 @@ class LoanExtensionServiceTest {
         @Test
         @DisplayName("approveReamortization sets APPROVED status")
         void approveReamortization_success() {
-            UUID reamortId = UUID.randomUUID();
+            loan.setStatus(LoanStatus.ACTIVE);
             LoanReamortizationRequest r = new LoanReamortizationRequest();
-            r.setId(reamortId);
+            r.setId(UUID.randomUUID());
+            r.setLoan(loan);
+            r.setStatus(LoanReamortizationRequest.Status.PENDING);
 
-            when(reamortizationRepository.findById(reamortId)).thenReturn(Optional.of(r));
+            when(reamortizationRepository.findById(r.getId())).thenReturn(Optional.of(r));
             when(reamortizationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            LoanReamortizationRequest result = service.approveReamortization(reamortId);
+            LoanReamortizationRequest result = service.approveReamortization(loanId, r.getId());
             assertThat(result.getStatus()).isEqualTo(LoanReamortizationRequest.Status.APPROVED);
         }
     }

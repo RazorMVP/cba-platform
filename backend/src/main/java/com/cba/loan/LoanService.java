@@ -33,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -154,7 +155,8 @@ public class LoanService {
         LocalDate firstDueDate = today.plusMonths(1);
         List<LoanRepaymentSchedule> schedule = scheduleEngine.generateAnnuitySchedule(
             loan, amount, loan.getInterestRate(), loan.getTermMonths(), firstDueDate);
-        List<BigDecimal> feeShares = EffectiveInterest.feeAmortisation(amount, fee, today, schedule);
+        double effectiveRate = EffectiveInterest.dailyRate(amount.subtract(fee).doubleValue(), today, schedule);
+        List<BigDecimal> feeShares = EffectiveInterest.feeAmortisation(amount, fee, today, schedule, effectiveRate);
         for (int k = 0; k < schedule.size(); k++) {
             schedule.get(k).setFeeAmortisation(feeShares.get(k));
         }
@@ -165,6 +167,7 @@ public class LoanService {
         loan.setInterestAccruedThrough(today);
         loan.setDeferredFee(fee);
         loan.setDeferredFeeRemaining(fee);
+        loan.setEffectiveDailyRate(effectiveRate);
         loan.setMaturityDate(firstDueDate.plusMonths(loan.getTermMonths() - 1L));
         loan.getRepaymentSchedule().clear();
         loan.getRepaymentSchedule().addAll(schedule);
@@ -295,19 +298,19 @@ public class LoanService {
         BigDecimal fees = BigDecimal.ZERO, interest = BigDecimal.ZERO, principal = BigDecimal.ZERO;
         for (LoanRepaymentSchedule i : loan.getRepaymentSchedule()) {
             if (remaining.signum() == 0) break;
-            if (i.getStatus() == LoanRepaymentSchedule.InstallmentStatus.PAID) continue;
+            if (i.isSettled()) continue;
 
-            BigDecimal fee = unpaidFees(i).min(remaining);
+            BigDecimal fee = i.unpaidFees().min(remaining);
             remaining = remaining.subtract(fee);
-            BigDecimal intr = unpaidInterest(i).min(remaining);
+            BigDecimal intr = i.unpaidInterest().min(remaining);
             remaining = remaining.subtract(intr);
-            BigDecimal prin = unpaidPrincipal(i).min(remaining);
+            BigDecimal prin = i.unpaidPrincipal().min(remaining);
             remaining = remaining.subtract(prin);
 
             i.setFeesPaid(i.getFeesPaid().add(fee));
             i.setInterestPaid(i.getInterestPaid().add(intr));
             i.setPrincipalPaid(i.getPrincipalPaid().add(prin));
-            markPaidStatus(i, date);
+            i.refreshStatus(date);
             fees = fees.add(fee);
             interest = interest.add(intr);
             principal = principal.add(prin);
@@ -333,15 +336,17 @@ public class LoanService {
         for (LoanRepaymentSchedule i : loan.getRepaymentSchedule()) {
             LocalDate start = periodStart;
             periodStart = i.getDueDate();
-            if (i.getStatus() == LoanRepaymentSchedule.InstallmentStatus.PAID) continue;
+            if (i.isSettled()) continue;
             if (i.getDueDate().isAfter(date)) {
                 BigDecimal earned = start == null ? BigDecimal.ZERO
-                    : LoanAccrualService.accruedBy(i.getInterestDue(), start, i.getDueDate(), date);
-                interest = interest.add(earned.subtract(i.getInterestPaid()).max(BigDecimal.ZERO));
+                    : LoanAccrualService.accruedBy(i.getInterestDue(), start, i.getDueDate(), date)
+                        .max(i.getInterestAccrued());
+                interest = interest.add(earned.subtract(i.getInterestPaid()).subtract(i.getInterestWaived())
+                        .max(BigDecimal.ZERO));
                 continue;
             }
-            interest = interest.add(unpaidInterest(i));
-            fees = fees.add(unpaidFees(i));
+            interest = interest.add(i.unpaidInterest());
+            fees = fees.add(i.unpaidFees());
         }
         BigDecimal charges = loanChargeRepository.findByLoanIdOrderByCreatedAtAsc(loan.getId()).stream()
                 .filter(c -> c.getIncomeRecognizedOn() != null && !c.isPaid() && !c.isWaived())
@@ -412,13 +417,14 @@ public class LoanService {
         LoanGlPosting.WriteOffAmounts amounts = new LoanGlPosting.WriteOffAmounts(
                 loan.getOutstandingBalance(), LoanImpairmentService.interestReceivable(loan), fees,
                 loan.getDeferredFeeRemaining(), loan.getInterestInSuspense().add(suspendedCharges),
-                loan.getLossAllowance());
+                loan.getLossAllowance(), loan.getModificationDiscountRemaining());
         String transactionId = loanGlPosting.postWriteOff(loan, amounts, date);
 
         Map<String, BigDecimal> snapshot = new LinkedHashMap<>();
         snapshot.put("principal", loan.getOutstandingBalance());
         snapshot.put("interestInSuspense", loan.getInterestInSuspense());
         snapshot.put("deferredFeeRemaining", loan.getDeferredFeeRemaining());
+        snapshot.put("modificationDiscountRemaining", loan.getModificationDiscountRemaining());
         snapshot.put("lossAllowance", loan.getLossAllowance());
         snapshot.put("prudentialProvision", loan.getPrudentialProvision());
         snapshot.put("eclStage", BigDecimal.valueOf(m.stage()));
@@ -430,6 +436,7 @@ public class LoanService {
         loan.setOutstandingBalance(BigDecimal.ZERO);
         loan.setInterestInSuspense(BigDecimal.ZERO);
         loan.setDeferredFeeRemaining(BigDecimal.ZERO);
+        loan.setModificationDiscountRemaining(BigDecimal.ZERO);
         loan.setLossAllowance(BigDecimal.ZERO);
         loan.setPrudentialProvision(BigDecimal.ZERO);
         loan.setEclStage(null);
@@ -474,6 +481,7 @@ public class LoanService {
             loan.setOutstandingBalance(snapshot.getOrDefault("principal", BigDecimal.ZERO));
             loan.setInterestInSuspense(snapshot.getOrDefault("interestInSuspense", BigDecimal.ZERO));
             loan.setDeferredFeeRemaining(snapshot.getOrDefault("deferredFeeRemaining", BigDecimal.ZERO));
+            loan.setModificationDiscountRemaining(snapshot.getOrDefault("modificationDiscountRemaining", BigDecimal.ZERO));
             loan.setLossAllowance(snapshot.getOrDefault("lossAllowance", BigDecimal.ZERO));
             loan.setPrudentialProvision(snapshot.getOrDefault("prudentialProvision", BigDecimal.ZERO));
             BigDecimal stage = snapshot.get("eclStage");
@@ -481,8 +489,8 @@ public class LoanService {
         } else {
             // Written off before write-offs posted to the GL: nothing to reverse.
             loan.setOutstandingBalance(loan.getRepaymentSchedule().stream()
-                    .filter(s -> s.getStatus() != LoanRepaymentSchedule.InstallmentStatus.PAID)
-                    .map(LoanService::unpaidPrincipal)
+                    .filter(s -> !s.isSettled())
+                    .map(LoanRepaymentSchedule::unpaidPrincipal)
                     .reduce(BigDecimal.ZERO, BigDecimal::add));
         }
         LoanAccrualService.updateArrears(loan, LocalDate.now());
@@ -499,31 +507,94 @@ public class LoanService {
         return toResponse(saved);
     }
 
+    /**
+     * Waives interest on an open loan. Interest accrued and not paid is derecognised: the
+     * bank releases the borrower from it (IFRS 9 §3.2.3(a)); the part held in suspense was
+     * never income (CBN), the rest is a loss. With scope ALL, interest not yet accrued is
+     * given up too: that modifies the loan's cash flows (§5.4.3), so its gross carrying
+     * amount falls to the present value of the new cash flows at the original effective
+     * rate, the difference is a loss now, and the discount unwinds into interest income
+     * over the remaining term. A non-performing loan's future interest would only ever have
+     * been income on receipt (CBN suspense), so giving it up there is no loss. Expected
+     * credit losses are then remeasured on what is left.
+     */
     @Transactional
     public LoanResponse waiveInterest(UUID loanId, WaiveInterestRequest request) {
         Loan loan = findById(loanId);
-
-        if (loan.getStatus() != LoanStatus.ACTIVE && loan.getStatus() != LoanStatus.IN_ARREARS) {
-            throw CbaException.badRequest("INVALID_LOAN_STATE",
-                "Only ACTIVE or IN_ARREARS loans can have interest waived");
+        requireOpen(loan, "have interest waived");
+        LocalDate date = eventDate(loan, request.waiveDate(), "Waiver");
+        if (loan.getInterestAccruedThrough() != null && date.isBefore(loan.getInterestAccruedThrough())) {
+            throw CbaException.badRequest("WAIVE_DATE_BEFORE_LAST_ACCRUAL", "Interest on loan "
+                    + loan.getLoanAccountNumber() + " has accrued to " + loan.getInterestAccruedThrough()
+                    + "; a waiver can't be dated before that");
         }
+        WaiveInterestRequest.Scope scope = request.scope() != null ? request.scope() : WaiveInterestRequest.Scope.ALL;
 
-        // Zero out unpaid interest on all pending installments
-        BigDecimal totalWaived = BigDecimal.ZERO;
-        for (LoanRepaymentSchedule installment : loan.getRepaymentSchedule()) {
-            if (installment.getStatus() == LoanRepaymentSchedule.InstallmentStatus.PAID) continue;
-            BigDecimal interestOutstanding = installment.getInterestDue()
-                .subtract(installment.getInterestPaid() != null ? installment.getInterestPaid() : BigDecimal.ZERO);
-            if (interestOutstanding.compareTo(BigDecimal.ZERO) > 0) {
-                installment.setInterestPaid(installment.getInterestDue());
-                totalWaived = totalWaived.add(interestOutstanding);
+        loanAccrualService.bringCurrent(loan, date);
+        // The original effective rate, from the contractual schedule before it changes.
+        double rate = EffectiveInterest.originalDailyRate(loan);
+        loan.setEffectiveDailyRate(rate);
+
+        BigDecimal accruedWaived = BigDecimal.ZERO, futureWaived = BigDecimal.ZERO;
+        List<EffectiveInterest.CashFlow> givenUp = new ArrayList<>();
+        for (LoanRepaymentSchedule i : loan.getRepaymentSchedule()) {
+            if (i.isSettled()) continue;
+            BigDecimal accrued = i.interestReceivable().max(BigDecimal.ZERO);
+            i.setInterestWaived(i.getInterestWaived().add(accrued));
+            accruedWaived = accruedWaived.add(accrued);
+            if (scope == WaiveInterestRequest.Scope.ALL) {
+                // Interest not yet accrued (and not already received ahead) leaves the schedule.
+                BigDecimal covered = i.getInterestAccrued().max(i.getInterestPaid().add(i.getInterestWaived()));
+                BigDecimal future = i.getInterestDue().subtract(covered).max(BigDecimal.ZERO);
+                if (future.signum() > 0) {
+                    i.setInterestDue(i.getInterestDue().subtract(future));
+                    i.setInterestCancelled(i.getInterestCancelled().add(future));
+                    futureWaived = futureWaived.add(future);
+                    givenUp.add(new EffectiveInterest.CashFlow(i.getDueDate(), future));
+                }
             }
+            i.refreshStatus(date);
         }
+        if (accruedWaived.add(futureWaived).signum() == 0) {
+            throw CbaException.badRequest("NOTHING_TO_WAIVE", "Loan " + loan.getLoanAccountNumber()
+                    + " has no " + (scope == WaiveInterestRequest.Scope.ALL ? "" : "accrued ") + "interest to waive");
+        }
+
+        BigDecimal fromSuspense = accruedWaived.min(loan.getInterestInSuspense());
+        BigDecimal accruedLoss = accruedWaived.subtract(fromSuspense);
+        loanGlPosting.postInterestWaiver(loan, fromSuspense, accruedLoss, date);
+        loan.setInterestInSuspense(loan.getInterestInSuspense().subtract(fromSuspense));
+
+        BigDecimal modificationLoss = BigDecimal.ZERO;
+        if (!givenUp.isEmpty() && !loan.isNonPerforming()) {
+            modificationLoss = EffectiveInterest.presentValue(givenUp, date, rate);
+            loanGlPosting.postModificationLoss(loan, modificationLoss, date);
+            loan.setModificationDiscountRemaining(loan.getModificationDiscountRemaining().add(modificationLoss));
+        }
+        if (loan.getModificationDiscountRemaining().signum() > 0) {
+            EffectiveInterest.spreadModificationDiscount(loan, date, rate, loan.getModificationDiscountRemaining());
+        }
+
+        LoanAccrualService.updateArrears(loan, date);
+        loanAccrualService.classify(loan, date);
+        loanImpairmentService.remeasure(loan, date);
 
         Loan saved = loanRepository.save(loan);
-        auditLogService.log("LOAN", loanId.toString(), "WAIVE_INTEREST", null,
-            java.util.Map.of("totalWaived", totalWaived, "reason", request.reason()));
-        log.info("Interest waived on loan {}: amount={}", saved.getLoanAccountNumber(), totalWaived);
+        Map<String, Object> audit = new LinkedHashMap<>();
+        audit.put("scope", scope.name());
+        audit.put("waiveDate", date.toString());
+        audit.put("accruedWaived", accruedWaived);
+        audit.put("futureWaived", futureWaived);
+        audit.put("fromSuspense", fromSuspense);
+        audit.put("accruedLoss", accruedLoss);
+        audit.put("modificationLoss", modificationLoss);
+        if (request.approvalReference() != null && !request.approvalReference().isBlank()) {
+            audit.put("approvalReference", request.approvalReference().trim());
+        }
+        audit.put("reason", request.reason());
+        auditLogService.log("LOAN", loanId.toString(), "WAIVE_INTEREST", null, audit);
+        log.info("Interest waived on loan {}: accrued {}, future {}, modification loss {}",
+                saved.getLoanAccountNumber(), accruedWaived, futureWaived, modificationLoss);
         return toResponse(saved);
     }
 
@@ -551,20 +622,19 @@ public class LoanService {
         // fees are cancelled: not yet earned, never recognised.
         BigDecimal cancelledInterest = BigDecimal.ZERO;
         for (LoanRepaymentSchedule i : loan.getRepaymentSchedule()) {
-            if (i.getStatus() == LoanRepaymentSchedule.InstallmentStatus.PAID) continue;
+            if (i.isSettled()) continue;
             if (i.getDueDate().isAfter(date)) {
-                BigDecimal kept = i.getInterestAccrued().max(i.getInterestPaid());
+                BigDecimal kept = i.getInterestAccrued().max(i.getInterestPaid().add(i.getInterestWaived()));
                 cancelledInterest = cancelledInterest.add(i.getInterestDue().subtract(kept).max(BigDecimal.ZERO));
                 i.setInterestDue(kept);
-                i.setInterestPaid(kept);
+                i.setInterestPaid(kept.subtract(i.getInterestWaived()));
                 i.setFeesDue(i.getFeesPaid());
-                i.setTotalDue(i.getPrincipalDue().add(i.getInterestDue()).add(i.getFeesDue()));
             } else {
-                i.setInterestPaid(i.getInterestDue());
+                i.setInterestPaid(i.getInterestDue().subtract(i.getInterestWaived()));
                 i.setFeesPaid(i.getFeesDue());
             }
             i.setPrincipalPaid(i.getPrincipalDue());
-            markPaidStatus(i, date);
+            i.refreshStatus(date);
         }
         // Recognised charges were just paid; charges not yet income are cancelled.
         for (LoanCharge c : loanChargeRepository.findByLoanIdOrderByCreatedAtAsc(loanId)) {
@@ -635,34 +705,12 @@ public class LoanService {
 
     // ── Schedule helpers ─────────────────────────────────────────────────────
 
-    private static BigDecimal unpaidFees(LoanRepaymentSchedule i) {
-        return i.getFeesDue().subtract(i.getFeesPaid()).max(BigDecimal.ZERO);
-    }
-
-    private static BigDecimal unpaidInterest(LoanRepaymentSchedule i) {
-        return i.getInterestDue().subtract(i.getInterestPaid()).max(BigDecimal.ZERO);
-    }
-
-    private static BigDecimal unpaidPrincipal(LoanRepaymentSchedule i) {
-        return i.getPrincipalDue().subtract(i.getPrincipalPaid()).max(BigDecimal.ZERO);
-    }
-
     /** Everything still owed on the schedule: fees, interest and principal. */
     private static BigDecimal scheduledOutstanding(Loan loan) {
         return loan.getRepaymentSchedule().stream()
-                .filter(i -> i.getStatus() != LoanRepaymentSchedule.InstallmentStatus.PAID)
-                .map(i -> unpaidFees(i).add(unpaidInterest(i)).add(unpaidPrincipal(i)))
+                .filter(i -> !i.isSettled())
+                .map(LoanRepaymentSchedule::unpaid)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    private static void markPaidStatus(LoanRepaymentSchedule i, LocalDate date) {
-        i.setTotalPaid(i.getPrincipalPaid().add(i.getInterestPaid()).add(i.getFeesPaid()));
-        if (unpaidFees(i).add(unpaidInterest(i)).add(unpaidPrincipal(i)).signum() == 0) {
-            i.setStatus(LoanRepaymentSchedule.InstallmentStatus.PAID);
-            i.setPaidDate(date);
-        } else if (i.getTotalPaid().signum() > 0) {
-            i.setStatus(LoanRepaymentSchedule.InstallmentStatus.PARTIALLY_PAID);
-        }
     }
 
     private static void requireOpen(Loan loan, String action) {
@@ -738,7 +786,11 @@ public class LoanService {
             l.getDaysPastDue(), l.isNonPerforming(), l.getInterestInSuspense(), l.getDeferredFeeRemaining(),
             l.getEclStage(), l.getLossAllowance(), l.getPrudentialProvision(),
             l.getWrittenOffOn(), l.getWriteOffReason(), l.getWriteOffApprovalReference(),
-            l.getWrittenOffAmount(), l.getRecoveredAmount()
+            l.getWrittenOffAmount(), l.getRecoveredAmount(),
+            l.getRepaymentSchedule().stream()
+                .map(s -> s.getInterestWaived().add(s.getInterestCancelled()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add),
+            l.getModificationDiscountRemaining()
         );
     }
 
@@ -746,7 +798,8 @@ public class LoanService {
         return new RepaymentScheduleResponse(
             s.getId(), s.getInstallmentNo(), s.getDueDate(),
             s.getPrincipalDue(), s.getInterestDue(), s.getFeesDue(), s.getTotalDue(),
-            s.getPrincipalPaid(), s.getInterestPaid(), s.getTotalPaid(),
+            s.getPrincipalPaid(), s.getInterestPaid(), s.getFeesPaid(), s.getTotalPaid(),
+            s.getInterestWaived(), s.getInterestCancelled(),
             s.getStatus(), s.getPaidDate()
         );
     }

@@ -93,8 +93,9 @@ describe('LoanService', () => {
     it('undoWriteOff / waiveInterest / foreclose route correctly', () => {
       service.undoWriteOff('l1').subscribe();
       expect(api.post).toHaveBeenCalledWith('/loans/l1/undo-write-off', {});
-      service.waiveInterest('l1', 'goodwill').subscribe();
-      expect(api.post).toHaveBeenCalledWith('/loans/l1/waive-interest', { reason: 'goodwill' });
+      service.waiveInterest('l1', { reason: 'goodwill', scope: 'ACCRUED', approvalReference: 'CC/1' }).subscribe();
+      expect(api.post).toHaveBeenCalledWith('/loans/l1/waive-interest',
+        { reason: 'goodwill', scope: 'ACCRUED', approvalReference: 'CC/1' });
       service.foreclose('l1', 'early', '2026-06-01').subscribe();
       expect(api.post).toHaveBeenCalledWith('/loans/l1/foreclose', {
         reason: 'early',

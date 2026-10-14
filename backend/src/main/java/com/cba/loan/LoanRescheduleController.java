@@ -1,5 +1,6 @@
 package com.cba.loan;
 
+import com.cba.common.exception.CbaException;
 import com.cba.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -39,7 +40,8 @@ public class LoanRescheduleController {
         return ApiResponse.ok(service.createReschedule(loanId, req));
     }
 
-    @Operation(summary = "Approve or reject a reschedule request (?command=approve|reject)")
+    @Operation(summary = "Approve or reject a reschedule request (?command=approve|reject)",
+            description = "Records the decision only: the repayment schedule is not changed yet. Loan must be ACTIVE or IN_ARREARS; the request must be PENDING.")
     @PostMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<LoanRescheduleRequest> command(
@@ -48,7 +50,7 @@ public class LoanRescheduleController {
         LoanRescheduleRequest result = switch (command) {
             case "approve" -> service.approveReschedule(id);
             case "reject"  -> service.rejectReschedule(id);
-            default -> throw new IllegalArgumentException("Unknown command: " + command);
+            default -> throw CbaException.badRequest("UNKNOWN_COMMAND", "Unknown command: " + command + " (approve | reject)");
         };
         return ApiResponse.ok(result);
     }

@@ -162,6 +162,75 @@ class LoanAccrualServiceTest {
         assertThat(second.getInterestAccrued()).isEqualByComparingTo("280.00");
     }
 
+    @Test
+    @DisplayName("the modification discount unwinds pro rata from the last accrual, all of it by the due date")
+    void modificationDiscount_unwinds() {
+        // A waiver on Feb 10 left 8.40 to unwind in period 2 (Feb 1 → Mar 1) and nothing else.
+        loan.setInterestAccruedThrough(LocalDate.of(2026, 2, 10));
+        loan.getRepaymentSchedule().get(0).setInterestAccrued(new BigDecimal("310.00"));
+        loan.getRepaymentSchedule().get(1).setInterestDue(new BigDecimal("90.00"));
+        loan.getRepaymentSchedule().get(1).setInterestAccrued(new BigDecimal("90.00"));
+        loan.getRepaymentSchedule().get(1).setModificationUnwind(new BigDecimal("8.40"));
+        loan.setModificationDiscountRemaining(new BigDecimal("8.40"));
+
+        service.accrueThrough(loan, LocalDate.of(2026, 2, 17)); // 7 of the 19 days left
+        verify(loanGlPosting).postModificationUnwind(loan, new BigDecimal("3.0947"), false, LocalDate.of(2026, 2, 17));
+        assertThat(loan.getModificationDiscountRemaining()).isEqualByComparingTo("5.3053");
+
+        service.accrueThrough(loan, LocalDate.of(2026, 3, 5)); // past the due date: the rest
+        verify(loanGlPosting).postModificationUnwind(loan, new BigDecimal("5.3053"), false, LocalDate.of(2026, 3, 5));
+        assertThat(loan.getModificationDiscountRemaining()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(loan.getRepaymentSchedule().get(1).getModificationUnwound()).isEqualByComparingTo("8.40");
+    }
+
+    @Test
+    @DisplayName("on a non-performing loan the unwind goes to suspense, like interest")
+    void modificationDiscount_toSuspense() {
+        loan.setInterestAccruedThrough(LocalDate.of(2026, 2, 1));
+        loan.getRepaymentSchedule().get(0).setInterestAccrued(new BigDecimal("310.00"));
+        loan.getRepaymentSchedule().get(1).setInterestDue(BigDecimal.ZERO);
+        loan.getRepaymentSchedule().get(1).setModificationUnwind(new BigDecimal("2.80"));
+        loan.setModificationDiscountRemaining(new BigDecimal("2.80"));
+        loan.setNonPerforming(true);
+
+        service.accrueThrough(loan, LocalDate.of(2026, 3, 1));
+
+        verify(loanGlPosting).postModificationUnwind(loan, new BigDecimal("2.80"), true, LocalDate.of(2026, 3, 1));
+        assertThat(loan.getInterestInSuspense()).isEqualByComparingTo("2.80");
+    }
+
+    @Test
+    @DisplayName("settling releases the discount not yet unwound and any interest left in suspense")
+    void closeOut_releasesDiscountAndSuspense() {
+        loan.getRepaymentSchedule().get(1).setModificationUnwind(new BigDecimal("6.00"));
+        loan.getRepaymentSchedule().get(1).setModificationUnwound(new BigDecimal("2.00"));
+        loan.setModificationDiscountRemaining(new BigDecimal("4.00"));
+        loan.setInterestInSuspense(new BigDecimal("1.50"));
+
+        service.closeOut(loan, LocalDate.of(2026, 2, 10));
+
+        verify(loanGlPosting).postModificationUnwind(loan, new BigDecimal("4.00"), false, LocalDate.of(2026, 2, 10));
+        verify(loanGlPosting).postInterestSuspenseRelease(loan, new BigDecimal("1.50"), LocalDate.of(2026, 2, 10));
+        assertThat(loan.getModificationDiscountRemaining()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(loan.getInterestInSuspense()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(loan.getRepaymentSchedule().get(1).getModificationUnwound()).isEqualByComparingTo("6.00");
+    }
+
+    @Test
+    @DisplayName("waived interest is neither receivable nor overdue")
+    void waivedInterest_notOverdueNorSuspended() {
+        LoanRepaymentSchedule first = loan.getRepaymentSchedule().get(0);
+        first.setPrincipalPaid(new BigDecimal("12.40"));
+        first.setInterestAccrued(new BigDecimal("310.00"));
+        first.setInterestWaived(new BigDecimal("310.00"));
+        first.refreshStatus(LocalDate.of(2026, 2, 5));
+
+        assertThat(first.getStatus()).isEqualTo(LoanRepaymentSchedule.InstallmentStatus.WAIVED);
+        assertThat(LoanAccrualService.updateArrears(loan, LocalDate.of(2026, 2, 20))).isFalse();
+        assertThat(loan.getDaysPastDue()).isZero();
+        assertThat(first.interestReceivable()).isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
     private LoanRepaymentSchedule installment(int no, LocalDate due, String interest, String principal) {
         LoanRepaymentSchedule s = new LoanRepaymentSchedule();
         s.setLoan(loan);

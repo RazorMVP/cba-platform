@@ -87,6 +87,12 @@
         "description": "Third-party TPP access via Open Banking FAPI 2.0 endpoints",
         "composite": false,
         "clientRole": false
+      },
+      {
+        "name": "CARD_READER",
+        "description": "Service-to-service only: read cards for Open Banking (backend service account). Never assign to people.",
+        "composite": false,
+        "clientRole": false
       }
     ]
   },
@@ -105,6 +111,26 @@
       "serviceAccountsEnabled": false,
       "protocol": "openid-connect",
       "attributes": {}
+    },
+    {
+      "clientId": "cba-backend-service",
+      "name": "CBA Backend Service Account",
+      "description": "Backend service account: client_credentials token for backend -> card-service calls (realm role CARD_READER only)",
+      "enabled": true,
+      "bearerOnly": false,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${CBA_BACKEND_SERVICE_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "protocol": "openid-connect",
+      "attributes": {
+        "oauth2.device.authorization.grant.enabled": "false"
+      },
+      "defaultClientScopes": ["roles"],
+      "optionalClientScopes": []
     },
     {
       "clientId": "cba-web",
@@ -245,6 +271,13 @@
         }
       ],
       "realmRoles": ["CUSTOMER"],
+      "clientRoles": {}
+    },
+    {
+      "username": "service-account-cba-backend-service",
+      "enabled": true,
+      "serviceAccountClientId": "cba-backend-service",
+      "realmRoles": ["CARD_READER"],
       "clientRoles": {}
     }
   ]

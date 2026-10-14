@@ -107,6 +107,12 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
         </dependency>
+        <!-- Client-credentials token for backend → card-service calls (CardServiceConfig).
+             The library only, not the Boot starter: no global OAuth2 client auto-configuration. -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-oauth2-client</artifactId>
+        </dependency>
 
         <!-- ── Database ─────────────────────────────────────────── -->
         <dependency>

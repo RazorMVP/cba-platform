@@ -4,6 +4,7 @@ import com.cba.account.Account;
 import com.cba.account.AccountRepository;
 import com.cba.account.TransactionRepository;
 import com.cba.common.exception.CbaException;
+import com.cba.config.CustomerAccess;
 import com.cba.openbanking.card.CardAccountAdapter;
 import com.cba.openbanking.card.CardServiceClient;
 import io.swagger.v3.oas.annotations.Operation;
@@ -15,6 +16,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
@@ -42,6 +44,7 @@ public class AccountInfoController {
     private final AccountRepository     accountRepository;
     private final TransactionRepository transactionRepository;
     private final CardServiceClient     cardServiceClient;
+    private final CustomerAccess        customerAccess;
 
     // ── GET /accounts ─────────────────────────────────────────────────────────
 
@@ -180,7 +183,20 @@ public class AccountInfoController {
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
+    /**
+     * A customer's token carries their Keycloak id as {@code sub}, which maps to
+     * {@code customers.keycloak_id} — not to {@code customers.id}, which this used to assume,
+     * so real customers saw no accounts or cards. A TPP ({@code API_CLIENT}) token keeps the
+     * old behaviour until AISP resolves the customer from the consent (follow-up).
+     */
     private UUID resolveCustomerId(Jwt jwt) {
+        boolean customer = SecurityContextHolder.getContext().getAuthentication() != null
+                && SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
+                        .anyMatch(a -> "ROLE_CUSTOMER".equals(a.getAuthority()));
+        if (customer) {
+            return customerAccess.callerCustomerId()
+                    .orElseThrow(() -> CbaException.notFound("Customer", jwt.getSubject()));
+        }
         String sub = jwt.getSubject();
         try {
             return UUID.fromString(sub);

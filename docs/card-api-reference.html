@@ -206,11 +206,12 @@ It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port
 <table>
   <tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr>
   <!-- Cards -->
-  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards</code></td><td>ADMIN/TELLER</td><td>List cards</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards</code></td><td>ADMIN/TELLER/CARD_READER</td><td>List cards (<code>?customerId=</code>)</td></tr>
   <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards</code></td><td>ADMIN/TELLER</td><td>Issue card</td></tr>
-  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/{id}</code></td><td>ADMIN/TELLER</td><td>Card details</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/{id}</code></td><td>ADMIN/TELLER/CARD_READER</td><td>Card details</td></tr>
   <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/{id}?command=</code></td><td>ADMIN/TELLER</td><td>Lifecycle command (block/unblock/cancel/activate/replace)</td></tr>
-  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/{id}/balance</code></td><td>ADMIN/TELLER</td><td>Available balance (debit/prepaid/credit)</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/{id}/balance</code></td><td>ADMIN/TELLER/CARD_READER</td><td>Available balance (debit/prepaid/credit)</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/{id}/authorizations</code></td><td>ADMIN/TELLER/CARD_READER</td><td>Authorization history, newest first (backend Open Banking card transactions)</td></tr>
   <tr><td><span class="badge badge-put">PUT</span></td><td><code>/api/v1/cards/{id}/limits</code></td><td>ADMIN/TELLER</td><td>Update spending limits</td></tr>
   <!-- Fraud -->
   <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/fraud/rules</code></td><td>ADMIN</td><td>List fraud rules</td></tr>
@@ -340,6 +341,23 @@ It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port
     <pre><code>{ "data": { "availableBalance": 250000, "cardType": "DEBIT", "currency": "840" }, "errors": [] }</code></pre>
   </div>
 </details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/cards/{id}/authorizations</span>
+    <span class="endpoint-summary">Authorization history for a card</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Approved and declined authorizations, newest first. The backend's Open Banking layer maps these to OB transactions (<code>GET /open-banking/v3.1/aisp/accounts/{cardId}/transactions</code>). The backend had always called this path; until it existed, card transactions were empty.</p>
+    <h4>Response (200)</h4>
+    <pre><code>{ "data": [ { "id": "...", "cardId": "...", "stan": "000123", "rrn": "612345678901", "mti": "0200",
+  "amount": 45.00, "currencyCode": "840", "responseCode": "00", "merchantName": "Shop", "merchantId": "M1",
+  "mcc": "5411", "financial": true, "createdAt": "2026-10-14T10:00:00+01:00" } ], "errors": [] }</code></pre>
+  </div>
+</details>
+
+<div class="callout info"><strong>CARD_READER — the backend's service role.</strong> The four read endpoints above (list, get, balance, authorizations) also admit the Keycloak realm role <code>CARD_READER</code>, held only by the backend's service account (client <code>cba-backend-service</code>, <code>client_credentials</code>). It is refused everywhere else (card commands, BINs, API keys, …) with <code>403 ACCESS_DENIED</code>. Never assign it to a person.</div>
 </section>
 
 <!-- ═══════════════════════════════════════════════════════════════════════ -->

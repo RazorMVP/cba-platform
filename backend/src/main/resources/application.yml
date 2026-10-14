@@ -69,6 +69,12 @@ cba:
 card:
   service:
     base-url: ${CARD_SERVICE_BASE_URL:http://localhost:8081}
+    # Service token for backend → card-service (client_credentials, Keycloak client
+    # cba-backend-service, realm role CARD_READER). Blank secret = calls go without a token.
+    auth:
+      client-id: ${CARD_SERVICE_CLIENT_ID:cba-backend-service}
+      client-secret: ${CBA_BACKEND_SERVICE_SECRET:}
+      token-uri: ${CARD_SERVICE_TOKEN_URI:http://${KEYCLOAK_HOST:localhost}:${KEYCLOAK_PORT:8180}/realms/cba/protocol/openid-connect/token}
 
 app:
   image:
@@ -244,7 +250,7 @@ keycloak:
 # ── Card Service integration ───────────────────────────────────────────────────
 card:
   service:
-    base-url: http://${CARD_SERVICE_HOST:localhost}:${CARD_SERVICE_PORT:8081}
+    base-url: ${CARD_SERVICE_BASE_URL:http://${CARD_SERVICE_HOST:localhost}:${CARD_SERVICE_PORT:8081}}
 
 server:
   port: 8080
@@ -410,7 +416,8 @@ cba:
 
 card:
   service:
-    base-url: http://${CARD_SERVICE_HOST}:${CARD_SERVICE_PORT:8081}
+    # CARD_SERVICE_BASE_URL is what compose and k8s set; HOST/PORT remain for older configs.
+    base-url: ${CARD_SERVICE_BASE_URL:http://${CARD_SERVICE_HOST}:${CARD_SERVICE_PORT:8081}}
 
 logging:
   level:

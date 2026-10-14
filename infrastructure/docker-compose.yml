@@ -100,6 +100,9 @@ services:
       KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_LOG_LEVEL: "INFO"
       KC_HEALTH_ENABLED: "true"
+      # Secret of client cba-backend-service, filled into cba-realm.json at import (first boot
+      # only — an existing realm is not re-imported). Local default only; set it anywhere real.
+      CBA_BACKEND_SERVICE_SECRET: ${CBA_BACKEND_SERVICE_SECRET:-local-dev-only-change-me}
     volumes:
       - ./keycloak/cba-realm.json:/opt/keycloak/data/import/cba-realm.json:ro
     ports:
@@ -167,6 +170,10 @@ services:
       SPRING_MAIL_PORT: "1025"
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8180/realms/cba
       CARD_SERVICE_BASE_URL: http://card-service:8081
+      # Service token for card-service calls; fetched from the in-network Keycloak so the
+      # token's issuer matches card-service's (http://keycloak:8180/realms/cba).
+      CARD_SERVICE_TOKEN_URI: http://keycloak:8180/realms/cba/protocol/openid-connect/token
+      CBA_BACKEND_SERVICE_SECRET: ${CBA_BACKEND_SERVICE_SECRET:-local-dev-only-change-me}
       JASYPT_ENCRYPTOR_PASSWORD: ${ENCRYPTION_KEY:-dev_encryption_key_at_least_32_chars}
     entrypoint:
       - java

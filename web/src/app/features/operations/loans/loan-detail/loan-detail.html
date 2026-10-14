@@ -294,7 +294,7 @@
                   <td class="amount--paid">{{ inst.principalPaid | currency:'USD':'symbol':'1.2-2' }}</td>
                   <td class="amount--paid">{{ inst.interestPaid | currency:'USD':'symbol':'1.2-2' }}</td>
                   <td>{{ ((inst.interestWaived ?? 0) + (inst.interestCancelled ?? 0)) | currency:'USD':'symbol':'1.2-2' }}</td>
-                  <td><app-status-badge [variant]="installmentVariant(inst.status)" [label]="inst.status | titlecase" /></td>
+                  <td><app-status-badge [variant]="installmentVariant(displayStatus(inst))" [label]="displayStatus(inst) | titlecase" /></td>
                 </tr>
               }
             </tbody>

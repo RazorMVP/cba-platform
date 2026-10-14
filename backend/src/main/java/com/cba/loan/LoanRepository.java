@@ -23,11 +23,6 @@ public interface LoanRepository extends JpaRepository<Loan, UUID> {
     @Query("SELECT l.id FROM Loan l WHERE l.status IN :statuses ORDER BY l.id")
     List<UUID> findIdsByStatusIn(java.util.Collection<LoanStatus> statuses);
 
-    @Query("SELECT l FROM Loan l WHERE l.status = 'ACTIVE' " +
-           "AND EXISTS (SELECT s FROM LoanRepaymentSchedule s " +
-           "WHERE s.loan = l AND s.dueDate < :today AND s.status = 'PENDING')")
-    List<Loan> findLoansWithOverdueInstallments(LocalDate today);
-
     /** Per currency and IFRS 9 stage: [currency, stage, loans, principal, loss allowance, prudential provision]. */
     @Query("SELECT l.product.currencyCode, l.eclStage, COUNT(l), SUM(l.outstandingBalance), " +
            "SUM(l.lossAllowance), SUM(l.prudentialProvision) FROM Loan l WHERE l.status IN :statuses " +
@@ -36,11 +31,14 @@ public interface LoanRepository extends JpaRepository<Loan, UUID> {
 
     long countByStatus(LoanStatus status);
 
-    @Query("SELECT COUNT(DISTINCT s.loan.id) FROM LoanRepaymentSchedule s " +
-           "WHERE s.status = 'OVERDUE' AND s.dueDate >= :from AND s.dueDate < :to")
-    long countLoansWithOverdueBetween(LocalDate from, LocalDate to);
+    /**
+     * Loans in arrears whose oldest unsettled instalment fell due in [from, to): one bucket
+     * per loan, by {@code overdueSince} as the arrears run keeps it (with days past due).
+     */
+    @Query("SELECT COUNT(l) FROM Loan l WHERE l.status = 'IN_ARREARS' " +
+           "AND l.overdueSince >= :from AND l.overdueSince < :to")
+    long countInArrearsOverdueSinceBetween(LocalDate from, LocalDate to);
 
-    @Query("SELECT COUNT(DISTINCT s.loan.id) FROM LoanRepaymentSchedule s " +
-           "WHERE s.status = 'OVERDUE' AND s.dueDate < :before")
-    long countLoansWithOverdueBefore(LocalDate before);
+    @Query("SELECT COUNT(l) FROM Loan l WHERE l.status = 'IN_ARREARS' AND l.overdueSince < :before")
+    long countInArrearsOverdueSinceBefore(LocalDate before);
 }

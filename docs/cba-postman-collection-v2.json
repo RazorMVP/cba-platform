@@ -11064,7 +11064,7 @@
                 "LoansInArrears"
               ]
             },
-            "description": "",
+            "description": "Seeded report (V61): open loans with instalments due before today and not settled (a partly paid instalment counts). Columns: loan_account_number, customer_id, outstanding_balance, days_overdue (from the oldest overdue instalment), amount_overdue (sum of totalDue - totalPaid), ageing_bucket (1-30 days / 31-60 days / 61-90 days / 90+ days). Before V61 it matched nothing and seeded reports failed to load.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -16172,7 +16172,7 @@
                 "loans"
               ]
             },
-            "description": "Returns loan portfolio aging breakdown: pctCurrent (0-30 days), pct30to60, pct60to90, pct90plus \u2014 computed from LoanRepaymentSchedule.dueDate."
+            "description": "Returns loan portfolio aging breakdown. Each IN_ARREARS loan falls in one bucket by its oldest instalment due and not settled (loans.overdue_since): 1-30 (in pctCurrent with loans not overdue), 31-60, 61-90, 90+ days past due. Overdue is derived from the due date (V61); the old buckets filtered on a status nothing stores and were always 0."
           },
           "response": [
             {
@@ -16206,6 +16206,66 @@
             {
               "lang": "Ruby",
               "source": "response = Net::HTTP.get(URI('/api/v1/dashboard/analytics/loans'))"
+            }
+          ]
+        },
+        {
+          "name": "Get Repayment Analytics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/dashboard/analytics/repayments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard",
+                "analytics",
+                "repayments"
+              ]
+            },
+            "description": "Repayment collection for the current month (instalments due this month: count, paid count, amount due, collected, collectionRate %) plus overdueInstallmentCount / overdueBalance across all time: instalments due before today and not settled on ACTIVE/IN_ARREARS loans; balance = sum(totalDue - totalPaid). Derived from the due date (V61) - no instalment is stored as OVERDUE."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\"data\":{\"installmentsDueThisMonth\":120,\"installmentsPaidThisMonth\":96,\"amountDueThisMonth\":48250.0,\"amountCollectedThisMonth\":39100.0,\"collectionRate\":81.0,\"overdueInstallmentCount\":39,\"overdueBalance\":18750.0},\"meta\":null,\"errors\":[]}"
+            }
+          ],
+          "x-code-samples": [
+            {
+              "lang": "cURL",
+              "source": "curl -X GET '{{baseUrl}}/api/v1/dashboard/analytics/repayments' -H 'Authorization: Bearer {{token}}'"
+            },
+            {
+              "lang": "JavaScript",
+              "source": "const r = await fetch('/api/v1/dashboard/analytics/repayments', { headers: { Authorization: `Bearer ${token}` } });\nconst { data } = await r.json();"
+            },
+            {
+              "lang": "Python",
+              "source": "import requests\nr = requests.get('/api/v1/dashboard/analytics/repayments', headers={'Authorization': f'Bearer {token}'})\nprint(r.json()['data'])"
+            },
+            {
+              "lang": "Java",
+              "source": "ResponseEntity<ApiResponse> r = restTemplate.getForEntity(\"/api/v1/dashboard/analytics/repayments\", ApiResponse.class);"
+            },
+            {
+              "lang": "Go",
+              "source": "req, _ := http.NewRequest(\"GET\", \"/api/v1/dashboard/analytics/repayments\", nil)\nreq.Header.Set(\"Authorization\", \"Bearer \"+token)"
+            },
+            {
+              "lang": "Ruby",
+              "source": "response = Net::HTTP.get(URI('/api/v1/dashboard/analytics/repayments'))"
             }
           ]
         }

@@ -9,7 +9,7 @@ import {
   LoanCreateRequest, LoanRescheduleRequest, CreateRescheduleRequest,
   ReagingRequest, CreateReagingRequest, FrequencyType,
   LoanNote, LoanDocument, LoanPayment, ForeclosureQuote, WaiverScope,
-  isOverdue, stillOwed,
+  isOverdue, stillOwed, installmentDisplayStatus,
 } from '../loan.service';
 import { switchMap } from 'rxjs';
 
@@ -546,6 +546,8 @@ export class LoanDetailComponent implements OnInit {
 
   /** Fallen due and not settled (for the schedule row highlight). */
   readonly isOverdue = isOverdue;
+  /** Badge status: OVERDUE once the due date has passed unsettled. */
+  readonly displayStatus = installmentDisplayStatus;
 
   get overdueCount(): number {
     return this.schedule.filter(isOverdue).length;

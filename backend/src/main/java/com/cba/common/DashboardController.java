@@ -94,19 +94,20 @@ public class DashboardController {
         long writtenOff  = loanRepo.countByStatus(LoanStatus.WRITTEN_OFF);
         long foreclosed  = loanRepo.countByStatus(LoanStatus.FORECLOSED);
 
-        // Bucket IN_ARREARS loans by age of oldest OVERDUE installment
+        // Bucket IN_ARREARS loans by their oldest unsettled instalment (overdue_since), so
+        // each loan lands in exactly one bucket
         LocalDate d30  = today.minusDays(30);
         LocalDate d60  = today.minusDays(60);
         LocalDate d90  = today.minusDays(90);
 
-        // 0–30 days past due (OVERDUE installment within last 30 days)
-        long bucket30  = loanRepo.countLoansWithOverdueBetween(d30, today);
+        // 1–30 days past due
+        long bucket30  = loanRepo.countInArrearsOverdueSinceBetween(d30, today);
         // 31–60 days past due
-        long bucket60  = loanRepo.countLoansWithOverdueBetween(d60, d30);
+        long bucket60  = loanRepo.countInArrearsOverdueSinceBetween(d60, d30);
         // 61–90 days past due
-        long bucket90  = loanRepo.countLoansWithOverdueBetween(d90, d60);
+        long bucket90  = loanRepo.countInArrearsOverdueSinceBetween(d90, d60);
         // 90+ days past due
-        long bucket90p = loanRepo.countLoansWithOverdueBefore(d90);
+        long bucket90p = loanRepo.countInArrearsOverdueSinceBefore(d90);
 
         long total = totalActive + inArrears + writtenOff + foreclosed;
         if (total == 0) total = 1; // avoid division by zero
@@ -179,8 +180,8 @@ public class DashboardController {
         long       totalPaid      = scheduleRepo.countPaidBetween(monthStart, monthEnd);
         BigDecimal amountDue      = scheduleRepo.sumDueBetween(monthStart, monthEnd);
         BigDecimal amountCollected= scheduleRepo.sumCollectedBetween(monthStart, monthEnd);
-        long       overdueCount   = scheduleRepo.countOverdue();
-        BigDecimal overdueBalance = scheduleRepo.sumOverdueBalance();
+        long       overdueCount   = scheduleRepo.countOverdue(today);
+        BigDecimal overdueBalance = scheduleRepo.sumOverdueBalance(today);
 
         double collectionRate = (amountDue.compareTo(BigDecimal.ZERO) == 0)
                 ? 0.0

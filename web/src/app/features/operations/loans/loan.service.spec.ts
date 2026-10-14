@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { ApiService } from '../../../core/api/api.service';
-import { LoanService } from './loan.service';
+import { LoanService, RepaymentInstallment, installmentDisplayStatus, isOverdue } from './loan.service';
 
 describe('LoanService', () => {
   let service: LoanService;
@@ -168,5 +168,23 @@ describe('LoanService', () => {
   it('triggerReamortization() posts an empty body', () => {
     service.triggerReamortization('l1').subscribe();
     expect(api.post).toHaveBeenCalledWith('/loans/l1/reamortization', {});
+  });
+});
+
+describe('overdue (derived from the due date — the API never stores OVERDUE)', () => {
+  const inst = (o: Partial<RepaymentInstallment>) =>
+    ({ id: 'i', loanId: 'l1', dueDate: '2000-01-01', principalDue: 0, interestDue: 0, totalDue: 100,
+       principalPaid: 0, interestPaid: 0, status: 'PENDING', ...o }) as RepaymentInstallment;
+
+  it('a past-due PENDING or PARTIALLY_PAID instalment is overdue and shows OVERDUE', () => {
+    expect(isOverdue(inst({}))).toBe(true);
+    expect(installmentDisplayStatus(inst({}))).toBe('OVERDUE');
+    expect(installmentDisplayStatus(inst({ status: 'PARTIALLY_PAID' }))).toBe('OVERDUE');
+  });
+
+  it('settled or not yet due keeps its own status', () => {
+    expect(installmentDisplayStatus(inst({ status: 'PAID' }))).toBe('PAID');
+    expect(installmentDisplayStatus(inst({ status: 'WAIVED' }))).toBe('WAIVED');
+    expect(installmentDisplayStatus(inst({ dueDate: '2999-12-31' }))).toBe('PENDING');
   });
 });

@@ -2,7 +2,7 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule, CurrencyPipe, DatePipe, PercentPipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge';
-import { LoanService, Loan, RepaymentInstallment, isOverdue, stillOwed } from './loan.service';
+import { LoanService, Loan, RepaymentInstallment, isOverdue, stillOwed, installmentDisplayStatus } from './loan.service';
 
 @Component({
   selector: 'app-loans-list',
@@ -84,6 +84,10 @@ export class LoansListComponent implements OnInit {
     };
     return map[s] ?? s;
   }
+
+  /** Fallen due and not settled (row highlight), and the badge status that follows from it. */
+  readonly isOverdue = isOverdue;
+  readonly displayStatus = installmentDisplayStatus;
 
   get overdueCount(): number {
     return this.schedule.filter(isOverdue).length;

@@ -2,6 +2,7 @@ package com.cba.report;
 
 import com.cba.audit.AuditLogService;
 import com.cba.common.exception.CbaException;
+import com.cba.report.dto.ReportResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -48,29 +49,6 @@ class ReportServiceTest {
     class Crud {
 
         @Test
-        @DisplayName("createReport saves and returns report")
-        void createReport_success() {
-            Report r = buildReport("TestReport", "SELECT 1");
-            when(reportRepository.findByReportName("TestReport")).thenReturn(Optional.empty());
-            when(reportRepository.save(any())).thenReturn(r);
-
-            Report result = service.createReport(r);
-            assertThat(result.getReportName()).isEqualTo("TestReport");
-            verify(auditLogService).log(eq("REPORT"), anyString(), eq("CREATED"), any(), anyString());
-        }
-
-        @Test
-        @DisplayName("createReport throws when name already exists")
-        void createReport_duplicateName_throws() {
-            Report r = buildReport("TestReport", "SELECT 1");
-            when(reportRepository.findByReportName("TestReport")).thenReturn(Optional.of(r));
-
-            assertThatThrownBy(() -> service.createReport(r))
-                .isInstanceOf(CbaException.class)
-                .hasMessageContaining("already exists");
-        }
-
-        @Test
         @DisplayName("listReports returns enabled reports")
         void listReports_returnsEnabled() {
             Report r = buildReport("R1", "SELECT 1");
@@ -85,7 +63,7 @@ class ReportServiceTest {
             Report r = buildReport("R1", "SELECT 1");
             when(reportRepository.findById(r.getId())).thenReturn(Optional.of(r));
 
-            assertThat(service.getReport(r.getId()).getReportName()).isEqualTo("R1");
+            assertThat(service.getReport(r.getId()).reportName()).isEqualTo("R1");
         }
 
         @Test

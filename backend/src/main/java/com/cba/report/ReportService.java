@@ -2,6 +2,7 @@ package com.cba.report;
 
 import com.cba.audit.AuditLogService;
 import com.cba.common.exception.CbaException;
+import com.cba.report.dto.ReportResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -28,32 +29,24 @@ public class ReportService {
 
     // ── Report CRUD ───────────────────────────────────────────────────────────
 
-    @Transactional
-    public Report createReport(Report report) {
-        if (reportRepository.findByReportName(report.getReportName()).isPresent()) {
-            throw CbaException.badRequest("REPORT_NAME_EXISTS",
-                    "A report named '" + report.getReportName() + "' already exists");
-        }
-        Report saved = reportRepository.save(report);
-        auditLogService.log("REPORT", saved.getId().toString(), "CREATED", null,
-                "name=" + saved.getReportName());
-        return saved;
+    @Transactional(readOnly = true)
+    public List<ReportResponse> listReports() {
+        return reportRepository.findByEnabledTrue().stream().map(ReportResponse::from).toList();
     }
 
     @Transactional(readOnly = true)
-    public List<Report> listReports() {
-        return reportRepository.findByEnabledTrue();
+    public ReportResponse getReport(UUID id) {
+        return ReportResponse.from(find(id));
     }
 
-    @Transactional(readOnly = true)
-    public Report getReport(UUID id) {
+    private Report find(UUID id) {
         return reportRepository.findById(id)
                 .orElseThrow(() -> CbaException.notFound("Report", id.toString()));
     }
 
     @Transactional
     public void deleteReport(UUID id) {
-        Report report = getReport(id);
+        Report report = find(id);
         if (report.isCoreReport()) {
             throw CbaException.badRequest("CORE_REPORT", "Core system reports cannot be deleted");
         }

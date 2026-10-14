@@ -1,6 +1,7 @@
 package com.cba.report;
 
 import com.cba.common.response.ApiResponse;
+import com.cba.report.dto.ReportResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -27,15 +28,17 @@ public class ReportController {
 
     @GetMapping("/api/v1/reports")
     @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
-    @Operation(summary = "List all enabled reports")
-    public ResponseEntity<ApiResponse<List<Report>>> listReports() {
+    @Operation(summary = "List all enabled reports",
+               description = "Mifos field names: reportCategory (LOAN|SAVINGS|TELLER|CUSTOMER|ACCOUNTING|MIXED), "
+                       + "useReport, coreReport, reportParameters[] (optional = not required).")
+    public ResponseEntity<ApiResponse<List<ReportResponse>>> listReports() {
         return ResponseEntity.ok(ApiResponse.ok(reportService.listReports()));
     }
 
     @GetMapping("/api/v1/reports/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
     @Operation(summary = "Get report definition by ID")
-    public ResponseEntity<ApiResponse<Report>> getReport(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<ReportResponse>> getReport(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(reportService.getReport(id)));
     }
 

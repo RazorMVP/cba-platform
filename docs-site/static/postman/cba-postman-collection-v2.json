@@ -10869,7 +10869,7 @@
                 "reports"
               ]
             },
-            "description": "",
+            "description": "Enabled reports, in Mifos field names: reportCategory (LOAN|SAVINGS|TELLER|CUSTOMER|ACCOUNTING|MIXED), useReport, coreReport, reportParameters[] (optional = not required, ordered by sortOrder). ADMIN, TELLER.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -10881,7 +10881,52 @@
               ]
             }
           },
-          "response": []
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/reports",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "reports"
+                  ]
+                },
+                "description": "Enabled reports, in Mifos field names: reportCategory (LOAN|SAVINGS|TELLER|CUSTOMER|ACCOUNTING|MIXED), useReport, coreReport, reportParameters[] (optional = not required, ordered by sortOrder). ADMIN, TELLER.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"40000000-0000-0000-0000-000000000005\",\n      \"reportName\": \"CustomerAcquisition\",\n      \"reportType\": \"TABLE\",\n      \"reportCategory\": \"CUSTOMER\",\n      \"description\": \"New customers by month\",\n      \"reportSql\": \"SELECT ...\",\n      \"coreReport\": true,\n      \"useReport\": true,\n      \"reportParameters\": [\n        {\n          \"id\": \"6f1c0d2e-0000-0000-0000-000000000001\",\n          \"parameterName\": \"R_startDate\",\n          \"parameterLabel\": \"Start Date\",\n          \"parameterType\": \"DATE\",\n          \"defaultValue\": null,\n          \"optional\": true,\n          \"sortOrder\": 1\n        },\n        {\n          \"id\": \"6f1c0d2e-0000-0000-0000-000000000002\",\n          \"parameterName\": \"R_endDate\",\n          \"parameterLabel\": \"End Date\",\n          \"parameterType\": \"DATE\",\n          \"defaultValue\": null,\n          \"optional\": true,\n          \"sortOrder\": 2\n        }\n      ]\n    }\n  ],\n  \"meta\": null,\n  \"errors\": []\n}"
+            }
+          ]
         },
         {
           "name": "Get report definition",
@@ -10905,7 +10950,7 @@
                 "{{reportId}}"
               ]
             },
-            "description": "",
+            "description": "One report definition, same shape as the list. 404 REPORT_NOT_FOUND. ADMIN, TELLER.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -10917,7 +10962,53 @@
               ]
             }
           },
-          "response": []
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/reports/{{reportId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "reports",
+                    "{{reportId}}"
+                  ]
+                },
+                "description": "One report definition, same shape as the list. 404 REPORT_NOT_FOUND. ADMIN, TELLER.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{accessToken}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"40000000-0000-0000-0000-000000000005\",\n    \"reportName\": \"CustomerAcquisition\",\n    \"reportType\": \"TABLE\",\n    \"reportCategory\": \"CUSTOMER\",\n    \"description\": \"New customers by month\",\n    \"reportSql\": \"SELECT ...\",\n    \"coreReport\": true,\n    \"useReport\": true,\n    \"reportParameters\": [\n      {\n        \"id\": \"6f1c0d2e-0000-0000-0000-000000000001\",\n        \"parameterName\": \"R_startDate\",\n        \"parameterLabel\": \"Start Date\",\n        \"parameterType\": \"DATE\",\n        \"defaultValue\": null,\n        \"optional\": true,\n        \"sortOrder\": 1\n      },\n      {\n        \"id\": \"6f1c0d2e-0000-0000-0000-000000000002\",\n        \"parameterName\": \"R_endDate\",\n        \"parameterLabel\": \"End Date\",\n        \"parameterType\": \"DATE\",\n        \"defaultValue\": null,\n        \"optional\": true,\n        \"sortOrder\": 2\n      }\n    ]\n  },\n  \"meta\": null,\n  \"errors\": []\n}"
+            }
+          ]
         },
         {
           "name": "Delete report",

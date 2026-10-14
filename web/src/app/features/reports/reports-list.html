@@ -6,9 +6,6 @@
       <span class="material-icons">bar_chart</span>
       Reports
     </div>
-    <button class="btn-primary" (click)="openCreateModal()">
-      <span class="material-icons">add</span> New Report
-    </button>
   </div>
 
   <!-- ── Filter bar ── -->
@@ -21,7 +18,7 @@
     <select class="form-select" [(ngModel)]="categoryFilter" (ngModelChange)="applyFilter()">
       <option value="">All Categories</option>
       @for (c of categories; track c) {
-        <option [value]="c">{{ c }}</option>
+        <option [value]="c">{{ categoryLabel(c) }}</option>
       }
     </select>
   </div>
@@ -73,7 +70,7 @@
               </td>
               <td>
                 @if (r.reportCategory) {
-                  <span class="category-chip">{{ r.reportCategory }}</span>
+                  <span class="category-chip">{{ categoryLabel(r.reportCategory) }}</span>
                 } @else {
                   <span class="muted">—</span>
                 }
@@ -199,63 +196,6 @@
           @if (running) { <span class="spinner"></span> }
           @else { <span class="material-icons">play_arrow</span> }
           {{ hasRun ? 'Re-run' : 'Run Report' }}
-        </button>
-      </div>
-    </div>
-  </div>
-}
-
-<!-- ── Create Report Modal ── -->
-@if (activeModal === 'create') {
-  <div class="modal-backdrop" (click)="closeCreateModal()">
-    <div class="modal modal--lg" (click)="$event.stopPropagation()">
-      <div class="modal__header">
-        <span class="material-icons modal__icon">add_chart</span>
-        New Report
-      </div>
-      <div class="modal__body">
-        <div class="form-row">
-          <div class="form-field form-field--half">
-            <label class="form-label">Report Name <span class="required">*</span></label>
-            <input class="form-input" type="text" [(ngModel)]="formName"
-                   placeholder="e.g. ActiveLoans" />
-          </div>
-          <div class="form-field form-field--half">
-            <label class="form-label">Category <span class="form-hint">(optional)</span></label>
-            <input class="form-input" type="text" [(ngModel)]="formCategory"
-                   placeholder="e.g. Loan" />
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-field form-field--half">
-            <label class="form-label">Type</label>
-            <select class="form-input" [(ngModel)]="formType">
-              <option>Table</option>
-              <option>Chart</option>
-              <option>SMS</option>
-              <option>Email</option>
-            </select>
-          </div>
-          <div class="form-field form-field--half">
-            <label class="form-label">Description <span class="form-hint">(optional)</span></label>
-            <input class="form-input" type="text" [(ngModel)]="formDesc" placeholder="Brief description" />
-          </div>
-        </div>
-        <div class="form-field">
-          <label class="form-label">SQL Query <span class="required">*</span></label>
-          <textarea class="form-textarea" rows="6" [(ngModel)]="formSql"
-                    placeholder="SELECT ... FROM ... WHERE ...&#10;Use ${paramName} for parameters"></textarea>
-        </div>
-        @if (createError) {
-          <div class="modal__error">{{ createError }}</div>
-        }
-      </div>
-      <div class="modal__footer">
-        <button class="btn-secondary" (click)="closeCreateModal()" [disabled]="createWorking">Cancel</button>
-        <button class="btn-primary" (click)="submitCreate()"
-                [disabled]="createWorking || !formName || !formSql">
-          @if (createWorking) { <span class="spinner"></span> }
-          Create Report
         </button>
       </div>
     </div>

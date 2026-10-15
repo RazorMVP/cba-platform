@@ -3361,6 +3361,10 @@ components:
           - DECLINE
         scheme:
           type: string
+        holdReference:
+          type: string
+        walletDebit:
+          type: number
         createdAt:
           type: string
           format: date-time

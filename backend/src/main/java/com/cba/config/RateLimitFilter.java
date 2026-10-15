@@ -107,8 +107,16 @@ public class RateLimitFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
+    /**
+     * card-service's debit-card balance check runs inside every card authorization, all under one
+     * service identity: limiting it would turn card traffic into RC 91 declines. It is a cheap read
+     * behind the CARD_SERVICE role.
+     */
+    private static final java.util.regex.Pattern CARD_FUNDS_PATH =
+            java.util.regex.Pattern.compile("^/api/v1/accounts/[^/]+/(balance|card-holds(/[^/]+/release)?)$");
+
     private boolean isRateLimited(String path) {
-        if (EXCLUDED_PREFIXES.stream().anyMatch(path::startsWith)) {
+        if (EXCLUDED_PREFIXES.stream().anyMatch(path::startsWith) || CARD_FUNDS_PATH.matcher(path).matches()) {
             return false;
         }
         return RATE_LIMITED_PREFIXES.stream().anyMatch(path::startsWith);

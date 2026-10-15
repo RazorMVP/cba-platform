@@ -140,6 +140,12 @@ Legend for **State**:
     them, so every authorization declines with RC 96.
   - **Verify:** the client_credentials token's `realm_access.roles` is `["FEP_SERVICE"]`; `curl -X POST
     $CARD/api/v1/internal/detokenize` without a token → 401.
+- **card-service → backend service token** (cont. 35): the backend's `GET /api/v1/accounts/{id}/balance`
+  (debit-card funds check) admits realm role **`CARD_SERVICE`**, held only by client **`cba-card-service`**.
+  - **Secret:** `CBA_CARD_SERVICE_SECRET` for both Keycloak and card-service (k8s `keycloak-secret` + `card-service-secret`).
+  - **Token URI:** `BACKEND_TOKEN_URI`, on the same Keycloak host as the backend's issuer.
+  - **Unset secret:** card-service logs a WARN and every debit-card authorization declines RC 91.
+  - **Settlement isolation:** settlement HTTPS uses a separate `settlementRestTemplate` that never carries this token.
 - **card-service edge (cont. 34):**
   - the public ingress sends `/api/v1/internal` and `/actuator` to `card-service-blackhole` (no endpoints → 503);
   - `card-service-networkpolicy.yaml` admits only fep-service, backend and the ingress controller on 8081. The
@@ -158,20 +164,21 @@ card data comes back empty (backend), and the logs show `No card-service token �
 |---|---|---|---|
 | `CBA_FEP_SERVICE_SECRET` | client `cba-fep-service` | fep-service | `keycloak-secret`, `fep-service-secret` |
 | `CBA_BACKEND_SERVICE_SECRET` | client `cba-backend-service` | backend | `keycloak-secret`, `backend-secret` |
+| `CBA_CARD_SERVICE_SECRET` | client `cba-card-service` | card-service | `keycloak-secret`, `card-service-secret` |
 
 - Generate each with `openssl rand -base64 32`, and put the **same** value in both secrets of its row.
 - Mismatch → Keycloak answers `401 invalid_client`. Unset in the service → a startup WARN, then calls go without a token.
 
 **2. An existing realm is not updated.** `--import-realm` skips a realm that already exists (Keycloak
 behaviour), so on a Keycloak that already has realm `cba`, create these by hand in the admin console:
-1. Realm roles → create `FEP_SERVICE` (and `CARD_READER` if missing).
+1. Realm roles → create `FEP_SERVICE`, `CARD_SERVICE` (and `CARD_READER` if missing).
 2. Clients → create `cba-fep-service`, with:
    - **Client authentication** ON;
    - every flow off except **Service accounts roles**;
    - default client scope `roles`.
 
-   Do the same for `cba-backend-service` if it's missing.
-3. Each client's **Service account roles** tab → assign **only** its role (`FEP_SERVICE` / `CARD_READER`).
+   Do the same for `cba-card-service` and `cba-backend-service` if they're missing.
+3. Each client's **Service account roles** tab → assign **only** its role (`FEP_SERVICE` / `CARD_SERVICE` / `CARD_READER`).
    `KeycloakRealmServiceClientTest` guards the realm *files*, not a live server.
 4. **Credentials** tab → copy or set the secret, and use that value in both k8s secrets (item 1).
 

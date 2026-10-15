@@ -1,6 +1,9 @@
 package com.cba.account;
 
 import com.cba.account.algorithm.AccountNumberAlgorithmService;
+import com.cba.account.dto.CardFunds;
+import com.cba.account.dto.CardHoldRequest;
+import com.cba.account.dto.CardHoldResult;
 import com.cba.account.dto.*;
 import com.cba.audit.AuditLogService;
 import com.cba.common.exception.CbaException;
@@ -276,22 +279,45 @@ public class AccountService {
         return new BalanceChange(account, before, tx);
     }
 
+    /**
+     * What a card authorization may spend (card-service, debit cards): the same rules as a
+     * withdrawal ({@link #checkDebitAllowed}), answered instead of enforced. Read-only.
+     */
+    @Transactional(readOnly = true)
+    public CardFunds cardFunds(UUID accountId) {
+        Account account = findById(accountId);
+        String reason = account.getStatus() != AccountStatus.ACTIVE ? "ACCOUNT_NOT_ACTIVE"
+                : lockinExpiry(account) != null ? "ACCOUNT_IN_LOCKIN_PERIOD"
+                : null;
+        BigDecimal available = reason == null ? spendable(account).max(BigDecimal.ZERO) : BigDecimal.ZERO;
+        return new CardFunds(account.getId(), account.getCurrencyCode(), available, reason == null, reason);
+    }
+
+    /** Balance − active holds − the effective floor (minimum balance, or minus the overdraft limit). */
+    private BigDecimal spendable(Account account) {
+        BigDecimal onHold = accountHoldRepository.sumActiveHoldsByAccount(account.getId());
+        return account.getBalance().subtract(onHold).subtract(account.computeEffectiveFloor());
+    }
+
+    /** The lock-in end date when lock-in is enforced and still running; otherwise null. */
+    private LocalDate lockinExpiry(Account account) {
+        if (!isConfigEnabled("enforce-lockin-period-withdrawal")) return null;
+        LocalDate expiry = computeLockinExpiry(account.getProduct(), account.getOpenedDate());
+        return expiry != null && !LocalDate.now().isAfter(expiry) ? expiry : null;
+    }
+
     /** Withdrawal rules; returns the effective available balance the debit may use. */
     private BigDecimal checkDebitAllowed(Account account, BigDecimal amount) {
         validateAccountActive(account);
 
-        if (isConfigEnabled("enforce-lockin-period-withdrawal")) {
-            LocalDate expiry = computeLockinExpiry(account.getProduct(), account.getOpenedDate());
-            if (expiry != null && !LocalDate.now().isAfter(expiry)) {
-                throw CbaException.badRequest("ACCOUNT_IN_LOCKIN_PERIOD",
-                    "Withdrawals are not permitted until the lock-in period ends on " + expiry);
-            }
+        LocalDate lockin = lockinExpiry(account);
+        if (lockin != null) {
+            throw CbaException.badRequest("ACCOUNT_IN_LOCKIN_PERIOD",
+                "Withdrawals are not permitted until the lock-in period ends on " + lockin);
         }
 
-        BigDecimal onHold = accountHoldRepository.sumActiveHoldsByAccount(account.getId());
-        BigDecimal available = account.getBalance().subtract(onHold);
         BigDecimal floor = account.computeEffectiveFloor();
-        BigDecimal effectiveAvailable = available.subtract(floor);
+        BigDecimal effectiveAvailable = spendable(account);
         if (effectiveAvailable.compareTo(amount) < 0) {
             String msg = floor.compareTo(BigDecimal.ZERO) > 0
                 ? "Withdrawal would breach minimum balance requirement of " + floor
@@ -299,6 +325,87 @@ public class AccountService {
             throw CbaException.badRequest("BELOW_MINIMUM_BALANCE", msg);
         }
         return effectiveAvailable;
+    }
+
+    // ── Card holds (card-service) ─────────────────────────────────────────────
+
+    /** Days a card authorization's hold reserves funds (the scheme authorization lifetime). */
+    @org.springframework.beans.factory.annotation.Value("${card.hold-expiry-days:7}")
+    private int cardHoldExpiryDays = 7;
+
+    /**
+     * Reserves a card authorization's amount: under the account's row lock, applies the withdrawal
+     * rules and places a hold in the same transaction, so two authorizations can't both spend the
+     * same balance. Idempotent on {@code reference}: a repeat returns the existing hold. A decline
+     * is a result ({@code approved=false} + reason), not an error.
+     */
+    @Transactional
+    public CardHoldResult placeCardHold(UUID accountId, CardHoldRequest request, String createdBy) {
+        Account account = accountRepository.findByIdWithLock(accountId)
+            .orElseThrow(() -> CbaException.notFound("Account", accountId));
+
+        var existing = accountHoldRepository.findByAccountIdAndExternalReference(accountId, request.reference());
+        if (existing.isPresent()) {
+            // A repeat is a retry only if it asks for the same amount: otherwise it's a different
+            // authorization reusing the key, and approving it would cover it with the wrong hold.
+            AccountHold h = existing.get();
+            String why = h.getStatus() != AccountHoldStatus.ACTIVE ? "HOLD_RELEASED"
+                    : h.getAmount().compareTo(request.amount()) != 0 ? "REFERENCE_CONFLICT"
+                    : null;
+            return new CardHoldResult(why == null, h.getId(), h.getExternalReference(), h.getStatus().name(),
+                    why, spendable(account).max(BigDecimal.ZERO));
+        }
+
+        String reason = account.getStatus() != AccountStatus.ACTIVE ? "ACCOUNT_NOT_ACTIVE"
+                : lockinExpiry(account) != null ? "ACCOUNT_IN_LOCKIN_PERIOD"
+                : !account.getCurrencyCode().equalsIgnoreCase(request.currencyCode()) ? "CURRENCY_MISMATCH"
+                : spendable(account).compareTo(request.amount()) < 0 ? "INSUFFICIENT_FUNDS"
+                : null;
+        if (reason != null) {
+            return new CardHoldResult(false, null, request.reference(), null, reason,
+                    reason.startsWith("ACCOUNT_") ? BigDecimal.ZERO : spendable(account).max(BigDecimal.ZERO));
+        }
+
+        AccountHold hold = new AccountHold();
+        hold.setAccount(account);
+        hold.setAmount(request.amount());
+        hold.setReason("Card authorization " + request.reference());
+        hold.setExternalReference(request.reference());
+        hold.setReferenceNumber("CHD-" + System.currentTimeMillis());
+        hold.setExpiryDate(LocalDate.now().plusDays(cardHoldExpiryDays));
+        hold.setCreatedBy(createdBy);
+        AccountHold saved = accountHoldRepository.saveAndFlush(hold);
+        auditLogService.log("ACCOUNT_HOLD", saved.getId().toString(), "CARD_HOLD_PLACED", null,
+            "amount=" + request.amount() + " reference=" + request.reference());
+        return new CardHoldResult(true, saved.getId(), saved.getExternalReference(), saved.getStatus().name(), null,
+                spendable(account).max(BigDecimal.ZERO));
+    }
+
+    /**
+     * Releases a card authorization's hold (reversal). Idempotent: a hold that is already released
+     * or expired, or was never placed, is left as is and reported with {@code approved=false}.
+     */
+    @Transactional
+    public CardHoldResult releaseCardHold(UUID accountId, String reference, String releasedBy) {
+        Account account = accountRepository.findByIdWithLock(accountId)
+            .orElseThrow(() -> CbaException.notFound("Account", accountId));
+        var existing = accountHoldRepository.findByAccountIdAndExternalReference(accountId, reference);
+        if (existing.isEmpty()) {
+            return new CardHoldResult(false, null, reference, null, "HOLD_NOT_FOUND", spendable(account).max(BigDecimal.ZERO));
+        }
+        AccountHold hold = existing.get();
+        if (hold.getStatus() != AccountHoldStatus.ACTIVE) {
+            return new CardHoldResult(false, hold.getId(), reference, hold.getStatus().name(), "HOLD_NOT_ACTIVE",
+                    spendable(account).max(BigDecimal.ZERO));
+        }
+        hold.setStatus(AccountHoldStatus.RELEASED);
+        hold.setReleasedAt(java.time.Instant.now());
+        hold.setReleasedBy(releasedBy);
+        accountHoldRepository.saveAndFlush(hold);
+        auditLogService.log("ACCOUNT_HOLD", hold.getId().toString(), "CARD_HOLD_RELEASED", null,
+            "reference=" + reference);
+        return new CardHoldResult(true, hold.getId(), reference, hold.getStatus().name(), null,
+                spendable(account).max(BigDecimal.ZERO));
     }
 
     // ── Holds ─────────────────────────────────────────────────────────────────

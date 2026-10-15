@@ -978,6 +978,36 @@ Where:
 <p>Funds holds reserve a portion of the account balance. <code>availableBalance = balance − Σ(ACTIVE holds)</code>. The <code>AccountResponse</code> includes <code>availableBalance</code>, <code>onHoldAmount</code>, and <code>lastTransactionDate</code>. Holds are automatically expired when an account is marked DORMANT (nightly CoB at 23:56).</p>
 
 <details class="endpoint">
+  <summary><span class="method get">GET</span> /api/v1/accounts/{id}/balance</summary>
+  <p>What a card authorization may spend — called by <strong>card-service</strong> for every debit-card authorization, with its service token (Keycloak client <code>cba-card-service</code>, realm role <code>CARD_SERVICE</code>; ADMIN and TELLER may call it too). Same rules as a withdrawal: <code>availableBalance</code> = balance − ACTIVE holds − minimum balance (or <strong>+</strong> the overdraft limit when the product allows overdraft), in <strong>major units</strong> of <code>currencyCode</code>, floored at 0. When the account can't be debited, <code>debitAllowed</code> is false, <code>availableBalance</code> is 0 and <code>reason</code> is <code>ACCOUNT_NOT_ACTIVE</code> (frozen, dormant, closed…) or <code>ACCOUNT_IN_LOCKIN_PERIOD</code> (only while global config <code>enforce-lockin-period-withdrawal</code> is on). No customer data. Excluded from rate limiting (it runs inside every card authorization). Unknown id → <code>404 ACCOUNT_NOT_FOUND</code>. <em>Cont. 35: card-service had always called this path; until then it didn't exist and every debit-card authorization declined RC 91.</em></p>
+  <h4>Response — 200 OK</h4>
+<pre><code>{
+  "data": {
+    "accountId": "40000000-0000-0000-0000-000000000001",
+    "currencyCode": "USD",
+    "availableBalance": 15420.75,
+    "debitAllowed": true,
+    "reason": null
+  },
+  "errors": []
+}</code></pre>
+</details>
+
+<details class="endpoint">
+  <summary><span class="method post">POST</span> /api/v1/accounts/{id}/card-holds</summary>
+  <p>Reserves a card authorization's amount — called by <strong>card-service</strong> on every debit-card purchase approval (role <code>CARD_SERVICE</code>; ADMIN too). Under the account's row lock (<code>SELECT … FOR UPDATE</code>) it applies the withdrawal rules (active, lock-in, currency, spendable = balance − active holds − floor) and places an account hold in the same transaction, so two authorizations can't both spend the same balance. <strong>Idempotent on <code>reference</code></strong> (card-service sends <code>CARD-</code> + 40 hex characters of SHA-256 over card, STAN, RRN, terminal, amount and currency; unique per account): a repeat <em>with the same amount</em> returns the existing hold; the same reference with another amount is refused (<code>REFERENCE_CONFLICT</code>); a reference already released can't hold again (<code>HOLD_RELEASED</code>). The hold expires after <code>card.hold-expiry-days</code> (7) — an expired hold stops reducing the balance. Holds post nothing to the GL (a restriction, not a movement). A decline is <strong>200</strong> with <code>approved=false</code> and <code>reason</code>: <code>INSUFFICIENT_FUNDS</code>, <code>ACCOUNT_NOT_ACTIVE</code>, <code>ACCOUNT_IN_LOCKIN_PERIOD</code>, <code>CURRENCY_MISMATCH</code>, <code>REFERENCE_CONFLICT</code>, <code>HOLD_RELEASED</code>. Not rate-limited.</p>
+  <h4>Body</h4>
+<pre><code>{ "reference": "CARD-3f1c9a0e5b7d24c8a61f0e9b2d7c45a8e1b3f6d0", "amount": 25.00, "currencyCode": "USD" }</code></pre>
+  <h4>Response — 200 OK</h4>
+<pre><code>{ "data": { "approved": true, "holdId": "…", "reference": "CARD-…", "status": "ACTIVE", "reason": null, "availableBalance": 15395.75 }, "errors": [] }</code></pre>
+</details>
+
+<details class="endpoint">
+  <summary><span class="method post">POST</span> /api/v1/accounts/{id}/card-holds/{reference}/release</summary>
+  <p>Releases a card authorization's hold — card-service, on a reversal (0400/0420). <strong>Idempotent:</strong> a hold already released or expired is reported with <code>approved=false</code>, <code>reason=HOLD_NOT_ACTIVE</code>; an unknown reference with <code>HOLD_NOT_FOUND</code>. Role <code>CARD_SERVICE</code>, ADMIN.</p>
+</details>
+
+<details class="endpoint">
   <summary>
     <span class="method get">GET</span>
     <span class="endpoint-path">/api/v1/accounts/{id}/holds</span>
@@ -3208,6 +3238,9 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <!-- Savings Accounts -->
 <tr><td>GET</td><td>/api/v1/accounts</td><td>List accounts (filter by ?customerId, ?accountType, ?status)</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/accounts/{id}</td><td>Get account details</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>GET</td><td>/api/v1/accounts/{id}/balance</td><td>Spendable balance for a card authorization (card-service debit cards): <code>{accountId, currencyCode, availableBalance, debitAllowed, reason}</code>. No PII. Not rate-limited</td><td>CARD_SERVICE (card-service), ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/accounts/{id}/card-holds</td><td>Reserve a card authorization's amount: atomic check-and-hold under the account's row lock; idempotent on <code>reference</code>; decline = 200 with <code>approved=false</code> + reason</td><td>CARD_SERVICE, ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/accounts/{id}/card-holds/{reference}/release</td><td>Release a card authorization's hold (reversal); idempotent</td><td>CARD_SERVICE, ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/accounts</td><td>Open account</td><td>ADMIN, TELLER</td></tr>
 <tr><td>PUT</td><td>/api/v1/accounts/{id}/status</td><td>Change account status (ACTIVE/FROZEN/DORMANT/CLOSED)</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/accounts/{id}/deposit</td><td>Teller deposit — creates immutable Transaction ledger record</td><td>ADMIN, TELLER</td></tr>

@@ -74,6 +74,14 @@ public class AuthorizationLog {
     @Column(length = 20)
     private String scheme;
 
+    /** Backend account hold reserving this approval's amount (debit cards); released on reversal. */
+    @Column(name = "hold_reference", length = 64)
+    private String holdReference;
+
+    /** Amount taken from the prepaid wallet by this approval (major units); restored on reversal. */
+    @Column(name = "wallet_debit", precision = 19, scale = 4)
+    private BigDecimal walletDebit;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
 }

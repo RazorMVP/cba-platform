@@ -427,6 +427,28 @@ components:
         meta:
           $ref: "#/components/schemas/PageMeta"
       type: "object"
+    ApiResponseCardFunds:
+      properties:
+        data:
+          $ref: "#/components/schemas/CardFunds"
+        errors:
+          items:
+            $ref: "#/components/schemas/ApiError"
+          type: "array"
+        meta:
+          $ref: "#/components/schemas/PageMeta"
+      type: "object"
+    ApiResponseCardHoldResult:
+      properties:
+        data:
+          $ref: "#/components/schemas/CardHoldResult"
+        errors:
+          items:
+            $ref: "#/components/schemas/ApiError"
+          type: "array"
+        meta:
+          $ref: "#/components/schemas/PageMeta"
+      type: "object"
     ApiResponseCashTransactionResponse:
       properties:
         data:
@@ -3013,6 +3035,52 @@ components:
         totalRows:
           format: "int32"
           type: "integer"
+      type: "object"
+    CardFunds:
+      properties:
+        accountId:
+          format: "uuid"
+          type: "string"
+        availableBalance:
+          type: "number"
+        currencyCode:
+          type: "string"
+        debitAllowed:
+          type: "boolean"
+        reason:
+          type: "string"
+      type: "object"
+    CardHoldRequest:
+      properties:
+        amount:
+          minimum: 0.01
+          type: "number"
+        currencyCode:
+          maxLength: 3
+          minLength: 0
+          type: "string"
+        reference:
+          maxLength: 64
+          minLength: 0
+          type: "string"
+      required:
+      - "amount"
+      type: "object"
+    CardHoldResult:
+      properties:
+        approved:
+          type: "boolean"
+        availableBalance:
+          type: "number"
+        holdId:
+          format: "uuid"
+          type: "string"
+        reason:
+          type: "string"
+        reference:
+          type: "string"
+        status:
+          type: "string"
       type: "object"
     CashFlowEntryDto:
       properties:
@@ -12366,6 +12434,93 @@ paths:
       security:
       - oauth2: []
       summary: "Execute account lifecycle command (approve, activate, reject, reactivate)"
+      tags:
+      - "Accounts"
+  /api/v1/accounts/{id}/balance:
+    get:
+      description: "availableBalance = balance − active holds − minimum balance (or\
+        \ + overdraft limit), major units of currencyCode; 0 with debitAllowed=false\
+        \ and a reason (ACCOUNT_NOT_ACTIVE | ACCOUNT_IN_LOCKIN_PERIOD) when the account\
+        \ can't be debited."
+      operationId: "getCardFunds"
+      parameters:
+      - in: "path"
+        name: "id"
+        required: true
+        schema:
+          format: "uuid"
+          type: "string"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCardFunds"
+          description: "OK"
+      security:
+      - oauth2: []
+      summary: "Spendable balance for a card authorization (card-service)"
+      tags:
+      - "Accounts"
+  /api/v1/accounts/{id}/card-holds:
+    post:
+      description: "Atomic check-and-hold under the account's row lock. reasons: INSUFFICIENT_FUNDS,\
+        \ ACCOUNT_NOT_ACTIVE, ACCOUNT_IN_LOCKIN_PERIOD, CURRENCY_MISMATCH, HOLD_RELEASED\
+        \ (reference already used and released). The hold expires after card.hold-expiry-days\
+        \ (7)."
+      operationId: "placeCardHold"
+      parameters:
+      - in: "path"
+        name: "id"
+        required: true
+        schema:
+          format: "uuid"
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardHoldRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCardHoldResult"
+          description: "OK"
+      security:
+      - oauth2: []
+      summary: "Reserve funds for a card authorization (card-service)"
+      tags:
+      - "Accounts"
+  /api/v1/accounts/{id}/card-holds/{reference}/release:
+    post:
+      description: "Idempotent: an already released, expired or unknown hold is reported\
+        \ with approved=false (HOLD_NOT_ACTIVE / HOLD_NOT_FOUND)."
+      operationId: "releaseCardHold"
+      parameters:
+      - in: "path"
+        name: "id"
+        required: true
+        schema:
+          format: "uuid"
+          type: "string"
+      - in: "path"
+        name: "reference"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCardHoldResult"
+          description: "OK"
+      security:
+      - oauth2: []
+      summary: "Release a card authorization's hold (card-service reversal)"
       tags:
       - "Accounts"
   /api/v1/accounts/{id}/deposit:

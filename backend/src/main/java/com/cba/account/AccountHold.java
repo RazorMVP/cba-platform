@@ -38,6 +38,10 @@ public class AccountHold {
     @Column(name = "reference_number", length = 50)
     private String referenceNumber;
 
+    /** Caller's idempotency key (card authorizations); unique per account. Null for teller holds. */
+    @Column(name = "external_reference", length = 64)
+    private String externalReference;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private AccountHoldStatus status = AccountHoldStatus.ACTIVE;

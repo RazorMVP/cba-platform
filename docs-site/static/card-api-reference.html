@@ -414,6 +414,25 @@ It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port
 <h2>Authorization (Internal)</h2>
 <p>Called by <strong>fep-service</strong> for every 0100/0200 ISO 8583 message. Not intended for external integrators.</p>
 <div class="callout info"><strong>Auth (cont. 34):</strong> every <code>/api/v1/internal/**</code> endpoint (<code>/authorize</code>, <code>/advise</code>, <code>/reverse</code>, <code>/detokenize</code>) requires a JWT with realm role <code>FEP_SERVICE</code>, held only by Keycloak client <code>cba-fep-service</code>'s service account. No token → <code>401</code>; ADMIN/TELLER/CUSTOMER/CARD_READER → <code>403</code>. They had been open on the assumption of network isolation the k8s ingress never gave. The unused <code>GET /api/v1/internal/cards/{cardId}/authorizations</code> was removed (history: <code>GET /api/v1/cards/{id}/authorizations</code>). An unknown card now declines with RC <code>14</code> (it was a 500, and its log row was rolled back).</div>
+<div class="callout info"><strong>Funds check (cont. 35):</strong> <code>amount</code> is <strong>DE4, minor units</strong> of the DE49 currency (2500 = 25.00 USD; 0 decimals for JPY, 3 for KWD). It is converted to major units before it's compared with the balance. Until cont. 35 it was compared raw, so 25.00 against a 500.00 balance declined.
+<ul>
+<li><strong>DEBIT:</strong> the backend's <code>GET /api/v1/accounts/{id}/balance</code> (service token, client <code>cba-card-service</code>, role <code>CARD_SERVICE</code>).
+  <ul>
+  <li><code>51</code> insufficient funds.</li>
+  <li><code>57</code> when the account can't be debited (frozen, dormant, lock-in) or the transaction currency differs from the account's (no FX on the authorization path).</li>
+  <li><code>91</code> when the backend can't be reached.</li>
+  </ul></li>
+<li><strong>PREPAID:</strong> the same units and currency rules against the wallet.</li>
+<li><strong>CREDIT:</strong> <code>57</code>. The backend has no revolving credit line yet, so there's nothing to authorize against.</li>
+<li><strong>Balance inquiry</strong> (processing code <code>310000</code>) returns the available balance in major units and reserves nothing.</li>
+<li><strong>Approvals reserve funds.</strong>
+  <ul>
+  <li>Debit: an atomic backend hold (<code>POST /api/v1/accounts/{id}/card-holds</code>, keyed by a SHA-256 of card, STAN, RRN, terminal, amount and currency, so a retried 0100 doesn't hold twice and a different authorization can't reuse another's hold; a reused key with another amount declines <code>94</code>). It expires after 7 days. If card-service's transaction rolls back after the hold was placed, the hold is released.</li>
+  <li>Prepaid: the wallet is decremented under a row lock.</li>
+  <li>A reversal (<code>/reverse</code>, 0400/0420) of an approved authorization releases the hold or restores the wallet, once. If the backend can't be reached to release the hold, the reversal answers <code>96</code> and is <strong>not</strong> recorded, so the network's retry releases it.</li>
+  </ul>
+  Until cont. 35, approvals reserved nothing, so any number could pass against the same balance. Authorization-history responses carry the reservation as <code>holdReference</code> / <code>walletDebit</code>. Clearing (taking the money) and the GL for card spend are still to come.</li>
+</ul></div>
 
 <details class="endpoint">
   <summary class="endpoint-header">

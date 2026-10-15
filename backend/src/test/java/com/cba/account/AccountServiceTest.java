@@ -795,4 +795,200 @@ class AccountServiceTest {
             assertThat(template).containsKey("accountTypes");
         }
     }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    // cardFunds — what a card authorization may spend (card-service, debit cards)
+    // ────────────────────────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("cardFunds")
+    class CardFundsTests {
+
+        private com.cba.account.dto.CardFunds funds() {
+            when(accountRepository.findById(accountId)).thenReturn(Optional.of(activeAccount));
+            return accountService.cardFunds(accountId);
+        }
+
+        @Test
+        @DisplayName("balance − active holds − minimum balance, in the account's currency")
+        void holdsAndMinimumBalance() {
+            product.setMinimumBalance(new BigDecimal("100.00"));
+            when(accountHoldRepository.sumActiveHoldsByAccount(accountId)).thenReturn(new BigDecimal("250.00"));
+            var f = funds();
+            assertThat(f.availableBalance()).isEqualByComparingTo("650.00"); // 1000 − 250 − 100
+            assertThat(f.currencyCode()).isEqualTo("USD");
+            assertThat(f.debitAllowed()).isTrue();
+            assertThat(f.reason()).isNull();
+        }
+
+        @Test
+        @DisplayName("an overdraft adds its limit (the floor is minus the limit)")
+        void overdraftAddsLimit() {
+            product.setAllowOverdraft(true);
+            product.setOverdraftLimit(new BigDecimal("500.00"));
+            stubNoHolds(accountId);
+            assertThat(funds().availableBalance()).isEqualByComparingTo("1500.00");
+        }
+
+        @Test
+        @DisplayName("never negative: holds beyond the balance give 0, still debitAllowed")
+        void flooredAtZero() {
+            when(accountHoldRepository.sumActiveHoldsByAccount(accountId)).thenReturn(new BigDecimal("1200.00"));
+            var f = funds();
+            assertThat(f.availableBalance()).isEqualByComparingTo("0");
+            assertThat(f.debitAllowed()).isTrue();
+        }
+
+        @Test
+        @DisplayName("FROZEN or DORMANT: debitAllowed=false, ACCOUNT_NOT_ACTIVE, 0")
+        void notActive() {
+            for (AccountStatus status : new AccountStatus[]{AccountStatus.FROZEN, AccountStatus.DORMANT}) {
+                activeAccount.setStatus(status);
+                var f = funds();
+                assertThat(f.debitAllowed()).as(status.name()).isFalse();
+                assertThat(f.reason()).isEqualTo("ACCOUNT_NOT_ACTIVE");
+                assertThat(f.availableBalance()).isEqualByComparingTo("0");
+            }
+            verifyNoInteractions(accountHoldRepository);
+        }
+
+        @Test
+        @DisplayName("lock-in counts only while enforced: in lock-in → ACCOUNT_IN_LOCKIN_PERIOD; config off → spendable")
+        void lockin() {
+            product.setLockinPeriodFrequency(12);
+            product.setLockinPeriodFrequencyType(LockInFrequencyType.MONTHS);
+            activeAccount.setOpenedDate(LocalDate.now().minusMonths(3));
+            GlobalConfiguration on = new GlobalConfiguration();
+            on.setEnabled(true);
+            on.setBooleanValue(true);
+            when(globalConfigRepository.findByName("enforce-lockin-period-withdrawal")).thenReturn(Optional.of(on));
+
+            var f = funds();
+            assertThat(f.debitAllowed()).isFalse();
+            assertThat(f.reason()).isEqualTo("ACCOUNT_IN_LOCKIN_PERIOD");
+
+            when(globalConfigRepository.findByName("enforce-lockin-period-withdrawal")).thenReturn(Optional.empty());
+            stubNoHolds(accountId);
+            assertThat(funds().debitAllowed()).isTrue();
+        }
+
+        @Test
+        @DisplayName("unknown account: not found")
+        void unknown() {
+            when(accountRepository.findById(accountId)).thenReturn(Optional.empty());
+            assertThatThrownBy(() -> accountService.cardFunds(accountId)).isInstanceOf(CbaException.class);
+        }
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    // card holds — atomic check-and-hold for card authorizations (card-service)
+    // ────────────────────────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("card holds")
+    class CardHolds {
+
+        private final com.cba.account.dto.CardHoldRequest req =
+                new com.cba.account.dto.CardHoldRequest("CARD-c1-000001-RRN1", new BigDecimal("400.00"), "USD");
+
+        @BeforeEach
+        void lock() {
+            when(accountRepository.findByIdWithLock(accountId)).thenReturn(Optional.of(activeAccount));
+        }
+
+        @Test
+        @DisplayName("approves under the row lock and places a hold with the reference and a 7-day expiry")
+        void approves() {
+            when(accountHoldRepository.findByAccountIdAndExternalReference(accountId, req.reference())).thenReturn(Optional.empty());
+            stubNoHolds(accountId);
+            when(accountHoldRepository.saveAndFlush(any(AccountHold.class))).thenAnswer(inv -> {
+                AccountHold h = inv.getArgument(0);
+                h.setId(UUID.randomUUID());
+                return h;
+            });
+
+            var r = accountService.placeCardHold(accountId, req, "service-account-cba-card-service");
+
+            assertThat(r.approved()).isTrue();
+            assertThat(r.holdId()).isNotNull();
+            var saved = org.mockito.ArgumentCaptor.forClass(AccountHold.class);
+            verify(accountHoldRepository).saveAndFlush(saved.capture());
+            assertThat(saved.getValue().getExternalReference()).isEqualTo(req.reference());
+            assertThat(saved.getValue().getAmount()).isEqualByComparingTo("400.00");
+            assertThat(saved.getValue().getExpiryDate()).isEqualTo(LocalDate.now().plusDays(7));
+            verify(accountRepository).findByIdWithLock(accountId);
+        }
+
+        @Test
+        @DisplayName("the same reference again: the existing hold, no second one")
+        void idempotent() {
+            AccountHold existing = new AccountHold();
+            existing.setId(UUID.randomUUID());
+            existing.setExternalReference(req.reference());
+            existing.setStatus(AccountHoldStatus.ACTIVE);
+            existing.setAmount(new BigDecimal(req.amount().toPlainString() + "00")); // same value, other scale
+            when(accountHoldRepository.findByAccountIdAndExternalReference(accountId, req.reference()))
+                    .thenReturn(Optional.of(existing));
+            stubNoHolds(accountId);
+
+            var r = accountService.placeCardHold(accountId, req, "svc");
+            assertThat(r.approved()).isTrue();
+            assertThat(r.holdId()).isEqualTo(existing.getId());
+            verify(accountHoldRepository, never()).saveAndFlush(any());
+        }
+
+        @Test
+        @DisplayName("the same reference with another amount: REFERENCE_CONFLICT, not approved, no second hold")
+        void sameReference_otherAmount_conflict() {
+            AccountHold existing = new AccountHold();
+            existing.setId(UUID.randomUUID());
+            existing.setExternalReference(req.reference());
+            existing.setStatus(AccountHoldStatus.ACTIVE);
+            existing.setAmount(req.amount().add(BigDecimal.ONE));
+            when(accountHoldRepository.findByAccountIdAndExternalReference(accountId, req.reference()))
+                    .thenReturn(Optional.of(existing));
+            stubNoHolds(accountId);
+
+            var r = accountService.placeCardHold(accountId, req, "svc");
+            assertThat(r.approved()).isFalse();
+            assertThat(r.reason()).isEqualTo("REFERENCE_CONFLICT");
+            verify(accountHoldRepository, never()).saveAndFlush(any());
+        }
+
+        @Test
+        @DisplayName("declines (no hold): insufficient funds, not active, currency mismatch")
+        void declines() {
+            when(accountHoldRepository.findByAccountIdAndExternalReference(eq(accountId), anyString())).thenReturn(Optional.empty());
+            when(accountHoldRepository.sumActiveHoldsByAccount(accountId)).thenReturn(new BigDecimal("700.00"));
+            assertThat(accountService.placeCardHold(accountId, req, "svc").reason()).isEqualTo("INSUFFICIENT_FUNDS");
+
+            assertThat(accountService.placeCardHold(accountId,
+                    new com.cba.account.dto.CardHoldRequest("R2", BigDecimal.ONE, "EUR"), "svc").reason())
+                    .isEqualTo("CURRENCY_MISMATCH");
+
+            activeAccount.setStatus(AccountStatus.FROZEN);
+            assertThat(accountService.placeCardHold(accountId, req, "svc").reason()).isEqualTo("ACCOUNT_NOT_ACTIVE");
+            verify(accountHoldRepository, never()).saveAndFlush(any());
+        }
+
+        @Test
+        @DisplayName("release: ACTIVE → RELEASED; again, or unknown → no-op (idempotent)")
+        void release() {
+            AccountHold hold = new AccountHold();
+            hold.setId(UUID.randomUUID());
+            hold.setExternalReference(req.reference());
+            hold.setStatus(AccountHoldStatus.ACTIVE);
+            when(accountHoldRepository.findByAccountIdAndExternalReference(accountId, req.reference())).thenReturn(Optional.of(hold));
+            when(accountHoldRepository.findByAccountIdAndExternalReference(accountId, "UNKNOWN")).thenReturn(Optional.empty());
+            stubNoHolds(accountId);
+
+            assertThat(accountService.releaseCardHold(accountId, req.reference(), "svc").approved()).isTrue();
+            assertThat(hold.getStatus()).isEqualTo(AccountHoldStatus.RELEASED);
+            var again = accountService.releaseCardHold(accountId, req.reference(), "svc");
+            assertThat(again.approved()).isFalse();
+            assertThat(again.reason()).isEqualTo("HOLD_NOT_ACTIVE");
+            assertThat(accountService.releaseCardHold(accountId, "UNKNOWN", "svc").reason()).isEqualTo("HOLD_NOT_FOUND");
+            verify(accountHoldRepository, times(1)).saveAndFlush(any());
+        }
+    }
 }

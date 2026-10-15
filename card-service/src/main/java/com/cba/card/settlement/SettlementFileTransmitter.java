@@ -45,8 +45,12 @@ public class SettlementFileTransmitter {
 
     private final SettlementExportProperties props;
 
-    /** Shared client used for schemes that do not configure a client certificate. */
-    private final RestTemplate restTemplate;
+    /**
+     * Client for schemes that do not configure a client certificate — the {@code settlementRestTemplate}
+     * bean, injected by its parameter name. Never {@code backendRestTemplate}: that one carries
+     * card-service's Keycloak token, which must not reach an external clearinghouse.
+     */
+    private final RestTemplate settlementRestTemplate;
 
     /**
      * Per-scheme mutual-TLS clients. A plain field rather than an injected bean so the
@@ -180,7 +184,7 @@ public class SettlementFileTransmitter {
         RestTemplate client = tlsClients.forScheme(scheme, cfg);
         boolean mutualTls = client != null;
         if (!mutualTls) {
-            client = restTemplate;
+            client = settlementRestTemplate;
         }
 
         log.info("HTTPS transmit → {} ({} bytes) scheme={} mutualTls={}",

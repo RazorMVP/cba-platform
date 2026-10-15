@@ -90,6 +90,24 @@ _None — all Phase 1 backend modules are now complete._
 - backend: report export tests 24/24 on POI 5.5.1; `clean verify -Pfull-integration` **902/902** (run in an isolated copy of `backend/` — the IDE kept rebuilding `target/` mid-run, the known race).
 - API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
 
+### Session 125 (cont. 36) — 2026-10-15
+**Approved plans kept in the repo: `docs/plans/` (9 plans recovered from the session transcript) + README index + CLAUDE.md rule. PR #154 merged (`0ba2ff5`).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `docs/plans/*.md` (9) | NEW — every approved plan since 2026-10-13 (GL 2c, card roles, GL 2d, reports, backend→card token, backlog 11, backlog 12, card holds, Dependabot), verbatim from the approved `ExitPlanMode` input, with a status/PR/merge-commit line on top |
+| `docs/plans/README.md` | NEW — index table; rule; states that the overdue fix (#150) and earlier work have no kept plan |
+| `CLAUDE.md` | `docs/plans/` row in the reference-files table, with the copy-after-approval rule |
+
+#### Key Patterns / Decisions
+- **Why:** plan mode writes one file outside the repo (`~/.claude/plans/<random>.md`) and overwrites it with the next plan; the approved #154 plan had already been overwritten. User chose to keep plans in git and recover past ones.
+- **Source of the recovered text:** the `input.plan` of each `ExitPlanMode` call in the session transcript (the only one of 91 transcripts with any), latest version per title. Nothing rewritten. The other two files in `~/.claude/plans` belong to other projects and were left alone.
+- **Public repo:** the plans were scanned for secret-shaped strings and for the values of every secret-like environment variable — none. The two `local-dev-only-change-me` matches are the placeholders already in `infrastructure/docker-compose.yml`.
+
+#### Build Verification
+Docs only. API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
 ### Session 125 (cont. 35) — 2026-10-15
 **Backlog 12 closed: card-service → backend. Debit-card authorizations can reach the backend: a service token (client `cba-card-service`, role `CARD_SERVICE`) and the backend endpoint card-service always called. The fixed path exposed a ×100 money bug and a missing currency check.**
 

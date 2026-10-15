@@ -2949,6 +2949,7 @@ Work through phases in order. Always run Phase D (Design) before any frontend co
 
 | File | Contents |
 |------|----------|
+| `docs/plans/` | **Approved implementation plans**, one file per plan (`YYYY-MM-DD-<topic>.md`) + `README.md` index. Plan mode writes to one file outside the repo (`~/.claude/plans/<random>.md`) and overwrites it with the next plan — **after `ExitPlanMode` is approved, copy the plan here and commit it with that work's PR**, body verbatim, status line on top _(cont. 36; plans from 2026-10-13 on recovered from the session transcript)_ |
 | `docs/deferred-backlog.md` | **Known future work** — the 3 intentionally-deferred features with pick-up context (async external-payment settlement, full-PAN settlement decrypt, ACCOUNT.* webhooks) _(Session 121 cont. 10)_ |
 | `docs/integration-runbook.md` | Credential-flip runbook — every external integration, its env vars, and go-live steps _(Session 121 cont. 1)_ |
 | `docs/api-reference.html` | Full API reference source (Mifos apiLive.htm-style) — edit here, then copy to `docs-site/static/` |

@@ -466,12 +466,16 @@ amortising term loans (no credit limit, no draws). What's needed:
 
 ---
 
-## 15. Card authorizations reserve no funds, and card settlement posts nothing to the GL
+## 15. Card settlement posts nothing to the GL (approvals now reserve funds — cont. 35)
 
 **Effort**: L · **Risk**: money — double-spend window; card spend never reaches the ledger
 
-- **No holds.** card-service's authorize is check-and-record: an approval places **no hold** on the backend account,
-  so two approvals can both pass against the same balance.
+- ~~**No holds.**~~ **Done in cont. 35** (#154, after the commit security review): approvals reserve funds. Debit
+  approvals place an atomic backend hold (`POST /api/v1/accounts/{id}/card-holds`, idempotent, 7-day expiry); prepaid
+  approvals decrement the wallet under a lock; reversals give them back. **Still open:**
+  - completing an approval at clearing (convert the hold into a debit);
+  - completing 0200 (ATM cash, auth-and-capture), whose hold today just lapses;
+  - a status sweep for expired holds (they already stop counting, but stay ACTIVE in the table).
 - **No GL posting.** Settlement (`SettlementService`, scheme files) moves no backend money and posts no journal.
   That breaks the rule that every money movement posts a balanced GL journal.
 - **Needs:**

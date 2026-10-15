@@ -2,6 +2,8 @@ package com.cba.account;
 
 import com.cba.account.algorithm.AccountNumberAlgorithmService;
 import com.cba.account.dto.CardFunds;
+import com.cba.account.dto.CardHoldRequest;
+import com.cba.account.dto.CardHoldResult;
 import com.cba.account.dto.*;
 import com.cba.audit.AuditLogService;
 import com.cba.common.exception.CbaException;
@@ -323,6 +325,83 @@ public class AccountService {
             throw CbaException.badRequest("BELOW_MINIMUM_BALANCE", msg);
         }
         return effectiveAvailable;
+    }
+
+    // ── Card holds (card-service) ─────────────────────────────────────────────
+
+    /** Days a card authorization's hold reserves funds (the scheme authorization lifetime). */
+    @org.springframework.beans.factory.annotation.Value("${card.hold-expiry-days:7}")
+    private int cardHoldExpiryDays = 7;
+
+    /**
+     * Reserves a card authorization's amount: under the account's row lock, applies the withdrawal
+     * rules and places a hold in the same transaction, so two authorizations can't both spend the
+     * same balance. Idempotent on {@code reference}: a repeat returns the existing hold. A decline
+     * is a result ({@code approved=false} + reason), not an error.
+     */
+    @Transactional
+    public CardHoldResult placeCardHold(UUID accountId, CardHoldRequest request, String createdBy) {
+        Account account = accountRepository.findByIdWithLock(accountId)
+            .orElseThrow(() -> CbaException.notFound("Account", accountId));
+
+        var existing = accountHoldRepository.findByAccountIdAndExternalReference(accountId, request.reference());
+        if (existing.isPresent()) {
+            AccountHold h = existing.get();
+            boolean active = h.getStatus() == AccountHoldStatus.ACTIVE;
+            return new CardHoldResult(active, h.getId(), h.getExternalReference(), h.getStatus().name(),
+                    active ? null : "HOLD_RELEASED", spendable(account).max(BigDecimal.ZERO));
+        }
+
+        String reason = account.getStatus() != AccountStatus.ACTIVE ? "ACCOUNT_NOT_ACTIVE"
+                : lockinExpiry(account) != null ? "ACCOUNT_IN_LOCKIN_PERIOD"
+                : !account.getCurrencyCode().equalsIgnoreCase(request.currencyCode()) ? "CURRENCY_MISMATCH"
+                : spendable(account).compareTo(request.amount()) < 0 ? "INSUFFICIENT_FUNDS"
+                : null;
+        if (reason != null) {
+            return new CardHoldResult(false, null, request.reference(), null, reason,
+                    reason.startsWith("ACCOUNT_") ? BigDecimal.ZERO : spendable(account).max(BigDecimal.ZERO));
+        }
+
+        AccountHold hold = new AccountHold();
+        hold.setAccount(account);
+        hold.setAmount(request.amount());
+        hold.setReason("Card authorization " + request.reference());
+        hold.setExternalReference(request.reference());
+        hold.setReferenceNumber("CHD-" + System.currentTimeMillis());
+        hold.setExpiryDate(LocalDate.now().plusDays(cardHoldExpiryDays));
+        hold.setCreatedBy(createdBy);
+        AccountHold saved = accountHoldRepository.saveAndFlush(hold);
+        auditLogService.log("ACCOUNT_HOLD", saved.getId().toString(), "CARD_HOLD_PLACED", null,
+            "amount=" + request.amount() + " reference=" + request.reference());
+        return new CardHoldResult(true, saved.getId(), saved.getExternalReference(), saved.getStatus().name(), null,
+                spendable(account).max(BigDecimal.ZERO));
+    }
+
+    /**
+     * Releases a card authorization's hold (reversal). Idempotent: a hold that is already released
+     * or expired, or was never placed, is left as is and reported with {@code approved=false}.
+     */
+    @Transactional
+    public CardHoldResult releaseCardHold(UUID accountId, String reference, String releasedBy) {
+        Account account = accountRepository.findByIdWithLock(accountId)
+            .orElseThrow(() -> CbaException.notFound("Account", accountId));
+        var existing = accountHoldRepository.findByAccountIdAndExternalReference(accountId, reference);
+        if (existing.isEmpty()) {
+            return new CardHoldResult(false, null, reference, null, "HOLD_NOT_FOUND", spendable(account).max(BigDecimal.ZERO));
+        }
+        AccountHold hold = existing.get();
+        if (hold.getStatus() != AccountHoldStatus.ACTIVE) {
+            return new CardHoldResult(false, hold.getId(), reference, hold.getStatus().name(), "HOLD_NOT_ACTIVE",
+                    spendable(account).max(BigDecimal.ZERO));
+        }
+        hold.setStatus(AccountHoldStatus.RELEASED);
+        hold.setReleasedAt(java.time.Instant.now());
+        hold.setReleasedBy(releasedBy);
+        accountHoldRepository.saveAndFlush(hold);
+        auditLogService.log("ACCOUNT_HOLD", hold.getId().toString(), "CARD_HOLD_RELEASED", null,
+            "reference=" + reference);
+        return new CardHoldResult(true, hold.getId(), reference, hold.getStatus().name(), null,
+                spendable(account).max(BigDecimal.ZERO));
     }
 
     // ── Holds ─────────────────────────────────────────────────────────────────

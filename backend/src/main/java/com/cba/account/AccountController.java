@@ -4,6 +4,8 @@ import com.cba.account.dto.AccountHoldRequest;
 import com.cba.account.dto.AccountHoldResponse;
 import com.cba.account.dto.AccountResponse;
 import com.cba.account.dto.CardFunds;
+import com.cba.account.dto.CardHoldRequest;
+import com.cba.account.dto.CardHoldResult;
 import com.cba.account.dto.OpenAccountRequest;
 import com.cba.account.dto.TransactionResponse;
 import com.cba.common.response.ApiResponse;
@@ -227,6 +229,44 @@ public class AccountController {
     @Operation(summary = "Preview the daily interest that would be posted to this account (dry-run)")
     public ResponseEntity<ApiResponse<Map<String, Object>>> calculateInterest(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(accountService.calculateInterest(id)));
+    }
+
+    /**
+     * Reserves a card authorization's amount — card-service, on every debit-card approval. Locks the
+     * account, applies the withdrawal rules and places a hold atomically; idempotent on
+     * {@code reference}. A decline is 200 with approved=false and a reason.
+     */
+    @PostMapping("/{id}/card-holds")
+    @PreAuthorize("hasRole('CARD_SERVICE') or hasRole('ADMIN')")
+    @Operation(summary = "Reserve funds for a card authorization (card-service)",
+               description = "Atomic check-and-hold under the account's row lock. reasons: INSUFFICIENT_FUNDS, "
+                       + "ACCOUNT_NOT_ACTIVE, ACCOUNT_IN_LOCKIN_PERIOD, CURRENCY_MISMATCH, HOLD_RELEASED (reference "
+                       + "already used and released). The hold expires after card.hold-expiry-days (7).")
+    public ResponseEntity<ApiResponse<CardHoldResult>> placeCardHold(
+            @PathVariable UUID id,
+            @Valid @RequestBody CardHoldRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(ApiResponse.ok(accountService.placeCardHold(id, request, serviceActor(jwt))));
+    }
+
+    /** Releases a card authorization's hold (reversal). Idempotent. */
+    @PostMapping("/{id}/card-holds/{reference}/release")
+    @PreAuthorize("hasRole('CARD_SERVICE') or hasRole('ADMIN')")
+    @Operation(summary = "Release a card authorization's hold (card-service reversal)",
+               description = "Idempotent: an already released, expired or unknown hold is reported with approved=false "
+                       + "(HOLD_NOT_ACTIVE / HOLD_NOT_FOUND).")
+    public ResponseEntity<ApiResponse<CardHoldResult>> releaseCardHold(
+            @PathVariable UUID id,
+            @PathVariable String reference,
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(ApiResponse.ok(accountService.releaseCardHold(id, reference, serviceActor(jwt))));
+    }
+
+    /** A service account has no preferred_username of a person; fall back to the client id. */
+    private static String serviceActor(Jwt jwt) {
+        if (jwt == null) return "system";
+        String user = jwt.getClaimAsString("preferred_username");
+        return user != null ? user : jwt.getClaimAsString("azp");
     }
 
     @DeleteMapping("/{id}/holds/{holdId}")

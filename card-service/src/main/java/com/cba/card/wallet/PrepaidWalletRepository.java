@@ -9,5 +9,10 @@ public interface PrepaidWalletRepository extends JpaRepository<PrepaidWallet, UU
 
     Optional<PrepaidWallet> findByCardId(UUID cardId);
 
+    /** The wallet under a row lock (SELECT … FOR UPDATE): approvals and reversals change its balance. */
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("SELECT w FROM PrepaidWallet w WHERE w.card.id = :cardId")
+    Optional<PrepaidWallet> findByCardIdForUpdate(UUID cardId);
+
     Optional<PrepaidWallet> findByCustomerId(UUID customerId);
 }

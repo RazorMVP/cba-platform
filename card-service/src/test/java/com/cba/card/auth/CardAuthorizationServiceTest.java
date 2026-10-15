@@ -15,6 +15,7 @@ import com.cba.card.openbanking.webhook.WebhookService;
 import com.cba.card.wallet.PrepaidWallet;
 import com.cba.card.wallet.PrepaidWalletRepository;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpEntity;
 import org.springframework.core.ParameterizedTypeReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -38,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -114,7 +116,7 @@ class CardAuthorizationServiceTest {
         CardAuthResponse resp = service.authorize(req(new BigDecimal("100"), "000000", false));
 
         assertThat(resp.responseCode()).isEqualTo("05");
-        verify(walletRepository, never()).findByCardId(any());
+        verify(walletRepository, never()).findByCardIdForUpdate(any());
     }
 
     @Test
@@ -134,7 +136,7 @@ class CardAuthorizationServiceTest {
         Card card = prepaidCard();
         when(cardService.findByPanHash(PAN)).thenReturn(card);
         when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
-        when(walletRepository.findByCardId(card.getId())).thenReturn(Optional.of(wallet("50")));
+        when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(wallet("50")));
 
         // 10000 minor units = 100.00 USD against a 50.00 wallet
         assertThat(service.authorize(req(new BigDecimal("10000"), "000000", false)).responseCode())
@@ -147,7 +149,7 @@ class CardAuthorizationServiceTest {
         Card card = prepaidCard();
         when(cardService.findByPanHash(PAN)).thenReturn(card);
         when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
-        when(walletRepository.findByCardId(card.getId())).thenReturn(Optional.empty());
+        when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.empty());
 
         assertThat(service.authorize(req(new BigDecimal("100"), "000000", false)).responseCode())
                 .isEqualTo("91");
@@ -159,7 +161,7 @@ class CardAuthorizationServiceTest {
         Card card = prepaidCard();
         when(cardService.findByPanHash(PAN)).thenReturn(card);
         when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
-        when(walletRepository.findByCardId(card.getId())).thenReturn(Optional.of(wallet("1000")));
+        when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(wallet("1000")));
 
         CardAuthResponse resp = service.authorize(req(new BigDecimal("100"), "000000", false));
 
@@ -174,7 +176,7 @@ class CardAuthorizationServiceTest {
         Card card = prepaidCard();
         when(cardService.findByPanHash(PAN)).thenReturn(card);
         when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
-        when(walletRepository.findByCardId(card.getId())).thenReturn(Optional.of(wallet("500")));
+        when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(wallet("500")));
 
         // amount above balance, but balance-inquiry processing code → still approved
         CardAuthResponse resp = service.authorize(req(new BigDecimal("999999"), "310000", false));
@@ -189,7 +191,7 @@ class CardAuthorizationServiceTest {
         Card card = prepaidCard();
         when(cardService.findByPanHash(PAN)).thenReturn(card);
         when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
-        when(walletRepository.findByCardId(card.getId())).thenReturn(Optional.of(wallet("1000")));
+        when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(wallet("1000")));
 
         service.authorize(req(new BigDecimal("100"), "000000", true));
 
@@ -225,7 +227,7 @@ class CardAuthorizationServiceTest {
         when(cardService.findByPanHash(PAN)).thenReturn(card);
         when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
         when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
-        when(backendRestTemplate.exchange(any(String.class), eq(HttpMethod.GET), isNull(),
+        when(backendRestTemplate.exchange(any(String.class), eq(HttpMethod.POST), any(HttpEntity.class),
                 any(ParameterizedTypeReference.class)))
                 .thenThrow(new RestClientException("connection refused"));
 
@@ -275,16 +277,37 @@ class CardAuthorizationServiceTest {
                         any(ParameterizedTypeReference.class));
     }
 
+    /** Stubs the backend's card-hold call (atomic check-and-hold) with the given outcome. */
+    private void stubBackendHold(boolean approved, String reason) {
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+        doReturn(ResponseEntity.ok(new CardAuthorizationService.Envelope<>(new CardAuthorizationService.BackendHold(
+                approved, approved ? UUID.randomUUID() : null, "ref", approved ? "ACTIVE" : null, reason, BigDecimal.ZERO))))
+                .when(backendRestTemplate).exchange(contains("/card-holds"), eq(HttpMethod.POST), any(HttpEntity.class),
+                        any(ParameterizedTypeReference.class));
+    }
+
+    @SuppressWarnings("unchecked")
+    private java.util.Map<String, Object> postedHold() {
+        org.mockito.ArgumentCaptor<HttpEntity> captor = org.mockito.ArgumentCaptor.forClass(HttpEntity.class);
+        verify(backendRestTemplate).exchange(contains("/card-holds"), eq(HttpMethod.POST), captor.capture(),
+                any(ParameterizedTypeReference.class));
+        return (java.util.Map<String, Object>) captor.getValue().getBody();
+    }
+
     @Test
     @DisplayName("DE4 is minor units: 2500 (= 25.00 USD) against a 500.00 balance approves")
     void debitMinorUnits_approvesAgainstMajorBalance() {
         Card card = debitCard(UUID.randomUUID());
         when(cardService.findByPanHash(PAN)).thenReturn(card);
         when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
-        stubBackendBalance("500.00");
+        stubBackendHold(true, null);
 
         assertThat(service.authorize(req(new BigDecimal("2500"), "000000", false)).responseCode())
                 .isEqualTo("00");
+        var body = postedHold();
+        assertThat((BigDecimal) body.get("amount")).isEqualByComparingTo("25.00");
+        assertThat(body.get("currencyCode")).isEqualTo("USD");
+        assertThat(body.get("reference")).isEqualTo("CARD-" + card.getId() + "-000001-RRN0001");
     }
 
     @Test
@@ -293,11 +316,12 @@ class CardAuthorizationServiceTest {
         Card card = debitCard(UUID.randomUUID());
         when(cardService.findByPanHash(PAN)).thenReturn(card);
         when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
-        stubBackendBalance("500.00");
+        stubBackendHold(true, null);
 
         CardAuthResponse resp = service.authorize(req(new BigDecimal("100"), "000000", false));
 
         assertThat(resp.approved()).isTrue();
+        verify(authLogRepository).save(argThat(a -> a.getHoldReference() != null && a.getHoldReference().startsWith("CARD-")));
         assertThat(resp.responseCode()).isEqualTo("00");
         assertThat(resp.authorizationCode()).isNotBlank();
     }
@@ -308,9 +332,9 @@ class CardAuthorizationServiceTest {
         Card card = debitCard(UUID.randomUUID());
         when(cardService.findByPanHash(PAN)).thenReturn(card);
         when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
-        stubBackendBalance("50.00");
+        stubBackendHold(false, "INSUFFICIENT_FUNDS");
 
-        // 10000 minor units = 100.00 USD against 50.00
+        // 10000 minor units = 100.00 USD; the backend's hold says insufficient
         assertThat(service.authorize(req(new BigDecimal("10000"), "000000", false)).responseCode())
                 .isEqualTo("51");
     }
@@ -335,7 +359,7 @@ class CardAuthorizationServiceTest {
         Card card = debitCard(UUID.randomUUID());
         when(cardService.findByPanHash(PAN)).thenReturn(card);
         when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
-        stubBackendFunds("USD", "0", false, "ACCOUNT_NOT_ACTIVE");
+        stubBackendHold(false, "ACCOUNT_NOT_ACTIVE");
 
         assertThat(service.authorize(req(new BigDecimal("100"), "000000", false)).responseCode())
                 .isEqualTo("57");
@@ -347,7 +371,7 @@ class CardAuthorizationServiceTest {
         Card card = debitCard(UUID.randomUUID());
         when(cardService.findByPanHash(PAN)).thenReturn(card);
         when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
-        stubBackendBalance("500.00");
+        stubBackendHold(false, "CURRENCY_MISMATCH");
 
         CardAuthRequest eur = new CardAuthRequest(PAN, "000000", new BigDecimal("1000"), "978", "000001",
                 "TERM01", "MERCH01", "Shop", "5411", "CHIP", "00", "RRN0001", "VISA", false, true, false, null);
@@ -355,19 +379,19 @@ class CardAuthorizationServiceTest {
     }
 
     @Test
-    @DisplayName("JPY has no minor unit: 600 against 500 declines, 400 approves")
+    @DisplayName("JPY has no minor unit: DE4 600 reserves 600 JPY")
     void jpyZeroDecimals() {
         Card card = debitCard(UUID.randomUUID());
         when(cardService.findByPanHash(PAN)).thenReturn(card);
         when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
-        stubBackendFunds("JPY", "500", true, null);
+        stubBackendHold(true, null);
 
-        CardAuthRequest over = new CardAuthRequest(PAN, "000000", new BigDecimal("600"), "392", "000001",
+        CardAuthRequest jpy = new CardAuthRequest(PAN, "000000", new BigDecimal("600"), "392", "000001",
                 "TERM01", "MERCH01", "Shop", "5411", "CHIP", "00", "RRN0001", "VISA", false, true, false, null);
-        assertThat(service.authorize(over).responseCode()).isEqualTo("51");
-        CardAuthRequest under = new CardAuthRequest(PAN, "000000", new BigDecimal("400"), "392", "000002",
-                "TERM01", "MERCH01", "Shop", "5411", "CHIP", "00", "RRN0002", "VISA", false, true, false, null);
-        assertThat(service.authorize(under).responseCode()).isEqualTo("00");
+        assertThat(service.authorize(jpy).responseCode()).isEqualTo("00");
+        var body = postedHold();
+        assertThat((BigDecimal) body.get("amount")).isEqualByComparingTo("600");
+        assertThat(body.get("currencyCode")).isEqualTo("JPY");
     }
 
     @Test
@@ -376,9 +400,13 @@ class CardAuthorizationServiceTest {
         Card card = prepaidCard();
         when(cardService.findByPanHash(PAN)).thenReturn(card);
         when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
-        when(walletRepository.findByCardId(card.getId())).thenReturn(Optional.of(wallet("50")));
+        PrepaidWallet w = wallet("50");
+        when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(w));
 
         assertThat(service.authorize(req(new BigDecimal("2500"), "000000", false)).responseCode()).isEqualTo("00");
+        assertThat(w.getBalance()).as("approval reserves: wallet decremented").isEqualByComparingTo("25.00");
+        verify(authLogRepository).save(argThat(a -> a.getWalletDebit() != null
+                && a.getWalletDebit().compareTo(new BigDecimal("25.00")) == 0));
     }
 
     @Test
@@ -398,6 +426,7 @@ class CardAuthorizationServiceTest {
     private static PrepaidWallet wallet(String balance) {
         PrepaidWallet w = new PrepaidWallet();
         w.setBalance(new BigDecimal(balance));
+        w.setCurrencyCode("USD");
         return w;
     }
 
@@ -471,5 +500,56 @@ class CardAuthorizationServiceTest {
 
         assertThat(service.reverse(PAN, new BigDecimal("100.00"), REV_STAN, "x")).isEqualTo("25");
         verify(webhookService, never()).publishEvent(any(), any());
+    }
+
+
+    @Test
+    @DisplayName("reversal of an approved debit releases its backend hold")
+    void reverse_releasesHold() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setHoldReference("CARD-x-000123-R1");
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+
+        assertThat(service.reverse(PAN, new BigDecimal("100.00"), REV_STAN, "x")).isEqualTo("00");
+        verify(backendRestTemplate).exchange(contains("/card-holds/CARD-x-000123-R1/release"), eq(HttpMethod.POST),
+                isNull(), any(ParameterizedTypeReference.class));
+    }
+
+    @Test
+    @DisplayName("reversal of an approved prepaid authorization restores the wallet")
+    void reverse_restoresWallet() {
+        Card card = prepaidCard();
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setWalletDebit(new BigDecimal("30.00"));
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+        PrepaidWallet w = wallet("20.00");
+        when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(w));
+
+        assertThat(service.reverse(PAN, new BigDecimal("30.00"), REV_STAN, "x")).isEqualTo("00");
+        assertThat(w.getBalance()).isEqualByComparingTo("50.00");
+    }
+
+    @Test
+    @DisplayName("a declined original gives nothing back")
+    void reverse_declinedOriginal_noGiveBack() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setResponseCode("51");
+        original.setHoldReference("CARD-should-not-release");
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+
+        service.reverse(PAN, new BigDecimal("100.00"), REV_STAN, "x");
+        verifyNoInteractions(backendRestTemplate);
     }
 }

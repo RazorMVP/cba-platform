@@ -113,7 +113,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
      * behind the CARD_SERVICE role.
      */
     private static final java.util.regex.Pattern CARD_FUNDS_PATH =
-            java.util.regex.Pattern.compile("^/api/v1/accounts/[^/]+/balance$");
+            java.util.regex.Pattern.compile("^/api/v1/accounts/[^/]+/(balance|card-holds(/[^/]+/release)?)$");
 
     private boolean isRateLimited(String path) {
         if (EXCLUDED_PREFIXES.stream().anyMatch(path::startsWith) || CARD_FUNDS_PATH.matcher(path).matches()) {

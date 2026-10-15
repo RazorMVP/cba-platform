@@ -65,6 +65,8 @@ public class CardAuthorizationService {
 
     @Transactional
     public CardAuthResponse authorize(CardAuthRequest req) {
+        String holdRef = null;          // backend hold placed by this approval (debit)
+        BigDecimal walletDebit = null;  // taken from the prepaid wallet by this approval
         Card card = null;
         try {
             // 1. Look up card — 404 → RC=14 (Invalid card number)
@@ -97,51 +99,63 @@ public class CardAuthorizationService {
             // STEP_UP: inform FEP to require online PIN — FEP handles protocol-level step-up
             // We still proceed to balance check; FEP may re-submit with pinVerified=true
 
-            // 3. Funds check. DE4 (req.amount) is in minor units of the DE49 currency; balances are
-            //    major units of the account's or wallet's currency — compare in the same units and
-            //    currency (they were compared raw: 25.00 USD read as 2500 against a 500.00 balance).
+            // 3. Funds — checked AND reserved. DE4 (req.amount) is minor units of the DE49 currency;
+            //    balances are major units: compare in the same units and currency (they were compared
+            //    raw: 25.00 USD read as 2500). An approval reserves its amount — a backend account hold
+            //    (debit) or a wallet decrement (prepaid) — so later authorizations can't spend it too.
+            boolean inquiry = BALANCE_INQUIRY_CODE.equals(req.processingCode()) || req.amount() == null;
+            java.util.Currency txCurrency = inquiry ? null : currency(req.currencyCode());
+            BigDecimal amountMajor = inquiry || txCurrency == null ? null : toMajorUnits(req.amount(), txCurrency);
             BigDecimal availableBalance = null;
-            String fundsCurrency = null;
             if (card.getCardType() == CardType.DEBIT) {
-                BackendFunds funds = getDebitFunds(card);
-                if (funds == null || funds.availableBalance() == null) {
-                    return logAndReturn(card, req, CardAuthResponse.decline("91"),
-                            fraud.totalScore(), fraud.decision()); // issuer unavailable
+                if (inquiry) {
+                    BackendFunds funds = getDebitFunds(card);
+                    if (funds == null || funds.availableBalance() == null) {
+                        return logAndReturn(card, req, CardAuthResponse.decline("91"), fraud.totalScore(), fraud.decision());
+                    }
+                    if (!funds.debitAllowed()) {
+                        return logAndReturn(card, req, CardAuthResponse.decline("57"), fraud.totalScore(), fraud.decision());
+                    }
+                    availableBalance = funds.availableBalance();
+                } else {
+                    if (txCurrency == null) {
+                        return logAndReturn(card, req, CardAuthResponse.decline("57"), fraud.totalScore(), fraud.decision());
+                    }
+                    String reference = holdReference(card, req);
+                    BackendHold hold = placeDebitHold(card, reference, amountMajor, txCurrency);
+                    if (hold == null) {
+                        return logAndReturn(card, req, CardAuthResponse.decline("91"), fraud.totalScore(), fraud.decision());
+                    }
+                    if (!hold.approved()) {
+                        log.info("Debit card {} declined by the backend: {}", card.getId(), hold.reason());
+                        return logAndReturn(card, req,
+                                CardAuthResponse.decline("INSUFFICIENT_FUNDS".equals(hold.reason()) ? "51" : "57"),
+                                fraud.totalScore(), fraud.decision());
+                    }
+                    holdRef = reference;
                 }
-                if (!funds.debitAllowed()) {
-                    log.info("Debit card {} declined: linked account can't be debited ({})", card.getId(), funds.reason());
-                    return logAndReturn(card, req, CardAuthResponse.decline("57"),
-                            fraud.totalScore(), fraud.decision()); // transaction not permitted
-                }
-                availableBalance = funds.availableBalance();
-                fundsCurrency = funds.currencyCode();
             } else if (card.getCardType() == CardType.PREPAID) {
-                PrepaidWallet wallet = walletRepository.findByCardId(card.getId()).orElse(null);
+                PrepaidWallet wallet = walletRepository.findByCardIdForUpdate(card.getId()).orElse(null);
                 if (wallet == null || wallet.getBalance() == null) {
-                    return logAndReturn(card, req, CardAuthResponse.decline("91"),
-                            fraud.totalScore(), fraud.decision());
+                    return logAndReturn(card, req, CardAuthResponse.decline("91"), fraud.totalScore(), fraud.decision());
                 }
                 availableBalance = wallet.getBalance();
-                fundsCurrency = wallet.getCurrencyCode();
+                if (!inquiry) {
+                    if (txCurrency == null || !txCurrency.equals(currency(wallet.getCurrencyCode()))) {
+                        return logAndReturn(card, req, CardAuthResponse.decline("57"), fraud.totalScore(), fraud.decision());
+                    }
+                    if (wallet.getBalance().compareTo(amountMajor) < 0) {
+                        return logAndReturn(card, req, CardAuthResponse.decline("51"), fraud.totalScore(), fraud.decision());
+                    }
+                    wallet.setBalance(wallet.getBalance().subtract(amountMajor));
+                    walletRepository.save(wallet);
+                    walletDebit = amountMajor;
+                }
             } else if (card.getCardType() == CardType.CREDIT) {
                 // The backend has no revolving credit line yet (loans are amortising term loans), so
                 // there is no credit to authorize against: decline as not permitted, not as an outage.
                 log.info("Credit card {} declined: credit lines are not available", card.getId());
-                return logAndReturn(card, req, CardAuthResponse.decline("57"),
-                        fraud.totalScore(), fraud.decision());
-            }
-            if (!BALANCE_INQUIRY_CODE.equals(req.processingCode()) && req.amount() != null) {
-                java.util.Currency txCurrency = currency(req.currencyCode());
-                if (txCurrency == null || !txCurrency.equals(currency(fundsCurrency))) {
-                    log.info("Card {} declined: transaction currency {} vs funds currency {}",
-                            card.getId(), req.currencyCode(), fundsCurrency);
-                    return logAndReturn(card, req, CardAuthResponse.decline("57"),
-                            fraud.totalScore(), fraud.decision()); // no FX on the authorization path
-                }
-                if (availableBalance.compareTo(toMajorUnits(req.amount(), txCurrency)) < 0) {
-                    return logAndReturn(card, req, CardAuthResponse.decline("51"),
-                            fraud.totalScore(), fraud.decision()); // insufficient funds
-                }
+                return logAndReturn(card, req, CardAuthResponse.decline("57"), fraud.totalScore(), fraud.decision());
             }
 
             // 4. Approve
@@ -155,10 +169,13 @@ public class CardAuthorizationService {
             }
 
             CardAuthResponse response = CardAuthResponse.approve(authCode, balanceForResponse, req.currencyCode());
-            return logAndReturn(card, req, response, fraud.totalScore(), fraud.decision());
+            return logAndReturn(card, req, response, fraud.totalScore(), fraud.decision(), holdRef, walletDebit);
 
         } catch (Exception e) {
             log.error("Authorization processing error for STAN={}", req.stan(), e);
+            // The transaction rolls back (wallet included); a backend hold already placed would linger
+            // until it expires — give it back now, best-effort.
+            if (holdRef != null) releaseDebitHold(card, holdRef);
             return logAndReturn(card, req, CardAuthResponse.systemError(), 0, FraudDecision.DECLINE);
         }
     }
@@ -265,7 +282,20 @@ public class CardAuthorizationService {
             }
             AuthorizationLog original = originalOpt.get();
 
-            // Record the reversal (0400). No funds move — the auth path posted none.
+            // Give back what the approval reserved — once: the 0400 guard above stops a repeat.
+            if ("00".equals(original.getResponseCode())) {
+                if (original.getHoldReference() != null) {
+                    releaseDebitHold(card, original.getHoldReference());
+                }
+                if (original.getWalletDebit() != null && original.getWalletDebit().signum() > 0) {
+                    walletRepository.findByCardIdForUpdate(card.getId()).ifPresent(w -> {
+                        w.setBalance(w.getBalance().add(original.getWalletDebit()));
+                        walletRepository.save(w);
+                    });
+                }
+            }
+
+            // Record the reversal (0400). The reserved funds were given back above.
             AuthorizationLog reversal = buildAuthLog(card, stan, "0400", amount,
                     original.getCurrencyCode(), "00", null,
                     original.getTerminalId(), original.getMerchantId(), original.getMerchantName(),
@@ -317,6 +347,44 @@ public class CardAuthorizationService {
         }
     }
 
+    /** card-service's idempotency key for an authorization's hold: a retried 0100 maps to the same hold. */
+    static String holdReference(Card card, CardAuthRequest req) {
+        return "CARD-" + card.getId() + "-" + req.stan() + "-" + (req.rrn() != null ? req.rrn() : "");
+    }
+
+    /**
+     * Reserves the amount on the linked account: backend {@code POST /api/v1/accounts/{id}/card-holds},
+     * which checks and holds atomically under the account's row lock. Null when unavailable.
+     */
+    private BackendHold placeDebitHold(Card card, String reference, BigDecimal amountMajor, java.util.Currency currency) {
+        if (card.getLinkedEntityId() == null) return null;
+        try {
+            String url = restClientConfig.getBackendBaseUrl()
+                    + "/api/v1/accounts/" + card.getLinkedEntityId() + "/card-holds";
+            Map<String, Object> body = Map.of("reference", reference, "amount", amountMajor,
+                    "currencyCode", currency.getCurrencyCode());
+            ResponseEntity<Envelope<BackendHold>> resp = backendRestTemplate.exchange(
+                    url, HttpMethod.POST, new org.springframework.http.HttpEntity<>(body),
+                    new ParameterizedTypeReference<Envelope<BackendHold>>() {});
+            return resp.getBody() != null ? resp.getBody().data() : null;
+        } catch (RestClientException e) {
+            log.warn("Debit hold failed for card {}: {}", card.getId(), e.getMessage());
+            return null;
+        }
+    }
+
+    /** Releases an approval's backend hold (reversal, or a failure after approval). Best-effort, idempotent. */
+    private void releaseDebitHold(Card card, String reference) {
+        if (card == null || card.getLinkedEntityId() == null || reference == null) return;
+        try {
+            backendRestTemplate.exchange(restClientConfig.getBackendBaseUrl() + "/api/v1/accounts/"
+                            + card.getLinkedEntityId() + "/card-holds/" + reference + "/release",
+                    HttpMethod.POST, null, new ParameterizedTypeReference<Envelope<BackendHold>>() {});
+        } catch (RestClientException e) {
+            log.warn("Debit hold release failed for card {} (it expires on its own): {}", card.getId(), e.getMessage());
+        }
+    }
+
     /** An ISO 4217 currency from a numeric (DE49, "840") or alphabetic ("USD") code; null if unknown. */
     static java.util.Currency currency(String code) {
         if (code == null || code.isBlank()) return null;
@@ -349,6 +417,13 @@ public class CardAuthorizationService {
     private CardAuthResponse logAndReturn(Card card, CardAuthRequest req,
                                            CardAuthResponse response,
                                            int fraudScore, FraudDecision decision) {
+        return logAndReturn(card, req, response, fraudScore, decision, null, null);
+    }
+
+    private CardAuthResponse logAndReturn(Card card, CardAuthRequest req,
+                                           CardAuthResponse response,
+                                           int fraudScore, FraudDecision decision,
+                                           String holdReference, BigDecimal walletDebit) {
         AuthorizationLog entry = buildAuthLog(
                 card, req.stan(), req.isFinancial() ? "0200" : "0100",
                 req.amount(), req.currencyCode(),
@@ -361,6 +436,8 @@ public class CardAuthorizationService {
         entry.setEntryMode(req.posEntryMode());
         entry.setFraudScore(fraudScore);
         entry.setDecision(decision);
+        entry.setHoldReference(holdReference);
+        entry.setWalletDebit(walletDebit);
         authLogRepository.save(entry);
 
         // Fire webhook event asynchronously
@@ -439,6 +516,10 @@ public class CardAuthorizationService {
      */
     record BackendFunds(UUID accountId, String currencyCode, BigDecimal availableBalance,
                         boolean debitAllowed, String reason) {}
+
+    /** The backend's {@code CardHoldResult}. */
+    record BackendHold(boolean approved, UUID holdId, String reference, String status, String reason,
+                       BigDecimal availableBalance) {}
 
     /** The backend's {@code ApiResponse} envelope — only {@code data} is read. */
     record Envelope<T>(T data) {}

@@ -92,14 +92,24 @@ _None — all Phase 1 backend modules are now complete._
 | `backend/docs/openapi-snapshot.yaml` | new path + `CardFunds` |
 | `docs/api-reference.html`, `docs/card-api-reference.html`, Postman (+ docs-site copies), `docs/integration-runbook.md` (§9, §9a), `docs/deferred-backlog.md` (12 ✅, new 14–17), `CLAUDE.md` | |
 
+#### Security review follow-up (same PR, user "1")
+The commit security review found a **double-spend**: an approval reserved nothing (debit: check-only GET; prepaid: nothing ever changed a wallet), so any number of authorizations could pass against one balance — and #154 made the debit path reachable (it had failed safe at RC 91). Fixed before merge:
+- **Backend:** `POST /api/v1/accounts/{id}/card-holds` (CARD_SERVICE/ADMIN). `placeCardHold` locks the account (`findByIdWithLock`), applies active/lock-in/currency/spendable and inserts the hold in one transaction. It's idempotent on `reference` (V62 `external_reference` + full unique index per account; a released reference can't re-hold). Expiry is 7 days. Declines are 200 `approved=false` + reason. `…/card-holds/{ref}/release` is idempotent. `sumActiveHoldsByAccount` now ignores holds past `expiry_date`. Rate-limit exemption and security matchers cover both paths.
+- **card-service:** a debit purchase POSTs the hold (`CARD-{cardId}-{stan}-{rrn}`, major units, alphabetic currency); INSUFFICIENT_FUNDS → 51, other reasons → 57, unreachable → 91. A prepaid purchase decrements the wallet under `findByCardIdForUpdate`. V11 adds `authorization_log.hold_reference` + `wallet_debit`. `reverse` of an **approved** original releases the hold or restores the wallet, once. A failure after a hold releases it best-effort. A balance inquiry reserves nothing.
+- **Tests:**
+  - backend `AccountServiceTest` card holds (4);
+  - backend `CardHoldsIT` (5): **two concurrent 400.00 holds on 500.00 → exactly one approved**, release frees funds, a released reference doesn't re-hold, an expired hold is ignored, HTTP envelope, TELLER/CUSTOMER refused;
+  - card-service unit tests (27);
+  - card-service `CardReservationIntegrationTest`: a real prepaid card — 30.00 → 00, 30.00 → **51**, reversal restores 50.00, duplicate reversal no-op, 30.00 → 00.
+
 #### Follow-ups (deferred-backlog)
-14 credit line (IFRS 9 first) · 15 card approvals place no hold and card settlement posts no GL (money) · 16 backend rate tier from an unverified `X-Rate-Tier` header (security) · 17 DE6/DE51 cardholder-billing FX.
+14 credit line (IFRS 9 first) · 15 completion at clearing + GL for card spend (holds done) · 16 backend rate tier from an unverified `X-Rate-Tier` header (security) · 17 DE6/DE51 cardholder-billing FX.
 
 #### Build Verification
 - Before the fix: `debitMinorUnits_approvesAgainstMajorBalance` → **51** on the unchanged code.
 - Real Keycloak 23: `cba-card-service` → `["CARD_SERVICE"]`, `cba-fep-service` → `["FEP_SERVICE"]`, `cba-backend-service` → `["CARD_READER"]`; wrong card secret → 401.
 - `kubeconform -strict` 10/10; compose config valid.
-- `backend ./mvnw -o clean verify -Pfull-integration` → **891/891** (first run hit the IDE/Maven `target/` race — `NoClassDefFound` on unrelated classes; clean rerun green); `card-service` → **153/153**.
+- `backend ./mvnw -o clean verify -Pfull-integration` → **891/891** before the security follow-up (first run hit the IDE/Maven `target/` race — `NoClassDefFound` on unrelated classes; clean rerun green), **900/900** after; `card-service` → **153/153**, then **157/157** (snapshot: `AuthorizationLog` gains `holdReference`/`walletDebit`).
 - Gate grep (tracked + untracked): new `@GetMapping("/{id}/balance")` + its `@PreAuthorize` and URL matcher → api-reference, Postman, OpenAPI snapshot updated.
 
 #### Confirmed Platform Versions

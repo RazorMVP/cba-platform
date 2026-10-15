@@ -108,6 +108,9 @@ public class SecurityConfig {
                 // GET catch-all, which doesn't admit service roles
                 .requestMatchers(HttpMethod.GET, "/api/v1/accounts/*/balance")
                     .hasAnyRole("CARD_SERVICE", "ADMIN", "TELLER")
+                // card-service reserves and releases card authorizations' funds — before the POST catch-all
+                .requestMatchers(HttpMethod.POST, "/api/v1/accounts/*/card-holds", "/api/v1/accounts/*/card-holds/*/release")
+                    .hasAnyRole("CARD_SERVICE", "ADMIN")
 
                 // Read-only access for all authenticated roles
                 .requestMatchers(HttpMethod.GET, "/api/v1/**")

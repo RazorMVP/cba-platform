@@ -106,6 +106,21 @@ class CardHoldsIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("a reference reused for another amount is refused: REFERENCE_CONFLICT; only the first hold exists")
+    void referenceReusedForAnotherAmount_conflict() {
+        UUID id = account("500.00");
+        CardHoldResult first = accountService.placeCardHold(id, hold("CARD-K-1", "10.00"), "it");
+        assertThat(first.approved()).isTrue();
+
+        assertThat(accountService.placeCardHold(id, hold("CARD-K-1", "10.0000"), "it").approved()).isTrue();
+        CardHoldResult other = accountService.placeCardHold(id, hold("CARD-K-1", "400.00"), "it");
+        assertThat(other.approved()).isFalse();
+        assertThat(other.reason()).isEqualTo("REFERENCE_CONFLICT");
+        assertThat(jdbc.queryForObject("SELECT COALESCE(SUM(amount),0) FROM account_holds WHERE account_id = ?",
+                BigDecimal.class, id)).isEqualByComparingTo("10.00");
+    }
+
+    @Test
     @DisplayName("an expired hold no longer reduces the balance")
     void expiredHoldIgnored() {
         UUID id = account("500.00");

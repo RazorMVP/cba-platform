@@ -1053,7 +1053,7 @@
                 "card-holds"
               ]
             },
-            "description": "Atomic check-and-hold for a card authorization (role CARD_SERVICE; ADMIN). Row lock + withdrawal rules + hold in one transaction; idempotent on reference (a released reference can't hold again: HOLD_RELEASED). Decline = 200 approved=false with INSUFFICIENT_FUNDS | ACCOUNT_NOT_ACTIVE | ACCOUNT_IN_LOCKIN_PERIOD | CURRENCY_MISMATCH. Expires after 7 days.",
+            "description": "Atomic check-and-hold for a card authorization (role CARD_SERVICE; ADMIN). Row lock + withdrawal rules + hold in one transaction; idempotent on reference with the same amount (another amount: REFERENCE_CONFLICT; a released reference can't hold again: HOLD_RELEASED). Decline = 200 approved=false with INSUFFICIENT_FUNDS | ACCOUNT_NOT_ACTIVE | ACCOUNT_IN_LOCKIN_PERIOD | CURRENCY_MISMATCH | REFERENCE_CONFLICT | HOLD_RELEASED. Expires after 7 days.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"reference\": \"CARD-22222222-0001-0001-0001-000000000001-000123-612345000123\",\n  \"amount\": 25.0,\n  \"currencyCode\": \"USD\"\n}",
@@ -1126,7 +1126,7 @@
                     "card-holds"
                   ]
                 },
-                "description": "Atomic check-and-hold for a card authorization (role CARD_SERVICE; ADMIN). Row lock + withdrawal rules + hold in one transaction; idempotent on reference (a released reference can't hold again: HOLD_RELEASED). Decline = 200 approved=false with INSUFFICIENT_FUNDS | ACCOUNT_NOT_ACTIVE | ACCOUNT_IN_LOCKIN_PERIOD | CURRENCY_MISMATCH. Expires after 7 days.",
+                "description": "Atomic check-and-hold for a card authorization (role CARD_SERVICE; ADMIN). Row lock + withdrawal rules + hold in one transaction; idempotent on reference with the same amount (another amount: REFERENCE_CONFLICT; a released reference can't hold again: HOLD_RELEASED). Decline = 200 approved=false with INSUFFICIENT_FUNDS | ACCOUNT_NOT_ACTIVE | ACCOUNT_IN_LOCKIN_PERIOD | CURRENCY_MISMATCH | REFERENCE_CONFLICT | HOLD_RELEASED. Expires after 7 days.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"reference\": \"CARD-22222222-0001-0001-0001-000000000001-000123-612345000123\",\n  \"amount\": 25.0,\n  \"currencyCode\": \"USD\"\n}",

@@ -346,10 +346,14 @@ public class AccountService {
 
         var existing = accountHoldRepository.findByAccountIdAndExternalReference(accountId, request.reference());
         if (existing.isPresent()) {
+            // A repeat is a retry only if it asks for the same amount: otherwise it's a different
+            // authorization reusing the key, and approving it would cover it with the wrong hold.
             AccountHold h = existing.get();
-            boolean active = h.getStatus() == AccountHoldStatus.ACTIVE;
-            return new CardHoldResult(active, h.getId(), h.getExternalReference(), h.getStatus().name(),
-                    active ? null : "HOLD_RELEASED", spendable(account).max(BigDecimal.ZERO));
+            String why = h.getStatus() != AccountHoldStatus.ACTIVE ? "HOLD_RELEASED"
+                    : h.getAmount().compareTo(request.amount()) != 0 ? "REFERENCE_CONFLICT"
+                    : null;
+            return new CardHoldResult(why == null, h.getId(), h.getExternalReference(), h.getStatus().name(),
+                    why, spendable(account).max(BigDecimal.ZERO));
         }
 
         String reason = account.getStatus() != AccountStatus.ACTIVE ? "ACCOUNT_NOT_ACTIVE"

@@ -926,6 +926,7 @@ class AccountServiceTest {
             existing.setId(UUID.randomUUID());
             existing.setExternalReference(req.reference());
             existing.setStatus(AccountHoldStatus.ACTIVE);
+            existing.setAmount(new BigDecimal(req.amount().toPlainString() + "00")); // same value, other scale
             when(accountHoldRepository.findByAccountIdAndExternalReference(accountId, req.reference()))
                     .thenReturn(Optional.of(existing));
             stubNoHolds(accountId);
@@ -933,6 +934,24 @@ class AccountServiceTest {
             var r = accountService.placeCardHold(accountId, req, "svc");
             assertThat(r.approved()).isTrue();
             assertThat(r.holdId()).isEqualTo(existing.getId());
+            verify(accountHoldRepository, never()).saveAndFlush(any());
+        }
+
+        @Test
+        @DisplayName("the same reference with another amount: REFERENCE_CONFLICT, not approved, no second hold")
+        void sameReference_otherAmount_conflict() {
+            AccountHold existing = new AccountHold();
+            existing.setId(UUID.randomUUID());
+            existing.setExternalReference(req.reference());
+            existing.setStatus(AccountHoldStatus.ACTIVE);
+            existing.setAmount(req.amount().add(BigDecimal.ONE));
+            when(accountHoldRepository.findByAccountIdAndExternalReference(accountId, req.reference()))
+                    .thenReturn(Optional.of(existing));
+            stubNoHolds(accountId);
+
+            var r = accountService.placeCardHold(accountId, req, "svc");
+            assertThat(r.approved()).isFalse();
+            assertThat(r.reason()).isEqualTo("REFERENCE_CONFLICT");
             verify(accountHoldRepository, never()).saveAndFlush(any());
         }
 

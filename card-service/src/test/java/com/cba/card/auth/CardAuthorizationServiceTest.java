@@ -307,7 +307,63 @@ class CardAuthorizationServiceTest {
         var body = postedHold();
         assertThat((BigDecimal) body.get("amount")).isEqualByComparingTo("25.00");
         assertThat(body.get("currencyCode")).isEqualTo("USD");
-        assertThat(body.get("reference")).isEqualTo("CARD-" + card.getId() + "-000001-RRN0001");
+        assertThat(body.get("reference")).isEqualTo(CardAuthorizationService.holdReference(card,
+                req(new BigDecimal("2500"), "000000", false)));
+    }
+
+    @Test
+    @DisplayName("hold reference: a retry maps to the same key; another amount, terminal or RRN gets its own")
+    void holdReference_bindsTheWholeAuthorization() {
+        Card card = debitCard(UUID.randomUUID());
+        CardAuthRequest a = req(new BigDecimal("2500"), "000000", false);
+        String ref = CardAuthorizationService.holdReference(card, a);
+
+        assertThat(ref).startsWith("CARD-").hasSize(45);
+        assertThat(CardAuthorizationService.holdReference(card, req(new BigDecimal("2500"), "000000", false)))
+                .isEqualTo(ref);
+        assertThat(CardAuthorizationService.holdReference(card, req(new BigDecimal("2501"), "000000", false)))
+                .isNotEqualTo(ref);
+        assertThat(CardAuthorizationService.holdReference(card, new CardAuthRequest(PAN, "000000",
+                new BigDecimal("2500"), "840", "000001", "TERM02", "MERCH01", "Shop", "5411", "CHIP", "00",
+                "RRN0001", "VISA", false, true, false, null))).isNotEqualTo(ref);
+        assertThat(CardAuthorizationService.holdReference(card, new CardAuthRequest(PAN, "000000",
+                new BigDecimal("2500"), "840", "000001", "TERM01", "MERCH01", "Shop", "5411", "CHIP", "00",
+                null, "VISA", false, true, false, null))).isNotEqualTo(ref);
+    }
+
+    @Test
+    @DisplayName("if the authorization's transaction rolls back after the hold was placed, the hold is released")
+    void debitHold_releasedOnRollback() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        stubBackendHold(true, null);
+        CardAuthRequest r = req(new BigDecimal("2500"), "000000", false);
+
+        org.springframework.transaction.support.TransactionSynchronizationManager.initSynchronization();
+        try {
+            assertThat(service.authorize(r).responseCode()).isEqualTo("00");
+            for (var sync : org.springframework.transaction.support.TransactionSynchronizationManager.getSynchronizations()) {
+                sync.afterCompletion(org.springframework.transaction.support.TransactionSynchronization.STATUS_ROLLED_BACK);
+            }
+        } finally {
+            org.springframework.transaction.support.TransactionSynchronizationManager.clearSynchronization();
+        }
+        verify(backendRestTemplate).exchange(
+                contains("/card-holds/" + CardAuthorizationService.holdReference(card, r) + "/release"),
+                eq(HttpMethod.POST), isNull(), any(ParameterizedTypeReference.class));
+    }
+
+    @Test
+    @DisplayName("backend REFERENCE_CONFLICT (key reused for another amount) declines RC=94, no approval")
+    void debitReferenceConflict_94() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        stubBackendHold(false, "REFERENCE_CONFLICT");
+
+        assertThat(service.authorize(req(new BigDecimal("2500"), "000000", false)).responseCode()).isEqualTo("94");
+        verify(authLogRepository).save(argThat(a -> a.getHoldReference() == null));
     }
 
     @Test
@@ -518,6 +574,26 @@ class CardAuthorizationServiceTest {
         assertThat(service.reverse(PAN, new BigDecimal("100.00"), REV_STAN, "x")).isEqualTo("00");
         verify(backendRestTemplate).exchange(contains("/card-holds/CARD-x-000123-R1/release"), eq(HttpMethod.POST),
                 isNull(), any(ParameterizedTypeReference.class));
+    }
+
+    @Test
+    @DisplayName("backend unreachable on release: answers 96 and records no 0400, so a retry can release it")
+    void reverse_releaseFails_96_notRecorded() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setHoldReference("CARD-x-000123-R1");
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+        when(backendRestTemplate.exchange(contains("/release"), eq(HttpMethod.POST), isNull(),
+                any(ParameterizedTypeReference.class)))
+                .thenThrow(new org.springframework.web.client.ResourceAccessException("down"));
+
+        assertThat(service.reverse(PAN, new BigDecimal("100.00"), REV_STAN, "x")).isEqualTo("96");
+        verify(authLogRepository, never()).save(any());
+        verify(webhookService, never()).publishEvent(any(), any());
     }
 
     @Test

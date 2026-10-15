@@ -102,6 +102,14 @@ The commit security review found a **double-spend**: an approval reserved nothin
   - card-service unit tests (27);
   - card-service `CardReservationIntegrationTest`: a real prepaid card — 30.00 → 00, 30.00 → **51**, reversal restores 50.00, duplicate reversal no-op, 30.00 → 00.
 
+#### Second security review (same PR)
+The commit review of the hold fix found three more ways the books could drift:
+- **Idempotency key mismatch:** `placeCardHold` returned the existing hold for a repeated reference without comparing the amount, and the key (`CARD-{cardId}-{stan}-{rrn}`) didn't bind the amount, terminal or a missing RRN — a different authorization reusing a STAN could be "approved" against another's hold. Now a repeat counts only with the same amount (`compareTo`, so 10.00 = 10.0000), else `REFERENCE_CONFLICT` → card RC **94** (duplicate transmission); and the key is `CARD-` + 40 hex of SHA-256 over card, STAN, RRN, terminal, amount and currency (45 chars, within the 64-char column).
+- **Fail-open reversal:** `reverse` released the hold best-effort and still recorded the 0400 and answered 00 — after which the 0400 guard blocked every retry while the backend kept the hold. Now an unreachable backend → **96, nothing recorded**, so the network's retry completes it. (The release endpoint is idempotent, so a release that succeeded but whose reply was lost is safe to repeat.)
+- **Rollback after the hold:** if card-service's transaction rolled back after the backend hold was placed (including a failed commit — outside the method's catch), the hold lingered until expiry. Now an `afterCompletion(STATUS_ROLLED_BACK)` synchronization releases it.
+- **Build:** backend `clean verify -Pfull-integration` **902/902**, card-service **161/161**. Gate grep: no endpoint/param change; the new outcomes (`REFERENCE_CONFLICT`, RC 94, reversal 96) are documented in api-reference, card-api-reference and Postman.
+- **Tests:** backend `AccountServiceTest` +1 (conflict; idempotent repeat with another scale), `CardHoldsIT` +1 (10.00 / 10.0000 repeat approved, 400.00 → `REFERENCE_CONFLICT`, holds total 10.00); card-service `CardAuthorizationServiceTest` +4 (key binds the whole authorization, 94, rollback releases, reversal 96 records nothing and fires no webhook).
+
 #### Follow-ups (deferred-backlog)
 14 credit line (IFRS 9 first) · 15 completion at clearing + GL for card spend (holds done) · 16 backend rate tier from an unverified `X-Rate-Tier` header (security) · 17 DE6/DE51 cardholder-billing FX.
 

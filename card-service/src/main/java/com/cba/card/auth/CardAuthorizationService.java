@@ -129,10 +129,26 @@ public class CardAuthorizationService {
                     if (!hold.approved()) {
                         log.info("Debit card {} declined by the backend: {}", card.getId(), hold.reason());
                         return logAndReturn(card, req,
-                                CardAuthResponse.decline("INSUFFICIENT_FUNDS".equals(hold.reason()) ? "51" : "57"),
+                                CardAuthResponse.decline(switch (String.valueOf(hold.reason())) {
+                                    case "INSUFFICIENT_FUNDS" -> "51";
+                                    case "REFERENCE_CONFLICT" -> "94"; // a different authorization reused the key
+                                    default -> "57";
+                                }),
                                 fraud.totalScore(), fraud.decision());
                     }
                     holdRef = reference;
+                    // If this transaction rolls back after the hold was placed (including a failed
+                    // commit), the approval never happened — give the hold back.
+                    if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+                        final Card heldCard = card;
+                        org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                                new org.springframework.transaction.support.TransactionSynchronization() {
+                                    @Override
+                                    public void afterCompletion(int status) {
+                                        if (status == STATUS_ROLLED_BACK) releaseDebitHold(heldCard, reference);
+                                    }
+                                });
+                    }
                 }
             } else if (card.getCardType() == CardType.PREPAID) {
                 PrepaidWallet wallet = walletRepository.findByCardIdForUpdate(card.getId()).orElse(null);
@@ -282,10 +298,12 @@ public class CardAuthorizationService {
             }
             AuthorizationLog original = originalOpt.get();
 
-            // Give back what the approval reserved — once: the 0400 guard above stops a repeat.
+            // Give back what the approval reserved — once: the 0400 guard above stops a repeat. If the
+            // backend hold can't be released, don't record the reversal: answer 96 so the network
+            // retries (a recorded 0400 would block every retry and leave the funds held).
             if ("00".equals(original.getResponseCode())) {
-                if (original.getHoldReference() != null) {
-                    releaseDebitHold(card, original.getHoldReference());
+                if (original.getHoldReference() != null && !releaseDebitHold(card, original.getHoldReference())) {
+                    return "96";
                 }
                 if (original.getWalletDebit() != null && original.getWalletDebit().signum() > 0) {
                     walletRepository.findByCardIdForUpdate(card.getId()).ifPresent(w -> {
@@ -347,9 +365,22 @@ public class CardAuthorizationService {
         }
     }
 
-    /** card-service's idempotency key for an authorization's hold: a retried 0100 maps to the same hold. */
+    /**
+     * card-service's idempotency key for an authorization's hold. A retried 0100 carries the same
+     * card, STAN, RRN, terminal, amount and currency, so it maps to the same hold; any other
+     * authorization — even one reusing a STAN, or with no RRN — gets its own key (SHA-256, hex).
+     */
     static String holdReference(Card card, CardAuthRequest req) {
-        return "CARD-" + card.getId() + "-" + req.stan() + "-" + (req.rrn() != null ? req.rrn() : "");
+        String material = card.getId() + "|" + req.stan() + "|" + req.rrn() + "|" + req.terminalId()
+                + "|" + (req.amount() != null ? req.amount().stripTrailingZeros().toPlainString() : "")
+                + "|" + req.currencyCode();
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(material.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return "CARD-" + java.util.HexFormat.of().formatHex(digest).substring(0, 40);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
     }
 
     /**
@@ -373,15 +404,21 @@ public class CardAuthorizationService {
         }
     }
 
-    /** Releases an approval's backend hold (reversal, or a failure after approval). Best-effort, idempotent. */
-    private void releaseDebitHold(Card card, String reference) {
-        if (card == null || card.getLinkedEntityId() == null || reference == null) return;
+    /**
+     * Releases an approval's backend hold. True when the backend answered — released now, or
+     * already released, expired or never placed (the release is idempotent); false when it
+     * couldn't be reached, so the caller can refuse to report the reversal as done.
+     */
+    private boolean releaseDebitHold(Card card, String reference) {
+        if (card == null || card.getLinkedEntityId() == null || reference == null) return true;
         try {
             backendRestTemplate.exchange(restClientConfig.getBackendBaseUrl() + "/api/v1/accounts/"
                             + card.getLinkedEntityId() + "/card-holds/" + reference + "/release",
                     HttpMethod.POST, null, new ParameterizedTypeReference<Envelope<BackendHold>>() {});
+            return true;
         } catch (RestClientException e) {
-            log.warn("Debit hold release failed for card {} (it expires on its own): {}", card.getId(), e.getMessage());
+            log.warn("Debit hold release failed for card {}: {}", card.getId(), e.getMessage());
+            return false;
         }
     }
 

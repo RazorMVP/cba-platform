@@ -495,6 +495,14 @@ server-side data (the partner's tier, or a role).
 
 ---
 
+## 18. Partner portal: React Router 6 → 7 (open-redirect advisory)
+
+**Effort**: M · **Risk**: moderate — a same-origin redirect with a path `*` can leave the portal (GHSA in `@remix-run/router` 1.3.0–1.23.2 / `react-router` 6.0.0–7.17.0)
+
+Every 6.x release is inside the advisory range; the fix ships only in React Router 7.18+. `partner-portal` is on `react-router-dom` 6.30.6 (cont. 37). Migrate to v7 (`react-router` package, future flags first), rerun the 78 tests, then close the two Dependabot alerts.
+
+---
+
 ## 17. Card authorizations in a foreign currency (DE6 cardholder billing amount)
 
 **Effort**: M · **Risk**: cross-currency card spend declines

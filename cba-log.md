@@ -82,6 +82,7 @@ _None — all Phase 1 backend modules are now complete._
 - **`npm audit fix` downgrades Docusaurus to 3.7.0** to "fix" 15 findings. Targeted `npm install --package-lock-only` of the exact packages + `npm update <leaf names>` instead.
 - **npm 10 and 11 crash on a fresh resolve involving Vitest 4.1.x** (`edgesOut` null in `#loadPeerSet`; reproduced with only `vitest` in package.json; registry metadata, not local state). Updated with `--legacy-peer-deps` for that one targeted step; the one required peer it dropped (`@testing-library/dom`) is now explicit; proven with a plain `npm ci` (CI's command) and `npm ls`: 0 non-optional problems.
 - **Overrides kept only on proof:** both docs builds produce the same file set; CSS byte-identical; index.html differs only in the generator string and a 3.10.2 hardening (`innerHTML` → `textContent` in the base-URL banner script).
+- **Trivy caught one `npm audit` missed:** `webpack-dev-middleware` 7.4.5 path traversal (CVE-2026-76844, dev server only) → **7.4.6** in both docs sites (in range). Rebuilt: same file sets, CSS byte-identical. Trivy's other two "new" highs are `braces` (pre-existing; flagged because the lockfile lines moved).
 - **Left for dismissal (user OK needed, Step 3):** jasypt ×2 (low; advisory is the unsalted digester — we use salted, IV'd PBE encryption; 3.0.5 is the latest), braces and sprintf-js in both docs sites (no upstream fix; build-time only). react-router stays open until backlog 18.
 
 #### Build Verification

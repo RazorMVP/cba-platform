@@ -1,0 +1,16 @@
+# A Service with no selector and no Endpoints: the public ingress routes paths that must never
+# be reachable from outside (card-service's /api/v1/internal/** and /actuator) here, and the
+# ingress controller answers 503. Works with any ingress controller; no nginx snippets needed.
+apiVersion: v1
+kind: Service
+metadata:
+  name: card-service-blackhole
+  namespace: cba-platform
+  labels:
+    app.kubernetes.io/part-of: cba-platform
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80

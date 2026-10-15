@@ -103,6 +103,8 @@ services:
       # Secret of client cba-backend-service, filled into cba-realm.json at import (first boot
       # only — an existing realm is not re-imported). Local default only; set it anywhere real.
       CBA_BACKEND_SERVICE_SECRET: ${CBA_BACKEND_SERVICE_SECRET:-local-dev-only-change-me}
+      # Same for client cba-fep-service (fep-service → card-service internal endpoints).
+      CBA_FEP_SERVICE_SECRET: ${CBA_FEP_SERVICE_SECRET:-local-dev-only-change-me}
     volumes:
       - ./keycloak/cba-realm.json:/opt/keycloak/data/import/cba-realm.json:ro
     ports:
@@ -248,6 +250,10 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: docker
       CARD_SERVICE_URL: http://card-service:8081
+      # Service token for card-service's /api/v1/internal/** (client cba-fep-service, role FEP_SERVICE),
+      # from the in-network Keycloak so its issuer matches card-service's.
+      FEP_CARD_SERVICE_TOKEN_URI: http://keycloak:8180/realms/cba/protocol/openid-connect/token
+      CBA_FEP_SERVICE_SECRET: ${CBA_FEP_SERVICE_SECRET:-local-dev-only-change-me}
       FEP_TCP_PORT: "8583"
       FEP_HSM_PROVIDER: ${FEP_HSM_PROVIDER:-SOFTWARE}
     ports:

@@ -1,0 +1,36 @@
+# Only these may open connections to card-service pods (port 8081):
+#   - fep-service      (ISO 8583 authorizations → /api/v1/internal/**, BIN lookups)
+#   - backend          (Open Banking card reads → /api/v1/cards/**)
+#   - ingress controller (public card API, 3DS ACS, admin web) — namespace "ingress-nginx" is
+#     an ASSUMPTION; change it to wherever your controller runs (kubectl get pods -A | grep ingress).
+# Everything else in the cluster is refused. A NetworkPolicy is port-level, not path-level: the
+# ingress (blackhole paths) and card-service's FEP_SERVICE token check keep /api/v1/internal/**
+# from the public. Needs a CNI that enforces NetworkPolicy (Calico, Cilium, …). Kubelet probes
+# come from the node and are normally allowed; check your CNI if probes start failing.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: card-service-ingress-allow
+  namespace: cba-platform
+  labels:
+    app.kubernetes.io/part-of: cba-platform
+spec:
+  podSelector:
+    matchLabels:
+      app: card-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: fep-service
+        - podSelector:
+            matchLabels:
+              app: backend
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8081

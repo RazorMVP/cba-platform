@@ -402,7 +402,11 @@ a new Flyway migration (role + reporting schema + grants — role passwords via 
 
 ---
 
-## 11. ⚠️ card-service `/api/v1/internal/**` is unauthenticated and publicly routed
+## 11. ✅ DONE (cont. 34) — card-service `/api/v1/internal/**` was unauthenticated and publicly routed
+
+> Closed in Session 125 cont. 34: JWT with realm role FEP_SERVICE (client cba-fep-service) on the internal chain,
+> fep-service sends a client_credentials token, ingress blackholes `/api/v1/internal` + `/actuator`, NetworkPolicy
+> limits card-service callers, fep-service CI added. Kept below for history.
 
 **Effort**: M · **Risk**: security — PAN de-tokenisation and authorization reachable from the internet
 

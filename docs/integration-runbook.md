@@ -127,6 +127,82 @@ Legend for **State**:
   - **Verify:** `curl -u cba-backend-service:$SECRET -d grant_type=client_credentials $TOKEN_URI` returns a token whose
     `realm_access.roles` is `["CARD_READER"]`; AISP `/accounts` for a customer with cards lists them. Secret unset → the
     backend logs a WARN at startup and card data is omitted.
+- **fep-service → card-service service token** (cont. 34): card-service's `/api/v1/internal/**` (authorize, advise,
+  reverse, **PAN de-tokenisation**) and the BIN endpoints fep uses require a Keycloak JWT; the internal ones need realm
+  role **`FEP_SERVICE`**, held only by client **`cba-fep-service`**.
+  - **Secret:** `CBA_FEP_SERVICE_SECRET`, the same value for **Keycloak** (realm import placeholder) and **fep-service**.
+    k8s keys `keycloak-secret` + `fep-service-secret`. Token URI `FEP_CARD_SERVICE_TOKEN_URI` (same Keycloak host as
+    card-service's issuer). fep-service is on Spring Security 6.2, so the token is fetched by a small built-in client
+    (`CardServiceTokenProvider`): shared, renewed 30 s before expiry.
+  - **Existing realm:** not re-imported. Create role `FEP_SERVICE`, then client `cba-fep-service` (client authentication
+    ON, only "Service accounts roles"), assign it `FEP_SERVICE`, copy the secret.
+  - **Unset secret:** fep-service logs a WARN and calls without a token; a card-service without dev bypass refuses
+    them, so every authorization declines with RC 96.
+  - **Verify:** the client_credentials token's `realm_access.roles` is `["FEP_SERVICE"]`; `curl -X POST
+    $CARD/api/v1/internal/detokenize` without a token → 401.
+- **card-service edge (cont. 34):**
+  - the public ingress sends `/api/v1/internal` and `/actuator` to `card-service-blackhole` (no endpoints → 503);
+  - `card-service-networkpolicy.yaml` admits only fep-service, backend and the ingress controller on 8081. The
+    controller's namespace is assumed to be `ingress-nginx`; change it to yours. It needs a NetworkPolicy-enforcing CNI.
+
+### 9a. Before the first deploy — service-credential checklist
+
+Nothing here affects a local `docker compose` run: there, both secrets default to `local-dev-only-change-me`
+for Keycloak and the service alike, and card-service runs with the dev auth bypass. Every item below fails
+**quietly**: nothing crashes, but card authorizations decline with **RC 96** (fep-service) or Open Banking
+card data comes back empty (backend), and the logs show `No card-service token …`.
+
+**1. One secret per service client, given to both sides.**
+
+| Variable | Keycloak (realm import) | Service | k8s secrets |
+|---|---|---|---|
+| `CBA_FEP_SERVICE_SECRET` | client `cba-fep-service` | fep-service | `keycloak-secret`, `fep-service-secret` |
+| `CBA_BACKEND_SERVICE_SECRET` | client `cba-backend-service` | backend | `keycloak-secret`, `backend-secret` |
+
+- Generate each with `openssl rand -base64 32`, and put the **same** value in both secrets of its row.
+- Mismatch → Keycloak answers `401 invalid_client`. Unset in the service → a startup WARN, then calls go without a token.
+
+**2. An existing realm is not updated.** `--import-realm` skips a realm that already exists (Keycloak
+behaviour), so on a Keycloak that already has realm `cba`, create these by hand in the admin console:
+1. Realm roles → create `FEP_SERVICE` (and `CARD_READER` if missing).
+2. Clients → create `cba-fep-service`, with:
+   - **Client authentication** ON;
+   - every flow off except **Service accounts roles**;
+   - default client scope `roles`.
+
+   Do the same for `cba-backend-service` if it's missing.
+3. Each client's **Service account roles** tab → assign **only** its role (`FEP_SERVICE` / `CARD_READER`).
+   `KeycloakRealmServiceClientTest` guards the realm *files*, not a live server.
+4. **Credentials** tab → copy or set the secret, and use that value in both k8s secrets (item 1).
+
+Then check: `curl -s -u cba-fep-service:$SECRET -d grant_type=client_credentials $KEYCLOAK/realms/cba/protocol/openid-connect/token`
+returns a token whose `realm_access.roles` is exactly `["FEP_SERVICE"]` (`["CARD_READER"]` for the backend client).
+
+**3. NetworkPolicy namespace and CNI.**
+- `infrastructure/k8s/card-service/card-service-networkpolicy.yaml` admits only:
+  - fep-service;
+  - backend;
+  - pods in the namespace whose `kubernetes.io/metadata.name` is `ingress-nginx` (Kubernetes sets this label on every
+    namespace since 1.21).
+- Find your controller's namespace with `kubectl get pods -A | grep -i ingress`, and change the policy if it differs
+  (e.g. `kube-system` for k3s Traefik). If it's wrong, the **whole public card-service surface** fails with 502/504:
+  card API, 3DS ACS, admin card screens. fep-service and backend still work, which hides the cause.
+- The policy only works on a CNI that enforces NetworkPolicy (Calico, Cilium, …). Elsewhere it is silently ignored.
+  You lose that layer, but the FEP_SERVICE token check and the ingress blackhole still protect `/api/v1/internal/**`.
+- Kubelet probes come from the node and are normally allowed. If pods turn unready right after the policy lands,
+  check the CNI first.
+
+**4. What the pipeline applies, and what it doesn't.**
+- Applied automatically: the card-service deploy job runs `kubectl apply -f infrastructure/k8s/card-service/`. That
+  ships the NetworkPolicy and the blackhole Service, so item 3 must be right **before** the first deploy.
+- Applied once by hand: Keycloak, fep-service, `secrets/` and `configmaps/` are the one-time cluster bootstrap
+  (`docs/deferred-backlog.md` item 8). Items 1 and 2 belong there.
+
+**5. Verify after deploying.**
+1. `curl -s -o /dev/null -w "%{http_code}\n" -X POST https://card-api.<domain>/api/v1/internal/detokenize` → **503**
+   (the ingress blackhole; the request never reaches card-service).
+2. A test authorization through fep-service approves or declines on its merits, not RC 96.
+3. AISP `/accounts` for a customer with cards lists them.
 
 ## 10. Card scheme settlement file export ×5 🟢🔴
 

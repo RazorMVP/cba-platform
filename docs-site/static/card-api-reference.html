@@ -183,7 +183,7 @@ It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port
 <table>
   <tr><th>Endpoint Group</th><th>Auth Method</th><th>Header</th></tr>
   <tr><td><code>/3ds/acs/**</code></td><td>None (Directory Server mTLS in prod)</td><td>—</td></tr>
-  <tr><td><code>/api/v1/internal/**</code></td><td>None (network isolation)</td><td>—</td></tr>
+  <tr><td><code>/api/v1/internal/**</code></td><td>JWT with realm role <code>FEP_SERVICE</code> — fep-service only (Keycloak client <code>cba-fep-service</code>, client_credentials). Any other token → <code>403</code>, none → <code>401</code>. Also never routed by the public ingress (cont. 34)</td><td><code>Authorization: Bearer {jwt}</code></td></tr>
   <tr><td><code>/api/v1/**</code></td><td>JWT (Keycloak realm <code>cba</code>)</td><td><code>Authorization: Bearer {jwt}</code></td></tr>
   <tr><td><code>/card-api/v1/**</code></td><td>JWT <em>or</em> API Key (dual-mode)</td><td><code>Authorization: Bearer {jwt}</code> or <code>Authorization: ApiKey cba_{key}</code></td></tr>
 </table>
@@ -226,8 +226,9 @@ It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port
   <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/bins</code></td><td>ADMIN</td><td>Create BIN range</td></tr>
   <tr><td><span class="badge badge-put">PUT</span></td><td><code>/api/v1/bins/{id}</code></td><td>ADMIN</td><td>Update BIN range</td></tr>
   <tr><td><span class="badge badge-delete">DELETE</span></td><td><code>/api/v1/bins/{id}</code></td><td>ADMIN</td><td>Soft-delete BIN range</td></tr>
-  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/bins/lookup?pan=</code></td><td>None</td><td>Test BIN lookup (dev/ops)</td></tr>
-  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/bins/{bin}/scheme</code></td><td>None</td><td>Scheme by BIN (FEP M2M)</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/bins/lookup?pan=</code></td><td>Any JWT</td><td>Test BIN lookup (dev/ops)</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/bins/{bin}/scheme</code></td><td>Any JWT (fep-service: its FEP_SERVICE token)</td><td>Scheme by BIN (FEP M2M)</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/bins/all</code></td><td>Any JWT (fep-service: its FEP_SERVICE token)</td><td>BIN → scheme map for fep-service's cache (raw map, no envelope)</td></tr>
   <!-- Interchange -->
   <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/interchange/rates</code></td><td>ADMIN</td><td>List interchange rates</td></tr>
   <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/interchange/rates</code></td><td>ADMIN</td><td>Create interchange rate</td></tr>
@@ -412,6 +413,7 @@ It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port
 <section id="authorization">
 <h2>Authorization (Internal)</h2>
 <p>Called by <strong>fep-service</strong> for every 0100/0200 ISO 8583 message. Not intended for external integrators.</p>
+<div class="callout info"><strong>Auth (cont. 34):</strong> every <code>/api/v1/internal/**</code> endpoint (<code>/authorize</code>, <code>/advise</code>, <code>/reverse</code>, <code>/detokenize</code>) requires a JWT with realm role <code>FEP_SERVICE</code>, held only by Keycloak client <code>cba-fep-service</code>'s service account. No token → <code>401</code>; ADMIN/TELLER/CUSTOMER/CARD_READER → <code>403</code>. They had been open on the assumption of network isolation the k8s ingress never gave. The unused <code>GET /api/v1/internal/cards/{cardId}/authorizations</code> was removed (history: <code>GET /api/v1/cards/{id}/authorizations</code>). An unknown card now declines with RC <code>14</code> (it was a 500, and its log row was rolled back).</div>
 
 <details class="endpoint">
   <summary class="endpoint-header">

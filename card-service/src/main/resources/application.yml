@@ -190,6 +190,9 @@ management:
   endpoint:
     health:
       show-details: always
+      # /actuator/health/readiness and /liveness everywhere, not only when Boot detects k8s
+      probes:
+        enabled: true
 
 logging:
   level:

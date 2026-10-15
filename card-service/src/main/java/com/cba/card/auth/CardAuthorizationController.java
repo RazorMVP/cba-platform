@@ -8,15 +8,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
-import java.util.List;
-import java.util.UUID;
 
 /**
  * Internal endpoints called exclusively by fep-service.
  *
- * <p>These are under {@code /api/v1/internal/} which is excluded from JWT
- * validation by {@link com.cba.card.config.SecurityConfig} — protected instead
- * by network isolation (not accessible from outside the service mesh).
+ * <p>{@code /api/v1/internal/**} requires a JWT with realm role FEP_SERVICE (Keycloak client
+ * cba-fep-service) — see {@link com.cba.card.config.SecurityConfig#internalChain}.
  */
 @Slf4j
 @RestController
@@ -67,12 +64,6 @@ public class CardAuthorizationController {
                     dpan != null ? dpan.substring(0, Math.min(6, dpan.length())) : "??", e.getMessage());
             return ResponseEntity.ok(new DetokenizeResponse(dpan));
         }
-    }
-
-    /** Authorization history for a card (ADMIN view). */
-    @GetMapping("/cards/{cardId}/authorizations")
-    public ResponseEntity<List<AuthorizationLog>> getHistory(@PathVariable UUID cardId) {
-        return ResponseEntity.ok(authorizationService.getHistory(cardId));
     }
 
     // ── DTOs ──────────────────────────────────────────────────────────────────

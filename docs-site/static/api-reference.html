@@ -978,6 +978,22 @@ Where:
 <p>Funds holds reserve a portion of the account balance. <code>availableBalance = balance − Σ(ACTIVE holds)</code>. The <code>AccountResponse</code> includes <code>availableBalance</code>, <code>onHoldAmount</code>, and <code>lastTransactionDate</code>. Holds are automatically expired when an account is marked DORMANT (nightly CoB at 23:56).</p>
 
 <details class="endpoint">
+  <summary><span class="method get">GET</span> /api/v1/accounts/{id}/balance</summary>
+  <p>What a card authorization may spend — called by <strong>card-service</strong> for every debit-card authorization, with its service token (Keycloak client <code>cba-card-service</code>, realm role <code>CARD_SERVICE</code>; ADMIN and TELLER may call it too). Same rules as a withdrawal: <code>availableBalance</code> = balance − ACTIVE holds − minimum balance (or <strong>+</strong> the overdraft limit when the product allows overdraft), in <strong>major units</strong> of <code>currencyCode</code>, floored at 0. When the account can't be debited, <code>debitAllowed</code> is false, <code>availableBalance</code> is 0 and <code>reason</code> is <code>ACCOUNT_NOT_ACTIVE</code> (frozen, dormant, closed…) or <code>ACCOUNT_IN_LOCKIN_PERIOD</code> (only while global config <code>enforce-lockin-period-withdrawal</code> is on). No customer data. Excluded from rate limiting (it runs inside every card authorization). Unknown id → <code>404 ACCOUNT_NOT_FOUND</code>. <em>Cont. 35: card-service had always called this path; until then it didn't exist and every debit-card authorization declined RC 91.</em></p>
+  <h4>Response — 200 OK</h4>
+<pre><code>{
+  "data": {
+    "accountId": "40000000-0000-0000-0000-000000000001",
+    "currencyCode": "USD",
+    "availableBalance": 15420.75,
+    "debitAllowed": true,
+    "reason": null
+  },
+  "errors": []
+}</code></pre>
+</details>
+
+<details class="endpoint">
   <summary>
     <span class="method get">GET</span>
     <span class="endpoint-path">/api/v1/accounts/{id}/holds</span>
@@ -3208,6 +3224,7 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <!-- Savings Accounts -->
 <tr><td>GET</td><td>/api/v1/accounts</td><td>List accounts (filter by ?customerId, ?accountType, ?status)</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/accounts/{id}</td><td>Get account details</td><td>ADMIN, TELLER, CUSTOMER</td></tr>
+<tr><td>GET</td><td>/api/v1/accounts/{id}/balance</td><td>Spendable balance for a card authorization (card-service debit cards): <code>{accountId, currencyCode, availableBalance, debitAllowed, reason}</code>. No PII. Not rate-limited</td><td>CARD_SERVICE (card-service), ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/accounts</td><td>Open account</td><td>ADMIN, TELLER</td></tr>
 <tr><td>PUT</td><td>/api/v1/accounts/{id}/status</td><td>Change account status (ACTIVE/FROZEN/DORMANT/CLOSED)</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/accounts/{id}/deposit</td><td>Teller deposit — creates immutable Transaction ledger record</td><td>ADMIN, TELLER</td></tr>

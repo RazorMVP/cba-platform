@@ -105,6 +105,8 @@ services:
       CBA_BACKEND_SERVICE_SECRET: ${CBA_BACKEND_SERVICE_SECRET:-local-dev-only-change-me}
       # Same for client cba-fep-service (fep-service → card-service internal endpoints).
       CBA_FEP_SERVICE_SECRET: ${CBA_FEP_SERVICE_SECRET:-local-dev-only-change-me}
+      # Same for client cba-card-service (card-service → backend balance checks).
+      CBA_CARD_SERVICE_SECRET: ${CBA_CARD_SERVICE_SECRET:-local-dev-only-change-me}
     volumes:
       - ./keycloak/cba-realm.json:/opt/keycloak/data/import/cba-realm.json:ro
     ports:
@@ -217,6 +219,10 @@ services:
       SPRING_DATA_REDIS_PORT: "6379"
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8180/realms/cba
       BACKEND_BASE_URL: http://backend:8080
+      # Service token for the backend's debit-card balance check (client cba-card-service,
+      # role CARD_SERVICE), from the in-network Keycloak so its issuer matches the backend's.
+      BACKEND_TOKEN_URI: http://keycloak:8180/realms/cba/protocol/openid-connect/token
+      CBA_CARD_SERVICE_SECRET: ${CBA_CARD_SERVICE_SECRET:-local-dev-only-change-me}
       FEP_TCP_HOST: fep-service
       FEP_TCP_PORT: "8583"
       JASYPT_ENCRYPTOR_PASSWORD: ${ENCRYPTION_KEY:-dev_encryption_key_at_least_32_chars}

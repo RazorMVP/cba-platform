@@ -9,7 +9,7 @@
 > every remaining deferral marker (items 4–7 + the roadmap section). **Items 8–9 added Session 125
 > cont. 10 (2026-09-23)**: the CI secrets and variables that deployment and SonarCloud need. **Item 10 added
 > Session 125 cont. 32 (2026-10-14)**: user-defined (custom) reports, withdrawn on security review. **Items 11–13 added
-> cont. 33**: found while wiring the backend → card-service service token.
+> cont. 33**: found while wiring the backend → card-service service token. **Items 14–17 added cont. 35**.
 >
 > **Not in this list** (deliberately): intentional dev features that are correct as-is —
 > `DevAuthBypassFilter` (prod uses Keycloak), fraud/3DS last-resort scalar guards, Stitch
@@ -426,7 +426,12 @@ doesn't exist. Found in cont. 33's exploration.
 
 ---
 
-## 12. card-service → backend calls: no token, and the endpoints don't exist
+## 12. ✅ DONE (cont. 35) — card-service → backend calls: no token, and the endpoints didn't exist
+
+> Closed in Session 125 cont. 35: client `cba-card-service` (role CARD_SERVICE) token on a backend-only
+> `backendRestTemplate` (settlement split onto its own client); backend `GET /api/v1/accounts/{id}/balance`;
+> DE4 minor units converted and currency checked (they were compared raw: a ×100 error); credit cards decline
+> RC 57 until item 14. Kept below for history.
 
 **Effort**: M · **Risk**: card debit/credit authorization balance checks always fail (fail-safe decline path)
 
@@ -444,6 +449,55 @@ doesn't exist. Found in cont. 33's exploration.
 `AccountInfoController.resolveCustomerId` takes a TPP token's `sub` as the customer id (CUSTOMER tokens were
 fixed in cont. 33 via `customers.keycloak_id`). A TPP's `sub` is its own service account; the customer must come
 from the authorised consent (`ConsentService`, consent id header), with the consent's scopes enforced per endpoint.
+
+---
+
+## 14. Credit cards: a revolving credit line in the backend
+
+**Effort**: L · **Risk**: accounting — needs the IFRS 9 / CBN check before any recommendation
+
+Credit-card authorizations decline **RC 57**, because the backend has no credit line. Loans are single-disbursement
+amortising term loans (no credit limit, no draws). What's needed:
+- a credit-line model (limit, drawn balance, draws and repayments);
+- GL for draws (a credit-card draw is a loan disbursement);
+- ECL on the **undrawn** commitment (IFRS 9 §2.1(g), §5.5.20, B5.5.31);
+- the backend endpoint `GET /api/v1/loans/{id}/credit-availability` (or equivalent) with role `CARD_SERVICE`;
+- the card-service credit branch.
+
+---
+
+## 15. Card authorizations reserve no funds, and card settlement posts nothing to the GL
+
+**Effort**: L · **Risk**: money — double-spend window; card spend never reaches the ledger
+
+- **No holds.** card-service's authorize is check-and-record: an approval places **no hold** on the backend account,
+  so two approvals can both pass against the same balance.
+- **No GL posting.** Settlement (`SettlementService`, scheme files) moves no backend money and posts no journal.
+  That breaks the rule that every money movement posts a balanced GL journal.
+- **Needs:**
+  - a hold on approval (`AccountService.placeHold` via a CARD_SERVICE endpoint), released on reversal or expiry;
+  - debit plus GL at clearing (card settlement clearing account vs customer account; interchange income);
+  - the accounting treatment checked against IFRS/CBN first.
+
+---
+
+## 16. Backend rate limiter takes the tier from an unverified header
+
+**Effort**: S · **Risk**: security — anyone can claim a higher limit
+
+`backend/.../config/RateLimitFilter.java` resolves the tier from the client-supplied `X-Rate-Tier` header (and the
+identity from an unverified JWT parse). Any caller can send `X-Rate-Tier: ENTERPRISE`. The tier should come from
+server-side data (the partner's tier, or a role).
+
+---
+
+## 17. Card authorizations in a foreign currency (DE6 cardholder billing amount)
+
+**Effort**: M · **Risk**: cross-currency card spend declines
+
+A transaction whose DE49 currency differs from the account's declines **RC 57** (no FX on the authorization path).
+Schemes send the converted amount in DE6 (cardholder billing) with DE51 (its currency). fep-service and card-service
+should authorize on DE6/DE51 when present.
 
 ---
 

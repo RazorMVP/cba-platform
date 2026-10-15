@@ -921,6 +921,112 @@
           ]
         },
         {
+          "name": "Get Card Funds (card-service)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/accounts/{{accountId}}/balance",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts",
+                "{{accountId}}",
+                "balance"
+              ]
+            },
+            "description": "What a card authorization may spend \u2014 card-service's debit-card balance check (role CARD_SERVICE via Keycloak client cba-card-service; ADMIN/TELLER too). availableBalance = balance \u2212 active holds \u2212 minimum balance (+ overdraft limit), major units of currencyCode, \u2265 0; debitAllowed=false with reason ACCOUNT_NOT_ACTIVE | ACCOUNT_IN_LOCKIN_PERIOD. No PII. Not rate-limited. Unknown \u2192 404."
+          },
+          "x-code-samples": [
+            {
+              "lang": "cURL",
+              "source": "curl -X GET '{{base_url}}/api/v1/accounts/{{accountId}}/balance' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}'"
+            },
+            {
+              "lang": "JavaScript (fetch)",
+              "source": "fetch('{{base_url}}/api/v1/accounts/{{accountId}}/balance', {\n  method: 'GET',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  }\n}).then(r => r.json()).then(console.log);"
+            },
+            {
+              "lang": "Python (requests)",
+              "source": "import requests\n\nresponse = requests.get(\n    '{{base_url}}/api/v1/accounts/{{accountId}}/balance',\n    headers={\n        'Authorization': 'Bearer {{access_token}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    }\n)\nprint(response.json())"
+            },
+            {
+              "lang": "Java (OkHttp)",
+              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/api/v1/accounts/{{accountId}}/balance\")\n    .get()\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
+            },
+            {
+              "lang": "C# (HttpClient)",
+              "source": "var client = new HttpClient();\nclient.DefaultRequestHeaders.Authorization =\n    new AuthenticationHeaderValue(\"Bearer\", \"{{access_token}}\");\nclient.DefaultRequestHeaders.Add(\"X-Tenant-ID\", \"{{tenant_id}}\");\nvar response = await client.GetAsync(\"{{base_url}}/api/v1/accounts/{{accountId}}/balance\");\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
+            },
+            {
+              "lang": "PHP (cURL)",
+              "source": "<?php\n$ch = curl_init();\ncurl_setopt_array($ch, [\n    CURLOPT_URL => '{{base_url}}/api/v1/accounts/{{accountId}}/balance',\n    CURLOPT_CUSTOMREQUEST => 'GET',\n    CURLOPT_HTTPHEADER => [\n        'Authorization: Bearer {{access_token}}',\n        'Content-Type: application/json',\n        'X-Tenant-ID: {{tenant_id}}'\n    ],\n    CURLOPT_RETURNTRANSFER => true\n]);\necho curl_exec($ch);\ncurl_close($ch);"
+            },
+            {
+              "lang": "Go (net/http)",
+              "source": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n    \"strings\"\n    \"io/ioutil\"\n)\n\nfunc main() {\n    req, _ := http.NewRequest(\"GET\", \"{{base_url}}/api/v1/accounts/{{accountId}}/balance\", nil)\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"Content-Type\", \"application/json\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := new(http.Client).Do(req)\n    defer resp.Body.Close()\n    b, _ := ioutil.ReadAll(resp.Body)\n    fmt.Println(string(b))\n}"
+            },
+            {
+              "lang": "Ruby (Net::HTTP)",
+              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/api/v1/accounts/{{accountId}}/balance')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Get.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nputs http.request(req).body"
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "X-Tenant-ID",
+                    "value": "{{tenant_id}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/accounts/{{accountId}}/balance",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "accounts",
+                    "{{accountId}}",
+                    "balance"
+                  ]
+                },
+                "description": "What a card authorization may spend \u2014 card-service's debit-card balance check (role CARD_SERVICE via Keycloak client cba-card-service; ADMIN/TELLER too). availableBalance = balance \u2212 active holds \u2212 minimum balance (+ overdraft limit), major units of currencyCode, \u2265 0; debitAllowed=false with reason ACCOUNT_NOT_ACTIVE | ACCOUNT_IN_LOCKIN_PERIOD. No PII. Not rate-limited. Unknown \u2192 404."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"accountId\": \"40000000-0000-0000-0000-000000000001\",\n    \"currencyCode\": \"USD\",\n    \"availableBalance\": 15420.75,\n    \"debitAllowed\": true,\n    \"reason\": null\n  },\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
           "name": "Get Accounts by Customer",
           "request": {
             "method": "GET",

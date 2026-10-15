@@ -23,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * client_credentials only, its secret is an environment placeholder (this repository is
  * public), its service account holds its one role and nothing else, and no person holds it.
  */
-@DisplayName("Keycloak realm — service clients (cba-backend-service, cba-fep-service) and their roles")
+@DisplayName("Keycloak realm — service clients (cba-backend-service, cba-fep-service, cba-card-service) and their roles")
 class KeycloakRealmServiceClientTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -46,6 +46,7 @@ class KeycloakRealmServiceClientTest {
         for (String which : List.of("compose", "k8s")) {
             args.add(Arguments.of(which, "cba-backend-service", "CARD_READER", "CBA_BACKEND_SERVICE_SECRET"));
             args.add(Arguments.of(which, "cba-fep-service", "FEP_SERVICE", "CBA_FEP_SERVICE_SECRET"));
+            args.add(Arguments.of(which, "cba-card-service", "CARD_SERVICE", "CBA_CARD_SERVICE_SECRET"));
         }
         return args.stream();
     }

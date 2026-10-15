@@ -15,6 +15,8 @@ import com.cba.card.wallet.PrepaidWallet;
 import com.cba.card.wallet.PrepaidWalletRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpMethod;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.ResponseEntity;
@@ -95,40 +97,50 @@ public class CardAuthorizationService {
             // STEP_UP: inform FEP to require online PIN — FEP handles protocol-level step-up
             // We still proceed to balance check; FEP may re-submit with pinVerified=true
 
-            // 3. Balance / credit check
+            // 3. Funds check. DE4 (req.amount) is in minor units of the DE49 currency; balances are
+            //    major units of the account's or wallet's currency — compare in the same units and
+            //    currency (they were compared raw: 25.00 USD read as 2500 against a 500.00 balance).
             BigDecimal availableBalance = null;
+            String fundsCurrency = null;
             if (card.getCardType() == CardType.DEBIT) {
-                availableBalance = getDebitBalance(card);
-                if (availableBalance == null) {
+                BackendFunds funds = getDebitFunds(card);
+                if (funds == null || funds.availableBalance() == null) {
                     return logAndReturn(card, req, CardAuthResponse.decline("91"),
                             fraud.totalScore(), fraud.decision()); // issuer unavailable
                 }
-                if (!BALANCE_INQUIRY_CODE.equals(req.processingCode()) &&
-                        req.amount() != null && availableBalance.compareTo(req.amount()) < 0) {
+                if (!funds.debitAllowed()) {
+                    log.info("Debit card {} declined: linked account can't be debited ({})", card.getId(), funds.reason());
+                    return logAndReturn(card, req, CardAuthResponse.decline("57"),
+                            fraud.totalScore(), fraud.decision()); // transaction not permitted
+                }
+                availableBalance = funds.availableBalance();
+                fundsCurrency = funds.currencyCode();
+            } else if (card.getCardType() == CardType.PREPAID) {
+                PrepaidWallet wallet = walletRepository.findByCardId(card.getId()).orElse(null);
+                if (wallet == null || wallet.getBalance() == null) {
+                    return logAndReturn(card, req, CardAuthResponse.decline("91"),
+                            fraud.totalScore(), fraud.decision());
+                }
+                availableBalance = wallet.getBalance();
+                fundsCurrency = wallet.getCurrencyCode();
+            } else if (card.getCardType() == CardType.CREDIT) {
+                // The backend has no revolving credit line yet (loans are amortising term loans), so
+                // there is no credit to authorize against: decline as not permitted, not as an outage.
+                log.info("Credit card {} declined: credit lines are not available", card.getId());
+                return logAndReturn(card, req, CardAuthResponse.decline("57"),
+                        fraud.totalScore(), fraud.decision());
+            }
+            if (!BALANCE_INQUIRY_CODE.equals(req.processingCode()) && req.amount() != null) {
+                java.util.Currency txCurrency = currency(req.currencyCode());
+                if (txCurrency == null || !txCurrency.equals(currency(fundsCurrency))) {
+                    log.info("Card {} declined: transaction currency {} vs funds currency {}",
+                            card.getId(), req.currencyCode(), fundsCurrency);
+                    return logAndReturn(card, req, CardAuthResponse.decline("57"),
+                            fraud.totalScore(), fraud.decision()); // no FX on the authorization path
+                }
+                if (availableBalance.compareTo(toMajorUnits(req.amount(), txCurrency)) < 0) {
                     return logAndReturn(card, req, CardAuthResponse.decline("51"),
                             fraud.totalScore(), fraud.decision()); // insufficient funds
-                }
-            } else if (card.getCardType() == CardType.PREPAID) {
-                availableBalance = getPrepaidBalance(card);
-                if (availableBalance == null) {
-                    return logAndReturn(card, req, CardAuthResponse.decline("91"),
-                            fraud.totalScore(), fraud.decision());
-                }
-                if (!BALANCE_INQUIRY_CODE.equals(req.processingCode()) &&
-                        req.amount() != null && availableBalance.compareTo(req.amount()) < 0) {
-                    return logAndReturn(card, req, CardAuthResponse.decline("51"),
-                            fraud.totalScore(), fraud.decision());
-                }
-            } else if (card.getCardType() == CardType.CREDIT) {
-                availableBalance = getCreditAvailability(card);
-                if (availableBalance == null) {
-                    return logAndReturn(card, req, CardAuthResponse.decline("91"),
-                            fraud.totalScore(), fraud.decision());
-                }
-                if (!BALANCE_INQUIRY_CODE.equals(req.processingCode()) &&
-                        req.amount() != null && availableBalance.compareTo(req.amount()) < 0) {
-                    return logAndReturn(card, req, CardAuthResponse.decline("51"),
-                            fraud.totalScore(), fraud.decision());
                 }
             }
 
@@ -183,9 +195,12 @@ public class CardAuthorizationService {
     public BalanceResult getAvailableBalance(UUID cardId) {
         Card card = cardService.findById(cardId);
         BigDecimal balance = switch (card.getCardType()) {
-            case DEBIT   -> getDebitBalance(card);
+            case DEBIT   -> {
+                BackendFunds funds = getDebitFunds(card);
+                yield funds != null ? funds.availableBalance() : null;
+            }
             case PREPAID -> getPrepaidBalance(card);
-            case CREDIT  -> getCreditAvailability(card);
+            case CREDIT  -> null; // no credit line in the backend yet
         };
         return new BalanceResult(balance, card.getCardType().name());
     }
@@ -284,36 +299,49 @@ public class CardAuthorizationService {
 
     // ── Balance Checks (via monolith REST) ────────────────────────────────────
 
-    private BigDecimal getDebitBalance(Card card) {
+    /**
+     * What the linked account may spend: backend {@code GET /api/v1/accounts/{id}/balance}
+     * (ApiResponse envelope; service token on {@code backendRestTemplate}). Null when unavailable.
+     */
+    private BackendFunds getDebitFunds(Card card) {
         if (card.getLinkedEntityId() == null) return null;
         try {
             String url = restClientConfig.getBackendBaseUrl()
                     + "/api/v1/accounts/" + card.getLinkedEntityId() + "/balance";
-            ResponseEntity<BalanceResponse> resp = backendRestTemplate.getForEntity(url, BalanceResponse.class);
-            return resp.getBody() != null ? resp.getBody().availableBalance() : null;
+            ResponseEntity<Envelope<BackendFunds>> resp = backendRestTemplate.exchange(
+                    url, HttpMethod.GET, null, new ParameterizedTypeReference<Envelope<BackendFunds>>() {});
+            return resp.getBody() != null ? resp.getBody().data() : null;
         } catch (RestClientException e) {
             log.warn("Debit balance lookup failed for card {}: {}", card.getId(), e.getMessage());
             return null;
         }
     }
 
+    /** An ISO 4217 currency from a numeric (DE49, "840") or alphabetic ("USD") code; null if unknown. */
+    static java.util.Currency currency(String code) {
+        if (code == null || code.isBlank()) return null;
+        String c = code.trim();
+        if (c.chars().allMatch(Character::isDigit)) {
+            int numeric = Integer.parseInt(c);
+            return java.util.Currency.getAvailableCurrencies().stream()
+                    .filter(cur -> cur.getNumericCode() == numeric).findFirst().orElse(null);
+        }
+        try {
+            return java.util.Currency.getInstance(c.toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    /** DE4 minor units → major units of the currency (2 decimals for USD, 0 for JPY, 3 for KWD). */
+    static BigDecimal toMajorUnits(BigDecimal minorUnits, java.util.Currency currency) {
+        return minorUnits.movePointLeft(Math.max(currency.getDefaultFractionDigits(), 0));
+    }
+
     private BigDecimal getPrepaidBalance(Card card) {
         return walletRepository.findByCardId(card.getId())
                 .map(PrepaidWallet::getBalance)
                 .orElse(null);
-    }
-
-    private BigDecimal getCreditAvailability(Card card) {
-        if (card.getLinkedEntityId() == null) return null;
-        try {
-            String url = restClientConfig.getBackendBaseUrl()
-                    + "/api/v1/loans/" + card.getLinkedEntityId() + "/credit-availability";
-            ResponseEntity<BalanceResponse> resp = backendRestTemplate.getForEntity(url, BalanceResponse.class);
-            return resp.getBody() != null ? resp.getBody().availableBalance() : null;
-        } catch (RestClientException e) {
-            log.warn("Credit availability lookup failed for card {}: {}", card.getId(), e.getMessage());
-            return null;
-        }
     }
 
     // ── Logging ───────────────────────────────────────────────────────────────
@@ -406,10 +434,12 @@ public class CardAuthorizationService {
     }
 
     /**
-     * Internal DTO for balance REST response from monolith.
-     * Package-private (not private) so unit tests in this package can stub
-     * {@code backendRestTemplate.getForEntity(...)} with a populated balance to
-     * exercise the DEBIT/CREDIT approve + insufficient-funds paths.
+     * The backend's {@code CardFunds} (major units of {@code currencyCode}). Package-private so
+     * unit tests in this package can stub the backend call with real funds.
      */
-    record BalanceResponse(BigDecimal availableBalance, String currencyCode) {}
+    record BackendFunds(UUID accountId, String currencyCode, BigDecimal availableBalance,
+                        boolean debitAllowed, String reason) {}
+
+    /** The backend's {@code ApiResponse} envelope — only {@code data} is read. */
+    record Envelope<T>(T data) {}
 }

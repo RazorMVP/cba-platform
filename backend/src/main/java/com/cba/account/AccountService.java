@@ -1,6 +1,7 @@
 package com.cba.account;
 
 import com.cba.account.algorithm.AccountNumberAlgorithmService;
+import com.cba.account.dto.CardFunds;
 import com.cba.account.dto.*;
 import com.cba.audit.AuditLogService;
 import com.cba.common.exception.CbaException;
@@ -276,22 +277,45 @@ public class AccountService {
         return new BalanceChange(account, before, tx);
     }
 
+    /**
+     * What a card authorization may spend (card-service, debit cards): the same rules as a
+     * withdrawal ({@link #checkDebitAllowed}), answered instead of enforced. Read-only.
+     */
+    @Transactional(readOnly = true)
+    public CardFunds cardFunds(UUID accountId) {
+        Account account = findById(accountId);
+        String reason = account.getStatus() != AccountStatus.ACTIVE ? "ACCOUNT_NOT_ACTIVE"
+                : lockinExpiry(account) != null ? "ACCOUNT_IN_LOCKIN_PERIOD"
+                : null;
+        BigDecimal available = reason == null ? spendable(account).max(BigDecimal.ZERO) : BigDecimal.ZERO;
+        return new CardFunds(account.getId(), account.getCurrencyCode(), available, reason == null, reason);
+    }
+
+    /** Balance − active holds − the effective floor (minimum balance, or minus the overdraft limit). */
+    private BigDecimal spendable(Account account) {
+        BigDecimal onHold = accountHoldRepository.sumActiveHoldsByAccount(account.getId());
+        return account.getBalance().subtract(onHold).subtract(account.computeEffectiveFloor());
+    }
+
+    /** The lock-in end date when lock-in is enforced and still running; otherwise null. */
+    private LocalDate lockinExpiry(Account account) {
+        if (!isConfigEnabled("enforce-lockin-period-withdrawal")) return null;
+        LocalDate expiry = computeLockinExpiry(account.getProduct(), account.getOpenedDate());
+        return expiry != null && !LocalDate.now().isAfter(expiry) ? expiry : null;
+    }
+
     /** Withdrawal rules; returns the effective available balance the debit may use. */
     private BigDecimal checkDebitAllowed(Account account, BigDecimal amount) {
         validateAccountActive(account);
 
-        if (isConfigEnabled("enforce-lockin-period-withdrawal")) {
-            LocalDate expiry = computeLockinExpiry(account.getProduct(), account.getOpenedDate());
-            if (expiry != null && !LocalDate.now().isAfter(expiry)) {
-                throw CbaException.badRequest("ACCOUNT_IN_LOCKIN_PERIOD",
-                    "Withdrawals are not permitted until the lock-in period ends on " + expiry);
-            }
+        LocalDate lockin = lockinExpiry(account);
+        if (lockin != null) {
+            throw CbaException.badRequest("ACCOUNT_IN_LOCKIN_PERIOD",
+                "Withdrawals are not permitted until the lock-in period ends on " + lockin);
         }
 
-        BigDecimal onHold = accountHoldRepository.sumActiveHoldsByAccount(account.getId());
-        BigDecimal available = account.getBalance().subtract(onHold);
         BigDecimal floor = account.computeEffectiveFloor();
-        BigDecimal effectiveAvailable = available.subtract(floor);
+        BigDecimal effectiveAvailable = spendable(account);
         if (effectiveAvailable.compareTo(amount) < 0) {
             String msg = floor.compareTo(BigDecimal.ZERO) > 0
                 ? "Withdrawal would breach minimum balance requirement of " + floor

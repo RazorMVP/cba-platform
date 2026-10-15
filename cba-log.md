@@ -57,6 +57,54 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 35) — 2026-10-15
+**Backlog 12 closed: card-service → backend. Debit-card authorizations can reach the backend: a service token (client `cba-card-service`, role `CARD_SERVICE`) and the backend endpoint card-service always called. The fixed path exposed a ×100 money bug and a missing currency check.**
+
+#### What was wrong
+| Defect | Effect |
+|---|---|
+| card-service `backendRestTemplate` = `new RestTemplate()` (no token, no timeouts); backend had no `GET /api/v1/accounts/{id}/balance` (nor `/loans/{id}/credit-availability`); card-service read a flat body while the backend wraps `ApiResponse` | Every DEBIT and CREDIT authorization declined **RC 91** outside dev bypass |
+| DE4 amount (**minor units**) compared raw with the backend/wallet balance (**major units**) | **Confirmed first** (unit test on unchanged code): 25.00 USD against a 500.00 balance → **RC 51**. Prepaid cards — the only path that worked — were affected too |
+| DE49 currency never compared with the account's | A foreign-currency amount would be checked against a balance in another currency |
+| `SettlementFileTransmitter` injected the same `RestTemplate` by type and POSTs to PAPSS with its API key | A token interceptor on it would have sent card-service's Keycloak token to an external clearinghouse (or replaced the PAPSS key) |
+| Backend `RateLimitFilter` limits all `/api/v1/**` per JWT `azp` | All authorizations would share one 100/min bucket → 429 → RC 91 |
+| No credit-line model in the backend | Credit-card "available credit" can't be computed from anything real |
+
+#### Decisions (plan approved)
+- **D1** credit cards decline **RC 57** (not 91) until a credit line exists — backlog 14 (IFRS 9 undrawn-commitment check first).
+- **D2** role `CARD_SERVICE`, admitted only on the new endpoint (URL matcher before the GET catch-all + `@PreAuthorize`).
+- **D3** that path is excluded from rate limiting.
+- **D4** DE4 → major units by ISO 4217 fraction digits (`java.util.Currency`; numeric DE49 or alphabetic); currency ≠ account/wallet currency → RC 57 (DE6 FX: backlog 17).
+- **D5** no backend audit row per balance read (state changes only; card-service logs every authorization).
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/.../account/dto/CardFunds.java` (new), `AccountService.java` | `cardFunds(id)`: balance − active holds − effective floor (overdraft folded in), ≥ 0; `debitAllowed` + `reason` (`ACCOUNT_NOT_ACTIVE`, `ACCOUNT_IN_LOCKIN_PERIOD`); `checkDebitAllowed` shares `spendable()`/`lockinExpiry()` |
+| `backend/.../account/AccountController.java` | `GET /api/v1/accounts/{id}/balance` (CARD_SERVICE, ADMIN, TELLER), no PII |
+| `backend/.../config/SecurityConfig.java`, `RateLimitFilter.java` | matcher for the path before the GET catch-all; rate-limit exemption |
+| `card-service/.../config/RestClientConfig.java`, `pom.xml`, `application.yml` | `backendRestTemplate` (service token via `OAuth2ClientHttpRequestInterceptor`, fixed resolvers, 2 s/3 s) + `settlementRestTemplate` (no token); `backend.auth.*`; `spring-security-oauth2-client` 6.5.11 |
+| `card-service/.../settlement/SettlementFileTransmitter.java` | field `settlementRestTemplate` (injected by parameter name) |
+| `card-service/.../auth/CardAuthorizationService.java` | envelope parsing; units + currency; debit 57/51/91; prepaid units; credit 57; `currency()`, `toMajorUnits()` |
+| `card-service/.../db/migration/V10__link_demo_cards_to_backend_demo.sql` (new) | demo cards → backend demo customer John Doe and his USD savings account |
+| `infrastructure/keycloak/cba-realm.json` + k8s configmap; compose; k8s secrets/deployments/configmap; `.env.example` | role `CARD_SERVICE`, client `cba-card-service`, `CBA_CARD_SERVICE_SECRET`, `BACKEND_TOKEN_URI` |
+| Tests | backend `AccountServiceTest` cardFunds (6), `CardFundsIT` (4), realm guard 3rd row (12); card-service `CardAuthorizationServiceTest` (24: units, JPY, KWD, currency, 57s), `RestClientConfigTest` (3), `BackendClientIntegrationTest` (2, WireMock) |
+| `backend/docs/openapi-snapshot.yaml` | new path + `CardFunds` |
+| `docs/api-reference.html`, `docs/card-api-reference.html`, Postman (+ docs-site copies), `docs/integration-runbook.md` (§9, §9a), `docs/deferred-backlog.md` (12 ✅, new 14–17), `CLAUDE.md` | |
+
+#### Follow-ups (deferred-backlog)
+14 credit line (IFRS 9 first) · 15 card approvals place no hold and card settlement posts no GL (money) · 16 backend rate tier from an unverified `X-Rate-Tier` header (security) · 17 DE6/DE51 cardholder-billing FX.
+
+#### Build Verification
+- Before the fix: `debitMinorUnits_approvesAgainstMajorBalance` → **51** on the unchanged code.
+- Real Keycloak 23: `cba-card-service` → `["CARD_SERVICE"]`, `cba-fep-service` → `["FEP_SERVICE"]`, `cba-backend-service` → `["CARD_READER"]`; wrong card secret → 401.
+- `kubeconform -strict` 10/10; compose config valid.
+- `backend ./mvnw -o clean verify -Pfull-integration` → **891/891** (first run hit the IDE/Maven `target/` race — `NoClassDefFound` on unrelated classes; clean rerun green); `card-service` → **153/153**.
+- Gate grep (tracked + untracked): new `@GetMapping("/{id}/balance")` + its `@PreAuthorize` and URL matcher → api-reference, Postman, OpenAPI snapshot updated.
+
+#### Confirmed Platform Versions
+card-service gains `spring-security-oauth2-client` 6.5.11 (Spring Boot 3.5.16 BOM). Otherwise unchanged.
+
 ### Session 125 (cont. 34) — 2026-10-15
 **Backlog 11 closed: card-service `/api/v1/internal/**` (PAN de-tokenisation, authorization) required no credential and was publicly routed. It now requires a Keycloak token with realm role `FEP_SERVICE`; fep-service sends one; the ingress and a NetworkPolicy fence it too. Also: unknown-card authorizations 500 → RC 14, k8s probes 401 → open, fep-service gets CI.**
 

@@ -9,6 +9,8 @@ data:
   SPRING_DATASOURCE_USERNAME: "card_user"
   SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: "http://keycloak:8180/realms/cba"
   BACKEND_BASE_URL: "http://backend:8080"
+  # Same Keycloak host as the backend's issuer, so the service token's iss matches.
+  BACKEND_TOKEN_URI: "http://keycloak:8180/realms/cba/protocol/openid-connect/token"
   FEP_TCP_HOST: "fep-service"
   FEP_TCP_PORT: "8583"
   CARD_BUREAU_NAME: "CBA_BUREAU"

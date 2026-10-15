@@ -427,6 +427,17 @@ components:
         meta:
           $ref: "#/components/schemas/PageMeta"
       type: "object"
+    ApiResponseCardFunds:
+      properties:
+        data:
+          $ref: "#/components/schemas/CardFunds"
+        errors:
+          items:
+            $ref: "#/components/schemas/ApiError"
+          type: "array"
+        meta:
+          $ref: "#/components/schemas/PageMeta"
+      type: "object"
     ApiResponseCashTransactionResponse:
       properties:
         data:
@@ -3013,6 +3024,20 @@ components:
         totalRows:
           format: "int32"
           type: "integer"
+      type: "object"
+    CardFunds:
+      properties:
+        accountId:
+          format: "uuid"
+          type: "string"
+        availableBalance:
+          type: "number"
+        currencyCode:
+          type: "string"
+        debitAllowed:
+          type: "boolean"
+        reason:
+          type: "string"
       type: "object"
     CashFlowEntryDto:
       properties:
@@ -12366,6 +12391,32 @@ paths:
       security:
       - oauth2: []
       summary: "Execute account lifecycle command (approve, activate, reject, reactivate)"
+      tags:
+      - "Accounts"
+  /api/v1/accounts/{id}/balance:
+    get:
+      description: "availableBalance = balance − active holds − minimum balance (or\
+        \ + overdraft limit), major units of currencyCode; 0 with debitAllowed=false\
+        \ and a reason (ACCOUNT_NOT_ACTIVE | ACCOUNT_IN_LOCKIN_PERIOD) when the account\
+        \ can't be debited."
+      operationId: "getCardFunds"
+      parameters:
+      - in: "path"
+        name: "id"
+        required: true
+        schema:
+          format: "uuid"
+          type: "string"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCardFunds"
+          description: "OK"
+      security:
+      - oauth2: []
+      summary: "Spendable balance for a card authorization (card-service)"
       tags:
       - "Accounts"
   /api/v1/accounts/{id}/deposit:

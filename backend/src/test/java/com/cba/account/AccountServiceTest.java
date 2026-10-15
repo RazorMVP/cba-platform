@@ -795,4 +795,88 @@ class AccountServiceTest {
             assertThat(template).containsKey("accountTypes");
         }
     }
+
+    // ────────────────────────────────────────────────────────────────────────────
+    // cardFunds — what a card authorization may spend (card-service, debit cards)
+    // ────────────────────────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("cardFunds")
+    class CardFundsTests {
+
+        private com.cba.account.dto.CardFunds funds() {
+            when(accountRepository.findById(accountId)).thenReturn(Optional.of(activeAccount));
+            return accountService.cardFunds(accountId);
+        }
+
+        @Test
+        @DisplayName("balance − active holds − minimum balance, in the account's currency")
+        void holdsAndMinimumBalance() {
+            product.setMinimumBalance(new BigDecimal("100.00"));
+            when(accountHoldRepository.sumActiveHoldsByAccount(accountId)).thenReturn(new BigDecimal("250.00"));
+            var f = funds();
+            assertThat(f.availableBalance()).isEqualByComparingTo("650.00"); // 1000 − 250 − 100
+            assertThat(f.currencyCode()).isEqualTo("USD");
+            assertThat(f.debitAllowed()).isTrue();
+            assertThat(f.reason()).isNull();
+        }
+
+        @Test
+        @DisplayName("an overdraft adds its limit (the floor is minus the limit)")
+        void overdraftAddsLimit() {
+            product.setAllowOverdraft(true);
+            product.setOverdraftLimit(new BigDecimal("500.00"));
+            stubNoHolds(accountId);
+            assertThat(funds().availableBalance()).isEqualByComparingTo("1500.00");
+        }
+
+        @Test
+        @DisplayName("never negative: holds beyond the balance give 0, still debitAllowed")
+        void flooredAtZero() {
+            when(accountHoldRepository.sumActiveHoldsByAccount(accountId)).thenReturn(new BigDecimal("1200.00"));
+            var f = funds();
+            assertThat(f.availableBalance()).isEqualByComparingTo("0");
+            assertThat(f.debitAllowed()).isTrue();
+        }
+
+        @Test
+        @DisplayName("FROZEN or DORMANT: debitAllowed=false, ACCOUNT_NOT_ACTIVE, 0")
+        void notActive() {
+            for (AccountStatus status : new AccountStatus[]{AccountStatus.FROZEN, AccountStatus.DORMANT}) {
+                activeAccount.setStatus(status);
+                var f = funds();
+                assertThat(f.debitAllowed()).as(status.name()).isFalse();
+                assertThat(f.reason()).isEqualTo("ACCOUNT_NOT_ACTIVE");
+                assertThat(f.availableBalance()).isEqualByComparingTo("0");
+            }
+            verifyNoInteractions(accountHoldRepository);
+        }
+
+        @Test
+        @DisplayName("lock-in counts only while enforced: in lock-in → ACCOUNT_IN_LOCKIN_PERIOD; config off → spendable")
+        void lockin() {
+            product.setLockinPeriodFrequency(12);
+            product.setLockinPeriodFrequencyType(LockInFrequencyType.MONTHS);
+            activeAccount.setOpenedDate(LocalDate.now().minusMonths(3));
+            GlobalConfiguration on = new GlobalConfiguration();
+            on.setEnabled(true);
+            on.setBooleanValue(true);
+            when(globalConfigRepository.findByName("enforce-lockin-period-withdrawal")).thenReturn(Optional.of(on));
+
+            var f = funds();
+            assertThat(f.debitAllowed()).isFalse();
+            assertThat(f.reason()).isEqualTo("ACCOUNT_IN_LOCKIN_PERIOD");
+
+            when(globalConfigRepository.findByName("enforce-lockin-period-withdrawal")).thenReturn(Optional.empty());
+            stubNoHolds(accountId);
+            assertThat(funds().debitAllowed()).isTrue();
+        }
+
+        @Test
+        @DisplayName("unknown account: not found")
+        void unknown() {
+            when(accountRepository.findById(accountId)).thenReturn(Optional.empty());
+            assertThatThrownBy(() -> accountService.cardFunds(accountId)).isInstanceOf(CbaException.class);
+        }
+    }
 }

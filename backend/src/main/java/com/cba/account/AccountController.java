@@ -3,6 +3,7 @@ package com.cba.account;
 import com.cba.account.dto.AccountHoldRequest;
 import com.cba.account.dto.AccountHoldResponse;
 import com.cba.account.dto.AccountResponse;
+import com.cba.account.dto.CardFunds;
 import com.cba.account.dto.OpenAccountRequest;
 import com.cba.account.dto.TransactionResponse;
 import com.cba.common.response.ApiResponse;
@@ -50,6 +51,20 @@ public class AccountController {
             @Valid @RequestBody OpenAccountRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResponse.ok(accountService.openAccount(request)));
+    }
+
+    /**
+     * What a card authorization may spend — card-service's debit-card balance check, with its
+     * service token (Keycloak client cba-card-service, realm role CARD_SERVICE). No PII.
+     */
+    @GetMapping("/{id}/balance")
+    @PreAuthorize("hasRole('CARD_SERVICE') or hasAnyRole('ADMIN','TELLER')")
+    @Operation(summary = "Spendable balance for a card authorization (card-service)",
+               description = "availableBalance = balance − active holds − minimum balance (or + overdraft limit), "
+                       + "major units of currencyCode; 0 with debitAllowed=false and a reason "
+                       + "(ACCOUNT_NOT_ACTIVE | ACCOUNT_IN_LOCKIN_PERIOD) when the account can't be debited.")
+    public ResponseEntity<ApiResponse<CardFunds>> getCardFunds(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(accountService.cardFunds(id)));
     }
 
     @GetMapping("/{id}")

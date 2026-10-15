@@ -89,6 +89,12 @@
         "clientRole": false
       },
       {
+        "name": "FEP_SERVICE",
+        "description": "Service-to-service only: fep-service calling card-service's internal endpoints (authorize, de-tokenise). Never assign to people.",
+        "composite": false,
+        "clientRole": false
+      },
+      {
         "name": "CARD_READER",
         "description": "Service-to-service only: read cards for Open Banking (backend service account). Never assign to people.",
         "composite": false,
@@ -121,6 +127,26 @@
       "publicClient": false,
       "clientAuthenticatorType": "client-secret",
       "secret": "${CBA_BACKEND_SERVICE_SECRET}",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "protocol": "openid-connect",
+      "attributes": {
+        "oauth2.device.authorization.grant.enabled": "false"
+      },
+      "defaultClientScopes": ["roles"],
+      "optionalClientScopes": []
+    },
+    {
+      "clientId": "cba-fep-service",
+      "name": "CBA FEP Service Account",
+      "description": "fep-service service account: client_credentials token for fep-service -> card-service internal calls (realm role FEP_SERVICE only)",
+      "enabled": true,
+      "bearerOnly": false,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${CBA_FEP_SERVICE_SECRET}",
       "standardFlowEnabled": false,
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
@@ -278,6 +304,13 @@
       "enabled": true,
       "serviceAccountClientId": "cba-backend-service",
       "realmRoles": ["CARD_READER"],
+      "clientRoles": {}
+    },
+    {
+      "username": "service-account-cba-fep-service",
+      "enabled": true,
+      "serviceAccountClientId": "cba-fep-service",
+      "realmRoles": ["FEP_SERVICE"],
       "clientRoles": {}
     }
   ]

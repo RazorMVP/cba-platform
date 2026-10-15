@@ -41,7 +41,8 @@ public class DevAuthBypassFilter extends OncePerRequestFilter {
             new SimpleGrantedAuthority("ROLE_ADMIN"),
             new SimpleGrantedAuthority("ROLE_TELLER"),
             new SimpleGrantedAuthority("ROLE_CUSTOMER"),
-            new SimpleGrantedAuthority("ROLE_API_CLIENT")
+            new SimpleGrantedAuthority("ROLE_API_CLIENT"),
+            new SimpleGrantedAuthority("ROLE_FEP_SERVICE")
     );
 
     @Override

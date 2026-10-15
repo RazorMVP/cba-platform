@@ -127,6 +127,23 @@ Legend for **State**:
   - **Verify:** `curl -u cba-backend-service:$SECRET -d grant_type=client_credentials $TOKEN_URI` returns a token whose
     `realm_access.roles` is `["CARD_READER"]`; AISP `/accounts` for a customer with cards lists them. Secret unset → the
     backend logs a WARN at startup and card data is omitted.
+- **fep-service → card-service service token** (cont. 34): card-service's `/api/v1/internal/**` (authorize, advise,
+  reverse, **PAN de-tokenisation**) and the BIN endpoints fep uses require a Keycloak JWT; the internal ones need realm
+  role **`FEP_SERVICE`**, held only by client **`cba-fep-service`**.
+  - **Secret:** `CBA_FEP_SERVICE_SECRET`, the same value for **Keycloak** (realm import placeholder) and **fep-service**.
+    k8s keys `keycloak-secret` + `fep-service-secret`. Token URI `FEP_CARD_SERVICE_TOKEN_URI` (same Keycloak host as
+    card-service's issuer). fep-service is on Spring Security 6.2, so the token is fetched by a small built-in client
+    (`CardServiceTokenProvider`): shared, renewed 30 s before expiry.
+  - **Existing realm:** not re-imported. Create role `FEP_SERVICE`, then client `cba-fep-service` (client authentication
+    ON, only "Service accounts roles"), assign it `FEP_SERVICE`, copy the secret.
+  - **Unset secret:** fep-service logs a WARN and calls without a token; a card-service without dev bypass refuses
+    them, so every authorization declines with RC 96.
+  - **Verify:** the client_credentials token's `realm_access.roles` is `["FEP_SERVICE"]`; `curl -X POST
+    $CARD/api/v1/internal/detokenize` without a token → 401.
+- **card-service edge (cont. 34):**
+  - the public ingress sends `/api/v1/internal` and `/actuator` to `card-service-blackhole` (no endpoints → 503);
+  - `card-service-networkpolicy.yaml` admits only fep-service, backend and the ingress controller on 8081. The
+    controller's namespace is assumed to be `ingress-nginx`; change it to yours. It needs a NetworkPolicy-enforcing CNI.
 
 ## 10. Card scheme settlement file export ×5 🟢🔴
 

@@ -6,4 +6,6 @@ metadata:
 data:
   SPRING_PROFILES_ACTIVE: "prod"
   CARD_SERVICE_URL: "http://card-service:8081"
+  # Same Keycloak host as card-service's issuer, so the service token's iss matches.
+  FEP_CARD_SERVICE_TOKEN_URI: "http://keycloak:8180/realms/cba/protocol/openid-connect/token"
   FEP_TCP_PORT: "8583"

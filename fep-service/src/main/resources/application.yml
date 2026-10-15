@@ -24,6 +24,12 @@ fep:
     base-url: ${CARD_SERVICE_URL:http://localhost:8081}
     connect-timeout-ms: 2000
     read-timeout-ms: 5000
+    # Service token (client_credentials, Keycloak client cba-fep-service, realm role FEP_SERVICE).
+    # card-service's /api/v1/internal/** and BIN endpoints require it. Blank secret = no token.
+    auth:
+      client-id: ${FEP_CARD_SERVICE_CLIENT_ID:cba-fep-service}
+      client-secret: ${CBA_FEP_SERVICE_SECRET:}
+      token-uri: ${FEP_CARD_SERVICE_TOKEN_URI:http://localhost:8180/realms/cba/protocol/openid-connect/token}
 
   # HSM adapter selection: SOFTWARE (dev) or THALES (prod)
   hsm:

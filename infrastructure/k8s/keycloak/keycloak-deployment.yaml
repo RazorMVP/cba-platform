@@ -39,6 +39,11 @@ spec:
                 secretKeyRef:
                   name: keycloak-secret
                   key: CBA_BACKEND_SERVICE_SECRET
+            - name: CBA_FEP_SERVICE_SECRET       # cba-realm.json placeholder, resolved at import
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secret
+                  key: CBA_FEP_SERVICE_SECRET
             - name: KC_DB
               value: postgres
             - name: KC_DB_URL

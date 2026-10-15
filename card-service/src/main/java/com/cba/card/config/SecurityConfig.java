@@ -30,7 +30,8 @@ import java.util.Map;
  *
  * <ol>
  *   <li>Order 0 — 3DS ACS ({@code /3ds/acs/**}): open, no JWT, no rate limit</li>
- *   <li>Order 1 — Internal FEP ({@code /api/v1/internal/**}): open, no JWT, no rate limit</li>
+ *   <li>Order 1 — Internal FEP ({@code /api/v1/internal/**}): JWT with realm role FEP_SERVICE
+ *       (Keycloak client cba-fep-service), no rate limit</li>
  *   <li>Order 2 — Card API ({@code /card-api/v1/**}): ApiKey or JWT + rate limiting</li>
  *   <li>Order 3 — All others: JWT + rate limiting</li>
  * </ol>
@@ -80,15 +81,28 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /** Internal endpoints called by FEP — no JWT, network-isolation is the guard. */
+    /**
+     * Internal endpoints called by fep-service only: authorize, advise, reverse and PAN
+     * de-tokenisation. A JWT with realm role FEP_SERVICE is required — held only by the
+     * service account of Keycloak client cba-fep-service. These were once permitAll on the
+     * assumption of network isolation, which the k8s ingress (routing "/" here) never gave;
+     * the ingress now also refuses this prefix and a NetworkPolicy limits callers, but
+     * neither replaces the token check.
+     */
     @Bean
     @Order(1)
     public SecurityFilterChain internalChain(HttpSecurity http) throws Exception {
+        http.securityMatcher("/api/v1/internal/**");
+        // Dev-only (app.auth-bypass): lets the terminal simulator → FEP path run without Keycloak.
+        if (devAuthBypassFilter != null) {
+            http.addFilterBefore(devAuthBypassFilter, UsernamePasswordAuthenticationFilter.class);
+        }
         http
-            .securityMatcher("/api/v1/internal/**")
-            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+            .authorizeHttpRequests(auth -> auth.anyRequest().hasRole("FEP_SERVICE"))
             .csrf(csrf -> csrf.disable())
-            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .oauth2ResourceServer(oauth2 -> oauth2
+                .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
         return http.build();
     }
 
@@ -139,7 +153,8 @@ public class SecurityConfig {
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                // health/** covers the k8s readiness and liveness probes (/actuator/health/readiness|liveness)
+                .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
                 // OpenAPI / Swagger UI — documentation is always public
                 .requestMatchers("/v3/api-docs/**", "/v3/api-docs.yaml", "/swagger-ui/**",
                         "/swagger-ui.html").permitAll()

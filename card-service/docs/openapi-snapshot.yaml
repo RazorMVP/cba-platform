@@ -1454,27 +1454,6 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseString"
-  /api/v1/internal/cards/{cardId}/authorizations:
-    get:
-      tags:
-      - card-authorization-controller
-      operationId: getHistory
-      parameters:
-      - name: cardId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/AuthorizationLog"
   /api/v1/interchange/log/{authId}:
     get:
       tags:

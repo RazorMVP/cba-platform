@@ -38,6 +38,11 @@ spec:
                 secretKeyRef:
                   name: fep-service-secret
                   key: FEP_HSM_PROVIDER
+            - name: CBA_FEP_SERVICE_SECRET   # service token for card-service's internal endpoints
+              valueFrom:
+                secretKeyRef:
+                  name: fep-service-secret
+                  key: CBA_FEP_SERVICE_SECRET
           resources:
             requests:
               memory: "256Mi"

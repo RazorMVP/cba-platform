@@ -57,6 +57,54 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 34) — 2026-10-15
+**Backlog 11 closed: card-service `/api/v1/internal/**` (PAN de-tokenisation, authorization) required no credential and was publicly routed. It now requires a Keycloak token with realm role `FEP_SERVICE`; fep-service sends one; the ingress and a NetworkPolicy fence it too. Also: unknown-card authorizations 500 → RC 14, k8s probes 401 → open, fep-service gets CI.**
+
+#### What was wrong
+| Defect | Effect |
+|---|---|
+| `SecurityConfig.internalChain` `permitAll` ("network isolation is the guard"); k8s ingress routes `/` to card-service; no NetworkPolicy | **Confirmed first** (IT on unchanged code): `POST /api/v1/internal/detokenize` with **no token → 200** — anyone reaching the ingress could turn a DPAN into a PAN, or run `/authorize` |
+| fep-service `CardServiceClient` sent no credential; `RestTemplate` was `new RestTemplate()` | Its BIN calls (`/api/v1/bins/all`, `/{bin}/scheme`, on card-service's JWT chain) got 401 outside dev bypass → BIN cache empty. Its `connect-/read-timeout-ms` settings were never applied |
+| `CardService.findByPanHash` (`@Transactional`) threw for an unknown PAN inside `authorize`'s transaction | Rollback-only → `UnexpectedRollbackException` → **500** (RC 96 at the FEP) instead of RC 14, and the decline's authorization-log row was rolled back — unknown-card attempts were never recorded |
+| `publicChain` permitted only exactly `/actuator/health` | k8s readiness/liveness probes (`/actuator/health/readiness|liveness`) got 401 → pods never ready |
+| `GET /api/v1/internal/cards/{cardId}/authorizations` | Unused, open, any card's history — removed |
+
+#### Decisions (plan approved)
+- **D1** fep-service is on Spring Boot 3.2.5 / Spring Security 6.2 (no `OAuth2ClientHttpRequestInterceptor`): a small `CardServiceTokenProvider` (RFC 6749 §4.4 client_credentials, HTTP Basic with form-encoded credentials, shared token renewed 30 s before expiry, failures → `ResourceAccessException` so the client degrades to RC 96). No new dependency (oauth2-client 6.2 would add spring-security-web + nimbus and risk default web security on fep's probes).
+- **D2** realm role `FEP_SERVICE`, client `cba-fep-service` (service accounts only, secret placeholder `${CBA_FEP_SERVICE_SECRET}`); internal chain `hasRole('FEP_SERVICE')`.
+- **D3** dev bypass also covers the internal chain (`ROLE_FEP_SERVICE` added), so the terminal simulator → FEP → card-service demo runs without Keycloak; off in k8s and tests.
+- **D4** edge: public ingress routes `/api/v1/internal` and `/actuator` to `card-service-blackhole` (no endpoints → 503, controller-agnostic); NetworkPolicy admits fep-service, backend and the ingress controller (namespace `ingress-nginx` assumed — documented).
+- **D5** `fep-service-ci.yml` (unit tests + gate) — fep-service had no CI. Not a required check yet.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/.../config/SecurityConfig.java` | internal chain: JWT + `FEP_SERVICE` + dev bypass; `/actuator/health/**` open |
+| `card-service/.../config/DevAuthBypassFilter.java` | `ROLE_FEP_SERVICE` |
+| `card-service/.../auth/CardAuthorizationController.java` | dead history endpoint removed; Javadoc |
+| `card-service/.../card/CardService.java` | `findByPanHash` `noRollbackFor = CbaException.class` |
+| `card-service/src/main/resources/application.yml` | health probes enabled |
+| `card-service/.../config/InternalChainIntegrationTest.java` (new, 6) | no token 401 ×4; ADMIN/TELLER/CUSTOMER/CARD_READER 403; FEP_SERVICE 200 ×4; unknown card RC 14 + logged; dead path gone; probes 200 |
+| `fep-service/.../config/CardServiceTokenProvider.java` (new), `FepConfig.java`, `application.yml` | service token + timeouts; `fep.card-service.auth.*` |
+| `fep-service` tests (new): `CardServiceTokenProviderTest` (3), `FepConfigTest` (2) | Basic + form, cached, renewed, failures; Bearer on card-service calls, token once; blank secret → none |
+| `infrastructure/keycloak/cba-realm.json` + k8s configmap | role `FEP_SERVICE`, client `cba-fep-service`, service account |
+| `backend/.../config/KeycloakRealmServiceClientTest.java` | parameterised over both service clients × both realm copies (8) |
+| `infrastructure/docker-compose.yml`, `k8s/{secrets,keycloak,fep-service,configmaps}`, `.env.example` | `CBA_FEP_SERVICE_SECRET`, `FEP_CARD_SERVICE_TOKEN_URI` |
+| `infrastructure/k8s/card-service/` | ingress blackhole paths; `card-service-blackhole-service.yaml`, `card-service-networkpolicy.yaml` (new) |
+| `.github/workflows/fep-service-ci.yml` (new) | changes → test → gate |
+| `card-service/docs/openapi-snapshot.yaml` | removed path |
+| `docs/card-api-reference.html`, Postman (+ docs-site copies), `docs/integration-runbook.md`, `docs/deferred-backlog.md` (11 ✅), `CLAUDE.md` | auth rows (internal: FEP_SERVICE; BINs: any JWT, were "None"), credential set-up, edge |
+
+#### Build Verification
+- Before the fix: `InternalChainIntegrationTest` — detokenize/authorize/advise/reverse with no token **200**; probes **401**; unknown-card authorize **500**.
+- Real Keycloak 23 (throwaway, this realm): `cba-fep-service` token `realm_access.roles = ["FEP_SERVICE"]`; `cba-backend-service` still `["CARD_READER"]`; wrong fep secret → 401.
+- `kubeconform -strict`: 13/13 resources valid; compose config valid.
+- `card-service ./mvnw -o clean verify -Pfull-integration` → **144/144** (138 + 6); `fep-service ./mvnw -o test` → **91/91** (86 + 5, `FepContextLoadTest` still boots); `backend ./mvnw -o clean test` → **812/812** (realm guard 8).
+- Gate grep (tracked + untracked): removed `@GetMapping("/cards/{cardId}/authorizations")` (internal), internal chain `permitAll` → `hasRole("FEP_SERVICE")` → card-api-reference, snapshot, Postman (BIN auth), runbook updated.
+
+#### Confirmed Platform Versions
+Unchanged (no dependency changes; fep-service stays Spring Boot 3.2.5).
+
 ### Session 125 (cont. 33) — 2026-10-14
 **Backend → card-service service token: the backend's card calls carry a Keycloak `client_credentials` token (client `cba-backend-service`, realm role `CARD_READER` only). Every call had been refused (401) and Open Banking card data silently vanished. Also: the missing card-service authorizations endpoint, AISP customer resolution, and the prod card-service URL.**
 

@@ -21079,7 +21079,12 @@
               "name": "BIN\u2192Scheme Export (FEP Cache)",
               "request": {
                 "method": "GET",
-                "header": [],
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
                 "url": {
                   "raw": "{{base_url}}/api/v1/bins/all",
                   "host": [
@@ -21092,7 +21097,7 @@
                     "all"
                   ]
                 },
-                "description": "Returns raw Map<binStart, schemeName> for fep-service BIN cache pre-population. No auth required (machine-to-machine). No ApiResponse wrapper."
+                "description": "Returns raw Map<binStart, schemeName> for fep-service's BIN cache. Needs a JWT (any role); fep-service sends its FEP_SERVICE service token (Keycloak client cba-fep-service). No ApiResponse wrapper."
               },
               "response": [
                 {
@@ -21107,7 +21112,12 @@
               "name": "BIN Lookup by PAN (Dev Tool)",
               "request": {
                 "method": "GET",
-                "header": [],
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
                 "url": {
                   "raw": "{{base_url}}/api/v1/bins/lookup?pan=4111111111111111",
                   "host": [
@@ -21127,7 +21137,7 @@
                     }
                   ]
                 },
-                "description": "Admin/dev diagnostic. Returns scheme enum wrapped in ApiResponse."
+                "description": "Admin/dev diagnostic. Needs a JWT (any role). Returns the scheme enum wrapped in ApiResponse."
               },
               "response": [
                 {
@@ -21142,7 +21152,12 @@
               "name": "Scheme by BIN Prefix (FEP M2M)",
               "request": {
                 "method": "GET",
-                "header": [],
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}"
+                  }
+                ],
                 "url": {
                   "raw": "{{base_url}}/api/v1/bins/41111111/scheme",
                   "host": [
@@ -21156,7 +21171,7 @@
                     "scheme"
                   ]
                 },
-                "description": "Machine-to-machine endpoint called by fep-service CardServiceClient.lookupBinScheme(). Returns raw {\"scheme\":\"VISA\"} \u2014 no ApiResponse envelope."
+                "description": "Called by fep-service CardServiceClient.lookupBinScheme() with its FEP_SERVICE service token; needs a JWT (any role). Returns raw {\"scheme\":\"VISA\"} \u2014 no ApiResponse envelope."
               },
               "response": [
                 {

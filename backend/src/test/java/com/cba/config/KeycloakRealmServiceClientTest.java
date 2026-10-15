@@ -4,23 +4,26 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Guards the Keycloak realm (compose file and the k8s ConfigMap copy) for the backend's
- * card-service credential: the client exists for client_credentials only, its secret is an
- * environment placeholder (this repository is public), and its service account holds
- * CARD_READER and nothing else — while no person holds CARD_READER.
+ * Guards the Keycloak realm (compose file and the k8s ConfigMap copy) for the service-to-service
+ * credentials — backend → card-service (cba-backend-service, CARD_READER) and fep-service →
+ * card-service internal endpoints (cba-fep-service, FEP_SERVICE): each client exists for
+ * client_credentials only, its secret is an environment placeholder (this repository is
+ * public), its service account holds its one role and nothing else, and no person holds it.
  */
-@DisplayName("Keycloak realm — cba-backend-service client and CARD_READER role")
+@DisplayName("Keycloak realm — service clients (cba-backend-service, cba-fep-service) and their roles")
 class KeycloakRealmServiceClientTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -38,33 +41,42 @@ class KeycloakRealmServiceClientTest {
         return JSON.readTree(String.join("\n", body));
     }
 
-    @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = {"compose", "k8s"})
+    static Stream<Arguments> serviceClients() {
+        List<Arguments> args = new ArrayList<>();
+        for (String which : List.of("compose", "k8s")) {
+            args.add(Arguments.of(which, "cba-backend-service", "CARD_READER", "CBA_BACKEND_SERVICE_SECRET"));
+            args.add(Arguments.of(which, "cba-fep-service", "FEP_SERVICE", "CBA_FEP_SERVICE_SECRET"));
+        }
+        return args.stream();
+    }
+
+    @ParameterizedTest(name = "{0}: {1}")
+    @MethodSource("serviceClients")
     @DisplayName("the service client: client_credentials only, secret from the environment")
-    void serviceClient(String which) throws Exception {
-        JsonNode client = find(realm(which).get("clients"), "clientId", "cba-backend-service");
+    void serviceClient(String which, String clientId, String role, String secretVar) throws Exception {
+        JsonNode client = find(realm(which).get("clients"), "clientId", clientId);
         assertThat(client.get("serviceAccountsEnabled").asBoolean()).isTrue();
         assertThat(client.get("publicClient").asBoolean()).isFalse();
         assertThat(client.get("standardFlowEnabled").asBoolean()).isFalse();
         assertThat(client.get("implicitFlowEnabled").asBoolean()).isFalse();
         assertThat(client.get("directAccessGrantsEnabled").asBoolean()).isFalse();
         assertThat(client.get("secret").asText()).as("never a literal secret in a public repo")
-                .isEqualTo("${CBA_BACKEND_SERVICE_SECRET}");
+                .isEqualTo("${" + secretVar + "}");
     }
 
-    @ParameterizedTest(name = "{0}")
-    @ValueSource(strings = {"compose", "k8s"})
-    @DisplayName("CARD_READER: defined, held by the service account alone, and by no person")
-    void cardReaderRole(String which) throws Exception {
+    @ParameterizedTest(name = "{0}: {2}")
+    @MethodSource("serviceClients")
+    @DisplayName("the role: defined, held by its service account alone, and by no person or other client")
+    void serviceRole(String which, String clientId, String role, String secretVar) throws Exception {
         JsonNode realm = realm(which);
-        find(realm.get("roles").get("realm"), "name", "CARD_READER");
+        find(realm.get("roles").get("realm"), "name", role);
 
-        JsonNode serviceAccount = find(realm.get("users"), "serviceAccountClientId", "cba-backend-service");
-        assertThat(roles(serviceAccount)).containsExactly("CARD_READER");
+        JsonNode serviceAccount = find(realm.get("users"), "serviceAccountClientId", clientId);
+        assertThat(roles(serviceAccount)).containsExactly(role);
 
         for (JsonNode user : realm.get("users")) {
-            if (!user.has("serviceAccountClientId")) {
-                assertThat(roles(user)).as(user.get("username").asText()).doesNotContain("CARD_READER");
+            if (!clientId.equals(user.path("serviceAccountClientId").asText())) {
+                assertThat(roles(user)).as(user.get("username").asText()).doesNotContain(role);
             }
         }
     }

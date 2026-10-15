@@ -246,7 +246,12 @@ public class CardService {
                 .orElseThrow(() -> CbaException.notFound("CARD_NOT_FOUND", "Card not found: " + id));
     }
 
-    @Transactional(readOnly = true)
+    /**
+     * A PAN with no card is an expected answer (the caller declines with RC 14), so it must
+     * not mark the caller's transaction rollback-only: that turned every unknown-card
+     * authorization into a 500 and rolled back its authorization-log row.
+     */
+    @Transactional(readOnly = true, noRollbackFor = CbaException.class)
     public Card findByPanHash(String pan) {
         return cardRepository.findByPanHash(hashPan(pan))
                 .orElseThrow(() -> CbaException.notFound("CARD_NOT_FOUND", "Card not found for PAN"));

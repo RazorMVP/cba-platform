@@ -19,6 +19,24 @@ spec:
     - host: card-api.cba.example.com
       http:
         paths:
+          # Never public: fep-service's internal endpoints (PAN de-tokenisation, authorization)
+          # and actuator. Longest prefix wins over "/", and card-service-blackhole has no
+          # endpoints, so the controller answers 503. card-service still checks the FEP_SERVICE
+          # token on /api/v1/internal/**; this is the second fence, not the only one.
+          - path: /api/v1/internal
+            pathType: Prefix
+            backend:
+              service:
+                name: card-service-blackhole
+                port:
+                  number: 80
+          - path: /actuator
+            pathType: Prefix
+            backend:
+              service:
+                name: card-service-blackhole
+                port:
+                  number: 80
           - path: /
             pathType: Prefix
             backend:

@@ -21818,9 +21818,85 @@
                         "balance"
                       ]
                     },
-                    "description": "Available balance routed by card type: DEBIT \u2192 linked account in monolith; PREPAID \u2192 internal wallet; CREDIT \u2192 revolving credit line. Returns null balance on graceful degradation."
+                    "description": "Available balance routed by card type: DEBIT \u2192 linked account in monolith; PREPAID \u2192 internal wallet; CREDIT \u2192 revolving credit line. Returns null balance on graceful degradation.\n\nAuth: ADMIN, TELLER or CARD_READER (the backend's service account, Keycloak client cba-backend-service)."
                   },
                   "response": []
+                },
+                {
+                  "name": "Get Card Authorization History",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{access_token}}"
+                      },
+                      {
+                        "key": "X-Tenant-ID",
+                        "value": "{{tenant_id}}"
+                      }
+                    ],
+                    "url": {
+                      "raw": "http://{{cardServiceHost}}/api/v1/cards/:cardId/authorizations",
+                      "host": [
+                        "http:"
+                      ],
+                      "path": [
+                        "",
+                        "{{cardServiceHost}}",
+                        "api",
+                        "v1",
+                        "cards",
+                        ":cardId",
+                        "authorizations"
+                      ]
+                    },
+                    "description": "Approved and declined authorizations for the card, newest first (ApiResponse envelope). The backend's Open Banking layer maps them to OB transactions. Auth: ADMIN, TELLER or CARD_READER."
+                  },
+                  "response": [
+                    {
+                      "name": "200 OK",
+                      "originalRequest": {
+                        "method": "GET",
+                        "header": [
+                          {
+                            "key": "Authorization",
+                            "value": "Bearer {{access_token}}"
+                          },
+                          {
+                            "key": "X-Tenant-ID",
+                            "value": "{{tenant_id}}"
+                          }
+                        ],
+                        "url": {
+                          "raw": "http://{{cardServiceHost}}/api/v1/cards/:cardId/authorizations",
+                          "host": [
+                            "http:"
+                          ],
+                          "path": [
+                            "",
+                            "{{cardServiceHost}}",
+                            "api",
+                            "v1",
+                            "cards",
+                            ":cardId",
+                            "authorizations"
+                          ]
+                        },
+                        "description": "Approved and declined authorizations for the card, newest first (ApiResponse envelope). The backend's Open Banking layer maps them to OB transactions. Auth: ADMIN, TELLER or CARD_READER."
+                      },
+                      "status": "OK",
+                      "code": 200,
+                      "_postman_previewlanguage": "json",
+                      "header": [
+                        {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                        }
+                      ],
+                      "body": "{\n  \"data\": [\n    {\n      \"id\": \"7c1e0000-0000-0000-0000-000000000001\",\n      \"cardId\": \"22222222-0001-0001-0001-000000000001\",\n      \"stan\": \"000123\",\n      \"rrn\": \"612345678901\",\n      \"mti\": \"0200\",\n      \"amount\": 45.0,\n      \"currencyCode\": \"840\",\n      \"responseCode\": \"00\",\n      \"merchantName\": \"Shop\",\n      \"merchantId\": \"M1\",\n      \"mcc\": \"5411\",\n      \"financial\": true,\n      \"createdAt\": \"2026-10-14T10:00:00+01:00\"\n    }\n  ],\n  \"errors\": []\n}"
+                    }
+                  ]
                 },
                 {
                   "name": "Get Card Limits",

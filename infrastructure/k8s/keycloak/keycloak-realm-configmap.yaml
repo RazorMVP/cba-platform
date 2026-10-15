@@ -65,7 +65,8 @@ data:
           {"name": "ADMIN", "description": "Full platform administration access", "composite": false, "clientRole": false},
           {"name": "TELLER", "description": "Bank teller operations", "composite": false, "clientRole": false},
           {"name": "CUSTOMER", "description": "Customer self-service access", "composite": false, "clientRole": false},
-          {"name": "API_CLIENT", "description": "Third-party TPP Open Banking access", "composite": false, "clientRole": false}
+          {"name": "API_CLIENT", "description": "Third-party TPP Open Banking access", "composite": false, "clientRole": false},
+          {"name": "CARD_READER", "description": "Service-to-service only: read cards for Open Banking (backend service account). Never assign to people.", "composite": false, "clientRole": false}
         ]
       },
       "groups": [],
@@ -82,6 +83,24 @@ data:
           "serviceAccountsEnabled": false,
           "protocol": "openid-connect",
           "attributes": {}
+        },
+        {
+          "clientId": "cba-backend-service",
+          "name": "CBA Backend Service Account",
+          "description": "Backend service account: client_credentials token for backend -> card-service calls (realm role CARD_READER only)",
+          "enabled": true,
+          "bearerOnly": false,
+          "publicClient": false,
+          "clientAuthenticatorType": "client-secret",
+          "secret": "${CBA_BACKEND_SERVICE_SECRET}",
+          "standardFlowEnabled": false,
+          "implicitFlowEnabled": false,
+          "directAccessGrantsEnabled": false,
+          "serviceAccountsEnabled": true,
+          "protocol": "openid-connect",
+          "attributes": {"oauth2.device.authorization.grant.enabled": "false"},
+          "defaultClientScopes": ["roles"],
+          "optionalClientScopes": []
         },
         {
           "clientId": "cba-web",
@@ -145,6 +164,11 @@ data:
           "enabled": true, "emailVerified": true,
           "credentials": [{"type": "password", "value": "Customer@123", "temporary": false}],
           "realmRoles": ["CUSTOMER"], "clientRoles": {}
+        },
+        {
+          "username": "service-account-cba-backend-service", "enabled": true,
+          "serviceAccountClientId": "cba-backend-service",
+          "realmRoles": ["CARD_READER"], "clientRoles": {}
         }
       ]
     }

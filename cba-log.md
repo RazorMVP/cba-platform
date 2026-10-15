@@ -57,6 +57,54 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 33) — 2026-10-14
+**Backend → card-service service token: the backend's card calls carry a Keycloak `client_credentials` token (client `cba-backend-service`, realm role `CARD_READER` only). Every call had been refused (401) and Open Banking card data silently vanished. Also: the missing card-service authorizations endpoint, AISP customer resolution, and the prod card-service URL.**
+
+#### What was wrong
+| Defect | Effect |
+|---|---|
+| `CardServiceConfig.cardServiceRestTemplate` had no auth; card-service requires a Keycloak JWT + ADMIN/TELLER | **Confirmed first** (WireMock IT on the unchanged wiring: "Authorization … Header is not present"). Every AISP card account/balance/transaction and the CBPII card funds check returned nothing in any real deployment. Docker hid it: card-service ran with `APP_AUTH_BYPASS=true` |
+| Client called `GET /api/v1/cards/{id}/authorizations`; card-service had no such mapping | Card transactions always empty (with a token: 500 via card-service's catch-all) |
+| `AccountInfoController.resolveCustomerId` used `UUID.fromString(jwt.sub)` | `sub` is the Keycloak id, not `customers.id` (everywhere else maps via `customers.keycloak_id`), so real customers saw no accounts or cards |
+| dev/prod `card.service.base-url: http://${CARD_SERVICE_HOST}…` while compose/k8s set only `CARD_SERVICE_BASE_URL` | prod (k8s) had an unresolvable placeholder |
+
+#### Decisions (plan approved)
+- **D1 least privilege**: new realm role `CARD_READER`, held only by the service account, admitted on card-service's 4 read endpoints. Not TELLER (TELLER issues/blocks/cancels cards).
+- **D2**: CUSTOMER tokens resolve via `CustomerAccess.callerCustomerId()`; TPP (`API_CLIENT`) consent→customer resolution deferred (backlog 13).
+- Spring Security's `OAuth2ClientHttpRequestInterceptor` (verified with Context7, 6.5) on the existing `RestTemplate`; **both resolvers fixed** (`card-service`, principal `cba-backend`) — the defaults read per-request attributes RestTemplate doesn't have and would silently add nothing. `AuthorizedClientServiceOAuth2AuthorizedClientManager` (one token app-wide, refreshed before expiry); token `RestClient` = the documented default + 3 s/5 s timeouts. Token failure → `ResourceAccessException` (keeps the client's fail-safe). Library `spring-security-oauth2-client` only, not the Boot starter.
+- Secret never in git: realm JSON uses the placeholder `${CBA_BACKEND_SERVICE_SECRET}`, which Keycloak resolves at `--import-realm` (verified with Context7 and against a real Keycloak 23).
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/pom.xml` | `spring-security-oauth2-client` (BOM 6.5.11) |
+| `backend/.../config/CardServiceConfig.java` | client_credentials interceptor; `card.service.auth.*`; secret unset → no interceptor + WARN |
+| `backend/.../openbanking/AccountInfoController.java` | CUSTOMER → `customers.keycloak_id`; unknown → 404 `CUSTOMER_NOT_FOUND` |
+| `backend/src/main/resources/application.yml` | `card.service.auth.{client-id,client-secret,token-uri}`; dev/prod base-url honours `CARD_SERVICE_BASE_URL` |
+| `card-service/.../card/CardController.java` | `CARD_READER` on list/get/balance; **new** `GET /api/v1/cards/{id}/authorizations` |
+| `infrastructure/keycloak/cba-realm.json` + `k8s/keycloak/keycloak-realm-configmap.yaml` | role `CARD_READER`; client `cba-backend-service` (service accounts only); service-account user → `CARD_READER` |
+| `infrastructure/docker-compose.yml`, `k8s/{secrets,configmaps,backend,keycloak}`, `.env.example` | `CBA_BACKEND_SERVICE_SECRET` (Keycloak + backend), `CARD_SERVICE_TOKEN_URI` |
+| Tests (new) | `CardServiceClientIntegrationTest` (3, WireMock: token once, data arrives; wrong secret → empty; no token → empty), `CardServiceConfigTest` (2), `AccountInfoControllerTest` (3), `KeycloakRealmServiceClientTest` (4, both realm copies), card-service `CardReaderRoleIntegrationTest` (2: 4 reads allowed, command/BINs/API keys 403) |
+| `card-service/docs/openapi-snapshot.yaml` | new path (`operationId getCardAuthorizations` — renamed from `getAuthorizations`, which springdoc suffixed `_1` against `CardApiController`) |
+| `docs/card-api-reference.html`, `docs/api-reference.html`, Postman (+ docs-site copies) | CARD_READER, new endpoint + "Get Card Authorization History", AISP note |
+| `docs/integration-runbook.md` §9 | credential set-up, existing-realm manual steps, rotation, verification |
+| `docs/deferred-backlog.md` | items 11–13 |
+| `CLAUDE.md` | RBAC + Card Service Integration notes; both versions rows |
+
+#### Follow-ups found (deferred-backlog 11–13)
+- **⚠️ 11:** card-service `/api/v1/internal/**` (fep-service chain: `/detokenize`, `/authorize`) is `permitAll` and the k8s ingress routes `/` to card-service with no NetworkPolicy — publicly reachable.
+- 12: card-service → backend sends no token and calls backend endpoints that don't exist.
+- 13: AISP for TPP tokens needs consent→customer resolution.
+
+#### Build Verification
+- Real Keycloak 23 (throwaway container, this realm file, test secret): client_credentials token has `realm_access.roles = ["CARD_READER"]`, `azp = cba-backend-service`; wrong secret → 401; password grant → 400.
+- `cd backend && ./mvnw -o clean verify -Pfull-integration` → **873/873** (861 + 12), BUILD SUCCESS; backend OpenAPI snapshot unchanged
+- `cd card-service && ./mvnw -o clean verify -Pfull-integration` → **138/138** (136 + 2), BUILD SUCCESS; snapshot regenerated
+- Gate grep (tracked + untracked): new `@GetMapping("/{id}/authorizations")` and three `@PreAuthorize` changes in card-service → card-api-reference, Postman, card-service snapshot updated; backend: no mapping change, AISP behaviour documented in api-reference.
+
+#### Confirmed Platform Versions
+New backend dependency `spring-security-oauth2-client` 6.5.11 (Spring Boot 3.5.16 BOM). Otherwise unchanged from cont. 30.
+
 ### Session 125 (cont. 32) — 2026-10-14
 **Reports API ↔ web contract: the API returns `ReportResponse` in Mifos field names instead of the entity, so `GET /api/v1/reports` works again and the category chip/filter show labels. A create endpoint was built, then withdrawn on security review (user "1") — report SQL comes only from migrations; deferred-backlog item 10. Wrong-method requests return 405, not 500.**
 

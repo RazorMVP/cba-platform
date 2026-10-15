@@ -8,7 +8,8 @@
 > FEP↔card-service contract). **Expanded cont. 11 (2026-07-21)** with a full-codebase sweep for
 > every remaining deferral marker (items 4–7 + the roadmap section). **Items 8–9 added Session 125
 > cont. 10 (2026-09-23)**: the CI secrets and variables that deployment and SonarCloud need. **Item 10 added
-> Session 125 cont. 32 (2026-10-14)**: user-defined (custom) reports, withdrawn on security review.
+> Session 125 cont. 32 (2026-10-14)**: user-defined (custom) reports, withdrawn on security review. **Items 11–13 added
+> cont. 33**: found while wiring the backend → card-service service token.
 >
 > **Not in this list** (deliberately): intentional dev features that are correct as-is —
 > `DevAuthBypassFilter` (prod uses Keycloak), fraud/3DS last-resort scalar guards, Stitch
@@ -398,6 +399,47 @@ report" feature). The web had a "New Report" modal for it but the endpoint never
 `backend/.../report/ReportService.java` (`runReport`, `validateSelectOnly`), `ReportController`,
 a new Flyway migration (role + reporting schema + grants — role passwords via secrets, never in git),
 `infrastructure/` (docker-compose + k8s secret for the reporting role), `web/.../reports/reports-list.*`.
+
+---
+
+## 11. ⚠️ card-service `/api/v1/internal/**` is unauthenticated and publicly routed
+
+**Effort**: M · **Risk**: security — PAN de-tokenisation and authorization reachable from the internet
+
+### What it is
+card-service `SecurityConfig.internalChain` (`@Order(1)`, `/api/v1/internal/**`) is `permitAll`, commented
+"network-isolation is the guard". fep-service's `CardServiceClient` calls it with no credential
+(`/authorize`, `/advise`, `/detokenize`, `/reverse`). But `infrastructure/k8s/card-service/card-service-ingress.yaml`
+routes `/` to card-service and there is **no NetworkPolicy** under `infrastructure/k8s` — so the isolation
+doesn't exist. Found in cont. 33's exploration.
+
+### What's needed
+1. Authenticate fep-service → card-service: Keycloak client_credentials (same pattern as the backend's
+   `cba-backend-service`/`CARD_READER`, cont. 33) with a dedicated role, or mTLS.
+2. Ingress: exclude `/api/v1/internal/**` (and `/actuator/**` beyond health) from the public ingress.
+3. NetworkPolicy: only fep-service pods may reach card-service on the internal paths.
+4. Tests: an IT that an unauthenticated `/api/v1/internal/detokenize` is refused.
+
+---
+
+## 12. card-service → backend calls: no token, and the endpoints don't exist
+
+**Effort**: M · **Risk**: card debit/credit authorization balance checks always fail (fail-safe decline path)
+
+`card-service` `RestClientConfig.backendRestTemplate` is a bare `RestTemplate` (no token), and
+`CardAuthorizationService` calls `GET {backend}/api/v1/accounts/{id}/balance` and
+`/api/v1/loans/{id}/credit-availability` — neither exists in the backend. Needs: the two backend endpoints
+(service-role only), a card-service service account (client_credentials), and an IT across both.
+
+---
+
+## 13. Open Banking AISP for TPP (`API_CLIENT`) tokens: customer from the consent
+
+**Effort**: M · **Risk**: TPPs see no accounts
+
+`AccountInfoController.resolveCustomerId` takes a TPP token's `sub` as the customer id (CUSTOMER tokens were
+fixed in cont. 33 via `customers.keycloak_id`). A TPP's `sub` is its own service account; the customer must come
+from the authorised consent (`ConsentService`, consent id header), with the consent's scopes enforced per endpoint.
 
 ---
 

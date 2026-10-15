@@ -1532,6 +1532,25 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseBalanceResult"
+  /api/v1/cards/{id}/authorizations:
+    get:
+      tags:
+      - card-controller
+      operationId: getCardAuthorizations
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListAuthorizationLog"
   /api/v1/cards/settlement/transmissions:
     get:
       tags:

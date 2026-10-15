@@ -1,5 +1,6 @@
 package com.cba.card.card;
 
+import com.cba.card.auth.AuthorizationLog;
 import com.cba.card.auth.CardAuthorizationService;
 import com.cba.card.common.ApiResponse;
 import jakarta.validation.Valid;
@@ -33,9 +34,15 @@ public class CardController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(card));
     }
 
+    /*
+     * The read endpoints below also admit CARD_READER: the realm role held only by the
+     * backend's service account (Keycloak client cba-backend-service), which reads cards
+     * for Open Banking. It reaches nothing that changes a card.
+     */
+
     /** List cards for a customer. */
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER','CARD_READER')")
     public ResponseEntity<ApiResponse<List<Card>>> listCards(
             @RequestParam(required = false) UUID customerId) {
         List<Card> cards = customerId != null
@@ -46,7 +53,7 @@ public class CardController {
 
     /** Get a single card. */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER','CARD_READER')")
     public ResponseEntity<ApiResponse<Card>> getCard(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(cardService.findById(id)));
     }
@@ -56,10 +63,21 @@ public class CardController {
      * Routes internally to wallet / account / credit-line based on card type.
      */
     @GetMapping("/{id}/balance")
-    @PreAuthorize("hasAnyRole('ADMIN','TELLER')")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER','CARD_READER')")
     public ResponseEntity<ApiResponse<CardAuthorizationService.BalanceResult>> getBalance(
             @PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(cardAuthorizationService.getAvailableBalance(id)));
+    }
+
+    /**
+     * Authorization history (approved and declined, newest first) — the backend's Open
+     * Banking card transactions. The backend had always called this path; until it existed
+     * the call failed and card transactions were empty.
+     */
+    @GetMapping("/{id}/authorizations")
+    @PreAuthorize("hasAnyRole('ADMIN','TELLER','CARD_READER')")
+    public ResponseEntity<ApiResponse<List<AuthorizationLog>>> getCardAuthorizations(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(cardAuthorizationService.getHistory(id)));
     }
 
     /** Lifecycle commands: block, unblock, cancel, activate, replace. */

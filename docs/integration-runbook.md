@@ -31,7 +31,7 @@ Legend for **State**:
 | Redis | (always real in prod) | `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` |
 | PostgreSQL | (always real) | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` |
 | Field encryption | (always real) | `ENCRYPTION_KEY` |
-| card-service ↔ backend | (always real) | `CARD_SERVICE_HOST`, `CARD_SERVICE_PORT` |
+| card-service ↔ backend | (always real) | `CARD_SERVICE_BASE_URL` (or `CARD_SERVICE_HOST`/`PORT`); service token: `CBA_BACKEND_SERVICE_SECRET`, `CARD_SERVICE_TOKEN_URI` |
 | Card settlement export (×5 schemes) | `card.settlement.export.schemes.<s>.enabled=true` | per-scheme SFTP/HTTPS creds (see below) |
 | HSM (fep-service) | `fep.hsm.provider=THALES` | `HSM_HOST`, `HSM_PORT` + LMK ceremony |
 | Card scheme ISO 8583 links | n/a (network) | leased line/VPN + scheme certification |
@@ -111,7 +111,22 @@ Legend for **State**:
 
 - **PostgreSQL:** `DB_HOST/PORT/NAME/USERNAME/PASSWORD` (two DBs: main + card).
 - **Field encryption:** `ENCRYPTION_KEY` (AES-256; PII converter). Must be stable across restarts or existing ciphertext is unreadable.
-- **backend ↔ card-service:** `CARD_SERVICE_HOST/PORT` (REST).
+- **backend ↔ card-service:** `CARD_SERVICE_BASE_URL` (compose/k8s; `CARD_SERVICE_HOST/PORT` still honoured) (REST).
+- **backend → card-service service token** (cont. 33): card-service accepts only Keycloak JWTs, so the backend uses the
+  `client_credentials` grant of Keycloak client **`cba-backend-service`** (realm role **`CARD_READER`** only: list/get card,
+  balance, authorization history).
+  - **Secret:** one value, `CBA_BACKEND_SERVICE_SECRET`, given to **both** Keycloak (filled into `cba-realm.json` at import)
+    and the backend. Generate with `openssl rand -base64 32`; k8s keys `keycloak-secret` + `backend-secret`.
+  - **Token URI:** `CARD_SERVICE_TOKEN_URI`, on the **same Keycloak host as card-service's issuer**
+    (`http://keycloak:8180/realms/cba/...` in compose/k8s), or card-service rejects the token's `iss`.
+  - **Existing realm:** `--import-realm` skips a realm that already exists, so on an existing Keycloak create the client by
+    hand (Clients → Create: client authentication ON, only "Service accounts roles" flow; Service account roles → assign
+    realm role `CARD_READER`, after creating that role) and copy its secret.
+  - **Rotate:** regenerate the client secret in Keycloak, update both secrets, restart the backend (the cached token
+    expires within its lifetime, default 300 s).
+  - **Verify:** `curl -u cba-backend-service:$SECRET -d grant_type=client_credentials $TOKEN_URI` returns a token whose
+    `realm_access.roles` is `["CARD_READER"]`; AISP `/accounts` for a customer with cards lists them. Secret unset → the
+    backend logs a WARN at startup and card data is omitted.
 
 ## 10. Card scheme settlement file export ×5 🟢🔴
 

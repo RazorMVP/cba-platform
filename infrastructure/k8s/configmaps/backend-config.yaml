@@ -13,5 +13,7 @@ data:
   SPRING_MAIL_PORT: "1025"
   SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: "http://keycloak:8180/realms/cba"
   CARD_SERVICE_BASE_URL: "http://card-service:8081"
+  # Same Keycloak host as card-service's issuer, so the service token's iss matches.
+  CARD_SERVICE_TOKEN_URI: "http://keycloak:8180/realms/cba/protocol/openid-connect/token"
   # Replace with your actual domain in production
   # SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: "https://auth.cba.example.com/realms/cba"

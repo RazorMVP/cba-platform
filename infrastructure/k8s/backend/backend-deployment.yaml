@@ -37,6 +37,11 @@ spec:
                 secretKeyRef:
                   name: backend-secret
                   key: JASYPT_ENCRYPTOR_PASSWORD
+            - name: CBA_BACKEND_SERVICE_SECRET   # service token for card-service calls
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secret
+                  key: CBA_BACKEND_SERVICE_SECRET
           resources:
             requests:
               memory: "512Mi"

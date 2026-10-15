@@ -74,6 +74,53 @@ updates:
       - dependency-name: '*'
         update-types: ['version-update:semver-major']
 
+  # Partner portal (React + Vite) npm dependencies
+  - package-ecosystem: npm
+    directory: /partner-portal
+    schedule:
+      interval: weekly
+      day: monday
+      time: '03:00'
+    open-pull-requests-limit: 10
+    groups:
+      react:
+        patterns: ['react', 'react-dom', 'react-router-dom', '@types/react*']
+      vite-vitest:
+        patterns: ['vite', 'vitest', '@vitest/*', '@vitejs/*']
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+
+  # Developer docs (Docusaurus) npm dependencies
+  - package-ecosystem: npm
+    directory: /docs-site
+    schedule:
+      interval: weekly
+      day: monday
+      time: '03:00'
+    open-pull-requests-limit: 10
+    groups:
+      docusaurus:
+        patterns: ['@docusaurus/*']
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+
+  # Partner docs (Docusaurus) npm dependencies
+  - package-ecosystem: npm
+    directory: /partner-docs
+    schedule:
+      interval: weekly
+      day: monday
+      time: '03:00'
+    open-pull-requests-limit: 10
+    groups:
+      docusaurus:
+        patterns: ['@docusaurus/*']
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+
   # Flutter / Dart dependencies
   - package-ecosystem: pub
     directory: /mobile

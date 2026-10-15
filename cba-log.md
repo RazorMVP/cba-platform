@@ -57,6 +57,39 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 37) — 2026-10-15
+**Dependabot: 222 open alerts → the unfixable remainder. npm apps re-resolved (Docusaurus 3.10.2, axios 1.20.0, Vite 8.3.4, Vitest 4.1.12), POI 5.5.1, Dependabot now watches the three npm apps. Plan: `docs/plans/2026-10-15-dependabot-alerts.md` (#155).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `partner-portal/package.json` + lock | axios ^1.20.0, vite ^8.3.4, postcss ^8.5.30, vitest / @vitest/coverage-v8 ^4.1.12, react-router-dom ^6.30.6, + `@testing-library/dom` ^10.4.1 (explicit required peer); transitive js-yaml, nanoid, undici, brace-expansion, browserslist, source-map-js, baseline-browser-mapping, @babel/core updated in range |
+| `docs-site/`, `partner-docs/` `package.json` + lock | `@docusaurus/*` 3.10.0 → 3.10.2 (exact); vulnerable transitives updated in range; `overrides` tinypool ^2.2.0, serialize-javascript ^7.1.2, uuid ^11.1.1, qs ^6.16.1, postcss-selector-parser ^7.1.6 |
+| `backend/pom.xml` | poi-ooxml 5.3.0 → 5.5.1 (OOXML input validation; xmlbeans 5.3.0, commons-compress 1.28.0) |
+| `.github/dependabot.yml` | npm entries for `/partner-portal`, `/docs-site`, `/partner-docs` (weekly, majors ignored, groups) |
+| `docs/deferred-backlog.md` | 18 — React Router 7 |
+| `CLAUDE.md` | versions (Vite, Vitest, Docusaurus), Dependabot coverage, the two npm traps |
+
+#### Before → after (`npm audit`)
+| App | Before | After |
+|-----|--------|-------|
+| partner-portal | 18 (10 high) | 2 moderate — react-router; every 6.x is in range, fix only in 7.18+ → backlog 18 |
+| docs-site | 60 (18 critical, 29 high) | 28 high, all from `braces` ≤3.0.3 (latest; no fix) via micromatch/chokidar — build-time file globbing only |
+| partner-docs | 60 (18 critical, 29 high) | same as docs-site |
+
+#### Key Patterns / Decisions
+- **Exposure, not just count:** docs-site and partner-docs are static sites; their criticals (proxy-addr, compression, websocket-driver = webpack-dev-server; shell-quote; tinypool = SSG workers) never ship. partner-portal ships axios/form-data in the browser bundle — fixed first.
+- **`npm audit fix` downgrades Docusaurus to 3.7.0** to "fix" 15 findings. Targeted `npm install --package-lock-only` of the exact packages + `npm update <leaf names>` instead.
+- **npm 10 and 11 crash on a fresh resolve involving Vitest 4.1.x** (`edgesOut` null in `#loadPeerSet`; reproduced with only `vitest` in package.json; registry metadata, not local state). Updated with `--legacy-peer-deps` for that one targeted step; the one required peer it dropped (`@testing-library/dom`) is now explicit; proven with a plain `npm ci` (CI's command) and `npm ls`: 0 non-optional problems.
+- **Overrides kept only on proof:** both docs builds produce the same file set; CSS byte-identical; index.html differs only in the generator string and a 3.10.2 hardening (`innerHTML` → `textContent` in the base-URL banner script).
+- **Left for dismissal (user OK needed, Step 3):** jasypt ×2 (low; advisory is the unsalted digester — we use salted, IV'd PBE encryption; 3.0.5 is the latest), braces and sprintf-js in both docs sites (no upstream fix; build-time only). react-router stays open until backlog 18.
+
+#### Build Verification
+- partner-portal: `npm ci` ✅, 78/78 tests, build, lint, `npm audit --audit-level=high` → 0.
+- docs-site / partner-docs: `npm ci` ✅, build ✅ (62 / 48 files, same as baseline), typecheck ✅.
+- backend: report export tests 24/24 on POI 5.5.1; `clean verify -Pfull-integration` **902/902** (run in an isolated copy of `backend/` — the IDE kept rebuilding `target/` mid-run, the known race).
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
 ### Session 125 (cont. 35) — 2026-10-15
 **Backlog 12 closed: card-service → backend. Debit-card authorizations can reach the backend: a service token (client `cba-card-service`, role `CARD_SERVICE`) and the backend endpoint card-service always called. The fixed path exposed a ×100 money bug and a missing currency check.**
 

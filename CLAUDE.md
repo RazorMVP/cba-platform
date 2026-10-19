@@ -3030,6 +3030,8 @@ Push to main    → vercel build --prod → vercel deploy --prebuilt --prod → 
 
 > **Build target must match deploy target _(Session 125 cont. 16)_.** `vercel deploy --prebuilt` (preview) refuses output built with `--prod` ("prebuilt output … was built with target environment production"). Until cont. 16 the PR and develop builds used `--prod`, so the `Build & Deploy → Vercel` job failed on **every** web PR, Dependabot's included. Only `push` to `main` builds and deploys with `--prod`.
 
+> **PR-comment steps need `pull-requests: write` on the job _(cont. 38)_.** The repo's default workflow token is read-only, so a `github-script` `issues.createComment` with no `permissions:` block fails with `403 Resource not accessible by integration`, after the deploy itself succeeded. `web-ci.yml` and `partner-docs-ci.yml` (`deploy-preview`) declare `contents: read` + `pull-requests: write` on that one job; any new workflow that comments needs the same.
+
 **Required GitHub Secrets for Vercel**:
 ```
 VERCEL_TOKEN          — Personal Access Token from vercel.com/account/tokens

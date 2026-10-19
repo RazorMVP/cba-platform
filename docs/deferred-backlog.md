@@ -9,7 +9,7 @@
 > every remaining deferral marker (items 4–7 + the roadmap section). **Items 8–9 added Session 125
 > cont. 10 (2026-09-23)**: the CI secrets and variables that deployment and SonarCloud need. **Item 10 added
 > Session 125 cont. 32 (2026-10-14)**: user-defined (custom) reports, withdrawn on security review. **Items 11–13 added
-> cont. 33**: found while wiring the backend → card-service service token. **Items 14–17 added cont. 35**. **Item 18 added cont. 37; item 19 added cont. 42 (2026-10-19)**: the partner portal has no reachable API.
+> cont. 33**: found while wiring the backend → card-service service token. **Items 14–17 added cont. 35**. **Item 18 added cont. 37; items 19–20 added cont. 42 (2026-10-19)**: the partner portal has no reachable API; card-service's rate limiter keys on unverified identity.
 >
 > **Not in this list** (deliberately): intentional dev features that are correct as-is —
 > `DevAuthBypassFilter` (prod uses Keycloak), fraud/3DS last-resort scalar guards, Stitch
@@ -546,6 +546,24 @@ can't reach a laptop's `localhost:8080`.
 4. Consider failing the build when `VITE_API_URL` is unset in production, instead of silently falling back to a host
    that may not exist.
 5. Verify from the live bundle (as in cont. 41) and with a real login.
+
+## 20. card-service rate limiter: identity from unverified input
+
+**Effort**: S–M · **Risk**: security — the `/card-api/v1/**` limit can be bypassed, or turned against another caller
+
+Same class as backend item 16 (fixed in cont. 43), but card-service already reads the **tier** from the database
+(`api_keys.tier`). The **identity** is the problem — `card-service/.../config/RateLimitFilter.checkLimit` runs before
+authentication (`SecurityConfig` adds it before `UsernamePasswordAuthenticationFilter`, chains 2 and 3):
+
+- **Bearer:** the bucket is the `sub` from an unverified JWT parse (`extractJwtSub`). A forged token with a new `sub`
+  per request gets a fresh bucket; a victim's `sub` drains theirs.
+- **ApiKey:** the bucket is the SHA-256 of whatever key was sent, valid or not. A random key per request gets a fresh
+  bucket.
+- **IP:** `resolveIp` trusts the first `X-Forwarded-For` value from anyone.
+
+**Fix (mirror the backend):** run the limiter after authentication (before `AuthorizationFilter`) and key it on the
+verified principal (API key id / JWT `azp`/`sub`), anonymous on `request.getRemoteAddr()` with
+`server.forward-headers-strategy: native`; skip `OPTIONS`; integration test with a forged token and a random key.
 
 ---
 

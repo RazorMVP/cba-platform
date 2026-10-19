@@ -58,12 +58,12 @@ _None — all Phase 1 backend modules are now complete._
 ## Change History
 
 ### Session 125 (cont. 42) — 2026-10-19
-**Backlog 19 added: the partner portal has no reachable API (`VITE_API_URL` unset; fallback host has no DNS); blocked on item 8. Backlog-18 plan status → merged.**
+**Backlog 19 added: the partner portal has no reachable API (`VITE_API_URL` unset; fallback host has no DNS); blocked on item 8. Backlog 20 added: card-service's rate limiter keys on unverified identity (found while planning 16 + 6). Backlog-18 plan status → merged.**
 
 #### New/Updated Files
 | File | Change |
 |------|--------|
-| `docs/deferred-backlog.md` | item 19 (Vercel, Docker/compose and docs all point at `sandbox.nubbank.com`; pick-up steps) |
+| `docs/deferred-backlog.md` | item 19 (Vercel, Docker/compose and docs all point at `sandbox.nubbank.com`; pick-up steps); item 20 (card-service limiter: unverified JWT `sub`, any ApiKey hash, spoofable `X-Forwarded-For`) |
 | `docs/plans/2026-10-19-backlog-18-react-router-7.md`, `docs/plans/README.md` | status merged (#183 `bdc5a5d`; follow-ups #184, #185) |
 
 #### Key Patterns / Decisions

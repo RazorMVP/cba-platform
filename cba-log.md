@@ -57,6 +57,27 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 40) — 2026-10-19
+**Partner portal: the Dashboard no longer crashes when the usage call fails — it shows "—" and an "unavailable" banner instead of React Router's "Unexpected Application Error". Found in the cont. 39 browser check.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `partner-portal/src/features/dashboard/DashboardPage.tsx` | `EMPTY_USAGE` fallback (`usage = data ?? EMPTY_USAGE`), no `data!`; KPIs "—" while loading **or on error**; red "Usage data is unavailable" banner; top-endpoints panel says "Not available" instead of the "no API calls yet" empty state |
+| `partner-portal/src/features/dashboard/DashboardPage.test.tsx` | +2: call rejected; response without the `data` envelope |
+| `CLAUDE.md` | partner-portal row: the `placeholderData` trap and the unset `VITE_API_URL` |
+
+#### Key Patterns / Decisions
+- **Cause:** TanStack Query v5 `placeholderData` applies only while the query is pending. After a failed call `data` is `undefined` and `isLoading` is false, so `data!.totalRequests` threw and the route's error screen replaced the whole page (sidebar included). A 200 whose body has no `data` ends the same way: v5 turns `undefined` query data into an error.
+- **Unavailable ≠ zero:** on error the KPIs show "—", not 0, and the top-endpoints panel doesn't claim "No API calls recorded yet" — a partner would read zeros as real traffic.
+- **Correction to cont. 39:** the browser check's failure was a DNS error, not `vite preview` answering with HTML. `apiClient` falls back to `https://sandbox.nubbank.com/api/v1` when `VITE_API_URL` is unset, that host has no DNS record, and `VITE_API_URL` is set nowhere in the repo. Whether the Vercel project sets it can't be seen from here.
+- Only the Dashboard used `data!`; the other pages default their query data.
+
+#### Build Verification
+- Tests first: the 2 new tests failed with the production error (`Cannot read properties of undefined (reading 'totalRequests')`). After: **80/80**, build ✅, lint 0 errors (13 warnings = main).
+- Browser (vite preview, synthetic token, `/dashboard`): no crash, banner shown, all 4 KPIs "—", sidebar 9 links; the only console error is the browser's `ERR_NAME_NOT_RESOLVED` for the usage call.
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
 ### Session 125 (cont. 39) — 2026-10-19
 **Backlog 18: partner-portal React Router 6.30.6 → 7.18.4, on the `react-router` package (`react-router-dom` removed). Clears the last two Dependabot alerts (#163, #164). Plan: `docs/plans/2026-10-19-backlog-18-react-router-7.md`.**
 

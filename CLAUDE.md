@@ -1936,10 +1936,14 @@ card-service/src/main/resources/db/migration/
 
 | Tier | Requests/min | Used for |
 | ---- | ------------ | -------- |
-| SANDBOX | 30 | `sk_test_` / test API keys; unauthenticated IP fallback |
-| BASIC | 100 | Default for all production API keys; JWT Bearer sub |
-| PRO | 500 | Explicitly set on API key record |
-| ENTERPRISE | 2000 | Explicitly set on API key record |
+| SANDBOX | 30 | Backend: anonymous callers, per client IP. card-service: `api_keys.tier` |
+| BASIC | 100 | Backend default: Keycloak tokens, sandbox-environment partner orgs, partners without a higher tier |
+| PRO | 500 | Backend: `partner_organizations.tier` (set by hand; no endpoint). card-service: `api_keys.tier` |
+| ENTERPRISE | 2000 | Same as PRO |
+
+> **Backend limiter runs after authentication _(cont. 43, backlog 16 + 6)_.** `SecurityConfig` adds `RateLimitFilter` **before `AuthorizationFilter`** (it was before every auth filter and trusted unverified input). Bucket + tier come only from the verified `Authentication` (`RateLimitFilter.resolveCaller`): partner API key or partner JWT → `partner:<orgId>` (one bucket per org) at the **organisation's** tier, BASIC when the org's environment is SANDBOX; Keycloak → `jwt:<azp>` else `sub`, BASIC; anonymous → `ip:<getRemoteAddr()>`, SANDBOX. `X-Rate-Tier` is gone (anyone could send `ENTERPRISE`). Client IP: `server.forward-headers-strategy: native` — Tomcat honours `X-Forwarded-For` only from private-network proxies; the filter never reads that header. `OPTIONS` isn't counted. A request whose token fails verification gets 401 before it's counted (no `X-RateLimit-*` headers). **Known:** Keycloak callers bucket on `azp`, so every back-office user of `cba-web` shares one BASIC bucket. card-service's limiter still keys on unverified input (backlog 20).
+>
+> **Two bugs found by the cont. 43 tests:** (1) **partner API keys never authenticated outside dev bypass** — `PartnerApiKeyAuthFilter` is a servlet filter (no JPA session; open-in-view is an MVC interceptor) and `PartnerApiKey.organization` is LAZY, so `getEnvironment()` threw `LazyInitializationException`, swallowed by the filter's catch; dev bypass then logged the request in as admin, hiding it. `findByKeyHashAndActiveTrue` now `JOIN FETCH`es the organisation. (2) The 429 body used `Map.of(... null ...)`, which throws, so no over-limit request ever got its 429; it now writes `ApiResponse.error`. Any entity touched in a filter must be fetched with what it needs.
 
 **Response headers on every rate-limited path:**
 
@@ -1955,7 +1959,7 @@ card-service/src/main/resources/db/migration/
 - `rl:card:{keyHash[:16]}` — API key (card-service)
 - `rl:card:jwt:{sub}` — JWT Bearer (card-service)
 - `rl:card:ip:{ip}` — IP fallback (card-service)
-- `rl:{namespace}:{identity}` — backend (namespace = `ob` for open-banking, `api` for /api/v1)
+- `rl:backend:{identity}` — backend, one namespace for `/api/v1` and `/open-banking`; identity `partner:<orgId>`, `jwt:<azp|sub>`, `ip:<addr>` or `user:<name>` (cont. 43)
 
 **Critical gotchas for future sessions:**
 

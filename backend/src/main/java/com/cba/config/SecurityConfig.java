@@ -15,6 +15,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -33,7 +34,7 @@ public class SecurityConfig {
     @Autowired(required = false)
     private DevAuthBypassFilter devAuthBypassFilter;
 
-    /** Rate limit filter — runs before any auth filter on every request. */
+    /** Rate limit filter — runs after every authentication filter, keyed on the verified caller. */
     @Autowired
     private RateLimitFilter rateLimitFilter;
 
@@ -47,8 +48,10 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        // Rate limiting runs first — before auth so we can still throttle unauthenticated abuse
-        http.addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class);
+        // Rate limiting runs after authentication (just before authorization), so its bucket and
+        // tier come from the verified login. Before, it ran first and trusted an X-Rate-Tier header
+        // and unverified token claims (backlog 16). Anonymous callers are still limited, per IP.
+        http.addFilterBefore(rateLimitFilter, AuthorizationFilter.class);
         // Partner JWT filter runs before Keycloak JWT processing
         http.addFilterBefore(partnerJwtFilter, UsernamePasswordAuthenticationFilter.class);
         // Partner API-key (M2M) filter — authenticates "Authorization: ApiKey ..." requests

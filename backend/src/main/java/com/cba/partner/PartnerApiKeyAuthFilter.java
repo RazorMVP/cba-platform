@@ -80,8 +80,10 @@ public class PartnerApiKeyAuthFilter extends OncePerRequestFilter {
         }
 
         var auth = new UsernamePasswordAuthenticationToken(orgId, null, authorities);
+        // The organisation's tier, not the key's: the rate limit is the partner's plan, shared by all
+        // its keys and its portal logins (backlog 6).
         auth.setDetails(new PartnerPrincipal(
-                orgId, "DEVELOPER", org.getEnvironment().name(), key.getTier(), key.getScopes()));
+                orgId, "DEVELOPER", org.getEnvironment().name(), org.getTier(), key.getScopes()));
         SecurityContextHolder.getContext().setAuthentication(auth);
 
         key.setLastUsedAt(Instant.now());

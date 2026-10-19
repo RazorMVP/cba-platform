@@ -57,6 +57,25 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 41) — 2026-10-19
+**Partner portal CI runs the unit tests (new `Test` job; `Build` waits for it). Production confirmed to be built without `VITE_API_URL`.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `.github/workflows/partner-portal-ci.yml` | `test` job (`npm ci` + `npm test`, Node 22); `build.needs: [lint, test]`; PR path filter now includes the workflow file |
+| `CLAUDE.md` | Vitest row: CI runs the suite |
+
+#### Key Patterns / Decisions
+- **Gap:** the workflow ran lint and build only. The 78 portal tests (80 with #184) had never run in CI, so nothing stopped a broken test from merging or deploying. `Build` now needs `Test`, so the Docker push and Vercel deploy (both `needs: build`) only happen on green tests.
+- **PR path filter fix:** `pull_request` matched `partner-portal/**` only (`push` already listed the workflow), so a PR that edits just this workflow never ran it — including this one.
+- **`VITE_API_URL` in production (checked, read-only):** the Vercel CLI isn't logged in on this machine, so instead the live bundle (`partner-portal-omega-two.vercel.app`, `index-OH0HGr1n.js`, deployed 13:45 from #183) was read: it compiles to `baseURL:"https://sandbox.nubbank.com/api/v1"`. Vite inlines `import.meta.env.VITE_*` and the minifier folded `VITE_API_URL ?? fallback` to the fallback, which happens only when the variable is undefined at build time (`vercel build` pulls the project's env). That host has no DNS record, so every API call from the live portal fails; the Dashboard crash (fixed in #184) hit every logged-in user. Setting it needs the real partner API URL — a maintainer decision, not done here.
+- Not made a required check: partner-portal has no CI gate job, and its workflow is path-filtered (the cont. 17 "Expected forever" trap).
+
+#### Build Verification
+- Workflow YAML parses; this PR's own run is the proof (the path filter now includes the workflow).
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
 ### Session 125 (cont. 40) — 2026-10-19
 **Partner portal: the Dashboard no longer crashes when the usage call fails — it shows "—" and an "unavailable" banner instead of React Router's "Unexpected Application Error". Found in the cont. 39 browser check.**
 

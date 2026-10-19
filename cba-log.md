@@ -57,6 +57,22 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 42) — 2026-10-19
+**Backlog 19 added: the partner portal has no reachable API (`VITE_API_URL` unset; fallback host has no DNS); blocked on item 8. Backlog-18 plan status → merged.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `docs/deferred-backlog.md` | item 19 (Vercel, Docker/compose and docs all point at `sandbox.nubbank.com`; pick-up steps) |
+| `docs/plans/2026-10-19-backlog-18-react-router-7.md`, `docs/plans/README.md` | status merged (#183 `bdc5a5d`; follow-ups #184, #185) |
+
+#### Key Patterns / Decisions
+- User asked to keep it as a backlog item rather than set it now: there's no public backend to point at until item 8 (Kubernetes) lands.
+- Wider than Vercel: the GHCR image is built from CI's `dist/` without the variable and `nginx.conf` has no `/api` proxy, so the compose `--profile app` portal calls the dead host too. Recommended long-term shape: relative `/api/v1` + an nginx proxy (one image for all environments).
+
+#### Build Verification
+- Docs only. API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
 ### Session 125 (cont. 41) — 2026-10-19
 **Partner portal CI runs the unit tests (new `Test` job; `Build` waits for it). Production confirmed to be built without `VITE_API_URL`.**
 

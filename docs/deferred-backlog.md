@@ -9,7 +9,7 @@
 > every remaining deferral marker (items 4–7 + the roadmap section). **Items 8–9 added Session 125
 > cont. 10 (2026-09-23)**: the CI secrets and variables that deployment and SonarCloud need. **Item 10 added
 > Session 125 cont. 32 (2026-10-14)**: user-defined (custom) reports, withdrawn on security review. **Items 11–13 added
-> cont. 33**: found while wiring the backend → card-service service token. **Items 14–17 added cont. 35**.
+> cont. 33**: found while wiring the backend → card-service service token. **Items 14–17 added cont. 35**. **Item 18 added cont. 37; item 19 added cont. 42 (2026-10-19)**: the partner portal has no reachable API.
 >
 > **Not in this list** (deliberately): intentional dev features that are correct as-is —
 > `DevAuthBypassFilter` (prod uses Keycloak), fraud/3DS last-resort scalar guards, Stitch
@@ -514,6 +514,38 @@ Every 6.x release is inside the advisory range; the fix ships only in React Rout
 A transaction whose DE49 currency differs from the account's declines **RC 57** (no FX on the authorization path).
 Schemes send the converted amount in DE6 (cardholder billing) with DE51 (its currency). fep-service and card-service
 should authorize on DE6/DE51 when present.
+
+---
+
+## 19. Partner portal has no reachable API: `VITE_API_URL` is unset and its fallback host doesn't exist
+
+**Effort**: S once a backend URL exists (blocked on item 8) · **Risk**: the live partner portal can't log anyone in
+
+`partner-portal/src/app/api/apiClient.ts` uses `import.meta.env.VITE_API_URL ?? 'https://sandbox.nubbank.com/api/v1'`.
+Vite inlines `VITE_*` **at build time**, and nothing sets it:
+
+- **Vercel (production):** confirmed from the live bundle in cont. 41 — it compiles to
+  `baseURL:"https://sandbox.nubbank.com/api/v1"` (the `??` folded to the fallback, so the variable was undefined when
+  `vercel build` ran). `sandbox.nubbank.com` has **no DNS record** (checked 2026-10-19), so every portal API call —
+  login, registration, keys, webhooks, usage — fails. The Dashboard crash this caused is fixed (#184); the calls still fail.
+- **Docker image / compose `--profile app`:** the image is built from CI's `dist/` (no `VITE_API_URL`), and
+  `partner-portal/nginx.conf` has no `/api` proxy, so the local stack's portal also calls the dead host, not the local backend.
+- **Docs:** `docs-site/docs/sdks-tools.md` gives `sandbox.nubbank.com` as the sandbox host (curl, Swagger, OpenAPI links).
+  It was a planned domain that was never provisioned.
+
+**Why it's blocked:** there's no publicly reachable backend to point at until a deployment exists (item 8). Vercel
+can't reach a laptop's `localhost:8080`.
+
+**Pick-up:**
+1. Decide the public API host (e.g. provision `sandbox.nubbank.com` → the backend's ingress, which keeps the docs
+   correct; or a different host and update the docs). The backend's CORS already allows `*.vercel.app`.
+2. Set `VITE_API_URL` (`https://<host>/api/v1`) in the Vercel project `partner-portal`, Production **and** Preview; redeploy.
+3. Docker: either pass `VITE_API_URL` to the CI `npm run build` that produces the image's `dist/`, or (better, one
+   image for every environment) make the portal call the relative `/api/v1` and add an nginx `location /api/` proxy
+   to the backend — the compose stack then works with no build-time URL.
+4. Consider failing the build when `VITE_API_URL` is unset in production, instead of silently falling back to a host
+   that may not exist.
+5. Verify from the live bundle (as in cont. 41) and with a real login.
 
 ---
 

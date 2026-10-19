@@ -1,4 +1,4 @@
-> **Status:** in review — branch `fix/partner-portal-react-router-7`; steps 1–5 done. Approved 2026-10-19 (user chose option 1). Plan given in chat, not plan mode; body verbatim.
+> **Status:** merged — PR #183, merge commit `bdc5a5d`. Follow-ups: #184 (Dashboard crash found in the browser check, `f7cd14c`), #185 (portal tests in CI, `d5da244`). Approved 2026-10-19 (user chose option 1). Plan given in chat, not plan mode; body verbatim.
 
 # Plan: backlog 18, partner-portal React Router 6 → 7
 

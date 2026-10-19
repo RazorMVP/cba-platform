@@ -60,4 +60,24 @@ describe('DashboardPage', () => {
     renderPage(<DashboardPage />)
     expect(await screen.findByText(/no api calls recorded yet/i)).toBeInTheDocument()
   })
+
+  // The usage call failing used to throw on `data!.totalRequests` and replace the whole page with
+  // React Router's error screen. Unavailable figures must not read as real zero usage either.
+  it('keeps the page and says usage is unavailable when the usage call fails', async () => {
+    get.mockRejectedValue(new Error('Network Error'))
+    renderPage(<DashboardPage />)
+
+    expect(await screen.findByText(/usage data is unavailable/i)).toBeInTheDocument()
+    expect(screen.getByText('Acme')).toBeInTheDocument()
+    expect(screen.getAllByText('—')).toHaveLength(4) // every KPI, not 0
+    expect(screen.queryByText(/no api calls recorded yet/i)).not.toBeInTheDocument()
+  })
+
+  it('treats a response without a data envelope as unavailable', async () => {
+    get.mockResolvedValue({ data: '<!doctype html><html></html>' }) // e.g. an SPA fallback page
+    renderPage(<DashboardPage />)
+
+    expect(await screen.findByText(/usage data is unavailable/i)).toBeInTheDocument()
+    expect(screen.getAllByText('—')).toHaveLength(4)
+  })
 })

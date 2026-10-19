@@ -48,12 +48,12 @@ These are the verified-working versions for all production components. Update th
 | Component | Version | Notes |
 |-----------|---------|-------|
 | **React** | 19.2.5 | `react` + `react-dom` |
-| **Vite** | 8.0.9 | Build tool; `@vitejs/plugin-react` |
+| **Vite** | 8.3.4 | Build tool; `@vitejs/plugin-react`. Floor raised from ^8.0.9 (cont. 37, launch-editor advisory) |
 | **Tailwind CSS** | 4.2.4 | CSS-first config via `@tailwindcss/vite` |
 | **TanStack Query** | 5.99.2 | Server state management |
 | **React Router** | 6.30.3 | SPA routing |
 | **TypeScript** | 6.0.x | `~6.0.2` |
-| **Vitest / Testing Library** | 4.1.9 | Test toolchain added Session 120 cont.13 (was 0 tests → 78); `npm test` |
+| **Vitest / Testing Library** | 4.1.12 | Test toolchain added Session 120 cont.13 (was 0 tests → 78); `npm test`. `@testing-library/dom` is now an explicit devDependency (required peer of `@testing-library/react` 16). **Lockfile trap (cont. 37):** a fresh resolve involving Vitest 4.1.x crashes npm 10 *and* 11 (`Cannot read properties of null (reading 'edgesOut')` in `#loadPeerSet`); update it with targeted `npm install --package-lock-only --legacy-peer-deps -D vitest@… @vitest/coverage-v8@…`, then prove it with a plain `npm ci` |
 | **Vercel deployment** | `partner-portal-omega-two.vercel.app` | Production — Session 112 ✅ |
 | **Last git commit** | `ec18787` | Session 120 (cont. 13) — Vitest harness + 78 tests from zero (apiClient/auth/guards + all 14 pages + AppShell) |
 
@@ -61,7 +61,7 @@ These are the verified-working versions for all production components. Update th
 
 | Component | Version | Notes |
 |-----------|---------|-------|
-| **Docusaurus** | 3.10.0 | `@docusaurus/core`, `@docusaurus/preset-classic` |
+| **Docusaurus** | 3.10.2 | `@docusaurus/core`, `@docusaurus/preset-classic` (docs-site too). `package.json` `overrides` lift build-only transitives Docusaurus still pins to vulnerable majors: `tinypool ^2.2.0`, `serialize-javascript ^7.1.2`, `uuid ^11.1.1`, `qs ^6.16.1`, `postcss-selector-parser ^7.1.6` — kept because the built site is the same file set with **byte-identical CSS** (cont. 37). **Never `npm audit fix` here:** it "fixes" by downgrading `@docusaurus/core` to 3.7.0. `braces` ≤3.0.3 has no fix (build-time globbing only) |
 | **React** | 19.x | Docusaurus 3.10 peer dep |
 | **Node** | ≥20 | CI `NODE_VERSION: '20'` |
 | **Vercel deployment** | `partner-docs-b15nvegyp-razormvps-projects.vercel.app` | Production ✅ Session 117 |
@@ -3115,7 +3115,7 @@ Images tagged with commit SHA — Kubernetes deployments reference SHA tags for 
 
 Dependabot runs every Monday, grouped by ecosystem:
 - Maven: **all three Java modules** — `/backend`, `/card-service`, `/fep-service` (Spring Boot group, Security group, Testing group) _(card-service + fep-service added Session 121 cont. 3)_
-- npm: Angular group, Angular Material group
+- npm: `/web` (Angular group, Angular Material group), and since cont. 37 `/partner-portal` (react, vite-vitest groups), `/docs-site` and `/partner-docs` (docusaurus group). **Until cont. 37 only `/web` was watched and none of the other three runs `npm audit` in CI — 219 of 222 open Dependabot alerts sat in their lockfiles.** A blocking audit gate for them is a maintainer decision (it would deadlock Dependabot as on `/web`)
 - pub (Dart/Flutter): ungrouped
 - Docker: **every module with a Dockerfile** — `/backend`, `/card-service`, `/docs-site`, `/partner-docs`, `/partner-portal` (base images eclipse-temurin / maven / node / nginx). `/web` has no Dockerfile (Vercel deploy) and is intentionally not watched. _(card-service + docs/portal added, dead `/web` entry removed, Session 121 cont. 4)_
 - GitHub Actions: all action pinning

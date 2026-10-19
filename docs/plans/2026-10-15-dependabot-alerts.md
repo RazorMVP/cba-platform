@@ -1,4 +1,4 @@
-> **Status:** in progress — Step 1 done (#154 merged `0ba2ff5`); Step 0 is this archive PR; Steps 2–3 next. Approved 2026-10-15.
+> **Status:** Step 0 merged (#155); Step 1 merged (#154 `0ba2ff5`); Step 2 in #156; Step 3 (dismissals) approved — user chose option 1. Approved 2026-10-15.
 
 # Merge #154, then clear the 222 Dependabot alerts
 

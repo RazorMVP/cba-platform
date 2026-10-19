@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter, Navigate } from 'react-router'
 import { lazy, Suspense } from 'react'
 import { AppShell } from '../shared/components/AppShell'
 import { AuthGuard } from '../shared/components/AuthGuard'

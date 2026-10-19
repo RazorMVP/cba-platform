@@ -1,4 +1,4 @@
-import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { MemoryRouter, Routes, Route } from 'react-router'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { AuthGuard } from './AuthGuard'

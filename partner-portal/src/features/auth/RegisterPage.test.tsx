@@ -1,4 +1,4 @@
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter } from 'react-router'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import RegisterPage from './RegisterPage'
@@ -8,8 +8,8 @@ vi.mock('../../app/api/apiClient', () => ({ apiClient: { post: vi.fn() } }))
 const post = apiClient.post as unknown as ReturnType<typeof vi.fn>
 
 const { mockNavigate } = vi.hoisted(() => ({ mockNavigate: vi.fn() }))
-vi.mock('react-router-dom', async (orig) => ({
-  ...(await orig<typeof import('react-router-dom')>()),
+vi.mock('react-router', async (orig) => ({
+  ...(await orig<typeof import('react-router')>()),
   useNavigate: () => mockNavigate,
 }))
 

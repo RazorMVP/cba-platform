@@ -55,7 +55,7 @@ These are the verified-working versions for all production components. Update th
 | **TypeScript** | 6.0.x | `~6.0.2` |
 | **Vitest / Testing Library** | 4.1.12 | Test toolchain added Session 120 cont.13 (was 0 tests → 78); `npm test`. `@testing-library/dom` is now an explicit devDependency (required peer of `@testing-library/react` 16). **Lockfile trap (cont. 37):** a fresh resolve involving Vitest 4.1.x crashes npm 10 *and* 11 (`Cannot read properties of null (reading 'edgesOut')` in `#loadPeerSet`); update it with targeted `npm install --package-lock-only --legacy-peer-deps -D vitest@… @vitest/coverage-v8@…`, then prove it with a plain `npm ci` |
 | **Vercel deployment** | `partner-portal-omega-two.vercel.app` | Production — Session 112 ✅ |
-| **Last git commit** | `ec18787` | Session 120 (cont. 13) — Vitest harness + 78 tests from zero (apiClient/auth/guards + all 14 pages + AppShell) |
+| **Last git commit** | Session 125 cont. 40 | Dashboard no longer crashes when the usage call fails: TanStack Query v5 `placeholderData` covers only the **pending** state, so after an error (or a body without `data` — v5 rejects `undefined` query data) `data` is `undefined`; never `data!` a query result — fall back to a constant and show "—" + an "unavailable" banner, not zeros. **`VITE_API_URL` is set nowhere in the repo** (CI, `vercel.json`); the fallback `https://sandbox.nubbank.com/api/v1` has no DNS record. Earlier: `ec18787` (Session 120 cont. 13) — Vitest harness + 78 tests |
 
 ### Partner Docs (`partner-docs/`)
 

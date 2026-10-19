@@ -30,17 +30,25 @@ function KpiCard({ label, value, sub, icon: Icon, color }: { label: string; valu
   )
 }
 
+const EMPTY_USAGE: UsageSummary = {
+  totalRequests: 0, successRequests: 0, failedRequests: 0, webhookDeliveryRate: 0, dailyCalls: [], topEndpoints: [],
+}
+
 export default function DashboardPage() {
   const { user } = useAuth()
-  const { data, isLoading } = useQuery<UsageSummary>({
+  const { data, isLoading, isError } = useQuery<UsageSummary>({
     queryKey: ['partner-usage', user?.organizationId],
     queryFn: () => apiClient.get<{ data: UsageSummary }>(`/partners/${user?.organizationId}/usage`).then(r => r.data.data),
     enabled: !!user?.organizationId,
-    placeholderData: { totalRequests: 0, successRequests: 0, failedRequests: 0, webhookDeliveryRate: 0, dailyCalls: [], topEndpoints: [] },
+    placeholderData: EMPTY_USAGE,
   })
 
-  const successRate = data && data.totalRequests > 0
-    ? Math.round((data.successRequests / data.totalRequests) * 100)
+  // placeholderData covers only the pending state: after a failed call (or a body without `data`,
+  // which TanStack Query rejects as undefined) `data` is undefined, so never dereference it directly.
+  const usage = data ?? EMPTY_USAGE
+  const unavailable = isLoading || isError
+  const successRate = usage.totalRequests > 0
+    ? Math.round((usage.successRequests / usage.totalRequests) * 100)
     : 0
 
   return (
@@ -66,12 +74,19 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {isError && (
+        <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-xl px-5 py-3 mb-6 text-sm">
+          <AlertTriangle size={15} />
+          Usage data is unavailable right now. The figures below will fill in once it loads.
+        </div>
+      )}
+
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <KpiCard label="Total API Calls" value={isLoading ? '—' : data!.totalRequests.toLocaleString()} icon={Activity} color="bg-blue-50 text-blue-600" />
-        <KpiCard label="Success Rate" value={isLoading ? '—' : `${successRate}%`} sub={`${data?.successRequests.toLocaleString() ?? 0} successful`} icon={CheckCircle2} color="bg-green-50 text-green-600" />
-        <KpiCard label="Failed Calls" value={isLoading ? '—' : data!.failedRequests.toLocaleString()} icon={AlertTriangle} color="bg-red-50 text-red-600" />
-        <KpiCard label="Webhook Delivery" value={isLoading ? '—' : `${data!.webhookDeliveryRate}%`} icon={TrendingUp} color="bg-purple-50 text-purple-600" />
+        <KpiCard label="Total API Calls" value={unavailable ? '—' : usage.totalRequests.toLocaleString()} icon={Activity} color="bg-blue-50 text-blue-600" />
+        <KpiCard label="Success Rate" value={unavailable ? '—' : `${successRate}%`} sub={unavailable ? undefined : `${usage.successRequests.toLocaleString()} successful`} icon={CheckCircle2} color="bg-green-50 text-green-600" />
+        <KpiCard label="Failed Calls" value={unavailable ? '—' : usage.failedRequests.toLocaleString()} icon={AlertTriangle} color="bg-red-50 text-red-600" />
+        <KpiCard label="Webhook Delivery" value={unavailable ? '—' : `${usage.webhookDeliveryRate}%`} icon={TrendingUp} color="bg-purple-50 text-purple-600" />
       </div>
 
       {/* Quick links */}
@@ -105,7 +120,9 @@ export default function DashboardPage() {
         <div className="px-5 py-4 border-b border-gray-100">
           <h2 className="font-semibold text-gray-900 text-sm">Top Endpoints (Last 30 Days)</h2>
         </div>
-        {!data?.topEndpoints.length ? (
+        {isError ? (
+          <div className="px-5 py-10 text-center text-gray-400 text-sm">Not available right now.</div>
+        ) : !usage.topEndpoints.length ? (
           <div className="px-5 py-10 text-center text-gray-400 text-sm">No API calls recorded yet. Start by reading the <a href="https://docs-site-five-dusky.vercel.app/getting-started" className="text-blue-500 underline">Getting Started guide</a>.</div>
         ) : (
           <table className="w-full text-sm">
@@ -116,7 +133,7 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {data.topEndpoints.map((ep, i) => (
+              {usage.topEndpoints.map((ep, i) => (
                 <tr key={i} className="hover:bg-gray-50">
                   <td className="px-5 py-3 font-mono text-xs">
                     <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded mr-2">{ep.method}</span>

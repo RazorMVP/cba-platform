@@ -51,7 +51,7 @@ These are the verified-working versions for all production components. Update th
 | **Vite** | 8.3.4 | Build tool; `@vitejs/plugin-react`. Floor raised from ^8.0.9 (cont. 37, launch-editor advisory) |
 | **Tailwind CSS** | 4.2.4 | CSS-first config via `@tailwindcss/vite` |
 | **TanStack Query** | 5.99.2 | Server state management |
-| **React Router** | 6.30.3 | SPA routing |
+| **React Router** | 7.18.4 | SPA routing (data router: `createBrowserRouter`). Package is **`react-router`** — `react-router-dom` removed (cont. 39, backlog 18: open-redirect GHSA-wrjc-x8rr-h8h6, fixed only in 7.18). Import `RouterProvider` from `react-router/dom`, everything else from `react-router`; `vi.mock('react-router', …)` in tests — a mock of the old module name would silently not apply. v8 (needs React ≥19.2.7, Node ≥22.22) is a version bump from here |
 | **TypeScript** | 6.0.x | `~6.0.2` |
 | **Vitest / Testing Library** | 4.1.12 | Test toolchain added Session 120 cont.13 (was 0 tests → 78); `npm test`. `@testing-library/dom` is now an explicit devDependency (required peer of `@testing-library/react` 16). **Lockfile trap (cont. 37):** a fresh resolve involving Vitest 4.1.x crashes npm 10 *and* 11 (`Cannot read properties of null (reading 'edgesOut')` in `#loadPeerSet`); update it with targeted `npm install --package-lock-only --legacy-peer-deps -D vitest@… @vitest/coverage-v8@…`, then prove it with a plain `npm ci` |
 | **Vercel deployment** | `partner-portal-omega-two.vercel.app` | Production — Session 112 ✅ |

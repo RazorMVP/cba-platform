@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { apiClient } from '../../app/api/apiClient'
 import { useAuth } from '../../app/context/AuthContext'
 import { TrendingUp, Activity, AlertTriangle, CheckCircle2, Key, Webhook } from 'lucide-react'

@@ -55,6 +55,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     if: github.event_name == 'pull_request'
+    # The repo's default token is read-only; commenting the preview URL on the
+    # PR needs pull-requests: write. Nothing else in this job writes to GitHub.
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
 
@@ -104,7 +109,7 @@ jobs:
           script: |
             const url = process.env.PREVIEW_URL;
             const sha = process.env.COMMIT_SHA.substring(0, 7);
-            github.rest.issues.createComment({
+            await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,

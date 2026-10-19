@@ -57,6 +57,26 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 38) — 2026-10-19
+**#156 merged (`c50a95e`); the no-fix Dependabot/Trivy alerts dismissed with written reasons (plan Step 3, option 1); partner-docs preview comment fixed — `deploy-preview` gets `pull-requests: write`.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `.github/workflows/partner-docs-ci.yml` | `deploy-preview` job: `permissions: contents: read, pull-requests: write` (same as `web-ci.yml`); `await` on `createComment` |
+| `docs/plans/2026-10-15-dependabot-alerts.md`, `docs/plans/README.md` | status → merged (#155, #154, #156; Step 3 done) |
+| `CLAUDE.md` | gotcha: PR-comment steps need job-level `pull-requests: write` |
+
+#### Key Patterns / Decisions
+- **Why the comment 403'd:** the repo's default workflow token is `read` (`default_workflow_permissions: read`), and the job declared no permissions, so `issues.createComment` got `Resource not accessible by integration`. The Vercel deploy before it had succeeded. Only `web-ci.yml` and `partner-docs-ci.yml` comment on PRs; web already had the block.
+- **Scoped to the one job** that writes; build/production/staging keep the read-only default. The step reads only `steps.deploy.outputs` and `github.sha`, via `env:`, with no PR-controlled input.
+- **Dismissed (each with a written reason on GitHub):** Dependabot #2, #4 jasypt → `not_used` (advisory is the unsalted digester; we use salted, IV'd PBE encryption; 3.0.5 is the latest release); #222, #236 braces ≤3.0.3 → `tolerable_risk` (no upstream fix; build-time globbing only); Trivy code-scanning #1024, #1036 (braces) → `won't fix`. **sprintf-js needed no dismissal**: it is gone from both lockfiles after #156 (#245 auto-closed as fixed).
+- Open after the Dependabot rescan: react-router ×2 moderate (backlog 18).
+
+#### Build Verification
+- Workflow YAML parses; only `deploy-preview` has a `permissions` block. Proof is this PR's own `Deploy Preview` run posting the comment.
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
 ### Session 125 (cont. 37) — 2026-10-15
 **Dependabot: 222 open alerts → the unfixable remainder. npm apps re-resolved (Docusaurus 3.10.2, axios 1.20.0, Vite 8.3.4, Vitest 4.1.12), POI 5.5.1, Dependabot now watches the three npm apps. Plan: `docs/plans/2026-10-15-dependabot-alerts.md` (#155).**
 

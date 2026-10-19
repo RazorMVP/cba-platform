@@ -14,6 +14,6 @@ Every change that goes through plan mode has its approved plan kept here, one fi
 | 2026-10-15 | [Backlog 11 — card-service internal endpoints auth](2026-10-15-backlog-11-card-internal-auth.md) | #153 | `d866430` |
 | 2026-10-15 | [Backlog 12 — card-service → backend token + balance endpoint](2026-10-15-backlog-12-card-backend-token.md) | #154 | `0ba2ff5` |
 | 2026-10-15 | [Card approvals reserve funds (atomic hold)](2026-10-15-card-holds-reservation.md) | #154 | `0ba2ff5` |
-| 2026-10-15 | [Merge #154, clear the Dependabot alerts](2026-10-15-dependabot-alerts.md) | in progress | — |
+| 2026-10-15 | [Merge #154, clear the Dependabot alerts](2026-10-15-dependabot-alerts.md) | merged | #155, #154, #156 (`c50a95e`) |
 
 **Not here:** work done without an approved plan, including the overdue fix (#150, `f3f22fe`) and everything before 2026-10-13. Plans from those sessions weren't kept. `cba-log.md` is the record for them.

@@ -1,4 +1,4 @@
-> **Status:** Step 0 merged (#155); Step 1 merged (#154 `0ba2ff5`); Step 2 in #156; Step 3 (dismissals) approved — user chose option 1. Approved 2026-10-15.
+> **Status:** merged — Step 0 #155 (`8f50fe8`); Step 1 #154 (`0ba2ff5`); Step 2 #156 (`c50a95e`); Step 3 dismissals done 2026-10-19 (jasypt #2/#4 `not_used`; braces #222/#236 + Trivy #1024/#1036; sprintf-js left both lockfiles). Approved 2026-10-15.
 
 # Merge #154, then clear the 222 Dependabot alerts
 

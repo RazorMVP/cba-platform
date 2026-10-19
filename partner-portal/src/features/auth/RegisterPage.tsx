@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router'
 import { apiClient } from '../../app/api/apiClient'
 import { AlertCircle, CheckCircle2 } from 'lucide-react'
 

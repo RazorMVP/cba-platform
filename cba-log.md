@@ -57,6 +57,33 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 39) — 2026-10-19
+**Backlog 18: partner-portal React Router 6.30.6 → 7.18.4, on the `react-router` package (`react-router-dom` removed). Clears the last two Dependabot alerts (#163, #164). Plan: `docs/plans/2026-10-19-backlog-18-react-router-7.md`.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `partner-portal/package.json` + lock | `react-router-dom` ^6.30.6 → `react-router` ^7.18.4 |
+| `partner-portal/src/main.tsx` | `RouterProvider` from `react-router/dom` |
+| 19 files in `partner-portal/src/` | imports `react-router-dom` → `react-router` (same named imports) |
+| `LoginPage.test.tsx`, `RegisterPage.test.tsx` | `vi.mock('react-router', …)` |
+| `.github/dependabot.yml` | react group pattern `react-router-dom` → `react-router` |
+| `docs/plans/` | plan + index row; Dependabot row's columns fixed |
+| `docs/deferred-backlog.md`, `CLAUDE.md` | 18 ✅; React Router row |
+
+#### Key Patterns / Decisions
+- **Target 7.18.x, not 8.x:** both advisories (GHSA-wrjc-x8rr-h8h6 open redirect via backslash in `<Link>`/`useNavigate`; GHSA-337j-9hxr-rhxg SSR `deserializeErrors`) are fixed in 7.18.0. 8.x is a major (Dependabot ignores majors) and needs React ≥19.2.7 / Node ≥22.22.
+- **`react-router` package now, per the v7 upgrade guide (Context7):** v8 deletes `react-router-dom`, so the move to v8 is now a version bump.
+- **v7 defaults checked against the app:** only `startTransition` applies (11 lazy pages behind `Suspense`: a navigation keeps the current page until the next one loads). All links are absolute (`v7_relativeSplatPath` no-op); no loaders, actions, fetchers or SSR.
+- **Trap:** `vi.mock('react-router-dom')` would have kept "passing" while mocking a module nothing imports; both mocks moved, and the `mockNavigate` assertions prove they apply.
+- **Lockfile:** `npm uninstall/install --package-lock-only` succeeded without `--legacy-peer-deps` (the cont. 37 Vitest crash didn't recur: Vitest wasn't re-resolved).
+- **Found, not fixed (pre-existing, unrelated to the router):** `DashboardPage` crashes ("Cannot read properties of undefined (reading 'totalRequests')") when `/usage` returns no `data` — `queryFn` returns `r.data.data` (undefined) and line 71 does `data!.totalRequests`. Seen in the browser check because `vite preview` answers `/api/*` with `index.html`.
+
+#### Build Verification
+- Baseline on 6.30.6: 78/78. After: `npm ci` ✅, `npm ls` 0 non-optional problems, **78/78**, `npm run build` (tsc -b + vite) ✅, lint 0 errors (13 warnings = same as main), `npm audit` **0**.
+- Browser (vite preview of the build): logged out `/dashboard` → `/login`, `/no-such-page` → `/login`; logged in (synthetic token) `/no-such-page` → `/dashboard`; sidebar clicks into lazy Sandbox/Apply stay same-document, `NavLink` `aria-current` updates; console 0 errors / 0 warnings.
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
 ### Session 125 (cont. 38) — 2026-10-19
 **#156 merged (`c50a95e`); the no-fix Dependabot/Trivy alerts dismissed with written reasons (plan Step 3, option 1); partner-docs preview comment fixed — `deploy-preview` gets `pull-requests: write`.**
 

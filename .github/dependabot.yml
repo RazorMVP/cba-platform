@@ -84,7 +84,7 @@ updates:
     open-pull-requests-limit: 10
     groups:
       react:
-        patterns: ['react', 'react-dom', 'react-router-dom', '@types/react*']
+        patterns: ['react', 'react-dom', 'react-router', '@types/react*']
       vite-vitest:
         patterns: ['vite', 'vitest', '@vitest/*', '@vitejs/*']
     ignore:

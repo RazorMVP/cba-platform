@@ -495,7 +495,11 @@ server-side data (the partner's tier, or a role).
 
 ---
 
-## 18. Partner portal: React Router 6 → 7 (open-redirect advisory)
+## 18. ✅ DONE (cont. 39) — Partner portal: React Router 6 → 7 (open-redirect advisory)
+
+> Closed in Session 125 cont. 39: `react-router` 7.18.4 replaces `react-router-dom` 6.30.6; imports moved to
+> `react-router` / `react-router/dom`; 78/78 tests, build, browser check; `npm audit` 0. Dependabot #163 and
+> #164 close on merge. Kept below for history.
 
 **Effort**: M · **Risk**: moderate — a same-origin redirect with a path `*` can leave the portal (GHSA in `@remix-run/router` 1.3.0–1.23.2 / `react-router` 6.0.0–7.17.0)
 

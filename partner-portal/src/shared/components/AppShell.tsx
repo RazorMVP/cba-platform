@@ -1,4 +1,4 @@
-import { Outlet, NavLink } from 'react-router-dom'
+import { Outlet, NavLink } from 'react-router'
 import {
   LayoutDashboard, Key, Webhook, Shield, FlaskConical,
   FileText, Users, BarChart3, Settings, LogOut, ChevronRight

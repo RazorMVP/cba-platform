@@ -1,6 +1,7 @@
 package com.cba.config;
 
 import com.cba.common.response.ApiResponse;
+import com.cba.partner.PartnerOrganizationRepository;
 import com.cba.partner.PartnerPrincipal;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jwt.JWTClaimsSet;
@@ -10,6 +11,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -34,8 +36,9 @@ import java.util.UUID;
  * from a client-supplied header or an unverified token (backlog 16):
  * <ul>
  *   <li>Partner API key or partner JWT → {@code partner:<orgId>} (one bucket per organisation) at the
- *       organisation's tier; a SANDBOX-environment organisation gets BASIC (backlog 6)
- *   <li>Keycloak token → {@code jwt:<azp>} (else {@code sub}) at BASIC
+ *       organisation's current tier, read from the database; a SANDBOX-environment organisation
+ *       gets BASIC (backlog 6)
+ *   <li>Keycloak token → {@code jwt:<azp>:<sub>} (per user within the client) at BASIC
  *   <li>Anonymous → {@code ip:<remote address>} at SANDBOX. The remote address is the client's only
  *       when {@code X-Forwarded-For} came from a trusted proxy ({@code server.forward-headers-strategy:
  *       native}); this filter never reads that header itself
@@ -69,6 +72,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private final RateLimitService rateLimitService;
     private final RateLimitEventNotifier rateLimitEventNotifier;
     private final ObjectMapper objectMapper;
+    private final PartnerOrganizationRepository organizations;
 
     /** Who is being limited: the bucket key, the tier, and the partner org (null for non-partners). */
     record Caller(String identity, RateLimitService.Tier tier, UUID orgId) {}
@@ -134,23 +138,50 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     /** Bucket and tier from the verified authentication (see the class comment). */
-    static Caller resolveCaller(Authentication auth, String remoteAddr) {
+    Caller resolveCaller(Authentication auth, String remoteAddr) {
         if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
             return new Caller("ip:" + remoteAddr, RateLimitService.Tier.SANDBOX, null);
         }
         Object details = auth.getDetails();
         if (details instanceof PartnerPrincipal pp) {
+            // API key: tier and environment were read with the key, on this request.
             return partner(pp.orgId(), pp.tier(), pp.environment(), auth);
         }
         if (details instanceof JWTClaimsSet claims) {
-            return partner(claim(claims, "orgId"), claim(claims, "tier"), claim(claims, "environment"), auth);
+            return partnerLogin(claim(claims, "orgId"), auth);
         }
         if (auth instanceof JwtAuthenticationToken jwt) {
+            // Per user within the client application. Bucketing on the client alone let one user
+            // (any customer on cba-mobile, any teller on cba-web) spend everyone's limit. A
+            // client-credentials token's sub is that client's service account, so it stays per client.
             String azp = jwt.getToken().getClaimAsString("azp");
-            String id = azp != null && !azp.isBlank() ? azp : jwt.getToken().getSubject();
+            String sub = jwt.getToken().getSubject();
+            String id = azp == null || azp.isBlank() ? sub : sub == null ? azp : azp + ":" + sub;
             return new Caller("jwt:" + id, RateLimitService.Tier.BASIC, null);
         }
         return new Caller("user:" + auth.getName(), RateLimitService.Tier.BASIC, null);
+    }
+
+    /**
+     * Partner portal login. Its JWT's {@code tier} / {@code environment} claims were set at login and
+     * last 24 h, so a downgrade wouldn't apply until expiry: read the organisation's current values.
+     * Only the {@code orgId} claim (verified, never changes) is taken from the token.
+     */
+    private Caller partnerLogin(String orgIdClaim, Authentication auth) {
+        UUID org = parseUuid(orgIdClaim);
+        if (org == null) {
+            return new Caller("user:" + auth.getName(), RateLimitService.Tier.BASIC, null);
+        }
+        try {
+            return organizations.findById(org)
+                    .map(o -> partner(org.toString(), o.getTier(),
+                            o.getEnvironment() != null ? o.getEnvironment().name() : null, auth))
+                    .orElseGet(() -> new Caller("partner:" + org, RateLimitService.Tier.BASIC, org));
+        } catch (DataAccessException e) {
+            // Never grant more than BASIC on a failed lookup.
+            log.warn("Rate limit: partner org {} lookup failed, using BASIC: {}", org, e.getMessage());
+            return new Caller("partner:" + org, RateLimitService.Tier.BASIC, org);
+        }
     }
 
     /** One bucket per organisation, at its tier; sandbox organisations always get BASIC. */

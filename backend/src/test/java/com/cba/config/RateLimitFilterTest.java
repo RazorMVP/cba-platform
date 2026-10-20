@@ -1,5 +1,8 @@
 package com.cba.config;
 
+import com.cba.partner.PartnerEnvironment;
+import com.cba.partner.PartnerOrganization;
+import com.cba.partner.PartnerOrganizationRepository;
 import com.cba.partner.PartnerPrincipal;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jwt.JWTClaimsSet;
@@ -10,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -23,6 +27,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,12 +49,13 @@ class RateLimitFilterTest {
 
     @Mock RateLimitService rateLimitService;
     @Mock RateLimitEventNotifier notifier;
+    @Mock PartnerOrganizationRepository organizations;
 
     RateLimitFilter filter;
 
     @BeforeEach
     void setUp() {
-        filter = new RateLimitFilter(rateLimitService, notifier, new ObjectMapper());
+        filter = new RateLimitFilter(rateLimitService, notifier, new ObjectMapper(), organizations);
     }
 
     @AfterEach
@@ -72,6 +78,11 @@ class RateLimitFilterTest {
         return response;
     }
 
+    private void orgInDb(UUID id, String tier, PartnerEnvironment environment) {
+        when(organizations.findById(id)).thenReturn(Optional.of(
+                PartnerOrganization.builder().id(id).tier(tier).environment(environment).build()));
+    }
+
     private static Authentication keycloak(String azp, String sub) {
         Jwt.Builder jwt = Jwt.withTokenValue("t").header("alg", "RS256").subject(sub)
                 .issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(300));
@@ -86,6 +97,7 @@ class RateLimitFilterTest {
         return auth;
     }
 
+    /** A partner portal login; {@code tier}/{@code environment} are what the token claimed at login. */
     private static Authentication partnerJwt(UUID org, String tier, String environment) {
         var auth = new UsernamePasswordAuthenticationToken("user-1", null,
                 AuthorityUtils.createAuthorityList("ROLE_PARTNER_ADMIN"));
@@ -102,7 +114,18 @@ class RateLimitFilterTest {
 
         run(r, keycloak("tpp-client", "user-9"));
 
-        verify(rateLimitService).check("backend", "jwt:tpp-client", RateLimitService.Tier.BASIC);
+        verify(rateLimitService).check("backend", "jwt:tpp-client:user-9", RateLimitService.Tier.BASIC);
+    }
+
+    @Test
+    @DisplayName("two users of the same client application get separate buckets")
+    void perUserWithinClient() throws Exception {
+        run(get("/api/v1/accounts"), keycloak("cba-mobile", "customer-a"));
+        SecurityContextHolder.clearContext();
+        run(get("/api/v1/accounts"), keycloak("cba-mobile", "customer-b"));
+
+        verify(rateLimitService).check("backend", "jwt:cba-mobile:customer-a", RateLimitService.Tier.BASIC);
+        verify(rateLimitService).check("backend", "jwt:cba-mobile:customer-b", RateLimitService.Tier.BASIC);
     }
 
     @Test
@@ -145,13 +168,58 @@ class RateLimitFilterTest {
     }
 
     @Test
-    @DisplayName("item 6: partner JWT → the same organisation bucket as its API keys")
+    @DisplayName("item 6: partner login → the same organisation bucket, at the tier in the database")
     void partnerJwtTier() throws Exception {
         UUID org = UUID.randomUUID();
+        orgInDb(org, "ENTERPRISE", PartnerEnvironment.PRODUCTION);
 
         run(get("/api/v1/partners/" + org + "/usage"), partnerJwt(org, "ENTERPRISE", "PRODUCTION"));
 
         verify(rateLimitService).check("backend", "partner:" + org, RateLimitService.Tier.ENTERPRISE);
+    }
+
+    @Test
+    @DisplayName("partner login after a downgrade: the token still says ENTERPRISE, the database says BASIC → BASIC")
+    void partnerJwtStaleTierClaimIgnored() throws Exception {
+        UUID org = UUID.randomUUID();
+        orgInDb(org, "BASIC", PartnerEnvironment.PRODUCTION);
+
+        run(get("/api/v1/partners/" + org + "/usage"), partnerJwt(org, "ENTERPRISE", "PRODUCTION"));
+
+        verify(rateLimitService).check("backend", "partner:" + org, RateLimitService.Tier.BASIC);
+    }
+
+    @Test
+    @DisplayName("partner login after approval: the token still says SANDBOX, the database says PRODUCTION PRO → PRO")
+    void partnerJwtStaleEnvironmentClaimIgnored() throws Exception {
+        UUID org = UUID.randomUUID();
+        orgInDb(org, "PRO", PartnerEnvironment.PRODUCTION);
+
+        run(get("/api/v1/partners/" + org + "/usage"), partnerJwt(org, "PRO", "SANDBOX"));
+
+        verify(rateLimitService).check("backend", "partner:" + org, RateLimitService.Tier.PRO);
+    }
+
+    @Test
+    @DisplayName("partner login for an organisation that no longer exists → BASIC")
+    void partnerJwtUnknownOrg() throws Exception {
+        UUID org = UUID.randomUUID();
+        when(organizations.findById(org)).thenReturn(Optional.empty());
+
+        run(get("/api/v1/partners/" + org + "/usage"), partnerJwt(org, "ENTERPRISE", "PRODUCTION"));
+
+        verify(rateLimitService).check("backend", "partner:" + org, RateLimitService.Tier.BASIC);
+    }
+
+    @Test
+    @DisplayName("partner login when the organisation lookup fails → BASIC, never the token's tier")
+    void partnerJwtLookupFails() throws Exception {
+        UUID org = UUID.randomUUID();
+        when(organizations.findById(org)).thenThrow(new DataAccessResourceFailureException("db down"));
+
+        run(get("/api/v1/partners/" + org + "/usage"), partnerJwt(org, "ENTERPRISE", "PRODUCTION"));
+
+        verify(rateLimitService).check("backend", "partner:" + org, RateLimitService.Tier.BASIC);
     }
 
     @Test
@@ -194,7 +262,7 @@ class RateLimitFilterTest {
         SecurityContextHolder.clearContext();
         MockHttpServletRequest r2 = get("/api/v1/accounts");
         run(r2, keycloak("tpp-client", "u"));
-        verify(notifier).maybeNotify(eq(r2), eq("jwt:tpp-client"), isNull(), any());
+        verify(notifier).maybeNotify(eq(r2), eq("jwt:tpp-client:u"), isNull(), any());
     }
 
     @Test

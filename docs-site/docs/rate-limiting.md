@@ -161,11 +161,11 @@ async function getAccount(id) {
 
 | API | Identity Used | Notes |
 |-----|--------------|-------|
-| Open Banking v3.1 | The verified token's client (`azp`), else its `sub` | Per TPP application |
+| Open Banking v3.1 | The verified token's client (`azp`) and user (`sub`) | Per customer, per TPP application |
 | Partner API (API key or partner login) | Your organisation | One limit shared by all your keys and logins |
 | Card API (API Key auth) | First 16 chars of key hash | Per API key |
 | Card API (JWT auth) | JWT `sub` claim | Per user |
-| Internal API | The verified token's client (`azp`), else its `sub` | Shared by all users of the same client application |
+| Internal API | The verified token's client (`azp`) and user (`sub`) | Per staff user |
 | Unauthenticated requests | Client IP address (taken from a trusted proxy only) | SANDBOX tier |
 
 A request with an invalid token is rejected (`401`) before it is counted, so it carries no `X-RateLimit-*` headers.

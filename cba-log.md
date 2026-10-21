@@ -85,6 +85,22 @@ _None — all Phase 1 backend modules are now complete._
 - Before the fix, `RateLimitIT` failed 3 of 4 over real HTTP (`X-Rate-Tier` → 2000; forged token counted at 2000; PRO partner 100). After: targeted run 55/55 (RateLimit*, Partner*, DPoPRejection*). Full `clean verify -Pfull-integration` (isolated copy): **919/919**, then **924/924** after the two security-review fixes (+5 `RateLimitFilterTest`: stale tier claim, stale environment claim, unknown org, failed lookup, two users on one client) — 907 in the run plus `KeycloakRealmServiceClientTest` 12/12 rerun with `infrastructure/` alongside (the copy had only `backend/`, so it couldn't find `../infrastructure/keycloak/cba-realm.json`).
 - Gate grep: no `@*Mapping` / `@RequestParam` / `@PathVariable` change. Behaviour changes documented: api-reference (WARNING threshold), docs-site and partner-docs rate-limit pages. No Postman change (no endpoint, parameter or header in the collection changed).
 
+### Session 125 (cont. 42) — 2026-10-19
+**Backlog 19 added: the partner portal has no reachable API (`VITE_API_URL` unset; fallback host has no DNS); blocked on item 8. Backlog 20 added: card-service's rate limiter keys on unverified identity (found while planning 16 + 6). Backlog-18 plan status → merged.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `docs/deferred-backlog.md` | item 19 (Vercel, Docker/compose and docs all point at `sandbox.nubbank.com`; pick-up steps); item 20 (card-service limiter: unverified JWT `sub`, any ApiKey hash, spoofable `X-Forwarded-For`) |
+| `docs/plans/2026-10-19-backlog-18-react-router-7.md`, `docs/plans/2026-10-19-backlog-16-6-rate-limit.md`, `docs/plans/README.md` | status merged (backlog 18: #183 `bdc5a5d`, follow-ups #184, #185; backlog 16 + 6: #188 `afabb47`) |
+
+#### Key Patterns / Decisions
+- User asked to keep it as a backlog item rather than set it now: there's no public backend to point at until item 8 (Kubernetes) lands.
+- Wider than Vercel: the GHCR image is built from CI's `dist/` without the variable and `nginx.conf` has no `/api` proxy, so the compose `--profile app` portal calls the dead host too. Recommended long-term shape: relative `/api/v1` + an nginx proxy (one image for all environments).
+
+#### Build Verification
+- Docs only. API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
 ### Session 125 (cont. 41) — 2026-10-19
 **Partner portal CI runs the unit tests (new `Test` job; `Build` waits for it). Production confirmed to be built without `VITE_API_URL`.**
 

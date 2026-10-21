@@ -1,6 +1,5 @@
 package com.cba.card.config;
 
-import com.cba.card.openbanking.apikey.ApiKeyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -49,34 +48,14 @@ public class RateLimitService {
             """, Long.class);
 
     private final StringRedisTemplate redis;
-    private final ApiKeyRepository apiKeyRepository;
 
     /**
-     * Checks the rate limit for a raw API key value.
-     * Uses the SHA-256 hash prefix (first 16 chars) as the Redis key fragment
-     * so the raw key never touches Redis.
+     * Counts one request against {@code identity}'s bucket ({@code rl:card:<identity>}) at
+     * {@code tier}. The identity comes from the verified caller — see {@link RateLimitFilter}.
      */
-    public RateLimitResult checkByKeyHash(String keyHash) {
-        Tier tier = apiKeyRepository.findByKeyHashAndActiveTrue(keyHash)
-                .<Tier>map(k -> Tier.fromString(k.getTier()))
-                .orElse(Tier.BASIC);
-
-        return check("card:" + keyHash.substring(0, Math.min(16, keyHash.length())), tier);
-    }
-
-    /** Checks the rate limit for a JWT sub (user/service token calls). */
-    public RateLimitResult checkBySubject(String sub) {
-        return check("card:jwt:" + sub, Tier.BASIC);
-    }
-
-    /** Checks the rate limit for an IP (unauthenticated fallback). */
-    public RateLimitResult checkByIp(String ip) {
-        return check("card:ip:" + ip, Tier.SANDBOX);
-    }
-
-    private RateLimitResult check(String redisKey, Tier tier) {
+    public RateLimitResult check(String identity, Tier tier) {
         try {
-            Long count = redis.execute(INCR_SCRIPT, List.of("rl:" + redisKey));
+            Long count = redis.execute(INCR_SCRIPT, List.of("rl:card:" + identity));
             if (count == null) return RateLimitResult.allowed(tier.rpm(), tier.rpm());
             long remaining = Math.max(0L, tier.rpm() - count);
             return count <= tier.rpm()

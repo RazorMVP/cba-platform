@@ -1,5 +1,9 @@
 server:
   port: 8081
+  # The rate limiter buckets anonymous callers on request.getRemoteAddr(). "native" lets Tomcat
+  # replace it with the X-Forwarded-For client only when the request came from a trusted
+  # (private-network) proxy such as the ingress controller; a client-supplied header is ignored.
+  forward-headers-strategy: native
 
 spring:
   application:

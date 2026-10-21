@@ -559,7 +559,13 @@ can't reach a laptop's `localhost:8080`.
    that may not exist.
 5. Verify from the live bundle (as in cont. 41) and with a real login.
 
-## 20. card-service rate limiter: identity from unverified input
+## 20. ✅ DONE (cont. 44) — card-service rate limiter: identity from unverified input
+
+> **Fixed in cont. 44** (plan `docs/plans/2026-10-21-backlog-20-card-rate-limit.md`): the limiter runs before
+> `AuthorizationFilter` on chains 2 and 3 and buckets on the verified caller — API key → `key:<id>` at
+> `api_keys.tier`, Keycloak → `jwt:<azp>:<sub>` BASIC, anonymous (incl. an unknown key) → `ip:<getRemoteAddr()>`
+> SANDBOX; `server.forward-headers-strategy: native`; `OPTIONS` skipped. The 429 body (`Map.of` with a null) threw,
+> as in the backend; it now uses `ApiResponse.error`. Original description below.
 
 **Effort**: S–M · **Risk**: security — the `/card-api/v1/**` limit can be bypassed, or turned against another caller
 

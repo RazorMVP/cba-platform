@@ -17,11 +17,14 @@ public class ApiKeyAuthentication extends AbstractAuthenticationToken {
 
     private final UUID apiKeyId;
     private final String name;
+    /** The key's rate-limit tier ({@code api_keys.tier}), read with the key on this request. */
+    private final String tier;
 
     public ApiKeyAuthentication(ApiKey key) {
         super(buildAuthorities(key));
         this.apiKeyId = key.getId();
         this.name     = key.getName();
+        this.tier     = key.getTier();
         setAuthenticated(true);
     }
 
@@ -29,6 +32,7 @@ public class ApiKeyAuthentication extends AbstractAuthenticationToken {
     @Override public Object getPrincipal()   { return apiKeyId; }
 
     public String getKeyName() { return name; }
+    public String getTier()    { return tier; }
 
     private static List<SimpleGrantedAuthority> buildAuthorities(ApiKey key) {
         var auths = new java.util.ArrayList<SimpleGrantedAuthority>();

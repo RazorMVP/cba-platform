@@ -57,6 +57,31 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 44) — 2026-10-21
+**Backlog 20: card-service's Card API rate limiter runs after authentication and buckets on the verified caller — no more unverified API-key hashes, hand-parsed JWT `sub`s or client-supplied `X-Forwarded-For`. Its 429 body threw, as the backend's had. Closed PR #187's branch deleted. Plan: `docs/plans/2026-10-21-backlog-20-card-rate-limit.md`.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/.../config/RateLimitFilter.java` | `resolveCaller` from `SecurityContextHolder`: `ApiKeyAuthentication` → `key:<apiKeyId>` at the key's tier, Keycloak → `jwt:<azp>:<sub>` BASIC, anonymous → `ip:<getRemoteAddr()>` SANDBOX, other → `user:<name>` BASIC; `extractJwtSub`, `resolveIp` and the request-side key hash removed; `OPTIONS` skipped; 429 body via `ApiResponse.error` |
+| `card-service/.../config/RateLimitService.java` | one `check(identity, tier)` → `rl:card:<identity>`; `checkByKeyHash`/`checkBySubject`/`checkByIp` and the `ApiKeyRepository` lookup removed |
+| `card-service/.../config/SecurityConfig.java` | chains 2 and 3: `addFilterBefore(rateLimitFilter, AuthorizationFilter.class)` (was before `UsernamePasswordAuthenticationFilter`) |
+| `card-service/.../openbanking/apikey/ApiKeyAuthentication.java` | carries the key's `tier` (read with the key on this request) |
+| `card-service/src/main/resources/application.yml` | `server.forward-headers-strategy: native` |
+| tests | `RateLimitFilterTest` (new, 9), `RateLimitIntegrationTest` (new, 4) |
+| `docs-site/docs/rate-limiting.md`, `docs/deferred-backlog.md`, `CLAUDE.md`, `docs/plans/` | Card API identities; item 20 ✅; Rate Limiting section + Redis keys + test counts; plan |
+
+#### Key Patterns / Decisions
+- **Why:** the filter ran ahead of every auth filter: a random `ApiKey` per request got a fresh BASIC bucket (the SHA-256 of whatever was sent); a forged bearer's `sub` picked the bucket (fresh per request, or a victim's drained); `X-Forwarded-For` was trusted from anyone. Same class as backend 16 (cont. 43); the tier was already read from `api_keys.tier`.
+- **Unknown API key = anonymous:** `ApiKeyAuthFilter` doesn't authenticate it, so it's counted per IP at SANDBOX (30/min), then 401 — key guessing is now throttled per IP instead of unlimited. An invalid bearer token is still rejected (401) before it's counted.
+- **Scope unchanged:** still only `/card-api/v1/**`; chain 3's registration remains a no-op for other paths. No servlet-registration change: the `@Component` filter's container-level copy runs after Spring Security and `OncePerRequestFilter` skips it (as in the backend) — the IT proves no headers on a rejected bearer.
+- **Test trap:** `new JwtAuthenticationToken(jwt)` (no authorities) is *unauthenticated*; Spring's converter uses the authorities constructor. The first unit run caught it — the filter rightly treated it as anonymous.
+- Old Redis keys (`rl:card:<hash16>`, `rl:card:jwt:<sub>`, `rl:card:ip:<xff>`) expire within 60 s; no migration.
+
+#### Build Verification
+- card-service `./mvnw -o test`: **148/148**. `clean verify -Pfull-integration`: **174/174** (was 161; +9 `RateLimitFilterTest`, +4 `RateLimitIntegrationTest`: PRO key → 500; unknown key → 401 with limit 30; forged bearer → 401 without `X-RateLimit-*`; Keycloak token → 100).
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed. (No `@*Mapping`/`@RequestParam`/`@PathVariable` change; the documented behaviour change is in `docs-site/docs/rate-limiting.md`.)
+
 ### Session 125 (cont. 43) — 2026-10-19
 **Backlog 16 + 6: the backend rate limiter runs after authentication and keys on the verified login — no more `X-Rate-Tier`, unverified token claims or client-supplied `X-Forwarded-For`; partners get their organisation's tier. The tests found two more bugs: partner API keys never authenticated outside dev bypass, and the 429 response threw. Plan: `docs/plans/2026-10-19-backlog-16-6-rate-limit.md` (user: "1a").**
 

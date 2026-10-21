@@ -15,6 +15,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -41,7 +42,11 @@ import java.util.Map;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    /** Rate limiting runs on chains 2 and 3 — before auth so unauthenticated abuse is still throttled. */
+    /**
+     * Rate limiting runs on chains 2 and 3 — after authentication, just before authorization, so
+     * the bucket is the verified caller (anonymous callers are throttled per IP). It used to run
+     * before every auth filter and bucket on unverified input (backlog 20).
+     */
     @Autowired
     private RateLimitFilter rateLimitFilter;
 
@@ -126,7 +131,7 @@ public class SecurityConfig {
         http
             .securityMatcher("/card-api/v1/**")
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(rateLimitFilter, AuthorizationFilter.class)
             .addFilterBefore(apiKeyAuthFilter, UsernamePasswordAuthenticationFilter.class);
         // Dev-only: inject ADMIN when no ApiKey/JWT present (added after the ApiKey filter so a real key wins).
         if (devAuthBypassFilter != null) {
@@ -145,7 +150,7 @@ public class SecurityConfig {
     @Bean
     @Order(3)
     public SecurityFilterChain publicChain(HttpSecurity http) throws Exception {
-        http.addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class);
+        http.addFilterBefore(rateLimitFilter, AuthorizationFilter.class);
         // Dev-only: inject ADMIN when no Bearer token present so authBypass-mode Angular can read /api/v1/cards/**.
         if (devAuthBypassFilter != null) {
             http.addFilterBefore(devAuthBypassFilter, UsernamePasswordAuthenticationFilter.class);

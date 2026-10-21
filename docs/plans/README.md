@@ -16,5 +16,6 @@ Every change that goes through plan mode has its approved plan kept here, one fi
 | 2026-10-15 | [Card approvals reserve funds (atomic hold)](2026-10-15-card-holds-reservation.md) | #154 | `0ba2ff5` |
 | 2026-10-15 | [Merge #154, clear the Dependabot alerts](2026-10-15-dependabot-alerts.md) | #155, #154, #156 | `c50a95e` |
 | 2026-10-19 | [Backlog 18 — partner-portal React Router 6 → 7](2026-10-19-backlog-18-react-router-7.md) | #183 | `bdc5a5d` |
+| 2026-10-19 | [Backlog 16 + 6 — backend rate limiter on verified identity and the partner's tier](2026-10-19-backlog-16-6-rate-limit.md) | #188 (replaced #187) | `afabb47` |
 
 **Not here:** work done without an approved plan, including the overdue fix (#150, `f3f22fe`) and everything before 2026-10-13. Plans from those sessions weren't kept. `cba-log.md` is the record for them.

@@ -17,10 +17,12 @@ Rate limits are per **60-second rolling window**:
 
 | Tier | Requests/min | Who Gets It |
 |------|-------------|-------------|
-| **SANDBOX** | 30 | All sandbox keys; unauthenticated IP fallback |
-| **BASIC** | 100 | Default for all production API keys and JWT tokens |
-| **PRO** | 500 | Explicitly assigned to your API key by NubBank |
-| **ENTERPRISE** | 2,000 | Explicitly assigned; requires NubBank contract |
+| **SANDBOX** | 30 | Unauthenticated requests, per client IP address |
+| **BASIC** | 100 | The default: every organisation in the sandbox environment, and production organisations without a higher tier; staff and TPP tokens |
+| **PRO** | 500 | Assigned to your organisation by NubBank |
+| **ENTERPRISE** | 2,000 | Assigned to your organisation; requires a NubBank contract |
+
+The tier belongs to your **organisation**: all its API keys and portal logins share one limit. It comes from your account, so a request header can't change it.
 
 Contact [api-support@nubbank.com](mailto:api-support@nubbank.com) to request a tier upgrade.
 
@@ -159,11 +161,14 @@ async function getAccount(id) {
 
 | API | Identity Used | Notes |
 |-----|--------------|-------|
-| Open Banking v3.1 | JWT `sub` claim | Per user, per TPP |
+| Open Banking v3.1 | The verified token's client (`azp`) and user (`sub`) | Per customer, per TPP application |
+| Partner API (API key or partner login) | Your organisation | One limit shared by all your keys and logins |
 | Card API (API Key auth) | First 16 chars of key hash | Per API key |
 | Card API (JWT auth) | JWT `sub` claim | Per user |
-| Internal API | JWT `sub` claim | Per staff user |
-| Unauthenticated requests | IP address | SANDBOX tier only |
+| Internal API | The verified token's client (`azp`) and user (`sub`) | Per staff user |
+| Unauthenticated requests | Client IP address (taken from a trusted proxy only) | SANDBOX tier |
+
+A request with an invalid token is rejected (`401`) before it is counted, so it carries no `X-RateLimit-*` headers.
 
 ---
 

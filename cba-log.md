@@ -57,6 +57,34 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 43) — 2026-10-19
+**Backlog 16 + 6: the backend rate limiter runs after authentication and keys on the verified login — no more `X-Rate-Tier`, unverified token claims or client-supplied `X-Forwarded-For`; partners get their organisation's tier. The tests found two more bugs: partner API keys never authenticated outside dev bypass, and the 429 response threw. Plan: `docs/plans/2026-10-19-backlog-16-6-rate-limit.md` (user: "1a").**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/.../config/RateLimitFilter.java` | bucket + tier from `SecurityContextHolder` (`resolveCaller`): partner → `partner:<orgId>` at the org's tier (SANDBOX environment → BASIC), Keycloak → `jwt:<azp|sub>` BASIC, anonymous → `ip:<getRemoteAddr()>` SANDBOX, other → `user:<name>` BASIC; `X-Rate-Tier` and the unverified JWT parse removed; `OPTIONS` skipped; 429 body via `ApiResponse.error` |
+| `backend/.../config/SecurityConfig.java` | `addFilterBefore(rateLimitFilter, AuthorizationFilter.class)` (was before `UsernamePasswordAuthenticationFilter`) |
+| `backend/.../config/RateLimitEventNotifier.java` | takes the verified `orgId` from the filter; no token re-parse, no API-key lookup |
+| `backend/.../partner/PartnerApiKeyAuthFilter.java`, `PartnerPrincipal.java` | principal carries the **organisation's** tier |
+| `backend/.../partner/PartnerApiKeyRepository.java` | `findByKeyHashAndActiveTrue` `JOIN FETCH`es the organisation |
+| `backend/src/main/resources/application.yml` | `server.forward-headers-strategy: native` |
+| tests | `RateLimitFilterTest` (new, 12), `RateLimitIT` (new, 5), `RateLimitEventNotifierTest` (rewritten, 5) |
+| `docs-site/docs/rate-limiting.md`, `partner-docs/docs/rate-limiting.md`, `partner-docs/docs/webhooks.md`, `docs/api-reference.html` (+ static copy) | tiers per organisation; who is identified how; WARNING fires at 90% (docs said 80%) |
+| `docs/deferred-backlog.md`, `CLAUDE.md`, `docs/plans/` | 6 + 16 ✅; Rate Limiting section; plan |
+
+#### Key Patterns / Decisions
+- **Why after authentication:** before, the filter ran first and trusted everything: `X-Rate-Tier: ENTERPRISE` → 2,000/min; a forged token with a new `azp` per request → a fresh bucket each time (no limit), or a victim's `azp` → their bucket drained; `X-Forwarded-For` rotation → unlimited anonymous login attempts. Now an invalid token gets 401 before it's counted (one local signature check).
+- **Decision 1a (user):** the organisation's tier — the partner's plan; API keys and partner logins share one bucket, so the limit can't be doubled by using both. Sandbox orgs BASIC; anonymous SANDBOX (30/min per IP). The two partner docs had disagreed (SANDBOX vs BASIC for sandbox accounts); both now say this.
+- **Bug found — partner API keys never authenticated outside dev bypass:** `PartnerApiKeyAuthFilter` is a servlet filter (no JPA session; open-in-view is an MVC interceptor) and `PartnerApiKey.organization` is LAZY, so `org.getEnvironment()` threw `LazyInitializationException`, caught and ignored by the filter. In dev/test the dev bypass then logged the request in as ADMIN (hiding it); in production it would have been 401. Proven over HTTP: org A's key reading org B's usage returned **200** (bypass admin); with `JOIN FETCH` it's **404** (the IDOR guard sees partner A). The old notifier only called `getOrganization().getId()`, which a proxy answers without loading — why nothing noticed.
+- **Bug found — 429 never worked:** the body was built with `Map.of("data", null, …)`; `Map.of` rejects nulls, so every over-limit request threw instead of answering 429.
+- **Commit security review (2 findings, user: "fix both"):** (1) *stale claim* — the partner-login path took `tier`/`environment` from the JWT, set at login and valid 24 h, so a downgraded partner kept its higher limit until expiry. It now reads `partner_organizations` by the verified `orgId` (PK lookup, portal traffic only); not found or lookup failure → BASIC, never the token's tier. (2) *shared bucket (DoS)* — Keycloak callers were bucketed on `azp` (the client), so one customer on `cba-mobile` or one teller on `cba-web` could spend everyone's limit; now `jwt:<azp>:<sub>`, per user within the client. Client-credentials tokens stay per client (their `sub` is the client's service account). Trade-off: a TPP's limit is per customer, not a TPP-wide total — an aggregate cap would be a second bucket, not built.
+- **Not changed:** card-service's limiter (same identity flaws) → backlog 20 (#186).
+
+#### Build Verification
+- Before the fix, `RateLimitIT` failed 3 of 4 over real HTTP (`X-Rate-Tier` → 2000; forged token counted at 2000; PRO partner 100). After: targeted run 55/55 (RateLimit*, Partner*, DPoPRejection*). Full `clean verify -Pfull-integration` (isolated copy): **919/919**, then **924/924** after the two security-review fixes (+5 `RateLimitFilterTest`: stale tier claim, stale environment claim, unknown org, failed lookup, two users on one client) — 907 in the run plus `KeycloakRealmServiceClientTest` 12/12 rerun with `infrastructure/` alongside (the copy had only `backend/`, so it couldn't find `../infrastructure/keycloak/cba-realm.json`).
+- Gate grep: no `@*Mapping` / `@RequestParam` / `@PathVariable` change. Behaviour changes documented: api-reference (WARNING threshold), docs-site and partner-docs rate-limit pages. No Postman change (no endpoint, parameter or header in the collection changed).
+
 ### Session 125 (cont. 41) — 2026-10-19
 **Partner portal CI runs the unit tests (new `Test` job; `Build` waits for it). Production confirmed to be built without `VITE_API_URL`.**
 

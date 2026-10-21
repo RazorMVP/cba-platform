@@ -187,7 +187,13 @@ dev-simplified and not covered end-to-end. `ArqcValidatorTest` proves the dev de
 
 ---
 
-## 6. Backend rate-limit tier is always BASIC (no per-partner tier resolution)
+## 6. ✅ DONE (cont. 43) — Backend rate-limit tier is always BASIC (no per-partner tier resolution)
+
+> Closed in Session 125 cont. 43 (with item 16): the backend limiter runs after authentication and keys on
+> the verified login — partner org at its organisation's tier (sandbox orgs BASIC), Keycloak `azp`/`sub` at
+> BASIC, anonymous per client IP at SANDBOX; `X-Rate-Tier` removed; `forward-headers-strategy: native`.
+> The tests also found that partner API keys never authenticated outside dev bypass (lazy organisation in a
+> servlet filter) and that the 429 body threw. Kept below for history.
 
 **Effort: S–M · Risk: low**
 
@@ -485,7 +491,13 @@ amortising term loans (no credit limit, no draws). What's needed:
 
 ---
 
-## 16. Backend rate limiter takes the tier from an unverified header
+## 16. ✅ DONE (cont. 43) — Backend rate limiter takes the tier from an unverified header
+
+> Closed in Session 125 cont. 43 (with item 6): the backend limiter runs after authentication and keys on
+> the verified login — partner org at its organisation's tier (sandbox orgs BASIC), Keycloak `azp`/`sub` at
+> BASIC, anonymous per client IP at SANDBOX; `X-Rate-Tier` removed; `forward-headers-strategy: native`.
+> The tests also found that partner API keys never authenticated outside dev bypass (lazy organisation in a
+> servlet filter) and that the 429 body threw. Kept below for history.
 
 **Effort**: S · **Risk**: security — anyone can claim a higher limit
 

@@ -171,7 +171,7 @@ GET /api/v1/partners/{orgId}/webhooks/{webhookId}/deliveries
 | `APPLICATION.REJECTED` | Production application rejected |
 | `API_KEY.CREATED` | New API key issued |
 | `API_KEY.REVOKED` | API key revoked |
-| `RATE_LIMIT.WARNING` | 80% of rate limit consumed in current window |
+| `RATE_LIMIT.WARNING` | 90% of your organisation's rate limit used in the current window (once per window) |
 | `RATE_LIMIT.EXCEEDED` | Rate limit exceeded — `429` being returned |
 
 ---

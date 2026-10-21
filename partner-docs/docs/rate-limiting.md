@@ -15,10 +15,12 @@ NubBank enforces fixed-window rate limiting (per minute) on all API endpoints.
 
 | Tier | Requests / minute | Who gets it |
 |------|-------------------|-------------|
-| SANDBOX | 30 | Test/sandbox API keys; unauthenticated fallback |
-| BASIC | 100 | Default for all production API keys |
+| SANDBOX | 30 | Unauthenticated requests, per client IP address |
+| BASIC | 100 | The default; sandbox organisations always get BASIC |
 | PRO | 500 | Explicitly upgraded — contact support |
 | ENTERPRISE | 2,000 | Enterprise agreements |
+
+The limit is your **organisation's**: all your API keys and portal logins share it, and a request header can't change it. A request with an invalid key or token gets `401` before it is counted.
 
 ---
 

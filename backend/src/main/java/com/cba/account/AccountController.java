@@ -3,6 +3,8 @@ package com.cba.account;
 import com.cba.account.dto.AccountHoldRequest;
 import com.cba.account.dto.AccountHoldResponse;
 import com.cba.account.dto.AccountResponse;
+import com.cba.account.dto.CardCaptureRequest;
+import com.cba.account.dto.CardDebitRequest;
 import com.cba.account.dto.CardFunds;
 import com.cba.account.dto.CardHoldRequest;
 import com.cba.account.dto.CardHoldResult;
@@ -260,6 +262,38 @@ public class AccountController {
             @PathVariable String reference,
             @AuthenticationPrincipal Jwt jwt) {
         return ResponseEntity.ok(ApiResponse.ok(accountService.releaseCardHold(id, reference, serviceActor(jwt))));
+    }
+
+    /** Clears a card authorization: debits the account against its hold and posts the journal. */
+    @PostMapping("/{id}/card-holds/{reference}/capture")
+    @PreAuthorize("hasRole('CARD_SERVICE') or hasRole('ADMIN')")
+    @Operation(summary = "Clear a card authorization (card-service batch close)",
+               description = "Debits the presented amount (at most the authorized one) and posts DR deposit / CR 2300 "
+                       + "Card Scheme Settlement Payable. Idempotent on the same amount. reasons: HOLD_NOT_FOUND, "
+                       + "HOLD_RELEASED, REFERENCE_CONFLICT, CURRENCY_MISMATCH, AMOUNT_EXCEEDS_HOLD; a late presentment "
+                       + "(hold expired) is checked like a withdrawal: ACCOUNT_NOT_ACTIVE, ACCOUNT_IN_LOCKIN_PERIOD, "
+                       + "INSUFFICIENT_FUNDS. Never force-posted.")
+    public ResponseEntity<ApiResponse<CardHoldResult>> captureCardHold(
+            @PathVariable UUID id,
+            @PathVariable String reference,
+            @Valid @RequestBody CardCaptureRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(ApiResponse.ok(accountService.captureCardHold(id, reference, request, serviceActor(jwt))));
+    }
+
+    /** A single-message card transaction (0200, e.g. ATM cash): debits now and posts the journal. */
+    @PostMapping("/{id}/card-debits")
+    @PreAuthorize("hasRole('CARD_SERVICE') or hasRole('ADMIN')")
+    @Operation(summary = "Debit a single-message card transaction (card-service 0200)",
+               description = "Withdrawal rules under the account's row lock, then debit + DR deposit / CR 2300, in one "
+                       + "transaction; idempotent on reference. Reversed through …/card-holds/{reference}/release (a refund). "
+                       + "reasons: INSUFFICIENT_FUNDS, ACCOUNT_NOT_ACTIVE, ACCOUNT_IN_LOCKIN_PERIOD, CURRENCY_MISMATCH, "
+                       + "REFERENCE_CONFLICT, HOLD_RELEASED (already refunded).")
+    public ResponseEntity<ApiResponse<CardHoldResult>> cardDebit(
+            @PathVariable UUID id,
+            @Valid @RequestBody CardDebitRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(ApiResponse.ok(accountService.cardDebit(id, request, serviceActor(jwt))));
     }
 
     /** A service account has no preferred_username of a person; fall back to the client id. */

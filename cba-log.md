@@ -57,6 +57,38 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 45) — 2026-10-22
+**Backlog 15a: card clearing posts to the GL. Card approvals reserved funds but nothing ever turned a reservation into a debit — card spend never reached the balance or the ledger, ATM cash (0200) holds simply lapsed. Now approvals fill the settlement batch, batch close clears each purchase through the backend (DR deposit / CR new GL 2300 Card Scheme Settlement Payable), 0200 debits at once, a reversal of a completed debit refunds, and a CoB job sweeps expired holds. Plan: `docs/plans/2026-10-22-backlog-15a-card-clearing-gl.md` (user: "1a 2a 3a 4a"). Also marks the backlog-20 plan merged (#189 `c69b860`).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/.../db/migration/V63__card_clearing.sql` | GL 2300 Card Scheme Settlement Payable + activity `LIABILITY_CARD_SETTLEMENT`; hold status CHECK + `CAPTURED`, `REFUNDED`; `account_holds.captured_amount`, `captured_at` |
+| `backend/.../account/AccountService.java` | `captureCardHold` (hold out of ACTIVE first, then debit + journal; live hold skips status/lock-in, late presentment runs full withdrawal rules), `cardDebit` (0200: checks + CAPTURED hold row + debit + journal), `releaseCardHold` refunds a CAPTURED hold (`REFUNDED`, closed account → `ACCOUNT_CLOSED`) |
+| `backend/.../account/AccountGlPosting.java` | `postCardSettlement`: balance-change lines + counter-line on 2300, entity type `CARD` |
+| `backend/.../account/AccountController.java`, `dto/CardCaptureRequest`, `dto/CardDebitRequest`, `dto/CardHoldResult` | `POST /{id}/card-holds/{reference}/capture`, `POST /{id}/card-debits` (CARD_SERVICE/ADMIN) |
+| `backend/.../config/SecurityConfig.java`, `RateLimitFilter.java` | the two paths admitted for CARD_SERVICE and kept out of rate limiting |
+| `backend/.../account/AccountHold*`, `TransactionType`, `accounting/JournalEntry`, `FinancialActivityAccount` | `CAPTURED`/`REFUNDED`; captured amount/time; `CARD_PURCHASE`, `CARD_CASH_WITHDRAWAL`, `CARD_REFUND`; `EntityType.CARD`; `LIABILITY_CARD_SETTLEMENT`; `AccountHoldRepository.expireDue` |
+| `backend/.../cob/HoldExpiryJob.java`, `CobJobDefinition.java` | CoB `holdExpiryJob` after dormancy: ACTIVE holds past `expiry_date` → `EXPIRED` (one versioned UPDATE) |
+| `card-service/.../db/migration/V12__settlement_clearing.sql`, `SettlementItem` | items + `card_id`, `account_id`, `card_type`, `hold_reference`, `failure_reason`, `cleared_at` |
+| `card-service/.../settlement/SettlementService.java`, `BackendClearingClient.java` (new) | `addAuthorization` (in the approval's transaction), `closeBatch` clears PENDING debit items (SETTLED / FAILED + reason / unreachable → batch stays OPEN), ends `CLOSED`; scheduled `closeOpenBatches` (`card.settlement.close-cron` 23:57); `markReversed` |
+| `card-service/.../auth/CardAuthorizationService.java` | 0200 → backend `card-debits` (cash flag from processing code 01); approvals add the settlement item; reversals mark it REVERSED; `currency`/`toMajorUnits` public |
+| `card-service/.../settlement/SettlementFileExportService.java` | export read `al.rrn` as the auth code and blanked the terminal id — now `al.auth_code`, `al.terminal_id` |
+| tests | backend `CardClearingIT` (new, 12), `CobJobsIT` job order; card-service `SettlementServiceTest` (7 → 14), `CardAuthorizationServiceTest` (+6), `CardClearingIntegrationTest` (new, 2, WireMock backend) |
+| docs | api-reference (+ static), Postman (+ static, 2 requests × 7 samples), both OpenAPI snapshots (additions only), card-api-reference (+ static), CLAUDE.md, deferred-backlog (15 → 15a done; 15b, 15c), plans |
+
+#### Key Patterns / Decisions
+- **Accounting (checked before recommending):** a hold posts nothing; clearing = DR customer deposit (savings control, or overdraft via `balanceChangeLines`) / CR 2300 — part of the deposit liability is extinguished (IFRS 9 §3.3.1) and a payable to the scheme recognised (IAS 32 §11). Interchange/scheme fees need an IFRS 15 B34–B38 principal/agent decision (15b); prepaid needs a funding path first (CBN treats prepaid balances as deposits — 15c).
+- **Decisions (user "1a 2a 3a 4a"):** 1a no scheme clearing-file intake — batch close presents each purchase at its authorized amount; 2a 0200 debits at approval, 0400 refunds; 3a split 15a/15b/15c; 4a late presentment debits under normal rules, else FAILED — never force-posted. Saved in memory `project_gl_posting_decisions`.
+- **Trap:** `spendable()` counts every ACTIVE hold, including the one being captured — the hold must leave ACTIVE (`saveAndFlush`) before the debit, or it blocks itself.
+- **Found on the way:** `addToCurrentBatch` had no callers (batches never filled); `closeBatch` jumped OPEN→SETTLED, so the nightly export (reads `CLOSED`) never found a batch; `expireUnmatchedAuthorizations` claimed to release holds and didn't; CLAUDE.md "Settlement Modes" said settlement posts GL entries — corrected.
+- An approval whose settlement item can't be written rolls back (and its hold is released by the existing rollback hook), so an approval never exists without the item that clears it.
+
+#### Build Verification
+- backend `clean verify -Pfull-integration` (isolated copy): **936/936** after regenerating the OpenAPI snapshot (first run 935/936 — only the snapshot, for the two new endpoints). `CardClearingIT` 12/12.
+- card-service `./mvnw -o test`: **161/161**; `clean verify -Pfull-integration`: **189/189** after regenerating its snapshot (`SettlementItem` gained 6 fields — additions only).
+- Gate grep: `@PostMapping` capture + card-debits (+ `@PathVariable`s) → documented in api-reference (+ full API matrix) and Postman; job list updated (`holdExpiryJob`).
+
 ### Session 125 (cont. 44) — 2026-10-21
 **Backlog 20: card-service's Card API rate limiter runs after authentication and buckets on the verified caller — no more unverified API-key hashes, hand-parsed JWT `sub`s or client-supplied `X-Forwarded-For`. Its 429 body threw, as the backend's had. Closed PR #187's branch deleted. Plan: `docs/plans/2026-10-21-backlog-20-card-rate-limit.md`.**
 

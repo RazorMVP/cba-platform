@@ -2,6 +2,9 @@ package com.cba.card.settlement;
 
 import com.cba.card.auth.AuthorizationLog;
 import com.cba.card.auth.AuthorizationLogRepository;
+import com.cba.card.auth.CardAuthorizationService;
+import com.cba.card.card.Card;
+import com.cba.card.card.CardType;
 import com.cba.card.common.CbaException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,19 +16,30 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.Currency;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
- * Settlement service — manages dual-message batch settlement and
- * single-message real-time advice recording.
+ * Settlement service — the day's batch of approved card transactions and their clearing.
  *
- * <p>Dual-message flow:
+ * <p>Flow (backlog 15a — clearing posts to the GL):
  * <ol>
- *   <li>Authorization (0100) places a fund hold — recorded as SettlementItem with status=PENDING</li>
- *   <li>End-of-day: batch close (0324) sets batch to CLOSED then SETTLED</li>
- *   <li>Nightly job reverses unmatched items older than {@code auth-expiry-days}</li>
+ *   <li>Every approval that reserved funds adds an item, in the approval's transaction
+ *       ({@link #addAuthorization}): a debit-card purchase (0100) is PENDING; a single-message debit
+ *       (0200) and a prepaid approval are already completed, so they start SETTLED</li>
+ *   <li>Batch close (scheduled nightly, or manual) clears each PENDING debit item on the backend:
+ *       its hold becomes a debit and DR deposit / CR 2300 Card Scheme Settlement Payable posts. A
+ *       refusal (e.g. a late presentment that no longer has the funds) is FAILED with the reason —
+ *       never force-posted. The batch ends CLOSED, which the nightly file export picks up. If the
+ *       backend can't be reached the batch stays OPEN and the next close retries (clearing is
+ *       idempotent on the backend)</li>
+ *   <li>A reversal marks its item REVERSED ({@link #markReversed})</li>
  * </ol>
+ * There is no scheme clearing-file intake yet: the batch close presents each purchase at its
+ * authorized amount (user decision 1a, backlog 15). Interchange, scheme fees and the scheme's
+ * cash settlement are backlog 15b; SETTLED for the batch is set there.
  */
 @Slf4j
 @Service
@@ -35,6 +49,7 @@ public class SettlementService {
     private final SettlementBatchRepository batchRepository;
     private final SettlementItemRepository  itemRepository;
     private final AuthorizationLogRepository authLogRepository;
+    private final BackendClearingClient     clearingClient;
 
     @Value("${card.settlement.auth-expiry-days:7}")
     private int authExpiryDays;
@@ -61,33 +76,67 @@ public class SettlementService {
     }
 
     /**
-     * Adds an approved authorization to the current open batch.
-     * Called after every approved dual-message authorization (0100 → 0110 approved).
+     * Records an approval that reserved funds, in the approval's own transaction — so an approval
+     * never exists without the item that will clear it.
+     *
+     * @param holdReference the backend hold (debit purchase) or single-message debit; null for prepaid
+     * @param completed     true when the approval already moved the money (0200 debit, prepaid wallet)
      */
     @Transactional
-    public SettlementItem addToCurrentBatch(UUID authLogId, BigDecimal amount, String currencyCode) {
-        SettlementBatch batch = openOrGetTodaysBatch();
-
+    public SettlementItem addAuthorization(AuthorizationLog auth, Card card, String holdReference, boolean completed) {
         SettlementItem item = new SettlementItem();
-        item.setBatch(batch);
+        item.setAuthorizationLogId(auth.getId());
+        item.setAmount(auth.getAmount());
+        item.setCurrencyCode(auth.getCurrencyCode());
+        item.setCardId(card.getId());
+        item.setCardType(card.getCardType().name());
+        item.setAccountId(card.getCardType() == CardType.DEBIT ? card.getLinkedEntityId() : null);
+        item.setHoldReference(holdReference);
+        item.setStatus(completed ? "SETTLED" : "PENDING");
+        item.setClearedAt(completed ? OffsetDateTime.now() : null);
+        return addItem(item);
+    }
+
+    /** Adds a PENDING item for an authorization log entry (manual/legacy path). */
+    @Transactional
+    public SettlementItem addToCurrentBatch(UUID authLogId, BigDecimal amount, String currencyCode) {
+        SettlementItem item = new SettlementItem();
         item.setAuthorizationLogId(authLogId);
         item.setAmount(amount);
         item.setCurrencyCode(currencyCode);
         item.setStatus("PENDING");
+        return addItem(item);
+    }
 
+    private SettlementItem addItem(SettlementItem item) {
+        SettlementBatch batch = openOrGetTodaysBatch();
+        item.setBatch(batch);
         SettlementItem saved = itemRepository.save(item);
-
-        // Update batch totals
-        batch.setTotalAmount(batch.getTotalAmount().add(amount));
+        batch.setTotalAmount(batch.getTotalAmount().add(item.getAmount()));
         batch.setItemCount(batch.getItemCount() + 1);
         batchRepository.save(batch);
-
         return saved;
     }
 
     /**
-     * Closes a batch (0324 Batch Close Request).
-     * Sets status CLOSED → SETTLED and marks all items as SETTLED.
+     * The approval was reversed: its item no longer settles. The backend hold was released (or the
+     * completed debit refunded) by the reversal itself. Batch totals keep the submitted figures.
+     */
+    @Transactional
+    public void markReversed(UUID authLogId) {
+        if (authLogId == null) return;
+        itemRepository.findByAuthorizationLogId(authLogId)
+                .filter(item -> Set.of("PENDING", "SETTLED").contains(item.getStatus()))
+                .ifPresent(item -> {
+                    item.setStatus("REVERSED");
+                    itemRepository.save(item);
+                });
+    }
+
+    /**
+     * Closes a batch: clears each PENDING item (backend capture for debit cards), then marks the
+     * batch CLOSED for the file export. Items the backend refuses are FAILED with its reason. If
+     * the backend can't be reached for any item, the batch stays OPEN and a later close retries.
      */
     @Transactional
     public SettlementBatch closeBatch(UUID batchId) {
@@ -97,19 +146,82 @@ public class SettlementService {
                     "Only OPEN batches can be closed. Current status: " + batch.getStatus());
         }
 
+        int unreachable = 0;
+        for (SettlementItem item : itemRepository.findByBatch(batch)) {
+            if ("PENDING".equals(item.getStatus()) && !clear(item)) {
+                unreachable++;
+            }
+        }
+        if (unreachable > 0) {
+            log.warn("Batch {} left OPEN: {} items could not reach the backend; the next close retries",
+                    batch.getBatchRef(), unreachable);
+            return batch;
+        }
+
         batch.setStatus(SettlementBatchStatus.CLOSED);
         batch.setClosedAt(OffsetDateTime.now());
+        SettlementBatch closed = batchRepository.save(batch);
+        log.info("Closed batch {}: {} items, total={}",
+                closed.getBatchRef(), closed.getItemCount(), closed.getTotalAmount());
+        return closed;
+    }
 
-        // Mark all pending items as SETTLED
-        List<SettlementItem> items = itemRepository.findByBatch(batch);
-        items.forEach(item -> item.setStatus("SETTLED"));
-        itemRepository.saveAll(items);
+    /**
+     * Clears one PENDING item. True when it is resolved (SETTLED or FAILED), false when the backend
+     * couldn't be reached and it stays PENDING. Items with nothing to clear on the backend (prepaid,
+     * or items recorded without a hold) settle as they are.
+     */
+    private boolean clear(SettlementItem item) {
+        if (!CardType.DEBIT.name().equals(item.getCardType())
+                || item.getHoldReference() == null || item.getAccountId() == null) {
+            settled(item);
+            return true;
+        }
+        Currency currency = CardAuthorizationService.currency(item.getCurrencyCode());
+        if (currency == null || item.getAmount() == null) {
+            failed(item, "UNKNOWN_CURRENCY");
+            return true;
+        }
+        BackendClearingClient.Result result = clearingClient.capture(item.getAccountId(), item.getHoldReference(),
+                CardAuthorizationService.toMajorUnits(item.getAmount(), currency), currency.getCurrencyCode());
+        if (result == null) {
+            return false;
+        }
+        if (result.approved()) {
+            settled(item);
+        } else {
+            failed(item, result.reason());
+        }
+        return true;
+    }
 
-        batch.setStatus(SettlementBatchStatus.SETTLED);
-        SettlementBatch settled = batchRepository.save(batch);
-        log.info("Settled batch {}: {} items, total={}",
-                settled.getBatchRef(), settled.getItemCount(), settled.getTotalAmount());
-        return settled;
+    private void settled(SettlementItem item) {
+        item.setStatus("SETTLED");
+        item.setClearedAt(OffsetDateTime.now());
+        itemRepository.save(item);
+    }
+
+    private void failed(SettlementItem item, String reason) {
+        item.setStatus("FAILED");
+        item.setFailureReason(reason);
+        itemRepository.save(item);
+        log.warn("Clearing refused for settlement item {} (hold {}): {}", item.getId(), item.getHoldReference(), reason);
+    }
+
+    /**
+     * Nightly batch close (default 23:57, before the 23:58 file export): every OPEN batch up to
+     * today, so a batch left open because the backend was unreachable is retried.
+     */
+    @Scheduled(cron = "${card.settlement.close-cron:0 57 23 * * *}")
+    public void closeOpenBatches() {
+        for (SettlementBatch batch : batchRepository.findByStatusAndSettlementDateLessThanEqual(
+                SettlementBatchStatus.OPEN, LocalDate.now())) {
+            try {
+                closeBatch(batch.getId());
+            } catch (Exception e) {
+                log.error("Closing batch {} failed: {}", batch.getBatchRef(), e.getMessage());
+            }
+        }
     }
 
     // ── Queries ───────────────────────────────────────────────────────────────
@@ -138,11 +250,10 @@ public class SettlementService {
     // ── Nightly CoB — Expire Unmatched Authorizations ─────────────────────────
 
     /**
-     * Runs nightly at 23:58 — reverses any PENDING settlement items older than
-     * {@code card.settlement.auth-expiry-days} (default 7).
-     *
-     * <p>Unmatched dual-message authorizations expire here. The corresponding
-     * fund hold is automatically released.
+     * Runs nightly at 23:58 — marks FAILED any item still PENDING after
+     * {@code card.settlement.auth-expiry-days} (default 7): it could not be cleared that long
+     * (backend unreachable at every close). Its backend hold has expired by then and stopped
+     * reserving funds; clearing it later would be a late presentment, decided by operations.
      */
     @Scheduled(cron = "0 58 23 * * *")
     @Transactional
@@ -152,7 +263,10 @@ public class SettlementService {
 
         if (expired.isEmpty()) return;
 
-        expired.forEach(item -> item.setStatus("FAILED"));
+        expired.forEach(item -> {
+            item.setStatus("FAILED");
+            item.setFailureReason("NOT_CLEARED_BEFORE_EXPIRY");
+        });
         itemRepository.saveAll(expired);
         log.info("CoB: expired {} unmatched settlement items older than {} days",
                 expired.size(), authExpiryDays);

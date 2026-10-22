@@ -55,6 +55,13 @@ public class AccountHold {
     @Column(name = "released_by", length = 100)
     private String releasedBy;
 
+    /** Card clearing: the amount debited (at most {@link #amount}, the authorized amount). */
+    @Column(name = "captured_amount", precision = 19, scale = 4)
+    private BigDecimal capturedAmount;
+
+    @Column(name = "captured_at")
+    private Instant capturedAt;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 

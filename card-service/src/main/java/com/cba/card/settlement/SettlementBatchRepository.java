@@ -17,4 +17,7 @@ public interface SettlementBatchRepository extends JpaRepository<SettlementBatch
 
     /** Find all batches in a given status on a specific settlement date — used by nightly exporter. */
     List<SettlementBatch> findByStatusAndSettlementDate(SettlementBatchStatus status, LocalDate date);
+
+    /** OPEN batches up to a date — the scheduled close also retries earlier batches left open. */
+    List<SettlementBatch> findByStatusAndSettlementDateLessThanEqual(SettlementBatchStatus status, LocalDate date);
 }

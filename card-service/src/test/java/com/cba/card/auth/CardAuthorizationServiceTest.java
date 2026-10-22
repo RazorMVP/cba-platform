@@ -12,6 +12,7 @@ import com.cba.card.fraud.FraudEvaluationResult;
 import com.cba.card.fraud.FraudRuleResult;
 import com.cba.card.fraud.FraudScoreLogRepository;
 import com.cba.card.openbanking.webhook.WebhookService;
+import com.cba.card.settlement.SettlementService;
 import com.cba.card.wallet.PrepaidWallet;
 import com.cba.card.wallet.PrepaidWalletRepository;
 import org.springframework.http.HttpMethod;
@@ -64,6 +65,7 @@ class CardAuthorizationServiceTest {
     @Mock RestTemplate backendRestTemplate;
     @Mock RestClientConfig restClientConfig;
     @Mock WebhookService webhookService;
+    @Mock SettlementService settlementService;
 
     @InjectMocks CardAuthorizationService service;
 
@@ -627,5 +629,108 @@ class CardAuthorizationServiceTest {
 
         service.reverse(PAN, new BigDecimal("100.00"), REV_STAN, "x");
         verifyNoInteractions(backendRestTemplate);
+        verify(settlementService, never()).markReversed(any());
+    }
+
+    // ── Clearing (backlog 15a) ────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("an approved debit purchase (0100) goes into the batch PENDING, to be cleared at close")
+    void debitPurchase_addsPendingSettlementItem() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        stubBackendHold(true, null);
+
+        service.authorize(req(new BigDecimal("2500"), "000000", false));
+
+        verify(settlementService).addAuthorization(any(AuthorizationLog.class), eq(card),
+                eq(CardAuthorizationService.holdReference(card, req(new BigDecimal("2500"), "000000", false))), eq(false));
+    }
+
+    @Test
+    @DisplayName("0200 ATM cash debits at once via card-debits (cash=true), no hold; the item starts completed")
+    void singleMessage_debitsNow() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+        doReturn(ResponseEntity.ok(new CardAuthorizationService.Envelope<>(new CardAuthorizationService.BackendHold(
+                true, UUID.randomUUID(), "ref", "CAPTURED", null, BigDecimal.ZERO))))
+                .when(backendRestTemplate).exchange(contains("/card-debits"), eq(HttpMethod.POST), any(HttpEntity.class),
+                        any(ParameterizedTypeReference.class));
+        CardAuthRequest atm = new CardAuthRequest(PAN, "010000", new BigDecimal("20000"), "840", "000002",
+                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0002", "VISA", true, true, true, null);
+
+        assertThat(service.authorize(atm).responseCode()).isEqualTo("00");
+
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<HttpEntity> captor = org.mockito.ArgumentCaptor.forClass(HttpEntity.class);
+        verify(backendRestTemplate).exchange(contains("/card-debits"), eq(HttpMethod.POST), captor.capture(),
+                any(ParameterizedTypeReference.class));
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> body = (java.util.Map<String, Object>) captor.getValue().getBody();
+        assertThat((BigDecimal) body.get("amount")).isEqualByComparingTo("200.00");
+        assertThat(body.get("cashWithdrawal")).isEqualTo(true);
+        verify(backendRestTemplate, never()).exchange(contains("/card-holds"), any(HttpMethod.class), any(),
+                any(ParameterizedTypeReference.class));
+        verify(settlementService).addAuthorization(any(AuthorizationLog.class), eq(card), any(String.class), eq(true));
+    }
+
+    @Test
+    @DisplayName("0200 refused by the backend (INSUFFICIENT_FUNDS) declines 51 and adds no item")
+    void singleMessage_insufficientFunds() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+        doReturn(ResponseEntity.ok(new CardAuthorizationService.Envelope<>(new CardAuthorizationService.BackendHold(
+                false, null, "ref", null, "INSUFFICIENT_FUNDS", BigDecimal.ZERO))))
+                .when(backendRestTemplate).exchange(contains("/card-debits"), eq(HttpMethod.POST), any(HttpEntity.class),
+                        any(ParameterizedTypeReference.class));
+        CardAuthRequest atm = new CardAuthRequest(PAN, "010000", new BigDecimal("20000"), "840", "000003",
+                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0003", "VISA", true, true, true, null);
+
+        assertThat(service.authorize(atm).responseCode()).isEqualTo("51");
+        verify(settlementService, never()).addAuthorization(any(), any(), any(), any(Boolean.class));
+    }
+
+    @Test
+    @DisplayName("an approved prepaid purchase goes into the batch completed (the wallet already paid)")
+    void prepaid_addsCompletedItem() {
+        Card card = prepaidCard();
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(wallet("500")));
+
+        assertThat(service.authorize(req(new BigDecimal("2500"), "000000", false)).responseCode()).isEqualTo("00");
+        verify(settlementService).addAuthorization(any(AuthorizationLog.class), eq(card), isNull(), eq(true));
+    }
+
+    @Test
+    @DisplayName("a balance inquiry reserves nothing and adds no item")
+    void inquiry_noItem() {
+        Card card = prepaidCard();
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(wallet("500")));
+
+        service.authorize(req(null, "310000", false));
+        verify(settlementService, never()).addAuthorization(any(), any(), any(), any(Boolean.class));
+    }
+
+    @Test
+    @DisplayName("reversing an approved original marks its settlement item REVERSED")
+    void reverse_marksItemReversed() {
+        Card card = prepaidCard();
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setId(UUID.randomUUID());
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+
+        assertThat(service.reverse(PAN, new BigDecimal("100.00"), REV_STAN, "x")).isEqualTo("00");
+        verify(settlementService).markReversed(original.getId());
     }
 }

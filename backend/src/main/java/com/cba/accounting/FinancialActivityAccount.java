@@ -28,6 +28,8 @@ public class FinancialActivityAccount {
         LIABILITY_INCOME_IN_SUSPENSE,
         LIABILITY_SAVINGS_CONTROL,
         LIABILITY_TRANSFER_IN_SUSPENSE,
+        /** Cleared card transactions owed to the card schemes until they settle (GL 2300, V63). */
+        LIABILITY_CARD_SETTLEMENT,
         INCOME_INTEREST,
         INCOME_FEES,
         /** Penalties charged on loans: income when charged. */

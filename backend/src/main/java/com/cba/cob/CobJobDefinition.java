@@ -21,6 +21,9 @@ public enum CobJobDefinition {
                      "standingOrderExecutionBatchJob"),
     DORMANCY        ("dormancyClassificationJob", "Dormancy Classification",
                      "dormancyClassificationBatchJob"),
+    /** Marks holds past their expiry date EXPIRED (they already stopped reducing the balance). */
+    HOLD_EXPIRY     ("holdExpiryJob", "Hold Expiry",
+                     "holdExpiryBatchJob"),
     INTEREST_ACCRUAL("interestAccrualJob", "Interest Accrual",
                      "interestAccrualBatchJob"),
     ARREARS         ("arrearsClassificationJob", "Arrears Classification",

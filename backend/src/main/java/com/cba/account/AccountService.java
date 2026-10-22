@@ -382,8 +382,140 @@ public class AccountService {
     }
 
     /**
-     * Releases a card authorization's hold (reversal). Idempotent: a hold that is already released
-     * or expired, or was never placed, is left as is and reported with {@code approved=false}.
+     * Clears a card authorization (card-service, at batch close): debits the account for the presented
+     * amount and posts DR deposit / CR card scheme settlement payable, against the authorization's
+     * hold. While the hold is live the funds are reserved, so the debit doesn't re-apply the status
+     * and lock-in rules the authorization passed. A late presentment (hold expired) is no longer
+     * covered: the withdrawal rules apply in full and a refusal is returned, never force-posted.
+     * Idempotent: the same amount again returns the first result. A decline is a result, not an error.
+     */
+    @Transactional
+    public CardHoldResult captureCardHold(UUID accountId, String reference, CardCaptureRequest request,
+                                          String capturedBy) {
+        Account account = accountRepository.findByIdWithLock(accountId)
+            .orElseThrow(() -> CbaException.notFound("Account", accountId));
+        var existing = accountHoldRepository.findByAccountIdAndExternalReference(accountId, reference);
+        if (existing.isEmpty()) {
+            return new CardHoldResult(false, null, reference, null, "HOLD_NOT_FOUND", spendable(account).max(BigDecimal.ZERO));
+        }
+        AccountHold hold = existing.get();
+        if (hold.getStatus() == AccountHoldStatus.CAPTURED) {
+            boolean repeat = hold.getCapturedAmount().compareTo(request.amount()) == 0;
+            return new CardHoldResult(repeat, hold.getId(), reference, hold.getStatus().name(),
+                    repeat ? null : "REFERENCE_CONFLICT", spendable(account).max(BigDecimal.ZERO));
+        }
+        boolean reserved = isReserved(hold);
+        String reason = hold.getStatus() == AccountHoldStatus.RELEASED || hold.getStatus() == AccountHoldStatus.REFUNDED
+                    ? "HOLD_RELEASED"
+                : !account.getCurrencyCode().equalsIgnoreCase(request.currencyCode()) ? "CURRENCY_MISMATCH"
+                : request.amount().compareTo(hold.getAmount()) > 0 ? "AMOUNT_EXCEEDS_HOLD"
+                : reserved ? null
+                // Late presentment: nothing is reserved any more, so the withdrawal rules apply in full.
+                : account.getStatus() != AccountStatus.ACTIVE ? "ACCOUNT_NOT_ACTIVE"
+                : lockinExpiry(account) != null ? "ACCOUNT_IN_LOCKIN_PERIOD"
+                : spendable(account).compareTo(request.amount()) < 0 ? "INSUFFICIENT_FUNDS"
+                : null;
+        if (reason != null) {
+            return new CardHoldResult(false, hold.getId(), reference, hold.getStatus().name(), reason,
+                    spendable(account).max(BigDecimal.ZERO));
+        }
+
+        // Out of ACTIVE first: spendable() counts the hold, which would block its own capture.
+        hold.setStatus(AccountHoldStatus.CAPTURED);
+        hold.setCapturedAmount(request.amount());
+        hold.setCapturedAt(Instant.now());
+        accountHoldRepository.saveAndFlush(hold);
+        postCardMovement(account, request.amount(), true, TransactionType.CARD_PURCHASE,
+                "Card clearing " + reference, reference, capturedBy);
+        auditLogService.log("ACCOUNT_HOLD", hold.getId().toString(), "CARD_HOLD_CAPTURED", null,
+            "amount=" + request.amount() + " reference=" + reference + (reserved ? "" : " late=true"));
+        return new CardHoldResult(true, hold.getId(), reference, hold.getStatus().name(), null,
+                spendable(account).max(BigDecimal.ZERO));
+    }
+
+    /**
+     * A single-message card transaction (card-service, 0200 — ATM cash): approved and completed at
+     * once, so the account is debited now under the withdrawal rules and the journal posted. Recorded
+     * as a CAPTURED hold row, so the reference is unique per account (idempotent retries) and a
+     * reversal finds it to refund. A decline is a result, not an error.
+     */
+    @Transactional
+    public CardHoldResult cardDebit(UUID accountId, CardDebitRequest request, String createdBy) {
+        Account account = accountRepository.findByIdWithLock(accountId)
+            .orElseThrow(() -> CbaException.notFound("Account", accountId));
+
+        var existing = accountHoldRepository.findByAccountIdAndExternalReference(accountId, request.reference());
+        if (existing.isPresent()) {
+            AccountHold h = existing.get();
+            String why = h.getStatus() == AccountHoldStatus.REFUNDED ? "HOLD_RELEASED"
+                    : h.getStatus() != AccountHoldStatus.CAPTURED
+                      || h.getCapturedAmount().compareTo(request.amount()) != 0 ? "REFERENCE_CONFLICT"
+                    : null;
+            return new CardHoldResult(why == null, h.getId(), h.getExternalReference(), h.getStatus().name(),
+                    why, spendable(account).max(BigDecimal.ZERO));
+        }
+
+        String reason = account.getStatus() != AccountStatus.ACTIVE ? "ACCOUNT_NOT_ACTIVE"
+                : lockinExpiry(account) != null ? "ACCOUNT_IN_LOCKIN_PERIOD"
+                : !account.getCurrencyCode().equalsIgnoreCase(request.currencyCode()) ? "CURRENCY_MISMATCH"
+                : spendable(account).compareTo(request.amount()) < 0 ? "INSUFFICIENT_FUNDS"
+                : null;
+        if (reason != null) {
+            return new CardHoldResult(false, null, request.reference(), null, reason,
+                    reason.startsWith("ACCOUNT_") ? BigDecimal.ZERO : spendable(account).max(BigDecimal.ZERO));
+        }
+
+        AccountHold hold = new AccountHold();
+        hold.setAccount(account);
+        hold.setAmount(request.amount());
+        hold.setReason("Card debit " + request.reference());
+        hold.setExternalReference(request.reference());
+        hold.setReferenceNumber("CDB-" + System.currentTimeMillis());
+        hold.setStatus(AccountHoldStatus.CAPTURED);
+        hold.setCapturedAmount(request.amount());
+        hold.setCapturedAt(Instant.now());
+        hold.setCreatedBy(createdBy);
+        AccountHold saved = accountHoldRepository.saveAndFlush(hold);
+        TransactionType type = request.cashWithdrawal() ? TransactionType.CARD_CASH_WITHDRAWAL : TransactionType.CARD_PURCHASE;
+        postCardMovement(account, request.amount(), true, type,
+                (request.cashWithdrawal() ? "Card cash withdrawal " : "Card purchase ") + request.reference(),
+                request.reference(), createdBy);
+        auditLogService.log("ACCOUNT_HOLD", saved.getId().toString(), "CARD_DEBIT_POSTED", null,
+            "amount=" + request.amount() + " reference=" + request.reference());
+        return new CardHoldResult(true, saved.getId(), saved.getExternalReference(), saved.getStatus().name(), null,
+                spendable(account).max(BigDecimal.ZERO));
+    }
+
+    /** A hold still reserving funds: ACTIVE and not past its expiry date (as {@code sumActiveHoldsByAccount}). */
+    private static boolean isReserved(AccountHold hold) {
+        return hold.getStatus() == AccountHoldStatus.ACTIVE
+                && (hold.getExpiryDate() == null || !hold.getExpiryDate().isBefore(LocalDate.now()));
+    }
+
+    /**
+     * Moves a card amount on the account (debit, or credit for a refund), records the transaction and
+     * posts the journal against the card scheme settlement payable, all in the caller's transaction.
+     * A debit is checked only against the spendable balance (status and lock-in were decided by the caller).
+     */
+    private void postCardMovement(Account account, BigDecimal amount, boolean debit, TransactionType type,
+                                  String description, String reference, String actor) {
+        BigDecimal before = account.getBalance();
+        if (debit) {
+            account.debit(amount, spendable(account));
+        } else {
+            account.credit(amount);
+        }
+        accountRepository.save(account);
+        transactionRepository.save(Transaction.of(account, type, amount, account.getBalance(),
+            description, reference, actor));
+        accountGlPosting.postCardSettlement(account, before, LocalDate.now(), description, reference);
+    }
+
+    /**
+     * Releases a card authorization's hold (reversal). For a hold that was already completed
+     * (CAPTURED: cleared, or a single-message debit) the reversal is a refund: the account is credited
+     * back and the journal reversed. Idempotent: a repeated refund is reported as done; a hold that is
+     * already released or expired, or was never placed, is left as is and reported with {@code approved=false}.
      */
     @Transactional
     public CardHoldResult releaseCardHold(UUID accountId, String reference, String releasedBy) {
@@ -394,6 +526,13 @@ public class AccountService {
             return new CardHoldResult(false, null, reference, null, "HOLD_NOT_FOUND", spendable(account).max(BigDecimal.ZERO));
         }
         AccountHold hold = existing.get();
+        if (hold.getStatus() == AccountHoldStatus.CAPTURED) {
+            return refundCardDebit(account, hold, releasedBy);
+        }
+        if (hold.getStatus() == AccountHoldStatus.REFUNDED) {
+            return new CardHoldResult(true, hold.getId(), reference, hold.getStatus().name(), null,
+                    spendable(account).max(BigDecimal.ZERO));
+        }
         if (hold.getStatus() != AccountHoldStatus.ACTIVE) {
             return new CardHoldResult(false, hold.getId(), reference, hold.getStatus().name(), "HOLD_NOT_ACTIVE",
                     spendable(account).max(BigDecimal.ZERO));
@@ -404,6 +543,29 @@ public class AccountService {
         accountHoldRepository.saveAndFlush(hold);
         auditLogService.log("ACCOUNT_HOLD", hold.getId().toString(), "CARD_HOLD_RELEASED", null,
             "reference=" + reference);
+        return new CardHoldResult(true, hold.getId(), reference, hold.getStatus().name(), null,
+                spendable(account).max(BigDecimal.ZERO));
+    }
+
+    /**
+     * Reverses a completed card debit: credits the amount back and posts DR card scheme settlement
+     * payable / CR deposit. Money owed back to the customer is credited whatever the account's status,
+     * except a closed account, which can't take it (reported, nothing posted).
+     */
+    private CardHoldResult refundCardDebit(Account account, AccountHold hold, String releasedBy) {
+        String reference = hold.getExternalReference();
+        if (account.getStatus() == AccountStatus.CLOSED) {
+            return new CardHoldResult(false, hold.getId(), reference, hold.getStatus().name(), "ACCOUNT_CLOSED",
+                    BigDecimal.ZERO);
+        }
+        hold.setStatus(AccountHoldStatus.REFUNDED);
+        hold.setReleasedAt(Instant.now());
+        hold.setReleasedBy(releasedBy);
+        accountHoldRepository.saveAndFlush(hold);
+        postCardMovement(account, hold.getCapturedAmount(), false, TransactionType.CARD_REFUND,
+                "Card refund " + reference, reference, releasedBy);
+        auditLogService.log("ACCOUNT_HOLD", hold.getId().toString(), "CARD_DEBIT_REFUNDED", null,
+            "amount=" + hold.getCapturedAmount() + " reference=" + reference);
         return new CardHoldResult(true, hold.getId(), reference, hold.getStatus().name(), null,
                 spendable(account).max(BigDecimal.ZERO));
     }

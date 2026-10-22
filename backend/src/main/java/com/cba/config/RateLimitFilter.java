@@ -122,7 +122,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
      * behind the CARD_SERVICE role.
      */
     private static final java.util.regex.Pattern CARD_FUNDS_PATH =
-            java.util.regex.Pattern.compile("^/api/v1/accounts/[^/]+/(balance|card-holds(/[^/]+/release)?)$");
+            java.util.regex.Pattern.compile("^/api/v1/accounts/[^/]+/(balance|card-debits|card-holds(/[^/]+/(release|capture))?)$");
 
     private boolean isRateLimited(HttpServletRequest request) {
         // CORS preflights carry no credentials and do nothing; counting them would spend the

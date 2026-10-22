@@ -472,7 +472,23 @@ amortising term loans (no credit limit, no draws). What's needed:
 
 ---
 
-## 15. Card settlement posts nothing to the GL (approvals now reserve funds — cont. 35)
+## 15. Card settlement posts nothing to the GL (approvals now reserve funds — cont. 35) — 15a ✅ DONE (cont. 45); 15b and 15c open
+
+> **15a done in cont. 45** (plan `docs/plans/2026-10-22-backlog-15a-card-clearing-gl.md`; decisions "1a 2a 3a 4a" in memory
+> `project_gl_posting_decisions`): approvals fill the settlement batch; batch close clears each debit purchase via backend
+> `…/card-holds/{ref}/capture` (DR deposit / CR new GL 2300 Card Scheme Settlement Payable — IFRS 9 §3.3.1, IAS 32 §11);
+> 0200 debits at once (`…/card-debits`); release of a completed debit refunds; late presentment never force-posted;
+> CoB `holdExpiryJob` sweeps expired holds. Still open:
+> - **15b — interchange income, scheme fees and the scheme cash leg.** Interchange is computed only on an ADMIN request
+>   and in the acquirer direction (`net = gross − interchange − fees`); as issuer the bank *earns* interchange. Needs an
+>   IFRS 15 B34–B38 principal/agent decision (gross interchange + scheme-fee expense, or net), the scheme settlement
+>   leg (DR 2300 / CR settlement bank; one net position per scheme only with an enforceable set-off under the scheme
+>   rules — IAS 32 §42), and the batch's SETTLED status. Clearing still presents at the authorized amount: a scheme
+>   clearing-file intake (amount differences, incremental presentments) belongs here too.
+> - **15c — prepaid.** Wallets have no funding path (only seed data) and no GL; CBN treats prepaid balances as deposit
+>   liabilities of the issuer (Guidelines on Stored Value/Prepaid Card Issuance). Needs a load path and a liability
+>   account before wallet spend can post.
+> Original description below.
 
 **Effort**: L · **Risk**: money — double-spend window; card spend never reaches the ledger
 

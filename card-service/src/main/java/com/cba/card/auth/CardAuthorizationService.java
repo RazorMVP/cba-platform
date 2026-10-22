@@ -11,6 +11,7 @@ import com.cba.card.fraud.FraudEvaluationResult;
 import com.cba.card.fraud.FraudScoreLog;
 import com.cba.card.fraud.FraudScoreLogRepository;
 import com.cba.card.openbanking.webhook.WebhookService;
+import com.cba.card.settlement.SettlementService;
 import com.cba.card.wallet.PrepaidWallet;
 import com.cba.card.wallet.PrepaidWalletRepository;
 import lombok.RequiredArgsConstructor;
@@ -58,6 +59,7 @@ public class CardAuthorizationService {
     private final PrepaidWalletRepository   walletRepository;
     private final RestTemplate              backendRestTemplate;
     private final RestClientConfig          restClientConfig;
+    private final SettlementService         settlementService;
 
     /** Injected lazily to break the potential cycle: CardAuthorizationService ← WebhookDeliveryService ← WebhookService. */
     @Lazy @Autowired
@@ -122,7 +124,12 @@ public class CardAuthorizationService {
                         return logAndReturn(card, req, CardAuthResponse.decline("57"), fraud.totalScore(), fraud.decision());
                     }
                     String reference = holdReference(card, req);
-                    BackendHold hold = placeDebitHold(card, reference, amountMajor, txCurrency);
+                    // 0200 (single message, e.g. ATM cash) is approved and completed at once: debit now.
+                    // 0100 reserves with a hold that batch close clears (backlog 15a, decisions 1a/2a).
+                    BackendHold hold = req.isFinancial()
+                            ? postSingleMessageDebit(card, reference, amountMajor, txCurrency,
+                                    req.processingCode() != null && req.processingCode().startsWith("01"))
+                            : placeDebitHold(card, reference, amountMajor, txCurrency);
                     if (hold == null) {
                         return logAndReturn(card, req, CardAuthResponse.decline("91"), fraud.totalScore(), fraud.decision());
                     }
@@ -138,7 +145,8 @@ public class CardAuthorizationService {
                     }
                     holdRef = reference;
                     // If this transaction rolls back after the hold was placed (including a failed
-                    // commit), the approval never happened — give the hold back.
+                    // commit), the approval never happened — give the hold back (a completed 0200
+                    // debit is refunded by the same release).
                     if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
                         final Card heldCard = card;
                         org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
@@ -258,14 +266,12 @@ public class CardAuthorizationService {
      * Reversal handler for MTI 0400/0420 — called by fep-service at
      * {@code POST /api/v1/internal/reverse}.
      *
-     * <p>In this platform authorization/advice are check-and-record only — no funds move on
-     * the auth path (see {@link #authorize} / {@link #recordAdvice}). A reversal is therefore a
-     * record-and-notify operation: locate the original authorization by (card, STAN), record a
-     * {@code 0400} entry, and fire {@code AUTHORIZATION.REVERSED} — <b>idempotently</b>, so a
-     * duplicate 0400 (a common scheme retry) never double-records or double-notifies. The
-     * financial-reversal step (returning funds to a prepaid wallet / reversing a backend debit)
-     * is intentionally a no-op today because the auth path posts no funds; this method is the
-     * seam it will hook into once a real debit path is wired.
+     * <p>Locates the original authorization by (card, STAN), gives back what an approved original
+     * took — the backend hold is released (a completed debit — 0200, or a purchase already cleared —
+     * is refunded by the same call) or the prepaid wallet restored — marks its settlement item
+     * REVERSED, records a {@code 0400} entry and fires {@code AUTHORIZATION.REVERSED},
+     * <b>idempotently</b>, so a duplicate 0400 (a common scheme retry) never double-records or
+     * double-notifies.
      *
      * @return ISO response code — {@code "00"} accepted, {@code "25"} original/card not located,
      *         {@code "96"} on error
@@ -311,6 +317,7 @@ public class CardAuthorizationService {
                         walletRepository.save(w);
                     });
                 }
+                settlementService.markReversed(original.getId());
             }
 
             // Record the reversal (0400). The reserved funds were given back above.
@@ -405,7 +412,31 @@ public class CardAuthorizationService {
     }
 
     /**
-     * Releases an approval's backend hold. True when the backend answered — released now, or
+     * Debits the linked account for a single-message transaction (0200): backend
+     * {@code POST /api/v1/accounts/{id}/card-debits} checks, debits and posts the journal atomically,
+     * idempotent on {@code reference}. Same result shape as a hold. Null when unavailable.
+     */
+    private BackendHold postSingleMessageDebit(Card card, String reference, BigDecimal amountMajor,
+                                               java.util.Currency currency, boolean cashWithdrawal) {
+        if (card.getLinkedEntityId() == null) return null;
+        try {
+            String url = restClientConfig.getBackendBaseUrl()
+                    + "/api/v1/accounts/" + card.getLinkedEntityId() + "/card-debits";
+            Map<String, Object> body = Map.of("reference", reference, "amount", amountMajor,
+                    "currencyCode", currency.getCurrencyCode(), "cashWithdrawal", cashWithdrawal);
+            ResponseEntity<Envelope<BackendHold>> resp = backendRestTemplate.exchange(
+                    url, HttpMethod.POST, new org.springframework.http.HttpEntity<>(body),
+                    new ParameterizedTypeReference<Envelope<BackendHold>>() {});
+            return resp.getBody() != null ? resp.getBody().data() : null;
+        } catch (RestClientException e) {
+            log.warn("Single-message debit failed for card {}: {}", card.getId(), e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Releases an approval's backend hold — or, for a completed debit (0200, or a purchase already
+     * cleared), refunds it. True when the backend answered — released now, or
      * already released, expired or never placed (the release is idempotent); false when it
      * couldn't be reached, so the caller can refuse to report the reversal as done.
      */
@@ -423,7 +454,7 @@ public class CardAuthorizationService {
     }
 
     /** An ISO 4217 currency from a numeric (DE49, "840") or alphabetic ("USD") code; null if unknown. */
-    static java.util.Currency currency(String code) {
+    public static java.util.Currency currency(String code) {
         if (code == null || code.isBlank()) return null;
         String c = code.trim();
         if (c.chars().allMatch(Character::isDigit)) {
@@ -439,7 +470,7 @@ public class CardAuthorizationService {
     }
 
     /** DE4 minor units → major units of the currency (2 decimals for USD, 0 for JPY, 3 for KWD). */
-    static BigDecimal toMajorUnits(BigDecimal minorUnits, java.util.Currency currency) {
+    public static BigDecimal toMajorUnits(BigDecimal minorUnits, java.util.Currency currency) {
         return minorUnits.movePointLeft(Math.max(currency.getDefaultFractionDigits(), 0));
     }
 
@@ -476,6 +507,13 @@ public class CardAuthorizationService {
         entry.setHoldReference(holdReference);
         entry.setWalletDebit(walletDebit);
         authLogRepository.save(entry);
+
+        // An approval that reserved or moved funds goes into today's settlement batch, in this
+        // transaction: a debit purchase to be cleared at batch close; a 0200 debit or a prepaid
+        // wallet decrement already completed.
+        if (response.approved() && card != null && (holdReference != null || walletDebit != null)) {
+            settlementService.addAuthorization(entry, card, holdReference, walletDebit != null || req.isFinancial());
+        }
 
         // Fire webhook event asynchronously
         try {

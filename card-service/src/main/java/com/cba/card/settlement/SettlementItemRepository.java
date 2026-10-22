@@ -14,4 +14,7 @@ public interface SettlementItemRepository extends JpaRepository<SettlementItem, 
 
     @Query("SELECT si FROM SettlementItem si WHERE si.status = 'PENDING' AND si.createdAt < :cutoff")
     List<SettlementItem> findExpiredPendingItems(OffsetDateTime cutoff);
+
+    /** The item an approval produced (a reversal marks it REVERSED). */
+    java.util.Optional<SettlementItem> findByAuthorizationLogId(UUID authorizationLogId);
 }

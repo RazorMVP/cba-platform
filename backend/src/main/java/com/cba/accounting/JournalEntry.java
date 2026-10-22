@@ -16,7 +16,7 @@ public class JournalEntry {
 
     public enum EntryType { DEBIT, CREDIT }
     public enum EntityType { LOAN, ACCOUNT, TELLER_CASH, MANUAL, PAYMENT, FX_REVALUATION, OPENING_BALANCE,
-        REGULATORY_RESERVE }
+        REGULATORY_RESERVE, CARD }
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

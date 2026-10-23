@@ -65,6 +65,10 @@ public class SettlementItem {
     @Column(name = "cleared_at")
     private OffsetDateTime clearedAt;
 
+    /** Batch close and reversals can race on an item; the later writer re-reads instead of overwriting. */
+    @Version
+    private Long version;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
 }

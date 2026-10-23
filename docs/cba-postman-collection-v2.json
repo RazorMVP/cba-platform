@@ -1179,7 +1179,16 @@
                 "release"
               ]
             },
-            "description": "Releases a card authorization's hold on reversal (role CARD_SERVICE; ADMIN). A completed card debit (hold CAPTURED: cleared purchase or single-message debit) is refunded instead: credited back with DR 2300 / CR deposit, status REFUNDED. Idempotent: a repeated refund \u2192 approved=true REFUNDED; already released/expired \u2192 approved=false HOLD_NOT_ACTIVE; unknown \u2192 HOLD_NOT_FOUND."
+            "description": "Releases a card authorization's hold on reversal (role CARD_SERVICE; ADMIN). A completed card debit (hold CAPTURED: cleared purchase or single-message debit) is refunded instead (DR 2300 / CR deposit, status REFUNDED). Optional body {amount, currencyCode} = the reversal's amount: refunded for that amount only, once; more than captured -> AMOUNT_EXCEEDS_CAPTURED, other currency -> CURRENCY_MISMATCH, a second different refund -> ALREADY_REFUNDED, closed account -> ACCOUNT_CLOSED. An unknown reference released with an amount is recorded as released so a late debit/hold for it is refused. Idempotent: same refund again -> approved=true REFUNDED; already released/expired -> approved=false HOLD_NOT_ACTIVE; unknown -> HOLD_NOT_FOUND. A live hold is released in full.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 50.0,\n  \"currencyCode\": \"USD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "x-code-samples": [
             {

@@ -484,7 +484,10 @@ amortising term loans (no credit limit, no draws). What's needed:
 >   IFRS 15 B34–B38 principal/agent decision (gross interchange + scheme-fee expense, or net), the scheme settlement
 >   leg (DR 2300 / CR settlement bank; one net position per scheme only with an enforceable set-off under the scheme
 >   rules — IAS 32 §42), and the batch's SETTLED status. Clearing still presents at the authorized amount: a scheme
->   clearing-file intake (amount differences, incremental presentments) belongs here too.
+>   clearing-file intake (amount differences, incremental presentments) belongs here too, with partial reversals of a
+>   live authorization (today a live hold is released in full; a completed debit is already refunded only partly).
+>   Also a reconciliation view for declined authorizations whose compensating release couldn't reach the backend
+>   (`authorization_log` rows with RC 91 and a `hold_reference`).
 > - **15c — prepaid.** Wallets have no funding path (only seed data) and no GL; CBN treats prepaid balances as deposit
 >   liabilities of the issuer (Guidelines on Stored Value/Prepaid Card Issuance). Needs a load path and a liability
 >   account before wallet spend can post.

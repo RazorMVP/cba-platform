@@ -1,6 +1,9 @@
 package com.cba.card.settlement;
 
+import com.cba.card.auth.AuthorizationLog;
 import com.cba.card.auth.AuthorizationLogRepository;
+import com.cba.card.card.Card;
+import com.cba.card.card.CardType;
 import com.cba.card.common.CbaException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -10,6 +13,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -23,10 +27,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** Tests for {@link SettlementService} — batch open/add/close and unmatched-auth expiry. */
+/** Tests for {@link SettlementService} — batch open/add/close, clearing outcomes and expiry. */
 @ExtendWith(MockitoExtension.class)
 class SettlementServiceTest {
 
@@ -34,6 +39,7 @@ class SettlementServiceTest {
     @Mock SettlementItemRepository itemRepository;
     @Mock AuthorizationLogRepository authLogRepository;
     @Mock BackendClearingClient clearingClient;
+    @Mock PlatformTransactionManager transactionManager;   // TransactionTemplate runs the callback
 
     @InjectMocks SettlementService service;
 
@@ -44,54 +50,17 @@ class SettlementServiceTest {
 
     private static SettlementBatch openBatch() {
         SettlementBatch b = new SettlementBatch();
+        b.setId(UUID.randomUUID());
         b.setBatchRef(UUID.randomUUID().toString());
         b.setSettlementDate(LocalDate.now());
         b.setStatus(SettlementBatchStatus.OPEN);
-        return b; // totalAmount defaults to ZERO, itemCount to 0
+        return b;
     }
 
-    @Test
-    @DisplayName("openOrGetTodaysBatch returns the existing open batch without creating one")
-    void returnsExistingOpenBatch() {
-        SettlementBatch existing = openBatch();
-        when(batchRepository.findBySettlementDateAndStatus(any(LocalDate.class), eq(SettlementBatchStatus.OPEN)))
-                .thenReturn(Optional.of(existing));
-
-        assertThat(service.openOrGetTodaysBatch()).isSameAs(existing);
-        verify(batchRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("openOrGetTodaysBatch creates a new OPEN batch when none exists")
-    void createsNewBatch() {
-        when(batchRepository.findBySettlementDateAndStatus(any(LocalDate.class), eq(SettlementBatchStatus.OPEN)))
-                .thenReturn(Optional.empty());
-        when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
-
-        SettlementBatch created = service.openOrGetTodaysBatch();
-
-        assertThat(created.getStatus()).isEqualTo(SettlementBatchStatus.OPEN);
-        assertThat(created.getBatchRef()).isNotBlank();
-    }
-
-    @Test
-    @DisplayName("addToCurrentBatch records a PENDING item and updates batch totals")
-    void addToCurrentBatch() {
-        SettlementBatch batch = openBatch();
-        when(batchRepository.findBySettlementDateAndStatus(any(LocalDate.class), eq(SettlementBatchStatus.OPEN)))
-                .thenReturn(Optional.of(batch));
-        when(itemRepository.save(any(SettlementItem.class))).thenAnswer(i -> i.getArgument(0));
-        when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
-
-        SettlementItem item = service.addToCurrentBatch(UUID.randomUUID(), new BigDecimal("100.00"), "840");
-
-        assertThat(item.getStatus()).isEqualTo("PENDING");
-        assertThat(batch.getTotalAmount()).isEqualByComparingTo("100.00");
-        assertThat(batch.getItemCount()).isEqualTo(1);
-    }
-
-    private static SettlementItem debitItem(String status) {
+    /** A PENDING-style debit item that {@code findById} returns as unchanged (same instance, same version). */
+    private SettlementItem debitItem(String status) {
         SettlementItem i = new SettlementItem();
+        i.setId(UUID.randomUUID());
         i.setStatus(status);
         i.setCardType("DEBIT");
         i.setAccountId(UUID.randomUUID());
@@ -101,91 +70,52 @@ class SettlementServiceTest {
         return i;
     }
 
+    private void stubBatch(SettlementBatch batch, SettlementItem... items) {
+        when(batchRepository.findById(batch.getId())).thenReturn(Optional.of(batch));
+        when(itemRepository.findByBatch(batch)).thenReturn(List.of(items));
+    }
+
+    private void stubReread(SettlementItem item) {
+        when(itemRepository.findById(item.getId())).thenReturn(Optional.of(item));
+    }
+
+    // ── Opening and adding ───────────────────────────────────────────────────
+
     @Test
-    @DisplayName("closeBatch: items with nothing to clear on the backend settle; the batch ends CLOSED (for export)")
-    void closeBatchSettles() {
-        UUID id = UUID.randomUUID();
-        SettlementBatch batch = openBatch();
-        SettlementItem item1 = new SettlementItem(); item1.setStatus("PENDING");
-        SettlementItem prepaid = new SettlementItem(); prepaid.setStatus("PENDING"); prepaid.setCardType("PREPAID");
-        when(batchRepository.findById(id)).thenReturn(Optional.of(batch));
-        when(itemRepository.findByBatch(batch)).thenReturn(List.of(item1, prepaid));
-        when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
+    @DisplayName("openOrGetTodaysBatch returns the existing open batch without creating one")
+    void returnsExistingOpenBatch() {
+        SettlementBatch existing = openBatch();
+        when(batchRepository.findBySettlementDateAndStatus(any(LocalDate.class), eq(SettlementBatchStatus.OPEN)))
+                .thenReturn(Optional.of(existing));
 
-        SettlementBatch closed = service.closeBatch(id);
-
-        assertThat(closed.getStatus()).isEqualTo(SettlementBatchStatus.CLOSED);
-        assertThat(item1.getStatus()).isEqualTo("SETTLED");
-        assertThat(prepaid.getStatus()).isEqualTo("SETTLED");
-        verify(clearingClient, never()).capture(any(), any(), any(), any());
+        assertThat(service.openOrGetTodaysBatch()).isSameAs(existing);
+        verify(batchRepository, never()).insertOpenBatchIfAbsent(any());
     }
 
     @Test
-    @DisplayName("closeBatch clears a debit item on the backend in major units + alphabetic currency → SETTLED")
-    void closeBatchClearsDebit() {
-        UUID id = UUID.randomUUID();
-        SettlementBatch batch = openBatch();
-        SettlementItem item = debitItem("PENDING");
-        when(batchRepository.findById(id)).thenReturn(Optional.of(batch));
-        when(itemRepository.findByBatch(batch)).thenReturn(List.of(item));
-        when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
-        when(clearingClient.capture(eq(item.getAccountId()), eq(item.getHoldReference()), any(BigDecimal.class), eq("USD")))
-                .thenReturn(new BackendClearingClient.Result(true, "CAPTURED", null));
+    @DisplayName("openOrGetTodaysBatch creates the day's batch with ON CONFLICT DO NOTHING, then reads it")
+    void createsNewBatch() {
+        SettlementBatch created = openBatch();
+        when(batchRepository.findBySettlementDateAndStatus(any(LocalDate.class), eq(SettlementBatchStatus.OPEN)))
+                .thenReturn(Optional.empty(), Optional.of(created));
 
-        service.closeBatch(id);
-
-        verify(clearingClient).capture(eq(item.getAccountId()), eq(item.getHoldReference()),
-                org.mockito.ArgumentMatchers.<BigDecimal>argThat(a -> a.compareTo(new BigDecimal("25.00")) == 0), eq("USD"));
-        assertThat(item.getStatus()).isEqualTo("SETTLED");
-        assertThat(item.getClearedAt()).isNotNull();
+        assertThat(service.openOrGetTodaysBatch()).isSameAs(created);
+        verify(batchRepository).insertOpenBatchIfAbsent(LocalDate.now());
     }
 
     @Test
-    @DisplayName("closeBatch: a refusal (late presentment without funds) is FAILED with the reason — never forced")
-    void closeBatchRefusedFails() {
-        UUID id = UUID.randomUUID();
+    @DisplayName("addToCurrentBatch records a PENDING item and adds it to the totals in one UPDATE")
+    void addToCurrentBatch() {
         SettlementBatch batch = openBatch();
-        SettlementItem item = debitItem("PENDING");
-        when(batchRepository.findById(id)).thenReturn(Optional.of(batch));
-        when(itemRepository.findByBatch(batch)).thenReturn(List.of(item));
-        when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
-        when(clearingClient.capture(any(), any(), any(), any()))
-                .thenReturn(new BackendClearingClient.Result(false, "EXPIRED", "INSUFFICIENT_FUNDS"));
+        when(batchRepository.findBySettlementDateAndStatus(any(LocalDate.class), eq(SettlementBatchStatus.OPEN)))
+                .thenReturn(Optional.of(batch));
+        when(itemRepository.save(any(SettlementItem.class))).thenAnswer(i -> i.getArgument(0));
 
-        assertThat(service.closeBatch(id).getStatus()).isEqualTo(SettlementBatchStatus.CLOSED);
-        assertThat(item.getStatus()).isEqualTo("FAILED");
-        assertThat(item.getFailureReason()).isEqualTo("INSUFFICIENT_FUNDS");
-    }
+        SettlementItem item = service.addToCurrentBatch(UUID.randomUUID(), new BigDecimal("100.00"), "840");
 
-    @Test
-    @DisplayName("closeBatch: backend unreachable → the item stays PENDING and the batch stays OPEN for a retry")
-    void closeBatchBackendDownStaysOpen() {
-        UUID id = UUID.randomUUID();
-        SettlementBatch batch = openBatch();
-        SettlementItem item = debitItem("PENDING");
-        when(batchRepository.findById(id)).thenReturn(Optional.of(batch));
-        when(itemRepository.findByBatch(batch)).thenReturn(List.of(item));
-        when(clearingClient.capture(any(), any(), any(), any())).thenReturn(null);
-
-        assertThat(service.closeBatch(id).getStatus()).isEqualTo(SettlementBatchStatus.OPEN);
         assertThat(item.getStatus()).isEqualTo("PENDING");
+        verify(batchRepository).addToTotals(batch.getId(), new BigDecimal("100.00"));
         verify(batchRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("closeBatch leaves already-resolved items alone (SETTLED 0200 / REVERSED)")
-    void closeBatchSkipsResolved() {
-        UUID id = UUID.randomUUID();
-        SettlementBatch batch = openBatch();
-        SettlementItem done = debitItem("SETTLED");
-        SettlementItem reversed = debitItem("REVERSED");
-        when(batchRepository.findById(id)).thenReturn(Optional.of(batch));
-        when(itemRepository.findByBatch(batch)).thenReturn(List.of(done, reversed));
-        when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
-
-        service.closeBatch(id);
-        verify(clearingClient, never()).capture(any(), any(), any(), any());
-        assertThat(reversed.getStatus()).isEqualTo("REVERSED");
     }
 
     @Test
@@ -195,12 +125,11 @@ class SettlementServiceTest {
         when(batchRepository.findBySettlementDateAndStatus(any(LocalDate.class), eq(SettlementBatchStatus.OPEN)))
                 .thenReturn(Optional.of(batch));
         when(itemRepository.save(any(SettlementItem.class))).thenAnswer(i -> i.getArgument(0));
-        when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
-        com.cba.card.card.Card card = new com.cba.card.card.Card();
+        Card card = new Card();
         card.setId(UUID.randomUUID());
-        card.setCardType(com.cba.card.card.CardType.DEBIT);
+        card.setCardType(CardType.DEBIT);
         card.setLinkedEntityId(UUID.randomUUID());
-        com.cba.card.auth.AuthorizationLog auth = new com.cba.card.auth.AuthorizationLog();
+        AuthorizationLog auth = new AuthorizationLog();
         auth.setAmount(new BigDecimal("2500"));
         auth.setCurrencyCode("840");
 
@@ -211,7 +140,7 @@ class SettlementServiceTest {
         assertThat(pending.getAccountId()).isEqualTo(card.getLinkedEntityId());
         assertThat(pending.getHoldReference()).isEqualTo("CARD-x");
         assertThat(done.getStatus()).isEqualTo("SETTLED");
-        assertThat(batch.getItemCount()).isEqualTo(2);
+        verify(batchRepository, times(2)).addToTotals(eq(batch.getId()), any(BigDecimal.class));
     }
 
     @Test
@@ -230,35 +159,140 @@ class SettlementServiceTest {
         assertThat(failed.getStatus()).isEqualTo("FAILED");
     }
 
+    // ── Closing and clearing ─────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("closeBatch: items with nothing to clear on the backend settle; the batch ends CLOSED (for export)")
+    void closeBatchSettles() {
+        SettlementBatch batch = openBatch();
+        SettlementItem legacy = new SettlementItem(); legacy.setId(UUID.randomUUID()); legacy.setStatus("PENDING");
+        SettlementItem prepaid = new SettlementItem(); prepaid.setId(UUID.randomUUID());
+        prepaid.setStatus("PENDING"); prepaid.setCardType("PREPAID");
+        stubBatch(batch, legacy, prepaid);
+        stubReread(legacy);
+        stubReread(prepaid);
+        when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
+
+        SettlementBatch closed = service.closeBatch(batch.getId());
+
+        assertThat(closed.getStatus()).isEqualTo(SettlementBatchStatus.CLOSED);
+        assertThat(legacy.getStatus()).isEqualTo("SETTLED");
+        assertThat(prepaid.getStatus()).isEqualTo("SETTLED");
+        verify(clearingClient, never()).capture(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("closeBatch clears a debit item on the backend in major units + alphabetic currency → SETTLED")
+    void closeBatchClearsDebit() {
+        SettlementBatch batch = openBatch();
+        SettlementItem item = debitItem("PENDING");
+        stubBatch(batch, item);
+        stubReread(item);
+        when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
+        when(clearingClient.capture(eq(item.getAccountId()), eq(item.getHoldReference()), any(BigDecimal.class), eq("USD")))
+                .thenReturn(new BackendClearingClient.Result(true, "CAPTURED", null));
+
+        service.closeBatch(batch.getId());
+
+        verify(clearingClient).capture(eq(item.getAccountId()), eq(item.getHoldReference()),
+                org.mockito.ArgumentMatchers.<BigDecimal>argThat(a -> a.compareTo(new BigDecimal("25.00")) == 0), eq("USD"));
+        assertThat(item.getStatus()).isEqualTo("SETTLED");
+        assertThat(item.getClearedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("closeBatch: a refusal (late presentment without funds) is FAILED with the reason — never forced")
+    void closeBatchRefusedFails() {
+        SettlementBatch batch = openBatch();
+        SettlementItem item = debitItem("PENDING");
+        stubBatch(batch, item);
+        stubReread(item);
+        when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
+        when(clearingClient.capture(any(), any(), any(), any()))
+                .thenReturn(new BackendClearingClient.Result(false, "EXPIRED", "INSUFFICIENT_FUNDS"));
+
+        assertThat(service.closeBatch(batch.getId()).getStatus()).isEqualTo(SettlementBatchStatus.CLOSED);
+        assertThat(item.getStatus()).isEqualTo("FAILED");
+        assertThat(item.getFailureReason()).isEqualTo("INSUFFICIENT_FUNDS");
+    }
+
+    @Test
+    @DisplayName("closeBatch: backend unreachable → the item stays PENDING and the batch stays OPEN for a retry")
+    void closeBatchBackendDownStaysOpen() {
+        SettlementBatch batch = openBatch();
+        SettlementItem item = debitItem("PENDING");
+        stubBatch(batch, item);
+        when(clearingClient.capture(any(), any(), any(), any())).thenReturn(null);
+
+        assertThat(service.closeBatch(batch.getId()).getStatus()).isEqualTo(SettlementBatchStatus.OPEN);
+        assertThat(item.getStatus()).isEqualTo("PENDING");
+        verify(batchRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("race: a reversal that lands while the item is being cleared wins — REVERSED is not overwritten")
+    void closeBatchConcurrentReversalWins() {
+        SettlementBatch batch = openBatch();
+        SettlementItem read = debitItem("PENDING");
+        read.setVersion(0L);
+        SettlementItem reversed = debitItem("REVERSED");
+        reversed.setId(read.getId());
+        reversed.setVersion(1L);
+        stubBatch(batch, read);
+        when(itemRepository.findById(read.getId())).thenReturn(Optional.of(reversed));
+        when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
+        when(clearingClient.capture(any(), any(), any(), any()))
+                .thenReturn(new BackendClearingClient.Result(false, "REFUNDED", "HOLD_RELEASED"));
+
+        service.closeBatch(batch.getId());
+
+        assertThat(reversed.getStatus()).isEqualTo("REVERSED");
+        verify(itemRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("closeBatch leaves already-resolved items alone (SETTLED 0200 / REVERSED)")
+    void closeBatchSkipsResolved() {
+        SettlementBatch batch = openBatch();
+        SettlementItem done = debitItem("SETTLED");
+        SettlementItem reversed = debitItem("REVERSED");
+        stubBatch(batch, done, reversed);
+        when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.closeBatch(batch.getId());
+        verify(clearingClient, never()).capture(any(), any(), any(), any());
+        assertThat(reversed.getStatus()).isEqualTo("REVERSED");
+    }
+
+    @Test
+    @DisplayName("closeBatch rejects a batch that is not OPEN")
+    void closeBatchRejectsNonOpen() {
+        SettlementBatch batch = openBatch();
+        batch.setStatus(SettlementBatchStatus.CLOSED);
+        when(batchRepository.findById(batch.getId())).thenReturn(Optional.of(batch));
+
+        assertThatThrownBy(() -> service.closeBatch(batch.getId())).isInstanceOf(CbaException.class);
+    }
+
     @Test
     @DisplayName("closeOpenBatches closes every OPEN batch up to today, and one failure doesn't stop the rest")
     void closeOpenBatches() {
-        SettlementBatch a = openBatch(); a.setId(UUID.randomUUID());
-        SettlementBatch b = openBatch(); b.setId(UUID.randomUUID());
+        SettlementBatch a = openBatch();
+        SettlementBatch b = openBatch();
         when(batchRepository.findByStatusAndSettlementDateLessThanEqual(eq(SettlementBatchStatus.OPEN), any(LocalDate.class)))
                 .thenReturn(List.of(a, b));
         when(batchRepository.findById(a.getId())).thenThrow(new RuntimeException("boom"));
-        when(batchRepository.findById(b.getId())).thenReturn(Optional.of(b));
-        when(itemRepository.findByBatch(b)).thenReturn(List.of());
+        stubBatch(b);
         when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
 
         service.closeOpenBatches();
         assertThat(b.getStatus()).isEqualTo(SettlementBatchStatus.CLOSED);
     }
 
-    @Test
-    @DisplayName("closeBatch rejects a batch that is not OPEN")
-    void closeBatchRejectsNonOpen() {
-        UUID id = UUID.randomUUID();
-        SettlementBatch batch = openBatch();
-        batch.setStatus(SettlementBatchStatus.SETTLED);
-        when(batchRepository.findById(id)).thenReturn(Optional.of(batch));
-
-        assertThatThrownBy(() -> service.closeBatch(id)).isInstanceOf(CbaException.class);
-    }
+    // ── Expiry ───────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("expireUnmatchedAuthorizations marks stale PENDING items FAILED")
+    @DisplayName("expireUnmatchedAuthorizations marks stale PENDING items FAILED with a reason")
     void expireUnmatched() {
         SettlementItem stale = new SettlementItem(); stale.setStatus("PENDING");
         when(itemRepository.findExpiredPendingItems(any(OffsetDateTime.class))).thenReturn(List.of(stale));
@@ -266,6 +300,7 @@ class SettlementServiceTest {
         service.expireUnmatchedAuthorizations();
 
         assertThat(stale.getStatus()).isEqualTo("FAILED");
+        assertThat(stale.getFailureReason()).isEqualTo("NOT_CLEARED_BEFORE_EXPIRY");
         verify(itemRepository).saveAll(List.of(stale));
     }
 

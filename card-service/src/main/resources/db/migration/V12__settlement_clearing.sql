@@ -14,5 +14,15 @@ ALTER TABLE settlement_items
     ADD COLUMN IF NOT EXISTS failure_reason VARCHAR(100),
     ADD COLUMN IF NOT EXISTS cleared_at     TIMESTAMPTZ;
 
+-- Optimistic locking: batch close, a reversal and a second close can touch the same item; a
+-- concurrent change makes the later writer re-read instead of overwriting (e.g. REVERSED → SETTLED).
+ALTER TABLE settlement_items ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 0;
+
 CREATE INDEX IF NOT EXISTS idx_settlement_items_auth   ON settlement_items(authorization_log_id);
 CREATE INDEX IF NOT EXISTS idx_settlement_items_status ON settlement_items(status);
+
+-- One OPEN batch per settlement date: every approval now joins today's batch, so two first
+-- approvals of the day must not each create one (the batch is created with ON CONFLICT DO NOTHING).
+-- Fails if a date already has two OPEN batches — close the extra one by hand first.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_settlement_batches_open_date
+    ON settlement_batches(settlement_date) WHERE status = 'OPEN';

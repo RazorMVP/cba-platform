@@ -131,7 +131,16 @@ public class CardAuthorizationService {
                                     req.processingCode() != null && req.processingCode().startsWith("01"))
                             : placeDebitHold(card, reference, amountMajor, txCurrency);
                     if (hold == null) {
-                        return logAndReturn(card, req, CardAuthResponse.decline("91"), fraud.totalScore(), fraud.decision());
+                        // The call failed or timed out — the backend may still have placed the hold or (0200)
+                        // taken the money. Release now: idempotent, refunds a completed debit, and leaves a
+                        // tombstone so one committing later is refused. If even that can't reach the backend,
+                        // keep the reference on the declined entry for reconciliation.
+                        boolean released = releaseDebitHold(card, reference, amountMajor, txCurrency) != ReleaseOutcome.UNREACHABLE;
+                        if (!released) {
+                            log.error("Card {} declined 91 with backend reference {} unresolved — reconcile", card.getId(), reference);
+                        }
+                        return logAndReturn(card, req, CardAuthResponse.decline("91"), fraud.totalScore(), fraud.decision(),
+                                released ? null : reference, null);
                     }
                     if (!hold.approved()) {
                         log.info("Debit card {} declined by the backend: {}", card.getId(), hold.reason());
@@ -308,16 +317,29 @@ public class CardAuthorizationService {
             // backend hold can't be released, don't record the reversal: answer 96 so the network
             // retries (a recorded 0400 would block every retry and leave the funds held).
             if ("00".equals(original.getResponseCode())) {
-                if (original.getHoldReference() != null && !releaseDebitHold(card, original.getHoldReference())) {
-                    return "96";
+                // Give back at most what this reversal covers: a partial reversal (DE4 below the original)
+                // refunds only its amount — never the whole completed debit or wallet decrement.
+                java.util.Currency ccy = currency(original.getCurrencyCode());
+                BigDecimal reversalMinor = amount != null ? amount : original.getAmount();
+                BigDecimal reversalMajor = ccy == null || reversalMinor == null ? null : toMajorUnits(reversalMinor, ccy);
+                boolean full = original.getAmount() == null || reversalMinor == null
+                        || reversalMinor.compareTo(original.getAmount()) >= 0;
+                if (original.getHoldReference() != null) {
+                    ReleaseOutcome released = releaseDebitHold(card, original.getHoldReference(), reversalMajor, ccy);
+                    if (released == ReleaseOutcome.UNREACHABLE) return "96";
+                    if (released == ReleaseOutcome.REFUSED) return "13";   // amount/currency don't match the original
                 }
                 if (original.getWalletDebit() != null && original.getWalletDebit().signum() > 0) {
+                    BigDecimal restore = reversalMajor == null ? original.getWalletDebit()
+                            : reversalMajor.min(original.getWalletDebit());
                     walletRepository.findByCardIdForUpdate(card.getId()).ifPresent(w -> {
-                        w.setBalance(w.getBalance().add(original.getWalletDebit()));
+                        w.setBalance(w.getBalance().add(restore));
                         walletRepository.save(w);
                     });
                 }
-                settlementService.markReversed(original.getId());
+                if (full) {
+                    settlementService.markReversed(original.getId());
+                }
             }
 
             // Record the reversal (0400). The reserved funds were given back above.
@@ -441,15 +463,39 @@ public class CardAuthorizationService {
      * couldn't be reached, so the caller can refuse to report the reversal as done.
      */
     private boolean releaseDebitHold(Card card, String reference) {
-        if (card == null || card.getLinkedEntityId() == null || reference == null) return true;
+        return releaseDebitHold(card, reference, null, null) != ReleaseOutcome.UNREACHABLE;
+    }
+
+    /** What a release (or refund) came to: done (or nothing to do), refused by the backend, or not reachable. */
+    enum ReleaseOutcome { DONE, REFUSED, UNREACHABLE }
+
+    /** Backend refusals of a refund that mean the reversal doesn't match the original. */
+    private static final java.util.Set<String> REFUND_REFUSALS =
+            java.util.Set.of("AMOUNT_EXCEEDS_CAPTURED", "CURRENCY_MISMATCH", "ALREADY_REFUNDED", "ACCOUNT_CLOSED");
+
+    /**
+     * Releases (or, for a completed debit, refunds) with the reversal's amount — the backend refunds at
+     * most that, and records a reference it has never seen as released so a late debit is refused.
+     */
+    private ReleaseOutcome releaseDebitHold(Card card, String reference, BigDecimal amountMajor, java.util.Currency currency) {
+        if (card == null || card.getLinkedEntityId() == null || reference == null) return ReleaseOutcome.DONE;
         try {
-            backendRestTemplate.exchange(restClientConfig.getBackendBaseUrl() + "/api/v1/accounts/"
+            org.springframework.http.HttpEntity<Map<String, Object>> body = amountMajor == null || currency == null ? null
+                    : new org.springframework.http.HttpEntity<>(Map.of("amount", amountMajor,
+                            "currencyCode", currency.getCurrencyCode()));
+            ResponseEntity<Envelope<BackendHold>> resp = backendRestTemplate.exchange(
+                    restClientConfig.getBackendBaseUrl() + "/api/v1/accounts/"
                             + card.getLinkedEntityId() + "/card-holds/" + reference + "/release",
-                    HttpMethod.POST, null, new ParameterizedTypeReference<Envelope<BackendHold>>() {});
-            return true;
+                    HttpMethod.POST, body, new ParameterizedTypeReference<Envelope<BackendHold>>() {});
+            BackendHold result = resp != null && resp.getBody() != null ? resp.getBody().data() : null;
+            if (result != null && !result.approved() && REFUND_REFUSALS.contains(result.reason())) {
+                log.warn("Backend refused release/refund of {} for card {}: {}", reference, card.getId(), result.reason());
+                return ReleaseOutcome.REFUSED;
+            }
+            return ReleaseOutcome.DONE;
         } catch (RestClientException e) {
             log.warn("Debit hold release failed for card {}: {}", card.getId(), e.getMessage());
-            return false;
+            return ReleaseOutcome.UNREACHABLE;
         }
     }
 

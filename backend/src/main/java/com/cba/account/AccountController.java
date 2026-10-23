@@ -8,6 +8,7 @@ import com.cba.account.dto.CardDebitRequest;
 import com.cba.account.dto.CardFunds;
 import com.cba.account.dto.CardHoldRequest;
 import com.cba.account.dto.CardHoldResult;
+import com.cba.account.dto.CardReleaseRequest;
 import com.cba.account.dto.OpenAccountRequest;
 import com.cba.account.dto.TransactionResponse;
 import com.cba.common.response.ApiResponse;
@@ -260,8 +261,9 @@ public class AccountController {
     public ResponseEntity<ApiResponse<CardHoldResult>> releaseCardHold(
             @PathVariable UUID id,
             @PathVariable String reference,
+            @Valid @RequestBody(required = false) CardReleaseRequest request,
             @AuthenticationPrincipal Jwt jwt) {
-        return ResponseEntity.ok(ApiResponse.ok(accountService.releaseCardHold(id, reference, serviceActor(jwt))));
+        return ResponseEntity.ok(ApiResponse.ok(accountService.releaseCardHold(id, reference, request, serviceActor(jwt))));
     }
 
     /** Clears a card authorization: debits the account against its hold and posts the journal. */

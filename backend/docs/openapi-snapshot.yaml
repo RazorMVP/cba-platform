@@ -3114,6 +3114,16 @@ components:
         status:
           type: "string"
       type: "object"
+    CardReleaseRequest:
+      properties:
+        amount:
+          minimum: 0.01
+          type: "number"
+        currencyCode:
+          maxLength: 3
+          minLength: 0
+          type: "string"
+      type: "object"
     CashFlowEntryDto:
       properties:
         amount:
@@ -12621,6 +12631,11 @@ paths:
         required: true
         schema:
           type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardReleaseRequest"
       responses:
         "200":
           content:

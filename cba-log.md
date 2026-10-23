@@ -74,7 +74,7 @@ _None — all Phase 1 backend modules are now complete._
 | `card-service/.../settlement/SettlementService.java`, `BackendClearingClient.java` (new) | `addAuthorization` (in the approval's transaction), `closeBatch` clears PENDING debit items (SETTLED / FAILED + reason / unreachable → batch stays OPEN), ends `CLOSED`; scheduled `closeOpenBatches` (`card.settlement.close-cron` 23:57); `markReversed` |
 | `card-service/.../auth/CardAuthorizationService.java` | 0200 → backend `card-debits` (cash flag from processing code 01); approvals add the settlement item; reversals mark it REVERSED; `currency`/`toMajorUnits` public |
 | `card-service/.../settlement/SettlementFileExportService.java` | export read `al.rrn` as the auth code and blanked the terminal id — now `al.auth_code`, `al.terminal_id` |
-| tests | backend `CardClearingIT` (new, 12), `CobJobsIT` job order; card-service `SettlementServiceTest` (7 → 14), `CardAuthorizationServiceTest` (+6), `CardClearingIntegrationTest` (new, 2, WireMock backend) |
+| tests | backend `CardClearingIT` (new, 14), `CobJobsIT` job order; card-service `SettlementServiceTest` (7 → 15), `CardAuthorizationServiceTest` (+10), `CardClearingIntegrationTest` (new, 2, WireMock backend) |
 | docs | api-reference (+ static), Postman (+ static, 2 requests × 7 samples), both OpenAPI snapshots (additions only), card-api-reference (+ static), CLAUDE.md, deferred-backlog (15 → 15a done; 15b, 15c), plans |
 
 #### Key Patterns / Decisions
@@ -83,10 +83,15 @@ _None — all Phase 1 backend modules are now complete._
 - **Trap:** `spendable()` counts every ACTIVE hold, including the one being captured — the hold must leave ACTIVE (`saveAndFlush`) before the debit, or it blocks itself.
 - **Found on the way:** `addToCurrentBatch` had no callers (batches never filled); `closeBatch` jumped OPEN→SETTLED, so the nightly export (reads `CLOSED`) never found a batch; `expireUnmatchedAuthorizations` claimed to release holds and didn't; CLAUDE.md "Settlement Modes" said settlement posts GL entries — corrected.
 - An approval whose settlement item can't be written rolls back (and its hold is released by the existing rollback hook), so an approval never exists without the item that clears it.
+- **Commit security review (3 findings, user "1": fix all) + 1 found while fixing:**
+  1. *Partial reversal refunded the whole debit.* Release now takes `{amount, currencyCode}`; a CAPTURED hold is refunded for that amount only, once (`account_holds.refunded_amount`); over-captured / other currency / a second different refund are refused and card-service answers RC 13 without recording the 0400. Prepaid restores at most the reversal amount. A partial reversal leaves the settlement item in place (a live hold is still released in full — partial authorization reversals belong with clearing-file intake, 15b).
+  2. *A 0200 debit that timed out was orphaned* (backend committed, card-service declined 91: customer debited, no cash). On a failed/timed-out hold or debit call card-service releases at once; the backend stores an unseen reference as a RELEASED tombstone, so a late commit is refused (the unique `(account_id, external_reference)` index + the account row lock serialize both). If the release can't reach the backend either, the reference stays on the declined `authorization_log` row for reconciliation.
+  3. *Batch close raced reversals* (one transaction across HTTP calls; a REVERSED item could be overwritten SETTLED and exported). Each item is cleared in its own short transaction, re-read and written only if unchanged (`settlement_items.version`).
+  4. *(found while fixing)* Every approval now joins the day's batch: concurrent approvals collided on `SettlementBatch.@Version` (one declined RC 96), and two first approvals could open two batches. Totals are now one `UPDATE` (`addToTotals`); the batch is created with `ON CONFLICT DO NOTHING` against a unique OPEN-per-date index.
 
 #### Build Verification
-- backend `clean verify -Pfull-integration` (isolated copy): **936/936** after regenerating the OpenAPI snapshot (first run 935/936 — only the snapshot, for the two new endpoints). `CardClearingIT` 12/12.
-- card-service `./mvnw -o test`: **161/161**; `clean verify -Pfull-integration`: **189/189** after regenerating its snapshot (`SettlementItem` gained 6 fields — additions only).
+- backend `clean verify -Pfull-integration` (isolated copy): **938/938** after regenerating the OpenAPI snapshot (first run 935/936 — only the snapshot, for the two new endpoints; +2 after the security fixes). `CardClearingIT` 14/14 (incl. partial refund, tombstone).
+- card-service `./mvnw -o test`: **166/166**; `clean verify -Pfull-integration`: **194/194** after regenerating its snapshot (`SettlementItem` gained 7 fields incl. `version` — additions only).
 - Gate grep: `@PostMapping` capture + card-debits (+ `@PathVariable`s) → documented in api-reference (+ full API matrix) and Postman; job list updated (`holdExpiryJob`).
 
 ### Session 125 (cont. 44) — 2026-10-21

@@ -39,4 +39,7 @@ ALTER TABLE account_holds ADD CONSTRAINT chk_hold_status
 
 ALTER TABLE account_holds
     ADD COLUMN IF NOT EXISTS captured_amount NUMERIC(19,4),
-    ADD COLUMN IF NOT EXISTS captured_at     TIMESTAMPTZ;
+    ADD COLUMN IF NOT EXISTS captured_at     TIMESTAMPTZ,
+    -- A completed card debit is refunded once, for at most what was captured (a partial
+    -- reversal refunds only its amount).
+    ADD COLUMN IF NOT EXISTS refunded_amount NUMERIC(19,4);

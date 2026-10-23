@@ -519,19 +519,49 @@ public class AccountService {
      */
     @Transactional
     public CardHoldResult releaseCardHold(UUID accountId, String reference, String releasedBy) {
+        return releaseCardHold(accountId, reference, null, releasedBy);
+    }
+
+    /**
+     * As {@link #releaseCardHold(UUID, String, String)}, with the reversal's amount and currency (optional):
+     * a completed debit is refunded for at most that amount, once; and a reference never seen is recorded
+     * as released (a tombstone), so a hold or debit for it that commits late — after card-service gave up
+     * waiting and reversed — is refused instead of taking the customer's money.
+     */
+    @Transactional
+    public CardHoldResult releaseCardHold(UUID accountId, String reference, CardReleaseRequest request,
+                                          String releasedBy) {
         Account account = accountRepository.findByIdWithLock(accountId)
             .orElseThrow(() -> CbaException.notFound("Account", accountId));
         var existing = accountHoldRepository.findByAccountIdAndExternalReference(accountId, reference);
         if (existing.isEmpty()) {
+            if (request != null && request.amount() != null) {
+                AccountHold tombstone = new AccountHold();
+                tombstone.setAccount(account);
+                tombstone.setAmount(request.amount());
+                tombstone.setReason("Reversed before it was recorded " + reference);
+                tombstone.setExternalReference(reference);
+                tombstone.setReferenceNumber("CRV-" + System.currentTimeMillis());
+                tombstone.setStatus(AccountHoldStatus.RELEASED);
+                tombstone.setReleasedAt(Instant.now());
+                tombstone.setReleasedBy(releasedBy);
+                tombstone.setCreatedBy(releasedBy);
+                accountHoldRepository.saveAndFlush(tombstone);
+                auditLogService.log("ACCOUNT_HOLD", tombstone.getId().toString(), "CARD_HOLD_RELEASED_UNSEEN", null,
+                    "reference=" + reference);
+            }
             return new CardHoldResult(false, null, reference, null, "HOLD_NOT_FOUND", spendable(account).max(BigDecimal.ZERO));
         }
         AccountHold hold = existing.get();
         if (hold.getStatus() == AccountHoldStatus.CAPTURED) {
-            return refundCardDebit(account, hold, releasedBy);
+            return refundCardDebit(account, hold, request, releasedBy);
         }
         if (hold.getStatus() == AccountHoldStatus.REFUNDED) {
-            return new CardHoldResult(true, hold.getId(), reference, hold.getStatus().name(), null,
-                    spendable(account).max(BigDecimal.ZERO));
+            // A retry of the same reversal is done; a different amount is a second refund, refused.
+            BigDecimal asked = request == null || request.amount() == null ? hold.getRefundedAmount() : request.amount();
+            boolean repeat = hold.getRefundedAmount() == null || asked.compareTo(hold.getRefundedAmount()) == 0;
+            return new CardHoldResult(repeat, hold.getId(), reference, hold.getStatus().name(),
+                    repeat ? null : "ALREADY_REFUNDED", spendable(account).max(BigDecimal.ZERO));
         }
         if (hold.getStatus() != AccountHoldStatus.ACTIVE) {
             return new CardHoldResult(false, hold.getId(), reference, hold.getStatus().name(), "HOLD_NOT_ACTIVE",
@@ -552,20 +582,29 @@ public class AccountService {
      * payable / CR deposit. Money owed back to the customer is credited whatever the account's status,
      * except a closed account, which can't take it (reported, nothing posted).
      */
-    private CardHoldResult refundCardDebit(Account account, AccountHold hold, String releasedBy) {
+    private CardHoldResult refundCardDebit(Account account, AccountHold hold, CardReleaseRequest request,
+                                           String releasedBy) {
         String reference = hold.getExternalReference();
-        if (account.getStatus() == AccountStatus.CLOSED) {
-            return new CardHoldResult(false, hold.getId(), reference, hold.getStatus().name(), "ACCOUNT_CLOSED",
-                    BigDecimal.ZERO);
+        // The reversal's amount: never more than was captured (a partial reversal refunds only its part).
+        BigDecimal amount = request == null || request.amount() == null ? hold.getCapturedAmount() : request.amount();
+        String reason = account.getStatus() == AccountStatus.CLOSED ? "ACCOUNT_CLOSED"
+                : request != null && request.currencyCode() != null
+                  && !account.getCurrencyCode().equalsIgnoreCase(request.currencyCode()) ? "CURRENCY_MISMATCH"
+                : amount.compareTo(hold.getCapturedAmount()) > 0 ? "AMOUNT_EXCEEDS_CAPTURED"
+                : null;
+        if (reason != null) {
+            return new CardHoldResult(false, hold.getId(), reference, hold.getStatus().name(), reason,
+                    reason.equals("ACCOUNT_CLOSED") ? BigDecimal.ZERO : spendable(account).max(BigDecimal.ZERO));
         }
         hold.setStatus(AccountHoldStatus.REFUNDED);
+        hold.setRefundedAmount(amount);
         hold.setReleasedAt(Instant.now());
         hold.setReleasedBy(releasedBy);
         accountHoldRepository.saveAndFlush(hold);
-        postCardMovement(account, hold.getCapturedAmount(), false, TransactionType.CARD_REFUND,
+        postCardMovement(account, amount, false, TransactionType.CARD_REFUND,
                 "Card refund " + reference, reference, releasedBy);
         auditLogService.log("ACCOUNT_HOLD", hold.getId().toString(), "CARD_DEBIT_REFUNDED", null,
-            "amount=" + hold.getCapturedAmount() + " reference=" + reference);
+            "amount=" + amount + " of " + hold.getCapturedAmount() + " reference=" + reference);
         return new CardHoldResult(true, hold.getId(), reference, hold.getStatus().name(), null,
                 spendable(account).max(BigDecimal.ZERO));
     }

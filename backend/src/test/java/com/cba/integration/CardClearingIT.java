@@ -6,6 +6,7 @@ import com.cba.account.dto.CardCaptureRequest;
 import com.cba.account.dto.CardDebitRequest;
 import com.cba.account.dto.CardHoldRequest;
 import com.cba.account.dto.CardHoldResult;
+import com.cba.account.dto.CardReleaseRequest;
 import com.cba.cob.CobJobDefinition;
 import com.cba.common.exception.CbaException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -229,6 +230,49 @@ class CardClearingIT extends AbstractIntegrationTest {
         assertThat(lines(id, "CARD-ATM-1")).contains("CREDIT 2300 200.0000 USD", "DEBIT 2300 200.0000 USD");
         assertCardJournalsBalanced(id);
         assertThat(accountService.cardDebit(id, atm, "it").reason()).isEqualTo("HOLD_RELEASED");
+    }
+
+    @Test
+    @DisplayName("partial reversal refunds only its amount, once; more than captured or another currency is refused")
+    void partialRefund() {
+        UUID id = account("500.00");
+        BigDecimal before = balance(id);
+        accountService.cardDebit(id, new CardDebitRequest("CARD-PR-1", new BigDecimal("200.00"), "USD", true), "it");
+
+        assertThat(accountService.releaseCardHold(id, "CARD-PR-1",
+                new CardReleaseRequest(new BigDecimal("200.01"), "USD"), "it").reason()).isEqualTo("AMOUNT_EXCEEDS_CAPTURED");
+        assertThat(accountService.releaseCardHold(id, "CARD-PR-1",
+                new CardReleaseRequest(new BigDecimal("50.00"), "EUR"), "it").reason()).isEqualTo("CURRENCY_MISMATCH");
+
+        CardHoldResult partial = accountService.releaseCardHold(id, "CARD-PR-1",
+                new CardReleaseRequest(new BigDecimal("50.00"), "USD"), "it");
+        assertThat(partial.approved()).isTrue();
+        assertThat(balance(id)).isEqualByComparingTo(before.subtract(new BigDecimal("150.00")));
+        // the same reversal again is done; a second, different refund is refused
+        assertThat(accountService.releaseCardHold(id, "CARD-PR-1",
+                new CardReleaseRequest(new BigDecimal("50.00"), "USD"), "it").approved()).isTrue();
+        assertThat(accountService.releaseCardHold(id, "CARD-PR-1",
+                new CardReleaseRequest(new BigDecimal("60.00"), "USD"), "it").reason()).isEqualTo("ALREADY_REFUNDED");
+        assertThat(balance(id)).isEqualByComparingTo(before.subtract(new BigDecimal("150.00")));
+        assertThat(lines(id, "CARD-PR-1")).contains("DEBIT 2300 50.0000 USD");
+        assertCardJournalsBalanced(id);
+    }
+
+    @Test
+    @DisplayName("a reversal that arrives before its debit leaves a tombstone: the late debit or hold is refused")
+    void releaseBeforeDebit_tombstone() {
+        UUID id = account("500.00");
+        BigDecimal before = balance(id);
+        CardHoldResult early = accountService.releaseCardHold(id, "CARD-TS-1",
+                new CardReleaseRequest(new BigDecimal("80.00"), "USD"), "it");
+        assertThat(early.reason()).isEqualTo("HOLD_NOT_FOUND");
+
+        assertThat(accountService.cardDebit(id,
+                new CardDebitRequest("CARD-TS-1", new BigDecimal("80.00"), "USD", true), "it").approved()).isFalse();
+        assertThat(accountService.placeCardHold(id,
+                new CardHoldRequest("CARD-TS-1", new BigDecimal("80.00"), "USD"), "it").reason()).isEqualTo("HOLD_RELEASED");
+        assertThat(balance(id)).isEqualByComparingTo(before);
+        assertThat(cardJournalLines(id)).isZero();
     }
 
     @Test

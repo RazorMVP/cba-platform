@@ -62,6 +62,10 @@ public class AccountHold {
     @Column(name = "captured_at")
     private Instant capturedAt;
 
+    /** Card refund: the amount credited back (at most {@link #capturedAmount}; one refund per hold). */
+    @Column(name = "refunded_amount", precision = 19, scale = 4)
+    private BigDecimal refundedAmount;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 

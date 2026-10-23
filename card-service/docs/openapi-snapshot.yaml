@@ -3640,6 +3640,9 @@ components:
         clearedAt:
           type: string
           format: date-time
+        version:
+          type: integer
+          format: int64
         createdAt:
           type: string
           format: date-time

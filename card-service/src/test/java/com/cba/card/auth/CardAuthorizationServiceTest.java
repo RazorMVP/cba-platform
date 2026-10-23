@@ -575,7 +575,7 @@ class CardAuthorizationServiceTest {
 
         assertThat(service.reverse(PAN, new BigDecimal("100.00"), REV_STAN, "x")).isEqualTo("00");
         verify(backendRestTemplate).exchange(contains("/card-holds/CARD-x-000123-R1/release"), eq(HttpMethod.POST),
-                isNull(), any(ParameterizedTypeReference.class));
+                any(), any(ParameterizedTypeReference.class));
     }
 
     @Test
@@ -589,7 +589,7 @@ class CardAuthorizationServiceTest {
         when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
                 .thenReturn(Optional.of(original));
         when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
-        when(backendRestTemplate.exchange(contains("/release"), eq(HttpMethod.POST), isNull(),
+        when(backendRestTemplate.exchange(contains("/release"), eq(HttpMethod.POST), any(),
                 any(ParameterizedTypeReference.class)))
                 .thenThrow(new org.springframework.web.client.ResourceAccessException("down"));
 
@@ -606,12 +606,13 @@ class CardAuthorizationServiceTest {
         when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
         AuthorizationLog original = originalAuth(card.getId());
         original.setWalletDebit(new BigDecimal("30.00"));
+        original.setAmount(new BigDecimal("3000"));   // DE4 minor units: 30.00 USD
         when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
                 .thenReturn(Optional.of(original));
         PrepaidWallet w = wallet("20.00");
         when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(w));
 
-        assertThat(service.reverse(PAN, new BigDecimal("30.00"), REV_STAN, "x")).isEqualTo("00");
+        assertThat(service.reverse(PAN, new BigDecimal("3000"), REV_STAN, "x")).isEqualTo("00");
         assertThat(w.getBalance()).isEqualByComparingTo("50.00");
     }
 
@@ -716,6 +717,91 @@ class CardAuthorizationServiceTest {
         when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(wallet("500")));
 
         service.authorize(req(null, "310000", false));
+        verify(settlementService, never()).addAuthorization(any(), any(), any(), any(Boolean.class));
+    }
+
+    @Test
+    @DisplayName("a partial reversal sends its own amount (major units) and leaves the settlement item in place")
+    void reverse_partialSendsAmount() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setAmount(new BigDecimal("20000"));   // 200.00 USD in minor units
+        original.setHoldReference("CARD-partial");
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+
+        assertThat(service.reverse(PAN, new BigDecimal("5000"), REV_STAN, "x")).isEqualTo("00");
+
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<HttpEntity> captor = org.mockito.ArgumentCaptor.forClass(HttpEntity.class);
+        verify(backendRestTemplate).exchange(contains("/card-holds/CARD-partial/release"), eq(HttpMethod.POST),
+                captor.capture(), any(ParameterizedTypeReference.class));
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> body = (java.util.Map<String, Object>) captor.getValue().getBody();
+        assertThat((BigDecimal) body.get("amount")).isEqualByComparingTo("50.00");
+        assertThat(body.get("currencyCode")).isEqualTo("USD");
+        verify(settlementService, never()).markReversed(any());
+    }
+
+    @Test
+    @DisplayName("the backend refuses the refund (amount over captured): RC 13, nothing recorded")
+    void reverse_refundRefused_13() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setHoldReference("CARD-refused");
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+        doReturn(ResponseEntity.ok(new CardAuthorizationService.Envelope<>(new CardAuthorizationService.BackendHold(
+                false, UUID.randomUUID(), "CARD-refused", "CAPTURED", "AMOUNT_EXCEEDS_CAPTURED", BigDecimal.ZERO))))
+                .when(backendRestTemplate).exchange(contains("/release"), eq(HttpMethod.POST), any(),
+                        any(ParameterizedTypeReference.class));
+
+        assertThat(service.reverse(PAN, new BigDecimal("10000"), REV_STAN, "x")).isEqualTo("13");
+        verify(authLogRepository, never()).save(any());
+        verify(settlementService, never()).markReversed(any());
+    }
+
+    @Test
+    @DisplayName("0200 call times out: card-service releases at once (refunds a debit the backend may have taken)")
+    void singleMessage_timeout_compensates() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+        when(backendRestTemplate.exchange(contains("/card-debits"), eq(HttpMethod.POST), any(HttpEntity.class),
+                any(ParameterizedTypeReference.class)))
+                .thenThrow(new org.springframework.web.client.ResourceAccessException("read timed out"));
+        CardAuthRequest atm = new CardAuthRequest(PAN, "010000", new BigDecimal("20000"), "840", "000004",
+                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0004", "VISA", true, true, true, null);
+
+        assertThat(service.authorize(atm).responseCode()).isEqualTo("91");
+        verify(backendRestTemplate).exchange(contains("/card-holds/" + CardAuthorizationService.holdReference(card, atm)
+                + "/release"), eq(HttpMethod.POST), any(HttpEntity.class), any(ParameterizedTypeReference.class));
+        verify(authLogRepository).save(argThat(a -> "91".equals(a.getResponseCode()) && a.getHoldReference() == null));
+    }
+
+    @Test
+    @DisplayName("0200 times out and the compensating release can't reach the backend either: reference kept for reconciliation")
+    void singleMessage_timeout_releaseFails_keepsReference() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+        when(backendRestTemplate.exchange(any(String.class), eq(HttpMethod.POST), any(),
+                any(ParameterizedTypeReference.class)))
+                .thenThrow(new org.springframework.web.client.ResourceAccessException("down"));
+        CardAuthRequest atm = new CardAuthRequest(PAN, "010000", new BigDecimal("20000"), "840", "000005",
+                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0005", "VISA", true, true, true, null);
+
+        assertThat(service.authorize(atm).responseCode()).isEqualTo("91");
+        String ref = CardAuthorizationService.holdReference(card, atm);
+        verify(authLogRepository).save(argThat(a -> "91".equals(a.getResponseCode()) && ref.equals(a.getHoldReference())));
         verify(settlementService, never()).addAuthorization(any(), any(), any(), any(Boolean.class));
     }
 

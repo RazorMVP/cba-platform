@@ -333,8 +333,13 @@ public class CardAuthorizationService {
                 if (original.getHoldReference() != null) {
                     // A partial reversal of a purchase not yet cleared keeps the hold: batch close clears only
                     // what remains and the backend frees the rest. Otherwise release (or partly refund).
-                    boolean keptForClearing = !full && settlementService.reducePendingItem(original.getId(), reversalMinor);
-                    if (!keptForClearing) {
+                    SettlementService.PendingReduction reduced = full ? null
+                            : settlementService.reducePendingItem(original.getId(), reversalMinor);
+                    if (reduced == SettlementService.PendingReduction.IN_CLEARING) {
+                        // Being cleared right now: answer "try again"; the retry refunds the cleared debit.
+                        return "96";
+                    }
+                    if (reduced != SettlementService.PendingReduction.REDUCED) {
                         ReleaseOutcome released = releaseDebitHold(card, original.getHoldReference(), reversalMajor, ccy,
                                 reversalReference(original.getHoldReference(), stan, reversalMinor));
                         if (released == ReleaseOutcome.UNREACHABLE) return "96";

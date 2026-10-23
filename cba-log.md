@@ -91,10 +91,11 @@ _None — all Phase 1 backend modules are now complete._
   5. *Second review — negative reversal amount* drained a prepaid wallet (restore = min(negative, debit)): amounts ≤ 0 or with fractional minor units → RC 13.
   6. *Second review — partial reversal of an uncleared purchase released the whole hold*, so the rest was never collected: the hold stays and the PENDING item's amount drops (`reducePendingItem`); batch close captures the remainder and the backend frees the rest.
   7. *Second review — refund idempotency keyed on the amount*: another reversal of the same amount was reported done without a credit. card-service sends `reversalReference` (SHA-256 of hold ref, STAN, amount); the backend stores it (`refund_reference`) and treats only that reference as a retry.
+  8. *Third review — partial reversal raced batch close* (TOCTOU): close read the item PENDING and called capture at the old amount while a partial reversal lowered the item and released nothing, so the customer was charged the full purchase. Close now **claims** the item first (PENDING → `CLEARING`, version-checked, own transaction) and only then calls the backend; `reducePendingItem` lowers only a PENDING item and answers `IN_CLEARING` otherwise, which card-service maps to **RC 96** (nothing recorded), so the network retries and the retry takes the backend refund path once the capture has landed. An unreachable backend leaves the item `CLEARING` (the capture may have committed); the next close re-captures it idempotently.
 
 #### Build Verification
 - backend `clean verify -Pfull-integration` (isolated copy): **939/939** after regenerating the OpenAPI snapshot (first run 935/936 — only the snapshot, for the two new endpoints; +3 after the security fixes). `CardClearingIT` 15/15 (incl. partial refund, reversal key, tombstone).
-- card-service `./mvnw -o test`: **170/170**; `clean verify -Pfull-integration`: **198/198** after regenerating its snapshot (`SettlementItem` gained 7 fields incl. `version` — additions only).
+- card-service `./mvnw -o test`: **172/172**; `clean verify -Pfull-integration`: **200/200** after regenerating its snapshot (`SettlementItem` gained 7 fields incl. `version` — additions only; +2 for the CLEARING state: interrupted-close retry, partial reversal during clearing → 96). Backend unchanged by the third review.
 - Gate grep: `@PostMapping` capture + card-debits (+ `@PathVariable`s) → documented in api-reference (+ full API matrix) and Postman; job list updated (`holdExpiryJob`).
 
 ### Session 125 (cont. 44) — 2026-10-21

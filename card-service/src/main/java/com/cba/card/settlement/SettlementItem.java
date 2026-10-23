@@ -40,7 +40,7 @@ public class SettlementItem {
     @Column(name = "currency_code", nullable = false, length = 3)
     private String currencyCode;
 
-    /** PENDING → SETTLED | FAILED | REVERSED */
+    /** PENDING → CLEARING (capture in flight) → SETTLED | FAILED; PENDING/SETTLED → REVERSED */
     @Column(nullable = false, length = 20)
     private String status = "PENDING";
 

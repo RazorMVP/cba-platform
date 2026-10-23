@@ -430,6 +430,7 @@ It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port
   <li>Debit: an atomic backend hold (<code>POST /api/v1/accounts/{id}/card-holds</code>, keyed by a SHA-256 of card, STAN, RRN, terminal, amount and currency, so a retried 0100 doesn't hold twice and a different authorization can't reuse another's hold; a reused key with another amount declines <code>94</code>). It expires after 7 days. If card-service's transaction rolls back after the hold was placed, the hold is released.</li>
   <li>Prepaid: the wallet is decremented under a row lock.</li>
   <li>A reversal (<code>/reverse</code>, 0400/0420) of an approved authorization releases the hold or restores the wallet, once. If the backend can't be reached to release the hold, the reversal answers <code>96</code> and is <strong>not</strong> recorded, so the network's retry releases it.</li>
+  <li>A <strong>partial</strong> reversal of a purchase that batch close is clearing at that moment answers <code>96</code> and is not recorded; the network's retry, once the capture has landed, refunds the reversal amount through the backend.</li>
   </ul>
   Until cont. 35, approvals reserved nothing, so any number could pass against the same balance. Authorization-history responses carry the reservation as <code>holdReference</code> / <code>walletDebit</code>. Clearing (taking the money) and the GL for card spend are still to come.</li>
 </ul></div>

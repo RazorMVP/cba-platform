@@ -776,11 +776,32 @@ class CardAuthorizationServiceTest {
         original.setHoldReference("CARD-uncleared");
         when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
                 .thenReturn(Optional.of(original));
-        when(settlementService.reducePendingItem(original.getId(), new BigDecimal("5000"))).thenReturn(true);
+        when(settlementService.reducePendingItem(original.getId(), new BigDecimal("5000")))
+                .thenReturn(com.cba.card.settlement.SettlementService.PendingReduction.REDUCED);
 
         assertThat(service.reverse(PAN, new BigDecimal("5000"), REV_STAN, "x")).isEqualTo("00");
         verifyNoInteractions(backendRestTemplate);
         verify(settlementService, never()).markReversed(any());
+    }
+
+    @Test
+    @DisplayName("partial reversal while the purchase is being cleared: 96 (retry), nothing released or recorded")
+    void reverse_partialWhileClearing_96() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setId(UUID.randomUUID());
+        original.setAmount(new BigDecimal("20000"));
+        original.setHoldReference("CARD-clearing");
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+        when(settlementService.reducePendingItem(original.getId(), new BigDecimal("5000")))
+                .thenReturn(com.cba.card.settlement.SettlementService.PendingReduction.IN_CLEARING);
+
+        assertThat(service.reverse(PAN, new BigDecimal("5000"), REV_STAN, "x")).isEqualTo("96");
+        verifyNoInteractions(backendRestTemplate);
+        verify(authLogRepository, never()).save(any());
     }
 
     @Test

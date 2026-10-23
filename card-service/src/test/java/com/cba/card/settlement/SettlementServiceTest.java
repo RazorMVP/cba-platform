@@ -160,20 +160,26 @@ class SettlementServiceTest {
     }
 
     @Test
-    @DisplayName("reducePendingItem: a PENDING item's amount drops by the reversal; to zero → REVERSED; not PENDING → false")
+    @DisplayName("reducePendingItem: PENDING drops by the reversal (to zero → REVERSED); CLEARING untouched; cleared → NOT_PENDING")
     void reducePendingItem() {
         UUID auth = UUID.randomUUID();
         SettlementItem item = debitItem("PENDING");   // 2500 minor units
         when(itemRepository.findByAuthorizationLogId(auth)).thenReturn(Optional.of(item));
 
-        assertThat(service.reducePendingItem(auth, new BigDecimal("1000"))).isTrue();
+        assertThat(service.reducePendingItem(auth, new BigDecimal("1000"))).isEqualTo(SettlementService.PendingReduction.REDUCED);
         assertThat(item.getAmount()).isEqualByComparingTo("1500");
-        assertThat(service.reducePendingItem(auth, new BigDecimal("1500"))).isTrue();
+        assertThat(service.reducePendingItem(auth, new BigDecimal("1500"))).isEqualTo(SettlementService.PendingReduction.REDUCED);
         assertThat(item.getStatus()).isEqualTo("REVERSED");
 
         UUID cleared = UUID.randomUUID();
         when(itemRepository.findByAuthorizationLogId(cleared)).thenReturn(Optional.of(debitItem("SETTLED")));
-        assertThat(service.reducePendingItem(cleared, new BigDecimal("100"))).isFalse();
+        assertThat(service.reducePendingItem(cleared, new BigDecimal("100"))).isEqualTo(SettlementService.PendingReduction.NOT_PENDING);
+
+        UUID clearing = UUID.randomUUID();
+        SettlementItem inFlight = debitItem("CLEARING");
+        when(itemRepository.findByAuthorizationLogId(clearing)).thenReturn(Optional.of(inFlight));
+        assertThat(service.reducePendingItem(clearing, new BigDecimal("100"))).isEqualTo(SettlementService.PendingReduction.IN_CLEARING);
+        assertThat(inFlight.getAmount()).isEqualByComparingTo("2500");
     }
 
     // ── Closing and clearing ─────────────────────────────────────────────────
@@ -234,20 +240,22 @@ class SettlementServiceTest {
     }
 
     @Test
-    @DisplayName("closeBatch: backend unreachable → the item stays PENDING and the batch stays OPEN for a retry")
+    @DisplayName("closeBatch: backend unreachable → the item stays CLEARING and the batch stays OPEN for a retry")
     void closeBatchBackendDownStaysOpen() {
         SettlementBatch batch = openBatch();
         SettlementItem item = debitItem("PENDING");
         stubBatch(batch, item);
+        stubReread(item);
         when(clearingClient.capture(any(), any(), any(), any())).thenReturn(null);
 
         assertThat(service.closeBatch(batch.getId()).getStatus()).isEqualTo(SettlementBatchStatus.OPEN);
-        assertThat(item.getStatus()).isEqualTo("PENDING");
+        // the capture may have committed: only a retried (idempotent) capture may resolve it
+        assertThat(item.getStatus()).isEqualTo("CLEARING");
         verify(batchRepository, never()).save(any());
     }
 
     @Test
-    @DisplayName("race: a reversal that lands while the item is being cleared wins — REVERSED is not overwritten")
+    @DisplayName("race: a reversal that changed the item before close claimed it wins — no capture, REVERSED kept")
     void closeBatchConcurrentReversalWins() {
         SettlementBatch batch = openBatch();
         SettlementItem read = debitItem("PENDING");
@@ -258,13 +266,27 @@ class SettlementServiceTest {
         stubBatch(batch, read);
         when(itemRepository.findById(read.getId())).thenReturn(Optional.of(reversed));
         when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
-        when(clearingClient.capture(any(), any(), any(), any()))
-                .thenReturn(new BackendClearingClient.Result(false, "REFUNDED", "HOLD_RELEASED"));
 
         service.closeBatch(batch.getId());
 
         assertThat(reversed.getStatus()).isEqualTo("REVERSED");
+        verify(clearingClient, never()).capture(any(), any(), any(), any());
         verify(itemRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("an item left CLEARING by an interrupted close is captured again (idempotent) and resolved")
+    void closeBatchRetriesClearing() {
+        SettlementBatch batch = openBatch();
+        SettlementItem item = debitItem("CLEARING");
+        stubBatch(batch, item);
+        stubReread(item);
+        when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
+        when(clearingClient.capture(any(), any(), any(), any()))
+                .thenReturn(new BackendClearingClient.Result(true, "CAPTURED", null));
+
+        assertThat(service.closeBatch(batch.getId()).getStatus()).isEqualTo(SettlementBatchStatus.CLOSED);
+        assertThat(item.getStatus()).isEqualTo("SETTLED");
     }
 
     @Test

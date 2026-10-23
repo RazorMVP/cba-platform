@@ -4,7 +4,8 @@
 -- backend turns its hold into a debit (POST …/card-holds/{ref}/capture, which posts
 -- DR deposit / CR 2300 Card Scheme Settlement Payable). Single-message debits (0200) and
 -- prepaid approvals are already completed when approved, so their items start SETTLED.
--- Statuses: PENDING (awaiting clearing) → SETTLED | FAILED (refused, reason kept) | REVERSED.
+-- Statuses: PENDING (awaiting clearing) → CLEARING (backend capture in flight) → SETTLED | FAILED (refused,
+-- reason kept); PENDING/SETTLED → REVERSED.
 
 ALTER TABLE settlement_items
     ADD COLUMN IF NOT EXISTS card_id        UUID,

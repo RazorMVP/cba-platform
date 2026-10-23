@@ -130,22 +130,36 @@ public class SettlementService {
      * already cleared or completed — so the caller refunds instead.
      */
     @Transactional
-    public boolean reducePendingItem(UUID authLogId, BigDecimal reversalMinor) {
-        if (authLogId == null || reversalMinor == null) return false;
-        return itemRepository.findByAuthorizationLogId(authLogId)
-                .filter(item -> "PENDING".equals(item.getStatus()) && item.getAmount() != null)
-                .map(item -> {
-                    BigDecimal rest = item.getAmount().subtract(reversalMinor);
-                    if (rest.signum() <= 0) {
-                        item.setStatus("REVERSED");
-                    } else {
-                        item.setAmount(rest);
-                    }
-                    itemRepository.save(item);
-                    return true;
-                })
-                .orElse(false);
+    public PendingReduction reducePendingItem(UUID authLogId, BigDecimal reversalMinor) {
+        if (authLogId == null || reversalMinor == null) return PendingReduction.NOT_PENDING;
+        SettlementItem item = itemRepository.findByAuthorizationLogId(authLogId).orElse(null);
+        if (item == null || item.getAmount() == null) return PendingReduction.NOT_PENDING;
+        // Being cleared right now: the backend may be capturing the original amount. Don't touch it —
+        // the caller answers "try again", and the retry refunds the cleared debit on the backend.
+        if (CLEARING.equals(item.getStatus())) return PendingReduction.IN_CLEARING;
+        if (!"PENDING".equals(item.getStatus())) return PendingReduction.NOT_PENDING;
+        BigDecimal rest = item.getAmount().subtract(reversalMinor);
+        if (rest.signum() <= 0) {
+            item.setStatus("REVERSED");
+        } else {
+            item.setAmount(rest);
+        }
+        itemRepository.save(item);   // @Version: a close that read the item before this can't move it to CLEARING
+        return PendingReduction.REDUCED;
     }
+
+    /** Outcome of {@link #reducePendingItem}. */
+    public enum PendingReduction {
+        /** The item was PENDING: its amount dropped (the hold stays for the rest). */
+        REDUCED,
+        /** The item is being cleared at this moment: retry the reversal. */
+        IN_CLEARING,
+        /** No PENDING item (already cleared, completed, or none): release / refund on the backend. */
+        NOT_PENDING
+    }
+
+    /** In-flight clearing: set before the backend capture call, so a partial reversal can't race it. */
+    static final String CLEARING = "CLEARING";
 
     /**
      * The approval was reversed in full: its item no longer settles. The backend hold was released (or
@@ -175,8 +189,10 @@ public class SettlementService {
                     "Only OPEN batches can be closed. Current status: " + batch.getStatus());
         }
 
+        // CLEARING items are retried too: an earlier close may have died (or lost the backend's answer)
+        // mid-capture; the backend capture is idempotent.
         List<SettlementItem> pending = itemRepository.findByBatch(batch).stream()
-                .filter(item -> "PENDING".equals(item.getStatus()))
+                .filter(item -> "PENDING".equals(item.getStatus()) || CLEARING.equals(item.getStatus()))
                 .toList();
         int unreachable = 0;
         for (SettlementItem item : pending) {
@@ -210,7 +226,11 @@ public class SettlementService {
      * written only if the item is unchanged since it was read. True when resolved (SETTLED, FAILED, or
      * changed by someone else), false when the backend couldn't be reached and it stays PENDING.
      */
-    private boolean clear(SettlementItem item) {
+    private boolean clear(SettlementItem read) {
+        // Claim the item first (PENDING → CLEARING, version-checked): from here a partial reversal waits
+        // for the outcome instead of lowering an amount the backend may already be capturing.
+        SettlementItem item = claim(read);
+        if (item == null) return true;   // changed meanwhile (reversed / cleared by another close)
         String status;
         String reason = null;
         if (!CardType.DEBIT.name().equals(item.getCardType())
@@ -233,11 +253,32 @@ public class SettlementService {
         return true;
     }
 
-    /** Writes a clearing outcome in its own transaction, unless the item changed since it was read. */
+    /**
+     * Moves an item to CLEARING in its own transaction if it is unchanged since it was read (still PENDING,
+     * or CLEARING from an interrupted close). Null when it changed — the other change stands. A backend
+     * that can't be reached leaves it CLEARING: the capture may have committed, so only a retried
+     * capture (idempotent) may resolve it — never a local amount change.
+     */
+    private SettlementItem claim(SettlementItem read) {
+        return new TransactionTemplate(transactionManager).execute(tx -> {
+            SettlementItem item = itemRepository.findById(read.getId()).orElse(null);
+            if (item == null || !Objects.equals(item.getVersion(), read.getVersion())
+                    || !("PENDING".equals(item.getStatus()) || CLEARING.equals(item.getStatus()))) {
+                log.info("Settlement item {} changed before clearing; left {}", read.getId(),
+                        item == null ? "missing" : item.getStatus());
+                return null;
+            }
+            item.setStatus(CLEARING);
+            itemRepository.save(item);
+            return item;
+        });
+    }
+
+    /** Writes a clearing outcome in its own transaction, unless the item changed since it was claimed. */
     private void record(SettlementItem read, String status, String reason) {
         new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
             SettlementItem item = itemRepository.findById(read.getId()).orElse(null);
-            if (item == null || !"PENDING".equals(item.getStatus()) || !Objects.equals(item.getVersion(), read.getVersion())) {
+            if (item == null || !CLEARING.equals(item.getStatus()) || !Objects.equals(item.getVersion(), read.getVersion())) {
                 log.info("Settlement item {} changed while being cleared; left {}", read.getId(),
                         item == null ? "missing" : item.getStatus());
                 return;

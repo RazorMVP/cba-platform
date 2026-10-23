@@ -11,6 +11,7 @@ import com.cba.card.fraud.FraudEvaluationResult;
 import com.cba.card.fraud.FraudScoreLog;
 import com.cba.card.fraud.FraudScoreLogRepository;
 import com.cba.card.openbanking.webhook.WebhookService;
+import com.cba.card.settlement.SettlementService;
 import com.cba.card.wallet.PrepaidWallet;
 import com.cba.card.wallet.PrepaidWalletRepository;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,8 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
@@ -58,6 +61,7 @@ public class CardAuthorizationService {
     private final PrepaidWalletRepository   walletRepository;
     private final RestTemplate              backendRestTemplate;
     private final RestClientConfig          restClientConfig;
+    private final SettlementService         settlementService;
 
     /** Injected lazily to break the potential cycle: CardAuthorizationService ← WebhookDeliveryService ← WebhookService. */
     @Lazy @Autowired
@@ -122,9 +126,23 @@ public class CardAuthorizationService {
                         return logAndReturn(card, req, CardAuthResponse.decline("57"), fraud.totalScore(), fraud.decision());
                     }
                     String reference = holdReference(card, req);
-                    BackendHold hold = placeDebitHold(card, reference, amountMajor, txCurrency);
+                    // 0200 (single message, e.g. ATM cash) is approved and completed at once: debit now.
+                    // 0100 reserves with a hold that batch close clears (backlog 15a, decisions 1a/2a).
+                    BackendHold hold = req.isFinancial()
+                            ? postSingleMessageDebit(card, reference, amountMajor, txCurrency,
+                                    req.processingCode() != null && req.processingCode().startsWith("01"))
+                            : placeDebitHold(card, reference, amountMajor, txCurrency);
                     if (hold == null) {
-                        return logAndReturn(card, req, CardAuthResponse.decline("91"), fraud.totalScore(), fraud.decision());
+                        // The call failed or timed out — the backend may still have placed the hold or (0200)
+                        // taken the money. Release now: idempotent, refunds a completed debit, and leaves a
+                        // tombstone so one committing later is refused. If even that can't reach the backend,
+                        // keep the reference on the declined entry for reconciliation.
+                        boolean released = releaseDebitHold(card, reference, amountMajor, txCurrency) != ReleaseOutcome.UNREACHABLE;
+                        if (!released) {
+                            log.error("Card {} declined 91 with backend reference {} unresolved — reconcile", card.getId(), reference);
+                        }
+                        return logAndReturn(card, req, CardAuthResponse.decline("91"), fraud.totalScore(), fraud.decision(),
+                                released ? null : reference, null);
                     }
                     if (!hold.approved()) {
                         log.info("Debit card {} declined by the backend: {}", card.getId(), hold.reason());
@@ -138,7 +156,8 @@ public class CardAuthorizationService {
                     }
                     holdRef = reference;
                     // If this transaction rolls back after the hold was placed (including a failed
-                    // commit), the approval never happened — give the hold back.
+                    // commit), the approval never happened — give the hold back (a completed 0200
+                    // debit is refunded by the same release).
                     if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
                         final Card heldCard = card;
                         org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
@@ -258,14 +277,12 @@ public class CardAuthorizationService {
      * Reversal handler for MTI 0400/0420 — called by fep-service at
      * {@code POST /api/v1/internal/reverse}.
      *
-     * <p>In this platform authorization/advice are check-and-record only — no funds move on
-     * the auth path (see {@link #authorize} / {@link #recordAdvice}). A reversal is therefore a
-     * record-and-notify operation: locate the original authorization by (card, STAN), record a
-     * {@code 0400} entry, and fire {@code AUTHORIZATION.REVERSED} — <b>idempotently</b>, so a
-     * duplicate 0400 (a common scheme retry) never double-records or double-notifies. The
-     * financial-reversal step (returning funds to a prepaid wallet / reversing a backend debit)
-     * is intentionally a no-op today because the auth path posts no funds; this method is the
-     * seam it will hook into once a real debit path is wired.
+     * <p>Locates the original authorization by (card, STAN), gives back what an approved original
+     * took — the backend hold is released (a completed debit — 0200, or a purchase already cleared —
+     * is refunded by the same call) or the prepaid wallet restored — marks its settlement item
+     * REVERSED, records a {@code 0400} entry and fires {@code AUTHORIZATION.REVERSED},
+     * <b>idempotently</b>, so a duplicate 0400 (a common scheme retry) never double-records or
+     * double-notifies.
      *
      * @return ISO response code — {@code "00"} accepted, {@code "25"} original/card not located,
      *         {@code "96"} on error
@@ -301,13 +318,51 @@ public class CardAuthorizationService {
             // Give back what the approval reserved — once: the 0400 guard above stops a repeat. If the
             // backend hold can't be released, don't record the reversal: answer 96 so the network
             // retries (a recorded 0400 would block every retry and leave the funds held).
+            // DE4 is a positive whole number of minor units; anything else is not a reversal amount.
+            if (amount != null && (amount.signum() <= 0 || amount.stripTrailingZeros().scale() > 0)) {
+                log.warn("Reversal refused for card={} STAN={}: invalid amount {}", card.getId(), stan, amount);
+                return "13";
+            }
+
             if ("00".equals(original.getResponseCode())) {
-                if (original.getHoldReference() != null && !releaseDebitHold(card, original.getHoldReference())) {
+                // Give back at most what this reversal covers: a partial reversal (DE4 below the original)
+                // refunds only its amount — never the whole completed debit or wallet decrement.
+                java.util.Currency ccy = currency(original.getCurrencyCode());
+                BigDecimal reversalMinor = amount != null ? amount : original.getAmount();
+                BigDecimal reversalMajor = ccy == null || reversalMinor == null ? null : toMajorUnits(reversalMinor, ccy);
+                boolean full = original.getAmount() == null || reversalMinor == null
+                        || reversalMinor.compareTo(original.getAmount()) >= 0;
+                // A full reversal takes the item out of clearing first (row-locked until this commits), so a
+                // batch close can't capture the purchase between the release below and the 0400 record.
+                SettlementService.ItemReversal marked = full ? settlementService.markReversed(original.getId()) : null;
+                if (marked == SettlementService.ItemReversal.IN_CLEARING) {
+                    // Being cleared right now: answer "try again"; the retry refunds the cleared debit.
                     return "96";
                 }
+                if (original.getHoldReference() != null) {
+                    // A partial reversal of a purchase not yet cleared keeps the hold: batch close clears only
+                    // what remains and the backend frees the rest. Otherwise release (or partly refund).
+                    SettlementService.PendingReduction reduced = full ? null
+                            : settlementService.reducePendingItem(original.getId(), reversalMinor);
+                    if (reduced == SettlementService.PendingReduction.IN_CLEARING) {
+                        return "96";
+                    }
+                    if (reduced != SettlementService.PendingReduction.REDUCED) {
+                        ReleaseOutcome released = releaseDebitHold(card, original.getHoldReference(), reversalMajor, ccy,
+                                reversalReference(original.getHoldReference(), stan, reversalMinor));
+                        if (released != ReleaseOutcome.DONE) {
+                            // Nothing was given back: undo the REVERSED mark so the purchase still clears.
+                            if (marked == SettlementService.ItemReversal.MARKED) rollbackOnly();
+                            return released == ReleaseOutcome.UNREACHABLE ? "96"
+                                    : "13";   // amount/currency don't match the original
+                        }
+                    }
+                }
                 if (original.getWalletDebit() != null && original.getWalletDebit().signum() > 0) {
+                    BigDecimal restore = reversalMajor == null ? original.getWalletDebit()
+                            : reversalMajor.min(original.getWalletDebit()).max(BigDecimal.ZERO);
                     walletRepository.findByCardIdForUpdate(card.getId()).ifPresent(w -> {
-                        w.setBalance(w.getBalance().add(original.getWalletDebit()));
+                        w.setBalance(w.getBalance().add(restore));
                         walletRepository.save(w);
                     });
                 }
@@ -341,6 +396,9 @@ public class CardAuthorizationService {
 
         } catch (Exception e) {
             log.error("Reversal processing error for STAN={}", stan, e);
+            // A 96 records no 0400, so nothing this reversal changed may commit — a REVERSED mark or a
+            // restored wallet would otherwise stand, and the network's retry would give it back again.
+            rollbackOnly();
             return "96";
         }
     }
@@ -405,25 +463,108 @@ public class CardAuthorizationService {
     }
 
     /**
-     * Releases an approval's backend hold. True when the backend answered — released now, or
+     * Debits the linked account for a single-message transaction (0200): backend
+     * {@code POST /api/v1/accounts/{id}/card-debits} checks, debits and posts the journal atomically,
+     * idempotent on {@code reference}. Same result shape as a hold. Null when unavailable.
+     */
+    private BackendHold postSingleMessageDebit(Card card, String reference, BigDecimal amountMajor,
+                                               java.util.Currency currency, boolean cashWithdrawal) {
+        if (card.getLinkedEntityId() == null) return null;
+        try {
+            String url = restClientConfig.getBackendBaseUrl()
+                    + "/api/v1/accounts/" + card.getLinkedEntityId() + "/card-debits";
+            Map<String, Object> body = Map.of("reference", reference, "amount", amountMajor,
+                    "currencyCode", currency.getCurrencyCode(), "cashWithdrawal", cashWithdrawal);
+            ResponseEntity<Envelope<BackendHold>> resp = backendRestTemplate.exchange(
+                    url, HttpMethod.POST, new org.springframework.http.HttpEntity<>(body),
+                    new ParameterizedTypeReference<Envelope<BackendHold>>() {});
+            return resp.getBody() != null ? resp.getBody().data() : null;
+        } catch (RestClientException e) {
+            log.warn("Single-message debit failed for card {}: {}", card.getId(), e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Releases an approval's backend hold — or, for a completed debit (0200, or a purchase already
+     * cleared), refunds it. True when the backend answered — released now, or
      * already released, expired or never placed (the release is idempotent); false when it
      * couldn't be reached, so the caller can refuse to report the reversal as done.
      */
     private boolean releaseDebitHold(Card card, String reference) {
-        if (card == null || card.getLinkedEntityId() == null || reference == null) return true;
+        return releaseDebitHold(card, reference, null, null, null) != ReleaseOutcome.UNREACHABLE;
+    }
+
+    private ReleaseOutcome releaseDebitHold(Card card, String reference, BigDecimal amountMajor, java.util.Currency currency) {
+        return releaseDebitHold(card, reference, amountMajor, currency, null);
+    }
+
+    /**
+     * The key of one reversal of a hold: a retried 0400 (same original, STAN and amount) maps to the same key,
+     * so the backend refunds it once and reports the retry as done — and a different reversal as refused.
+     */
+    static String reversalReference(String holdReference, String stan, BigDecimal reversalMinor) {
+        String material = holdReference + "|" + stan + "|"
+                + (reversalMinor != null ? reversalMinor.stripTrailingZeros().toPlainString() : "");
         try {
-            backendRestTemplate.exchange(restClientConfig.getBackendBaseUrl() + "/api/v1/accounts/"
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(material.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return "REV-" + java.util.HexFormat.of().formatHex(digest).substring(0, 40);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
+    }
+
+    /** Rolls back the reversal's transaction (when there is one) so changes made before a refusal are undone. */
+    private static void rollbackOnly() {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+        }
+    }
+
+    /** What a release (or refund) came to: done (or nothing to do), refused by the backend, or not reachable. */
+    enum ReleaseOutcome { DONE, REFUSED, UNREACHABLE }
+
+    /** Backend refusals of a refund that mean the reversal doesn't match the original. */
+    private static final java.util.Set<String> REFUND_REFUSALS =
+            java.util.Set.of("AMOUNT_EXCEEDS_CAPTURED", "CURRENCY_MISMATCH", "ALREADY_REFUNDED", "ACCOUNT_CLOSED");
+
+    /**
+     * Releases (or, for a completed debit, refunds) with the reversal's amount — the backend refunds at
+     * most that, and records a reference it has never seen as released so a late debit is refused.
+     */
+    private ReleaseOutcome releaseDebitHold(Card card, String reference, BigDecimal amountMajor, java.util.Currency currency,
+                                            String reversalReference) {
+        if (card == null || card.getLinkedEntityId() == null || reference == null) return ReleaseOutcome.DONE;
+        try {
+            Map<String, Object> fields = new java.util.HashMap<>();
+            if (amountMajor != null && currency != null) {
+                fields.put("amount", amountMajor);
+                fields.put("currencyCode", currency.getCurrencyCode());
+            }
+            if (reversalReference != null) fields.put("reversalReference", reversalReference);
+            org.springframework.http.HttpEntity<Map<String, Object>> body =
+                    fields.isEmpty() ? null : new org.springframework.http.HttpEntity<>(fields);
+            ResponseEntity<Envelope<BackendHold>> resp = backendRestTemplate.exchange(
+                    restClientConfig.getBackendBaseUrl() + "/api/v1/accounts/"
                             + card.getLinkedEntityId() + "/card-holds/" + reference + "/release",
-                    HttpMethod.POST, null, new ParameterizedTypeReference<Envelope<BackendHold>>() {});
-            return true;
+                    HttpMethod.POST, body, new ParameterizedTypeReference<Envelope<BackendHold>>() {});
+            BackendHold result = resp != null && resp.getBody() != null ? resp.getBody().data() : null;
+            // A refusal without a reason fails closed: never report "given back" when the backend said no.
+            if (result != null && !result.approved()
+                    && (result.reason() == null || REFUND_REFUSALS.contains(result.reason()))) {
+                log.warn("Backend refused release/refund of {} for card {}: {}", reference, card.getId(), result.reason());
+                return ReleaseOutcome.REFUSED;
+            }
+            return ReleaseOutcome.DONE;
         } catch (RestClientException e) {
             log.warn("Debit hold release failed for card {}: {}", card.getId(), e.getMessage());
-            return false;
+            return ReleaseOutcome.UNREACHABLE;
         }
     }
 
     /** An ISO 4217 currency from a numeric (DE49, "840") or alphabetic ("USD") code; null if unknown. */
-    static java.util.Currency currency(String code) {
+    public static java.util.Currency currency(String code) {
         if (code == null || code.isBlank()) return null;
         String c = code.trim();
         if (c.chars().allMatch(Character::isDigit)) {
@@ -439,7 +580,7 @@ public class CardAuthorizationService {
     }
 
     /** DE4 minor units → major units of the currency (2 decimals for USD, 0 for JPY, 3 for KWD). */
-    static BigDecimal toMajorUnits(BigDecimal minorUnits, java.util.Currency currency) {
+    public static BigDecimal toMajorUnits(BigDecimal minorUnits, java.util.Currency currency) {
         return minorUnits.movePointLeft(Math.max(currency.getDefaultFractionDigits(), 0));
     }
 
@@ -476,6 +617,13 @@ public class CardAuthorizationService {
         entry.setHoldReference(holdReference);
         entry.setWalletDebit(walletDebit);
         authLogRepository.save(entry);
+
+        // An approval that reserved or moved funds goes into today's settlement batch, in this
+        // transaction: a debit purchase to be cleared at batch close; a 0200 debit or a prepaid
+        // wallet decrement already completed.
+        if (response.approved() && card != null && (holdReference != null || walletDebit != null)) {
+            settlementService.addAuthorization(entry, card, holdReference, walletDebit != null || req.isFinancial());
+        }
 
         // Fire webhook event asynchronously
         try {

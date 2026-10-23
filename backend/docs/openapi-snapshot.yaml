@@ -104,6 +104,8 @@ components:
           - "ACTIVE"
           - "RELEASED"
           - "EXPIRED"
+          - "CAPTURED"
+          - "REFUNDED"
           type: "string"
       type: "object"
     AccountNumberFormat:
@@ -3036,6 +3038,36 @@ components:
           format: "int32"
           type: "integer"
       type: "object"
+    CardCaptureRequest:
+      properties:
+        amount:
+          minimum: 0.01
+          type: "number"
+        currencyCode:
+          maxLength: 3
+          minLength: 0
+          type: "string"
+      required:
+      - "amount"
+      type: "object"
+    CardDebitRequest:
+      properties:
+        amount:
+          minimum: 0.01
+          type: "number"
+        cashWithdrawal:
+          type: "boolean"
+        currencyCode:
+          maxLength: 3
+          minLength: 0
+          type: "string"
+        reference:
+          maxLength: 64
+          minLength: 0
+          type: "string"
+      required:
+      - "amount"
+      type: "object"
     CardFunds:
       properties:
         accountId:
@@ -3080,6 +3112,20 @@ components:
         reference:
           type: "string"
         status:
+          type: "string"
+      type: "object"
+    CardReleaseRequest:
+      properties:
+        amount:
+          minimum: 0.01
+          type: "number"
+        currencyCode:
+          maxLength: 3
+          minLength: 0
+          type: "string"
+        reversalReference:
+          maxLength: 64
+          minLength: 0
           type: "string"
       type: "object"
     CashFlowEntryDto:
@@ -5410,6 +5456,7 @@ components:
           - "LIABILITY_INCOME_IN_SUSPENSE"
           - "LIABILITY_SAVINGS_CONTROL"
           - "LIABILITY_TRANSFER_IN_SUSPENSE"
+          - "LIABILITY_CARD_SETTLEMENT"
           - "INCOME_INTEREST"
           - "INCOME_FEES"
           - "INCOME_PENALTIES"
@@ -5447,6 +5494,7 @@ components:
           - "LIABILITY_INCOME_IN_SUSPENSE"
           - "LIABILITY_SAVINGS_CONTROL"
           - "LIABILITY_TRANSFER_IN_SUSPENSE"
+          - "LIABILITY_CARD_SETTLEMENT"
           - "INCOME_INTEREST"
           - "INCOME_FEES"
           - "INCOME_PENALTIES"
@@ -6302,6 +6350,7 @@ components:
           - "FX_REVALUATION"
           - "OPENING_BALANCE"
           - "REGULATORY_RESERVE"
+          - "CARD"
           type: "string"
         entryType:
           enum:
@@ -11540,6 +11589,9 @@ components:
           - "INTEREST_CREDIT"
           - "FEE_CHARGE"
           - "REVERSAL"
+          - "CARD_PURCHASE"
+          - "CARD_CASH_WITHDRAWAL"
+          - "CARD_REFUND"
           type: "string"
         valueDate:
           format: "date"
@@ -12462,6 +12514,39 @@ paths:
       summary: "Spendable balance for a card authorization (card-service)"
       tags:
       - "Accounts"
+  /api/v1/accounts/{id}/card-debits:
+    post:
+      description: "Withdrawal rules under the account's row lock, then debit + DR\
+        \ deposit / CR 2300, in one transaction; idempotent on reference. Reversed\
+        \ through …/card-holds/{reference}/release (a refund). reasons: INSUFFICIENT_FUNDS,\
+        \ ACCOUNT_NOT_ACTIVE, ACCOUNT_IN_LOCKIN_PERIOD, CURRENCY_MISMATCH, REFERENCE_CONFLICT,\
+        \ HOLD_RELEASED (already refunded)."
+      operationId: "cardDebit"
+      parameters:
+      - in: "path"
+        name: "id"
+        required: true
+        schema:
+          format: "uuid"
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardDebitRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCardHoldResult"
+          description: "OK"
+      security:
+      - oauth2: []
+      summary: "Debit a single-message card transaction (card-service 0200)"
+      tags:
+      - "Accounts"
   /api/v1/accounts/{id}/card-holds:
     post:
       description: "Atomic check-and-hold under the account's row lock. reasons: INSUFFICIENT_FUNDS,\
@@ -12494,6 +12579,45 @@ paths:
       summary: "Reserve funds for a card authorization (card-service)"
       tags:
       - "Accounts"
+  /api/v1/accounts/{id}/card-holds/{reference}/capture:
+    post:
+      description: "Debits the presented amount (at most the authorized one) and posts\
+        \ DR deposit / CR 2300 Card Scheme Settlement Payable. Idempotent on the same\
+        \ amount. reasons: HOLD_NOT_FOUND, HOLD_RELEASED, REFERENCE_CONFLICT, CURRENCY_MISMATCH,\
+        \ AMOUNT_EXCEEDS_HOLD; a late presentment (hold expired) is checked like a\
+        \ withdrawal: ACCOUNT_NOT_ACTIVE, ACCOUNT_IN_LOCKIN_PERIOD, INSUFFICIENT_FUNDS.\
+        \ Never force-posted."
+      operationId: "captureCardHold"
+      parameters:
+      - in: "path"
+        name: "id"
+        required: true
+        schema:
+          format: "uuid"
+          type: "string"
+      - in: "path"
+        name: "reference"
+        required: true
+        schema:
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardCaptureRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCardHoldResult"
+          description: "OK"
+      security:
+      - oauth2: []
+      summary: "Clear a card authorization (card-service batch close)"
+      tags:
+      - "Accounts"
   /api/v1/accounts/{id}/card-holds/{reference}/release:
     post:
       description: "Idempotent: an already released, expired or unknown hold is reported\
@@ -12511,6 +12635,11 @@ paths:
         required: true
         schema:
           type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardReleaseRequest"
       responses:
         "200":
           content:
@@ -12775,6 +12904,9 @@ paths:
           - "INTEREST_CREDIT"
           - "FEE_CHARGE"
           - "REVERSAL"
+          - "CARD_PURCHASE"
+          - "CARD_CASH_WITHDRAWAL"
+          - "CARD_REFUND"
           type: "string"
       - in: "query"
         name: "pageable"

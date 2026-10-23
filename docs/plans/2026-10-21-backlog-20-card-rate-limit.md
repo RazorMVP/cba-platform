@@ -1,4 +1,4 @@
-> **Status:** open — PR pending. Approved 2026-10-21 in plan mode (user: "Delete the branch, then start 20"). Body verbatim.
+> **Status:** merged — PR #189, merge commit `c69b860`. Approved 2026-10-21 in plan mode (user: "Delete the branch, then start 20"). Body verbatim.
 
 # Backlog 20 — card-service rate limiter on the verified caller
 

@@ -12,6 +12,7 @@ import com.cba.card.fraud.FraudEvaluationResult;
 import com.cba.card.fraud.FraudRuleResult;
 import com.cba.card.fraud.FraudScoreLogRepository;
 import com.cba.card.openbanking.webhook.WebhookService;
+import com.cba.card.settlement.SettlementService;
 import com.cba.card.wallet.PrepaidWallet;
 import com.cba.card.wallet.PrepaidWalletRepository;
 import org.springframework.http.HttpMethod;
@@ -64,6 +65,7 @@ class CardAuthorizationServiceTest {
     @Mock RestTemplate backendRestTemplate;
     @Mock RestClientConfig restClientConfig;
     @Mock WebhookService webhookService;
+    @Mock SettlementService settlementService;
 
     @InjectMocks CardAuthorizationService service;
 
@@ -573,7 +575,7 @@ class CardAuthorizationServiceTest {
 
         assertThat(service.reverse(PAN, new BigDecimal("100.00"), REV_STAN, "x")).isEqualTo("00");
         verify(backendRestTemplate).exchange(contains("/card-holds/CARD-x-000123-R1/release"), eq(HttpMethod.POST),
-                isNull(), any(ParameterizedTypeReference.class));
+                any(), any(ParameterizedTypeReference.class));
     }
 
     @Test
@@ -587,7 +589,7 @@ class CardAuthorizationServiceTest {
         when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
                 .thenReturn(Optional.of(original));
         when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
-        when(backendRestTemplate.exchange(contains("/release"), eq(HttpMethod.POST), isNull(),
+        when(backendRestTemplate.exchange(contains("/release"), eq(HttpMethod.POST), any(),
                 any(ParameterizedTypeReference.class)))
                 .thenThrow(new org.springframework.web.client.ResourceAccessException("down"));
 
@@ -604,12 +606,13 @@ class CardAuthorizationServiceTest {
         when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
         AuthorizationLog original = originalAuth(card.getId());
         original.setWalletDebit(new BigDecimal("30.00"));
+        original.setAmount(new BigDecimal("3000"));   // DE4 minor units: 30.00 USD
         when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
                 .thenReturn(Optional.of(original));
         PrepaidWallet w = wallet("20.00");
         when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(w));
 
-        assertThat(service.reverse(PAN, new BigDecimal("30.00"), REV_STAN, "x")).isEqualTo("00");
+        assertThat(service.reverse(PAN, new BigDecimal("3000"), REV_STAN, "x")).isEqualTo("00");
         assertThat(w.getBalance()).isEqualByComparingTo("50.00");
     }
 
@@ -627,5 +630,302 @@ class CardAuthorizationServiceTest {
 
         service.reverse(PAN, new BigDecimal("100.00"), REV_STAN, "x");
         verifyNoInteractions(backendRestTemplate);
+        verify(settlementService, never()).markReversed(any());
+    }
+
+    // ── Clearing (backlog 15a) ────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("an approved debit purchase (0100) goes into the batch PENDING, to be cleared at close")
+    void debitPurchase_addsPendingSettlementItem() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        stubBackendHold(true, null);
+
+        service.authorize(req(new BigDecimal("2500"), "000000", false));
+
+        verify(settlementService).addAuthorization(any(AuthorizationLog.class), eq(card),
+                eq(CardAuthorizationService.holdReference(card, req(new BigDecimal("2500"), "000000", false))), eq(false));
+    }
+
+    @Test
+    @DisplayName("0200 ATM cash debits at once via card-debits (cash=true), no hold; the item starts completed")
+    void singleMessage_debitsNow() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+        doReturn(ResponseEntity.ok(new CardAuthorizationService.Envelope<>(new CardAuthorizationService.BackendHold(
+                true, UUID.randomUUID(), "ref", "CAPTURED", null, BigDecimal.ZERO))))
+                .when(backendRestTemplate).exchange(contains("/card-debits"), eq(HttpMethod.POST), any(HttpEntity.class),
+                        any(ParameterizedTypeReference.class));
+        CardAuthRequest atm = new CardAuthRequest(PAN, "010000", new BigDecimal("20000"), "840", "000002",
+                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0002", "VISA", true, true, true, null);
+
+        assertThat(service.authorize(atm).responseCode()).isEqualTo("00");
+
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<HttpEntity> captor = org.mockito.ArgumentCaptor.forClass(HttpEntity.class);
+        verify(backendRestTemplate).exchange(contains("/card-debits"), eq(HttpMethod.POST), captor.capture(),
+                any(ParameterizedTypeReference.class));
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> body = (java.util.Map<String, Object>) captor.getValue().getBody();
+        assertThat((BigDecimal) body.get("amount")).isEqualByComparingTo("200.00");
+        assertThat(body.get("cashWithdrawal")).isEqualTo(true);
+        verify(backendRestTemplate, never()).exchange(contains("/card-holds"), any(HttpMethod.class), any(),
+                any(ParameterizedTypeReference.class));
+        verify(settlementService).addAuthorization(any(AuthorizationLog.class), eq(card), any(String.class), eq(true));
+    }
+
+    @Test
+    @DisplayName("0200 refused by the backend (INSUFFICIENT_FUNDS) declines 51 and adds no item")
+    void singleMessage_insufficientFunds() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+        doReturn(ResponseEntity.ok(new CardAuthorizationService.Envelope<>(new CardAuthorizationService.BackendHold(
+                false, null, "ref", null, "INSUFFICIENT_FUNDS", BigDecimal.ZERO))))
+                .when(backendRestTemplate).exchange(contains("/card-debits"), eq(HttpMethod.POST), any(HttpEntity.class),
+                        any(ParameterizedTypeReference.class));
+        CardAuthRequest atm = new CardAuthRequest(PAN, "010000", new BigDecimal("20000"), "840", "000003",
+                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0003", "VISA", true, true, true, null);
+
+        assertThat(service.authorize(atm).responseCode()).isEqualTo("51");
+        verify(settlementService, never()).addAuthorization(any(), any(), any(), any(Boolean.class));
+    }
+
+    @Test
+    @DisplayName("an approved prepaid purchase goes into the batch completed (the wallet already paid)")
+    void prepaid_addsCompletedItem() {
+        Card card = prepaidCard();
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(wallet("500")));
+
+        assertThat(service.authorize(req(new BigDecimal("2500"), "000000", false)).responseCode()).isEqualTo("00");
+        verify(settlementService).addAuthorization(any(AuthorizationLog.class), eq(card), isNull(), eq(true));
+    }
+
+    @Test
+    @DisplayName("a balance inquiry reserves nothing and adds no item")
+    void inquiry_noItem() {
+        Card card = prepaidCard();
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(wallet("500")));
+
+        service.authorize(req(null, "310000", false));
+        verify(settlementService, never()).addAuthorization(any(), any(), any(), any(Boolean.class));
+    }
+
+    @Test
+    @DisplayName("a partial reversal sends its own amount (major units) and leaves the settlement item in place")
+    void reverse_partialSendsAmount() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setAmount(new BigDecimal("20000"));   // 200.00 USD in minor units
+        original.setHoldReference("CARD-partial");
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+
+        assertThat(service.reverse(PAN, new BigDecimal("5000"), REV_STAN, "x")).isEqualTo("00");
+
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<HttpEntity> captor = org.mockito.ArgumentCaptor.forClass(HttpEntity.class);
+        verify(backendRestTemplate).exchange(contains("/card-holds/CARD-partial/release"), eq(HttpMethod.POST),
+                captor.capture(), any(ParameterizedTypeReference.class));
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> body = (java.util.Map<String, Object>) captor.getValue().getBody();
+        assertThat((BigDecimal) body.get("amount")).isEqualByComparingTo("50.00");
+        assertThat(body.get("currencyCode")).isEqualTo("USD");
+        verify(settlementService, never()).markReversed(any());
+    }
+
+    @Test
+    @DisplayName("a reversal amount ≤ 0 or with fractional minor units is refused: RC 13, nothing given back")
+    void reverse_invalidAmount_13() {
+        Card card = prepaidCard();
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setWalletDebit(new BigDecimal("30.00"));
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+
+        assertThat(service.reverse(PAN, new BigDecimal("-3000"), REV_STAN, "x")).isEqualTo("13");
+        assertThat(service.reverse(PAN, BigDecimal.ZERO, REV_STAN, "x")).isEqualTo("13");
+        assertThat(service.reverse(PAN, new BigDecimal("12.5"), REV_STAN, "x")).isEqualTo("13");
+        verify(walletRepository, never()).findByCardIdForUpdate(any());
+        verify(authLogRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("partial reversal of a purchase not yet cleared lowers the item to clear — the hold stays, no backend call")
+    void reverse_partialUncleared_keepsHold() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setId(UUID.randomUUID());
+        original.setAmount(new BigDecimal("20000"));
+        original.setHoldReference("CARD-uncleared");
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+        when(settlementService.reducePendingItem(original.getId(), new BigDecimal("5000")))
+                .thenReturn(com.cba.card.settlement.SettlementService.PendingReduction.REDUCED);
+
+        assertThat(service.reverse(PAN, new BigDecimal("5000"), REV_STAN, "x")).isEqualTo("00");
+        verifyNoInteractions(backendRestTemplate);
+        verify(settlementService, never()).markReversed(any());
+    }
+
+    @Test
+    @DisplayName("partial reversal while the purchase is being cleared: 96 (retry), nothing released or recorded")
+    void reverse_partialWhileClearing_96() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setId(UUID.randomUUID());
+        original.setAmount(new BigDecimal("20000"));
+        original.setHoldReference("CARD-clearing");
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+        when(settlementService.reducePendingItem(original.getId(), new BigDecimal("5000")))
+                .thenReturn(com.cba.card.settlement.SettlementService.PendingReduction.IN_CLEARING);
+
+        assertThat(service.reverse(PAN, new BigDecimal("5000"), REV_STAN, "x")).isEqualTo("96");
+        verifyNoInteractions(backendRestTemplate);
+        verify(authLogRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("full reversal while the purchase is being cleared: 96 (retry), nothing released or recorded")
+    void reverse_fullWhileClearing_96() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setId(UUID.randomUUID());
+        original.setAmount(new BigDecimal("20000"));
+        original.setHoldReference("CARD-clearing-full");
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+        when(settlementService.markReversed(original.getId()))
+                .thenReturn(com.cba.card.settlement.SettlementService.ItemReversal.IN_CLEARING);
+
+        assertThat(service.reverse(PAN, new BigDecimal("20000"), REV_STAN, "x")).isEqualTo("96");
+        verifyNoInteractions(backendRestTemplate);
+        verify(authLogRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("the reversal key is stable for a retry and differs for another STAN or amount")
+    void reversalReference_stable() {
+        String a = CardAuthorizationService.reversalReference("CARD-h", "000123", new BigDecimal("5000"));
+        assertThat(a).startsWith("REV-").hasSize(44)
+                .isEqualTo(CardAuthorizationService.reversalReference("CARD-h", "000123", new BigDecimal("5000.00")));
+        assertThat(a).isNotEqualTo(CardAuthorizationService.reversalReference("CARD-h", "000124", new BigDecimal("5000")))
+                .isNotEqualTo(CardAuthorizationService.reversalReference("CARD-h", "000123", new BigDecimal("4000")));
+    }
+
+    @Test
+    @DisplayName("the backend refuses the refund (amount over captured): RC 13, nothing recorded")
+    void reverse_refundRefused_13() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setHoldReference("CARD-refused");
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+        doReturn(ResponseEntity.ok(new CardAuthorizationService.Envelope<>(new CardAuthorizationService.BackendHold(
+                false, UUID.randomUUID(), "CARD-refused", "CAPTURED", "AMOUNT_EXCEEDS_CAPTURED", BigDecimal.ZERO))))
+                .when(backendRestTemplate).exchange(contains("/release"), eq(HttpMethod.POST), any(),
+                        any(ParameterizedTypeReference.class));
+
+        assertThat(service.reverse(PAN, new BigDecimal("10000"), REV_STAN, "x")).isEqualTo("13");
+        verify(authLogRepository, never()).save(any());
+        // marked before the release; the refusal rolls the reversal's transaction back (CardClearingIntegrationTest)
+        verify(settlementService).markReversed(original.getId());
+    }
+
+    @Test
+    @DisplayName("the backend refuses the release without a reason: fails closed (RC 13), nothing recorded")
+    void reverse_refusedWithoutReason_13() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setHoldReference("CARD-noreason");
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+        doReturn(ResponseEntity.ok(new CardAuthorizationService.Envelope<>(new CardAuthorizationService.BackendHold(
+                false, UUID.randomUUID(), "CARD-noreason", "CAPTURED", null, BigDecimal.ZERO))))
+                .when(backendRestTemplate).exchange(contains("/release"), eq(HttpMethod.POST), any(),
+                        any(ParameterizedTypeReference.class));
+
+        assertThat(service.reverse(PAN, new BigDecimal("10000"), REV_STAN, "x")).isEqualTo("13");
+        verify(authLogRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("0200 call times out: card-service releases at once (refunds a debit the backend may have taken)")
+    void singleMessage_timeout_compensates() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+        when(backendRestTemplate.exchange(contains("/card-debits"), eq(HttpMethod.POST), any(HttpEntity.class),
+                any(ParameterizedTypeReference.class)))
+                .thenThrow(new org.springframework.web.client.ResourceAccessException("read timed out"));
+        CardAuthRequest atm = new CardAuthRequest(PAN, "010000", new BigDecimal("20000"), "840", "000004",
+                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0004", "VISA", true, true, true, null);
+
+        assertThat(service.authorize(atm).responseCode()).isEqualTo("91");
+        verify(backendRestTemplate).exchange(contains("/card-holds/" + CardAuthorizationService.holdReference(card, atm)
+                + "/release"), eq(HttpMethod.POST), any(HttpEntity.class), any(ParameterizedTypeReference.class));
+        verify(authLogRepository).save(argThat(a -> "91".equals(a.getResponseCode()) && a.getHoldReference() == null));
+    }
+
+    @Test
+    @DisplayName("0200 times out and the compensating release can't reach the backend either: reference kept for reconciliation")
+    void singleMessage_timeout_releaseFails_keepsReference() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+        when(backendRestTemplate.exchange(any(String.class), eq(HttpMethod.POST), any(),
+                any(ParameterizedTypeReference.class)))
+                .thenThrow(new org.springframework.web.client.ResourceAccessException("down"));
+        CardAuthRequest atm = new CardAuthRequest(PAN, "010000", new BigDecimal("20000"), "840", "000005",
+                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0005", "VISA", true, true, true, null);
+
+        assertThat(service.authorize(atm).responseCode()).isEqualTo("91");
+        String ref = CardAuthorizationService.holdReference(card, atm);
+        verify(authLogRepository).save(argThat(a -> "91".equals(a.getResponseCode()) && ref.equals(a.getHoldReference())));
+        verify(settlementService, never()).addAuthorization(any(), any(), any(), any(Boolean.class));
+    }
+
+    @Test
+    @DisplayName("reversing an approved original marks its settlement item REVERSED")
+    void reverse_marksItemReversed() {
+        Card card = prepaidCard();
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setId(UUID.randomUUID());
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+
+        assertThat(service.reverse(PAN, new BigDecimal("100.00"), REV_STAN, "x")).isEqualTo("00");
+        verify(settlementService).markReversed(original.getId());
     }
 }

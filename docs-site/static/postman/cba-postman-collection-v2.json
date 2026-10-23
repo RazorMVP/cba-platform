@@ -1179,7 +1179,16 @@
                 "release"
               ]
             },
-            "description": "Releases a card authorization's hold on reversal (role CARD_SERVICE; ADMIN). Idempotent: already released/expired \u2192 approved=false HOLD_NOT_ACTIVE; unknown \u2192 HOLD_NOT_FOUND."
+            "description": "Releases a card authorization's hold on reversal (role CARD_SERVICE; ADMIN). A completed card debit (hold CAPTURED: cleared purchase or single-message debit) is refunded instead (DR 2300 / CR deposit, status REFUNDED). Optional body {amount, currencyCode, reversalReference} = the reversal's amount and card-service's key for it: refunded for that amount only, once; more than captured -> AMOUNT_EXCEEDS_CAPTURED, other currency -> CURRENCY_MISMATCH, a different reversal (other reversalReference) -> ALREADY_REFUNDED; only a retry of the refunding reversal reports done, closed account -> ACCOUNT_CLOSED. An unknown reference released with an amount is recorded as released so a late debit/hold for it is refused. Idempotent: same refund again -> approved=true REFUNDED; already released/expired -> approved=false HOLD_NOT_ACTIVE; unknown -> HOLD_NOT_FOUND. A live hold is released in full.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 50.0,\n  \"currencyCode\": \"USD\",\n  \"reversalReference\": \"REV-4f1a9c2e7b3d5a8c0e6f1b2d4a7c9e3f5b8d0a1c\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "x-code-samples": [
             {
@@ -1257,6 +1266,188 @@
                 }
               ],
               "body": "{\n  \"data\": {\n    \"approved\": true,\n    \"holdId\": \"7c1e0000-0000-0000-0000-0000000000a1\",\n    \"reference\": \"CARD-\\u2026\",\n    \"status\": \"RELEASED\",\n    \"reason\": null,\n    \"availableBalance\": 15420.75\n  },\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Clear Card Authorization (card-service)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 25.0,\n  \"currencyCode\": \"USD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/accounts/{{accountId}}/card-holds/{{cardHoldReference}}/capture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts",
+                "{{accountId}}",
+                "card-holds",
+                "{{cardHoldReference}}",
+                "capture"
+              ]
+            },
+            "description": "Clears a card authorization at batch close (role CARD_SERVICE; ADMIN). Turns the hold into a debit of the presented amount (at most the authorized one) and posts DR customer deposit / CR 2300 Card Scheme Settlement Payable (IFRS 9 \u00a73.3.1, IAS 32 \u00a711); hold \u2192 CAPTURED. Idempotent on the same amount; another amount \u2192 REFERENCE_CONFLICT. A late presentment (hold expired) is checked like a withdrawal and refused if it fails \u2014 never force-posted. Declines (200, approved=false): HOLD_NOT_FOUND, HOLD_RELEASED, CURRENCY_MISMATCH, AMOUNT_EXCEEDS_HOLD, REFERENCE_CONFLICT, ACCOUNT_NOT_ACTIVE, ACCOUNT_IN_LOCKIN_PERIOD, INSUFFICIENT_FUNDS. Not rate-limited."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/api/v1/accounts/{{accountId}}/card-holds/{{cardHoldReference}}/capture"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"approved\": true,\n    \"holdId\": \"8a7f3c1e-2b4d-4e6f-9a0b-1c2d3e4f5a6b\",\n    \"reference\": \"CARD-\\u2026\",\n    \"status\": \"CAPTURED\",\n    \"reason\": null,\n    \"availableBalance\": 15395.75\n  },\n  \"errors\": []\n}"
+            }
+          ],
+          "x-code-samples": [
+            {
+              "lang": "cURL",
+              "source": "curl -X POST '{{base_url}}/api/v1/accounts/{{accountId}}/card-holds/{{cardHoldReference}}/capture' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"amount\": 25.0, \"currencyCode\": \"USD\"}'"
+            },
+            {
+              "lang": "JavaScript (fetch)",
+              "source": "fetch('{{base_url}}/api/v1/accounts/{{accountId}}/card-holds/{{cardHoldReference}}/capture', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json'\n  },\n  body: JSON.stringify({\"amount\": 25.0, \"currencyCode\": \"USD\"})\n}).then(r => r.json()).then(console.log);"
+            },
+            {
+              "lang": "Python (requests)",
+              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/api/v1/accounts/{{accountId}}/card-holds/{{cardHoldReference}}/capture',\n    headers={'Authorization': 'Bearer {{access_token}}'},\n    json={\"amount\": 25.0, \"currencyCode\": \"USD\"}\n)\nprint(response.json())"
+            },
+            {
+              "lang": "Java (HttpClient)",
+              "source": "HttpRequest request = HttpRequest.newBuilder()\n    .uri(URI.create(\"{{base_url}}/api/v1/accounts/{{accountId}}/card-holds/{{cardHoldReference}}/capture\"))\n    .header(\"Authorization\", \"Bearer \" + accessToken)\n    .header(\"Content-Type\", \"application/json\")\n    .POST(HttpRequest.BodyPublishers.ofString(\"{\\\"amount\\\": 25.0, \\\"currencyCode\\\": \\\"USD\\\"}\"))\n    .build();\nHttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());"
+            },
+            {
+              "lang": "Go (net/http)",
+              "source": "body := strings.NewReader(`{\"amount\": 25.0, \"currencyCode\": \"USD\"}`)\nreq, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/accounts/{{accountId}}/card-holds/{{cardHoldReference}}/capture\", body)\nreq.Header.Set(\"Authorization\", \"Bearer \"+accessToken)\nreq.Header.Set(\"Content-Type\", \"application/json\")\nresp, err := http.DefaultClient.Do(req)"
+            },
+            {
+              "lang": "Ruby (net/http)",
+              "source": "uri = URI('{{base_url}}/api/v1/accounts/{{accountId}}/card-holds/{{cardHoldReference}}/capture')\nreq = Net::HTTP::Post.new(uri, 'Content-Type' => 'application/json',\n  'Authorization' => \"Bearer #{access_token}\")\nreq.body = '{\"amount\": 25.0, \"currencyCode\": \"USD\"}'\nres = Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == 'https') { |h| h.request(req) }"
+            },
+            {
+              "lang": "C# (HttpClient)",
+              "source": "using var client = new HttpClient();\nclient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(\"Bearer\", accessToken);\nvar content = new StringContent(\"{\\\"amount\\\": 25.0, \\\"currencyCode\\\": \\\"USD\\\"}\", Encoding.UTF8, \"application/json\");\nvar response = await client.PostAsync(\"{{base_url}}/api/v1/accounts/{{accountId}}/card-holds/{{cardHoldReference}}/capture\", content);"
+            }
+          ]
+        },
+        {
+          "name": "Single-Message Card Debit (card-service)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reference\": \"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\",\n  \"amount\": 200.0,\n  \"currencyCode\": \"USD\",\n  \"cashWithdrawal\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/accounts/{{accountId}}/card-debits",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts",
+                "{{accountId}}",
+                "card-debits"
+              ]
+            },
+            "description": "A single-message card transaction (ISO 8583 0200, e.g. ATM cash), approved and completed at once (role CARD_SERVICE; ADMIN). Withdrawal rules under the account's row lock, then the debit and DR deposit / CR 2300 in one transaction (CARD_CASH_WITHDRAWAL or CARD_PURCHASE). Idempotent on reference. Reverse with Release Card Hold (a refund). Declines (200, approved=false): INSUFFICIENT_FUNDS, ACCOUNT_NOT_ACTIVE, ACCOUNT_IN_LOCKIN_PERIOD, CURRENCY_MISMATCH, REFERENCE_CONFLICT, HOLD_RELEASED. Not rate-limited."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/api/v1/accounts/{{accountId}}/card-debits"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"approved\": true,\n    \"holdId\": \"5d2c8e1a-7b3f-4a9e-b6c0-2f1e3d4c5b6a\",\n    \"reference\": \"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\",\n    \"status\": \"CAPTURED\",\n    \"reason\": null,\n    \"availableBalance\": 15195.75\n  },\n  \"errors\": []\n}"
+            }
+          ],
+          "x-code-samples": [
+            {
+              "lang": "cURL",
+              "source": "curl -X POST '{{base_url}}/api/v1/accounts/{{accountId}}/card-debits' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"reference\": \"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\", \"amount\": 200.0, \"currencyCode\": \"USD\", \"cashWithdrawal\": true}'"
+            },
+            {
+              "lang": "JavaScript (fetch)",
+              "source": "fetch('{{base_url}}/api/v1/accounts/{{accountId}}/card-debits', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json'\n  },\n  body: JSON.stringify({\"reference\": \"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\", \"amount\": 200.0, \"currencyCode\": \"USD\", \"cashWithdrawal\": true})\n}).then(r => r.json()).then(console.log);"
+            },
+            {
+              "lang": "Python (requests)",
+              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/api/v1/accounts/{{accountId}}/card-debits',\n    headers={'Authorization': 'Bearer {{access_token}}'},\n    json={\"reference\": \"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\", \"amount\": 200.0, \"currencyCode\": \"USD\", \"cashWithdrawal\": true}\n)\nprint(response.json())"
+            },
+            {
+              "lang": "Java (HttpClient)",
+              "source": "HttpRequest request = HttpRequest.newBuilder()\n    .uri(URI.create(\"{{base_url}}/api/v1/accounts/{{accountId}}/card-debits\"))\n    .header(\"Authorization\", \"Bearer \" + accessToken)\n    .header(\"Content-Type\", \"application/json\")\n    .POST(HttpRequest.BodyPublishers.ofString(\"{\\\"reference\\\": \\\"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\\\", \\\"amount\\\": 200.0, \\\"currencyCode\\\": \\\"USD\\\", \\\"cashWithdrawal\\\": true}\"))\n    .build();\nHttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());"
+            },
+            {
+              "lang": "Go (net/http)",
+              "source": "body := strings.NewReader(`{\"reference\": \"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\", \"amount\": 200.0, \"currencyCode\": \"USD\", \"cashWithdrawal\": true}`)\nreq, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/accounts/{{accountId}}/card-debits\", body)\nreq.Header.Set(\"Authorization\", \"Bearer \"+accessToken)\nreq.Header.Set(\"Content-Type\", \"application/json\")\nresp, err := http.DefaultClient.Do(req)"
+            },
+            {
+              "lang": "Ruby (net/http)",
+              "source": "uri = URI('{{base_url}}/api/v1/accounts/{{accountId}}/card-debits')\nreq = Net::HTTP::Post.new(uri, 'Content-Type' => 'application/json',\n  'Authorization' => \"Bearer #{access_token}\")\nreq.body = '{\"reference\": \"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\", \"amount\": 200.0, \"currencyCode\": \"USD\", \"cashWithdrawal\": true}'\nres = Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == 'https') { |h| h.request(req) }"
+            },
+            {
+              "lang": "C# (HttpClient)",
+              "source": "using var client = new HttpClient();\nclient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(\"Bearer\", accessToken);\nvar content = new StringContent(\"{\\\"reference\\\": \\\"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\\\", \\\"amount\\\": 200.0, \\\"currencyCode\\\": \\\"USD\\\", \\\"cashWithdrawal\\\": true}\", Encoding.UTF8, \"application/json\");\nvar response = await client.PostAsync(\"{{base_url}}/api/v1/accounts/{{accountId}}/card-debits\", content);"
             }
           ]
         },

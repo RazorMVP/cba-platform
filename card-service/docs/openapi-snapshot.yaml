@@ -3625,6 +3625,24 @@ components:
           type: string
         status:
           type: string
+        cardId:
+          type: string
+          format: uuid
+        accountId:
+          type: string
+          format: uuid
+        cardType:
+          type: string
+        holdReference:
+          type: string
+        failureReason:
+          type: string
+        clearedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
         createdAt:
           type: string
           format: date-time

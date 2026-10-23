@@ -28,6 +28,18 @@ public interface AccountHoldRepository extends JpaRepository<AccountHold, UUID> 
 
     java.util.Optional<AccountHold> findByAccountIdAndExternalReference(UUID accountId, String externalReference);
 
-    /** Finds holds whose expiry date has passed — used by the CoB hold-expiry sweep. */
+    /** Finds holds whose expiry date has passed. */
     List<AccountHold> findByStatusAndExpiryDateBefore(AccountHoldStatus status, LocalDate date);
+
+    /**
+     * The CoB hold-expiry sweep: ACTIVE holds whose expiry date is before the business date become
+     * EXPIRED. They already stopped reducing the balance on that date ({@link #sumActiveHoldsByAccount});
+     * this records it. One statement, so a hold captured at the same moment either stays CAPTURED or
+     * fails the capture on its version.
+     */
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("UPDATE AccountHold h SET h.status = com.cba.account.AccountHoldStatus.EXPIRED, " +
+           "h.releasedAt = :now, h.releasedBy = 'hold-expiry-cob-job', h.version = h.version + 1 " +
+           "WHERE h.status = com.cba.account.AccountHoldStatus.ACTIVE AND h.expiryDate < :businessDate")
+    int expireDue(LocalDate businessDate, java.time.Instant now);
 }

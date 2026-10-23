@@ -202,7 +202,7 @@ class CobJobsIT extends AbstractIntegrationTest {
         List<JobExecution> executions = cobRunner.runAll(LocalDate.of(2021, 1, 1));
 
         assertThat(executions).extracting(e -> e.getJobInstance().getJobName()).containsExactly(
-                "standingOrderExecutionJob", "dormancyClassificationJob",
+                "standingOrderExecutionJob", "dormancyClassificationJob", "holdExpiryJob",
                 "interestAccrualJob", "arrearsClassificationJob", "loanAccrualJob",
                 "loanImpairmentJob", "regulatoryRiskReserveJob", "fxRevaluationJob");
         assertThat(executions).allSatisfy(e -> assertThat(e.getStatus()).isEqualTo(BatchStatus.COMPLETED));
@@ -223,7 +223,7 @@ class CobJobsIT extends AbstractIntegrationTest {
         List<CobJobView> jobs = cobJobService.listJobs();
 
         assertThat(jobs).extracting(CobJobView::jobName).containsExactly(
-                "standingOrderExecutionJob", "dormancyClassificationJob",
+                "standingOrderExecutionJob", "dormancyClassificationJob", "holdExpiryJob",
                 "interestAccrualJob", "arrearsClassificationJob", "loanAccrualJob",
                 "loanImpairmentJob", "regulatoryRiskReserveJob", "fxRevaluationJob");
         assertThat(jobs).allSatisfy(job -> {

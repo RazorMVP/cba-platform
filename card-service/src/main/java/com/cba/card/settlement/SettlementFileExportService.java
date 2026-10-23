@@ -234,8 +234,7 @@ public class SettlementFileExportService {
                     al.merchant_id,
                     al.merchant_name,
                     al.mcc,
-                    -- authorization_log has no terminal_id column; default to empty
-                    ''                     AS terminal_id,
+                    COALESCE(al.terminal_id, '') AS terminal_id,
                     -- Resolve scheme from the card BIN; normalize UNION_PAY -> UNIONPAY to match exporter code
                     COALESCE((
                         SELECT CASE WHEN br.scheme = 'UNION_PAY' THEN 'UNIONPAY' ELSE br.scheme END
@@ -251,8 +250,7 @@ public class SettlementFileExportService {
                          THEN SUBSTRING(c.pan_prefix FROM 1 FOR 6) || '******' || c.pan_suffix
                          ELSE '****' END   AS masked_pan,
                     COALESCE(c.card_type, 'DEBIT')              AS card_type,
-                    -- auth_code stored in response_code field for approved txns
-                    CASE WHEN al.response_code = '00' THEN al.rrn ELSE '' END AS auth_code,
+                    CASE WHEN al.response_code = '00' THEN COALESCE(al.auth_code, '') ELSE '' END AS auth_code,
                     al.created_at::date    AS transaction_date,
                     COALESCE(il.interchange_amount, 0)            AS interchange_amount,
                     COALESCE(il.scheme_fee_amount, 0)            AS scheme_fee_amount,

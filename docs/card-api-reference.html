@@ -430,6 +430,7 @@ It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port
   <li>Debit: an atomic backend hold (<code>POST /api/v1/accounts/{id}/card-holds</code>, keyed by a SHA-256 of card, STAN, RRN, terminal, amount and currency, so a retried 0100 doesn't hold twice and a different authorization can't reuse another's hold; a reused key with another amount declines <code>94</code>). It expires after 7 days. If card-service's transaction rolls back after the hold was placed, the hold is released.</li>
   <li>Prepaid: the wallet is decremented under a row lock.</li>
   <li>A reversal (<code>/reverse</code>, 0400/0420) of an approved authorization releases the hold or restores the wallet, once. If the backend can't be reached to release the hold, the reversal answers <code>96</code> and is <strong>not</strong> recorded, so the network's retry releases it.</li>
+  <li>A reversal (full or partial) of a purchase that batch close is clearing at that moment answers <code>96</code> and is not recorded; the network's retry, once the capture has landed, refunds the reversal amount through the backend. A full reversal the backend refuses (<code>13</code>) or can't be reached for (<code>96</code>) leaves the purchase to clear as before.</li>
   </ul>
   Until cont. 35, approvals reserved nothing, so any number could pass against the same balance. Authorization-history responses carry the reservation as <code>holdReference</code> / <code>walletDebit</code>. Clearing (taking the money) and the GL for card spend are still to come.</li>
 </ul></div>
@@ -546,9 +547,12 @@ It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port
 <p>Dual-message settlement batches. Authorizations are held pending until end-of-day batch close (nightly at 23:58). Single-message (real-time) transactions bypass batching.</p>
 
 <h3>Dual-Message Flow</h3>
-<pre><code>0100 Auth Request → 0110 Auth Response (hold funds)
-     ↓ (end of day)
-0320 Batch Upload → 0322 Batch Advice → 0324 Batch Close → GL posting</code></pre>
+<pre><code>0100 Auth Request → 0110 Auth Response (backend hold; settlement item PENDING)
+     ↓ (batch close, nightly 23:57 or manual)
+backend POST /api/v1/accounts/{id}/card-holds/{ref}/capture → debit + DR deposit / CR 2300 → item SETTLED
+0200 Financial Request (ATM cash) → backend POST …/card-debits at once → item SETTLED
+0400 Reversal → backend …/release (hold released, or completed debit refunded) → item REVERSED</code></pre>
+<p>There is no scheme clearing-file intake yet: batch close presents each purchase at its authorized amount. Interchange, scheme fees and the scheme's cash settlement post later (backlog 15b); prepaid wallet GL is backlog 15c.</p>
 
 <details class="endpoint">
   <summary class="endpoint-header">
@@ -557,7 +561,7 @@ It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port
     <span class="endpoint-summary">Close an open settlement batch</span>
   </summary>
   <div class="endpoint-body">
-    <p>Closing a batch triggers scheme file export (if configured) and final GL debit/credit entries via the monolith backend.</p>
+    <p>Clears each PENDING debit-card item on the backend (<code>…/card-holds/{ref}/capture</code>: the hold becomes a debit and <code>DR deposit / CR 2300 Card Scheme Settlement Payable</code> posts). Refused items (e.g. a late presentment without funds) become <code>FAILED</code> with <code>failureReason</code> — never force-posted. Prepaid and 0200 items are already completed. The batch ends <code>CLOSED</code>, which the nightly scheme file export (23:58) picks up; if the backend can't be reached the batch stays <code>OPEN</code> and the next close retries (clearing is idempotent). Items now carry <code>cardId</code>, <code>accountId</code>, <code>cardType</code>, <code>holdReference</code>, <code>failureReason</code>, <code>clearedAt</code>.</p>
     <pre><code>// Response (200)
 { "data": { "id": "...", "status": "CLOSED", "totalAmount": 1250000,
   "itemCount": 47, "closedAt": "2026-01-15T23:58:00Z" } }</code></pre>

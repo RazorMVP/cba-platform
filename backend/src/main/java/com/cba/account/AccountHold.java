@@ -55,6 +55,21 @@ public class AccountHold {
     @Column(name = "released_by", length = 100)
     private String releasedBy;
 
+    /** Card clearing: the amount debited (at most {@link #amount}, the authorized amount). */
+    @Column(name = "captured_amount", precision = 19, scale = 4)
+    private BigDecimal capturedAmount;
+
+    @Column(name = "captured_at")
+    private Instant capturedAt;
+
+    /** Card refund: the amount credited back (at most {@link #capturedAmount}; one refund per hold). */
+    @Column(name = "refunded_amount", precision = 19, scale = 4)
+    private BigDecimal refundedAmount;
+
+    /** card-service's key for the reversal that refunded it — only that reversal's retry is "already done". */
+    @Column(name = "refund_reference", length = 64)
+    private String refundReference;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 

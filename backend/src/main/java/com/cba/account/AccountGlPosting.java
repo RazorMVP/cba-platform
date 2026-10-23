@@ -49,6 +49,20 @@ public class AccountGlPosting {
     }
 
     /**
+     * Card clearing: the counter-entry is the card scheme settlement payable (GL 2300). A debit
+     * (purchase cleared, ATM cash) moves part of the deposit to what the bank owes the scheme
+     * (IFRS 9 §3.3.1; IAS 32 §11); a refund moves it back. The authorization hold before it
+     * posted nothing.
+     */
+    public String postCardSettlement(Account account, BigDecimal balanceBefore, LocalDate date,
+                                     String description, String reference) {
+        List<JournalLine> lines = new ArrayList<>(balanceChangeLines(account, balanceBefore));
+        lines.add(counterLine(gl.activityAccount(FinancialActivity.LIABILITY_CARD_SETTLEMENT),
+                account.getBalance().subtract(balanceBefore), account.getCurrencyCode()));
+        return gl.postJournal(lines, date, description, JournalEntry.EntityType.CARD, account.getId(), reference);
+    }
+
+    /**
      * Interest credited to the customer: an interest expense of the bank, recorded in the
      * functional currency (see {@link #balanceWith}).
      */

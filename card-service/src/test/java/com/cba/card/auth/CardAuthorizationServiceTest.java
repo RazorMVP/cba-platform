@@ -857,6 +857,26 @@ class CardAuthorizationServiceTest {
     }
 
     @Test
+    @DisplayName("the backend refuses the release without a reason: fails closed (RC 13), nothing recorded")
+    void reverse_refusedWithoutReason_13() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setHoldReference("CARD-noreason");
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+        doReturn(ResponseEntity.ok(new CardAuthorizationService.Envelope<>(new CardAuthorizationService.BackendHold(
+                false, UUID.randomUUID(), "CARD-noreason", "CAPTURED", null, BigDecimal.ZERO))))
+                .when(backendRestTemplate).exchange(contains("/release"), eq(HttpMethod.POST), any(),
+                        any(ParameterizedTypeReference.class));
+
+        assertThat(service.reverse(PAN, new BigDecimal("10000"), REV_STAN, "x")).isEqualTo("13");
+        verify(authLogRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("0200 call times out: card-service releases at once (refunds a debit the backend may have taken)")
     void singleMessage_timeout_compensates() {
         Card card = debitCard(UUID.randomUUID());

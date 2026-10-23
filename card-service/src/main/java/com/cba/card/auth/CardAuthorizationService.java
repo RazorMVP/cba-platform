@@ -396,6 +396,9 @@ public class CardAuthorizationService {
 
         } catch (Exception e) {
             log.error("Reversal processing error for STAN={}", stan, e);
+            // A 96 records no 0400, so nothing this reversal changed may commit — a REVERSED mark or a
+            // restored wallet would otherwise stand, and the network's retry would give it back again.
+            rollbackOnly();
             return "96";
         }
     }
@@ -547,7 +550,9 @@ public class CardAuthorizationService {
                             + card.getLinkedEntityId() + "/card-holds/" + reference + "/release",
                     HttpMethod.POST, body, new ParameterizedTypeReference<Envelope<BackendHold>>() {});
             BackendHold result = resp != null && resp.getBody() != null ? resp.getBody().data() : null;
-            if (result != null && !result.approved() && REFUND_REFUSALS.contains(result.reason())) {
+            // A refusal without a reason fails closed: never report "given back" when the backend said no.
+            if (result != null && !result.approved()
+                    && (result.reason() == null || REFUND_REFUSALS.contains(result.reason()))) {
                 log.warn("Backend refused release/refund of {} for card {}: {}", reference, card.getId(), result.reason());
                 return ReleaseOutcome.REFUSED;
             }

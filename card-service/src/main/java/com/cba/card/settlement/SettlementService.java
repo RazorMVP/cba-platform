@@ -132,7 +132,7 @@ public class SettlementService {
     @Transactional
     public PendingReduction reducePendingItem(UUID authLogId, BigDecimal reversalMinor) {
         if (authLogId == null || reversalMinor == null) return PendingReduction.NOT_PENDING;
-        SettlementItem item = itemRepository.findByAuthorizationLogId(authLogId).orElse(null);
+        SettlementItem item = itemRepository.findByAuthorizationLogIdForUpdate(authLogId).orElse(null);
         if (item == null || item.getAmount() == null) return PendingReduction.NOT_PENDING;
         // Being cleared right now: the backend may be capturing the original amount. Don't touch it —
         // the caller answers "try again", and the retry refunds the cleared debit on the backend.
@@ -162,18 +162,33 @@ public class SettlementService {
     static final String CLEARING = "CLEARING";
 
     /**
-     * The approval was reversed in full: its item no longer settles. The backend hold was released (or
-     * the completed debit refunded) by the reversal itself. Batch totals keep the submitted figures.
+     * The approval is being reversed in full: its item no longer settles. Runs in the reversal's
+     * transaction <em>before</em> the backend hold is released, with the row locked until the reversal
+     * commits — so a batch close can't claim (and capture) it in between. If the reversal then fails
+     * (backend unreachable / refused) it rolls back and the item is PENDING (or SETTLED) again. An item
+     * being cleared at this moment is left alone: the caller answers "try again". Batch totals keep the
+     * submitted figures.
      */
     @Transactional
-    public void markReversed(UUID authLogId) {
-        if (authLogId == null) return;
-        itemRepository.findByAuthorizationLogId(authLogId)
-                .filter(item -> Set.of("PENDING", "SETTLED").contains(item.getStatus()))
-                .ifPresent(item -> {
-                    item.setStatus("REVERSED");
-                    itemRepository.save(item);
-                });
+    public ItemReversal markReversed(UUID authLogId) {
+        if (authLogId == null) return ItemReversal.NONE;
+        SettlementItem item = itemRepository.findByAuthorizationLogIdForUpdate(authLogId).orElse(null);
+        if (item == null) return ItemReversal.NONE;
+        if (CLEARING.equals(item.getStatus())) return ItemReversal.IN_CLEARING;
+        if (!Set.of("PENDING", "SETTLED").contains(item.getStatus())) return ItemReversal.NONE;
+        item.setStatus("REVERSED");
+        itemRepository.save(item);
+        return ItemReversal.MARKED;
+    }
+
+    /** Outcome of {@link #markReversed}. */
+    public enum ItemReversal {
+        /** The item is now REVERSED (rolls back with the reversal if that fails). */
+        MARKED,
+        /** The item is being cleared at this moment: retry the reversal. */
+        IN_CLEARING,
+        /** No item to reverse (none, FAILED, or already REVERSED). */
+        NONE
     }
 
     /**
@@ -212,6 +227,13 @@ public class SettlementService {
         return new TransactionTemplate(transactionManager).execute(status -> {
             SettlementBatch fresh = findBatchById(batchId);
             if (fresh.getStatus() != SettlementBatchStatus.OPEN) return fresh;   // closed meanwhile
+            // Another close may be capturing an item right now (this close saw its claim as "changed"):
+            // the batch closes only once nothing in it is PENDING or CLEARING, or the export would miss it.
+            long unresolved = itemRepository.countByBatchAndStatusIn(fresh, List.of("PENDING", CLEARING));
+            if (unresolved > 0) {
+                log.info("Batch {} left OPEN: {} items still pending or being cleared", fresh.getBatchRef(), unresolved);
+                return fresh;
+            }
             fresh.setStatus(SettlementBatchStatus.CLOSED);
             fresh.setClosedAt(OffsetDateTime.now());
             SettlementBatch closed = batchRepository.save(fresh);
@@ -261,7 +283,7 @@ public class SettlementService {
      */
     private SettlementItem claim(SettlementItem read) {
         return new TransactionTemplate(transactionManager).execute(tx -> {
-            SettlementItem item = itemRepository.findById(read.getId()).orElse(null);
+            SettlementItem item = itemRepository.findByIdForUpdate(read.getId()).orElse(null);
             if (item == null || !Objects.equals(item.getVersion(), read.getVersion())
                     || !("PENDING".equals(item.getStatus()) || CLEARING.equals(item.getStatus()))) {
                 log.info("Settlement item {} changed before clearing; left {}", read.getId(),
@@ -277,7 +299,7 @@ public class SettlementService {
     /** Writes a clearing outcome in its own transaction, unless the item changed since it was claimed. */
     private void record(SettlementItem read, String status, String reason) {
         new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
-            SettlementItem item = itemRepository.findById(read.getId()).orElse(null);
+            SettlementItem item = itemRepository.findByIdForUpdate(read.getId()).orElse(null);
             if (item == null || !CLEARING.equals(item.getStatus()) || !Objects.equals(item.getVersion(), read.getVersion())) {
                 log.info("Settlement item {} changed while being cleared; left {}", read.getId(),
                         item == null ? "missing" : item.getStatus());

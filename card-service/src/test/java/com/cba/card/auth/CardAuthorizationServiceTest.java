@@ -805,6 +805,26 @@ class CardAuthorizationServiceTest {
     }
 
     @Test
+    @DisplayName("full reversal while the purchase is being cleared: 96 (retry), nothing released or recorded")
+    void reverse_fullWhileClearing_96() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setId(UUID.randomUUID());
+        original.setAmount(new BigDecimal("20000"));
+        original.setHoldReference("CARD-clearing-full");
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+        when(settlementService.markReversed(original.getId()))
+                .thenReturn(com.cba.card.settlement.SettlementService.ItemReversal.IN_CLEARING);
+
+        assertThat(service.reverse(PAN, new BigDecimal("20000"), REV_STAN, "x")).isEqualTo("96");
+        verifyNoInteractions(backendRestTemplate);
+        verify(authLogRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("the reversal key is stable for a retry and differs for another STAN or amount")
     void reversalReference_stable() {
         String a = CardAuthorizationService.reversalReference("CARD-h", "000123", new BigDecimal("5000"));
@@ -832,7 +852,8 @@ class CardAuthorizationServiceTest {
 
         assertThat(service.reverse(PAN, new BigDecimal("10000"), REV_STAN, "x")).isEqualTo("13");
         verify(authLogRepository, never()).save(any());
-        verify(settlementService, never()).markReversed(any());
+        // marked before the release; the refusal rolls the reversal's transaction back (CardClearingIntegrationTest)
+        verify(settlementService).markReversed(original.getId());
     }
 
     @Test

@@ -112,6 +112,25 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
         assertThat(requests("/card-holds/" + item.getHoldReference() + "/release")).isNotEmpty();
     }
 
+    @Test
+    @DisplayName("full reversal the backend refuses → 13; the REVERSED mark rolls back, the purchase still clears")
+    void refusedFullReversalLeavesItemPending() {
+        String pan = debitPan();
+        cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(ACCOUNT), true, pan, "2912", "123", "USD");
+
+        assertThat(authorize(pan, "930001", "000000", false, 3000)).isEqualTo("00");
+        SettlementItem item = itemFor("930001");
+        // The most recently added WireMock stub wins: this hold's release is refused.
+        register("POST", "/api/v1/accounts/" + ACCOUNT + "/card-holds/" + item.getHoldReference() + "/release",
+                hold(false, "CAPTURED", "ALREADY_REFUNDED"));
+
+        assertThat(post("/api/v1/internal/reverse", Map.of("pan", pan, "amount", 3000, "stan", "930001",
+                "originalDataElements", "0100930001")).get("responseCode")).isEqualTo("13");
+        assertThat(itemRepository.findById(item.getId()).orElseThrow().getStatus()).isEqualTo("PENDING");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM authorization_log WHERE stan = '930001' AND mti = '0400'",
+                Integer.class)).isZero();
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static String debitPan() {

@@ -23,6 +23,8 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
@@ -330,20 +332,30 @@ public class CardAuthorizationService {
                 BigDecimal reversalMajor = ccy == null || reversalMinor == null ? null : toMajorUnits(reversalMinor, ccy);
                 boolean full = original.getAmount() == null || reversalMinor == null
                         || reversalMinor.compareTo(original.getAmount()) >= 0;
+                // A full reversal takes the item out of clearing first (row-locked until this commits), so a
+                // batch close can't capture the purchase between the release below and the 0400 record.
+                SettlementService.ItemReversal marked = full ? settlementService.markReversed(original.getId()) : null;
+                if (marked == SettlementService.ItemReversal.IN_CLEARING) {
+                    // Being cleared right now: answer "try again"; the retry refunds the cleared debit.
+                    return "96";
+                }
                 if (original.getHoldReference() != null) {
                     // A partial reversal of a purchase not yet cleared keeps the hold: batch close clears only
                     // what remains and the backend frees the rest. Otherwise release (or partly refund).
                     SettlementService.PendingReduction reduced = full ? null
                             : settlementService.reducePendingItem(original.getId(), reversalMinor);
                     if (reduced == SettlementService.PendingReduction.IN_CLEARING) {
-                        // Being cleared right now: answer "try again"; the retry refunds the cleared debit.
                         return "96";
                     }
                     if (reduced != SettlementService.PendingReduction.REDUCED) {
                         ReleaseOutcome released = releaseDebitHold(card, original.getHoldReference(), reversalMajor, ccy,
                                 reversalReference(original.getHoldReference(), stan, reversalMinor));
-                        if (released == ReleaseOutcome.UNREACHABLE) return "96";
-                        if (released == ReleaseOutcome.REFUSED) return "13";   // amount/currency don't match the original
+                        if (released != ReleaseOutcome.DONE) {
+                            // Nothing was given back: undo the REVERSED mark so the purchase still clears.
+                            if (marked == SettlementService.ItemReversal.MARKED) rollbackOnly();
+                            return released == ReleaseOutcome.UNREACHABLE ? "96"
+                                    : "13";   // amount/currency don't match the original
+                        }
                     }
                 }
                 if (original.getWalletDebit() != null && original.getWalletDebit().signum() > 0) {
@@ -353,9 +365,6 @@ public class CardAuthorizationService {
                         w.setBalance(w.getBalance().add(restore));
                         walletRepository.save(w);
                     });
-                }
-                if (full) {
-                    settlementService.markReversed(original.getId());
                 }
             }
 
@@ -500,6 +509,13 @@ public class CardAuthorizationService {
             return "REV-" + java.util.HexFormat.of().formatHex(digest).substring(0, 40);
         } catch (java.security.NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 unavailable", e);
+        }
+    }
+
+    /** Rolls back the reversal's transaction (when there is one) so changes made before a refusal are undone. */
+    private static void rollbackOnly() {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
         }
     }
 

@@ -76,7 +76,7 @@ class SettlementServiceTest {
     }
 
     private void stubReread(SettlementItem item) {
-        when(itemRepository.findById(item.getId())).thenReturn(Optional.of(item));
+        when(itemRepository.findByIdForUpdate(item.getId())).thenReturn(Optional.of(item));
     }
 
     // ── Opening and adding ───────────────────────────────────────────────────
@@ -144,18 +144,24 @@ class SettlementServiceTest {
     }
 
     @Test
-    @DisplayName("markReversed: a PENDING or SETTLED item becomes REVERSED; a FAILED one is left alone")
+    @DisplayName("markReversed: PENDING/SETTLED → REVERSED (MARKED); CLEARING untouched (IN_CLEARING); FAILED left alone (NONE)")
     void markReversed() {
         UUID auth = UUID.randomUUID();
         SettlementItem item = debitItem("PENDING");
-        when(itemRepository.findByAuthorizationLogId(auth)).thenReturn(Optional.of(item));
-        service.markReversed(auth);
+        when(itemRepository.findByAuthorizationLogIdForUpdate(auth)).thenReturn(Optional.of(item));
+        assertThat(service.markReversed(auth)).isEqualTo(SettlementService.ItemReversal.MARKED);
         assertThat(item.getStatus()).isEqualTo("REVERSED");
+
+        UUID clearingAuth = UUID.randomUUID();
+        SettlementItem inFlight = debitItem("CLEARING");
+        when(itemRepository.findByAuthorizationLogIdForUpdate(clearingAuth)).thenReturn(Optional.of(inFlight));
+        assertThat(service.markReversed(clearingAuth)).isEqualTo(SettlementService.ItemReversal.IN_CLEARING);
+        assertThat(inFlight.getStatus()).isEqualTo("CLEARING");
 
         UUID failedAuth = UUID.randomUUID();
         SettlementItem failed = debitItem("FAILED");
-        when(itemRepository.findByAuthorizationLogId(failedAuth)).thenReturn(Optional.of(failed));
-        service.markReversed(failedAuth);
+        when(itemRepository.findByAuthorizationLogIdForUpdate(failedAuth)).thenReturn(Optional.of(failed));
+        assertThat(service.markReversed(failedAuth)).isEqualTo(SettlementService.ItemReversal.NONE);
         assertThat(failed.getStatus()).isEqualTo("FAILED");
     }
 
@@ -164,7 +170,7 @@ class SettlementServiceTest {
     void reducePendingItem() {
         UUID auth = UUID.randomUUID();
         SettlementItem item = debitItem("PENDING");   // 2500 minor units
-        when(itemRepository.findByAuthorizationLogId(auth)).thenReturn(Optional.of(item));
+        when(itemRepository.findByAuthorizationLogIdForUpdate(auth)).thenReturn(Optional.of(item));
 
         assertThat(service.reducePendingItem(auth, new BigDecimal("1000"))).isEqualTo(SettlementService.PendingReduction.REDUCED);
         assertThat(item.getAmount()).isEqualByComparingTo("1500");
@@ -172,12 +178,12 @@ class SettlementServiceTest {
         assertThat(item.getStatus()).isEqualTo("REVERSED");
 
         UUID cleared = UUID.randomUUID();
-        when(itemRepository.findByAuthorizationLogId(cleared)).thenReturn(Optional.of(debitItem("SETTLED")));
+        when(itemRepository.findByAuthorizationLogIdForUpdate(cleared)).thenReturn(Optional.of(debitItem("SETTLED")));
         assertThat(service.reducePendingItem(cleared, new BigDecimal("100"))).isEqualTo(SettlementService.PendingReduction.NOT_PENDING);
 
         UUID clearing = UUID.randomUUID();
         SettlementItem inFlight = debitItem("CLEARING");
-        when(itemRepository.findByAuthorizationLogId(clearing)).thenReturn(Optional.of(inFlight));
+        when(itemRepository.findByAuthorizationLogIdForUpdate(clearing)).thenReturn(Optional.of(inFlight));
         assertThat(service.reducePendingItem(clearing, new BigDecimal("100"))).isEqualTo(SettlementService.PendingReduction.IN_CLEARING);
         assertThat(inFlight.getAmount()).isEqualByComparingTo("2500");
     }
@@ -264,7 +270,7 @@ class SettlementServiceTest {
         reversed.setId(read.getId());
         reversed.setVersion(1L);
         stubBatch(batch, read);
-        when(itemRepository.findById(read.getId())).thenReturn(Optional.of(reversed));
+        when(itemRepository.findByIdForUpdate(read.getId())).thenReturn(Optional.of(reversed));
         when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
 
         service.closeBatch(batch.getId());
@@ -301,6 +307,24 @@ class SettlementServiceTest {
         service.closeBatch(batch.getId());
         verify(clearingClient, never()).capture(any(), any(), any(), any());
         assertThat(reversed.getStatus()).isEqualTo("REVERSED");
+    }
+
+    @Test
+    @DisplayName("closeBatch leaves the batch OPEN while another close is still clearing one of its items")
+    void closeBatchWaitsForInFlightClearing() {
+        SettlementBatch batch = openBatch();
+        SettlementItem read = debitItem("PENDING");
+        SettlementItem claimedElsewhere = debitItem("CLEARING");
+        claimedElsewhere.setId(read.getId());
+        read.setVersion(0L);
+        claimedElsewhere.setVersion(1L);
+        stubBatch(batch, read);
+        when(itemRepository.findByIdForUpdate(read.getId())).thenReturn(Optional.of(claimedElsewhere));
+        when(itemRepository.countByBatchAndStatusIn(eq(batch), any())).thenReturn(1L);
+
+        assertThat(service.closeBatch(batch.getId()).getStatus()).isEqualTo(SettlementBatchStatus.OPEN);
+        verify(clearingClient, never()).capture(any(), any(), any(), any());
+        verify(batchRepository, never()).save(any(SettlementBatch.class));
     }
 
     @Test

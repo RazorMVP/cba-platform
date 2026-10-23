@@ -42,4 +42,6 @@ ALTER TABLE account_holds
     ADD COLUMN IF NOT EXISTS captured_at     TIMESTAMPTZ,
     -- A completed card debit is refunded once, for at most what was captured (a partial
     -- reversal refunds only its amount).
-    ADD COLUMN IF NOT EXISTS refunded_amount NUMERIC(19,4);
+    ADD COLUMN IF NOT EXISTS refunded_amount NUMERIC(19,4),
+    -- The reversal that refunded it: only a retry of that reversal counts as done.
+    ADD COLUMN IF NOT EXISTS refund_reference VARCHAR(64);

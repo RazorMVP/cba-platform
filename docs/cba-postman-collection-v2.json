@@ -1179,10 +1179,10 @@
                 "release"
               ]
             },
-            "description": "Releases a card authorization's hold on reversal (role CARD_SERVICE; ADMIN). A completed card debit (hold CAPTURED: cleared purchase or single-message debit) is refunded instead (DR 2300 / CR deposit, status REFUNDED). Optional body {amount, currencyCode} = the reversal's amount: refunded for that amount only, once; more than captured -> AMOUNT_EXCEEDS_CAPTURED, other currency -> CURRENCY_MISMATCH, a second different refund -> ALREADY_REFUNDED, closed account -> ACCOUNT_CLOSED. An unknown reference released with an amount is recorded as released so a late debit/hold for it is refused. Idempotent: same refund again -> approved=true REFUNDED; already released/expired -> approved=false HOLD_NOT_ACTIVE; unknown -> HOLD_NOT_FOUND. A live hold is released in full.",
+            "description": "Releases a card authorization's hold on reversal (role CARD_SERVICE; ADMIN). A completed card debit (hold CAPTURED: cleared purchase or single-message debit) is refunded instead (DR 2300 / CR deposit, status REFUNDED). Optional body {amount, currencyCode, reversalReference} = the reversal's amount and card-service's key for it: refunded for that amount only, once; more than captured -> AMOUNT_EXCEEDS_CAPTURED, other currency -> CURRENCY_MISMATCH, a different reversal (other reversalReference) -> ALREADY_REFUNDED; only a retry of the refunding reversal reports done, closed account -> ACCOUNT_CLOSED. An unknown reference released with an amount is recorded as released so a late debit/hold for it is refused. Idempotent: same refund again -> approved=true REFUNDED; already released/expired -> approved=false HOLD_NOT_ACTIVE; unknown -> HOLD_NOT_FOUND. A live hold is released in full.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"amount\": 50.0,\n  \"currencyCode\": \"USD\"\n}",
+              "raw": "{\n  \"amount\": 50.0,\n  \"currencyCode\": \"USD\",\n  \"reversalReference\": \"REV-4f1a9c2e7b3d5a8c0e6f1b2d4a7c9e3f5b8d0a1c\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

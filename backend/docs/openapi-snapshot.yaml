@@ -3123,6 +3123,10 @@ components:
           maxLength: 3
           minLength: 0
           type: "string"
+        reversalReference:
+          maxLength: 64
+          minLength: 0
+          type: "string"
       type: "object"
     CashFlowEntryDto:
       properties:

@@ -240,22 +240,40 @@ class CardClearingIT extends AbstractIntegrationTest {
         accountService.cardDebit(id, new CardDebitRequest("CARD-PR-1", new BigDecimal("200.00"), "USD", true), "it");
 
         assertThat(accountService.releaseCardHold(id, "CARD-PR-1",
-                new CardReleaseRequest(new BigDecimal("200.01"), "USD"), "it").reason()).isEqualTo("AMOUNT_EXCEEDS_CAPTURED");
+                new CardReleaseRequest(new BigDecimal("200.01"), "USD", null), "it").reason()).isEqualTo("AMOUNT_EXCEEDS_CAPTURED");
         assertThat(accountService.releaseCardHold(id, "CARD-PR-1",
-                new CardReleaseRequest(new BigDecimal("50.00"), "EUR"), "it").reason()).isEqualTo("CURRENCY_MISMATCH");
+                new CardReleaseRequest(new BigDecimal("50.00"), "EUR", null), "it").reason()).isEqualTo("CURRENCY_MISMATCH");
 
         CardHoldResult partial = accountService.releaseCardHold(id, "CARD-PR-1",
-                new CardReleaseRequest(new BigDecimal("50.00"), "USD"), "it");
+                new CardReleaseRequest(new BigDecimal("50.00"), "USD", null), "it");
         assertThat(partial.approved()).isTrue();
         assertThat(balance(id)).isEqualByComparingTo(before.subtract(new BigDecimal("150.00")));
         // the same reversal again is done; a second, different refund is refused
         assertThat(accountService.releaseCardHold(id, "CARD-PR-1",
-                new CardReleaseRequest(new BigDecimal("50.00"), "USD"), "it").approved()).isTrue();
+                new CardReleaseRequest(new BigDecimal("50.00"), "USD", null), "it").approved()).isTrue();
         assertThat(accountService.releaseCardHold(id, "CARD-PR-1",
-                new CardReleaseRequest(new BigDecimal("60.00"), "USD"), "it").reason()).isEqualTo("ALREADY_REFUNDED");
+                new CardReleaseRequest(new BigDecimal("60.00"), "USD", null), "it").reason()).isEqualTo("ALREADY_REFUNDED");
         assertThat(balance(id)).isEqualByComparingTo(before.subtract(new BigDecimal("150.00")));
         assertThat(lines(id, "CARD-PR-1")).contains("DEBIT 2300 50.0000 USD");
         assertCardJournalsBalanced(id);
+    }
+
+    @Test
+    @DisplayName("refund keyed on the reversal: its retry is done; another reversal of the same amount is refused, not credited")
+    void refundKeyedOnReversal() {
+        UUID id = account("500.00");
+        BigDecimal before = balance(id);
+        accountService.cardDebit(id, new CardDebitRequest("CARD-RK-1", new BigDecimal("100.00"), "USD", true), "it");
+
+        assertThat(accountService.releaseCardHold(id, "CARD-RK-1",
+                new CardReleaseRequest(new BigDecimal("40.00"), "USD", "REV-a"), "it").approved()).isTrue();
+        assertThat(accountService.releaseCardHold(id, "CARD-RK-1",
+                new CardReleaseRequest(new BigDecimal("40.00"), "USD", "REV-a"), "it").approved()).isTrue();
+        CardHoldResult other = accountService.releaseCardHold(id, "CARD-RK-1",
+                new CardReleaseRequest(new BigDecimal("40.00"), "USD", "REV-b"), "it");
+        assertThat(other.approved()).isFalse();
+        assertThat(other.reason()).isEqualTo("ALREADY_REFUNDED");
+        assertThat(balance(id)).isEqualByComparingTo(before.subtract(new BigDecimal("60.00")));
     }
 
     @Test
@@ -264,7 +282,7 @@ class CardClearingIT extends AbstractIntegrationTest {
         UUID id = account("500.00");
         BigDecimal before = balance(id);
         CardHoldResult early = accountService.releaseCardHold(id, "CARD-TS-1",
-                new CardReleaseRequest(new BigDecimal("80.00"), "USD"), "it");
+                new CardReleaseRequest(new BigDecimal("80.00"), "USD", null), "it");
         assertThat(early.reason()).isEqualTo("HOLD_NOT_FOUND");
 
         assertThat(accountService.cardDebit(id,

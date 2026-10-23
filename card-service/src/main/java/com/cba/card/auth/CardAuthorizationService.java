@@ -316,6 +316,12 @@ public class CardAuthorizationService {
             // Give back what the approval reserved — once: the 0400 guard above stops a repeat. If the
             // backend hold can't be released, don't record the reversal: answer 96 so the network
             // retries (a recorded 0400 would block every retry and leave the funds held).
+            // DE4 is a positive whole number of minor units; anything else is not a reversal amount.
+            if (amount != null && (amount.signum() <= 0 || amount.stripTrailingZeros().scale() > 0)) {
+                log.warn("Reversal refused for card={} STAN={}: invalid amount {}", card.getId(), stan, amount);
+                return "13";
+            }
+
             if ("00".equals(original.getResponseCode())) {
                 // Give back at most what this reversal covers: a partial reversal (DE4 below the original)
                 // refunds only its amount — never the whole completed debit or wallet decrement.
@@ -325,13 +331,19 @@ public class CardAuthorizationService {
                 boolean full = original.getAmount() == null || reversalMinor == null
                         || reversalMinor.compareTo(original.getAmount()) >= 0;
                 if (original.getHoldReference() != null) {
-                    ReleaseOutcome released = releaseDebitHold(card, original.getHoldReference(), reversalMajor, ccy);
-                    if (released == ReleaseOutcome.UNREACHABLE) return "96";
-                    if (released == ReleaseOutcome.REFUSED) return "13";   // amount/currency don't match the original
+                    // A partial reversal of a purchase not yet cleared keeps the hold: batch close clears only
+                    // what remains and the backend frees the rest. Otherwise release (or partly refund).
+                    boolean keptForClearing = !full && settlementService.reducePendingItem(original.getId(), reversalMinor);
+                    if (!keptForClearing) {
+                        ReleaseOutcome released = releaseDebitHold(card, original.getHoldReference(), reversalMajor, ccy,
+                                reversalReference(original.getHoldReference(), stan, reversalMinor));
+                        if (released == ReleaseOutcome.UNREACHABLE) return "96";
+                        if (released == ReleaseOutcome.REFUSED) return "13";   // amount/currency don't match the original
+                    }
                 }
                 if (original.getWalletDebit() != null && original.getWalletDebit().signum() > 0) {
                     BigDecimal restore = reversalMajor == null ? original.getWalletDebit()
-                            : reversalMajor.min(original.getWalletDebit());
+                            : reversalMajor.min(original.getWalletDebit()).max(BigDecimal.ZERO);
                     walletRepository.findByCardIdForUpdate(card.getId()).ifPresent(w -> {
                         w.setBalance(w.getBalance().add(restore));
                         walletRepository.save(w);
@@ -463,7 +475,27 @@ public class CardAuthorizationService {
      * couldn't be reached, so the caller can refuse to report the reversal as done.
      */
     private boolean releaseDebitHold(Card card, String reference) {
-        return releaseDebitHold(card, reference, null, null) != ReleaseOutcome.UNREACHABLE;
+        return releaseDebitHold(card, reference, null, null, null) != ReleaseOutcome.UNREACHABLE;
+    }
+
+    private ReleaseOutcome releaseDebitHold(Card card, String reference, BigDecimal amountMajor, java.util.Currency currency) {
+        return releaseDebitHold(card, reference, amountMajor, currency, null);
+    }
+
+    /**
+     * The key of one reversal of a hold: a retried 0400 (same original, STAN and amount) maps to the same key,
+     * so the backend refunds it once and reports the retry as done — and a different reversal as refused.
+     */
+    static String reversalReference(String holdReference, String stan, BigDecimal reversalMinor) {
+        String material = holdReference + "|" + stan + "|"
+                + (reversalMinor != null ? reversalMinor.stripTrailingZeros().toPlainString() : "");
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(material.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return "REV-" + java.util.HexFormat.of().formatHex(digest).substring(0, 40);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
     }
 
     /** What a release (or refund) came to: done (or nothing to do), refused by the backend, or not reachable. */
@@ -477,12 +509,18 @@ public class CardAuthorizationService {
      * Releases (or, for a completed debit, refunds) with the reversal's amount — the backend refunds at
      * most that, and records a reference it has never seen as released so a late debit is refused.
      */
-    private ReleaseOutcome releaseDebitHold(Card card, String reference, BigDecimal amountMajor, java.util.Currency currency) {
+    private ReleaseOutcome releaseDebitHold(Card card, String reference, BigDecimal amountMajor, java.util.Currency currency,
+                                            String reversalReference) {
         if (card == null || card.getLinkedEntityId() == null || reference == null) return ReleaseOutcome.DONE;
         try {
-            org.springframework.http.HttpEntity<Map<String, Object>> body = amountMajor == null || currency == null ? null
-                    : new org.springframework.http.HttpEntity<>(Map.of("amount", amountMajor,
-                            "currencyCode", currency.getCurrencyCode()));
+            Map<String, Object> fields = new java.util.HashMap<>();
+            if (amountMajor != null && currency != null) {
+                fields.put("amount", amountMajor);
+                fields.put("currencyCode", currency.getCurrencyCode());
+            }
+            if (reversalReference != null) fields.put("reversalReference", reversalReference);
+            org.springframework.http.HttpEntity<Map<String, Object>> body =
+                    fields.isEmpty() ? null : new org.springframework.http.HttpEntity<>(fields);
             ResponseEntity<Envelope<BackendHold>> resp = backendRestTemplate.exchange(
                     restClientConfig.getBackendBaseUrl() + "/api/v1/accounts/"
                             + card.getLinkedEntityId() + "/card-holds/" + reference + "/release",

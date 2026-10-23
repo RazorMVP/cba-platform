@@ -159,6 +159,23 @@ class SettlementServiceTest {
         assertThat(failed.getStatus()).isEqualTo("FAILED");
     }
 
+    @Test
+    @DisplayName("reducePendingItem: a PENDING item's amount drops by the reversal; to zero → REVERSED; not PENDING → false")
+    void reducePendingItem() {
+        UUID auth = UUID.randomUUID();
+        SettlementItem item = debitItem("PENDING");   // 2500 minor units
+        when(itemRepository.findByAuthorizationLogId(auth)).thenReturn(Optional.of(item));
+
+        assertThat(service.reducePendingItem(auth, new BigDecimal("1000"))).isTrue();
+        assertThat(item.getAmount()).isEqualByComparingTo("1500");
+        assertThat(service.reducePendingItem(auth, new BigDecimal("1500"))).isTrue();
+        assertThat(item.getStatus()).isEqualTo("REVERSED");
+
+        UUID cleared = UUID.randomUUID();
+        when(itemRepository.findByAuthorizationLogId(cleared)).thenReturn(Optional.of(debitItem("SETTLED")));
+        assertThat(service.reducePendingItem(cleared, new BigDecimal("100"))).isFalse();
+    }
+
     // ── Closing and clearing ─────────────────────────────────────────────────
 
     @Test

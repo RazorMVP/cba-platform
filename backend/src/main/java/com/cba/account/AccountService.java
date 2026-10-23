@@ -557,9 +557,16 @@ public class AccountService {
             return refundCardDebit(account, hold, request, releasedBy);
         }
         if (hold.getStatus() == AccountHoldStatus.REFUNDED) {
-            // A retry of the same reversal is done; a different amount is a second refund, refused.
-            BigDecimal asked = request == null || request.amount() == null ? hold.getRefundedAmount() : request.amount();
-            boolean repeat = hold.getRefundedAmount() == null || asked.compareTo(hold.getRefundedAmount()) == 0;
+            // Only a retry of the reversal that refunded it is done (same reversal key, or — without keys —
+            // the same amount); any other reversal is a second refund, refused, never reported as credited.
+            boolean repeat;
+            if (request != null && request.reversalReference() != null) {
+                repeat = request.reversalReference().equals(hold.getRefundReference());
+            } else {
+                BigDecimal asked = request == null || request.amount() == null ? hold.getRefundedAmount() : request.amount();
+                repeat = hold.getRefundReference() == null
+                        && (hold.getRefundedAmount() == null || asked.compareTo(hold.getRefundedAmount()) == 0);
+            }
             return new CardHoldResult(repeat, hold.getId(), reference, hold.getStatus().name(),
                     repeat ? null : "ALREADY_REFUNDED", spendable(account).max(BigDecimal.ZERO));
         }
@@ -598,6 +605,7 @@ public class AccountService {
         }
         hold.setStatus(AccountHoldStatus.REFUNDED);
         hold.setRefundedAmount(amount);
+        hold.setRefundReference(request != null ? request.reversalReference() : null);
         hold.setReleasedAt(Instant.now());
         hold.setReleasedBy(releasedBy);
         accountHoldRepository.saveAndFlush(hold);

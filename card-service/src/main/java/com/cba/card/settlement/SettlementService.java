@@ -125,6 +125,29 @@ public class SettlementService {
     }
 
     /**
+     * A partial reversal of a purchase not yet cleared: lower the amount batch close will clear (the
+     * backend's partial capture then frees the rest of the hold). False when the item isn't PENDING —
+     * already cleared or completed — so the caller refunds instead.
+     */
+    @Transactional
+    public boolean reducePendingItem(UUID authLogId, BigDecimal reversalMinor) {
+        if (authLogId == null || reversalMinor == null) return false;
+        return itemRepository.findByAuthorizationLogId(authLogId)
+                .filter(item -> "PENDING".equals(item.getStatus()) && item.getAmount() != null)
+                .map(item -> {
+                    BigDecimal rest = item.getAmount().subtract(reversalMinor);
+                    if (rest.signum() <= 0) {
+                        item.setStatus("REVERSED");
+                    } else {
+                        item.setAmount(rest);
+                    }
+                    itemRepository.save(item);
+                    return true;
+                })
+                .orElse(false);
+    }
+
+    /**
      * The approval was reversed in full: its item no longer settles. The backend hold was released (or
      * the completed debit refunded) by the reversal itself. Batch totals keep the submitted figures.
      */

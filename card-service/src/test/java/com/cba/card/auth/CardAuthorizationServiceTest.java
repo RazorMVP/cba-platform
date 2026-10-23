@@ -747,6 +747,53 @@ class CardAuthorizationServiceTest {
     }
 
     @Test
+    @DisplayName("a reversal amount ≤ 0 or with fractional minor units is refused: RC 13, nothing given back")
+    void reverse_invalidAmount_13() {
+        Card card = prepaidCard();
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setWalletDebit(new BigDecimal("30.00"));
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+
+        assertThat(service.reverse(PAN, new BigDecimal("-3000"), REV_STAN, "x")).isEqualTo("13");
+        assertThat(service.reverse(PAN, BigDecimal.ZERO, REV_STAN, "x")).isEqualTo("13");
+        assertThat(service.reverse(PAN, new BigDecimal("12.5"), REV_STAN, "x")).isEqualTo("13");
+        verify(walletRepository, never()).findByCardIdForUpdate(any());
+        verify(authLogRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("partial reversal of a purchase not yet cleared lowers the item to clear — the hold stays, no backend call")
+    void reverse_partialUncleared_keepsHold() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setId(UUID.randomUUID());
+        original.setAmount(new BigDecimal("20000"));
+        original.setHoldReference("CARD-uncleared");
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+        when(settlementService.reducePendingItem(original.getId(), new BigDecimal("5000"))).thenReturn(true);
+
+        assertThat(service.reverse(PAN, new BigDecimal("5000"), REV_STAN, "x")).isEqualTo("00");
+        verifyNoInteractions(backendRestTemplate);
+        verify(settlementService, never()).markReversed(any());
+    }
+
+    @Test
+    @DisplayName("the reversal key is stable for a retry and differs for another STAN or amount")
+    void reversalReference_stable() {
+        String a = CardAuthorizationService.reversalReference("CARD-h", "000123", new BigDecimal("5000"));
+        assertThat(a).startsWith("REV-").hasSize(44)
+                .isEqualTo(CardAuthorizationService.reversalReference("CARD-h", "000123", new BigDecimal("5000.00")));
+        assertThat(a).isNotEqualTo(CardAuthorizationService.reversalReference("CARD-h", "000124", new BigDecimal("5000")))
+                .isNotEqualTo(CardAuthorizationService.reversalReference("CARD-h", "000123", new BigDecimal("4000")));
+    }
+
+    @Test
     @DisplayName("the backend refuses the refund (amount over captured): RC 13, nothing recorded")
     void reverse_refundRefused_13() {
         Card card = debitCard(UUID.randomUUID());

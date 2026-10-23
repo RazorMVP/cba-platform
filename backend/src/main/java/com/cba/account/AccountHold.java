@@ -66,6 +66,10 @@ public class AccountHold {
     @Column(name = "refunded_amount", precision = 19, scale = 4)
     private BigDecimal refundedAmount;
 
+    /** card-service's key for the reversal that refunded it — only that reversal's retry is "already done". */
+    @Column(name = "refund_reference", length = 64)
+    private String refundReference;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 

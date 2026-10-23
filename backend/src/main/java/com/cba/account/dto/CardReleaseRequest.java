@@ -13,8 +13,11 @@ import java.math.BigDecimal;
  *                     captured is refused. For a hold that was never seen, it is recorded as released so
  *                     a debit arriving late (after card-service gave up waiting) is refused.
  * @param currencyCode ISO 4217 alphabetic; must match the account's when given
+ * @param reversalReference card-service's key for this reversal: a refund is repeated only for the same key
+ *                     (a retry); any other reversal of an already refunded debit is refused
  */
 public record CardReleaseRequest(
         @DecimalMin("0.01") BigDecimal amount,
-        @Size(max = 3) String currencyCode
+        @Size(max = 3) String currencyCode,
+        @Size(max = 64) String reversalReference
 ) {}

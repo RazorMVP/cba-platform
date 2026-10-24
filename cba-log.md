@@ -57,6 +57,43 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 46) — 2026-10-24
+**Backlog 15b: card interchange income, scheme fees and the scheme cash leg. 15a debited the customer at clearing, but interchange, scheme fees and the cash paid to the scheme posted nothing and GL 2300 never cleared. Now interchange (earned on purchases, paid on ATM cash) and scheme fees post gross in the clearing journal, refunds reverse them pro rata, and operations record each scheme's settlement report — an exact match posts DR 2300 / CR 1003 and the batch becomes SETTLED. Plan: `docs/plans/2026-10-23-backlog-15b-card-interchange-settlement.md` (user: "1a 2a 3a 4a 5a"). Also marks the 15a plan merged (#194 `6bcd9d4`).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/.../db/migration/V64__card_interchange_settlement.sql` (new) | GL 1003 Card Scheme Settlement Account, 4005 Card Interchange Income, 5006 Card Scheme Fees, 5007 Card Interchange Expense + activity mappings; `account_holds` fee columns (+ CHECK on direction); table `card_scheme_settlements` (unique `reference`) |
+| `backend/.../accounting/FinancialActivityAccount.java` | `ASSET_CARD_SCHEME_SETTLEMENT`, `INCOME_CARD_INTERCHANGE`, `EXPENSE_CARD_SCHEME_FEES`, `EXPENSE_CARD_INTERCHANGE` |
+| `backend/.../account/CardInterchangeDirection.java`, `CardCharges.java` (new); `AccountHold.java` | EARNED/PAID; the figures a debit posts; hold fields |
+| `backend/.../account/dto/CardCaptureRequest`, `CardDebitRequest`, `CardHoldResult` | optional `interchangeAmount`, `interchangeDirection`, `schemeFeeAmount`, `scheme`; result returns posted + reversed figures (old constructors kept) |
+| `backend/.../account/AccountGlPosting.java` | `postCardSettlement(…, CardCharges, reversal, …)` — 2300 lines then P&L via `addProfitOrLoss`; `postCardSchemeSettlement` (DR 2300 / CR 1003 or the reverse) |
+| `backend/.../account/AccountService.java` | `invalidCharges` → `INVALID_CARD_FEES` (also for a live hold); figures stored; repeat returns the first figures; pro-rata reversal on refund |
+| `backend/.../cardsettlement/*` (new) | `POST /api/v1/card-settlements` (**CARD_SERVICE only** — the commit security review: ADMIN could post any DR 2300 / CR 1003 and skip the reconciliation): advisory lock + unique reference, journal dated today, `REFERENCE_CONFLICT`/`UNKNOWN_SCHEME`/`DATE_NOT_CLOSED`/`ZERO_AMOUNT`/`INVALID_AMOUNT`/`UNKNOWN_CURRENCY` |
+| `backend/.../config/SecurityConfig.java`, `AccountController.java` | matcher for `/api/v1/card-settlements`; operation descriptions |
+| `card-service/.../db/migration/V13__interchange_scheme_settlement.sql` (new) | `UNIONPAY` canonical (CHECKs + data); `scheme_fees.currency_code` (Verve/Afrigo NGN); `interchange_log` issuer columns; `settlement_items` fee/net/refund/report columns; table `scheme_settlement_reports`; 15a backfill |
+| `card-service/.../interchange/*` | `quote()` issuer direction, DE22 channel codes, fixed fees in major units of the row currency, ASSESSMENT + NETWORK only, never throws; `record()`; `IssuerCharges`, `InterchangeDirection`, `Schemes`; diagnostic `calculate` = issuer view (+ `direction`) |
+| `card-service/.../settlement/SettlementService.java` | quotes at claim, sends with capture, adopts the backend's figures + `glNet`; `addAuthorization(…, posted)` for 0200; `recordRefund` |
+| `card-service/.../settlement/BackendClearingClient.java` | capture body carries fees, `Result` returns posted figures; `recordSchemeSettlement` |
+| `card-service/.../settlement/SchemeSettlementService.java`, `SchemeSettlementReport*`, `SchemeReportRequest/Result` (new); `SettlementController.java` | `POST/GET …/cards/settlement/scheme-reports`, `GET …/scheme-reports/expected` |
+| `card-service/.../auth/CardAuthorizationService.java` | 0200 quotes and sends fees, passes the posted figures to the item; a refunding reversal records `refundGlNet`; scheme stored normalized |
+| Tests | backend `CardClearingIT` +9 (gross lines + trial balance, repeat, invalid fees, no-fee 15a path without mappings, unmapped, KES via FX position, ATM paid, full and partial refund), `CardSchemeSettlementIT` (7, incl. concurrent same reference); card-service `InterchangeQualificationEngineTest` rewritten (13), `SettlementServiceTest` +5, `CardAuthorizationServiceTest` +3, `SchemeSettlementServiceTest` (9), `CardClearingIntegrationTest` +2 (WireMock: capture body carries fees; scheme report posts once, mismatch never, batch SETTLED) |
+| Snapshots | `backend/docs/openapi-snapshot.yaml`, `card-service/docs/openapi-snapshot.yaml` regenerated (additions + description text) |
+| Docs | `docs/api-reference.html` (+ static), `docs/card-api-reference.html` (+ static), Postman (+ static: new "Post Card Scheme Settlement", "Record Scheme Settlement Report", "List Scheme Settlement Reports", "Expected Scheme Net"; capture/card-debits bodies), `CLAUDE.md`, `docs/deferred-backlog.md` (15b done, new 15d, new item 21), `docs/plans/` (15b plan; 15a merged), memory `project_gl_posting_decisions` |
+
+#### Key Patterns / Decisions
+- **Accounting (checked before recommending):** the bank is principal for the card service — it issues the card, authorizes and funds the transaction and bears fraud/credit risk (IFRS 15 B35, B37), so interchange earned is revenue at clearing (IFRS 15 §38) and the scheme, a supplier, is an expense, not a reduction of revenue (§70 doesn't apply); shown gross (IAS 1 §32). 2300 is one net payable per scheme — schemes settle each day's net in one payment (IAS 32 §42). Foreign-currency income/expense through the FX position (IAS 21 §21).
+- **Decisions (user "1a 2a 3a 4a 5a"):** 1a gross; 2a at clearing in the capture journal, 0200 at approval, pro-rata reversal on refund; 3a one net payable per scheme; 4a ops record the scheme report, exact match → cash leg, mismatch refused (no tolerance); 5a scope + engine fixes, 15d for clearing-file intake, cross-border fees, tolerance, RC 91 reconciliation view.
+- **Found on the way:** the engine mapped entry mode by name (`CHIP`), but the FEP sends DE22 codes (`051`), so every real transaction was card-not-present; fixed fees were documented as minor units while seeded as major; every scheme-fee type (incl. cross-border) applied to every transaction; `UNION_PAY` vs `UNIONPAY` meant UnionPay never matched a rate; nothing set a batch SETTLED; export-file bugs logged as backlog 21 (amounts ×10⁴, late batches, `Thread.sleep` in a transaction).
+- **Bug caught by a test:** in `captureCardHold` the reason chain stops at `reserved ? null`, so a fee check appended to it never ran for a live hold — bad fees would have posted. It now runs after the chain.
+- Journals carry no idempotency, so the cash leg's is a backend table (`card_scheme_settlements.reference`) under an advisory lock; the clearing figures ride on the hold row (15a's idempotency).
+- Bad fee figures are a decline, not a 400: card-service treats any 4xx as "unreachable" and would retry forever.
+
+#### Build Verification
+- backend `clean verify -Pfull-integration` (isolated copy, `-Dupdate.api.snapshot=true`): **955/955** (XML reports; 939 + 16 new). `CardClearingIT` 24/24, `CardSchemeSettlementIT` 7/7.
+- card-service `./mvnw -o test`: **201/201**; `clean verify -Pfull-integration -Dupdate.api.snapshot=true`: **232/232**. `CardClearingIntegrationTest` 5/5.
+- Gate grep: new `@PostMapping`/`@GetMapping` for `/api/v1/card-settlements` and `/api/v1/cards/settlement/scheme-reports` (+ `/expected`) and their `@RequestParam`s → documented in api-reference (+ full API matrix), card-api-reference (summary table + endpoint entries) and Postman (4 new items + updated capture/card-debits/release/calculate).
+
 ### Session 125 (cont. 45) — 2026-10-22
 **Backlog 15a: card clearing posts to the GL. Card approvals reserved funds but nothing ever turned a reservation into a debit — card spend never reached the balance or the ledger, ATM cash (0200) holds simply lapsed. Now approvals fill the settlement batch, batch close clears each purchase through the backend (DR deposit / CR new GL 2300 Card Scheme Settlement Payable), 0200 debits at once, a reversal of a completed debit refunds, and a CoB job sweeps expired holds. Plan: `docs/plans/2026-10-22-backlog-15a-card-clearing-gl.md` (user: "1a 2a 3a 4a"). Also marks the backlog-20 plan merged (#189 `c69b860`).**
 

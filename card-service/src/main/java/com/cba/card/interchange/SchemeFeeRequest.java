@@ -19,5 +19,8 @@ public record SchemeFeeRequest(
         /** Null = indefinitely active. */
         LocalDate effectiveTo,
 
-        boolean active
+        boolean active,
+
+        /** ISO 4217 alphabetic currency of {@code fixedFee}; null = USD (V13). */
+        @jakarta.validation.constraints.Size(max = 3) String currencyCode
 ) {}

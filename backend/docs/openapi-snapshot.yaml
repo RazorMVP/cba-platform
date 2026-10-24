@@ -451,6 +451,17 @@ components:
         meta:
           $ref: "#/components/schemas/PageMeta"
       type: "object"
+    ApiResponseCardSchemeSettlementResult:
+      properties:
+        data:
+          $ref: "#/components/schemas/CardSchemeSettlementResult"
+        errors:
+          items:
+            $ref: "#/components/schemas/ApiError"
+          type: "array"
+        meta:
+          $ref: "#/components/schemas/PageMeta"
+      type: "object"
     ApiResponseCashTransactionResponse:
       properties:
         data:
@@ -3047,6 +3058,19 @@ components:
           maxLength: 3
           minLength: 0
           type: "string"
+        interchangeAmount:
+          type: "number"
+        interchangeDirection:
+          enum:
+          - "EARNED"
+          - "PAID"
+          type: "string"
+        scheme:
+          maxLength: 20
+          minLength: 0
+          type: "string"
+        schemeFeeAmount:
+          type: "number"
       required:
       - "amount"
       type: "object"
@@ -3061,10 +3085,23 @@ components:
           maxLength: 3
           minLength: 0
           type: "string"
+        interchangeAmount:
+          type: "number"
+        interchangeDirection:
+          enum:
+          - "EARNED"
+          - "PAID"
+          type: "string"
         reference:
           maxLength: 64
           minLength: 0
           type: "string"
+        scheme:
+          maxLength: 20
+          minLength: 0
+          type: "string"
+        schemeFeeAmount:
+          type: "number"
       required:
       - "amount"
       type: "object"
@@ -3107,10 +3144,20 @@ components:
         holdId:
           format: "uuid"
           type: "string"
+        interchangeAmount:
+          type: "number"
+        interchangeDirection:
+          type: "string"
+        interchangeReversed:
+          type: "number"
         reason:
           type: "string"
         reference:
           type: "string"
+        schemeFeeAmount:
+          type: "number"
+        schemeFeeReversed:
+          type: "number"
         status:
           type: "string"
       type: "object"
@@ -3127,6 +3174,42 @@ components:
           maxLength: 64
           minLength: 0
           type: "string"
+      type: "object"
+    CardSchemeSettlementRequest:
+      properties:
+        amount:
+          type: "number"
+        currencyCode:
+          maxLength: 3
+          minLength: 0
+          type: "string"
+        reference:
+          maxLength: 64
+          minLength: 0
+          type: "string"
+        scheme:
+          maxLength: 20
+          minLength: 0
+          type: "string"
+        settlementDate:
+          format: "date"
+          type: "string"
+      required:
+      - "amount"
+      - "settlementDate"
+      type: "object"
+    CardSchemeSettlementResult:
+      properties:
+        approved:
+          type: "boolean"
+        journalTransactionId:
+          type: "string"
+        reason:
+          type: "string"
+        reference:
+          type: "string"
+        repeat:
+          type: "boolean"
       type: "object"
     CashFlowEntryDto:
       properties:
@@ -5457,6 +5540,10 @@ components:
           - "LIABILITY_SAVINGS_CONTROL"
           - "LIABILITY_TRANSFER_IN_SUSPENSE"
           - "LIABILITY_CARD_SETTLEMENT"
+          - "ASSET_CARD_SCHEME_SETTLEMENT"
+          - "INCOME_CARD_INTERCHANGE"
+          - "EXPENSE_CARD_SCHEME_FEES"
+          - "EXPENSE_CARD_INTERCHANGE"
           - "INCOME_INTEREST"
           - "INCOME_FEES"
           - "INCOME_PENALTIES"
@@ -5495,6 +5582,10 @@ components:
           - "LIABILITY_SAVINGS_CONTROL"
           - "LIABILITY_TRANSFER_IN_SUSPENSE"
           - "LIABILITY_CARD_SETTLEMENT"
+          - "ASSET_CARD_SCHEME_SETTLEMENT"
+          - "INCOME_CARD_INTERCHANGE"
+          - "EXPENSE_CARD_SCHEME_FEES"
+          - "EXPENSE_CARD_INTERCHANGE"
           - "INCOME_INTEREST"
           - "INCOME_FEES"
           - "INCOME_PENALTIES"
@@ -12518,9 +12609,10 @@ paths:
     post:
       description: "Withdrawal rules under the account's row lock, then debit + DR\
         \ deposit / CR 2300, in one transaction; idempotent on reference. Reversed\
-        \ through …/card-holds/{reference}/release (a refund). reasons: INSUFFICIENT_FUNDS,\
-        \ ACCOUNT_NOT_ACTIVE, ACCOUNT_IN_LOCKIN_PERIOD, CURRENCY_MISMATCH, REFERENCE_CONFLICT,\
-        \ HOLD_RELEASED (already refunded)."
+        \ through …/card-holds/{reference}/release (a refund). Optional interchange\
+        \ and scheme fees post in the same journal, as on capture. reasons: INSUFFICIENT_FUNDS,\
+        \ ACCOUNT_NOT_ACTIVE, ACCOUNT_IN_LOCKIN_PERIOD, CURRENCY_MISMATCH, INVALID_CARD_FEES,\
+        \ REFERENCE_CONFLICT, HOLD_RELEASED (already refunded)."
       operationId: "cardDebit"
       parameters:
       - in: "path"
@@ -12582,8 +12674,11 @@ paths:
   /api/v1/accounts/{id}/card-holds/{reference}/capture:
     post:
       description: "Debits the presented amount (at most the authorized one) and posts\
-        \ DR deposit / CR 2300 Card Scheme Settlement Payable. Idempotent on the same\
-        \ amount. reasons: HOLD_NOT_FOUND, HOLD_RELEASED, REFERENCE_CONFLICT, CURRENCY_MISMATCH,\
+        \ DR deposit / CR 2300 Card Scheme Settlement Payable. Optional interchangeAmount/interchangeDirection/schemeFeeAmount/scheme\
+        \ post in the same journal: EARNED DR 2300 / CR 4005, PAID DR 5007 / CR 2300,\
+        \ fees DR 5006 / CR 2300 (backlog 15b); the result returns what was posted.\
+        \ Idempotent on the same amount (a repeat returns the first figures). reasons:\
+        \ HOLD_NOT_FOUND, INVALID_CARD_FEES, HOLD_RELEASED, REFERENCE_CONFLICT, CURRENCY_MISMATCH,\
         \ AMOUNT_EXCEEDS_HOLD; a late presentment (hold expired) is checked like a\
         \ withdrawal: ACCOUNT_NOT_ACTIVE, ACCOUNT_IN_LOCKIN_PERIOD, INSUFFICIENT_FUNDS.\
         \ Never force-posted."
@@ -12621,7 +12716,10 @@ paths:
   /api/v1/accounts/{id}/card-holds/{reference}/release:
     post:
       description: "Idempotent: an already released, expired or unknown hold is reported\
-        \ with approved=false (HOLD_NOT_ACTIVE / HOLD_NOT_FOUND)."
+        \ with approved=false (HOLD_NOT_ACTIVE / HOLD_NOT_FOUND). On a completed debit\
+        \ (CAPTURED) it refunds the body's amount (at most what was captured, once):\
+        \ DR 2300 / CR deposit, and the debit's interchange and scheme fees reversed\
+        \ in proportion (interchangeReversed, schemeFeeReversed in the result)."
       operationId: "releaseCardHold"
       parameters:
       - in: "path"
@@ -13257,6 +13355,34 @@ paths:
       summary: "Download CSV template"
       tags:
       - "Bulk Import"
+  /api/v1/card-settlements:
+    post:
+      description: "Role CARD_SERVICE only. Positive amount: the bank paid the scheme\
+        \ — DR 2300 Card Scheme Settlement Payable / CR 1003 Card Scheme Settlement\
+        \ Account; negative: the scheme paid the bank — DR 1003 / CR 2300. Journal\
+        \ dated today. Idempotent on reference (repeat=true, no second journal). reasons:\
+        \ REFERENCE_CONFLICT, UNKNOWN_SCHEME, DATE_NOT_CLOSED (settlement date not\
+        \ before today), ZERO_AMOUNT, INVALID_AMOUNT, UNKNOWN_CURRENCY."
+      operationId: "record"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CardSchemeSettlementRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseCardSchemeSettlementResult"
+          description: "OK"
+      security:
+      - oauth2: []
+      summary: "Post a card scheme's net settlement (card-service, after the scheme\
+        \ report matched)"
+      tags:
+      - "Card Scheme Settlement"
   /api/v1/centers:
     get:
       operationId: "listCenters"
@@ -22817,6 +22943,8 @@ tags:
 - description: "Credit bureau integration configuration and loan product mappings\
     \ — manage external credit check adapters"
   name: "Credit Bureaus"
+- description: "The cash leg of card scheme settlement (card-service)"
+  name: "Card Scheme Settlement"
 - description: "Four-eyes approval workflow — queue commands for a second authoriser\
     \ before execution"
   name: "Maker-Checker"

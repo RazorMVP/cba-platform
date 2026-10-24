@@ -30,6 +30,14 @@ public class FinancialActivityAccount {
         LIABILITY_TRANSFER_IN_SUSPENSE,
         /** Cleared card transactions owed to the card schemes until they settle (GL 2300, V63). */
         LIABILITY_CARD_SETTLEMENT,
+        /** The bank's account at its card settlement bank: scheme net settlements go through it (GL 1003, V64). */
+        ASSET_CARD_SCHEME_SETTLEMENT,
+        /** Interchange earned as card issuer on cleared purchases (GL 4005, V64; IFRS 15 B35, B37, §38). */
+        INCOME_CARD_INTERCHANGE,
+        /** Card scheme assessment and network fees (GL 5006, V64; shown gross, IAS 1 §32). */
+        EXPENSE_CARD_SCHEME_FEES,
+        /** Interchange paid to acquirers on cardholders' cash at other banks' ATMs (GL 5007, V64). */
+        EXPENSE_CARD_INTERCHANGE,
         INCOME_INTEREST,
         INCOME_FEES,
         /** Penalties charged on loans: income when charged. */

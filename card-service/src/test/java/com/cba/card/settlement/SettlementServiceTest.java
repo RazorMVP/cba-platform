@@ -5,6 +5,9 @@ import com.cba.card.auth.AuthorizationLogRepository;
 import com.cba.card.card.Card;
 import com.cba.card.card.CardType;
 import com.cba.card.common.CbaException;
+import com.cba.card.interchange.InterchangeDirection;
+import com.cba.card.interchange.InterchangeQualificationEngine;
+import com.cba.card.interchange.IssuerCharges;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,6 +43,7 @@ class SettlementServiceTest {
     @Mock AuthorizationLogRepository authLogRepository;
     @Mock BackendClearingClient clearingClient;
     @Mock PlatformTransactionManager transactionManager;   // TransactionTemplate runs the callback
+    @Mock InterchangeQualificationEngine interchangeEngine;
 
     @InjectMocks SettlementService service;
 
@@ -207,7 +211,7 @@ class SettlementServiceTest {
         assertThat(closed.getStatus()).isEqualTo(SettlementBatchStatus.CLOSED);
         assertThat(legacy.getStatus()).isEqualTo("SETTLED");
         assertThat(prepaid.getStatus()).isEqualTo("SETTLED");
-        verify(clearingClient, never()).capture(any(), any(), any(), any());
+        verify(clearingClient, never()).capture(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -218,13 +222,13 @@ class SettlementServiceTest {
         stubBatch(batch, item);
         stubReread(item);
         when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
-        when(clearingClient.capture(eq(item.getAccountId()), eq(item.getHoldReference()), any(BigDecimal.class), eq("USD")))
+        when(clearingClient.capture(eq(item.getAccountId()), eq(item.getHoldReference()), any(BigDecimal.class), eq("USD"), any()))
                 .thenReturn(new BackendClearingClient.Result(true, "CAPTURED", null));
 
         service.closeBatch(batch.getId());
 
         verify(clearingClient).capture(eq(item.getAccountId()), eq(item.getHoldReference()),
-                org.mockito.ArgumentMatchers.<BigDecimal>argThat(a -> a.compareTo(new BigDecimal("25.00")) == 0), eq("USD"));
+                org.mockito.ArgumentMatchers.<BigDecimal>argThat(a -> a.compareTo(new BigDecimal("25.00")) == 0), eq("USD"), any());
         assertThat(item.getStatus()).isEqualTo("SETTLED");
         assertThat(item.getClearedAt()).isNotNull();
     }
@@ -237,7 +241,7 @@ class SettlementServiceTest {
         stubBatch(batch, item);
         stubReread(item);
         when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
-        when(clearingClient.capture(any(), any(), any(), any()))
+        when(clearingClient.capture(any(), any(), any(), any(), any()))
                 .thenReturn(new BackendClearingClient.Result(false, "EXPIRED", "INSUFFICIENT_FUNDS"));
 
         assertThat(service.closeBatch(batch.getId()).getStatus()).isEqualTo(SettlementBatchStatus.CLOSED);
@@ -252,7 +256,7 @@ class SettlementServiceTest {
         SettlementItem item = debitItem("PENDING");
         stubBatch(batch, item);
         stubReread(item);
-        when(clearingClient.capture(any(), any(), any(), any())).thenReturn(null);
+        when(clearingClient.capture(any(), any(), any(), any(), any())).thenReturn(null);
 
         assertThat(service.closeBatch(batch.getId()).getStatus()).isEqualTo(SettlementBatchStatus.OPEN);
         // the capture may have committed: only a retried (idempotent) capture may resolve it
@@ -276,7 +280,7 @@ class SettlementServiceTest {
         service.closeBatch(batch.getId());
 
         assertThat(reversed.getStatus()).isEqualTo("REVERSED");
-        verify(clearingClient, never()).capture(any(), any(), any(), any());
+        verify(clearingClient, never()).capture(any(), any(), any(), any(), any());
         verify(itemRepository, never()).save(any());
     }
 
@@ -288,7 +292,7 @@ class SettlementServiceTest {
         stubBatch(batch, item);
         stubReread(item);
         when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
-        when(clearingClient.capture(any(), any(), any(), any()))
+        when(clearingClient.capture(any(), any(), any(), any(), any()))
                 .thenReturn(new BackendClearingClient.Result(true, "CAPTURED", null));
 
         assertThat(service.closeBatch(batch.getId()).getStatus()).isEqualTo(SettlementBatchStatus.CLOSED);
@@ -305,7 +309,7 @@ class SettlementServiceTest {
         when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
 
         service.closeBatch(batch.getId());
-        verify(clearingClient, never()).capture(any(), any(), any(), any());
+        verify(clearingClient, never()).capture(any(), any(), any(), any(), any());
         assertThat(reversed.getStatus()).isEqualTo("REVERSED");
     }
 
@@ -323,7 +327,7 @@ class SettlementServiceTest {
         when(itemRepository.countByBatchAndStatusIn(eq(batch), any())).thenReturn(1L);
 
         assertThat(service.closeBatch(batch.getId()).getStatus()).isEqualTo(SettlementBatchStatus.OPEN);
-        verify(clearingClient, never()).capture(any(), any(), any(), any());
+        verify(clearingClient, never()).capture(any(), any(), any(), any(), any());
         verify(batchRepository, never()).save(any(SettlementBatch.class));
     }
 
@@ -373,5 +377,143 @@ class SettlementServiceTest {
         when(itemRepository.findExpiredPendingItems(any(OffsetDateTime.class))).thenReturn(List.of());
         service.expireUnmatchedAuthorizations();
         verify(itemRepository, never()).saveAll(any());
+    }
+
+    // ── Interchange and scheme fees at clearing (backlog 15b) ────────────────
+
+    private static IssuerCharges charges(String interchange, InterchangeDirection direction, String fee) {
+        return new IssuerCharges("VISA", new BigDecimal(interchange), direction, new BigDecimal(fee), "TEST");
+    }
+
+    @Test
+    @DisplayName("15b: close quotes interchange + fees, sends them with the capture and keeps the backend's figures + glNet")
+    void close_sendsFeesInCapture() {
+        SettlementBatch batch = openBatch();
+        SettlementItem item = debitItem("PENDING");
+        item.setScheme("VISA");
+        item.setAuthorizationLogId(UUID.randomUUID());
+        AuthorizationLog auth = new AuthorizationLog();
+        auth.setProcessingCode("000000");
+        auth.setEntryMode("051");
+        auth.setMcc("5999");
+        stubBatch(batch, item);
+        stubReread(item);
+        when(authLogRepository.findById(item.getAuthorizationLogId())).thenReturn(Optional.of(auth));
+        when(interchangeEngine.quote(eq("VISA"), eq(CardType.DEBIT), eq("000000"), eq("051"), eq("5999"), any(), any()))
+                .thenReturn(charges("0.38", InterchangeDirection.EARNED, "0.05"));
+        when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
+        org.mockito.ArgumentCaptor<IssuerCharges> sent = org.mockito.ArgumentCaptor.forClass(IssuerCharges.class);
+        when(clearingClient.capture(any(), any(), any(), any(), sent.capture()))
+                .thenReturn(new BackendClearingClient.Result(true, "CAPTURED", null,
+                        new BigDecimal("0.38"), "EARNED", new BigDecimal("0.05")));
+
+        service.closeBatch(batch.getId());
+
+        assertThat(sent.getValue().interchange()).isEqualByComparingTo("0.38");
+        assertThat(sent.getValue().direction()).isEqualTo(InterchangeDirection.EARNED);
+        assertThat(sent.getValue().schemeFee()).isEqualByComparingTo("0.05");
+        assertThat(item.getStatus()).isEqualTo("SETTLED");
+        assertThat(item.getInterchangeAmount()).isEqualByComparingTo("38");
+        assertThat(item.getSchemeFeeAmount()).isEqualByComparingTo("5");
+        // 25.00 − 0.38 + 0.05 owed to the scheme, minor units
+        assertThat(item.getGlNet()).isEqualByComparingTo("2467");
+        verify(interchangeEngine).record(any(), eq(item.getId()), any(), any(), eq("USD"));
+    }
+
+    @Test
+    @DisplayName("15b: a retried close reuses the figures quoted at the first claim (no new quote)")
+    void close_retryReusesPersistedFees() {
+        SettlementBatch batch = openBatch();
+        SettlementItem item = debitItem("CLEARING");
+        item.setScheme("VISA");
+        item.setInterchangeAmount(new BigDecimal("38"));
+        item.setInterchangeDirection(InterchangeDirection.EARNED);
+        item.setSchemeFeeAmount(new BigDecimal("5"));
+        stubBatch(batch, item);
+        stubReread(item);
+        when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
+        org.mockito.ArgumentCaptor<IssuerCharges> sent = org.mockito.ArgumentCaptor.forClass(IssuerCharges.class);
+        when(clearingClient.capture(any(), any(), any(), any(), sent.capture()))
+                .thenReturn(new BackendClearingClient.Result(true, "CAPTURED", null,
+                        new BigDecimal("0.38"), "EARNED", new BigDecimal("0.05")));
+
+        service.closeBatch(batch.getId());
+
+        verify(interchangeEngine, never()).quote(any(), any(), any(), any(), any(), any(), any());
+        assertThat(sent.getValue().interchange()).isEqualByComparingTo("0.38");
+        assertThat(item.getGlNet()).isEqualByComparingTo("2467");
+    }
+
+    @Test
+    @DisplayName("15b: the backend's posted figures win over what was sent (an idempotent repeat returns the first)")
+    void record_usesBackendFigures() {
+        SettlementBatch batch = openBatch();
+        SettlementItem item = debitItem("PENDING");
+        item.setScheme("VISA");
+        stubBatch(batch, item);
+        stubReread(item);
+        when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
+        when(clearingClient.capture(any(), any(), any(), any(), any()))
+                .thenReturn(new BackendClearingClient.Result(true, "CAPTURED", null,
+                        new BigDecimal("0.40"), "EARNED", new BigDecimal("0.06")));
+
+        service.closeBatch(batch.getId());
+
+        assertThat(item.getInterchangeAmount()).isEqualByComparingTo("40");
+        assertThat(item.getGlNet()).isEqualByComparingTo("2466");   // 2500 − 40 + 6
+    }
+
+    @Test
+    @DisplayName("15b: a completed 0200 stores the figures the backend posted; ATM interchange paid raises glNet")
+    void addAuthorization_0200_storesFigures() {
+        AuthorizationLog auth = new AuthorizationLog();
+        auth.setId(UUID.randomUUID());
+        auth.setAmount(new BigDecimal("5000"));
+        auth.setCurrencyCode("840");
+        auth.setScheme("visa");
+        Card card = new Card();
+        card.setId(UUID.randomUUID());
+        card.setCardType(CardType.DEBIT);
+        card.setLinkedEntityId(UUID.randomUUID());
+        SettlementBatch batch = openBatch();
+        when(batchRepository.findBySettlementDateAndStatus(any(LocalDate.class), eq(SettlementBatchStatus.OPEN)))
+                .thenReturn(Optional.of(batch));
+        when(itemRepository.save(any(SettlementItem.class))).thenAnswer(i -> i.getArgument(0));
+
+        SettlementItem item = service.addAuthorization(auth, card, "CARD-ATM", true,
+                charges("0.50", InterchangeDirection.PAID, "0.07"));
+
+        assertThat(item.getScheme()).isEqualTo("VISA");
+        assertThat(item.getStatus()).isEqualTo("SETTLED");
+        assertThat(item.getGlNet()).isEqualByComparingTo("5057");   // 5000 + 50 + 7
+        assertThat(item.getInterchangeDirection()).isEqualTo(InterchangeDirection.PAID);
+    }
+
+    @Test
+    @DisplayName("15b: a refund of a cleared debit records what it takes back from the scheme, once, dated today")
+    void recordRefund_setsRefundGlNet_once() {
+        UUID auth = UUID.randomUUID();
+        SettlementItem item = debitItem("REVERSED");
+        item.setScheme("VISA");
+        item.setInterchangeAmount(new BigDecimal("38"));
+        item.setInterchangeDirection(InterchangeDirection.EARNED);
+        item.setSchemeFeeAmount(new BigDecimal("5"));
+        item.setGlNet(new BigDecimal("2467"));
+        when(itemRepository.findByAuthorizationLogIdForUpdate(auth)).thenReturn(Optional.of(item));
+
+        service.recordRefund(auth, new BigDecimal("1000"), charges("0.15", InterchangeDirection.EARNED, "0.02"));
+
+        assertThat(item.getRefundGlNet()).isEqualByComparingTo("-987");   // −(1000 − 15 + 2)
+        assertThat(item.getRefundSettlementDate()).isEqualTo(LocalDate.now());
+        assertThat(item.getRefundedAmount()).isEqualByComparingTo("1000");
+
+        service.recordRefund(auth, new BigDecimal("2500"), charges("0.38", InterchangeDirection.EARNED, "0.05"));
+        assertThat(item.getRefundGlNet()).isEqualByComparingTo("-987");
+
+        UUID notCleared = UUID.randomUUID();
+        SettlementItem pending = debitItem("REVERSED");
+        when(itemRepository.findByAuthorizationLogIdForUpdate(notCleared)).thenReturn(Optional.of(pending));
+        service.recordRefund(notCleared, new BigDecimal("100"), charges("0", InterchangeDirection.EARNED, "0"));
+        assertThat(pending.getRefundGlNet()).isNull();
     }
 }

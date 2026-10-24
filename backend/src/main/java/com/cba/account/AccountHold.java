@@ -70,6 +70,31 @@ public class AccountHold {
     @Column(name = "refund_reference", length = 64)
     private String refundReference;
 
+    /** Card scheme of the transaction (VISA, MASTERCARD, VERVE, AFRIGO, UNIONPAY), when card-service sent one. */
+    @Column(name = "card_scheme", length = 20)
+    private String cardScheme;
+
+    /** Interchange posted with the debit (major units; null = none — debits before V64). */
+    @Column(name = "interchange_amount", precision = 19, scale = 4)
+    private BigDecimal interchangeAmount;
+
+    /** EARNED (purchase: income) or PAID (ATM cash at another bank's machine: expense). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "interchange_direction", length = 6)
+    private CardInterchangeDirection interchangeDirection;
+
+    /** Card scheme fees posted with the debit (major units). */
+    @Column(name = "scheme_fee_amount", precision = 19, scale = 4)
+    private BigDecimal schemeFeeAmount;
+
+    /** Interchange reversed by the refund (in proportion to the amount refunded). */
+    @Column(name = "interchange_reversed", precision = 19, scale = 4)
+    private BigDecimal interchangeReversed;
+
+    /** Scheme fees reversed by the refund. */
+    @Column(name = "scheme_fee_reversed", precision = 19, scale = 4)
+    private BigDecimal schemeFeeReversed;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 

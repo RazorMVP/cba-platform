@@ -472,22 +472,30 @@ amortising term loans (no credit limit, no draws). What's needed:
 
 ---
 
-## 15. Card settlement posts nothing to the GL (approvals now reserve funds — cont. 35) — 15a ✅ DONE (cont. 45); 15b and 15c open
+## 15. Card settlement posts nothing to the GL (approvals now reserve funds — cont. 35) — 15a ✅ DONE (cont. 45); 15b ✅ DONE (cont. 46); 15c and 15d open
 
 > **15a done in cont. 45** (plan `docs/plans/2026-10-22-backlog-15a-card-clearing-gl.md`; decisions "1a 2a 3a 4a" in memory
 > `project_gl_posting_decisions`): approvals fill the settlement batch; batch close clears each debit purchase via backend
 > `…/card-holds/{ref}/capture` (DR deposit / CR new GL 2300 Card Scheme Settlement Payable — IFRS 9 §3.3.1, IAS 32 §11);
 > 0200 debits at once (`…/card-debits`); release of a completed debit refunds; late presentment never force-posted;
 > CoB `holdExpiryJob` sweeps expired holds. Still open:
-> - **15b — interchange income, scheme fees and the scheme cash leg.** Interchange is computed only on an ADMIN request
->   and in the acquirer direction (`net = gross − interchange − fees`); as issuer the bank *earns* interchange. Needs an
->   IFRS 15 B34–B38 principal/agent decision (gross interchange + scheme-fee expense, or net), the scheme settlement
->   leg (DR 2300 / CR settlement bank; one net position per scheme only with an enforceable set-off under the scheme
->   rules — IAS 32 §42), and the batch's SETTLED status. Clearing still presents at the authorized amount: a scheme
->   clearing-file intake (amount differences, incremental presentments) belongs here too, with partial reversals of a
->   live authorization (today a live hold is released in full; a completed debit is already refunded only partly).
->   Also a reconciliation view for declined authorizations whose compensating release couldn't reach the backend
->   (`authorization_log` rows with RC 91 and a `hold_reference`).
+> - **15b ✅ done in cont. 46** (plan `docs/plans/2026-10-23-backlog-15b-card-interchange-settlement.md`; decisions
+>   "1a 2a 3a 4a 5a" in memory `project_gl_posting_decisions`): interchange in the issuer direction (earned on a purchase
+>   → GL 4005, paid on ATM cash → 5007) and scheme fees (→ 5006) post gross in the capture's / card-debit's journal
+>   (IFRS 15 B35, B37; IAS 1 §32); refunds reverse them pro rata; 2300 is one net payable per scheme (IAS 32 §42);
+>   operations record each scheme's settlement report and an exact match posts the cash leg DR 2300 / CR 1003
+>   (`POST /api/v1/card-settlements`, card-service `…/cards/settlement/scheme-reports`), batch → SETTLED. Engine fixes:
+>   issuer direction, DE22 channel codes, fixed fees in major units of the row's currency, ASSESSMENT + NETWORK only,
+>   `UNIONPAY` canonical (V13).
+> - **15d — clearing-file intake and what 15b left out.** Clearing still presents at the authorized amount: a scheme
+>   clearing-file intake (amount differences, incremental presentments, presentment-driven refunds). Cross-border and
+>   international-service fees need the merchant's country (DE19/DE43). Scheme reports must match to the cent — a
+>   configurable tolerance (and a suspense for small differences) needs its own accounting decision. A captured debit is
+>   refunded only once on the backend, so a second partial reversal of the same cleared purchase is refused
+>   (`ALREADY_REFUNDED`). Partial refunds of cleared debits made before V13 (15a) aren't in card-service's settlement
+>   items — reconcile by hand. Also a reconciliation view for declined authorizations whose compensating release couldn't
+>   reach the backend (`authorization_log` rows with RC 91 and a `hold_reference`), and for items left `CLEARING` by a
+>   close that died.
 > - **15c — prepaid.** Wallets have no funding path (only seed data) and no GL; CBN treats prepaid balances as deposit
 >   liabilities of the issuer (Guidelines on Stored Value/Prepaid Card Issuance). Needs a load path and a liability
 >   account before wallet spend can post.
@@ -601,6 +609,25 @@ authentication (`SecurityConfig` adds it before `UsernamePasswordAuthenticationF
 **Fix (mirror the backend):** run the limiter after authentication (before `AuthorizationFilter`) and key it on the
 verified principal (API key id / JWT `azp`/`sub`), anonymous on `request.getRemoteAddr()` with
 `server.forward-headers-strategy: native`; skip `OPTIONS`; integration test with a forged token and a random key.
+
+---
+
+## 21. Card scheme settlement files: amounts, late batches and the issuer side
+
+**Effort**: M · **Risk**: money — wrong amounts in a scheme file once an exporter is enabled (all are `enabled: false` today)
+
+Found while building 15b (cont. 46); not changed there:
+- **Amounts ×10⁴.** `VisaBase2Exporter`, `MastercardIpmExporter` and `UnionPayCupsExporter` write
+  `grossAmount().toPlainString().replace(".", "")`. Amounts read from `NUMERIC(19,4)` carry four decimals, so 25.00 is
+  written as `250000`, not `2500`. The tests build amounts with `BigDecimal.valueOf(long)` (scale 0), so they don't see it.
+- **Late batches.** The nightly export takes only CLOSED batches whose `settlement_date` is today; a batch that closes a
+  day late (backend unreachable at the first close) is never exported automatically.
+- **`Thread.sleep` in a transaction.** `exportBatch` is `@Transactional` and sleeps between retries (300 s default),
+  holding a connection.
+- **Issuer vs acquirer.** The files are acquirer presentment formats keyed on `acquirer-bin`; as issuer the bank
+  receives clearing files (15d) rather than presenting them. Decide what, if anything, the issuer sends.
+- `interchange_log` rows before V13 are the acquirer view in DE4 minor units; from V13 the issuer view in major units —
+  the export SQL reads `net_settlement_amount` (no exporter uses it yet).
 
 ---
 

@@ -236,12 +236,15 @@ It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port
   <tr><td><span class="badge badge-delete">DELETE</span></td><td><code>/api/v1/interchange/rates/{id}</code></td><td>ADMIN</td><td>Delete rate</td></tr>
   <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/interchange/fees</code></td><td>ADMIN</td><td>List scheme fees</td></tr>
   <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/interchange/fees</code></td><td>ADMIN</td><td>Create scheme fee</td></tr>
-  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/interchange/calculate?authId=</code></td><td>ADMIN</td><td>Calculate interchange for an auth</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/interchange/calculate?authId=</code></td><td>ADMIN</td><td>Calculate interchange for an auth (issuer's view)</td></tr>
   <!-- Settlement -->
   <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/settlement/batches</code></td><td>ADMIN/TELLER</td><td>List settlement batches</td></tr>
   <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/settlement/batches/{id}/close</code></td><td>ADMIN</td><td>Close settlement batch</td></tr>
   <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/settlement/export/{batchId}</code></td><td>ADMIN</td><td>Manual scheme file export</td></tr>
   <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/settlement/transmissions</code></td><td>ADMIN/TELLER</td><td>List transmission records</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/settlement/scheme-reports</code></td><td>ADMIN</td><td>Record a scheme settlement report (posts the cash leg on a match)</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/settlement/scheme-reports?date=</code></td><td>ADMIN</td><td>List recorded scheme reports</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/settlement/scheme-reports/expected?scheme=&amp;date=&amp;currency=</code></td><td>ADMIN</td><td>Expected net a scheme report must show</td></tr>
   <!-- Disputes -->
   <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/disputes</code></td><td>ADMIN/TELLER</td><td>List disputes</td></tr>
   <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/disputes</code></td><td>ADMIN/TELLER</td><td>Raise dispute</td></tr>
@@ -549,10 +552,13 @@ It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port
 <h3>Dual-Message Flow</h3>
 <pre><code>0100 Auth Request → 0110 Auth Response (backend hold; settlement item PENDING)
      ↓ (batch close, nightly 23:57 or manual)
-backend POST /api/v1/accounts/{id}/card-holds/{ref}/capture → debit + DR deposit / CR 2300 → item SETTLED
-0200 Financial Request (ATM cash) → backend POST …/card-debits at once → item SETTLED
-0400 Reversal → backend …/release (hold released, or completed debit refunded) → item REVERSED</code></pre>
-<p>There is no scheme clearing-file intake yet: batch close presents each purchase at its authorized amount. Interchange, scheme fees and the scheme's cash settlement post later (backlog 15b); prepaid wallet GL is backlog 15c.</p>
+backend POST /api/v1/accounts/{id}/card-holds/{ref}/capture → debit + DR deposit / CR 2300
+     + interchange earned DR 2300 / CR 4005, scheme fees DR 5006 / CR 2300 → item SETTLED (glNet)
+0200 Financial Request (ATM cash) → backend POST …/card-debits at once (interchange paid DR 5007 / CR 2300) → item SETTLED
+0400 Reversal → backend …/release (hold released, or completed debit refunded with fees reversed pro rata) → item REVERSED
+next day: operations record each scheme's settlement report → backend POST /api/v1/card-settlements
+     DR 2300 / CR 1003 → batch SETTLED</code></pre>
+<p>There is no scheme clearing-file intake yet: batch close presents each purchase at its authorized amount. <strong>Interchange and scheme fees (backlog 15b)</strong> are quoted when an item is claimed for clearing — the issuer <em>earns</em> interchange on a purchase and <em>pays</em> it on ATM cash at another bank's machine; scheme fees are assessment + network only (cross-border needs the merchant's country, backlog 15d); prepaid gets none until it has a GL (15c). They are sent with the capture and post in its journal; each item keeps the figures the backend posted and <code>glNet</code> — what the bank owes the scheme for it (minor units: amount − interchange earned + interchange paid + fees). A refund records <code>refundGlNet</code> on the day it happens.</p>
 
 <details class="endpoint">
   <summary class="endpoint-header">
@@ -561,10 +567,44 @@ backend POST /api/v1/accounts/{id}/card-holds/{ref}/capture → debit + DR depos
     <span class="endpoint-summary">Close an open settlement batch</span>
   </summary>
   <div class="endpoint-body">
-    <p>Clears each PENDING debit-card item on the backend (<code>…/card-holds/{ref}/capture</code>: the hold becomes a debit and <code>DR deposit / CR 2300 Card Scheme Settlement Payable</code> posts). Refused items (e.g. a late presentment without funds) become <code>FAILED</code> with <code>failureReason</code> — never force-posted. Prepaid and 0200 items are already completed. The batch ends <code>CLOSED</code>, which the nightly scheme file export (23:58) picks up; if the backend can't be reached the batch stays <code>OPEN</code> and the next close retries (clearing is idempotent). Items now carry <code>cardId</code>, <code>accountId</code>, <code>cardType</code>, <code>holdReference</code>, <code>failureReason</code>, <code>clearedAt</code>.</p>
+    <p>Clears each PENDING debit-card item on the backend (<code>…/card-holds/{ref}/capture</code>: the hold becomes a debit and <code>DR deposit / CR 2300 Card Scheme Settlement Payable</code> posts, with the item's interchange and scheme fees). The figures are quoted once, when the item is claimed; a retried close reuses them. Refused items (e.g. a late presentment without funds) become <code>FAILED</code> with <code>failureReason</code> — never force-posted. Prepaid and 0200 items are already completed. The batch ends <code>CLOSED</code>, which the nightly scheme file export (23:58) picks up; if the backend can't be reached the batch stays <code>OPEN</code> and the next close retries (clearing is idempotent). Items now carry <code>cardId</code>, <code>accountId</code>, <code>cardType</code>, <code>holdReference</code>, <code>failureReason</code>, <code>clearedAt</code>.</p>
     <pre><code>// Response (200)
 { "data": { "id": "...", "status": "CLOSED", "totalAmount": 1250000,
   "itemCount": 47, "closedAt": "2026-01-15T23:58:00Z" } }</code></pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/cards/settlement/scheme-reports</span>
+    <span class="endpoint-summary">Record a scheme settlement report (the cash leg)</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Operations enter the net a card scheme reports for one settlement date and currency (ADMIN). The expected net is the <code>glNet</code> of that date's cleared items plus the <code>refundGlNet</code> of that date's refunds, for the scheme and currency. <strong>Only an exact match is recorded</strong> (no tolerance yet — backlog 15d): the backend then posts <code>DR 2300 / CR 1003 Card Scheme Settlement Account</code> (negative net: the reverse) through <code>POST /api/v1/card-settlements</code>, and the date's batches become <code>SETTLED</code> once all their GL items are in recorded reports. A mismatch returns <code>recorded=false</code>, <code>reason=AMOUNT_MISMATCH</code> with <code>expectedNet</code>, <code>reportedNet</code> and <code>difference</code>, and <strong>writes nothing</strong>. Other refusals: <code>DATE_NOT_CLOSED</code> (the date must be before today), <code>BATCH_NOT_CLOSED</code> (a batch of the date still OPEN, or items PENDING/CLEARING), <code>ALREADY_RECORDED</code> (another amount after recording), <code>REPORT_IN_PROGRESS</code>, <code>UNKNOWN_CURRENCY</code>, <code>INVALID_AMOUNT</code>. The same report again: <code>recorded=true, repeat=true</code>, nothing posted. Backend unreachable → <code>BACKEND_UNAVAILABLE</code>; the report stays <code>POSTING</code> and recording it again finishes it with the same backend reference. Expected net 0 → recorded with no journal.</p>
+    <pre><code>// Request — netAmount major units, signed (+ = the bank pays the scheme); currency alphabetic or numeric
+{ "scheme": "VISA", "settlementDate": "2026-10-23", "currency": "USD", "netAmount": 149.20 }
+
+// Response (200) — match
+{ "data": { "recorded": true, "repeat": false, "reason": null, "scheme": "VISA",
+  "settlementDate": "2026-10-23", "currency": "USD", "expectedNet": 149.20, "reportedNet": 149.20,
+  "difference": 0.00, "itemCount": 2, "refundCount": 0,
+  "backendReference": "CSR-VISA-20261023-USD", "journalTransactionId": "GL-…" } }
+
+// Response (200) — mismatch: nothing written
+{ "data": { "recorded": false, "reason": "AMOUNT_MISMATCH", "expectedNet": 149.20,
+  "reportedNet": 149.21, "difference": 0.01, ... } }</code></pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/cards/settlement/scheme-reports/expected?scheme=&amp;date=&amp;currency=</span>
+    <span class="endpoint-summary">Expected net for a scheme, date and currency</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>The amount a scheme report must show to be recorded — same shape as the report result, with <code>recorded=false</code> and no reported figure. Nothing is written. <code>GET /api/v1/cards/settlement/scheme-reports?date=</code> lists recorded (and POSTING) reports.</p>
   </div>
 </details>
 </section>
@@ -598,7 +638,7 @@ backend POST /api/v1/accounts/{id}/card-holds/{ref}/capture → debit + DR depos
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <section id="interchange">
 <h2>Interchange Management</h2>
-<p>Per-scheme interchange rate tables and scheme assessment fees. The <code>InterchangeQualificationEngine</code> determines the applicable rate based on scheme + card type + MCC + transaction type + channel.</p>
+<p>Per-scheme interchange rate tables and scheme assessment fees. The <code>InterchangeQualificationEngine</code> determines the applicable rate based on scheme + card type + MCC + transaction type + channel, from the <strong>issuer's</strong> side (backlog 15b): a purchase <em>earns</em> interchange, cash at another bank's ATM <em>pays</em> it, and the scheme's fees are paid either way. The channel comes from the DE22 entry mode (05x chip, 07x contactless, 02x/90x magstripe = card present; 01x manual, 81x e-commerce = card not present). Only <code>ASSESSMENT</code> and <code>NETWORK</code> fees apply — <code>CROSS_BORDER</code> and <code>INTERNATIONAL_SERVICE</code> need the merchant's country (backlog 15d). <code>fixedFee</code> is in <strong>major units of the row's <code>currencyCode</code></strong> (ISO 4217 alphabetic) and applies only to transactions in that currency; figures are rounded once to the currency's digits. Scheme <code>UNIONPAY</code> is canonical (<code>UNION_PAY</code> is accepted and stored as <code>UNIONPAY</code>). <code>GET /api/v1/interchange/calculate?authId=</code> returns <code>{interchangeAmount, schemeFeeAmount, netSettlementAmount, rateApplied, direction}</code> in major units — <code>netSettlementAmount</code> is what the issuer owes the scheme. Scheme fees take an optional <code>currencyCode</code> (default USD).</p>
 
 <details class="endpoint">
   <summary class="endpoint-header">
@@ -614,8 +654,8 @@ backend POST /api/v1/accounts/{id}/card-holds/{ref}/capture → debit + DR depos
   "transactionType": "PURCHASE",  // PURCHASE | CASH | REFUND
   "channel": "CARD_PRESENT",      // CARD_PRESENT | CNP
   "ratePercent": 0.8000,
-  "fixedFee": 0.1000,
-  "currencyCode": "840",
+  "fixedFee": 0.1000,               // major units of currencyCode
+  "currencyCode": "USD",
   "effectiveFrom": "2026-01-01",
   "effectiveTo": null             // null = no expiry
 }</code></pre>

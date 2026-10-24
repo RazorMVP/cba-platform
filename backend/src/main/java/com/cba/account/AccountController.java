@@ -257,7 +257,9 @@ public class AccountController {
     @PreAuthorize("hasRole('CARD_SERVICE') or hasRole('ADMIN')")
     @Operation(summary = "Release a card authorization's hold (card-service reversal)",
                description = "Idempotent: an already released, expired or unknown hold is reported with approved=false "
-                       + "(HOLD_NOT_ACTIVE / HOLD_NOT_FOUND).")
+                       + "(HOLD_NOT_ACTIVE / HOLD_NOT_FOUND). On a completed debit (CAPTURED) it refunds the body's amount "
+                       + "(at most what was captured, once): DR 2300 / CR deposit, and the debit's interchange and scheme "
+                       + "fees reversed in proportion (interchangeReversed, schemeFeeReversed in the result).")
     public ResponseEntity<ApiResponse<CardHoldResult>> releaseCardHold(
             @PathVariable UUID id,
             @PathVariable String reference,
@@ -271,7 +273,10 @@ public class AccountController {
     @PreAuthorize("hasRole('CARD_SERVICE') or hasRole('ADMIN')")
     @Operation(summary = "Clear a card authorization (card-service batch close)",
                description = "Debits the presented amount (at most the authorized one) and posts DR deposit / CR 2300 "
-                       + "Card Scheme Settlement Payable. Idempotent on the same amount. reasons: HOLD_NOT_FOUND, "
+                       + "Card Scheme Settlement Payable. Optional interchangeAmount/interchangeDirection/schemeFeeAmount/"
+                       + "scheme post in the same journal: EARNED DR 2300 / CR 4005, PAID DR 5007 / CR 2300, fees DR 5006 / "
+                       + "CR 2300 (backlog 15b); the result returns what was posted. Idempotent on the same amount (a repeat "
+                       + "returns the first figures). reasons: HOLD_NOT_FOUND, INVALID_CARD_FEES, "
                        + "HOLD_RELEASED, REFERENCE_CONFLICT, CURRENCY_MISMATCH, AMOUNT_EXCEEDS_HOLD; a late presentment "
                        + "(hold expired) is checked like a withdrawal: ACCOUNT_NOT_ACTIVE, ACCOUNT_IN_LOCKIN_PERIOD, "
                        + "INSUFFICIENT_FUNDS. Never force-posted.")
@@ -289,7 +294,8 @@ public class AccountController {
     @Operation(summary = "Debit a single-message card transaction (card-service 0200)",
                description = "Withdrawal rules under the account's row lock, then debit + DR deposit / CR 2300, in one "
                        + "transaction; idempotent on reference. Reversed through …/card-holds/{reference}/release (a refund). "
-                       + "reasons: INSUFFICIENT_FUNDS, ACCOUNT_NOT_ACTIVE, ACCOUNT_IN_LOCKIN_PERIOD, CURRENCY_MISMATCH, "
+                       + "Optional interchange and scheme fees post in the same journal, as on capture. "
+                       + "reasons: INSUFFICIENT_FUNDS, ACCOUNT_NOT_ACTIVE, ACCOUNT_IN_LOCKIN_PERIOD, CURRENCY_MISMATCH, INVALID_CARD_FEES, "
                        + "REFERENCE_CONFLICT, HOLD_RELEASED (already refunded).")
     public ResponseEntity<ApiResponse<CardHoldResult>> cardDebit(
             @PathVariable UUID id,

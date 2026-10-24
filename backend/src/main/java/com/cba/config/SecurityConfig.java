@@ -115,6 +115,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/v1/accounts/*/card-holds", "/api/v1/accounts/*/card-holds/*/release",
                         "/api/v1/accounts/*/card-holds/*/capture", "/api/v1/accounts/*/card-debits")
                     .hasAnyRole("CARD_SERVICE", "ADMIN")
+                // card-service posts a card scheme's net settlement (backlog 15b) — before the POST catch-all
+                .requestMatchers(HttpMethod.POST, "/api/v1/card-settlements")
+                    .hasAnyRole("CARD_SERVICE", "ADMIN")
 
                 // Read-only access for all authenticated roles
                 .requestMatchers(HttpMethod.GET, "/api/v1/**")

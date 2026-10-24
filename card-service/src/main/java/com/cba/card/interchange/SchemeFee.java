@@ -38,9 +38,13 @@ public class SchemeFee {
     @Column(name = "rate_percent", nullable = false, precision = 6, scale = 4)
     private BigDecimal ratePercent = BigDecimal.ZERO;
 
-    /** Flat fee per transaction in the currency of the transaction. */
+    /** Flat fee per transaction, major units of {@link #currencyCode}; applied only to transactions in that currency. */
     @Column(name = "fixed_fee", nullable = false, precision = 10, scale = 4)
     private BigDecimal fixedFee = BigDecimal.ZERO;
+
+    /** ISO 4217 alphabetic currency of {@link #fixedFee} (V13). */
+    @Column(name = "currency_code", nullable = false, length = 3)
+    private String currencyCode = "USD";
 
     @Column(name = "effective_from", nullable = false)
     private LocalDate effectiveFrom;

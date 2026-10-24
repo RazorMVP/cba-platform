@@ -6,6 +6,9 @@ import com.cba.card.auth.CardAuthorizationService;
 import com.cba.card.card.Card;
 import com.cba.card.card.CardType;
 import com.cba.card.common.CbaException;
+import com.cba.card.interchange.InterchangeQualificationEngine;
+import com.cba.card.interchange.IssuerCharges;
+import com.cba.card.interchange.Schemes;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -45,8 +48,10 @@ import java.util.UUID;
  * meanwhile is left as that change made it ({@code @Version} catches a simultaneous write).
  *
  * <p>There is no scheme clearing-file intake yet: the batch close presents each purchase at its
- * authorized amount (user decision 1a, backlog 15). Interchange, scheme fees and the scheme's
- * cash settlement are backlog 15b; SETTLED for the batch is set there.
+ * authorized amount (user decision 1a, backlog 15). Interchange and scheme fees (backlog 15b) are
+ * quoted when an item is claimed and posted in the capture's journal; the item keeps the figures the
+ * backend posted and what the bank owes the scheme for it ({@code glNet}). A batch becomes SETTLED
+ * when the schemes' settlement reports for its date are recorded ({@link SchemeSettlementService}).
  */
 @Slf4j
 @Service
@@ -58,6 +63,7 @@ public class SettlementService {
     private final AuthorizationLogRepository authLogRepository;
     private final BackendClearingClient     clearingClient;
     private final PlatformTransactionManager transactionManager;
+    private final InterchangeQualificationEngine interchangeEngine;
 
     @Value("${card.settlement.auth-expiry-days:7}")
     private int authExpiryDays;
@@ -91,7 +97,18 @@ public class SettlementService {
      */
     @Transactional
     public SettlementItem addAuthorization(AuthorizationLog auth, Card card, String holdReference, boolean completed) {
+        return addAuthorization(auth, card, holdReference, completed, null);
+    }
+
+    /**
+     * As {@link #addAuthorization(AuthorizationLog, Card, String, boolean)}, with the interchange and scheme
+     * fees the backend posted with a completed debit (0200; major units, null = none).
+     */
+    @Transactional
+    public SettlementItem addAuthorization(AuthorizationLog auth, Card card, String holdReference, boolean completed,
+                                           IssuerCharges posted) {
         SettlementItem item = new SettlementItem();
+        item.setScheme(Schemes.normalize(auth.getScheme()));
         item.setAuthorizationLogId(auth.getId());
         item.setAmount(auth.getAmount());
         item.setCurrencyCode(auth.getCurrencyCode());
@@ -101,7 +118,85 @@ public class SettlementService {
         item.setHoldReference(holdReference);
         item.setStatus(completed ? "SETTLED" : "PENDING");
         item.setClearedAt(completed ? OffsetDateTime.now() : null);
-        return addItem(item);
+        Currency currency = CardAuthorizationService.currency(auth.getCurrencyCode());
+        if (completed && movesGl(item) && currency != null && item.getAmount() != null) {
+            applyPosted(item, posted, currency);   // a 0200 debit: already on the backend, with its fees
+        }
+        SettlementItem saved = addItem(item);
+        if (item.getGlNet() != null) {
+            recordInterchange(item, posted == null ? IssuerCharges.none(item.getScheme()) : posted, currency);
+        }
+        return saved;
+    }
+
+    /**
+     * A refund of a cleared (or completed) debit, as the backend posted it: what it took back from the
+     * scheme counts in the scheme settlement of the day it happened. Once per item (a captured debit is
+     * refunded once); nothing for an item that never moved the GL.
+     *
+     * @param refundMinor the refunded amount (DE4 minor units)
+     * @param reversed    interchange and fees the backend reversed (major units)
+     */
+    @Transactional
+    public void recordRefund(UUID authLogId, BigDecimal refundMinor, IssuerCharges reversed) {
+        if (authLogId == null || refundMinor == null) return;
+        SettlementItem item = itemRepository.findByAuthorizationLogIdForUpdate(authLogId).orElse(null);
+        if (item == null || item.getGlNet() == null || item.getRefundGlNet() != null) return;
+        Currency currency = CardAuthorizationService.currency(item.getCurrencyCode());
+        if (currency == null) return;
+        IssuerCharges r = reversed == null ? IssuerCharges.none(item.getScheme()) : reversed;
+        BigDecimal interchange = toMinor(r.interchange(), currency);
+        BigDecimal fee = toMinor(r.schemeFee(), currency);
+        item.setRefundedAmount(refundMinor);
+        item.setInterchangeReversed(interchange);
+        item.setSchemeFeeReversed(fee);
+        item.setRefundGlNet(new IssuerCharges(item.getScheme(), interchange, item.getInterchangeDirection(), fee, null)
+                .owedToScheme(refundMinor).negate());
+        item.setRefundSettlementDate(LocalDate.now());
+        itemRepository.save(item);
+    }
+
+    /** A debit-card item that clears on the backend (and so moves the GL). */
+    private static boolean movesGl(SettlementItem item) {
+        return CardType.DEBIT.name().equals(item.getCardType())
+                && item.getHoldReference() != null && item.getAccountId() != null;
+    }
+
+    /** Stores the figures the backend posted (minor units) and what the bank now owes the scheme for the item. */
+    private static void applyPosted(SettlementItem item, IssuerCharges posted, Currency currency) {
+        IssuerCharges p = posted == null ? IssuerCharges.none(item.getScheme()) : posted;
+        BigDecimal interchange = toMinor(p.interchange(), currency);
+        BigDecimal fee = toMinor(p.schemeFee(), currency);
+        item.setInterchangeAmount(interchange);
+        item.setInterchangeDirection(interchange.signum() > 0 ? p.direction() : null);
+        item.setSchemeFeeAmount(fee);
+        item.setGlNet(new IssuerCharges(item.getScheme(), interchange, item.getInterchangeDirection(), fee, null)
+                .owedToScheme(item.getAmount()));
+    }
+
+    /** The item's stored figures (minor units) as charges in major units. */
+    private static IssuerCharges storedCharges(SettlementItem item, Currency currency) {
+        return new IssuerCharges(item.getScheme(), toMajor(item.getInterchangeAmount(), currency),
+                item.getInterchangeDirection(), toMajor(item.getSchemeFeeAmount(), currency), "STORED");
+    }
+
+    private static BigDecimal toMinor(BigDecimal major, Currency currency) {
+        return major == null ? BigDecimal.ZERO : major.movePointRight(Math.max(currency.getDefaultFractionDigits(), 0));
+    }
+
+    private static BigDecimal toMajor(BigDecimal minor, Currency currency) {
+        return minor == null ? BigDecimal.ZERO : CardAuthorizationService.toMajorUnits(minor, currency);
+    }
+
+    /** interchange_log row for a cleared item — an audit record; never blocks clearing. */
+    private void recordInterchange(SettlementItem item, IssuerCharges charges, Currency currency) {
+        if (currency == null) return;
+        try {
+            interchangeEngine.record(item.getAuthorizationLogId(), item.getId(), charges,
+                    toMajor(item.getAmount(), currency), currency.getCurrencyCode());
+        } catch (RuntimeException e) {
+            log.warn("interchange_log not written for settlement item {}: {}", item.getId(), e.getMessage());
+        }
     }
 
     /** Adds a PENDING item for an authorization log entry (manual/legacy path). */
@@ -255,23 +350,27 @@ public class SettlementService {
         if (item == null) return true;   // changed meanwhile (reversed / cleared by another close)
         String status;
         String reason = null;
-        if (!CardType.DEBIT.name().equals(item.getCardType())
-                || item.getHoldReference() == null || item.getAccountId() == null) {
+        BackendClearingClient.Result result = null;
+        Currency currency = CardAuthorizationService.currency(item.getCurrencyCode());
+        if (!movesGl(item)) {
             status = "SETTLED";   // nothing to clear on the backend (prepaid, or recorded without a hold)
+        } else if (currency == null || item.getAmount() == null) {
+            status = "FAILED";
+            reason = "UNKNOWN_CURRENCY";
         } else {
-            Currency currency = CardAuthorizationService.currency(item.getCurrencyCode());
-            if (currency == null || item.getAmount() == null) {
-                status = "FAILED";
-                reason = "UNKNOWN_CURRENCY";
-            } else {
-                BackendClearingClient.Result result = clearingClient.capture(item.getAccountId(), item.getHoldReference(),
-                        CardAuthorizationService.toMajorUnits(item.getAmount(), currency), currency.getCurrencyCode());
-                if (result == null) return false;
-                status = result.approved() ? "SETTLED" : "FAILED";
-                reason = result.approved() ? null : result.reason();
-            }
+            // The figures quoted at the claim (a retried close reuses them, so the backend's idempotent
+            // repeat sees the same request).
+            result = clearingClient.capture(item.getAccountId(), item.getHoldReference(),
+                    CardAuthorizationService.toMajorUnits(item.getAmount(), currency), currency.getCurrencyCode(),
+                    storedCharges(item, currency));
+            if (result == null) return false;
+            status = result.approved() ? "SETTLED" : "FAILED";
+            reason = result.approved() ? null : result.reason();
         }
-        record(item, status, reason);
+        SettlementItem recorded = record(item, status, reason, result, currency);
+        if (recorded != null && recorded.getGlNet() != null) {
+            recordInterchange(recorded, result.posted(recorded.getScheme()), currency);
+        }
         return true;
     }
 
@@ -291,27 +390,56 @@ public class SettlementService {
                 return null;
             }
             item.setStatus(CLEARING);
+            if (movesGl(item) && item.getInterchangeAmount() == null) {
+                quoteCharges(item);
+            }
             itemRepository.save(item);
             return item;
         });
     }
 
-    /** Writes a clearing outcome in its own transaction, unless the item changed since it was claimed. */
-    private void record(SettlementItem read, String status, String reason) {
-        new TransactionTemplate(transactionManager).executeWithoutResult(tx -> {
+    /** Interchange and scheme fees for an item about to be cleared (backlog 15b), stored in minor units. */
+    private void quoteCharges(SettlementItem item) {
+        Currency currency = CardAuthorizationService.currency(item.getCurrencyCode());
+        if (currency == null || item.getAmount() == null) return;
+        AuthorizationLog auth = item.getAuthorizationLogId() == null ? null
+                : authLogRepository.findById(item.getAuthorizationLogId()).orElse(null);
+        IssuerCharges quoted = auth == null ? null : interchangeEngine.quote(item.getScheme(), CardType.DEBIT,
+                auth.getProcessingCode(), auth.getEntryMode(), auth.getMcc(),
+                CardAuthorizationService.toMajorUnits(item.getAmount(), currency), currency);
+        IssuerCharges q = quoted == null ? IssuerCharges.none(item.getScheme()) : quoted;
+        item.setInterchangeAmount(toMinor(q.interchange(), currency));
+        item.setInterchangeDirection(q.interchange().signum() > 0 ? q.direction() : null);
+        item.setSchemeFeeAmount(toMinor(q.schemeFee(), currency));
+    }
+
+    /**
+     * Writes a clearing outcome in its own transaction, unless the item changed since it was claimed. A
+     * cleared debit takes the figures the backend posted (authoritative) and what the bank owes the scheme
+     * for it. Returns the written item, or null when it was left alone.
+     */
+    private SettlementItem record(SettlementItem read, String status, String reason,
+                                  BackendClearingClient.Result result, Currency currency) {
+        return new TransactionTemplate(transactionManager).execute(tx -> {
             SettlementItem item = itemRepository.findByIdForUpdate(read.getId()).orElse(null);
             if (item == null || !CLEARING.equals(item.getStatus()) || !Objects.equals(item.getVersion(), read.getVersion())) {
                 log.info("Settlement item {} changed while being cleared; left {}", read.getId(),
                         item == null ? "missing" : item.getStatus());
-                return;
+                return null;
             }
             item.setStatus(status);
             item.setFailureReason(reason);
-            if ("SETTLED".equals(status)) item.setClearedAt(OffsetDateTime.now());
+            if ("SETTLED".equals(status)) {
+                item.setClearedAt(OffsetDateTime.now());
+                if (result != null && movesGl(item) && currency != null) {
+                    applyPosted(item, result.posted(item.getScheme()), currency);
+                }
+            }
             itemRepository.save(item);
             if (reason != null) {
                 log.warn("Clearing refused for settlement item {} (hold {}): {}", item.getId(), item.getHoldReference(), reason);
             }
+            return item;
         });
     }
 

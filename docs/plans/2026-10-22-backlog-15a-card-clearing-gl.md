@@ -1,4 +1,4 @@
-> **Status:** open — PR pending. Approved 2026-10-22 in plan mode (user: "1a 2a 3a 4a"). Body verbatim.
+> **Status:** merged — PR #194, merge commit `6bcd9d4`. Approved 2026-10-22 in plan mode (user: "1a 2a 3a 4a"). Body verbatim.
 
 # Backlog 15a — card clearing posts to the GL (capture holds, complete 0200, sweep expired holds)
 

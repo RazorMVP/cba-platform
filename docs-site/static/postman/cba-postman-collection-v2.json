@@ -1179,7 +1179,7 @@
                 "release"
               ]
             },
-            "description": "Releases a card authorization's hold on reversal (role CARD_SERVICE; ADMIN). A completed card debit (hold CAPTURED: cleared purchase or single-message debit) is refunded instead (DR 2300 / CR deposit, status REFUNDED). Optional body {amount, currencyCode, reversalReference} = the reversal's amount and card-service's key for it: refunded for that amount only, once; more than captured -> AMOUNT_EXCEEDS_CAPTURED, other currency -> CURRENCY_MISMATCH, a different reversal (other reversalReference) -> ALREADY_REFUNDED; only a retry of the refunding reversal reports done, closed account -> ACCOUNT_CLOSED. An unknown reference released with an amount is recorded as released so a late debit/hold for it is refused. Idempotent: same refund again -> approved=true REFUNDED; already released/expired -> approved=false HOLD_NOT_ACTIVE; unknown -> HOLD_NOT_FOUND. A live hold is released in full.",
+            "description": "Releases a card authorization's hold on reversal (role CARD_SERVICE; ADMIN). A completed card debit (hold CAPTURED: cleared purchase or single-message debit) is refunded instead (DR 2300 / CR deposit, status REFUNDED). Optional body {amount, currencyCode, reversalReference} = the reversal's amount and card-service's key for it: refunded for that amount only, once; more than captured -> AMOUNT_EXCEEDS_CAPTURED, other currency -> CURRENCY_MISMATCH, a different reversal (other reversalReference) -> ALREADY_REFUNDED; only a retry of the refunding reversal reports done, closed account -> ACCOUNT_CLOSED. An unknown reference released with an amount is recorded as released so a late debit/hold for it is refused. Idempotent: same refund again -> approved=true REFUNDED; already released/expired -> approved=false HOLD_NOT_ACTIVE; unknown -> HOLD_NOT_FOUND. A live hold is released in full. A refund also reverses the debit's interchange and scheme fees in proportion to the amount refunded (exactly on a full refund); the result carries interchangeReversed and schemeFeeReversed.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"amount\": 50.0,\n  \"currencyCode\": \"USD\",\n  \"reversalReference\": \"REV-4f1a9c2e7b3d5a8c0e6f1b2d4a7c9e3f5b8d0a1c\"\n}",
@@ -1285,7 +1285,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"amount\": 25.0,\n  \"currencyCode\": \"USD\"\n}",
+              "raw": "{\n  \"amount\": 100.0,\n  \"currencyCode\": \"USD\",\n  \"interchangeAmount\": 1.5,\n  \"interchangeDirection\": \"EARNED\",\n  \"schemeFeeAmount\": 0.13,\n  \"scheme\": \"VISA\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1307,7 +1307,7 @@
                 "capture"
               ]
             },
-            "description": "Clears a card authorization at batch close (role CARD_SERVICE; ADMIN). Turns the hold into a debit of the presented amount (at most the authorized one) and posts DR customer deposit / CR 2300 Card Scheme Settlement Payable (IFRS 9 \u00a73.3.1, IAS 32 \u00a711); hold \u2192 CAPTURED. Idempotent on the same amount; another amount \u2192 REFERENCE_CONFLICT. A late presentment (hold expired) is checked like a withdrawal and refused if it fails \u2014 never force-posted. Declines (200, approved=false): HOLD_NOT_FOUND, HOLD_RELEASED, CURRENCY_MISMATCH, AMOUNT_EXCEEDS_HOLD, REFERENCE_CONFLICT, ACCOUNT_NOT_ACTIVE, ACCOUNT_IN_LOCKIN_PERIOD, INSUFFICIENT_FUNDS. Not rate-limited."
+            "description": "Clears a card authorization at batch close (role CARD_SERVICE; ADMIN). Turns the hold into a debit of the presented amount (at most the authorized one) and posts DR customer deposit / CR 2300 Card Scheme Settlement Payable (IFRS 9 \u00a73.3.1, IAS 32 \u00a711); hold \u2192 CAPTURED. Idempotent on the same amount; another amount \u2192 REFERENCE_CONFLICT. A late presentment (hold expired) is checked like a withdrawal and refused if it fails \u2014 never force-posted. Declines (200, approved=false): HOLD_NOT_FOUND, HOLD_RELEASED, CURRENCY_MISMATCH, AMOUNT_EXCEEDS_HOLD, REFERENCE_CONFLICT, ACCOUNT_NOT_ACTIVE, ACCOUNT_IN_LOCKIN_PERIOD, INSUFFICIENT_FUNDS. Not rate-limited. Interchange and scheme fees (backlog 15b, optional): interchangeAmount + interchangeDirection (EARNED purchase / PAID ATM cash), schemeFeeAmount and scheme post in the same journal, gross (IFRS 15 B35, B37; IAS 1 \u00a732): EARNED DR 2300 / CR 4005, PAID DR 5007 / CR 2300, fees DR 5006 / CR 2300; foreign-currency income/expense via the FX position (IAS 21 \u00a721). Bad figures \u2192 INVALID_CARD_FEES. The result returns what was posted; an idempotent repeat returns the first figures."
           },
           "response": [
             {
@@ -1327,37 +1327,37 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"data\": {\n    \"approved\": true,\n    \"holdId\": \"8a7f3c1e-2b4d-4e6f-9a0b-1c2d3e4f5a6b\",\n    \"reference\": \"CARD-\\u2026\",\n    \"status\": \"CAPTURED\",\n    \"reason\": null,\n    \"availableBalance\": 15395.75\n  },\n  \"errors\": []\n}"
+              "body": "{\n  \"data\": {\n    \"approved\": true,\n    \"holdId\": \"8a7f3c1e-2b4d-4e6f-9a0b-1c2d3e4f5a6b\",\n    \"reference\": \"CARD-\\u2026\",\n    \"status\": \"CAPTURED\",\n    \"reason\": null,\n    \"availableBalance\": 15395.75,\n    \"interchangeAmount\": 1.5,\n    \"interchangeDirection\": \"EARNED\",\n    \"schemeFeeAmount\": 0.13,\n    \"interchangeReversed\": null,\n    \"schemeFeeReversed\": null\n  },\n  \"errors\": []\n}"
             }
           ],
           "x-code-samples": [
             {
               "lang": "cURL",
-              "source": "curl -X POST '{{base_url}}/api/v1/accounts/{{accountId}}/card-holds/{{cardHoldReference}}/capture' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"amount\": 25.0, \"currencyCode\": \"USD\"}'"
+              "source": "curl -X POST '{{base_url}}/api/v1/accounts/{{accountId}}/card-holds/{{cardHoldReference}}/capture' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"amount\": 100.0, \"currencyCode\": \"USD\", \"interchangeAmount\": 1.5, \"interchangeDirection\": \"EARNED\", \"schemeFeeAmount\": 0.13, \"scheme\": \"VISA\"}'"
             },
             {
               "lang": "JavaScript (fetch)",
-              "source": "fetch('{{base_url}}/api/v1/accounts/{{accountId}}/card-holds/{{cardHoldReference}}/capture', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json'\n  },\n  body: JSON.stringify({\"amount\": 25.0, \"currencyCode\": \"USD\"})\n}).then(r => r.json()).then(console.log);"
+              "source": "fetch('{{base_url}}/api/v1/accounts/{{accountId}}/card-holds/{{cardHoldReference}}/capture', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json'\n  },\n  body: JSON.stringify({\"amount\": 100.0, \"currencyCode\": \"USD\", \"interchangeAmount\": 1.5, \"interchangeDirection\": \"EARNED\", \"schemeFeeAmount\": 0.13, \"scheme\": \"VISA\"})\n}).then(r => r.json()).then(console.log);"
             },
             {
               "lang": "Python (requests)",
-              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/api/v1/accounts/{{accountId}}/card-holds/{{cardHoldReference}}/capture',\n    headers={'Authorization': 'Bearer {{access_token}}'},\n    json={\"amount\": 25.0, \"currencyCode\": \"USD\"}\n)\nprint(response.json())"
+              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/api/v1/accounts/{{accountId}}/card-holds/{{cardHoldReference}}/capture',\n    headers={'Authorization': 'Bearer {{access_token}}'},\n    json={\"amount\": 100.0, \"currencyCode\": \"USD\", \"interchangeAmount\": 1.5, \"interchangeDirection\": \"EARNED\", \"schemeFeeAmount\": 0.13, \"scheme\": \"VISA\"}\n)\nprint(response.json())"
             },
             {
               "lang": "Java (HttpClient)",
-              "source": "HttpRequest request = HttpRequest.newBuilder()\n    .uri(URI.create(\"{{base_url}}/api/v1/accounts/{{accountId}}/card-holds/{{cardHoldReference}}/capture\"))\n    .header(\"Authorization\", \"Bearer \" + accessToken)\n    .header(\"Content-Type\", \"application/json\")\n    .POST(HttpRequest.BodyPublishers.ofString(\"{\\\"amount\\\": 25.0, \\\"currencyCode\\\": \\\"USD\\\"}\"))\n    .build();\nHttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());"
+              "source": "HttpRequest request = HttpRequest.newBuilder()\n    .uri(URI.create(\"{{base_url}}/api/v1/accounts/{{accountId}}/card-holds/{{cardHoldReference}}/capture\"))\n    .header(\"Authorization\", \"Bearer \" + accessToken)\n    .header(\"Content-Type\", \"application/json\")\n    .method(\"POST\", HttpRequest.BodyPublishers.ofString(\"{\\\"amount\\\": 100.0, \\\"currencyCode\\\": \\\"USD\\\", \\\"interchangeAmount\\\": 1.5, \\\"interchangeDirection\\\": \\\"EARNED\\\", \\\"schemeFeeAmount\\\": 0.13, \\\"scheme\\\": \\\"VISA\\\"}\"))\n    .build();\nHttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());"
             },
             {
               "lang": "Go (net/http)",
-              "source": "body := strings.NewReader(`{\"amount\": 25.0, \"currencyCode\": \"USD\"}`)\nreq, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/accounts/{{accountId}}/card-holds/{{cardHoldReference}}/capture\", body)\nreq.Header.Set(\"Authorization\", \"Bearer \"+accessToken)\nreq.Header.Set(\"Content-Type\", \"application/json\")\nresp, err := http.DefaultClient.Do(req)"
+              "source": "req, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/accounts/{{accountId}}/card-holds/{{cardHoldReference}}/capture\", strings.NewReader(`{\"amount\": 100.0, \"currencyCode\": \"USD\", \"interchangeAmount\": 1.5, \"interchangeDirection\": \"EARNED\", \"schemeFeeAmount\": 0.13, \"scheme\": \"VISA\"}`))\nreq.Header.Set(\"Authorization\", \"Bearer \"+accessToken)\nreq.Header.Set(\"Content-Type\", \"application/json\")\nresp, err := http.DefaultClient.Do(req)"
             },
             {
               "lang": "Ruby (net/http)",
-              "source": "uri = URI('{{base_url}}/api/v1/accounts/{{accountId}}/card-holds/{{cardHoldReference}}/capture')\nreq = Net::HTTP::Post.new(uri, 'Content-Type' => 'application/json',\n  'Authorization' => \"Bearer #{access_token}\")\nreq.body = '{\"amount\": 25.0, \"currencyCode\": \"USD\"}'\nres = Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == 'https') { |h| h.request(req) }"
+              "source": "uri = URI('{{base_url}}/api/v1/accounts/{{accountId}}/card-holds/{{cardHoldReference}}/capture')\nreq = Net::HTTP::Post.new(uri, 'Authorization' => \"Bearer #{token}\", 'Content-Type' => 'application/json')\nreq.body = '{\"amount\": 100.0, \"currencyCode\": \"USD\", \"interchangeAmount\": 1.5, \"interchangeDirection\": \"EARNED\", \"schemeFeeAmount\": 0.13, \"scheme\": \"VISA\"}'\nres = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https') { |http| http.request(req) }"
             },
             {
               "lang": "C# (HttpClient)",
-              "source": "using var client = new HttpClient();\nclient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(\"Bearer\", accessToken);\nvar content = new StringContent(\"{\\\"amount\\\": 25.0, \\\"currencyCode\\\": \\\"USD\\\"}\", Encoding.UTF8, \"application/json\");\nvar response = await client.PostAsync(\"{{base_url}}/api/v1/accounts/{{accountId}}/card-holds/{{cardHoldReference}}/capture\", content);"
+              "source": "var request = new HttpRequestMessage(new HttpMethod(\"POST\"), \"{{base_url}}/api/v1/accounts/{{accountId}}/card-holds/{{cardHoldReference}}/capture\");\nrequest.Headers.Authorization = new AuthenticationHeaderValue(\"Bearer\", accessToken);\nrequest.Content = new StringContent(\"{\\\"amount\\\": 100.0, \\\"currencyCode\\\": \\\"USD\\\", \\\"interchangeAmount\\\": 1.5, \\\"interchangeDirection\\\": \\\"EARNED\\\", \\\"schemeFeeAmount\\\": 0.13, \\\"scheme\\\": \\\"VISA\\\"}\", Encoding.UTF8, \"application/json\");\nvar response = await new HttpClient().SendAsync(request);"
             }
           ]
         },
@@ -1377,7 +1377,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"reference\": \"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\",\n  \"amount\": 200.0,\n  \"currencyCode\": \"USD\",\n  \"cashWithdrawal\": true\n}",
+              "raw": "{\n  \"reference\": \"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\",\n  \"amount\": 200.0,\n  \"currencyCode\": \"USD\",\n  \"cashWithdrawal\": true,\n  \"interchangeAmount\": 2.0,\n  \"interchangeDirection\": \"PAID\",\n  \"schemeFeeAmount\": 0.24,\n  \"scheme\": \"VISA\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1397,7 +1397,7 @@
                 "card-debits"
               ]
             },
-            "description": "A single-message card transaction (ISO 8583 0200, e.g. ATM cash), approved and completed at once (role CARD_SERVICE; ADMIN). Withdrawal rules under the account's row lock, then the debit and DR deposit / CR 2300 in one transaction (CARD_CASH_WITHDRAWAL or CARD_PURCHASE). Idempotent on reference. Reverse with Release Card Hold (a refund). Declines (200, approved=false): INSUFFICIENT_FUNDS, ACCOUNT_NOT_ACTIVE, ACCOUNT_IN_LOCKIN_PERIOD, CURRENCY_MISMATCH, REFERENCE_CONFLICT, HOLD_RELEASED. Not rate-limited."
+            "description": "A single-message card transaction (ISO 8583 0200, e.g. ATM cash), approved and completed at once (role CARD_SERVICE; ADMIN). Withdrawal rules under the account's row lock, then the debit and DR deposit / CR 2300 in one transaction (CARD_CASH_WITHDRAWAL or CARD_PURCHASE). Idempotent on reference. Reverse with Release Card Hold (a refund). Declines (200, approved=false): INSUFFICIENT_FUNDS, ACCOUNT_NOT_ACTIVE, ACCOUNT_IN_LOCKIN_PERIOD, CURRENCY_MISMATCH, REFERENCE_CONFLICT, HOLD_RELEASED. Not rate-limited. Optional interchange and scheme fees post in the same journal, as on capture; on ATM cash the bank pays interchange (PAID: DR 5007 / CR 2300). INVALID_CARD_FEES on bad figures."
           },
           "response": [
             {
@@ -1423,31 +1423,119 @@
           "x-code-samples": [
             {
               "lang": "cURL",
-              "source": "curl -X POST '{{base_url}}/api/v1/accounts/{{accountId}}/card-debits' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"reference\": \"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\", \"amount\": 200.0, \"currencyCode\": \"USD\", \"cashWithdrawal\": true}'"
+              "source": "curl -X POST '{{base_url}}/api/v1/accounts/{{accountId}}/card-debits' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"reference\": \"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\", \"amount\": 200.0, \"currencyCode\": \"USD\", \"cashWithdrawal\": true, \"interchangeAmount\": 2.0, \"interchangeDirection\": \"PAID\", \"schemeFeeAmount\": 0.24, \"scheme\": \"VISA\"}'"
             },
             {
               "lang": "JavaScript (fetch)",
-              "source": "fetch('{{base_url}}/api/v1/accounts/{{accountId}}/card-debits', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json'\n  },\n  body: JSON.stringify({\"reference\": \"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\", \"amount\": 200.0, \"currencyCode\": \"USD\", \"cashWithdrawal\": true})\n}).then(r => r.json()).then(console.log);"
+              "source": "fetch('{{base_url}}/api/v1/accounts/{{accountId}}/card-debits', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json'\n  },\n  body: JSON.stringify({\"reference\": \"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\", \"amount\": 200.0, \"currencyCode\": \"USD\", \"cashWithdrawal\": true, \"interchangeAmount\": 2.0, \"interchangeDirection\": \"PAID\", \"schemeFeeAmount\": 0.24, \"scheme\": \"VISA\"})\n}).then(r => r.json()).then(console.log);"
             },
             {
               "lang": "Python (requests)",
-              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/api/v1/accounts/{{accountId}}/card-debits',\n    headers={'Authorization': 'Bearer {{access_token}}'},\n    json={\"reference\": \"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\", \"amount\": 200.0, \"currencyCode\": \"USD\", \"cashWithdrawal\": true}\n)\nprint(response.json())"
+              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/api/v1/accounts/{{accountId}}/card-debits',\n    headers={'Authorization': 'Bearer {{access_token}}'},\n    json={\"reference\": \"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\", \"amount\": 200.0, \"currencyCode\": \"USD\", \"cashWithdrawal\": true, \"interchangeAmount\": 2.0, \"interchangeDirection\": \"PAID\", \"schemeFeeAmount\": 0.24, \"scheme\": \"VISA\"}\n)\nprint(response.json())"
             },
             {
               "lang": "Java (HttpClient)",
-              "source": "HttpRequest request = HttpRequest.newBuilder()\n    .uri(URI.create(\"{{base_url}}/api/v1/accounts/{{accountId}}/card-debits\"))\n    .header(\"Authorization\", \"Bearer \" + accessToken)\n    .header(\"Content-Type\", \"application/json\")\n    .POST(HttpRequest.BodyPublishers.ofString(\"{\\\"reference\\\": \\\"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\\\", \\\"amount\\\": 200.0, \\\"currencyCode\\\": \\\"USD\\\", \\\"cashWithdrawal\\\": true}\"))\n    .build();\nHttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());"
+              "source": "HttpRequest request = HttpRequest.newBuilder()\n    .uri(URI.create(\"{{base_url}}/api/v1/accounts/{{accountId}}/card-debits\"))\n    .header(\"Authorization\", \"Bearer \" + accessToken)\n    .header(\"Content-Type\", \"application/json\")\n    .method(\"POST\", HttpRequest.BodyPublishers.ofString(\"{\\\"reference\\\": \\\"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\\\", \\\"amount\\\": 200.0, \\\"currencyCode\\\": \\\"USD\\\", \\\"cashWithdrawal\\\": true, \\\"interchangeAmount\\\": 2.0, \\\"interchangeDirection\\\": \\\"PAID\\\", \\\"schemeFeeAmount\\\": 0.24, \\\"scheme\\\": \\\"VISA\\\"}\"))\n    .build();\nHttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());"
             },
             {
               "lang": "Go (net/http)",
-              "source": "body := strings.NewReader(`{\"reference\": \"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\", \"amount\": 200.0, \"currencyCode\": \"USD\", \"cashWithdrawal\": true}`)\nreq, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/accounts/{{accountId}}/card-debits\", body)\nreq.Header.Set(\"Authorization\", \"Bearer \"+accessToken)\nreq.Header.Set(\"Content-Type\", \"application/json\")\nresp, err := http.DefaultClient.Do(req)"
+              "source": "req, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/accounts/{{accountId}}/card-debits\", strings.NewReader(`{\"reference\": \"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\", \"amount\": 200.0, \"currencyCode\": \"USD\", \"cashWithdrawal\": true, \"interchangeAmount\": 2.0, \"interchangeDirection\": \"PAID\", \"schemeFeeAmount\": 0.24, \"scheme\": \"VISA\"}`))\nreq.Header.Set(\"Authorization\", \"Bearer \"+accessToken)\nreq.Header.Set(\"Content-Type\", \"application/json\")\nresp, err := http.DefaultClient.Do(req)"
             },
             {
               "lang": "Ruby (net/http)",
-              "source": "uri = URI('{{base_url}}/api/v1/accounts/{{accountId}}/card-debits')\nreq = Net::HTTP::Post.new(uri, 'Content-Type' => 'application/json',\n  'Authorization' => \"Bearer #{access_token}\")\nreq.body = '{\"reference\": \"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\", \"amount\": 200.0, \"currencyCode\": \"USD\", \"cashWithdrawal\": true}'\nres = Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == 'https') { |h| h.request(req) }"
+              "source": "uri = URI('{{base_url}}/api/v1/accounts/{{accountId}}/card-debits')\nreq = Net::HTTP::Post.new(uri, 'Authorization' => \"Bearer #{token}\", 'Content-Type' => 'application/json')\nreq.body = '{\"reference\": \"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\", \"amount\": 200.0, \"currencyCode\": \"USD\", \"cashWithdrawal\": true, \"interchangeAmount\": 2.0, \"interchangeDirection\": \"PAID\", \"schemeFeeAmount\": 0.24, \"scheme\": \"VISA\"}'\nres = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https') { |http| http.request(req) }"
             },
             {
               "lang": "C# (HttpClient)",
-              "source": "using var client = new HttpClient();\nclient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(\"Bearer\", accessToken);\nvar content = new StringContent(\"{\\\"reference\\\": \\\"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\\\", \\\"amount\\\": 200.0, \\\"currencyCode\\\": \\\"USD\\\", \\\"cashWithdrawal\\\": true}\", Encoding.UTF8, \"application/json\");\nvar response = await client.PostAsync(\"{{base_url}}/api/v1/accounts/{{accountId}}/card-debits\", content);"
+              "source": "var request = new HttpRequestMessage(new HttpMethod(\"POST\"), \"{{base_url}}/api/v1/accounts/{{accountId}}/card-debits\");\nrequest.Headers.Authorization = new AuthenticationHeaderValue(\"Bearer\", accessToken);\nrequest.Content = new StringContent(\"{\\\"reference\\\": \\\"CARD-9b2e0c4a1f7d3e5b8a6c2d0e9f1a4b7c3d5e8f20\\\", \\\"amount\\\": 200.0, \\\"currencyCode\\\": \\\"USD\\\", \\\"cashWithdrawal\\\": true, \\\"interchangeAmount\\\": 2.0, \\\"interchangeDirection\\\": \\\"PAID\\\", \\\"schemeFeeAmount\\\": 0.24, \\\"scheme\\\": \\\"VISA\\\"}\", Encoding.UTF8, \"application/json\");\nvar response = await new HttpClient().SendAsync(request);"
+            }
+          ]
+        },
+        {
+          "name": "Post Card Scheme Settlement (card-service)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/card-settlements",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "card-settlements"
+              ]
+            },
+            "description": "The cash leg of card scheme settlement (backlog 15b; role CARD_SERVICE, ADMIN). card-service calls it once a scheme's settlement report matched its expected net. Positive amount (the bank paid the scheme): DR 2300 Card Scheme Settlement Payable / CR 1003 Card Scheme Settlement Account; negative: DR 1003 / CR 2300. Journal dated today, entity type CARD. Idempotent on reference (repeat=true, no second journal); other figures under it \u2192 REFERENCE_CONFLICT. Refusals (200, approved=false): REFERENCE_CONFLICT, ZERO_AMOUNT, INVALID_AMOUNT, UNKNOWN_CURRENCY. GL 1003/2300 unmapped \u2192 400 ACTIVITY_NOT_MAPPED.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reference\": \"CSR-VISA-20261023-USD\",\n  \"scheme\": \"VISA\",\n  \"settlementDate\": \"2026-10-23\",\n  \"currencyCode\": \"USD\",\n  \"amount\": 149.2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/api/v1/card-settlements"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"approved\": true,\n    \"repeat\": false,\n    \"reference\": \"CSR-VISA-20261023-USD\",\n    \"journalTransactionId\": \"GL-\\u2026\",\n    \"reason\": null\n  },\n  \"errors\": []\n}"
+            }
+          ],
+          "x-code-samples": [
+            {
+              "lang": "cURL",
+              "source": "curl -X POST '{{base_url}}/api/v1/card-settlements' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"reference\": \"CSR-VISA-20261023-USD\", \"scheme\": \"VISA\", \"settlementDate\": \"2026-10-23\", \"currencyCode\": \"USD\", \"amount\": 149.2}'"
+            },
+            {
+              "lang": "JavaScript (fetch)",
+              "source": "fetch('{{base_url}}/api/v1/card-settlements', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json'\n  },\n  body: JSON.stringify({\"reference\": \"CSR-VISA-20261023-USD\", \"scheme\": \"VISA\", \"settlementDate\": \"2026-10-23\", \"currencyCode\": \"USD\", \"amount\": 149.2})\n}).then(r => r.json()).then(console.log);"
+            },
+            {
+              "lang": "Python (requests)",
+              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/api/v1/card-settlements',\n    headers={'Authorization': 'Bearer {{access_token}}'},\n    json={\"reference\": \"CSR-VISA-20261023-USD\", \"scheme\": \"VISA\", \"settlementDate\": \"2026-10-23\", \"currencyCode\": \"USD\", \"amount\": 149.2}\n)\nprint(response.json())"
+            },
+            {
+              "lang": "Java (HttpClient)",
+              "source": "HttpRequest request = HttpRequest.newBuilder()\n    .uri(URI.create(\"{{base_url}}/api/v1/card-settlements\"))\n    .header(\"Authorization\", \"Bearer \" + accessToken)\n    .header(\"Content-Type\", \"application/json\")\n    .method(\"POST\", HttpRequest.BodyPublishers.ofString(\"{\\\"reference\\\": \\\"CSR-VISA-20261023-USD\\\", \\\"scheme\\\": \\\"VISA\\\", \\\"settlementDate\\\": \\\"2026-10-23\\\", \\\"currencyCode\\\": \\\"USD\\\", \\\"amount\\\": 149.2}\"))\n    .build();\nHttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());"
+            },
+            {
+              "lang": "Go (net/http)",
+              "source": "req, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/card-settlements\", strings.NewReader(`{\"reference\": \"CSR-VISA-20261023-USD\", \"scheme\": \"VISA\", \"settlementDate\": \"2026-10-23\", \"currencyCode\": \"USD\", \"amount\": 149.2}`))\nreq.Header.Set(\"Authorization\", \"Bearer \"+accessToken)\nreq.Header.Set(\"Content-Type\", \"application/json\")\nresp, err := http.DefaultClient.Do(req)"
+            },
+            {
+              "lang": "Ruby (net/http)",
+              "source": "uri = URI('{{base_url}}/api/v1/card-settlements')\nreq = Net::HTTP::Post.new(uri, 'Authorization' => \"Bearer #{token}\", 'Content-Type' => 'application/json')\nreq.body = '{\"reference\": \"CSR-VISA-20261023-USD\", \"scheme\": \"VISA\", \"settlementDate\": \"2026-10-23\", \"currencyCode\": \"USD\", \"amount\": 149.2}'\nres = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https') { |http| http.request(req) }"
+            },
+            {
+              "lang": "C# (HttpClient)",
+              "source": "var request = new HttpRequestMessage(new HttpMethod(\"POST\"), \"{{base_url}}/api/v1/card-settlements\");\nrequest.Headers.Authorization = new AuthenticationHeaderValue(\"Bearer\", accessToken);\nrequest.Content = new StringContent(\"{\\\"reference\\\": \\\"CSR-VISA-20261023-USD\\\", \\\"scheme\\\": \\\"VISA\\\", \\\"settlementDate\\\": \\\"2026-10-23\\\", \\\"currencyCode\\\": \\\"USD\\\", \\\"amount\\\": 149.2}\", Encoding.UTF8, \"application/json\");\nvar response = await new HttpClient().SendAsync(request);"
             }
           ]
         },
@@ -23266,6 +23354,298 @@
                 "description": "All transmission records for a specific batch (one per enabled scheme)."
               },
               "response": []
+            },
+            {
+              "name": "Record Scheme Settlement Report",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports",
+                  "host": [
+                    "http://{{cardServiceHost}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "cards",
+                    "settlement",
+                    "scheme-reports"
+                  ]
+                },
+                "description": "Records a card scheme's settlement report (backlog 15b; ADMIN). Expected net = glNet of the date's cleared items + refundGlNet of the date's refunds, for the scheme and currency. Only an exact match is recorded: the backend posts DR 2300 / CR 1003 (POST /api/v1/card-settlements) and the date's batches become SETTLED. A mismatch \u2192 recorded=false, reason=AMOUNT_MISMATCH with expectedNet/reportedNet/difference, nothing written. Other refusals: DATE_NOT_CLOSED, BATCH_NOT_CLOSED, ALREADY_RECORDED, REPORT_IN_PROGRESS, UNKNOWN_CURRENCY, INVALID_AMOUNT, BACKEND_UNAVAILABLE (stays POSTING; the same report again finishes it). The same report again \u2192 repeat=true.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"scheme\": \"VISA\",\n  \"settlementDate\": \"2026-10-23\",\n  \"currency\": \"USD\",\n  \"netAmount\": 149.2\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "originalRequest": {
+                    "method": "POST",
+                    "url": {
+                      "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports"
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"data\": {\n    \"recorded\": true,\n    \"repeat\": false,\n    \"reason\": null,\n    \"scheme\": \"VISA\",\n    \"settlementDate\": \"2026-10-23\",\n    \"currency\": \"USD\",\n    \"expectedNet\": 149.2,\n    \"reportedNet\": 149.2,\n    \"difference\": 0.0,\n    \"itemCount\": 2,\n    \"refundCount\": 0,\n    \"backendReference\": \"CSR-VISA-20261023-USD\",\n    \"journalTransactionId\": \"GL-\\u2026\"\n  },\n  \"errors\": []\n}"
+                },
+                {
+                  "name": "200 OK \u2014 mismatch (nothing written)",
+                  "originalRequest": {
+                    "method": "POST",
+                    "url": {
+                      "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports"
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"data\": {\n    \"recorded\": false,\n    \"repeat\": false,\n    \"reason\": \"AMOUNT_MISMATCH\",\n    \"scheme\": \"VISA\",\n    \"settlementDate\": \"2026-10-23\",\n    \"currency\": \"USD\",\n    \"expectedNet\": 149.2,\n    \"reportedNet\": 149.21,\n    \"difference\": 0.01,\n    \"itemCount\": 2,\n    \"refundCount\": 0,\n    \"backendReference\": null,\n    \"journalTransactionId\": null\n  },\n  \"errors\": []\n}"
+                }
+              ],
+              "x-code-samples": [
+                {
+                  "lang": "cURL",
+                  "source": "curl -X POST 'http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports' \\\n  -H 'Authorization: Bearer {{admin_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"scheme\": \"VISA\", \"settlementDate\": \"2026-10-23\", \"currency\": \"USD\", \"netAmount\": 149.2}'"
+                },
+                {
+                  "lang": "JavaScript (fetch)",
+                  "source": "fetch('http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{admin_token}}',\n    'Content-Type': 'application/json'\n  },\n  body: JSON.stringify({\"scheme\": \"VISA\", \"settlementDate\": \"2026-10-23\", \"currency\": \"USD\", \"netAmount\": 149.2})\n}).then(r => r.json()).then(console.log);"
+                },
+                {
+                  "lang": "Python (requests)",
+                  "source": "import requests\n\nresponse = requests.post(\n    'http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports',\n    headers={'Authorization': 'Bearer {{admin_token}}'},\n    json={\"scheme\": \"VISA\", \"settlementDate\": \"2026-10-23\", \"currency\": \"USD\", \"netAmount\": 149.2}\n)\nprint(response.json())"
+                },
+                {
+                  "lang": "Java (HttpClient)",
+                  "source": "HttpRequest request = HttpRequest.newBuilder()\n    .uri(URI.create(\"http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports\"))\n    .header(\"Authorization\", \"Bearer \" + accessToken)\n    .header(\"Content-Type\", \"application/json\")\n    .method(\"POST\", HttpRequest.BodyPublishers.ofString(\"{\\\"scheme\\\": \\\"VISA\\\", \\\"settlementDate\\\": \\\"2026-10-23\\\", \\\"currency\\\": \\\"USD\\\", \\\"netAmount\\\": 149.2}\"))\n    .build();\nHttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());"
+                },
+                {
+                  "lang": "Go (net/http)",
+                  "source": "req, _ := http.NewRequest(\"POST\", \"http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports\", strings.NewReader(`{\"scheme\": \"VISA\", \"settlementDate\": \"2026-10-23\", \"currency\": \"USD\", \"netAmount\": 149.2}`))\nreq.Header.Set(\"Authorization\", \"Bearer \"+accessToken)\nreq.Header.Set(\"Content-Type\", \"application/json\")\nresp, err := http.DefaultClient.Do(req)"
+                },
+                {
+                  "lang": "Ruby (net/http)",
+                  "source": "uri = URI('http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports')\nreq = Net::HTTP::Post.new(uri, 'Authorization' => \"Bearer #{token}\", 'Content-Type' => 'application/json')\nreq.body = '{\"scheme\": \"VISA\", \"settlementDate\": \"2026-10-23\", \"currency\": \"USD\", \"netAmount\": 149.2}'\nres = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https') { |http| http.request(req) }"
+                },
+                {
+                  "lang": "C# (HttpClient)",
+                  "source": "var request = new HttpRequestMessage(new HttpMethod(\"POST\"), \"http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports\");\nrequest.Headers.Authorization = new AuthenticationHeaderValue(\"Bearer\", accessToken);\nrequest.Content = new StringContent(\"{\\\"scheme\\\": \\\"VISA\\\", \\\"settlementDate\\\": \\\"2026-10-23\\\", \\\"currency\\\": \\\"USD\\\", \\\"netAmount\\\": 149.2}\", Encoding.UTF8, \"application/json\");\nvar response = await new HttpClient().SendAsync(request);"
+                }
+              ]
+            },
+            {
+              "name": "List Scheme Settlement Reports",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports?date=2026-10-23",
+                  "host": [
+                    "http://{{cardServiceHost}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "cards",
+                    "settlement",
+                    "scheme-reports"
+                  ],
+                  "query": [
+                    {
+                      "key": "date",
+                      "value": "2026-10-23"
+                    }
+                  ]
+                },
+                "description": "Recorded (and POSTING) scheme settlement reports, optionally for one settlement date (ADMIN)."
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports?date=2026-10-23"
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"data\": [\n    {\n      \"id\": \"\\u2026\",\n      \"scheme\": \"VISA\",\n      \"settlementDate\": \"2026-10-23\",\n      \"currencyCode\": \"USD\",\n      \"reportedNet\": 149.2,\n      \"expectedNet\": 149.2,\n      \"itemCount\": 2,\n      \"refundCount\": 0,\n      \"status\": \"RECORDED\",\n      \"backendReference\": \"CSR-VISA-20261023-USD\",\n      \"journalTransactionId\": \"GL-\\u2026\"\n    }\n  ],\n  \"errors\": []\n}"
+                }
+              ],
+              "x-code-samples": [
+                {
+                  "lang": "cURL",
+                  "source": "curl -X GET 'http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports?date=2026-10-23' \\\n  -H 'Authorization: Bearer {{admin_token}}'"
+                },
+                {
+                  "lang": "JavaScript (fetch)",
+                  "source": "fetch('http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports?date=2026-10-23', {\n  method: 'GET',\n  headers: {\n    'Authorization': 'Bearer {{admin_token}}',\n    'Content-Type': 'application/json'\n  }\n}).then(r => r.json()).then(console.log);"
+                },
+                {
+                  "lang": "Python (requests)",
+                  "source": "import requests\n\nresponse = requests.get(\n    'http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports?date=2026-10-23',\n    headers={'Authorization': 'Bearer {{admin_token}}'}\n)\nprint(response.json())"
+                },
+                {
+                  "lang": "Java (HttpClient)",
+                  "source": "HttpRequest request = HttpRequest.newBuilder()\n    .uri(URI.create(\"http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports?date=2026-10-23\"))\n    .header(\"Authorization\", \"Bearer \" + accessToken)\n    .header(\"Content-Type\", \"application/json\")\n    .method(\"GET\", HttpRequest.BodyPublishers.noBody())\n    .build();\nHttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());"
+                },
+                {
+                  "lang": "Go (net/http)",
+                  "source": "req, _ := http.NewRequest(\"GET\", \"http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports?date=2026-10-23\", strings.NewReader(``))\nreq.Header.Set(\"Authorization\", \"Bearer \"+accessToken)\nreq.Header.Set(\"Content-Type\", \"application/json\")\nresp, err := http.DefaultClient.Do(req)"
+                },
+                {
+                  "lang": "Ruby (net/http)",
+                  "source": "uri = URI('http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports?date=2026-10-23')\nreq = Net::HTTP::Get.new(uri, 'Authorization' => \"Bearer #{token}\", 'Content-Type' => 'application/json')\nres = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https') { |http| http.request(req) }"
+                },
+                {
+                  "lang": "C# (HttpClient)",
+                  "source": "var request = new HttpRequestMessage(new HttpMethod(\"GET\"), \"http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports?date=2026-10-23\");\nrequest.Headers.Authorization = new AuthenticationHeaderValue(\"Bearer\", accessToken);\nvar response = await new HttpClient().SendAsync(request);"
+                }
+              ]
+            },
+            {
+              "name": "Expected Scheme Net",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports/expected?scheme=VISA&date=2026-10-23&currency=USD",
+                  "host": [
+                    "http://{{cardServiceHost}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "cards",
+                    "settlement",
+                    "scheme-reports",
+                    "expected"
+                  ],
+                  "query": [
+                    {
+                      "key": "scheme",
+                      "value": "VISA"
+                    },
+                    {
+                      "key": "date",
+                      "value": "2026-10-23"
+                    },
+                    {
+                      "key": "currency",
+                      "value": "USD"
+                    }
+                  ]
+                },
+                "description": "The net a scheme's settlement report must show for the date and currency to be recorded (ADMIN). Nothing written."
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports/expected?scheme=VISA&date=2026-10-23&currency=USD"
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"data\": {\n    \"recorded\": false,\n    \"repeat\": false,\n    \"reason\": null,\n    \"scheme\": \"VISA\",\n    \"settlementDate\": \"2026-10-23\",\n    \"currency\": \"USD\",\n    \"expectedNet\": 149.2,\n    \"reportedNet\": null,\n    \"difference\": null,\n    \"itemCount\": 2,\n    \"refundCount\": 0,\n    \"backendReference\": null,\n    \"journalTransactionId\": null\n  },\n  \"errors\": []\n}"
+                }
+              ],
+              "x-code-samples": [
+                {
+                  "lang": "cURL",
+                  "source": "curl -X GET 'http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports/expected?scheme=VISA&date=2026-10-23&currency=USD' \\\n  -H 'Authorization: Bearer {{admin_token}}'"
+                },
+                {
+                  "lang": "JavaScript (fetch)",
+                  "source": "fetch('http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports/expected?scheme=VISA&date=2026-10-23&currency=USD', {\n  method: 'GET',\n  headers: {\n    'Authorization': 'Bearer {{admin_token}}',\n    'Content-Type': 'application/json'\n  }\n}).then(r => r.json()).then(console.log);"
+                },
+                {
+                  "lang": "Python (requests)",
+                  "source": "import requests\n\nresponse = requests.get(\n    'http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports/expected?scheme=VISA&date=2026-10-23&currency=USD',\n    headers={'Authorization': 'Bearer {{admin_token}}'}\n)\nprint(response.json())"
+                },
+                {
+                  "lang": "Java (HttpClient)",
+                  "source": "HttpRequest request = HttpRequest.newBuilder()\n    .uri(URI.create(\"http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports/expected?scheme=VISA&date=2026-10-23&currency=USD\"))\n    .header(\"Authorization\", \"Bearer \" + accessToken)\n    .header(\"Content-Type\", \"application/json\")\n    .method(\"GET\", HttpRequest.BodyPublishers.noBody())\n    .build();\nHttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());"
+                },
+                {
+                  "lang": "Go (net/http)",
+                  "source": "req, _ := http.NewRequest(\"GET\", \"http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports/expected?scheme=VISA&date=2026-10-23&currency=USD\", strings.NewReader(``))\nreq.Header.Set(\"Authorization\", \"Bearer \"+accessToken)\nreq.Header.Set(\"Content-Type\", \"application/json\")\nresp, err := http.DefaultClient.Do(req)"
+                },
+                {
+                  "lang": "Ruby (net/http)",
+                  "source": "uri = URI('http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports/expected?scheme=VISA&date=2026-10-23&currency=USD')\nreq = Net::HTTP::Get.new(uri, 'Authorization' => \"Bearer #{token}\", 'Content-Type' => 'application/json')\nres = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https') { |http| http.request(req) }"
+                },
+                {
+                  "lang": "C# (HttpClient)",
+                  "source": "var request = new HttpRequestMessage(new HttpMethod(\"GET\"), \"http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports/expected?scheme=VISA&date=2026-10-23&currency=USD\");\nrequest.Headers.Authorization = new AuthenticationHeaderValue(\"Bearer\", accessToken);\nvar response = await new HttpClient().SendAsync(request);"
+                }
+              ]
             }
           ]
         },
@@ -23833,7 +24213,7 @@
                     }
                   ]
                 },
-                "description": "Calculate interchange for a specific auth log entry. Writes the result to interchange_log and returns the breakdown. Useful for ops verification."
+                "description": "Calculate interchange for a specific auth log entry. Writes the result to interchange_log and returns the breakdown. Useful for ops verification. From backlog 15b the result is the issuer's view in major units: interchangeAmount, schemeFeeAmount (assessment + network only), direction (EARNED purchase / PAID cash) and netSettlementAmount = what the issuer owes the scheme (gross \u2212 interchange earned + interchange paid + fees)."
               },
               "response": [
                 {

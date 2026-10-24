@@ -66,6 +66,7 @@ class CardAuthorizationServiceTest {
     @Mock RestClientConfig restClientConfig;
     @Mock WebhookService webhookService;
     @Mock SettlementService settlementService;
+    @Mock com.cba.card.interchange.InterchangeQualificationEngine interchangeEngine;
 
     @InjectMocks CardAuthorizationService service;
 
@@ -675,7 +676,69 @@ class CardAuthorizationServiceTest {
         assertThat(body.get("cashWithdrawal")).isEqualTo(true);
         verify(backendRestTemplate, never()).exchange(contains("/card-holds"), any(HttpMethod.class), any(),
                 any(ParameterizedTypeReference.class));
-        verify(settlementService).addAuthorization(any(AuthorizationLog.class), eq(card), any(String.class), eq(true));
+        verify(settlementService).addAuthorization(any(AuthorizationLog.class), eq(card), any(String.class), eq(true),
+                any(com.cba.card.interchange.IssuerCharges.class));
+    }
+
+    @Test
+    @DisplayName("15b: 0200 ATM cash sends the interchange the bank pays (PAID) and its fees with card-debits")
+    void atm0200_sendsPaidInterchange() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+        when(interchangeEngine.quote(eq("VISA"), eq(card.getCardType()), eq("010000"), eq("CHIP"), eq("6011"), any(), any()))
+                .thenReturn(new com.cba.card.interchange.IssuerCharges("VISA", new BigDecimal("2.00"),
+                        com.cba.card.interchange.InterchangeDirection.PAID, new BigDecimal("0.24"), "TEST"));
+        doReturn(ResponseEntity.ok(new CardAuthorizationService.Envelope<>(new CardAuthorizationService.BackendHold(
+                true, UUID.randomUUID(), "ref", "CAPTURED", null, BigDecimal.ZERO,
+                new BigDecimal("2.00"), "PAID", new BigDecimal("0.24"), null, null))))
+                .when(backendRestTemplate).exchange(contains("/card-debits"), eq(HttpMethod.POST), any(HttpEntity.class),
+                        any(ParameterizedTypeReference.class));
+        CardAuthRequest atm = new CardAuthRequest(PAN, "010000", new BigDecimal("20000"), "840", "000002",
+                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0002", "VISA", true, true, true, null);
+
+        assertThat(service.authorize(atm).responseCode()).isEqualTo("00");
+
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<HttpEntity> captor = org.mockito.ArgumentCaptor.forClass(HttpEntity.class);
+        verify(backendRestTemplate).exchange(contains("/card-debits"), eq(HttpMethod.POST), captor.capture(),
+                any(ParameterizedTypeReference.class));
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> body = (java.util.Map<String, Object>) captor.getValue().getBody();
+        assertThat((BigDecimal) body.get("interchangeAmount")).isEqualByComparingTo("2.00");
+        assertThat(body.get("interchangeDirection")).isEqualTo("PAID");
+        assertThat((BigDecimal) body.get("schemeFeeAmount")).isEqualByComparingTo("0.24");
+        assertThat(body.get("scheme")).isEqualTo("VISA");
+        verify(settlementService).addAuthorization(any(AuthorizationLog.class), eq(card), any(String.class), eq(true),
+                org.mockito.ArgumentMatchers.<com.cba.card.interchange.IssuerCharges>argThat(
+                        c -> c.interchange().compareTo(new BigDecimal("2.00")) == 0));
+    }
+
+    @Test
+    @DisplayName("15b: an interchange engine failure never declines — the 0200 still debits, with no fees")
+    void engineFailure_stillApproves() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+        when(interchangeEngine.quote(any(), any(), any(), any(), any(), any(), any()))
+                .thenThrow(new IllegalStateException("rates unavailable"));
+        doReturn(ResponseEntity.ok(new CardAuthorizationService.Envelope<>(new CardAuthorizationService.BackendHold(
+                true, UUID.randomUUID(), "ref", "CAPTURED", null, BigDecimal.ZERO))))
+                .when(backendRestTemplate).exchange(contains("/card-debits"), eq(HttpMethod.POST), any(HttpEntity.class),
+                        any(ParameterizedTypeReference.class));
+        CardAuthRequest atm = new CardAuthRequest(PAN, "010000", new BigDecimal("20000"), "840", "000003",
+                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0003", "VISA", true, true, true, null);
+
+        assertThat(service.authorize(atm).responseCode()).isEqualTo("00");
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<HttpEntity> captor = org.mockito.ArgumentCaptor.forClass(HttpEntity.class);
+        verify(backendRestTemplate).exchange(contains("/card-debits"), eq(HttpMethod.POST), captor.capture(),
+                any(ParameterizedTypeReference.class));
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> body = (java.util.Map<String, Object>) captor.getValue().getBody();
+        assertThat(body).doesNotContainKeys("interchangeAmount", "schemeFeeAmount");
     }
 
     @Test
@@ -822,6 +885,36 @@ class CardAuthorizationServiceTest {
         assertThat(service.reverse(PAN, new BigDecimal("20000"), REV_STAN, "x")).isEqualTo("96");
         verifyNoInteractions(backendRestTemplate);
         verify(authLogRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("15b: a partial reversal of a cleared debit records the refund's reversed interchange and fees")
+    void partialReversalOfCleared_recordsRefundFigures() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setId(UUID.randomUUID());
+        original.setAmount(new BigDecimal("10000"));
+        original.setHoldReference("CARD-cleared");
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+        when(settlementService.reducePendingItem(original.getId(), new BigDecimal("4000")))
+                .thenReturn(com.cba.card.settlement.SettlementService.PendingReduction.NOT_PENDING);
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+        doReturn(ResponseEntity.ok(new CardAuthorizationService.Envelope<>(new CardAuthorizationService.BackendHold(
+                true, UUID.randomUUID(), "CARD-cleared", "REFUNDED", null, BigDecimal.ZERO,
+                new BigDecimal("1.50"), "EARNED", new BigDecimal("0.13"), new BigDecimal("0.60"), new BigDecimal("0.05")))))
+                .when(backendRestTemplate).exchange(contains("/release"), eq(HttpMethod.POST), any(),
+                        any(ParameterizedTypeReference.class));
+
+        assertThat(service.reverse(PAN, new BigDecimal("4000"), REV_STAN, "x")).isEqualTo("00");
+
+        verify(settlementService).recordRefund(eq(original.getId()), eq(new BigDecimal("4000")),
+                org.mockito.ArgumentMatchers.<com.cba.card.interchange.IssuerCharges>argThat(c ->
+                        c.interchange().compareTo(new BigDecimal("0.60")) == 0
+                                && c.schemeFee().compareTo(new BigDecimal("0.05")) == 0
+                                && c.direction() == com.cba.card.interchange.InterchangeDirection.EARNED));
     }
 
     @Test

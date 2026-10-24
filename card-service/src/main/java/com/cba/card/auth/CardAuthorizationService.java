@@ -12,6 +12,9 @@ import com.cba.card.fraud.FraudScoreLog;
 import com.cba.card.fraud.FraudScoreLogRepository;
 import com.cba.card.openbanking.webhook.WebhookService;
 import com.cba.card.settlement.SettlementService;
+import com.cba.card.interchange.InterchangeQualificationEngine;
+import com.cba.card.interchange.IssuerCharges;
+import com.cba.card.interchange.Schemes;
 import com.cba.card.wallet.PrepaidWallet;
 import com.cba.card.wallet.PrepaidWalletRepository;
 import lombok.RequiredArgsConstructor;
@@ -62,6 +65,7 @@ public class CardAuthorizationService {
     private final RestTemplate              backendRestTemplate;
     private final RestClientConfig          restClientConfig;
     private final SettlementService         settlementService;
+    private final InterchangeQualificationEngine interchangeEngine;
 
     /** Injected lazily to break the potential cycle: CardAuthorizationService ← WebhookDeliveryService ← WebhookService. */
     @Lazy @Autowired
@@ -70,6 +74,7 @@ public class CardAuthorizationService {
     @Transactional
     public CardAuthResponse authorize(CardAuthRequest req) {
         String holdRef = null;          // backend hold placed by this approval (debit)
+        IssuerCharges posted = null;    // interchange and fees the backend posted with a 0200 debit (backlog 15b)
         BigDecimal walletDebit = null;  // taken from the prepaid wallet by this approval
         Card card = null;
         try {
@@ -126,11 +131,13 @@ public class CardAuthorizationService {
                         return logAndReturn(card, req, CardAuthResponse.decline("57"), fraud.totalScore(), fraud.decision());
                     }
                     String reference = holdReference(card, req);
-                    // 0200 (single message, e.g. ATM cash) is approved and completed at once: debit now.
+                    // 0200 (single message, e.g. ATM cash) is approved and completed at once: debit now, with
+                    // its interchange and scheme fees in the same journal (backlog 15b).
                     // 0100 reserves with a hold that batch close clears (backlog 15a, decisions 1a/2a).
                     BackendHold hold = req.isFinancial()
                             ? postSingleMessageDebit(card, reference, amountMajor, txCurrency,
-                                    req.processingCode() != null && req.processingCode().startsWith("01"))
+                                    req.processingCode() != null && req.processingCode().startsWith("01"),
+                                    quoteCharges(card, req, amountMajor, txCurrency))
                             : placeDebitHold(card, reference, amountMajor, txCurrency);
                     if (hold == null) {
                         // The call failed or timed out — the backend may still have placed the hold or (0200)
@@ -155,6 +162,7 @@ public class CardAuthorizationService {
                                 fraud.totalScore(), fraud.decision());
                     }
                     holdRef = reference;
+                    if (req.isFinancial()) posted = hold.postedCharges(Schemes.normalize(req.scheme()));
                     // If this transaction rolls back after the hold was placed (including a failed
                     // commit), the approval never happened — give the hold back (a completed 0200
                     // debit is refunded by the same release).
@@ -204,7 +212,7 @@ public class CardAuthorizationService {
             }
 
             CardAuthResponse response = CardAuthResponse.approve(authCode, balanceForResponse, req.currencyCode());
-            return logAndReturn(card, req, response, fraud.totalScore(), fraud.decision(), holdRef, walletDebit);
+            return logAndReturn(card, req, response, fraud.totalScore(), fraud.decision(), holdRef, walletDebit, posted);
 
         } catch (Exception e) {
             log.error("Authorization processing error for STAN={}", req.stan(), e);
@@ -348,8 +356,16 @@ public class CardAuthorizationService {
                         return "96";
                     }
                     if (reduced != SettlementService.PendingReduction.REDUCED) {
-                        ReleaseOutcome released = releaseDebitHold(card, original.getHoldReference(), reversalMajor, ccy,
+                        Release release = releaseWithResult(card, original.getHoldReference(), reversalMajor, ccy,
                                 reversalReference(original.getHoldReference(), stan, reversalMinor));
+                        ReleaseOutcome released = release.outcome();
+                        if (released == ReleaseOutcome.DONE && release.hold() != null
+                                && "REFUNDED".equals(release.hold().status())) {
+                            // A cleared (or completed) debit was refunded: what it takes back from the scheme
+                            // counts in today's scheme settlement (backlog 15b).
+                            settlementService.recordRefund(original.getId(), reversalMinor,
+                                    release.hold().reversedCharges(Schemes.normalize(original.getScheme())));
+                        }
                         if (released != ReleaseOutcome.DONE) {
                             // Nothing was given back: undo the REVERSED mark so the purchase still clears.
                             if (marked == SettlementService.ItemReversal.MARKED) rollbackOnly();
@@ -468,13 +484,22 @@ public class CardAuthorizationService {
      * idempotent on {@code reference}. Same result shape as a hold. Null when unavailable.
      */
     private BackendHold postSingleMessageDebit(Card card, String reference, BigDecimal amountMajor,
-                                               java.util.Currency currency, boolean cashWithdrawal) {
+                                               java.util.Currency currency, boolean cashWithdrawal,
+                                               IssuerCharges charges) {
         if (card.getLinkedEntityId() == null) return null;
         try {
             String url = restClientConfig.getBackendBaseUrl()
                     + "/api/v1/accounts/" + card.getLinkedEntityId() + "/card-debits";
-            Map<String, Object> body = Map.of("reference", reference, "amount", amountMajor,
-                    "currencyCode", currency.getCurrencyCode(), "cashWithdrawal", cashWithdrawal);
+            Map<String, Object> body = new java.util.HashMap<>(Map.of("reference", reference, "amount", amountMajor,
+                    "currencyCode", currency.getCurrencyCode(), "cashWithdrawal", cashWithdrawal));
+            if (charges != null) {
+                body.put("scheme", charges.scheme());
+                if (charges.interchange().signum() > 0) {
+                    body.put("interchangeAmount", charges.interchange());
+                    body.put("interchangeDirection", charges.direction() == null ? null : charges.direction().name());
+                }
+                if (charges.schemeFee().signum() > 0) body.put("schemeFeeAmount", charges.schemeFee());
+            }
             ResponseEntity<Envelope<BackendHold>> resp = backendRestTemplate.exchange(
                     url, HttpMethod.POST, new org.springframework.http.HttpEntity<>(body),
                     new ParameterizedTypeReference<Envelope<BackendHold>>() {});
@@ -515,6 +540,24 @@ public class CardAuthorizationService {
         }
     }
 
+    /**
+     * The issuer's interchange and scheme fees for a single-message debit (backlog 15b). Never fails the
+     * authorization: no engine answer means none.
+     */
+    private IssuerCharges quoteCharges(Card card, CardAuthRequest req, BigDecimal amountMajor, java.util.Currency currency) {
+        try {
+            IssuerCharges c = interchangeEngine.quote(req.scheme(), card.getCardType(), req.processingCode(),
+                    req.posEntryMode(), req.mcc(), amountMajor, currency);
+            return c != null ? c : IssuerCharges.none(Schemes.normalize(req.scheme()));
+        } catch (RuntimeException e) {
+            log.warn("Interchange quote failed for card {}: {}", card.getId(), e.getMessage());
+            return IssuerCharges.none(Schemes.normalize(req.scheme()));
+        }
+    }
+
+    /** A release's outcome and, when the backend answered, its result (to see whether it refunded). */
+    record Release(ReleaseOutcome outcome, BackendHold hold) {}
+
     /** Rolls back the reversal's transaction (when there is one) so changes made before a refusal are undone. */
     private static void rollbackOnly() {
         if (TransactionSynchronizationManager.isActualTransactionActive()) {
@@ -535,7 +578,12 @@ public class CardAuthorizationService {
      */
     private ReleaseOutcome releaseDebitHold(Card card, String reference, BigDecimal amountMajor, java.util.Currency currency,
                                             String reversalReference) {
-        if (card == null || card.getLinkedEntityId() == null || reference == null) return ReleaseOutcome.DONE;
+        return releaseWithResult(card, reference, amountMajor, currency, reversalReference).outcome();
+    }
+
+    private Release releaseWithResult(Card card, String reference, BigDecimal amountMajor, java.util.Currency currency,
+                                      String reversalReference) {
+        if (card == null || card.getLinkedEntityId() == null || reference == null) return new Release(ReleaseOutcome.DONE, null);
         try {
             Map<String, Object> fields = new java.util.HashMap<>();
             if (amountMajor != null && currency != null) {
@@ -554,12 +602,12 @@ public class CardAuthorizationService {
             if (result != null && !result.approved()
                     && (result.reason() == null || REFUND_REFUSALS.contains(result.reason()))) {
                 log.warn("Backend refused release/refund of {} for card {}: {}", reference, card.getId(), result.reason());
-                return ReleaseOutcome.REFUSED;
+                return new Release(ReleaseOutcome.REFUSED, result);
             }
-            return ReleaseOutcome.DONE;
+            return new Release(ReleaseOutcome.DONE, result);
         } catch (RestClientException e) {
             log.warn("Debit hold release failed for card {}: {}", card.getId(), e.getMessage());
-            return ReleaseOutcome.UNREACHABLE;
+            return new Release(ReleaseOutcome.UNREACHABLE, null);
         }
     }
 
@@ -602,6 +650,13 @@ public class CardAuthorizationService {
                                            CardAuthResponse response,
                                            int fraudScore, FraudDecision decision,
                                            String holdReference, BigDecimal walletDebit) {
+        return logAndReturn(card, req, response, fraudScore, decision, holdReference, walletDebit, null);
+    }
+
+    private CardAuthResponse logAndReturn(Card card, CardAuthRequest req,
+                                           CardAuthResponse response,
+                                           int fraudScore, FraudDecision decision,
+                                           String holdReference, BigDecimal walletDebit, IssuerCharges posted) {
         AuthorizationLog entry = buildAuthLog(
                 card, req.stan(), req.isFinancial() ? "0200" : "0100",
                 req.amount(), req.currencyCode(),
@@ -622,7 +677,11 @@ public class CardAuthorizationService {
         // transaction: a debit purchase to be cleared at batch close; a 0200 debit or a prepaid
         // wallet decrement already completed.
         if (response.approved() && card != null && (holdReference != null || walletDebit != null)) {
-            settlementService.addAuthorization(entry, card, holdReference, walletDebit != null || req.isFinancial());
+            if (posted != null) {
+                settlementService.addAuthorization(entry, card, holdReference, true, posted);
+            } else {
+                settlementService.addAuthorization(entry, card, holdReference, walletDebit != null || req.isFinancial());
+            }
         }
 
         // Fire webhook event asynchronously
@@ -680,7 +739,7 @@ public class CardAuthorizationService {
         log_entry.setMerchantId(merchantId);
         log_entry.setMerchantName(merchantName);
         log_entry.setFinancial(isFinancial);
-        log_entry.setScheme(scheme);
+        log_entry.setScheme(scheme == null ? null : Schemes.normalize(scheme));
         return log_entry;
     }
 
@@ -702,9 +761,31 @@ public class CardAuthorizationService {
     record BackendFunds(UUID accountId, String currencyCode, BigDecimal availableBalance,
                         boolean debitAllowed, String reason) {}
 
-    /** The backend's {@code CardHoldResult}. */
+    /** The backend's {@code CardHoldResult}, with the interchange and fees it posted / reversed (backlog 15b). */
     record BackendHold(boolean approved, UUID holdId, String reference, String status, String reason,
-                       BigDecimal availableBalance) {}
+                       BigDecimal availableBalance, BigDecimal interchangeAmount, String interchangeDirection,
+                       BigDecimal schemeFeeAmount, BigDecimal interchangeReversed, BigDecimal schemeFeeReversed) {
+
+        BackendHold(boolean approved, UUID holdId, String reference, String status, String reason,
+                    BigDecimal availableBalance) {
+            this(approved, holdId, reference, status, reason, availableBalance, null, null, null, null, null);
+        }
+
+        private com.cba.card.interchange.InterchangeDirection direction() {
+            return interchangeDirection == null ? null
+                    : com.cba.card.interchange.InterchangeDirection.valueOf(interchangeDirection);
+        }
+
+        /** What the debit posted (major units). */
+        IssuerCharges postedCharges(String scheme) {
+            return new IssuerCharges(scheme, interchangeAmount, direction(), schemeFeeAmount, "BACKEND");
+        }
+
+        /** What a refund reversed (major units). */
+        IssuerCharges reversedCharges(String scheme) {
+            return new IssuerCharges(scheme, interchangeReversed, direction(), schemeFeeReversed, "BACKEND");
+        }
+    }
 
     /** The backend's {@code ApiResponse} envelope — only {@code data} is read. */
     record Envelope<T>(T data) {}

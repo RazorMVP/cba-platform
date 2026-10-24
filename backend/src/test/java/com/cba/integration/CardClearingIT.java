@@ -2,11 +2,13 @@ package com.cba.integration;
 
 import com.cba.account.AccountController;
 import com.cba.account.AccountService;
+import com.cba.account.CardInterchangeDirection;
 import com.cba.account.dto.CardCaptureRequest;
 import com.cba.account.dto.CardDebitRequest;
 import com.cba.account.dto.CardHoldRequest;
 import com.cba.account.dto.CardHoldResult;
 import com.cba.account.dto.CardReleaseRequest;
+import com.cba.accounting.GlAccountingService;
 import com.cba.cob.CobJobDefinition;
 import com.cba.common.exception.CbaException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -53,6 +55,7 @@ class CardClearingIT extends AbstractIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired JobLauncher jobLauncher;
     @Autowired @Qualifier("holdExpiryBatchJob") Job holdExpiryJob;
+    @Autowired GlAccountingService glAccountingService;
 
     @AfterEach
     void clearAuth() {
@@ -61,15 +64,19 @@ class CardClearingIT extends AbstractIntegrationTest {
 
     /** A USD savings account whose spendable amount is exactly {@code spendable} (product minimum balance added). */
     private UUID account(String spendable) {
+        return account(spendable, "USD");
+    }
+
+    private UUID account(String spendable, String currency) {
         BigDecimal minimum = jdbc.queryForObject(
                 "SELECT COALESCE(minimum_balance, 0) FROM deposit_products WHERE id = ?", BigDecimal.class, SAVINGS_PRODUCT);
         UUID id = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO accounts (id, account_number, customer_id, product_id, account_type,
                                       status, balance, currency_code, opened_date, created_by)
-                VALUES (?, ?, ?, ?, 'SAVINGS', 'ACTIVE', ?, 'USD', DATE '2025-01-01', 'card-clearing-it')""",
+                VALUES (?, ?, ?, ?, 'SAVINGS', 'ACTIVE', ?, ?, DATE '2025-01-01', 'card-clearing-it')""",
                 id, "CC-" + id.toString().substring(0, 8), DEMO_CUSTOMER, SAVINGS_PRODUCT,
-                new BigDecimal(spendable).add(minimum));
+                new BigDecimal(spendable).add(minimum), currency);
         return id;
     }
 
@@ -374,5 +381,214 @@ class CardClearingIT extends AbstractIntegrationTest {
                     new CardDebitRequest("CARD-S-2", new BigDecimal("1.00"), "USD", false), null))
                     .as(role).isInstanceOf(AccessDeniedException.class);
         }
+    }
+
+    // ── Interchange and scheme fees (backlog 15b) ─────────────────────────────
+
+    private CardHoldResult captureWithFees(UUID id, String ref, String amount, String ccy, String interchange,
+                                           CardInterchangeDirection direction, String fee) {
+        return accountService.captureCardHold(id, ref, new CardCaptureRequest(new BigDecimal(amount), ccy,
+                interchange == null ? null : new BigDecimal(interchange), direction,
+                fee == null ? null : new BigDecimal(fee), "VISA"), "it");
+    }
+
+    /** Net (debits − credits) of one GL account on the card journals with this reference. */
+    private BigDecimal net(UUID account, String reference, String glCode) {
+        return jdbc.queryForObject("""
+                SELECT COALESCE(SUM(CASE WHEN je.entry_type = 'DEBIT' THEN je.amount ELSE -je.amount END), 0)
+                FROM journal_entries je JOIN gl_accounts g ON g.id = je.gl_account_id
+                WHERE je.entity_type = 'CARD' AND je.entity_id = ? AND je.reference_number = ? AND g.gl_code = ?""",
+                BigDecimal.class, account, reference, glCode);
+    }
+
+    /** Every currency of the account's card journals balances on its own. */
+    private void assertBalancedPerCurrency(UUID account) {
+        List<BigDecimal> nets = jdbc.queryForList("""
+                SELECT SUM(CASE WHEN entry_type = 'DEBIT' THEN amount ELSE -amount END)
+                FROM journal_entries WHERE entity_type = 'CARD' AND entity_id = ? GROUP BY currency_code""",
+                BigDecimal.class, account);
+        assertThat(nets).isNotEmpty().allSatisfy(n -> assertThat(n).isEqualByComparingTo("0"));
+    }
+
+    @Test
+    @DisplayName("15b: clearing with interchange + fees posts gross — DR 2300 / CR 4005, DR 5006 / CR 2300; trial balance balanced")
+    void capture_withInterchangeAndFees_postsGross() {
+        UUID id = account("500.00");
+        hold(id, "CARD-F-1", "100.00");
+
+        CardHoldResult r = captureWithFees(id, "CARD-F-1", "100.00", "USD", "1.50", CardInterchangeDirection.EARNED, "0.13");
+
+        assertThat(r.approved()).as(r.reason()).isTrue();
+        assertThat(r.interchangeAmount()).isEqualByComparingTo("1.50");
+        assertThat(r.interchangeDirection()).isEqualTo("EARNED");
+        assertThat(r.schemeFeeAmount()).isEqualByComparingTo("0.13");
+        assertThat(lines(id, "CARD-F-1")).contains("CREDIT 2300 100.0000 USD", "DEBIT 2300 1.5000 USD",
+                "CREDIT 4005 1.5000 USD", "DEBIT 5006 0.1300 USD", "CREDIT 2300 0.1300 USD");
+        // What the bank owes the scheme for this purchase: 100.00 − 1.50 + 0.13.
+        assertThat(net(id, "CARD-F-1", "2300")).isEqualByComparingTo("-98.63");
+        assertThat(jdbc.queryForObject("SELECT card_scheme FROM account_holds WHERE account_id = ? AND external_reference = 'CARD-F-1'",
+                String.class, id)).isEqualTo("VISA");
+        assertBalancedPerCurrency(id);
+        LocalDate today = LocalDate.now();
+        var tb = glAccountingService.getTrialBalance(today, today);
+        assertThat(tb.currencies()).allSatisfy(c -> assertThat(c.balanced()).as(c.currencyCode()).isTrue());
+        assertThat(tb.balanced()).isTrue();
+    }
+
+    @Test
+    @DisplayName("15b: a repeated capture with other fee figures posts nothing more and returns the first figures")
+    void capture_repeat_returnsStoredFigures() {
+        UUID id = account("500.00");
+        hold(id, "CARD-F-2", "100.00");
+        captureWithFees(id, "CARD-F-2", "100.00", "USD", "1.50", CardInterchangeDirection.EARNED, "0.13");
+        long linesBefore = cardJournalLines(id);
+
+        CardHoldResult again = captureWithFees(id, "CARD-F-2", "100.00", "USD", "2.00", CardInterchangeDirection.EARNED, "0.20");
+
+        assertThat(again.approved()).isTrue();
+        assertThat(again.interchangeAmount()).isEqualByComparingTo("1.50");
+        assertThat(again.schemeFeeAmount()).isEqualByComparingTo("0.13");
+        assertThat(cardJournalLines(id)).isEqualTo(linesBefore);
+    }
+
+    @Test
+    @DisplayName("15b: bad fee figures decline (INVALID_CARD_FEES) and post nothing — the hold stays live")
+    void capture_invalidFees_declined() {
+        UUID id = account("500.00");
+        hold(id, "CARD-F-3", "100.00");
+        String[][] bad = {
+                {"0.125", "EARNED", "0.10"},   // more decimals than USD has
+                {"-1.00", "EARNED", "0.10"},   // negative
+                {"1.00", null, "0.10"},        // interchange without a direction
+                {"100.01", "EARNED", "0"},     // more than the transaction
+                {"1.00", "EARNED", "-0.01"}};
+        for (String[] b : bad) {
+            CardHoldResult r = captureWithFees(id, "CARD-F-3", "100.00", "USD", b[0],
+                    b[1] == null ? null : CardInterchangeDirection.valueOf(b[1]), b[2]);
+            assertThat(r.approved()).as(String.join(",", java.util.Arrays.asList(b))).isFalse();
+            assertThat(r.reason()).isEqualTo("INVALID_CARD_FEES");
+        }
+        assertThat(holdStatus("CARD-F-3")).isEqualTo("ACTIVE");
+        assertThat(cardJournalLines(id)).isZero();
+    }
+
+    @Test
+    @DisplayName("15b: a capture without fees needs none of the new GL mappings (15a behaviour)")
+    void capture_noFees_withoutNewMappings() {
+        UUID id = account("500.00");
+        hold(id, "CARD-F-4", "100.00");
+        List<Map<String, Object>> saved = jdbc.queryForList("SELECT financial_activity, gl_account_id FROM financial_activity_accounts "
+                + "WHERE financial_activity IN ('INCOME_CARD_INTERCHANGE','EXPENSE_CARD_SCHEME_FEES','EXPENSE_CARD_INTERCHANGE')");
+        jdbc.update("DELETE FROM financial_activity_accounts WHERE financial_activity IN "
+                + "('INCOME_CARD_INTERCHANGE','EXPENSE_CARD_SCHEME_FEES','EXPENSE_CARD_INTERCHANGE')");
+        try {
+            assertThat(capture(id, "CARD-F-4", "100.00").approved()).isTrue();
+        } finally {
+            saved.forEach(m -> jdbc.update("INSERT INTO financial_activity_accounts (financial_activity, gl_account_id) VALUES (?, ?)",
+                    m.get("financial_activity"), m.get("gl_account_id")));
+        }
+        assertThat(lines(id, "CARD-F-4")).contains("CREDIT 2300 100.0000 USD").hasSize(2);
+    }
+
+    @Test
+    @DisplayName("15b: interchange with its income account unmapped is rejected; nothing moves")
+    void capture_feesWithUnmappedActivity_rejects() {
+        UUID id = account("500.00");
+        BigDecimal before = balance(id);
+        hold(id, "CARD-F-5", "100.00");
+        UUID gl = jdbc.queryForObject("SELECT gl_account_id FROM financial_activity_accounts "
+                + "WHERE financial_activity = 'INCOME_CARD_INTERCHANGE'", UUID.class);
+        jdbc.update("DELETE FROM financial_activity_accounts WHERE financial_activity = 'INCOME_CARD_INTERCHANGE'");
+        try {
+            assertThatThrownBy(() -> captureWithFees(id, "CARD-F-5", "100.00", "USD", "1.50",
+                    CardInterchangeDirection.EARNED, "0.13"))
+                    .isInstanceOf(CbaException.class).hasMessageContaining("INCOME_CARD_INTERCHANGE");
+        } finally {
+            jdbc.update("INSERT INTO financial_activity_accounts (financial_activity, gl_account_id) "
+                    + "VALUES ('INCOME_CARD_INTERCHANGE', ?)", gl);
+        }
+        assertThat(balance(id)).isEqualByComparingTo(before);
+        assertThat(holdStatus("CARD-F-5")).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    @DisplayName("15b: foreign-currency interchange is booked in the functional currency through the FX position (IAS 21 §21)")
+    void foreignCurrency_interchange_throughFxPosition() {
+        String functional = jdbc.queryForObject(
+                "SELECT string_value FROM global_configurations WHERE name = 'functional-currency'", String.class);
+        assertThat(functional).isEqualTo("USD");
+        UUID id = account("5000.00", "KES");
+        assertThat(accountService.placeCardHold(id, new CardHoldRequest("CARD-F-6", new BigDecimal("1000.00"), "KES"), "it")
+                .approved()).isTrue();
+
+        CardHoldResult r = captureWithFees(id, "CARD-F-6", "1000.00", "KES", "15.00", CardInterchangeDirection.EARNED, "2.00");
+
+        assertThat(r.approved()).as(r.reason()).isTrue();
+        List<String> journal = lines(id, "CARD-F-6");
+        assertThat(journal).contains("CREDIT 2300 1000.0000 KES", "DEBIT 2300 15.0000 KES", "CREDIT 2300 2.0000 KES",
+                "CREDIT 1200 15.0000 KES", "DEBIT 1200 2.0000 KES");
+        assertThat(journal).anyMatch(l -> l.startsWith("CREDIT 4005 ") && l.endsWith(" USD"))
+                .anyMatch(l -> l.startsWith("DEBIT 5006 ") && l.endsWith(" USD"))
+                .noneMatch(l -> (l.contains(" 4005 ") || l.contains(" 5006 ")) && l.endsWith(" KES"));
+        assertBalancedPerCurrency(id);
+    }
+
+    @Test
+    @DisplayName("15b: ATM cash 0200 posts the interchange the bank pays — DR 5007 / CR 2300 — and fees")
+    void atmDebit_interchangePaid() {
+        UUID id = account("500.00");
+        CardHoldResult r = accountService.cardDebit(id, new CardDebitRequest("CARD-F-7", new BigDecimal("50.00"), "USD",
+                true, new BigDecimal("0.50"), CardInterchangeDirection.PAID, new BigDecimal("0.07"), "VISA"), "it");
+
+        assertThat(r.approved()).as(r.reason()).isTrue();
+        assertThat(r.interchangeDirection()).isEqualTo("PAID");
+        assertThat(lines(id, "CARD-F-7")).contains("CREDIT 2300 50.0000 USD", "DEBIT 5007 0.5000 USD",
+                "CREDIT 2300 0.5000 USD", "DEBIT 5006 0.0700 USD", "CREDIT 2300 0.0700 USD");
+        assertThat(net(id, "CARD-F-7", "2300")).isEqualByComparingTo("-50.57");
+        assertBalancedPerCurrency(id);
+    }
+
+    @Test
+    @DisplayName("15b: a full refund reverses interchange and fees exactly — 2300, 4005 and 5006 net to zero")
+    void fullRefund_reversesFeesExactly() {
+        UUID id = account("500.00");
+        hold(id, "CARD-F-8", "100.00");
+        captureWithFees(id, "CARD-F-8", "100.00", "USD", "1.50", CardInterchangeDirection.EARNED, "0.13");
+
+        CardHoldResult r = accountService.releaseCardHold(id, "CARD-F-8",
+                new CardReleaseRequest(new BigDecimal("100.00"), "USD", "REV-F-8"), "it");
+
+        assertThat(r.approved()).as(r.reason()).isTrue();
+        assertThat(r.interchangeReversed()).isEqualByComparingTo("1.50");
+        assertThat(r.schemeFeeReversed()).isEqualByComparingTo("0.13");
+        for (String gl : new String[]{"2300", "4005", "5006"}) {
+            assertThat(net(id, "CARD-F-8", gl)).as(gl).isEqualByComparingTo("0");
+        }
+        assertBalancedPerCurrency(id);
+    }
+
+    @Test
+    @DisplayName("15b: a partial refund reverses interchange and fees in proportion (40/100 → 0.60 and 0.05, HALF_UP)")
+    void partialRefund_prorata() {
+        UUID id = account("500.00");
+        hold(id, "CARD-F-9", "100.00");
+        captureWithFees(id, "CARD-F-9", "100.00", "USD", "1.50", CardInterchangeDirection.EARNED, "0.13");
+
+        CardHoldResult r = accountService.releaseCardHold(id, "CARD-F-9",
+                new CardReleaseRequest(new BigDecimal("40.00"), "USD", "REV-F-9"), "it");
+
+        assertThat(r.approved()).as(r.reason()).isTrue();
+        assertThat(r.interchangeReversed()).isEqualByComparingTo("0.60");
+        assertThat(r.schemeFeeReversed()).isEqualByComparingTo("0.05");
+        assertThat(net(id, "CARD-F-9", "4005")).isEqualByComparingTo("-0.90");
+        assertThat(net(id, "CARD-F-9", "5006")).isEqualByComparingTo("0.08");
+        // 98.63 owed at clearing, 39.45 back at the refund (40.00 − 0.60 + 0.05).
+        assertThat(net(id, "CARD-F-9", "2300")).isEqualByComparingTo("-59.18");
+
+        CardHoldResult repeat = accountService.releaseCardHold(id, "CARD-F-9",
+                new CardReleaseRequest(new BigDecimal("40.00"), "USD", "REV-F-9"), "it");
+        assertThat(repeat.approved()).isTrue();
+        assertThat(repeat.interchangeReversed()).isEqualByComparingTo("0.60");
+        assertBalancedPerCurrency(id);
     }
 }

@@ -401,8 +401,10 @@ public class AccountService {
         AccountHold hold = existing.get();
         if (hold.getStatus() == AccountHoldStatus.CAPTURED) {
             boolean repeat = hold.getCapturedAmount().compareTo(request.amount()) == 0;
+            warnIfChargesDiffer(hold, request.charges());
+            // The figures posted the first time: the money and the journal already exist.
             return new CardHoldResult(repeat, hold.getId(), reference, hold.getStatus().name(),
-                    repeat ? null : "REFERENCE_CONFLICT", spendable(account).max(BigDecimal.ZERO));
+                    repeat ? null : "REFERENCE_CONFLICT", spendable(account).max(BigDecimal.ZERO)).withCharges(hold);
         }
         boolean reserved = isReserved(hold);
         String reason = hold.getStatus() == AccountHoldStatus.RELEASED || hold.getStatus() == AccountHoldStatus.REFUNDED
@@ -415,6 +417,10 @@ public class AccountService {
                 : lockinExpiry(account) != null ? "ACCOUNT_IN_LOCKIN_PERIOD"
                 : spendable(account).compareTo(request.amount()) < 0 ? "INSUFFICIENT_FUNDS"
                 : null;
+        if (reason == null) {
+            // Checked for a live hold too: the chain above stops at "reserved".
+            reason = invalidCharges(account, request.amount(), request.charges());
+        }
         if (reason != null) {
             return new CardHoldResult(false, hold.getId(), reference, hold.getStatus().name(), reason,
                     spendable(account).max(BigDecimal.ZERO));
@@ -424,13 +430,15 @@ public class AccountService {
         hold.setStatus(AccountHoldStatus.CAPTURED);
         hold.setCapturedAmount(request.amount());
         hold.setCapturedAt(Instant.now());
+        recordCharges(hold, request.charges(), request.scheme());
         accountHoldRepository.saveAndFlush(hold);
         postCardMovement(account, request.amount(), true, TransactionType.CARD_PURCHASE,
-                "Card clearing " + reference, reference, capturedBy);
+                "Card clearing " + reference, reference, capturedBy, request.charges(), false);
         auditLogService.log("ACCOUNT_HOLD", hold.getId().toString(), "CARD_HOLD_CAPTURED", null,
-            "amount=" + request.amount() + " reference=" + reference + (reserved ? "" : " late=true"));
+            "amount=" + request.amount() + " reference=" + reference + (reserved ? "" : " late=true")
+                + chargesAudit(request.charges()));
         return new CardHoldResult(true, hold.getId(), reference, hold.getStatus().name(), null,
-                spendable(account).max(BigDecimal.ZERO));
+                spendable(account).max(BigDecimal.ZERO)).withCharges(hold);
     }
 
     /**
@@ -451,15 +459,16 @@ public class AccountService {
                     : h.getStatus() != AccountHoldStatus.CAPTURED
                       || h.getCapturedAmount().compareTo(request.amount()) != 0 ? "REFERENCE_CONFLICT"
                     : null;
+            if (why == null) warnIfChargesDiffer(h, request.charges());
             return new CardHoldResult(why == null, h.getId(), h.getExternalReference(), h.getStatus().name(),
-                    why, spendable(account).max(BigDecimal.ZERO));
+                    why, spendable(account).max(BigDecimal.ZERO)).withCharges(h);
         }
 
         String reason = account.getStatus() != AccountStatus.ACTIVE ? "ACCOUNT_NOT_ACTIVE"
                 : lockinExpiry(account) != null ? "ACCOUNT_IN_LOCKIN_PERIOD"
                 : !account.getCurrencyCode().equalsIgnoreCase(request.currencyCode()) ? "CURRENCY_MISMATCH"
                 : spendable(account).compareTo(request.amount()) < 0 ? "INSUFFICIENT_FUNDS"
-                : null;
+                : invalidCharges(account, request.amount(), request.charges());
         if (reason != null) {
             return new CardHoldResult(false, null, request.reference(), null, reason,
                     reason.startsWith("ACCOUNT_") ? BigDecimal.ZERO : spendable(account).max(BigDecimal.ZERO));
@@ -475,15 +484,16 @@ public class AccountService {
         hold.setCapturedAmount(request.amount());
         hold.setCapturedAt(Instant.now());
         hold.setCreatedBy(createdBy);
+        recordCharges(hold, request.charges(), request.scheme());
         AccountHold saved = accountHoldRepository.saveAndFlush(hold);
         TransactionType type = request.cashWithdrawal() ? TransactionType.CARD_CASH_WITHDRAWAL : TransactionType.CARD_PURCHASE;
         postCardMovement(account, request.amount(), true, type,
                 (request.cashWithdrawal() ? "Card cash withdrawal " : "Card purchase ") + request.reference(),
-                request.reference(), createdBy);
+                request.reference(), createdBy, request.charges(), false);
         auditLogService.log("ACCOUNT_HOLD", saved.getId().toString(), "CARD_DEBIT_POSTED", null,
-            "amount=" + request.amount() + " reference=" + request.reference());
+            "amount=" + request.amount() + " reference=" + request.reference() + chargesAudit(request.charges()));
         return new CardHoldResult(true, saved.getId(), saved.getExternalReference(), saved.getStatus().name(), null,
-                spendable(account).max(BigDecimal.ZERO));
+                spendable(account).max(BigDecimal.ZERO)).withCharges(saved);
     }
 
     /** A hold still reserving funds: ACTIVE and not past its expiry date (as {@code sumActiveHoldsByAccount}). */
@@ -493,12 +503,69 @@ public class AccountService {
     }
 
     /**
+     * Interchange and scheme fees card-service computed (backlog 15b), checked before anything posts.
+     * A bad figure is a decline, not a 400 — card-service treats a 4xx as unreachable and would retry.
+     */
+    private static String invalidCharges(Account account, BigDecimal amount, CardCharges charges) {
+        int digits = currencyDigits(account.getCurrencyCode());
+        for (BigDecimal v : new BigDecimal[] {charges.interchange(), charges.schemeFee()}) {
+            if (v.signum() < 0 || v.stripTrailingZeros().scale() > digits || v.compareTo(amount) > 0) {
+                return "INVALID_CARD_FEES";
+            }
+        }
+        return charges.interchange().signum() > 0 && charges.direction() == null ? "INVALID_CARD_FEES" : null;
+    }
+
+    /** Stores what the debit posts, so a repeat reports it and a refund reverses it in proportion. */
+    private static void recordCharges(AccountHold hold, CardCharges charges, String scheme) {
+        hold.setCardScheme(scheme == null || scheme.isBlank() ? null : scheme.trim().toUpperCase(java.util.Locale.ROOT));
+        if (charges.isZero()) return;
+        hold.setInterchangeAmount(charges.interchange());
+        hold.setInterchangeDirection(charges.interchange().signum() > 0 ? charges.direction() : null);
+        hold.setSchemeFeeAmount(charges.schemeFee());
+    }
+
+    /** A repeat whose figures differ from the first: the first stand (they were posted). */
+    private static void warnIfChargesDiffer(AccountHold hold, CardCharges asked) {
+        CardCharges posted = CardCharges.of(hold);
+        if (asked.isZero()) return;
+        if (posted.interchange().compareTo(asked.interchange()) != 0
+                || posted.schemeFee().compareTo(asked.schemeFee()) != 0) {
+            log.warn("Card debit {} repeated with other fee figures ({} / {}); the first posting stands ({} / {})",
+                    hold.getExternalReference(), asked.interchange(), asked.schemeFee(),
+                    posted.interchange(), posted.schemeFee());
+        }
+    }
+
+    private static String chargesAudit(CardCharges charges) {
+        return charges.isZero() ? ""
+                : " interchange=" + charges.interchange() + " " + charges.direction() + " schemeFee=" + charges.schemeFee();
+    }
+
+    /** {@code figure × part / whole}, at the currency's digits (HALF_UP); never more than {@code figure}. */
+    private static BigDecimal prorate(BigDecimal figure, BigDecimal part, BigDecimal whole, int digits) {
+        if (figure.signum() == 0 || part.compareTo(whole) >= 0) return figure;
+        return figure.multiply(part).divide(whole, digits, java.math.RoundingMode.HALF_UP).min(figure);
+    }
+
+    private static int currencyDigits(String currencyCode) {
+        try {
+            int d = java.util.Currency.getInstance(currencyCode.toUpperCase(java.util.Locale.ROOT)).getDefaultFractionDigits();
+            return d < 0 ? 4 : d;
+        } catch (RuntimeException e) {
+            return 4;
+        }
+    }
+
+    /**
      * Moves a card amount on the account (debit, or credit for a refund), records the transaction and
-     * posts the journal against the card scheme settlement payable, all in the caller's transaction.
-     * A debit is checked only against the spendable balance (status and lock-in were decided by the caller).
+     * posts the journal against the card scheme settlement payable — with the interchange and scheme
+     * fees it carries — all in the caller's transaction. A debit is checked only against the spendable
+     * balance (status and lock-in were decided by the caller).
      */
     private void postCardMovement(Account account, BigDecimal amount, boolean debit, TransactionType type,
-                                  String description, String reference, String actor) {
+                                  String description, String reference, String actor,
+                                  CardCharges charges, boolean reversal) {
         BigDecimal before = account.getBalance();
         if (debit) {
             account.debit(amount, spendable(account));
@@ -508,7 +575,7 @@ public class AccountService {
         accountRepository.save(account);
         transactionRepository.save(Transaction.of(account, type, amount, account.getBalance(),
             description, reference, actor));
-        accountGlPosting.postCardSettlement(account, before, LocalDate.now(), description, reference);
+        accountGlPosting.postCardSettlement(account, before, charges, reversal, LocalDate.now(), description, reference);
     }
 
     /**
@@ -568,7 +635,7 @@ public class AccountService {
                         && (hold.getRefundedAmount() == null || asked.compareTo(hold.getRefundedAmount()) == 0);
             }
             return new CardHoldResult(repeat, hold.getId(), reference, hold.getStatus().name(),
-                    repeat ? null : "ALREADY_REFUNDED", spendable(account).max(BigDecimal.ZERO));
+                    repeat ? null : "ALREADY_REFUNDED", spendable(account).max(BigDecimal.ZERO)).withCharges(hold);
         }
         if (hold.getStatus() != AccountHoldStatus.ACTIVE) {
             return new CardHoldResult(false, hold.getId(), reference, hold.getStatus().name(), "HOLD_NOT_ACTIVE",
@@ -603,18 +670,29 @@ public class AccountService {
             return new CardHoldResult(false, hold.getId(), reference, hold.getStatus().name(), reason,
                     reason.equals("ACCOUNT_CLOSED") ? BigDecimal.ZERO : spendable(account).max(BigDecimal.ZERO));
         }
+        // Interchange and scheme fees reverse in proportion to the amount refunded (a full refund
+        // reverses them exactly). A captured debit is refunded once, so there is no remainder to track.
+        CardCharges posted = CardCharges.of(hold);
+        int digits = currencyDigits(account.getCurrencyCode());
+        CardCharges reversed = new CardCharges(
+                prorate(posted.interchange(), amount, hold.getCapturedAmount(), digits), posted.direction(),
+                prorate(posted.schemeFee(), amount, hold.getCapturedAmount(), digits));
         hold.setStatus(AccountHoldStatus.REFUNDED);
         hold.setRefundedAmount(amount);
         hold.setRefundReference(request != null ? request.reversalReference() : null);
         hold.setReleasedAt(Instant.now());
         hold.setReleasedBy(releasedBy);
+        if (!posted.isZero()) {
+            hold.setInterchangeReversed(reversed.interchange());
+            hold.setSchemeFeeReversed(reversed.schemeFee());
+        }
         accountHoldRepository.saveAndFlush(hold);
         postCardMovement(account, amount, false, TransactionType.CARD_REFUND,
-                "Card refund " + reference, reference, releasedBy);
+                "Card refund " + reference, reference, releasedBy, reversed, true);
         auditLogService.log("ACCOUNT_HOLD", hold.getId().toString(), "CARD_DEBIT_REFUNDED", null,
-            "amount=" + amount + " of " + hold.getCapturedAmount() + " reference=" + reference);
+            "amount=" + amount + " of " + hold.getCapturedAmount() + " reference=" + reference + chargesAudit(reversed));
         return new CardHoldResult(true, hold.getId(), reference, hold.getStatus().name(), null,
-                spendable(account).max(BigDecimal.ZERO));
+                spendable(account).max(BigDecimal.ZERO)).withCharges(hold);
     }
 
     // ── Holds ─────────────────────────────────────────────────────────────────

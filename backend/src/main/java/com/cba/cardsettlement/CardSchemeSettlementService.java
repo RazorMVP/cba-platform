@@ -26,6 +26,9 @@ import java.util.UUID;
 @Slf4j
 public class CardSchemeSettlementService {
 
+    /** The card schemes card-service settles with. */
+    private static final java.util.Set<String> SCHEMES = java.util.Set.of("VISA", "MASTERCARD", "VERVE", "AFRIGO", "UNIONPAY");
+
     private final CardSchemeSettlementRepository repository;
     private final AccountGlPosting accountGlPosting;
     private final JdbcTemplate jdbcTemplate;
@@ -53,7 +56,9 @@ public class CardSchemeSettlementService {
                     same ? null : "REFERENCE_CONFLICT");
         }
 
-        String reason = invalid(request.amount(), currency);
+        String reason = !SCHEMES.contains(scheme) ? "UNKNOWN_SCHEME"
+                : !request.settlementDate().isBefore(LocalDate.now()) ? "DATE_NOT_CLOSED"
+                : invalid(request.amount(), currency);
         if (reason != null) {
             return new CardSchemeSettlementResult(false, false, reference, null, reason);
         }

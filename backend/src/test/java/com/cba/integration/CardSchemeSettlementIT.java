@@ -121,8 +121,16 @@ class CardSchemeSettlementIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("refusals post nothing: zero, too many decimals, unknown currency")
+    @DisplayName("refusals post nothing: zero, too many decimals, unknown currency, unknown scheme, a date not over yet")
     void refusals() {
+        String scheme = ref();
+        assertThat(service.record(new CardSchemeSettlementRequest(scheme, "ACME", LocalDate.now().minusDays(1), "USD",
+                BigDecimal.TEN), "it").reason()).isEqualTo("UNKNOWN_SCHEME");
+        String today = ref();
+        assertThat(service.record(new CardSchemeSettlementRequest(today, "VISA", LocalDate.now(), "USD",
+                BigDecimal.TEN), "it").reason()).isEqualTo("DATE_NOT_CLOSED");
+        assertThat(lines(scheme)).isEmpty();
+        assertThat(lines(today)).isEmpty();
         String zero = ref();
         assertThat(post(zero, "0.00").reason()).isEqualTo("ZERO_AMOUNT");
         String decimals = ref();
@@ -154,14 +162,12 @@ class CardSchemeSettlementIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("CARD_SERVICE and ADMIN may post; TELLER and CUSTOMER may not")
+    @DisplayName("only CARD_SERVICE may post — not ADMIN (it would skip card-service's reconciliation), TELLER or CUSTOMER")
     void roles() {
-        for (String role : new String[]{"ROLE_CARD_SERVICE", "ROLE_ADMIN"}) {
-            SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("svc", null, role));
-            assertThat(controller.record(new CardSchemeSettlementRequest(ref(), "VISA", LocalDate.now().minusDays(1),
-                    "USD", BigDecimal.ONE), null).getBody().data().approved()).as(role).isTrue();
-        }
-        for (String role : new String[]{"ROLE_TELLER", "ROLE_CUSTOMER"}) {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("svc", null, "ROLE_CARD_SERVICE"));
+        assertThat(controller.record(new CardSchemeSettlementRequest(ref(), "VISA", LocalDate.now().minusDays(1),
+                "USD", BigDecimal.ONE), null).getBody().data().approved()).isTrue();
+        for (String role : new String[]{"ROLE_ADMIN", "ROLE_TELLER", "ROLE_CUSTOMER"}) {
             SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken("x", null, role));
             assertThatThrownBy(() -> controller.record(new CardSchemeSettlementRequest(ref(), "VISA",
                     LocalDate.now().minusDays(1), "USD", BigDecimal.ONE), null))

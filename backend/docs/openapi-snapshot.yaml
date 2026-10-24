@@ -13357,11 +13357,12 @@ paths:
       - "Bulk Import"
   /api/v1/card-settlements:
     post:
-      description: "Positive amount: the bank paid the scheme — DR 2300 Card Scheme\
-        \ Settlement Payable / CR 1003 Card Scheme Settlement Account; negative: the\
-        \ scheme paid the bank — DR 1003 / CR 2300. Journal dated today. Idempotent\
-        \ on reference (repeat=true, no second journal). reasons: REFERENCE_CONFLICT,\
-        \ ZERO_AMOUNT, INVALID_AMOUNT, UNKNOWN_CURRENCY."
+      description: "Role CARD_SERVICE only. Positive amount: the bank paid the scheme\
+        \ — DR 2300 Card Scheme Settlement Payable / CR 1003 Card Scheme Settlement\
+        \ Account; negative: the scheme paid the bank — DR 1003 / CR 2300. Journal\
+        \ dated today. Idempotent on reference (repeat=true, no second journal). reasons:\
+        \ REFERENCE_CONFLICT, UNKNOWN_SCHEME, DATE_NOT_CLOSED (settlement date not\
+        \ before today), ZERO_AMOUNT, INVALID_AMOUNT, UNKNOWN_CURRENCY."
       operationId: "record"
       requestBody:
         content:

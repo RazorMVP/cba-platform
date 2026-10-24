@@ -1476,7 +1476,7 @@
                 "card-settlements"
               ]
             },
-            "description": "The cash leg of card scheme settlement (backlog 15b; role CARD_SERVICE, ADMIN). card-service calls it once a scheme's settlement report matched its expected net. Positive amount (the bank paid the scheme): DR 2300 Card Scheme Settlement Payable / CR 1003 Card Scheme Settlement Account; negative: DR 1003 / CR 2300. Journal dated today, entity type CARD. Idempotent on reference (repeat=true, no second journal); other figures under it \u2192 REFERENCE_CONFLICT. Refusals (200, approved=false): REFERENCE_CONFLICT, ZERO_AMOUNT, INVALID_AMOUNT, UNKNOWN_CURRENCY. GL 1003/2300 unmapped \u2192 400 ACTIVITY_NOT_MAPPED.",
+            "description": "The cash leg of card scheme settlement (backlog 15b; role CARD_SERVICE only \u2014 not ADMIN: 2300/1003 refuse manual journals and a person posting here would skip card-service's reconciliation). card-service calls it once a scheme's settlement report matched its expected net. Positive amount (the bank paid the scheme): DR 2300 Card Scheme Settlement Payable / CR 1003 Card Scheme Settlement Account; negative: DR 1003 / CR 2300. Journal dated today, entity type CARD. Idempotent on reference (repeat=true, no second journal); other figures under it \u2192 REFERENCE_CONFLICT. Refusals (200, approved=false): REFERENCE_CONFLICT, UNKNOWN_SCHEME, DATE_NOT_CLOSED, ZERO_AMOUNT, INVALID_AMOUNT, UNKNOWN_CURRENCY. GL 1003/2300 unmapped \u2192 400 ACTIVITY_NOT_MAPPED.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"reference\": \"CSR-VISA-20261023-USD\",\n  \"scheme\": \"VISA\",\n  \"settlementDate\": \"2026-10-23\",\n  \"currencyCode\": \"USD\",\n  \"amount\": 149.2\n}",

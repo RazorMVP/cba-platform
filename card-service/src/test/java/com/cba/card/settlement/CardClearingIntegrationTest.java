@@ -20,6 +20,7 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.DockerImageName;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -67,11 +68,14 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
         register("POST", accounts + "/card-debits", hold(true, "CAPTURED", null));
         registerPattern("POST", accounts + "/card-holds/[^/]+/capture", hold(true, "CAPTURED", null));
         registerPattern("POST", accounts + "/card-holds/[^/]+/release", hold(true, "REFUNDED", null));
+        register("POST", "/api/v1/card-settlements", Map.of("data", Map.of("approved", true, "repeat", false,
+                "reference", "CSR", "journalTransactionId", "GL-IT"), "errors", List.of()));
     }
 
     @Autowired TestRestTemplate rest;
     @Autowired CardService cardService;
     @Autowired SettlementService settlementService;
+    @Autowired SchemeSettlementService schemeSettlementService;
     @Autowired SettlementItemRepository itemRepository;
     @Autowired JdbcTemplate jdbc;
 
@@ -129,6 +133,68 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
         assertThat(itemRepository.findById(item.getId()).orElseThrow().getStatus()).isEqualTo("PENDING");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM authorization_log WHERE stan = '930001' AND mti = '0400'",
                 Integer.class)).isZero();
+    }
+
+    @Test
+    @DisplayName("15b: the capture carries the issuer's interchange + fees (Visa debit MCC 5411, chip) and the item keeps glNet")
+    void captureCarriesInterchangeAndFees() {
+        String pan = debitPan();
+        cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(ACCOUNT), true, pan, "2912", "123", "USD");
+        assertThat(authorize(pan, "940001", "000000", false, 2500)).isEqualTo("00");
+        SettlementItem item = itemFor("940001");
+        assertThat(item.getScheme()).isEqualTo("VISA");
+        // V3 seed: VISA DEBIT 5411 card present 0.05 % + 0.22 → 0.0125 + 0.22 = 0.23; fees 0.11 % + 0.0195 → 0.05.
+        Map<String, Object> posted = new java.util.HashMap<>(hold(true, "CAPTURED", null));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = new java.util.HashMap<>((Map<String, Object>) posted.get("data"));
+        data.put("interchangeAmount", 0.23);
+        data.put("interchangeDirection", "EARNED");
+        data.put("schemeFeeAmount", 0.05);
+        posted.put("data", data);
+        register("POST", "/api/v1/accounts/" + ACCOUNT + "/card-holds/" + item.getHoldReference() + "/capture", posted);
+
+        settlementService.closeBatch(batchOf(item));
+
+        assertThat(requests("/card-holds/" + item.getHoldReference() + "/capture")).anySatisfy(body -> assertThat(body)
+                .contains("\"interchangeAmount\":0.23").contains("\"interchangeDirection\":\"EARNED\"")
+                .contains("\"schemeFeeAmount\":0.05").contains("\"scheme\":\"VISA\""));
+        SettlementItem cleared = itemRepository.findById(item.getId()).orElseThrow();
+        assertThat(cleared.getStatus()).isEqualTo("SETTLED");
+        assertThat(cleared.getGlNet()).isEqualByComparingTo("2482");   // 2500 − 23 + 5
+    }
+
+    @Test
+    @DisplayName("15b: a scheme report equal to the expected net posts the cash leg once and settles the batch; a mismatch posts nothing")
+    void schemeReportPostsOnceAndSettles() {
+        // A closed batch of an earlier day (no other test uses this date), two cleared Visa USD items.
+        java.time.LocalDate day = java.time.LocalDate.of(2001, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(3000));
+        UUID batch = UUID.randomUUID();
+        jdbc.update("INSERT INTO settlement_batches (id, batch_ref, status, settlement_date, closed_at) VALUES (?, ?, 'CLOSED', ?, now())",
+                batch, batch.toString(), day);
+        for (String glNet : new String[]{"9863", "5057"}) {
+            jdbc.update("INSERT INTO settlement_items (batch_id, amount, currency_code, status, card_type, scheme, gl_net, cleared_at) "
+                    + "VALUES (?, ?, '840', 'SETTLED', 'DEBIT', 'VISA', ?, now())", batch, new BigDecimal(glNet), new BigDecimal(glNet));
+        }
+        int before = requests("/api/v1/card-settlements").size();
+
+        SchemeReportResult wrong = schemeSettlementService.record(new SchemeReportRequest("VISA", day, "USD", new BigDecimal("149.21")), "it");
+        assertThat(wrong.reason()).isEqualTo("AMOUNT_MISMATCH");
+        assertThat(wrong.expectedNet()).isEqualByComparingTo("149.20");
+        assertThat(requests("/api/v1/card-settlements")).hasSize(before);
+
+        SchemeReportResult right = schemeSettlementService.record(new SchemeReportRequest("VISA", day, "840", new BigDecimal("149.20")), "it");
+        assertThat(right.recorded()).as(right.reason()).isTrue();
+        assertThat(right.journalTransactionId()).isEqualTo("GL-IT");
+        SchemeReportResult again = schemeSettlementService.record(new SchemeReportRequest("VISA", day, "USD", new BigDecimal("149.20")), "it");
+        assertThat(again.repeat()).isTrue();
+
+        List<String> calls = requests("/api/v1/card-settlements");
+        assertThat(calls).hasSize(before + 1);
+        assertThat(calls).anySatisfy(body -> assertThat(body).contains("\"amount\":149.20").contains("\"currencyCode\":\"USD\"")
+                .contains("\"scheme\":\"VISA\""));
+        assertThat(jdbc.queryForObject("SELECT status FROM settlement_batches WHERE id = ?", String.class, batch)).isEqualTo("SETTLED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM settlement_items WHERE batch_id = ? AND settlement_report_id IS NOT NULL",
+                Integer.class, batch)).isEqualTo(2);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

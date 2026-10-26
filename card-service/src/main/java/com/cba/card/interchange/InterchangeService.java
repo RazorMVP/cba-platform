@@ -119,7 +119,7 @@ public class InterchangeService {
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private void applyRateRequest(InterchangeRate target, InterchangeRateRequest req) {
-        target.setScheme(req.scheme().toUpperCase());
+        target.setScheme(Schemes.normalize(req.scheme()));
         target.setCardType(req.cardType());
         target.setMccCategory(req.mccCategory());
         target.setTransactionType(req.transactionType());
@@ -133,7 +133,9 @@ public class InterchangeService {
     }
 
     private void applyFeeRequest(SchemeFee target, SchemeFeeRequest req) {
-        target.setScheme(req.scheme().toUpperCase());
+        target.setScheme(Schemes.normalize(req.scheme()));
+        target.setCurrencyCode(req.currencyCode() == null || req.currencyCode().isBlank()
+                ? "USD" : req.currencyCode().trim().toUpperCase(java.util.Locale.ROOT));
         target.setFeeType(req.feeType());
         target.setRatePercent(req.ratePercent());
         target.setFixedFee(req.fixedFee());

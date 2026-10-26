@@ -803,6 +803,42 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseCard"
+  /api/v1/cards/settlement/scheme-reports:
+    get:
+      tags:
+      - settlement-controller
+      operationId: listSchemeReports
+      parameters:
+      - name: date
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseListSchemeSettlementReport"
+    post:
+      tags:
+      - settlement-controller
+      operationId: recordSchemeReport
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SchemeReportRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSchemeReportResult"
   /api/v1/cards/settlement/export/{batchId}:
     post:
       tags:
@@ -1567,6 +1603,35 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseSettlementTransmission"
+  /api/v1/cards/settlement/scheme-reports/expected:
+    get:
+      tags:
+      - settlement-controller
+      operationId: expectedSchemeNet
+      parameters:
+      - name: scheme
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: date
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+      - name: currency
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseSchemeReportResult"
   /api/v1/cards/settlement/batches:
     get:
       tags:
@@ -2229,6 +2294,10 @@ components:
           format: date
         active:
           type: boolean
+        currencyCode:
+          type: string
+          maxLength: 3
+          minLength: 0
       required:
       - effectiveFrom
       - feeType
@@ -2264,6 +2333,8 @@ components:
           type: number
         fixedFee:
           type: number
+        currencyCode:
+          type: string
         effectiveFrom:
           type: string
           format: date
@@ -2756,6 +2827,68 @@ components:
         amount:
           type: number
         stan:
+          type: string
+    SchemeReportRequest:
+      type: object
+      properties:
+        scheme:
+          type: string
+          maxLength: 20
+          minLength: 0
+        settlementDate:
+          type: string
+          format: date
+        currency:
+          type: string
+          maxLength: 3
+          minLength: 0
+        netAmount:
+          type: number
+      required:
+      - netAmount
+      - settlementDate
+    ApiResponseSchemeReportResult:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/SchemeReportResult"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    SchemeReportResult:
+      type: object
+      properties:
+        recorded:
+          type: boolean
+        repeat:
+          type: boolean
+        reason:
+          type: string
+        scheme:
+          type: string
+        settlementDate:
+          type: string
+          format: date
+        currency:
+          type: string
+        expectedNet:
+          type: number
+        reportedNet:
+          type: number
+        difference:
+          type: number
+        itemCount:
+          type: integer
+          format: int32
+        refundCount:
+          type: integer
+          format: int32
+        backendReference:
+          type: string
+        journalTransactionId:
           type: string
     ApiResponseListSettlementTransmission:
       type: object
@@ -3515,6 +3648,18 @@ components:
           type: number
         rateApplied:
           type: string
+        grossAmount:
+          type: number
+        currencyCode:
+          type: string
+        interchangeDirection:
+          type: string
+          enum:
+          - EARNED
+          - PAID
+        settlementItemId:
+          type: string
+          format: uuid
         calculatedAt:
           type: string
           format: date-time
@@ -3553,6 +3698,11 @@ components:
           type: number
         rateApplied:
           type: string
+        direction:
+          type: string
+          enum:
+          - EARNED
+          - PAID
     ApiResponseBalanceResult:
       type: object
       properties:
@@ -3582,6 +3732,59 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ApiError"
+    ApiResponseListSchemeSettlementReport:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SchemeSettlementReport"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    SchemeSettlementReport:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        scheme:
+          type: string
+        settlementDate:
+          type: string
+          format: date
+        currencyCode:
+          type: string
+        reportedNet:
+          type: number
+        expectedNet:
+          type: number
+        itemCount:
+          type: integer
+          format: int32
+        refundCount:
+          type: integer
+          format: int32
+        status:
+          type: string
+        backendReference:
+          type: string
+        journalTransactionId:
+          type: string
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        recordedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
     ApiResponseListSettlementBatch:
       type: object
       properties:
@@ -3640,6 +3843,36 @@ components:
         clearedAt:
           type: string
           format: date-time
+        scheme:
+          type: string
+        interchangeAmount:
+          type: number
+        interchangeDirection:
+          type: string
+          enum:
+          - EARNED
+          - PAID
+        schemeFeeAmount:
+          type: number
+        glNet:
+          type: number
+        refundedAmount:
+          type: number
+        interchangeReversed:
+          type: number
+        schemeFeeReversed:
+          type: number
+        refundGlNet:
+          type: number
+        refundSettlementDate:
+          type: string
+          format: date
+        settlementReportId:
+          type: string
+          format: uuid
+        refundReportId:
+          type: string
+          format: uuid
         version:
           type: integer
           format: int64

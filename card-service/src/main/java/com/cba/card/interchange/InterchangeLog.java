@@ -30,7 +30,7 @@ public class InterchangeLog {
     @Column(nullable = false, length = 20)
     private String scheme;
 
-    /** Interchange fee amount (issuer receives / acquirer pays). */
+    /** Interchange on the transaction (V13: major units of {@link #currencyCode}; direction below). */
     @Column(name = "interchange_amount", nullable = false, precision = 19, scale = 4)
     private BigDecimal interchangeAmount = BigDecimal.ZERO;
 
@@ -38,13 +38,32 @@ public class InterchangeLog {
     @Column(name = "scheme_fee_amount", nullable = false, precision = 19, scale = 4)
     private BigDecimal schemeFeeAmount = BigDecimal.ZERO;
 
-    /** Gross amount minus interchange minus scheme fees. */
+    /**
+     * V13: what the issuer owes the scheme — gross − interchange earned + interchange paid + fees. Rows
+     * before V13 hold the acquirer view (gross − interchange − fees, DE4 minor units).
+     */
     @Column(name = "net_settlement_amount", nullable = false, precision = 19, scale = 4)
     private BigDecimal netSettlementAmount = BigDecimal.ZERO;
 
     /** Human-readable description of the rate row used (for audit / dispute support). */
     @Column(name = "rate_applied", length = 200)
     private String rateApplied;
+
+    /** Transaction amount, major units (V13). */
+    @Column(name = "gross_amount", precision = 19, scale = 4)
+    private BigDecimal grossAmount;
+
+    /** ISO 4217 alphabetic (V13). */
+    @Column(name = "currency_code", length = 3)
+    private String currencyCode;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "interchange_direction", length = 6)
+    private InterchangeDirection interchangeDirection;
+
+    /** The settlement item it was calculated for at clearing (null for the diagnostic calculation). */
+    @Column(name = "settlement_item_id")
+    private UUID settlementItemId;
 
     @Column(name = "calculated_at", nullable = false, updatable = false)
     private OffsetDateTime calculatedAt = OffsetDateTime.now();

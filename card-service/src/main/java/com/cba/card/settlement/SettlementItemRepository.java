@@ -37,4 +37,28 @@ public interface SettlementItemRepository extends JpaRepository<SettlementItem, 
 
     /** Items of a batch still waiting for (or in the middle of) clearing. */
     long countByBatchAndStatusIn(SettlementBatch batch, Collection<String> statuses);
+
+    /** Cleared items of a scheme and settlement date not yet in a scheme report (backlog 15b). */
+    @Query("SELECT i FROM SettlementItem i WHERE i.scheme = :scheme AND i.batch.settlementDate = :date "
+            + "AND i.glNet IS NOT NULL AND i.settlementReportId IS NULL")
+    List<SettlementItem> findUnreportedCleared(String scheme, java.time.LocalDate date);
+
+    /** Refunds of a scheme made on a date, not yet in a scheme report. */
+    @Query("SELECT i FROM SettlementItem i WHERE i.scheme = :scheme AND i.refundSettlementDate = :date "
+            + "AND i.refundGlNet IS NOT NULL AND i.refundReportId IS NULL")
+    List<SettlementItem> findUnreportedRefunds(String scheme, java.time.LocalDate date);
+
+    List<SettlementItem> findBySettlementReportId(UUID reportId);
+
+    List<SettlementItem> findByRefundReportId(UUID reportId);
+
+    /** Items of a settlement date in the given statuses (e.g. still PENDING or CLEARING). */
+    @Query("SELECT COUNT(i) FROM SettlementItem i WHERE i.batch.settlementDate = :date AND i.status IN :statuses")
+    long countByDateAndStatusIn(java.time.LocalDate date, Collection<String> statuses);
+
+    /** Items of a batch that moved the GL but aren't in a recorded scheme report yet. */
+    @Query("SELECT COUNT(i) FROM SettlementItem i WHERE i.batch = :batch AND i.glNet IS NOT NULL AND "
+            + "(i.settlementReportId IS NULL OR i.settlementReportId NOT IN "
+            + "(SELECT r.id FROM SchemeSettlementReport r WHERE r.status = 'RECORDED'))")
+    long countUnsettledGlItems(SettlementBatch batch);
 }

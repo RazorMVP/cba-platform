@@ -56,10 +56,71 @@ public class AccountGlPosting {
      */
     public String postCardSettlement(Account account, BigDecimal balanceBefore, LocalDate date,
                                      String description, String reference) {
+        return postCardSettlement(account, balanceBefore, CardCharges.NONE, false, date, description, reference);
+    }
+
+    /**
+     * Card clearing with its interchange and scheme fees, in one journal (backlog 15b). 2300 is one
+     * net payable per scheme (IAS 32 §42), so interchange earned lowers it and interchange paid and
+     * scheme fees raise it; income and expense are shown gross (IFRS 15 B35, B37; IAS 1 §32):
+     * <pre>
+     *   interchange EARNED:  DR 2300 / CR 4005 Card Interchange Income
+     *   interchange PAID:    DR 5007 Card Interchange Expense / CR 2300
+     *   scheme fees:         DR 5006 Card Scheme Fees / CR 2300
+     * </pre>
+     * A refund ({@code reversal}) posts the opposite for the figures it reverses. Income and expense
+     * are recorded in the functional currency through the FX position (IAS 21 §21). A fee account is
+     * resolved only when its amount is above zero, so a debit without fees needs no new mapping.
+     */
+    public String postCardSettlement(Account account, BigDecimal balanceBefore, CardCharges charges, boolean reversal,
+                                     LocalDate date, String description, String reference) {
+        String ccy = account.getCurrencyCode();
+        GlAccount payable = gl.activityAccount(FinancialActivity.LIABILITY_CARD_SETTLEMENT);
         List<JournalLine> lines = new ArrayList<>(balanceChangeLines(account, balanceBefore));
-        lines.add(counterLine(gl.activityAccount(FinancialActivity.LIABILITY_CARD_SETTLEMENT),
-                account.getBalance().subtract(balanceBefore), account.getCurrencyCode()));
+        lines.add(counterLine(payable, account.getBalance().subtract(balanceBefore), ccy));
+
+        BigDecimal interchange = charges.interchange();
+        boolean earned = charges.direction() == CardInterchangeDirection.EARNED;
+        BigDecimal fee = charges.schemeFee();
+        // Balance-sheet lines first: addProfitOrLoss needs them all in before it balances the P&L.
+        // Lowering 2300 is a debit; raising it is a credit. A reversal flips each line.
+        if (interchange.signum() > 0) {
+            lines.add(earned != reversal ? JournalLine.debit(payable, interchange, ccy)
+                                         : JournalLine.credit(payable, interchange, ccy));
+        }
+        if (fee.signum() > 0) {
+            lines.add(reversal ? JournalLine.debit(payable, fee, ccy) : JournalLine.credit(payable, fee, ccy));
+        }
+        if (interchange.signum() > 0) {
+            if (earned) {
+                addProfitOrLoss(lines, gl.activityAccount(FinancialActivity.INCOME_CARD_INTERCHANGE), interchange,
+                        reversal ? JournalEntry.EntryType.DEBIT : JournalEntry.EntryType.CREDIT, ccy);
+            } else {
+                addProfitOrLoss(lines, gl.activityAccount(FinancialActivity.EXPENSE_CARD_INTERCHANGE), interchange,
+                        reversal ? JournalEntry.EntryType.CREDIT : JournalEntry.EntryType.DEBIT, ccy);
+            }
+        }
+        if (fee.signum() > 0) {
+            addProfitOrLoss(lines, gl.activityAccount(FinancialActivity.EXPENSE_CARD_SCHEME_FEES), fee,
+                    reversal ? JournalEntry.EntryType.CREDIT : JournalEntry.EntryType.DEBIT, ccy);
+        }
         return gl.postJournal(lines, date, description, JournalEntry.EntityType.CARD, account.getId(), reference);
+    }
+
+    /**
+     * A card scheme's net settlement (the cash leg, backlog 15b): the bank pays the scheme what 2300
+     * holds for it from its settlement-bank account (positive {@code amount}: DR 2300 / CR 1003), or
+     * receives it when the scheme owes the bank (negative: DR 1003 / CR 2300). One currency, no FX.
+     */
+    public String postCardSchemeSettlement(BigDecimal amount, String currency, LocalDate date, String description,
+                                           UUID settlementId, String reference) {
+        GlAccount payable = gl.activityAccount(FinancialActivity.LIABILITY_CARD_SETTLEMENT);
+        GlAccount bank = gl.activityAccount(FinancialActivity.ASSET_CARD_SCHEME_SETTLEMENT);
+        BigDecimal abs = amount.abs();
+        List<JournalLine> lines = amount.signum() > 0
+                ? List.of(JournalLine.debit(payable, abs, currency), JournalLine.credit(bank, abs, currency))
+                : List.of(JournalLine.debit(bank, abs, currency), JournalLine.credit(payable, abs, currency));
+        return gl.postJournal(lines, date, description, JournalEntry.EntityType.CARD, settlementId, reference);
     }
 
     /**

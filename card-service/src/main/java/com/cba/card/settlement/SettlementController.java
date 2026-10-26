@@ -1,12 +1,14 @@
 package com.cba.card.settlement;
 
 import com.cba.card.common.ApiResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -24,6 +26,7 @@ import java.util.UUID;
 public class SettlementController {
 
     private final SettlementService settlementService;
+    private final SchemeSettlementService schemeSettlementService;
 
     /** List settlement batches, optionally filtered by date. */
     @GetMapping("/batches")
@@ -54,5 +57,34 @@ public class SettlementController {
     @GetMapping("/batches/{id}/items")
     public ResponseEntity<ApiResponse<List<SettlementItem>>> getItems(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok(settlementService.getItems(id)));
+    }
+
+    /**
+     * Records a card scheme's settlement report (backlog 15b). Only an exact match with the expected net
+     * of the date's cleared items and refunds is recorded: the backend then posts the cash leg (DR 2300 /
+     * CR 1003, or the reverse) and the date's batches become SETTLED. A mismatch returns recorded=false,
+     * reason AMOUNT_MISMATCH and the difference, and writes nothing. Idempotent for the same report.
+     */
+    @PostMapping("/scheme-reports")
+    public ResponseEntity<ApiResponse<SchemeReportResult>> recordSchemeReport(
+            @Valid @RequestBody SchemeReportRequest request, Principal principal) {
+        return ResponseEntity.ok(ApiResponse.ok(schemeSettlementService.record(request,
+                principal == null ? "system" : principal.getName())));
+    }
+
+    /** Recorded scheme settlement reports, optionally for one settlement date. */
+    @GetMapping("/scheme-reports")
+    public ResponseEntity<ApiResponse<List<SchemeSettlementReport>>> listSchemeReports(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return ResponseEntity.ok(ApiResponse.ok(schemeSettlementService.list(date)));
+    }
+
+    /** The expected net for a scheme, settlement date and currency — what the scheme's report must show. */
+    @GetMapping("/scheme-reports/expected")
+    public ResponseEntity<ApiResponse<SchemeReportResult>> expectedSchemeNet(
+            @RequestParam String scheme,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam String currency) {
+        return ResponseEntity.ok(ApiResponse.ok(schemeSettlementService.expected(scheme, date, currency)));
     }
 }

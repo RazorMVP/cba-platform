@@ -3,24 +3,19 @@ package com.cba.card.interchange;
 import java.math.BigDecimal;
 
 /**
- * Immutable result of an interchange calculation.
+ * Result of an interchange calculation from the issuer's side (backlog 15b), major units of the
+ * transaction currency.
  *
- * <pre>
- * netSettlementAmount = grossAmount − interchangeAmount − schemeFeeAmount
- * </pre>
+ * @param interchangeAmount   interchange on the transaction
+ * @param schemeFeeAmount     scheme assessment and network fees
+ * @param netSettlementAmount what the issuer owes the scheme: gross − interchange earned + interchange paid + fees
+ * @param rateApplied         the rate row used
+ * @param direction           EARNED (purchase) or PAID (cash); null when nothing applies
  */
 public record InterchangeResult(
         BigDecimal interchangeAmount,
         BigDecimal schemeFeeAmount,
         BigDecimal netSettlementAmount,
-        String rateApplied
-) {
-    /** Sentinel result when no rate is configured for this transaction. */
-    public static InterchangeResult noRate(BigDecimal grossAmount) {
-        return new InterchangeResult(
-                BigDecimal.ZERO,
-                BigDecimal.ZERO,
-                grossAmount,
-                "NO_RATE_CONFIGURED");
-    }
-}
+        String rateApplied,
+        InterchangeDirection direction
+) {}

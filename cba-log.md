@@ -57,6 +57,18 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 47) — 2026-10-26
+**Docs only: the backlog 15b plan is marked merged (PR #195, merge commit `88e9bf7`) in `docs/plans/2026-10-23-backlog-15b-card-interchange-settlement.md` and the `docs/plans/README.md` index.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `docs/plans/2026-10-23-backlog-15b-card-interchange-settlement.md` | Status line: open → merged, #195 `88e9bf7` |
+| `docs/plans/README.md` | 15b row: PR #195, merge commit `88e9bf7` |
+
+#### Build Verification
+No code changed. API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
 ### Session 125 (cont. 46) — 2026-10-24
 **Backlog 15b: card interchange income, scheme fees and the scheme cash leg. 15a debited the customer at clearing, but interchange, scheme fees and the cash paid to the scheme posted nothing and GL 2300 never cleared. Now interchange (earned on purchases, paid on ATM cash) and scheme fees post gross in the clearing journal, refunds reverse them pro rata, and operations record each scheme's settlement report — an exact match posts DR 2300 / CR 1003 and the batch becomes SETTLED. Plan: `docs/plans/2026-10-23-backlog-15b-card-interchange-settlement.md` (user: "1a 2a 3a 4a 5a"). Also marks the 15a plan merged (#194 `6bcd9d4`).**
 

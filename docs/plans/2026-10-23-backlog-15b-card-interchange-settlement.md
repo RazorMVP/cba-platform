@@ -1,4 +1,4 @@
-> **Status:** open — PR pending. Approved 2026-10-24 in plan mode (user: "1a 2a 3a 4a 5a"). Body verbatim.
+> **Status:** merged — PR #195, merge commit `88e9bf7`. Approved 2026-10-24 in plan mode (user: "1a 2a 3a 4a 5a"). Body verbatim.
 
 # Backlog 15b — card interchange income, scheme fees and the scheme cash leg
 

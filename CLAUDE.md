@@ -30,18 +30,18 @@ These are the verified-working versions for all production components. Update th
 | Component | Version | Notes |
 |-----------|---------|-------|
 | **Angular** | 21.2.25 | `@angular/core` + framework packages; floors `^21.2.25` (Session 125 cont. 23, security — router SSR DoS GHSA-ff3f-86qr-9cv3; was `^21.2.23` since Session 124) |
-| **Angular CLI / @angular/build** | 21.2.26 | Used for `vercel build --prod` (CI); `^21.2.26` (cont. 23 — clears critical `piscina` GHSA-67c8-pqhq-4rmx and high `@modelcontextprotocol/sdk`, `http-cache-semantics`, `source-map-js`) |
+| **Angular CLI / @angular/build** | 21.2.28 | Used for `vercel build --prod` (CI); `^21.2.28` (cont. 48 — vite 7.3.7, `@modelcontextprotocol/sdk` 1.32.1; cont. 23 cleared critical `piscina` GHSA-67c8-pqhq-4rmx and high `@modelcontextprotocol/sdk`, `http-cache-semantics`, `source-map-js`). **21.2.28 pins `undici` 7.29.1 exactly** (high GHSA-4qv8-2p9j-2685 and others; Angular's fix is only in v22), so `web/package.json` `overrides` forces `undici@^7` → `^7.30.1` and `undici@^6` (node-gyp via the CLI) → `^6.29.1`. **Drop both overrides when moving to an `@angular/build` that ships a fixed undici** |
 | **Angular Material / CDK** | 21.2.14 | `^21.2.14` |
 | **PrimeNG** | 21.1.10 | UI component library |
 | **RxJS** | 7.8.x | Reactive extensions; `~7.8.0` pinned |
 | **TypeScript** | 5.9.3 | `~5.9.2` pinned |
 | **zone.js** | 0.16.3 | **REQUIRED** — zone-based CD; see "Angular Change Detection" below. Bumped S124, browser-verified |
-| **Vitest / @vitest/coverage-v8** | 4.1.11 | Angular 21 default test runner (replaced Karma); 1145 unit tests (all components+services) |
+| **Vitest / @vitest/coverage-v8** | 4.1.12 | Angular 21 default test runner (replaced Karma); 1170 unit tests (all components+services). **Same lockfile trap as partner-portal (cont. 48):** any resolve that moves Vitest 4.1.x crashes npm 10.9 with `Cannot read properties of null (reading 'edgesOut')` — even a targeted `npm install -D`. Write the lockfile with `npm install --package-lock-only --legacy-peer-deps …`, then run a plain `npm install --package-lock-only` (the first pass leaves out peers such as `@emnapi/*`, and `npm ci` refuses the lockfile until they're added), then prove it with a plain `npm ci` |
 | **@playwright/test** | 1.61.1 | E2E (cont. 14) — `npm run e2e`; 5 deployed-shell smoke tests vs `BASE_URL` (prod alias default) |
-| **npm audit (high+)** | **0 vulnerabilities** | Session 124 — was 1 critical + 18 high, which was failing CI's `security` job and blocking all deploys |
+| **npm audit (high+)** | **0 vulnerabilities** (0 at any level, cont. 48) | Session 124 — was 1 critical + 18 high, which was failing CI's `security` job and blocking all deploys. cont. 48 cleared 7 Dependabot alerts + new `undici`/`fast-uri`/`ip-address` advisories in one PR (Dependabot's per-group PRs #190/#157/#160/#158 couldn't pass the gate alone) |
 | **Node (local dev)** | v24.14.0 | Satisfies Angular 21's `>=24.0.0`. **Below the Angular CLI v22 floor of v24.15.0** — an Angular 22 upgrade needs a local Node bump. CI uses Node 22.x |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | Session 124 | Session 124 — Angular 21.2.x latest-patch security bump; cleared 1 critical + 18 high npm advisories that had been failing the CI `security` gate and **blocking the S122/123 CORS + zone.js fixes from ever deploying**. 1145 tests green, 0 regressions. (`0f4ac0b`: Playwright E2E setup; cont. 12: component coverage COMPLETE) |
+| **Last git commit** | Session 125 cont. 48 | cont. 48 — toolchain security bump: `@angular/build`/`@angular/cli` 21.2.28, Vitest 4.1.12, `undici` overrides; `npm audit` 0; 1170 tests, production build green. Earlier: Session 124 — Angular 21.2.x latest-patch security bump; cleared 1 critical + 18 high npm advisories that had been failing the CI `security` gate and **blocking the S122/123 CORS + zone.js fixes from ever deploying**. (`0f4ac0b`: Playwright E2E setup; cont. 12: component coverage COMPLETE) |
 
 ### Partner Portal (`partner-portal/`)
 

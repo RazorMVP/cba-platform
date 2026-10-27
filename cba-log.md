@@ -57,6 +57,27 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 48) — 2026-10-26
+**Dependabot: all 13 open alerts on `main` cleared. 6 high `follow-redirects` 1.16.0 → 1.16.1 alerts closed by merging Dependabot #191 (partner-portal), #192 (docs-site), #193 (partner-docs). The 7 in `web/` (vite 7.3.6 ×3, `@modelcontextprotocol/sdk` 1.31.0 ×3, `@vitest/mocker` 4.1.11) cleared in one PR: `@angular/build`/`@angular/cli` ^21.2.28 (vite 7.3.7, MCP SDK 1.32.1), `vitest`/`@vitest/coverage-v8` ^4.1.12. Re-resolving also surfaced advisories not yet raised as alerts — high `undici` ≤ 7.30.0 (pinned exactly to 7.29.1 by `@angular/build` 21.2.28, the last v21; fixed upstream only in v22) and moderate `fast-uri`, `ip-address` — fixed with `overrides` (`undici@^7` → ^7.30.1, `undici@^6` → ^6.29.1) and an in-range lockfile update. Supersedes Dependabot #190, #157, #160, #158 (each fixed part of it, so the all-or-nothing audit gate failed them).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/package.json` | Floors `@angular/build` ^21.2.28, `@angular/cli` ^21.2.28, `vitest` ^4.1.12, `@vitest/coverage-v8` ^4.1.12; new `overrides` for `undici` |
+| `web/package-lock.json` | Re-resolved: vite 7.3.7, `@modelcontextprotocol/sdk` 1.32.1, `@vitest/mocker` 4.1.12, `undici` 7.30.1 / 6.29.1, `fast-uri` 3.1.9, `ip-address` 10.7.5 |
+| `CLAUDE.md` | Web versions table; the Vitest lockfile trap applies to `web/` too |
+
+#### Key Patterns / Decisions
+- **npm 10.9 crashes (`edgesOut`) on any resolve that moves Vitest 4.1.x** — also a targeted `npm install -D`, not only a from-scratch resolve. Working sequence: `npm install --package-lock-only --legacy-peer-deps …` → plain `npm install --package-lock-only` (adds the peers the first pass skips, e.g. `@emnapi/*`; without it `npm ci` refuses the lockfile) → plain `npm ci` as the proof.
+- **An exact pin in a framework package can't be fixed by a lockfile update**: `@angular/build` 21.2.28 depends on `undici: "7.29.1"`. `overrides` with a version-range key (`undici@^7`) moves it to the patched release without touching the Angular major. Remove when Angular ships the fix.
+- Lint has 7 errors / 63 warnings — pre-existing (no eslint/TS package or source file changed); CI runs lint as report-only (`|| true`).
+
+#### Build Verification
+- `npm ci` (plain, strict peers) ✅; `npm ls` no invalid/missing; `npm audit` **0 vulnerabilities** (all levels)
+- `ng test`: 115 files / **1170 tests** green — same as the baseline taken before the change
+- `ng build --configuration production` ✅
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
 ### Session 125 (cont. 47) — 2026-10-26
 **Docs only: the backlog 15b plan is marked merged (PR #195, merge commit `88e9bf7`) in `docs/plans/2026-10-23-backlog-15b-card-interchange-settlement.md` and the `docs/plans/README.md` index.**
 

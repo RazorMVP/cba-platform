@@ -3,24 +3,21 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { StatusBadgeComponent } from '../../shared/components/status-badge/status-badge';
 import {
-  AccountingService,
-  GlAccount,
-  GlAccountRequest,
-  GlAccountType,
-  GlAccountUsage,
+  AccountingService, GlAccount, GlAccountRequest,
+  GlAccountType, GlAccountUsage,
 } from './accounting.service';
 
 type TypeFilter = '' | GlAccountType;
-type ModalType = 'create' | 'edit' | null;
+type ModalType  = 'create' | 'edit' | null;
 
 const ACCOUNT_TYPES: GlAccountType[] = ['ASSET', 'LIABILITY', 'EQUITY', 'INCOME', 'EXPENSE'];
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-gl-accounts',
   standalone: true,
   imports: [CommonModule, FormsModule, StatusBadgeComponent],
   templateUrl: './gl-accounts.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './gl-accounts.scss',
 })
 export class GlAccountsComponent implements OnInit {
@@ -29,9 +26,9 @@ export class GlAccountsComponent implements OnInit {
   accounts: GlAccount[] = [];
   filtered: GlAccount[] = [];
   loading = true;
-  error = '';
+  error   = '';
 
-  searchQuery = '';
+  searchQuery  = '';
   typeFilter: TypeFilter = '';
   showDisabled = false;
 
@@ -39,16 +36,16 @@ export class GlAccountsComponent implements OnInit {
   readonly usages: GlAccountUsage[] = ['HEADER', 'DETAIL'];
 
   // ── Modal ──────────────────────────────────────────────────────────────────
-  activeModal: ModalType = null;
-  editingId = '';
-  modalWorking = false;
-  modalError = '';
+  activeModal:   ModalType = null;
+  editingId      = '';
+  modalWorking   = false;
+  modalError     = '';
 
   form: GlAccountRequest = this.blankForm();
 
   // ── Parent accounts for dropdown ───────────────────────────────────────────
   get headerAccounts(): GlAccount[] {
-    return this.accounts.filter((a) => a.usage === 'HEADER' && !a.disabled);
+    return this.accounts.filter(a => a.usage === 'HEADER' && !a.disabled);
   }
 
   ngOnInit(): void {
@@ -57,33 +54,29 @@ export class GlAccountsComponent implements OnInit {
 
   loadAccounts(): void {
     this.svc.listGlAccounts().subscribe({
-      next: (list) => {
+      next: list => {
         this.accounts = list;
         this.applyFilter();
         this.loading = false;
       },
-      error: () => {
-        this.error = 'Failed to load GL accounts.';
-        this.loading = false;
-      },
+      error: () => { this.error = 'Failed to load GL accounts.'; this.loading = false; },
     });
   }
 
   applyFilter(): void {
     let result = this.accounts;
-    if (!this.showDisabled) result = result.filter((a) => !a.disabled);
-    if (this.typeFilter) result = result.filter((a) => a.accountType === this.typeFilter);
+    if (!this.showDisabled) result = result.filter(a => !a.disabled);
+    if (this.typeFilter)    result = result.filter(a => a.accountType === this.typeFilter);
     if (this.searchQuery) {
       const q = this.searchQuery.toLowerCase();
-      result = result.filter(
-        (a) => a.glCode.toLowerCase().includes(q) || a.name.toLowerCase().includes(q),
-      );
+      result = result.filter(a =>
+        a.glCode.toLowerCase().includes(q) || a.name.toLowerCase().includes(q));
     }
     this.filtered = result;
   }
 
   countByType(t: GlAccountType): number {
-    return this.accounts.filter((a) => a.accountType === t && !a.disabled).length;
+    return this.accounts.filter(a => a.accountType === t && !a.disabled).length;
   }
 
   // ── Lifecycle actions ──────────────────────────────────────────────────────
@@ -91,8 +84,8 @@ export class GlAccountsComponent implements OnInit {
   toggleDisable(a: GlAccount): void {
     const call = a.disabled ? this.svc.enableGlAccount(a.id) : this.svc.disableGlAccount(a.id);
     call.subscribe({
-      next: (updated) => {
-        this.accounts = this.accounts.map((x) => (x.id === updated.id ? updated : x));
+      next: updated => {
+        this.accounts = this.accounts.map(x => x.id === updated.id ? updated : x);
         this.applyFilter();
       },
     });
@@ -101,27 +94,27 @@ export class GlAccountsComponent implements OnInit {
   // ── Modals ─────────────────────────────────────────────────────────────────
 
   openCreateModal(): void {
-    this.activeModal = 'create';
-    this.editingId = '';
-    this.form = this.blankForm();
+    this.activeModal  = 'create';
+    this.editingId    = '';
+    this.form         = this.blankForm();
     this.modalWorking = false;
-    this.modalError = '';
+    this.modalError   = '';
   }
 
   openEditModal(a: GlAccount): void {
-    this.activeModal = 'edit';
-    this.editingId = a.id;
+    this.activeModal  = 'edit';
+    this.editingId    = a.id;
     this.form = {
-      glCode: a.glCode,
-      name: a.name,
-      accountType: a.accountType,
-      usage: a.usage,
+      glCode:               a.glCode,
+      name:                 a.name,
+      accountType:          a.accountType,
+      usage:                a.usage,
       manualEntriesAllowed: a.manualEntriesAllowed,
-      description: a.description ?? '',
-      parentId: a.parentId ?? '',
+      description:          a.description ?? '',
+      parentId:             a.parentId ?? '',
     };
     this.modalWorking = false;
-    this.modalError = '';
+    this.modalError   = '';
   }
 
   submitModal(): void {
@@ -129,58 +122,47 @@ export class GlAccountsComponent implements OnInit {
     this.modalWorking = true;
     const req: GlAccountRequest = {
       ...this.form,
-      parentId: this.form.parentId || undefined,
+      parentId:    this.form.parentId    || undefined,
       description: this.form.description || undefined,
     };
-    const call =
-      this.activeModal === 'create'
-        ? this.svc.createGlAccount(req)
-        : this.svc.updateGlAccount(this.editingId, req);
+    const call = this.activeModal === 'create'
+      ? this.svc.createGlAccount(req)
+      : this.svc.updateGlAccount(this.editingId, req);
 
     call.subscribe({
-      next: (a) => {
+      next: a => {
         if (this.activeModal === 'create') {
           this.accounts = [...this.accounts, a];
         } else {
-          this.accounts = this.accounts.map((x) => (x.id === a.id ? a : x));
+          this.accounts = this.accounts.map(x => x.id === a.id ? a : x);
         }
         this.applyFilter();
         this.modalWorking = false;
-        this.activeModal = null;
+        this.activeModal  = null;
       },
-      error: () => {
-        this.modalError = 'Failed to save GL account.';
-        this.modalWorking = false;
-      },
+      error: () => { this.modalError = 'Failed to save GL account.'; this.modalWorking = false; },
     });
   }
 
-  closeModal(): void {
-    if (!this.modalWorking) this.activeModal = null;
-  }
+  closeModal(): void { if (!this.modalWorking) this.activeModal = null; }
 
   // ── Display helpers ────────────────────────────────────────────────────────
 
   typeVariant(t: GlAccountType): 'success' | 'warning' | 'neutral' | 'info' {
     const map: Record<GlAccountType, 'success' | 'warning' | 'neutral' | 'info'> = {
-      ASSET: 'success',
+      ASSET:     'success',
       LIABILITY: 'warning',
-      EQUITY: 'info',
-      INCOME: 'success',
-      EXPENSE: 'neutral',
+      EQUITY:    'info',
+      INCOME:    'success',
+      EXPENSE:   'neutral',
     };
     return map[t];
   }
 
   private blankForm(): GlAccountRequest {
     return {
-      glCode: '',
-      name: '',
-      accountType: 'ASSET',
-      usage: 'DETAIL',
-      manualEntriesAllowed: true,
-      description: '',
-      parentId: '',
+      glCode: '', name: '', accountType: 'ASSET', usage: 'DETAIL',
+      manualEntriesAllowed: true, description: '', parentId: '',
     };
   }
 }

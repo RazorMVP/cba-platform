@@ -1,4 +1,5 @@
 <div class="page">
+
   <a routerLink=".." class="back-link">
     <span class="material-icons">arrow_back</span> Teller Desks
   </a>
@@ -15,6 +16,7 @@
       <a routerLink=".." class="btn-secondary">Go back</a>
     </div>
   } @else if (teller) {
+
     <!-- ── Header ── -->
     <div class="teller-header">
       <div class="teller-header__icon">
@@ -48,10 +50,8 @@
     @if (openSession) {
       <div class="open-session-banner">
         <span class="material-icons">radio_button_checked</span>
-        Session open today · {{ openSession.sessionDate | date: 'mediumDate' }} · Running balance:
-        <strong
-          >{{ sessionRunningBalance | number: '1.2-2' }} {{ openSession.currencyCode }}</strong
-        >
+        Session open today · {{ openSession.sessionDate | date:'mediumDate' }} ·
+        Running balance: <strong>{{ sessionRunningBalance | number:'1.2-2' }} {{ openSession.currencyCode }}</strong>
         <button class="banner-btn" (click)="setTab('sessions'); selectSession(openSession!)">
           View Session <span class="material-icons">chevron_right</span>
         </button>
@@ -60,32 +60,16 @@
 
     <!-- ── Tab bar ── -->
     <div class="tab-bar">
-      <button
-        class="tab-item"
-        [class.tab-item--active]="activeTab === 'overview'"
-        (click)="setTab('overview')"
-      >
+      <button class="tab-item" [class.tab-item--active]="activeTab === 'overview'" (click)="setTab('overview')">
         <span class="material-icons">info</span> Overview
       </button>
-      <button
-        class="tab-item"
-        [class.tab-item--active]="activeTab === 'cashiers'"
-        (click)="setTab('cashiers')"
-      >
+      <button class="tab-item" [class.tab-item--active]="activeTab === 'cashiers'" (click)="setTab('cashiers')">
         <span class="material-icons">badge</span> Cashiers
-        @if (cashiers.length > 0) {
-          <span class="tab-count">{{ cashiers.length }}</span>
-        }
+        @if (cashiers.length > 0) { <span class="tab-count">{{ cashiers.length }}</span> }
       </button>
-      <button
-        class="tab-item"
-        [class.tab-item--active]="activeTab === 'sessions'"
-        (click)="setTab('sessions')"
-      >
+      <button class="tab-item" [class.tab-item--active]="activeTab === 'sessions'" (click)="setTab('sessions')">
         <span class="material-icons">history</span> Sessions
-        @if (sessions.length > 0) {
-          <span class="tab-count">{{ sessions.length }}</span>
-        }
+        @if (sessions.length > 0) { <span class="tab-count">{{ sessions.length }}</span> }
       </button>
     </div>
 
@@ -94,27 +78,13 @@
       <div class="card">
         <div class="card__header">Teller Details</div>
         <dl class="detail-list">
-          <dt>Name</dt>
-          <dd>{{ teller.name }}</dd>
-          <dt>Branch Code</dt>
-          <dd class="mono">{{ teller.branchCode }}</dd>
-          @if (teller.description) {
-            <dt>Description</dt>
-            <dd>{{ teller.description }}</dd>
-          }
+          <dt>Name</dt><dd>{{ teller.name }}</dd>
+          <dt>Branch Code</dt><dd class="mono">{{ teller.branchCode }}</dd>
+          @if (teller.description) { <dt>Description</dt><dd>{{ teller.description }}</dd> }
           <dt>Status</dt>
-          <dd>
-            <app-status-badge
-              [variant]="tellerStatusVariant(teller.status)"
-              [label]="teller.status"
-            />
-          </dd>
-          <dt>Start Date</dt>
-          <dd>{{ teller.startDate | date: 'mediumDate' }}</dd>
-          @if (teller.endDate) {
-            <dt>End Date</dt>
-            <dd>{{ teller.endDate | date: 'mediumDate' }}</dd>
-          }
+          <dd><app-status-badge [variant]="tellerStatusVariant(teller.status)" [label]="teller.status" /></dd>
+          <dt>Start Date</dt><dd>{{ teller.startDate | date:'mediumDate' }}</dd>
+          @if (teller.endDate) { <dt>End Date</dt><dd>{{ teller.endDate | date:'mediumDate' }}</dd> }
         </dl>
       </div>
     }
@@ -150,13 +120,10 @@
                 <tr>
                   <td class="mono">{{ c.staffId }}</td>
                   <td class="muted">{{ c.description ?? '—' }}</td>
-                  <td class="muted">{{ c.startDate | date: 'mediumDate' }}</td>
+                  <td class="muted">{{ c.startDate | date:'mediumDate' }}</td>
                   <td class="muted">
-                    @if (c.fullDay) {
-                      Full day
-                    } @else {
-                      {{ c.startTime }} – {{ c.endTime }}
-                    }
+                    @if (c.fullDay) { Full day }
+                    @else { {{ c.startTime }} – {{ c.endTime }} }
                   </td>
                   <td>
                     <span class="active-dot" [class.active-dot--on]="c.active"></span>
@@ -174,9 +141,7 @@
     @if (activeTab === 'sessions') {
       @if (!sessionsLoaded) {
         <div class="card skeleton-card">
-          @for (i of [1, 2, 3]; track i) {
-            <div class="skeleton skeleton--row"></div>
-          }
+          @for (i of [1,2,3]; track i) { <div class="skeleton skeleton--row"></div> }
         </div>
       } @else if (sessions.length === 0) {
         <div class="card empty-state">
@@ -184,34 +149,28 @@
           <p>No sessions recorded. Open a session to begin cash operations.</p>
         </div>
       } @else {
+
         @for (s of sessions; track s.id) {
           <!-- Session row -->
-          <div
-            class="session-card"
-            [class.session-card--open]="s.status === 'OPEN'"
-            [class.session-card--expanded]="selectedSession?.id === s.id"
-          >
+          <div class="session-card" [class.session-card--open]="s.status === 'OPEN'"
+               [class.session-card--expanded]="selectedSession?.id === s.id">
             <div class="session-card__row" (click)="selectSession(s)">
               <div class="session-card__date">
-                <span class="material-icons">{{
-                  s.status === 'OPEN' ? 'radio_button_checked' : 'check_circle'
-                }}</span>
-                {{ s.sessionDate | date: 'mediumDate' }}
+                <span class="material-icons">{{ s.status === 'OPEN' ? 'radio_button_checked' : 'check_circle' }}</span>
+                {{ s.sessionDate | date:'mediumDate' }}
               </div>
               <div class="session-card__balance">
-                Opening: <strong>{{ s.openingBalance | number: '1.2-2' }}</strong>
+                Opening: <strong>{{ s.openingBalance | number:'1.2-2' }}</strong>
                 @if (s.status === 'CLOSED') {
-                  → Closing: <strong>{{ s.closingBalance | number: '1.2-2' }}</strong>
+                  → Closing: <strong>{{ s.closingBalance | number:'1.2-2' }}</strong>
                 }
                 <span class="session-ccy">{{ s.currencyCode }}</span>
               </div>
               <div class="session-card__status">
                 <app-status-badge [variant]="sessionStatusVariant(s.status)" [label]="s.status" />
               </div>
-              <span
-                class="material-icons session-chevron"
-                [class.session-chevron--open]="selectedSession?.id === s.id"
-              >
+              <span class="material-icons session-chevron"
+                    [class.session-chevron--open]="selectedSession?.id === s.id">
                 expand_more
               </span>
             </div>
@@ -219,6 +178,7 @@
             <!-- Expanded session panel -->
             @if (selectedSession?.id === s.id) {
               <div class="session-panel">
+
                 <!-- Session controls (OPEN sessions only) -->
                 @if (s.status === 'OPEN') {
                   <div class="session-controls">
@@ -233,9 +193,7 @@
                     </button>
                     <div class="running-balance">
                       Running balance:
-                      <strong
-                        >{{ sessionRunningBalance | number: '1.2-2' }} {{ s.currencyCode }}</strong
-                      >
+                      <strong>{{ sessionRunningBalance | number:'1.2-2' }} {{ s.currencyCode }}</strong>
                     </div>
                   </div>
                 }
@@ -245,23 +203,21 @@
                   <div class="settlement-summary">
                     <div class="settlement-row">
                       <span>Opening Float</span>
-                      <span>{{ s.openingBalance | number: '1.2-2' }} {{ s.currencyCode }}</span>
+                      <span>{{ s.openingBalance | number:'1.2-2' }} {{ s.currencyCode }}</span>
                     </div>
                     <div class="settlement-row">
                       <span>Closing Balance (calculated)</span>
-                      <span>{{ s.closingBalance | number: '1.2-2' }} {{ s.currencyCode }}</span>
+                      <span>{{ s.closingBalance | number:'1.2-2' }} {{ s.currencyCode }}</span>
                     </div>
                     <div class="settlement-row">
                       <span>Actual Cash (counted)</span>
-                      <span>{{ s.actualCash | number: '1.2-2' }} {{ s.currencyCode }}</span>
+                      <span>{{ s.actualCash | number:'1.2-2' }} {{ s.currencyCode }}</span>
                     </div>
-                    <div
-                      class="settlement-row settlement-row--diff"
-                      [class.settlement-row--surplus]="(s.difference ?? 0) > 0"
-                      [class.settlement-row--deficit]="(s.difference ?? 0) < 0"
-                    >
+                    <div class="settlement-row settlement-row--diff"
+                         [class.settlement-row--surplus]="(s.difference ?? 0) > 0"
+                         [class.settlement-row--deficit]="(s.difference ?? 0) < 0">
                       <span>Difference</span>
-                      <span>{{ s.difference ?? 0 | number: '1.2-2' }} {{ s.currencyCode }}</span>
+                      <span>{{ (s.difference ?? 0) | number:'1.2-2' }} {{ s.currencyCode }}</span>
                     </div>
                     @if (s.settlementNote) {
                       <div class="settlement-note">Note: {{ s.settlementNote }}</div>
@@ -272,9 +228,7 @@
                 <!-- Cash transactions table -->
                 @if (sessionTxnsLoading) {
                   <div class="skeleton-card">
-                    @for (i of [1, 2]; track i) {
-                      <div class="skeleton skeleton--row"></div>
-                    }
+                    @for (i of [1,2]; track i) { <div class="skeleton skeleton--row"></div> }
                   </div>
                 } @else if (sessionTxns.length === 0) {
                   <div class="txn-empty">No transactions in this session.</div>
@@ -295,33 +249,31 @@
                         <tr>
                           <td class="mono muted">{{ t.referenceNumber }}</td>
                           <td>
-                            <span
-                              class="txn-badge"
-                              [class.txn-badge--in]="t.transactionType === 'CASH_IN'"
-                              [class.txn-badge--out]="t.transactionType === 'CASH_OUT'"
-                            >
+                            <span class="txn-badge"
+                                  [class.txn-badge--in]="t.transactionType === 'CASH_IN'"
+                                  [class.txn-badge--out]="t.transactionType === 'CASH_OUT'">
                               {{ t.transactionType === 'CASH_IN' ? 'Cash In' : 'Cash Out' }}
                             </span>
                           </td>
                           <td class="col-right">
-                            <span [class]="txnClass(t)"
-                              >{{ txnSign(t) }}{{ t.amount | number: '1.2-2' }}</span
-                            >
+                            <span [class]="txnClass(t)">{{ txnSign(t) }}{{ t.amount | number:'1.2-2' }}</span>
                           </td>
                           <td class="muted mono">{{ t.accountId ?? '—' }}</td>
                           <td class="muted">{{ t.description ?? '—' }}</td>
-                          <td class="muted">{{ t.transactionDate | date: 'shortTime' }}</td>
+                          <td class="muted">{{ t.transactionDate | date:'shortTime' }}</td>
                         </tr>
                       }
                     </tbody>
                   </table>
                 }
+
               </div>
             }
           </div>
         }
       }
     }
+
   }
 </div>
 
@@ -333,27 +285,15 @@
 @if (activeModal === 'activate') {
   <div class="modal-backdrop" (click)="closeModal()">
     <div class="modal" (click)="$event.stopPropagation()">
-      <div class="modal__header">
-        <span class="material-icons modal__icon--success">play_arrow</span> Activate Teller
-      </div>
+      <div class="modal__header"><span class="material-icons modal__icon--success">play_arrow</span> Activate Teller</div>
       <div class="modal__body">
-        <p>
-          Activate <strong>{{ teller?.name }}</strong
-          >? The desk will be available for cash sessions.
-        </p>
-        @if (modalError) {
-          <div class="modal__error">{{ modalError }}</div>
-        }
+        <p>Activate <strong>{{ teller?.name }}</strong>? The desk will be available for cash sessions.</p>
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
       </div>
       <div class="modal__footer">
-        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">
-          Cancel
-        </button>
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
         <button class="btn-success" (click)="submitActivate()" [disabled]="modalWorking">
-          @if (modalWorking) {
-            <span class="spinner"></span>
-          }
-          Activate
+          @if (modalWorking) { <span class="spinner"></span> } Activate
         </button>
       </div>
     </div>
@@ -364,28 +304,16 @@
 @if (activeModal === 'close-teller') {
   <div class="modal-backdrop" (click)="closeModal()">
     <div class="modal" (click)="$event.stopPropagation()">
-      <div class="modal__header">
-        <span class="material-icons modal__icon--danger">lock</span> Close Teller
-      </div>
+      <div class="modal__header"><span class="material-icons modal__icon--danger">lock</span> Close Teller</div>
       <div class="modal__body">
-        <p>
-          Permanently close <strong>{{ teller?.name }}</strong
-          >?
-        </p>
+        <p>Permanently close <strong>{{ teller?.name }}</strong>?</p>
         <p class="modal__hint">All sessions must be settled first. This cannot be undone.</p>
-        @if (modalError) {
-          <div class="modal__error">{{ modalError }}</div>
-        }
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
       </div>
       <div class="modal__footer">
-        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">
-          Cancel
-        </button>
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
         <button class="btn-danger" (click)="submitCloseTeller()" [disabled]="modalWorking">
-          @if (modalWorking) {
-            <span class="spinner"></span>
-          }
-          Close Teller
+          @if (modalWorking) { <span class="spinner"></span> } Close Teller
         </button>
       </div>
     </div>
@@ -396,18 +324,11 @@
 @if (activeModal === 'assign-cashier') {
   <div class="modal-backdrop" (click)="closeModal()">
     <div class="modal" (click)="$event.stopPropagation()">
-      <div class="modal__header">
-        <span class="material-icons modal__icon">badge</span> Assign Cashier
-      </div>
+      <div class="modal__header"><span class="material-icons modal__icon">badge</span> Assign Cashier</div>
       <div class="modal__body">
         <div class="form-field">
           <label class="form-label">Staff ID <span class="required">*</span></label>
-          <input
-            class="form-input"
-            type="text"
-            [(ngModel)]="assignStaffId"
-            placeholder="e.g. STF-0042"
-          />
+          <input class="form-input" type="text" [(ngModel)]="assignStaffId" placeholder="e.g. STF-0042" />
         </div>
         <div class="form-field">
           <label class="form-label">Start Date <span class="required">*</span></label>
@@ -415,30 +336,15 @@
         </div>
         <div class="form-field">
           <label class="form-label">Description <span class="form-hint">(optional)</span></label>
-          <input
-            class="form-input"
-            type="text"
-            [(ngModel)]="assignDescription"
-            placeholder="e.g. Morning shift"
-          />
+          <input class="form-input" type="text" [(ngModel)]="assignDescription" placeholder="e.g. Morning shift" />
         </div>
-        @if (modalError) {
-          <div class="modal__error">{{ modalError }}</div>
-        }
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
       </div>
       <div class="modal__footer">
-        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">
-          Cancel
-        </button>
-        <button
-          class="btn-primary"
-          (click)="submitAssignCashier()"
-          [disabled]="modalWorking || !assignStaffId || !assignStartDate"
-        >
-          @if (modalWorking) {
-            <span class="spinner"></span>
-          }
-          Assign
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitAssignCashier()"
+                [disabled]="modalWorking || !assignStaffId || !assignStartDate">
+          @if (modalWorking) { <span class="spinner"></span> } Assign
         </button>
       </div>
     </div>
@@ -449,9 +355,7 @@
 @if (activeModal === 'open-session') {
   <div class="modal-backdrop" (click)="closeModal()">
     <div class="modal" (click)="$event.stopPropagation()">
-      <div class="modal__header">
-        <span class="material-icons modal__icon">lock_open</span> Open Session
-      </div>
+      <div class="modal__header"><span class="material-icons modal__icon">lock_open</span> Open Session</div>
       <div class="modal__body">
         <div class="form-field">
           <label class="form-label">Cashier <span class="required">*</span></label>
@@ -460,53 +364,29 @@
               <option value="">No cashiers assigned</option>
             }
             @for (c of cashiers; track c.id) {
-              <option [value]="c.id">
-                {{ c.staffId }}{{ c.description ? ' — ' + c.description : '' }}
-              </option>
+              <option [value]="c.id">{{ c.staffId }}{{ c.description ? ' — ' + c.description : '' }}</option>
             }
           </select>
         </div>
         <div class="form-row">
           <div class="form-field form-field--half">
             <label class="form-label">Opening Float <span class="required">*</span></label>
-            <input
-              class="form-input"
-              type="number"
-              min="0"
-              step="0.01"
-              [(ngModel)]="openSessionBalance"
-              placeholder="0.00"
-            />
+            <input class="form-input" type="number" min="0" step="0.01"
+                   [(ngModel)]="openSessionBalance" placeholder="0.00" />
           </div>
           <div class="form-field form-field--half">
             <label class="form-label">Currency <span class="required">*</span></label>
-            <input
-              class="form-input"
-              type="text"
-              [(ngModel)]="openSessionCurrency"
-              placeholder="USD"
-              maxlength="3"
-              style="text-transform: uppercase"
-            />
+            <input class="form-input" type="text" [(ngModel)]="openSessionCurrency"
+                   placeholder="USD" maxlength="3" style="text-transform:uppercase" />
           </div>
         </div>
-        @if (modalError) {
-          <div class="modal__error">{{ modalError }}</div>
-        }
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
       </div>
       <div class="modal__footer">
-        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">
-          Cancel
-        </button>
-        <button
-          class="btn-primary"
-          (click)="submitOpenSession()"
-          [disabled]="modalWorking || !openSessionCashierId || cashiers.length === 0"
-        >
-          @if (modalWorking) {
-            <span class="spinner"></span>
-          }
-          Open Session
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitOpenSession()"
+                [disabled]="modalWorking || !openSessionCashierId || cashiers.length === 0">
+          @if (modalWorking) { <span class="spinner"></span> } Open Session
         </button>
       </div>
     </div>
@@ -518,11 +398,8 @@
   <div class="modal-backdrop" (click)="closeModal()">
     <div class="modal" (click)="$event.stopPropagation()">
       <div class="modal__header">
-        <span
-          class="material-icons"
-          [class.modal__icon--success]="cashTxnType === 'CASH_IN'"
-          [class.modal__icon--warning]="cashTxnType === 'CASH_OUT'"
-        >
+        <span class="material-icons" [class.modal__icon--success]="cashTxnType === 'CASH_IN'"
+                                     [class.modal__icon--warning]="cashTxnType === 'CASH_OUT'">
           {{ cashTxnType === 'CASH_IN' ? 'add_circle' : 'remove_circle' }}
         </span>
         {{ cashTxnType === 'CASH_IN' ? 'Cash In' : 'Cash Out' }}
@@ -532,56 +409,27 @@
           <label class="form-label">Amount <span class="required">*</span></label>
           <div class="input-prefix-group">
             <span class="input-prefix">{{ selectedSession?.currencyCode }}</span>
-            <input
-              class="form-input form-input--prefixed"
-              type="number"
-              min="0.01"
-              step="0.01"
-              [(ngModel)]="cashTxnAmount"
-              placeholder="0.00"
-            />
+            <input class="form-input form-input--prefixed" type="number" min="0.01" step="0.01"
+                   [(ngModel)]="cashTxnAmount" placeholder="0.00" />
           </div>
         </div>
         <div class="form-field">
-          <label class="form-label"
-            >Account ID
-            <span class="form-hint"
-              >(required — the customer account credited or debited)</span
-            ></label
-          >
-          <input
-            class="form-input"
-            type="text"
-            [(ngModel)]="cashTxnAccountId"
-            placeholder="Paste account UUID"
-          />
+          <label class="form-label">Account ID <span class="form-hint">(required — the customer account credited or debited)</span></label>
+          <input class="form-input" type="text" [(ngModel)]="cashTxnAccountId"
+                 placeholder="Paste account UUID" />
         </div>
         <div class="form-field">
           <label class="form-label">Description <span class="form-hint">(optional)</span></label>
-          <input
-            class="form-input"
-            type="text"
-            [(ngModel)]="cashTxnDescription"
-            placeholder="e.g. Customer deposit — savings account"
-            maxlength="255"
-          />
+          <input class="form-input" type="text" [(ngModel)]="cashTxnDescription"
+                 placeholder="e.g. Customer deposit — savings account" maxlength="255" />
         </div>
-        @if (modalError) {
-          <div class="modal__error">{{ modalError }}</div>
-        }
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
       </div>
       <div class="modal__footer">
-        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">
-          Cancel
-        </button>
-        <button
-          [class]="cashTxnType === 'CASH_IN' ? 'btn-success' : 'btn-warning'"
-          (click)="submitCashTxn()"
-          [disabled]="modalWorking || cashTxnAmount <= 0 || !cashTxnAccountId.trim()"
-        >
-          @if (modalWorking) {
-            <span class="spinner"></span>
-          }
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button [class]="cashTxnType === 'CASH_IN' ? 'btn-success' : 'btn-warning'"
+                (click)="submitCashTxn()" [disabled]="modalWorking || cashTxnAmount <= 0 || !cashTxnAccountId.trim()">
+          @if (modalWorking) { <span class="spinner"></span> }
           {{ cashTxnType === 'CASH_IN' ? 'Record Cash In' : 'Record Cash Out' }}
         </button>
       </div>
@@ -593,81 +441,44 @@
 @if (activeModal === 'settle') {
   <div class="modal-backdrop" (click)="closeModal()">
     <div class="modal" (click)="$event.stopPropagation()">
-      <div class="modal__header">
-        <span class="material-icons modal__icon">done_all</span> Settle & Close Session
-      </div>
+      <div class="modal__header"><span class="material-icons modal__icon">done_all</span> Settle & Close Session</div>
       <div class="modal__body">
         <div class="settle-preview">
           <div class="settle-row">
             <span>Opening Float</span>
-            <span
-              >{{ $safeNavigationMigration(selectedSession?.openingBalance) | number: '1.2-2' }}
-              {{ selectedSession?.currencyCode }}</span
-            >
+            <span>{{ $safeNavigationMigration(selectedSession?.openingBalance) | number:'1.2-2' }} {{ selectedSession?.currencyCode }}</span>
           </div>
           <div class="settle-row">
             <span>Running Balance</span>
-            <span
-              ><strong
-                >{{ sessionRunningBalance | number: '1.2-2' }}
-                {{ selectedSession?.currencyCode }}</strong
-              ></span
-            >
+            <span><strong>{{ sessionRunningBalance | number:'1.2-2' }} {{ selectedSession?.currencyCode }}</strong></span>
           </div>
         </div>
-        <div class="form-field" style="margin-top: 1rem">
+        <div class="form-field" style="margin-top:1rem">
           <label class="form-label">Actual Cash Counted <span class="required">*</span></label>
           <div class="input-prefix-group">
             <span class="input-prefix">{{ selectedSession?.currencyCode }}</span>
-            <input
-              class="form-input form-input--prefixed"
-              type="number"
-              min="0"
-              step="0.01"
-              [(ngModel)]="settleActualCash"
-              placeholder="0.00"
-            />
+            <input class="form-input form-input--prefixed" type="number" min="0" step="0.01"
+                   [(ngModel)]="settleActualCash" placeholder="0.00" />
           </div>
           @if (settleActualCash !== sessionRunningBalance && settleActualCash > 0) {
-            <div
-              class="field-diff"
-              [class.field-diff--surplus]="settleActualCash > sessionRunningBalance"
-              [class.field-diff--deficit]="settleActualCash < sessionRunningBalance"
-            >
-              Difference: {{ settleActualCash - sessionRunningBalance | number: '1.2-2' }}
-              {{ selectedSession?.currencyCode }}
+            <div class="field-diff"
+                 [class.field-diff--surplus]="settleActualCash > sessionRunningBalance"
+                 [class.field-diff--deficit]="settleActualCash < sessionRunningBalance">
+              Difference: {{ (settleActualCash - sessionRunningBalance) | number:'1.2-2' }} {{ selectedSession?.currencyCode }}
             </div>
           }
         </div>
         <div class="form-field">
-          <label class="form-label"
-            >Settlement Note <span class="form-hint">(optional)</span></label
-          >
-          <input
-            class="form-input"
-            type="text"
-            [(ngModel)]="settleNote"
-            placeholder="e.g. Balanced — end of day"
-            maxlength="255"
-          />
+          <label class="form-label">Settlement Note <span class="form-hint">(optional)</span></label>
+          <input class="form-input" type="text" [(ngModel)]="settleNote"
+                 placeholder="e.g. Balanced — end of day" maxlength="255" />
         </div>
-        @if (modalError) {
-          <div class="modal__error">{{ modalError }}</div>
-        }
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
       </div>
       <div class="modal__footer">
-        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">
-          Cancel
-        </button>
-        <button
-          class="btn-primary"
-          (click)="submitSettle()"
-          [disabled]="modalWorking || settleActualCash < 0"
-        >
-          @if (modalWorking) {
-            <span class="spinner"></span>
-          }
-          Settle & Close
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitSettle()" [disabled]="modalWorking || settleActualCash < 0">
+          @if (modalWorking) { <span class="spinner"></span> } Settle & Close
         </button>
       </div>
     </div>

@@ -6,11 +6,11 @@ import { takeUntil } from 'rxjs/operators';
 import { AdminService, FraudAlert, FraudCase } from './admin.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-fraud-alerts',
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './fraud-alerts.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './fraud-alerts.scss',
 })
 export class FraudAlertsComponent implements OnInit, OnDestroy {
@@ -42,162 +42,69 @@ export class FraudAlertsComponent implements OnInit, OnDestroy {
   newCaseRisk = 'MEDIUM';
 
   private readonly severityVariants: Record<string, string> = {
-    LOW: 'success',
-    MEDIUM: 'warning',
-    HIGH: 'error',
-    CRITICAL: 'critical',
+    LOW: 'success', MEDIUM: 'warning', HIGH: 'error', CRITICAL: 'critical',
   };
   private readonly statusVariants: Record<string, string> = {
-    OPEN: 'warning',
-    REVIEWING: 'info',
-    CLOSED_FALSE_POSITIVE: 'neutral',
-    CLOSED_CONFIRMED: 'error',
-    SUPPRESSED: 'neutral',
+    OPEN: 'warning', REVIEWING: 'info',
+    CLOSED_FALSE_POSITIVE: 'neutral', CLOSED_CONFIRMED: 'error', SUPPRESSED: 'neutral',
   };
 
-  ngOnInit() {
-    this.loadAlerts();
-    this.loadCases();
-  }
-  ngOnDestroy() {
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
+  ngOnInit() { this.loadAlerts(); this.loadCases(); }
+  ngOnDestroy() { this.destroy$.next(); this.destroy$.complete(); }
 
   loadAlerts() {
     this.loading = true;
-    this.svc
-      .listFraudAlerts(
-        this.filterStatus || undefined,
-        this.filterSeverity || undefined,
-        this.page,
-        this.pageSize,
-      )
+    this.svc.listFraudAlerts(this.filterStatus || undefined, this.filterSeverity || undefined, this.page, this.pageSize)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
-        next: (r) => {
-          this.alerts = r.content;
-          this.total = r.totalElements;
-          this.loading = false;
-        },
-        error: () => {
-          this.loading = false;
-        },
+        next: r => { this.alerts = r.content; this.total = r.totalElements; this.loading = false; },
+        error: () => { this.loading = false; },
       });
   }
 
   loadCases() {
-    this.svc
-      .listFraudCases(undefined, undefined, 0, 100)
+    this.svc.listFraudCases(undefined, undefined, 0, 100)
       .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (r) => {
-          this.cases = r.content;
-        },
-        error: () => {},
-      });
+      .subscribe({ next: r => { this.cases = r.content; }, error: () => {} });
   }
 
-  applyFilters() {
-    this.page = 0;
-    this.loadAlerts();
-  }
-  clearFilters() {
-    this.filterStatus = '';
-    this.filterSeverity = '';
-    this.applyFilters();
-  }
-  prevPage() {
-    if (this.page > 0) {
-      this.page--;
-      this.loadAlerts();
-    }
-  }
-  nextPage() {
-    if ((this.page + 1) * this.pageSize < this.total) {
-      this.page++;
-      this.loadAlerts();
-    }
-  }
+  applyFilters() { this.page = 0; this.loadAlerts(); }
+  clearFilters() { this.filterStatus = ''; this.filterSeverity = ''; this.applyFilters(); }
+  prevPage() { if (this.page > 0) { this.page--; this.loadAlerts(); } }
+  nextPage() { if ((this.page + 1) * this.pageSize < this.total) { this.page++; this.loadAlerts(); } }
 
-  openPanel(a: FraudAlert) {
-    this.selected = a;
-    this.panelOpen = true;
-  }
-  closePanel() {
-    this.panelOpen = false;
-    this.selected = null;
-  }
+  openPanel(a: FraudAlert) { this.selected = a; this.panelOpen = true; }
+  closePanel() { this.panelOpen = false; this.selected = null; }
 
-  openReview() {
-    this.reviewedBy = '';
-    this.showReviewModal = true;
-  }
+  openReview() { this.reviewedBy = ''; this.showReviewModal = true; }
   confirmReview() {
     if (!this.selected) return;
-    this.svc.reviewFraudAlert(this.selected.id, this.reviewedBy).subscribe({
-      next: () => {
-        this.showReviewModal = false;
-        this.loadAlerts();
-        this.closePanel();
-      },
-    });
+    this.svc.reviewFraudAlert(this.selected.id, this.reviewedBy)
+      .subscribe({ next: () => { this.showReviewModal = false; this.loadAlerts(); this.closePanel(); } });
   }
 
-  openClose() {
-    this.closeStatus = 'CLOSED_FALSE_POSITIVE';
-    this.reviewedBy = '';
-    this.showCloseModal = true;
-  }
+  openClose() { this.closeStatus = 'CLOSED_FALSE_POSITIVE'; this.reviewedBy = ''; this.showCloseModal = true; }
   confirmClose() {
     if (!this.selected) return;
-    this.svc.closeFraudAlert(this.selected.id, this.closeStatus, this.reviewedBy).subscribe({
-      next: () => {
-        this.showCloseModal = false;
-        this.loadAlerts();
-        this.closePanel();
-      },
-    });
+    this.svc.closeFraudAlert(this.selected.id, this.closeStatus, this.reviewedBy)
+      .subscribe({ next: () => { this.showCloseModal = false; this.loadAlerts(); this.closePanel(); } });
   }
 
-  openLink() {
-    this.selectedCaseId = '';
-    this.showLinkModal = true;
-  }
+  openLink() { this.selectedCaseId = ''; this.showLinkModal = true; }
   confirmLink() {
     if (!this.selected || !this.selectedCaseId) return;
-    this.svc.linkAlertToCase(this.selected.id, this.selectedCaseId).subscribe({
-      next: () => {
-        this.showLinkModal = false;
-        this.loadAlerts();
-      },
-    });
+    this.svc.linkAlertToCase(this.selected.id, this.selectedCaseId)
+      .subscribe({ next: () => { this.showLinkModal = false; this.loadAlerts(); } });
   }
 
-  openCreateCase() {
-    this.newCaseTitle = '';
-    this.newCaseRisk = 'MEDIUM';
-    this.showCreateCaseModal = true;
-  }
+  openCreateCase() { this.newCaseTitle = ''; this.newCaseRisk = 'MEDIUM'; this.showCreateCaseModal = true; }
   confirmCreateCase() {
     if (!this.newCaseTitle) return;
-    this.svc
-      .createFraudCase(this.newCaseTitle, this.selected?.customerId, this.newCaseRisk, '')
-      .subscribe({
-        next: () => {
-          this.showCreateCaseModal = false;
-          this.loadCases();
-        },
-      });
+    this.svc.createFraudCase(this.newCaseTitle, this.selected?.customerId, this.newCaseRisk, '')
+      .subscribe({ next: () => { this.showCreateCaseModal = false; this.loadCases(); } });
   }
 
-  severityChip(s: string) {
-    return this.severityVariants[s] ?? 'neutral';
-  }
-  statusChip(s: string) {
-    return this.statusVariants[s] ?? 'neutral';
-  }
-  totalPages() {
-    return Math.ceil(this.total / this.pageSize) || 1;
-  }
+  severityChip(s: string) { return this.severityVariants[s] ?? 'neutral'; }
+  statusChip(s: string)   { return this.statusVariants[s]   ?? 'neutral'; }
+  totalPages() { return Math.ceil(this.total / this.pageSize) || 1; }
 }

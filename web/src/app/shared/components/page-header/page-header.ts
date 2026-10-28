@@ -2,11 +2,11 @@ import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-page-header',
   standalone: true,
   imports: [CommonModule],
   templateUrl: './page-header.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './page-header.scss',
 })
 export class PageHeaderComponent {

@@ -1,22 +1,15 @@
-import {
-  Component,
-  inject,
-  OnInit,
-  OnDestroy,
-  HostListener,
-  ChangeDetectionStrategy,
-} from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, HostListener, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Subject, interval } from 'rxjs';
 import { takeUntil, switchMap, startWith } from 'rxjs/operators';
 import { NotificationBellService, InAppNotification } from './notification-bell.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-notification-bell',
   standalone: true,
   imports: [CommonModule],
   templateUrl: './notification-bell.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './notification-bell.scss',
 })
 export class NotificationBellComponent implements OnInit, OnDestroy {
@@ -30,13 +23,11 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     // Poll unread count every 30 seconds
-    interval(30_000)
-      .pipe(
-        startWith(0),
-        switchMap(() => this.svc.getUnreadCount()),
-        takeUntil(this.destroy$),
-      )
-      .subscribe((r) => (this.unreadCount = r.count));
+    interval(30_000).pipe(
+      startWith(0),
+      switchMap(() => this.svc.getUnreadCount()),
+      takeUntil(this.destroy$)
+    ).subscribe(r => this.unreadCount = r.count);
   }
 
   ngOnDestroy(): void {
@@ -54,13 +45,8 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
   loadNotifications(): void {
     this.loading = true;
     this.svc.getInbox(0, 15).subscribe({
-      next: (items) => {
-        this.notifications = items;
-        this.loading = false;
-      },
-      error: () => {
-        this.loading = false;
-      },
+      next: items => { this.notifications = items; this.loading = false; },
+      error: () => { this.loading = false; },
     });
   }
 
@@ -73,14 +59,14 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
   }
 
   severityIcon(severity: string): string {
-    if (severity === 'ERROR') return 'error';
+    if (severity === 'ERROR')   return 'error';
     if (severity === 'WARNING') return 'warning';
     return 'info';
   }
 
   timeAgo(iso: string): string {
     const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-    if (diff < 60) return `${diff}s ago`;
+    if (diff < 60)   return `${diff}s ago`;
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
     return `${Math.floor(diff / 86400)}d ago`;

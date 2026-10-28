@@ -5,28 +5,28 @@ import { StatusBadgeComponent } from '../../shared/components/status-badge/statu
 import { AdminService, MakerCheckerEntry, MakerCheckerStatus } from './admin.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-maker-checker',
   standalone: true,
   imports: [CommonModule, FormsModule, StatusBadgeComponent],
   templateUrl: './maker-checker.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './maker-checker.scss',
 })
 export class MakerCheckerComponent implements OnInit {
   private readonly svc = inject(AdminService);
 
   entries: MakerCheckerEntry[] = [];
-  loading = true;
-  error = '';
+  loading  = true;
+  error    = '';
 
   statusFilter: MakerCheckerStatus | '' = 'PENDING';
   readonly statuses: Array<MakerCheckerStatus | ''> = ['', 'PENDING', 'APPROVED', 'REJECTED'];
 
   // ── Confirm modal ──────────────────────────────────────────────────────────
-  activeModal: 'approve' | 'reject' | null = null;
-  targetEntry: MakerCheckerEntry | null = null;
-  modalWorking = false;
-  modalError = '';
+  activeModal:  'approve' | 'reject' | null = null;
+  targetEntry:  MakerCheckerEntry | null = null;
+  modalWorking  = false;
+  modalError    = '';
 
   ngOnInit(): void {
     this.load();
@@ -35,58 +35,37 @@ export class MakerCheckerComponent implements OnInit {
   load(): void {
     this.loading = true;
     this.svc.listMakerChecker(this.statusFilter || undefined).subscribe({
-      next: (list) => {
-        this.entries = list;
-        this.loading = false;
-      },
-      error: () => {
-        this.error = 'Failed to load entries.';
-        this.loading = false;
-      },
+      next: list => { this.entries = list; this.loading = false; },
+      error: () => { this.error = 'Failed to load entries.'; this.loading = false; },
     });
   }
 
   openApprove(e: MakerCheckerEntry): void {
-    this.activeModal = 'approve';
-    this.targetEntry = e;
-    this.modalWorking = false;
-    this.modalError = '';
+    this.activeModal = 'approve'; this.targetEntry = e;
+    this.modalWorking = false; this.modalError = '';
   }
 
   openReject(e: MakerCheckerEntry): void {
-    this.activeModal = 'reject';
-    this.targetEntry = e;
-    this.modalWorking = false;
-    this.modalError = '';
+    this.activeModal = 'reject'; this.targetEntry = e;
+    this.modalWorking = false; this.modalError = '';
   }
 
   confirm(): void {
     if (!this.targetEntry) return;
     this.modalWorking = true;
-    const call =
-      this.activeModal === 'approve'
-        ? this.svc.approveMakerChecker(this.targetEntry.id)
-        : this.svc.rejectMakerChecker(this.targetEntry.id);
+    const call = this.activeModal === 'approve'
+      ? this.svc.approveMakerChecker(this.targetEntry.id)
+      : this.svc.rejectMakerChecker(this.targetEntry.id);
     call.subscribe({
-      next: (updated) => {
-        this.entries = this.entries.map((e) => (e.id === updated.id ? updated : e));
-        this.modalWorking = false;
-        this.activeModal = null;
-        this.targetEntry = null;
+      next: updated => {
+        this.entries = this.entries.map(e => e.id === updated.id ? updated : e);
+        this.modalWorking = false; this.activeModal = null; this.targetEntry = null;
       },
-      error: () => {
-        this.modalError = 'Action failed.';
-        this.modalWorking = false;
-      },
+      error: () => { this.modalError = 'Action failed.'; this.modalWorking = false; },
     });
   }
 
-  closeModal(): void {
-    if (!this.modalWorking) {
-      this.activeModal = null;
-      this.targetEntry = null;
-    }
-  }
+  closeModal(): void { if (!this.modalWorking) { this.activeModal = null; this.targetEntry = null; } }
 
   statusVariant(s: MakerCheckerStatus): 'warning' | 'success' | 'neutral' {
     return s === 'PENDING' ? 'warning' : s === 'APPROVED' ? 'success' : 'neutral';

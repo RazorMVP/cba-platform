@@ -4,11 +4,11 @@ import Keycloak from 'keycloak-js';
 import { NotificationBellComponent } from '../notification-bell/notification-bell';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-topbar',
   standalone: true,
   imports: [CommonModule, NotificationBellComponent],
   templateUrl: './topbar.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './topbar.scss',
 })
 export class TopbarComponent {

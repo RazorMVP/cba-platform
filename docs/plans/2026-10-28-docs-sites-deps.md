@@ -1,4 +1,4 @@
-> **Status:** open — PR pending. Approved 2026-10-28 in plan mode (user: "1 first then we do 2(plan an Angular 22 upgrade)"). Body verbatim.
+> **Status:** merged — PR #208, merge commit `aa4bb86`. Approved 2026-10-28 in plan mode (user: "1 first then we do 2(plan an Angular 22 upgrade)"). Body verbatim.
 
 # Clear the 12 new Dependabot alerts in docs-site and partner-docs
 

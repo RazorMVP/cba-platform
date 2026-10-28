@@ -4,11 +4,11 @@ import { FormsModule } from '@angular/forms';
 import { SystemService, Survey, CreateSurveyRequest } from './system.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-surveys',
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './surveys.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './surveys.scss',
 })
 export class SurveysComponent implements OnInit {
@@ -16,34 +16,26 @@ export class SurveysComponent implements OnInit {
 
   surveys: Survey[] = [];
   loading = true;
-  error = '';
+  error   = '';
 
   expandedSurvey: string | null = null;
 
   activeModal: 'create' | 'edit' | 'delete' | null = null;
-  editTarget: Survey | null = null;
+  editTarget:   Survey | null = null;
   deleteTarget: Survey | null = null;
-  working = false;
+  working    = false;
   modalError = '';
 
   form: CreateSurveyRequest = this.blank();
 
-  ngOnInit(): void {
-    this.load();
-  }
+  ngOnInit(): void { this.load(); }
 
   load(): void {
     this.loading = true;
     this.error = '';
     this.svc.listSurveys().subscribe({
-      next: (list) => {
-        this.surveys = list;
-        this.loading = false;
-      },
-      error: () => {
-        this.error = 'Failed to load surveys.';
-        this.loading = false;
-      },
+      next: list => { this.surveys = list; this.loading = false; },
+      error: () => { this.error = 'Failed to load surveys.'; this.loading = false; },
     });
   }
 
@@ -60,12 +52,7 @@ export class SurveysComponent implements OnInit {
   }
 
   openEdit(s: Survey): void {
-    this.form = {
-      name: s.name,
-      key: s.key,
-      countryCode: s.countryCode,
-      description: s.description ?? '',
-    };
+    this.form = { name: s.name, key: s.key, countryCode: s.countryCode, description: s.description ?? '' };
     this.editTarget = s;
     this.modalError = '';
     this.working = false;
@@ -78,26 +65,17 @@ export class SurveysComponent implements OnInit {
     this.activeModal = 'delete';
   }
 
-  closeModal(): void {
-    this.activeModal = null;
-  }
+  closeModal(): void { this.activeModal = null; }
 
   save(): void {
     this.working = true;
     this.modalError = '';
-    const obs =
-      this.activeModal === 'edit' && this.editTarget
-        ? this.svc.updateSurvey(this.editTarget.id, this.form)
-        : this.svc.createSurvey(this.form);
+    const obs = this.activeModal === 'edit' && this.editTarget
+      ? this.svc.updateSurvey(this.editTarget.id, this.form)
+      : this.svc.createSurvey(this.form);
     obs.subscribe({
-      next: () => {
-        this.closeModal();
-        this.load();
-      },
-      error: () => {
-        this.modalError = 'Save failed. Please try again.';
-        this.working = false;
-      },
+      next: () => { this.closeModal(); this.load(); },
+      error: () => { this.modalError = 'Save failed. Please try again.'; this.working = false; },
     });
   }
 
@@ -105,13 +83,8 @@ export class SurveysComponent implements OnInit {
     if (!this.deleteTarget) return;
     this.working = true;
     this.svc.deleteSurvey(this.deleteTarget.id).subscribe({
-      next: () => {
-        this.closeModal();
-        this.load();
-      },
-      error: () => {
-        this.working = false;
-      },
+      next: () => { this.closeModal(); this.load(); },
+      error: () => { this.working = false; },
     });
   }
 

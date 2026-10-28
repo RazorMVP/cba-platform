@@ -8,11 +8,11 @@ import { StatusBadgeComponent } from '../../../shared/components/status-badge/st
 import { ProductService, LoanProduct } from '../product.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-loan-products-list',
   standalone: true,
   imports: [CommonModule, RouterLink, FormsModule, StatusBadgeComponent],
   templateUrl: './loan-products-list.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './loan-products-list.scss',
 })
 export class LoanProductsListComponent implements OnInit, OnDestroy {
@@ -34,78 +34,53 @@ export class LoanProductsListComponent implements OnInit, OnDestroy {
     this.load();
 
     // Client-side filter (list is not paginated server-side for products)
-    this.search$
-      .pipe(debounceTime(250), distinctUntilChanged(), takeUntil(this.destroy$))
-      .subscribe((q) => this.applyFilter(q));
+    this.search$.pipe(
+      debounceTime(250),
+      distinctUntilChanged(),
+      takeUntil(this.destroy$)
+    ).subscribe(q => this.applyFilter(q));
   }
 
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
-  }
+  ngOnDestroy(): void { this.destroy$.next(); this.destroy$.complete(); }
 
   load(): void {
     this.loading = true;
     this.svc.listLoanProducts(this.activeOnly).subscribe({
-      next: (p) => {
-        this.products = p;
-        this.applyFilter(this.searchQuery);
-        this.loading = false;
-      },
-      error: () => {
-        this.loading = false;
-      },
+      next: p => { this.products = p; this.applyFilter(this.searchQuery); this.loading = false; },
+      error: () => { this.loading = false; },
     });
   }
 
-  onSearch(q: string): void {
-    this.search$.next(q);
-  }
+  onSearch(q: string): void { this.search$.next(q); }
 
-  onActiveFilterChange(): void {
-    this.page = 0;
-    this.load();
-  }
+  onActiveFilterChange(): void { this.page = 0; this.load(); }
 
   applyFilter(q: string): void {
     const lower = q.toLowerCase();
     this.filtered = lower
-      ? this.products.filter(
-          (p) =>
-            p.name.toLowerCase().includes(lower) ||
-            p.shortName.toLowerCase().includes(lower) ||
-            (p.description ?? '').toLowerCase().includes(lower),
+      ? this.products.filter(p =>
+          p.name.toLowerCase().includes(lower) ||
+          p.shortName.toLowerCase().includes(lower) ||
+          (p.description ?? '').toLowerCase().includes(lower)
         )
       : [...this.products];
     this.page = 0;
   }
 
   // Pagination
-  get totalPages(): number {
-    return Math.max(1, Math.ceil(this.filtered.length / this.pageSize));
-  }
-  get startRow(): number {
-    return this.filtered.length === 0 ? 0 : this.page * this.pageSize + 1;
-  }
-  get endRow(): number {
-    return Math.min((this.page + 1) * this.pageSize, this.filtered.length);
-  }
+  get totalPages(): number { return Math.max(1, Math.ceil(this.filtered.length / this.pageSize)); }
+  get startRow(): number   { return this.filtered.length === 0 ? 0 : this.page * this.pageSize + 1; }
+  get endRow(): number     { return Math.min((this.page + 1) * this.pageSize, this.filtered.length); }
   get pageItems(): LoanProduct[] {
     return this.filtered.slice(this.page * this.pageSize, (this.page + 1) * this.pageSize);
   }
-  prevPage(): void {
-    if (this.page > 0) this.page--;
-  }
-  nextPage(): void {
-    if (this.page < this.totalPages - 1) this.page++;
-  }
+  prevPage(): void { if (this.page > 0) this.page--; }
+  nextPage(): void { if (this.page < this.totalPages - 1) this.page++; }
 
   // Helpers
   repaymentLabel(type: string): string {
     const m: Record<string, string> = {
-      ANNUITY: 'Annuity',
-      FLAT: 'Flat',
-      DECLINING_BALANCE: 'Declining Balance',
+      ANNUITY: 'Annuity', FLAT: 'Flat', DECLINING_BALANCE: 'Declining Balance',
     };
     return m[type] ?? type;
   }

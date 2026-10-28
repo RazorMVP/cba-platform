@@ -1,5 +1,8 @@
 <div class="page">
-  <a routerLink=".." class="back-link"> <span class="material-icons">arrow_back</span> Accounts </a>
+
+  <a routerLink=".." class="back-link">
+    <span class="material-icons">arrow_back</span> Accounts
+  </a>
 
   @if (loading) {
     <div class="loading-skeleton">
@@ -17,13 +20,8 @@
       <h2 class="create-title">Open New Account</h2>
       <div class="form-field">
         <label class="form-label">Customer ID <span class="required">*</span></label>
-        <input
-          class="form-input"
-          type="text"
-          [(ngModel)]="newForm.customerId"
-          placeholder="Paste customer UUID"
-          (blur)="onCustomerIdChange()"
-        />
+        <input class="form-input" type="text" [(ngModel)]="newForm.customerId"
+               placeholder="Paste customer UUID" (blur)="onCustomerIdChange()" />
         <span class="form-hint">Find the customer ID on the Customers page.</span>
       </div>
       <div class="form-field">
@@ -31,24 +29,12 @@
         @if (templateLoading) {
           <div class="form-input form-input--loading">Loading products…</div>
         } @else if (templateProducts.length === 0) {
-          <input
-            class="form-input"
-            type="text"
-            [(ngModel)]="newForm.productId"
-            placeholder="No products found — paste UUID"
-          />
+          <input class="form-input" type="text" [(ngModel)]="newForm.productId" placeholder="No products found — paste UUID" />
         } @else {
-          <select
-            class="form-input"
-            [(ngModel)]="newForm.productId"
-            (ngModelChange)="onProductSelected($event)"
-          >
+          <select class="form-input" [(ngModel)]="newForm.productId" (ngModelChange)="onProductSelected($event)">
             <option value="">— Select a product —</option>
             @for (p of templateProducts; track p.id) {
-              <option [value]="p.id">
-                {{ p.name }} ({{ p.interestRate }}% p.a. · min
-                {{ p.minimumBalance | number: '1.0-0' }} {{ p.currencyCode }})
-              </option>
+              <option [value]="p.id">{{ p.name }} ({{ p.interestRate }}% p.a. · min {{ p.minimumBalance | number:'1.0-0' }} {{ p.currencyCode }})</option>
             }
           </select>
         }
@@ -64,13 +50,7 @@
         </div>
         <div class="form-field">
           <label class="form-label">Currency Code</label>
-          <input
-            class="form-input"
-            type="text"
-            [(ngModel)]="newForm.currencyCode"
-            placeholder="USD"
-            maxlength="3"
-          />
+          <input class="form-input" type="text" [(ngModel)]="newForm.currencyCode" placeholder="USD" maxlength="3" />
         </div>
       </div>
       <!-- Photo section (mandatory) — appears once a customerId is entered -->
@@ -98,12 +78,7 @@
           } @else {
             <label class="file-upload-label" [class.file-upload-label--required]="!photoReady">
               <span class="material-icons">upload_file</span> Upload photo
-              <input
-                type="file"
-                accept="image/jpeg,image/png"
-                (change)="onPhotoSelected($event)"
-                hidden
-              />
+              <input type="file" accept="image/jpeg,image/png" (change)="onPhotoSelected($event)" hidden />
             </label>
             <span class="form-hint form-hint--error">A photo is required to open an account.</span>
           }
@@ -114,28 +89,21 @@
         <div class="modal__error">{{ saveError }}</div>
       }
       <div class="create-actions">
-        <button
-          class="btn-primary"
-          [disabled]="saving || !newForm.customerId || !newForm.productId || !photoReady"
-          (click)="submitCreate()"
-        >
-          @if (saving) {
-            <span class="spinner"></span> Saving…
-          } @else {
-            Open Account
-          }
+        <button class="btn-primary"
+                [disabled]="saving || !newForm.customerId || !newForm.productId || !photoReady"
+                (click)="submitCreate()">
+          @if (saving) { <span class="spinner"></span> Saving… } @else { Open Account }
         </button>
         <a routerLink=".." class="btn-secondary">Cancel</a>
       </div>
     </div>
   } @else if (account) {
+
     <!-- ── Account Header ── -->
     <div class="acct-header">
       <div class="acct-header__identity">
         <div class="acct-icon">
-          <span class="material-icons">{{
-            typeIcons[account.accountType] ?? 'account_balance_wallet'
-          }}</span>
+          <span class="material-icons">{{ typeIcons[account.accountType] ?? 'account_balance_wallet' }}</span>
         </div>
         <div class="acct-meta">
           <div class="acct-number">{{ account.accountNumber }}</div>
@@ -144,34 +112,33 @@
       </div>
 
       <div class="acct-header__balance">
-        <div class="balance-amount">{{ account.balance | number: '1.2-2' }}</div>
+        <div class="balance-amount">{{ account.balance | number:'1.2-2' }}</div>
         <div class="balance-currency">{{ account.currencyCode }}</div>
         @if ((account.onHoldAmount ?? 0) > 0) {
           <div class="balance-hold">
             <span class="material-icons">lock</span>
-            {{ account.onHoldAmount | number: '1.2-2' }} on hold
+            {{ account.onHoldAmount | number:'1.2-2' }} on hold
           </div>
           <div class="balance-available">
-            Available: {{ account.availableBalance | number: '1.2-2' }}
+            Available: {{ account.availableBalance | number:'1.2-2' }}
           </div>
         }
         @if (account.allowOverdraft) {
           <div class="balance-overdraft">
             <span class="material-icons">trending_down</span>
-            Overdraft up to {{ account.overdraftLimit | number: '1.2-2' }}
-            {{ account.currencyCode }}
+            Overdraft up to {{ account.overdraftLimit | number:'1.2-2' }} {{ account.currencyCode }}
           </div>
         }
         @if ((account.minimumBalance ?? 0) > 0 && !account.allowOverdraft) {
           <div class="balance-min">
             <span class="material-icons">info_outline</span>
-            Min. balance {{ account.minimumBalance | number: '1.2-2' }} {{ account.currencyCode }}
+            Min. balance {{ account.minimumBalance | number:'1.2-2' }} {{ account.currencyCode }}
           </div>
         }
         @if (inLockinPeriod) {
           <div class="balance-min">
             <span class="material-icons">lock</span>
-            Lock-in until {{ account.lockinExpiryDate | date: 'mediumDate' }}
+            Lock-in until {{ account.lockinExpiryDate | date:'mediumDate' }}
           </div>
         }
       </div>
@@ -226,35 +193,19 @@
 
     <!-- ── Tab Bar ── -->
     <div class="tab-bar">
-      <button
-        class="tab-item"
-        [class.tab-item--active]="activeTab === 'overview'"
-        (click)="setTab('overview')"
-      >
+      <button class="tab-item" [class.tab-item--active]="activeTab === 'overview'" (click)="setTab('overview')">
         <span class="material-icons">info</span> Overview
       </button>
-      <button
-        class="tab-item"
-        [class.tab-item--active]="activeTab === 'transactions'"
-        (click)="setTab('transactions')"
-      >
+      <button class="tab-item" [class.tab-item--active]="activeTab === 'transactions'" (click)="setTab('transactions')">
         <span class="material-icons">receipt_long</span> Transactions
       </button>
-      <button
-        class="tab-item"
-        [class.tab-item--active]="activeTab === 'interest'"
-        (click)="setTab('interest')"
-      >
+      <button class="tab-item" [class.tab-item--active]="activeTab === 'interest'" (click)="setTab('interest')">
         <span class="material-icons">savings</span> Interest
         @if (intTotal > 0) {
           <span class="tab-badge">{{ intTotal }}</span>
         }
       </button>
-      <button
-        class="tab-item"
-        [class.tab-item--active]="activeTab === 'holds'"
-        (click)="setTab('holds')"
-      >
+      <button class="tab-item" [class.tab-item--active]="activeTab === 'holds'" (click)="setTab('holds')">
         <span class="material-icons">lock</span> Holds
         @if (holds.length > 0) {
           <span class="tab-badge">{{ holds.length }}</span>
@@ -268,29 +219,19 @@
     <!-- ── OVERVIEW TAB ── -->
     @if (activeTab === 'overview') {
       <div class="overview-grid">
+
         <div class="card">
           <div class="card__header">Account Details</div>
           <dl class="detail-list">
-            <dt>Account Number</dt>
-            <dd>{{ account.accountNumber }}</dd>
-            <dt>Account Type</dt>
-            <dd>{{ typeLabels[account.accountType] ?? account.accountType }}</dd>
-            <dt>Product</dt>
-            <dd>{{ account.productName ?? account.productId }}</dd>
-            <dt>Currency</dt>
-            <dd>{{ account.currencyCode }}</dd>
+            <dt>Account Number</dt><dd>{{ account.accountNumber }}</dd>
+            <dt>Account Type</dt><dd>{{ typeLabels[account.accountType] ?? account.accountType }}</dd>
+            <dt>Product</dt><dd>{{ account.productName ?? account.productId }}</dd>
+            <dt>Currency</dt><dd>{{ account.currencyCode }}</dd>
             <dt>Status</dt>
-            <dd>
-              <app-status-badge
-                [variant]="statusVariant(account.status)"
-                [label]="account.status"
-              />
-            </dd>
-            <dt>Opened</dt>
-            <dd>{{ account.openedDate | date: 'mediumDate' }}</dd>
+            <dd><app-status-badge [variant]="statusVariant(account.status)" [label]="account.status" /></dd>
+            <dt>Opened</dt><dd>{{ account.openedDate | date:'mediumDate' }}</dd>
             @if (account.updatedAt) {
-              <dt>Last Updated</dt>
-              <dd>{{ account.updatedAt | date: 'medium' }}</dd>
+              <dt>Last Updated</dt><dd>{{ account.updatedAt | date:'medium' }}</dd>
             }
           </dl>
         </div>
@@ -304,15 +245,16 @@
                 {{ account.customerName ?? account.customerId }}
               </a>
             </dd>
-            <dt>Account Holder</dt>
-            <dd>{{ account.customerName ?? '—' }}</dd>
+            <dt>Account Holder</dt><dd>{{ account.customerName ?? '—' }}</dd>
           </dl>
         </div>
+
       </div>
     }
 
     <!-- ── TRANSACTIONS TAB ── -->
     @if (activeTab === 'transactions') {
+
       @if (txnLoading) {
         <div class="txn-loading">
           <div class="skeleton skeleton--table-row"></div>
@@ -320,6 +262,7 @@
           <div class="skeleton skeleton--table-row"></div>
         </div>
       } @else {
+
         <div class="card">
           <div class="card__header">
             Transaction History
@@ -346,22 +289,19 @@
               <tbody>
                 @for (t of txns; track t.id) {
                   <tr>
-                    <td>{{ t.transactionDate | date: 'mediumDate' }}</td>
+                    <td>{{ t.transactionDate | date:'mediumDate' }}</td>
                     <td>
-                      <span
-                        class="txn-type"
-                        [class.txn-type--credit]="t.transactionType === 'CREDIT'"
-                        [class.txn-type--debit]="t.transactionType === 'DEBIT'"
-                      >
+                      <span class="txn-type" [class.txn-type--credit]="t.transactionType === 'CREDIT'"
+                                             [class.txn-type--debit]="t.transactionType === 'DEBIT'">
                         {{ t.transactionType }}
                       </span>
                     </td>
                     <td class="col-amount">
                       <span [class]="txnClass(t)">
-                        {{ txnSign(t) }}{{ t.amount | number: '1.2-2' }}
+                        {{ txnSign(t) }}{{ t.amount | number:'1.2-2' }}
                       </span>
                     </td>
-                    <td class="col-amount muted">{{ t.runningBalance | number: '1.2-2' }}</td>
+                    <td class="col-amount muted">{{ t.runningBalance | number:'1.2-2' }}</td>
                     <td class="muted">{{ t.referenceNumber ?? '—' }}</td>
                     <td class="muted">{{ t.description ?? '—' }}</td>
                   </tr>
@@ -378,22 +318,20 @@
                   <span class="material-icons">chevron_left</span>
                 </button>
                 <span class="pagination__page">{{ txnPage + 1 }} / {{ txnTotalPages }}</span>
-                <button
-                  class="pagination__btn"
-                  [disabled]="(txnPage + 1) * txnPageSize >= txnTotal"
-                  (click)="nextTxnPage()"
-                >
+                <button class="pagination__btn" [disabled]="(txnPage + 1) * txnPageSize >= txnTotal" (click)="nextTxnPage()">
                   <span class="material-icons">chevron_right</span>
                 </button>
               </div>
             </div>
           }
         </div>
+
       }
     }
 
     <!-- ── INTEREST TAB ── -->
     @if (activeTab === 'interest') {
+
       @if (intLoading) {
         <div class="txn-loading">
           <div class="skeleton skeleton--table-row"></div>
@@ -401,16 +339,14 @@
           <div class="skeleton skeleton--table-row"></div>
         </div>
       } @else {
+
         <div class="card">
           <div class="card__header">
             Interest Accruals
             <span class="card__count">{{ intTotal }} total</span>
             @if (account?.status === 'ACTIVE') {
-              <button
-                class="btn-primary btn-primary--sm"
-                style="margin-left: auto"
-                (click)="openPostInterestModal()"
-              >
+              <button class="btn-primary btn-primary--sm" style="margin-left:auto"
+                      (click)="openPostInterestModal()">
                 <span class="material-icons">add_circle_outline</span> Post Interest
               </button>
             }
@@ -435,11 +371,11 @@
               <tbody>
                 @for (t of intTxns; track t.id) {
                   <tr>
-                    <td>{{ t.transactionDate | date: 'mediumDate' }}</td>
+                    <td>{{ t.transactionDate | date:'mediumDate' }}</td>
                     <td class="col-amount">
-                      <span class="amount--credit">+{{ t.amount | number: '1.4-4' }}</span>
+                      <span class="amount--credit">+{{ t.amount | number:'1.4-4' }}</span>
                     </td>
-                    <td class="col-amount muted">{{ t.runningBalance | number: '1.2-2' }}</td>
+                    <td class="col-amount muted">{{ t.runningBalance | number:'1.2-2' }}</td>
                     <td class="muted">{{ t.referenceNumber ?? '—' }}</td>
                     <td class="muted">{{ t.description ?? '—' }}</td>
                   </tr>
@@ -456,17 +392,14 @@
                   <span class="material-icons">chevron_left</span>
                 </button>
                 <span class="pagination__page">{{ intPage + 1 }} / {{ intTotalPages }}</span>
-                <button
-                  class="pagination__btn"
-                  [disabled]="(intPage + 1) * intPageSize >= intTotal"
-                  (click)="nextIntPage()"
-                >
+                <button class="pagination__btn" [disabled]="(intPage + 1) * intPageSize >= intTotal" (click)="nextIntPage()">
                   <span class="material-icons">chevron_right</span>
                 </button>
               </div>
             </div>
           }
         </div>
+
       }
     }
 
@@ -512,18 +445,13 @@
                 @for (h of holds; track h.id) {
                   <tr>
                     <td>
-                      <app-status-badge
-                        [variant]="holdStatusVariant(h.status)"
-                        [label]="h.status"
-                      />
+                      <app-status-badge [variant]="holdStatusVariant(h.status)" [label]="h.status" />
                     </td>
-                    <td class="col-amount tabular-nums">{{ h.amount | number: '1.2-2' }}</td>
+                    <td class="col-amount tabular-nums">{{ h.amount | number:'1.2-2' }}</td>
                     <td>{{ h.reason }}</td>
                     <td class="muted">{{ h.referenceNumber ?? '—' }}</td>
-                    <td class="muted">
-                      {{ h.expiryDate ? (h.expiryDate | date: 'mediumDate') : '—' }}
-                    </td>
-                    <td class="muted">{{ h.createdAt | date: 'mediumDate' }}</td>
+                    <td class="muted">{{ h.expiryDate ? (h.expiryDate | date:'mediumDate') : '—' }}</td>
+                    <td class="muted">{{ h.createdAt | date:'mediumDate' }}</td>
                     <td class="muted">{{ h.releasedBy ?? '—' }}</td>
                     <td>
                       @if (h.status === 'ACTIVE') {
@@ -551,28 +479,20 @@
         <div class="card__body qr-body">
           @if (qrLoading) {
             <div class="qr-placeholder">
-              <span class="material-icons spin" style="font-size: 40px; color: #ccc"
-                >qr_code_2</span
-              >
-              <p class="muted" style="margin-top: 8px">Generating QR code…</p>
+              <span class="material-icons spin" style="font-size:40px;color:#ccc">qr_code_2</span>
+              <p class="muted" style="margin-top:8px">Generating QR code…</p>
             </div>
           } @else if (qrError) {
             <div class="qr-placeholder">
-              <span class="material-icons" style="color: #dc2626; font-size: 36px"
-                >error_outline</span
-              >
-              <p style="color: #dc2626; margin-top: 8px">{{ qrError }}</p>
-              <button class="btn-outline btn--sm" style="margin-top: 12px" (click)="refreshQr()">
-                Try Again
-              </button>
+              <span class="material-icons" style="color:#dc2626;font-size:36px">error_outline</span>
+              <p style="color:#dc2626;margin-top:8px">{{ qrError }}</p>
+              <button class="btn-outline btn--sm" style="margin-top:12px" (click)="refreshQr()">Try Again</button>
             </div>
           } @else if (qrData) {
             <div class="qr-image-wrap">
-              <img
-                [src]="'data:image/png;base64,' + qrData.qrBase64"
-                alt="QR Payment Code"
-                class="qr-image"
-              />
+              <img [src]="'data:image/png;base64,' + qrData.qrBase64"
+                   alt="QR Payment Code"
+                   class="qr-image" />
             </div>
             <div class="qr-meta">
               <div class="qr-row">
@@ -586,14 +506,12 @@
               @if (qrData.presetAmount) {
                 <div class="qr-row">
                   <span class="qr-label">Preset Amount</span>
-                  <span class="qr-value tabular-nums">{{
-                    qrData.presetAmount | number: '1.2-2'
-                  }}</span>
+                  <span class="qr-value tabular-nums">{{ qrData.presetAmount | number:'1.2-2' }}</span>
                 </div>
               }
               <div class="qr-row">
                 <span class="qr-label">Expires</span>
-                <span class="qr-value">{{ qrData.expiresAt | date: 'medium' }}</span>
+                <span class="qr-value">{{ qrData.expiresAt | date:'medium' }}</span>
               </div>
             </div>
             <p class="muted qr-hint">
@@ -603,6 +521,7 @@
         </div>
       </div>
     }
+
   }
 </div>
 
@@ -620,12 +539,10 @@
       </div>
       <div class="modal__body">
         <p class="confirm-text">
-          Approve account <strong>{{ account?.accountNumber }}</strong
-          >? It will move to <strong>Approved</strong> status and can then be activated.
+          Approve account <strong>{{ account?.accountNumber }}</strong>?
+          It will move to <strong>Approved</strong> status and can then be activated.
         </p>
-        @if (modalError) {
-          <p class="modal__error">{{ modalError }}</p>
-        }
+        @if (modalError) { <p class="modal__error">{{ modalError }}</p> }
       </div>
       <div class="modal__footer">
         <button class="btn-ghost" [disabled]="modalWorking" (click)="closeModal()">Cancel</button>
@@ -647,12 +564,10 @@
       </div>
       <div class="modal__body">
         <p class="confirm-text">
-          Activate account <strong>{{ account?.accountNumber }}</strong
-          >? It will become <strong>Active</strong> and ready for deposits and withdrawals.
+          Activate account <strong>{{ account?.accountNumber }}</strong>?
+          It will become <strong>Active</strong> and ready for deposits and withdrawals.
         </p>
-        @if (modalError) {
-          <p class="modal__error">{{ modalError }}</p>
-        }
+        @if (modalError) { <p class="modal__error">{{ modalError }}</p> }
       </div>
       <div class="modal__footer">
         <button class="btn-ghost" [disabled]="modalWorking" (click)="closeModal()">Cancel</button>
@@ -674,12 +589,10 @@
       </div>
       <div class="modal__body">
         <p class="confirm-text">
-          Reject the application for account <strong>{{ account?.accountNumber }}</strong
-          >? This marks the account as <strong>Rejected</strong> and cannot be undone.
+          Reject the application for account <strong>{{ account?.accountNumber }}</strong>?
+          This marks the account as <strong>Rejected</strong> and cannot be undone.
         </p>
-        @if (modalError) {
-          <p class="modal__error">{{ modalError }}</p>
-        }
+        @if (modalError) { <p class="modal__error">{{ modalError }}</p> }
       </div>
       <div class="modal__footer">
         <button class="btn-ghost" [disabled]="modalWorking" (click)="closeModal()">Cancel</button>
@@ -700,25 +613,16 @@
         Freeze Account
       </div>
       <div class="modal__body">
-        <p>
-          Are you sure you want to freeze account <strong>{{ account?.accountNumber }}</strong
-          >?
-        </p>
-        <p class="modal__hint">
-          The account will be locked. No transactions will be permitted until it is unfrozen.
-        </p>
+        <p>Are you sure you want to freeze account <strong>{{ account?.accountNumber }}</strong>?</p>
+        <p class="modal__hint">The account will be locked. No transactions will be permitted until it is unfrozen.</p>
         @if (modalError) {
           <div class="modal__error">{{ modalError }}</div>
         }
       </div>
       <div class="modal__footer">
-        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">
-          Cancel
-        </button>
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
         <button class="btn-warning" (click)="doFreeze()" [disabled]="modalWorking">
-          @if (modalWorking) {
-            <span class="spinner"></span>
-          }
+          @if (modalWorking) { <span class="spinner"></span> }
           Freeze
         </button>
       </div>
@@ -735,23 +639,16 @@
         Unfreeze Account
       </div>
       <div class="modal__body">
-        <p>
-          Restore access to account <strong>{{ account?.accountNumber }}</strong
-          >?
-        </p>
+        <p>Restore access to account <strong>{{ account?.accountNumber }}</strong>?</p>
         <p class="modal__hint">The account will become active and transactions will resume.</p>
         @if (modalError) {
           <div class="modal__error">{{ modalError }}</div>
         }
       </div>
       <div class="modal__footer">
-        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">
-          Cancel
-        </button>
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
         <button class="btn-success" (click)="doUnfreeze()" [disabled]="modalWorking">
-          @if (modalWorking) {
-            <span class="spinner"></span>
-          }
+          @if (modalWorking) { <span class="spinner"></span> }
           Unfreeze
         </button>
       </div>
@@ -768,25 +665,16 @@
         Close Account
       </div>
       <div class="modal__body">
-        <p>
-          Permanently close account <strong>{{ account?.accountNumber }}</strong
-          >?
-        </p>
-        <p class="modal__hint">
-          The account balance must be zero before closing. This action cannot be undone.
-        </p>
+        <p>Permanently close account <strong>{{ account?.accountNumber }}</strong>?</p>
+        <p class="modal__hint">The account balance must be zero before closing. This action cannot be undone.</p>
         @if (modalError) {
           <div class="modal__error">{{ modalError }}</div>
         }
       </div>
       <div class="modal__footer">
-        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">
-          Cancel
-        </button>
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
         <button class="btn-danger" (click)="doClose()" [disabled]="modalWorking">
-          @if (modalWorking) {
-            <span class="spinner"></span>
-          }
+          @if (modalWorking) { <span class="spinner"></span> }
           Close Account
         </button>
       </div>
@@ -807,42 +695,23 @@
           <label class="form-label">Amount <span class="required">*</span></label>
           <div class="input-prefix-group">
             <span class="input-prefix">{{ account?.currencyCode }}</span>
-            <input
-              type="number"
-              class="form-input form-input--prefixed"
-              min="0.01"
-              step="0.01"
-              [(ngModel)]="tellerAmount"
-              placeholder="0.00"
-            />
+            <input type="number" class="form-input form-input--prefixed" min="0.01" step="0.01"
+                   [(ngModel)]="tellerAmount" placeholder="0.00" />
           </div>
         </div>
         <div class="form-field">
           <label class="form-label">Description <span class="form-hint">(optional)</span></label>
-          <input
-            type="text"
-            class="form-input"
-            [(ngModel)]="tellerDescription"
-            placeholder="e.g. Cash deposit — counter"
-            maxlength="255"
-          />
+          <input type="text" class="form-input" [(ngModel)]="tellerDescription"
+                 placeholder="e.g. Cash deposit — counter" maxlength="255" />
         </div>
         @if (modalError) {
           <div class="modal__error">{{ modalError }}</div>
         }
       </div>
       <div class="modal__footer">
-        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">
-          Cancel
-        </button>
-        <button
-          class="btn-success"
-          (click)="doTellerAction()"
-          [disabled]="modalWorking || tellerAmount <= 0"
-        >
-          @if (modalWorking) {
-            <span class="spinner"></span>
-          }
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-success" (click)="doTellerAction()" [disabled]="modalWorking || tellerAmount <= 0">
+          @if (modalWorking) { <span class="spinner"></span> }
           Deposit
         </button>
       </div>
@@ -863,42 +732,23 @@
           <label class="form-label">Amount <span class="required">*</span></label>
           <div class="input-prefix-group">
             <span class="input-prefix">{{ account?.currencyCode }}</span>
-            <input
-              type="number"
-              class="form-input form-input--prefixed"
-              min="0.01"
-              step="0.01"
-              [(ngModel)]="tellerAmount"
-              placeholder="0.00"
-            />
+            <input type="number" class="form-input form-input--prefixed" min="0.01" step="0.01"
+                   [(ngModel)]="tellerAmount" placeholder="0.00" />
           </div>
         </div>
         <div class="form-field">
           <label class="form-label">Description <span class="form-hint">(optional)</span></label>
-          <input
-            type="text"
-            class="form-input"
-            [(ngModel)]="tellerDescription"
-            placeholder="e.g. Counter withdrawal"
-            maxlength="255"
-          />
+          <input type="text" class="form-input" [(ngModel)]="tellerDescription"
+                 placeholder="e.g. Counter withdrawal" maxlength="255" />
         </div>
         @if (modalError) {
           <div class="modal__error">{{ modalError }}</div>
         }
       </div>
       <div class="modal__footer">
-        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">
-          Cancel
-        </button>
-        <button
-          class="btn-warning"
-          (click)="doTellerAction()"
-          [disabled]="modalWorking || tellerAmount <= 0"
-        >
-          @if (modalWorking) {
-            <span class="spinner"></span>
-          }
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-warning" (click)="doTellerAction()" [disabled]="modalWorking || tellerAmount <= 0">
+          @if (modalWorking) { <span class="spinner"></span> }
           Withdraw
         </button>
       </div>
@@ -925,14 +775,9 @@
             <label class="form-label">To Date</label>
             <input type="date" class="form-input" [(ngModel)]="stmtTo" />
           </div>
-          <button
-            class="btn-primary"
-            (click)="loadStatement()"
-            [disabled]="stmtLoading || !stmtFrom || !stmtTo"
-          >
-            @if (stmtLoading) {
-              <span class="spinner"></span>
-            }
+          <button class="btn-primary" (click)="loadStatement()"
+                  [disabled]="stmtLoading || !stmtFrom || !stmtTo">
+            @if (stmtLoading) { <span class="spinner"></span> }
             Generate
           </button>
         </div>
@@ -945,21 +790,15 @@
           <div class="stmt-summary">
             <div class="stmt-kpi">
               <span class="stmt-kpi__label">Total Credits</span>
-              <span class="stmt-kpi__value credit">{{
-                $any(stmtData['totalCredits']) | number: '1.2-2'
-              }}</span>
+              <span class="stmt-kpi__value credit">{{ $any(stmtData['totalCredits']) | number:'1.2-2' }}</span>
             </div>
             <div class="stmt-kpi">
               <span class="stmt-kpi__label">Total Debits</span>
-              <span class="stmt-kpi__value debit">{{
-                $any(stmtData['totalDebits']) | number: '1.2-2'
-              }}</span>
+              <span class="stmt-kpi__value debit">{{ $any(stmtData['totalDebits']) | number:'1.2-2' }}</span>
             </div>
             <div class="stmt-kpi">
               <span class="stmt-kpi__label">Closing Balance</span>
-              <span class="stmt-kpi__value">{{
-                $any(stmtData['closingBalance']) | number: '1.2-2'
-              }}</span>
+              <span class="stmt-kpi__value">{{ $any(stmtData['closingBalance']) | number:'1.2-2' }}</span>
             </div>
             <div class="stmt-kpi">
               <span class="stmt-kpi__label">Transactions</span>
@@ -970,28 +809,18 @@
           @if ($any(stmtData['transactions'])?.length) {
             <table class="data-table stmt-table">
               <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Description</th>
-                  <th>Reference</th>
-                  <th class="text-right">Amount</th>
-                  <th class="text-right">Balance</th>
-                </tr>
+                <tr><th>Date</th><th>Description</th><th>Reference</th><th class="text-right">Amount</th><th class="text-right">Balance</th></tr>
               </thead>
               <tbody>
                 @for (tx of $any(stmtData['transactions']); track tx.id) {
                   <tr>
-                    <td>{{ tx.transactionDate | date: 'dd MMM yyyy' }}</td>
+                    <td>{{ tx.transactionDate | date:'dd MMM yyyy' }}</td>
                     <td>{{ tx.description || '—' }}</td>
                     <td class="muted">{{ tx.referenceNumber }}</td>
-                    <td
-                      class="text-right"
-                      [class.credit]="tx.amount > 0"
-                      [class.debit]="tx.amount < 0"
-                    >
-                      {{ tx.amount | number: '1.2-2' }}
+                    <td class="text-right" [class.credit]="tx.amount > 0" [class.debit]="tx.amount < 0">
+                      {{ tx.amount | number:'1.2-2' }}
                     </td>
-                    <td class="text-right">{{ tx.runningBalance | number: '1.2-2' }}</td>
+                    <td class="text-right">{{ tx.runningBalance | number:'1.2-2' }}</td>
                   </tr>
                 }
               </tbody>
@@ -1019,47 +848,27 @@
           <label class="form-label">Amount <span class="required">*</span></label>
           <div class="input-prefix-group">
             <span class="input-prefix">{{ account?.currencyCode }}</span>
-            <input
-              type="number"
-              class="form-input form-input--prefixed"
-              min="0.01"
-              step="0.01"
-              [(ngModel)]="holdForm.amount"
-              placeholder="0.00"
-            />
+            <input type="number" class="form-input form-input--prefixed" min="0.01" step="0.01"
+                   [(ngModel)]="holdForm.amount" placeholder="0.00" />
           </div>
         </div>
         <div class="form-field">
           <label class="form-label">Reason <span class="required">*</span></label>
-          <input
-            type="text"
-            class="form-input"
-            [(ngModel)]="holdForm.reason"
-            placeholder="e.g. Pending court order"
-            maxlength="255"
-          />
+          <input type="text" class="form-input" [(ngModel)]="holdForm.reason"
+                 placeholder="e.g. Pending court order" maxlength="255" />
         </div>
         <div class="form-field">
           <label class="form-label">Expiry Date <span class="form-hint">(optional)</span></label>
           <input type="date" class="form-input" [(ngModel)]="holdForm.expiryDate" />
           <span class="form-hint">Leave blank for an indefinite hold.</span>
         </div>
-        @if (modalError) {
-          <div class="modal__error">{{ modalError }}</div>
-        }
+        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
       </div>
       <div class="modal__footer">
-        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">
-          Cancel
-        </button>
-        <button
-          class="btn-warning"
-          (click)="doPlaceHold()"
-          [disabled]="modalWorking || holdForm.amount <= 0 || !holdForm.reason"
-        >
-          @if (modalWorking) {
-            <span class="spinner"></span>
-          }
+        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
+        <button class="btn-warning" (click)="doPlaceHold()"
+                [disabled]="modalWorking || holdForm.amount <= 0 || !holdForm.reason">
+          @if (modalWorking) { <span class="spinner"></span> }
           Place Hold
         </button>
       </div>
@@ -1078,23 +887,16 @@
       <div class="modal__body">
         <p class="confirm-text">
           Release the hold of
-          <strong
-            >{{ $safeNavigationMigration(holdToRelease?.amount) | number: '1.2-2' }}
-            {{ account?.currencyCode }}</strong
-          >
-          for <em>"{{ holdToRelease?.reason }}"</em>? Funds will be returned to the available
-          balance immediately.
+          <strong>{{ $safeNavigationMigration(holdToRelease?.amount) | number:'1.2-2' }} {{ account?.currencyCode }}</strong>
+          for <em>"{{ holdToRelease?.reason }}"</em>?
+          Funds will be returned to the available balance immediately.
         </p>
-        @if (modalError) {
-          <p class="modal__error">{{ modalError }}</p>
-        }
+        @if (modalError) { <p class="modal__error">{{ modalError }}</p> }
       </div>
       <div class="modal__footer">
         <button class="btn-ghost" [disabled]="modalWorking" (click)="closeModal()">Cancel</button>
         <button class="btn-success" [disabled]="modalWorking" (click)="doReleaseHold()">
-          @if (modalWorking) {
-            <span class="spinner"></span>
-          }
+          @if (modalWorking) { <span class="spinner"></span> }
           Release Hold
         </button>
       </div>
@@ -1112,20 +914,15 @@
       </div>
       <div class="modal__body">
         <p class="confirm-text">
-          Reactivate dormant account <strong>{{ account?.accountNumber }}</strong
-          >? The account will return to <strong>Active</strong> status and accept transactions
-          again.
+          Reactivate dormant account <strong>{{ account?.accountNumber }}</strong>?
+          The account will return to <strong>Active</strong> status and accept transactions again.
         </p>
-        @if (modalError) {
-          <p class="modal__error">{{ modalError }}</p>
-        }
+        @if (modalError) { <p class="modal__error">{{ modalError }}</p> }
       </div>
       <div class="modal__footer">
         <button class="btn-ghost" [disabled]="modalWorking" (click)="closeModal()">Cancel</button>
         <button class="btn-success" [disabled]="modalWorking" (click)="doReactivate()">
-          @if (modalWorking) {
-            <span class="spinner"></span>
-          }
+          @if (modalWorking) { <span class="spinner"></span> }
           Reactivate
         </button>
       </div>
@@ -1150,46 +947,29 @@
           <div class="interest-preview">
             <div class="interest-preview__row">
               <span class="muted">Current balance</span>
-              <span
-                >{{ interestPreview.currentBalance | number: '1.2-2' }}
-                {{ account?.currencyCode }}</span
-              >
+              <span>{{ interestPreview.currentBalance | number:'1.2-2' }} {{ account?.currencyCode }}</span>
             </div>
             <div class="interest-preview__row">
               <span class="muted">Annual interest rate</span>
-              <span>{{ interestPreview.annualInterestRate | number: '1.2-4' }}%</span>
+              <span>{{ interestPreview.annualInterestRate | number:'1.2-4' }}%</span>
             </div>
             <div class="interest-preview__row interest-preview__row--highlight">
               <span class="muted">Daily interest to post</span>
-              <span class="amount--credit"
-                >+{{ interestPreview.projectedDailyInterest | number: '1.4-4' }}
-                {{ account?.currencyCode }}</span
-              >
+              <span class="amount--credit">+{{ interestPreview.projectedDailyInterest | number:'1.4-4' }} {{ account?.currencyCode }}</span>
             </div>
           </div>
-          <p class="confirm-text" style="margin-top: 1rem">
-            This will credit
-            <strong
-              >{{ interestPreview.projectedDailyInterest | number: '1.4-4' }}
-              {{ account?.currencyCode }}</strong
-            >
+          <p class="confirm-text" style="margin-top:1rem">
+            This will credit <strong>{{ interestPreview.projectedDailyInterest | number:'1.4-4' }} {{ account?.currencyCode }}</strong>
             to account <strong>{{ account?.accountNumber }}</strong> immediately.
           </p>
         }
-        @if (modalError) {
-          <p class="modal__error">{{ modalError }}</p>
-        }
+        @if (modalError) { <p class="modal__error">{{ modalError }}</p> }
       </div>
       <div class="modal__footer">
         <button class="btn-ghost" [disabled]="modalWorking" (click)="closeModal()">Cancel</button>
-        <button
-          class="btn-primary"
-          [disabled]="modalWorking || interestPreviewLoading || !interestPreview"
-          (click)="doPostInterest()"
-        >
-          @if (modalWorking) {
-            <span class="spinner"></span>
-          }
+        <button class="btn-primary" [disabled]="modalWorking || interestPreviewLoading || !interestPreview"
+                (click)="doPostInterest()">
+          @if (modalWorking) { <span class="spinner"></span> }
           Post Interest
         </button>
       </div>

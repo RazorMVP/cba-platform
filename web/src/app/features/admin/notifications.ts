@@ -1,73 +1,61 @@
 import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import {
-  AdminService,
-  NotificationTemplate,
-  NotificationLog,
-  CreateTemplateRequest,
-} from './admin.service';
+import { AdminService, NotificationTemplate, NotificationLog, CreateTemplateRequest } from './admin.service';
 import { StatusBadgeComponent } from '../../shared/components/status-badge/status-badge';
-import {
-  NotificationBellService,
-  InAppNotification,
-} from '../../layout/notification-bell/notification-bell.service';
+import { NotificationBellService, InAppNotification } from '../../layout/notification-bell/notification-bell.service';
 
 type Tab = 'templates' | 'history' | 'feed';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-notifications',
   standalone: true,
   imports: [CommonModule, FormsModule, StatusBadgeComponent],
   templateUrl: './notifications.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './notifications.scss',
 })
 export class NotificationsComponent implements OnInit {
-  private readonly svc = inject(AdminService);
+  private readonly svc     = inject(AdminService);
   private readonly bellSvc = inject(NotificationBellService);
 
   activeTab: Tab = 'templates';
 
   // Templates
-  templates: NotificationTemplate[] = [];
-  tplLoading = true;
-  tplError = '';
+  templates:    NotificationTemplate[] = [];
+  tplLoading    = true;
+  tplError      = '';
 
   // History
-  history: NotificationLog[] = [];
-  histLoading = false;
-  histLoaded = false;
-  histError = '';
-  histFilter = '';
+  history:      NotificationLog[] = [];
+  histLoading   = false;
+  histLoaded    = false;
+  histError     = '';
+  histFilter    = '';
 
   // Template modal
-  showModal = false;
+  showModal    = false;
   editingId: string | null = null;
-  working = false;
-  modalError = '';
+  working      = false;
+  modalError   = '';
 
   form: CreateTemplateRequest = {
-    name: '',
-    eventType: '',
-    deliveryMethod: 'EMAIL',
-    subject: '',
-    body: '',
+    name: '', eventType: '', deliveryMethod: 'EMAIL', subject: '', body: '',
   };
 
   // In-app feed
-  feed: InAppNotification[] = [];
-  feedLoading = false;
-  feedLoaded = false;
-  feedError = '';
+  feed:        InAppNotification[] = [];
+  feedLoading  = false;
+  feedLoaded   = false;
+  feedError    = '';
 
   // Test modal
-  showTest = false;
-  testTplId = '';
+  showTest    = false;
+  testTplId   = '';
   testRecipient = '';
-  testWorking = false;
+  testWorking  = false;
   testResult: NotificationLog | null = null;
-  testError = '';
+  testError   = '';
 
   ngOnInit(): void {
     this.loadTemplates();
@@ -76,26 +64,19 @@ export class NotificationsComponent implements OnInit {
   switchTab(tab: Tab): void {
     this.activeTab = tab;
     if (tab === 'history' && !this.histLoaded) this.loadHistory();
-    if (tab === 'feed' && !this.feedLoaded) this.loadFeed();
+    if (tab === 'feed'    && !this.feedLoaded) this.loadFeed();
   }
 
   loadFeed(): void {
     this.feedLoading = true;
     this.bellSvc.getInbox(0, 50).subscribe({
-      next: (items) => {
-        this.feed = items;
-        this.feedLoaded = true;
-        this.feedLoading = false;
-      },
-      error: () => {
-        this.feedError = 'Failed to load feed.';
-        this.feedLoading = false;
-      },
+      next:  items => { this.feed = items; this.feedLoaded = true; this.feedLoading = false; },
+      error: ()    => { this.feedError = 'Failed to load feed.'; this.feedLoading = false; },
     });
   }
 
   feedSeverityVariant(severity: string): 'success' | 'warning' | 'error' | 'info' | 'neutral' {
-    if (severity === 'ERROR') return 'error';
+    if (severity === 'ERROR')   return 'error';
     if (severity === 'WARNING') return 'warning';
     return 'info';
   }
@@ -105,58 +86,37 @@ export class NotificationsComponent implements OnInit {
   loadTemplates(): void {
     this.tplLoading = true;
     this.svc.listNotificationTemplates().subscribe({
-      next: (list) => {
-        this.templates = list;
-        this.tplLoading = false;
-      },
-      error: () => {
-        this.tplError = 'Failed to load templates.';
-        this.tplLoading = false;
-      },
+      next:  list => { this.templates = list; this.tplLoading = false; },
+      error: ()   => { this.tplError = 'Failed to load templates.'; this.tplLoading = false; },
     });
   }
 
   openCreate(): void {
-    this.editingId = null;
-    this.form = { name: '', eventType: '', deliveryMethod: 'EMAIL', subject: '', body: '' };
+    this.editingId  = null;
+    this.form       = { name: '', eventType: '', deliveryMethod: 'EMAIL', subject: '', body: '' };
     this.modalError = '';
-    this.showModal = true;
+    this.showModal  = true;
   }
 
   openEdit(t: NotificationTemplate): void {
-    this.editingId = t.id;
-    this.form = {
-      name: t.name,
-      eventType: t.eventType,
-      deliveryMethod: t.deliveryMethod,
-      subject: t.subject ?? '',
-      body: t.body,
-    };
+    this.editingId  = t.id;
+    this.form       = { name: t.name, eventType: t.eventType, deliveryMethod: t.deliveryMethod, subject: t.subject ?? '', body: t.body };
     this.modalError = '';
-    this.showModal = true;
+    this.showModal  = true;
   }
 
-  closeModal(): void {
-    if (!this.working) this.showModal = false;
-  }
+  closeModal(): void { if (!this.working) this.showModal = false; }
 
   saveTemplate(): void {
-    this.working = true;
+    this.working    = true;
     this.modalError = '';
     const req$ = this.editingId
       ? this.svc.updateNotificationTemplate(this.editingId, this.form)
       : this.svc.createNotificationTemplate(this.form);
 
     req$.subscribe({
-      next: () => {
-        this.working = false;
-        this.showModal = false;
-        this.loadTemplates();
-      },
-      error: () => {
-        this.modalError = 'Save failed.';
-        this.working = false;
-      },
+      next: () => { this.working = false; this.showModal = false; this.loadTemplates(); },
+      error: () => { this.modalError = 'Save failed.'; this.working = false; },
     });
   }
 
@@ -172,51 +132,33 @@ export class NotificationsComponent implements OnInit {
     const params: Record<string, string> = {};
     if (this.histFilter) params['eventType'] = this.histFilter;
     this.svc.listNotificationHistory(params).subscribe({
-      next: (logs) => {
-        this.history = logs;
-        this.histLoaded = true;
-        this.histLoading = false;
-      },
-      error: () => {
-        this.histError = 'Failed to load history.';
-        this.histLoading = false;
-      },
+      next:  logs => { this.history = logs; this.histLoaded = true; this.histLoading = false; },
+      error: ()   => { this.histError = 'Failed to load history.'; this.histLoading = false; },
     });
   }
 
-  applyFilter(): void {
-    this.histLoaded = false;
-    this.loadHistory();
-  }
+  applyFilter(): void { this.histLoaded = false; this.loadHistory(); }
 
   // ── Test notification ─────────────────────────────────────────────────────────
 
   openTest(t: NotificationTemplate): void {
-    this.testTplId = t.id;
+    this.testTplId    = t.id;
     this.testRecipient = '';
-    this.testResult = null;
-    this.testError = '';
-    this.testWorking = false;
-    this.showTest = true;
+    this.testResult   = null;
+    this.testError    = '';
+    this.testWorking  = false;
+    this.showTest     = true;
   }
 
-  closeTest(): void {
-    if (!this.testWorking) this.showTest = false;
-  }
+  closeTest(): void { if (!this.testWorking) this.showTest = false; }
 
   sendTest(): void {
     if (!this.testRecipient) return;
     this.testWorking = true;
-    this.testError = '';
+    this.testError   = '';
     this.svc.sendTestNotification(this.testTplId, this.testRecipient).subscribe({
-      next: (log) => {
-        this.testResult = log;
-        this.testWorking = false;
-      },
-      error: () => {
-        this.testError = 'Test send failed.';
-        this.testWorking = false;
-      },
+      next: log => { this.testResult = log; this.testWorking = false; },
+      error: ()  => { this.testError = 'Test send failed.'; this.testWorking = false; },
     });
   }
 

@@ -2,10 +2,10 @@ import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-root',
   standalone: true,
   imports: [RouterOutlet],
-  changeDetection: ChangeDetectionStrategy.Eager,
   template: '<router-outlet></router-outlet>',
 })
 export class App {}

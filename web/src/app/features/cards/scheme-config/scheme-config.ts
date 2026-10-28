@@ -14,11 +14,11 @@ interface SchemeInfo {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-scheme-config',
   standalone: true,
   imports: [CommonModule],
   templateUrl: './scheme-config.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './scheme-config.scss',
 })
 export class SchemeConfigComponent {
@@ -34,13 +34,7 @@ export class SchemeConfigComponent {
       settlementFormat: 'BASE II',
       packagerXml: 'iso8583-visa.xml',
       adapter: 'VisaSchemeAdapter',
-      capabilities: [
-        'EMV chip',
-        'Contactless NFC',
-        'Magnetic stripe',
-        '3D Secure 2.x',
-        'STIP stand-in',
-      ],
+      capabilities: ['EMV chip', 'Contactless NFC', 'Magnetic stripe', '3D Secure 2.x', 'STIP stand-in'],
     },
     {
       name: 'Mastercard',
@@ -51,13 +45,7 @@ export class SchemeConfigComponent {
       settlementFormat: 'IPM / GCMS',
       packagerXml: 'iso8583-mastercard.xml',
       adapter: 'MastercardSchemeAdapter',
-      capabilities: [
-        'EMV chip',
-        'Contactless NFC',
-        'Magnetic stripe',
-        '3D Secure 2.x',
-        'MIP private data',
-      ],
+      capabilities: ['EMV chip', 'Contactless NFC', 'Magnetic stripe', '3D Secure 2.x', 'MIP private data'],
     },
     {
       name: 'Verve',
@@ -68,13 +56,7 @@ export class SchemeConfigComponent {
       settlementFormat: 'NIBSS e-settlement',
       packagerXml: 'iso8583-verve.xml',
       adapter: 'VerveSchemeAdapter',
-      capabilities: [
-        'EMV chip',
-        'Contactless NFC',
-        'Magnetic stripe',
-        '3D Secure 2.x',
-        'Interswitch subelements',
-      ],
+      capabilities: ['EMV chip', 'Contactless NFC', 'Magnetic stripe', '3D Secure 2.x', 'Interswitch subelements'],
     },
     {
       name: 'Afrigo / PAPSS',
@@ -85,12 +67,7 @@ export class SchemeConfigComponent {
       settlementFormat: 'PAPSS clearing',
       packagerXml: 'iso8583-afrigo.xml',
       adapter: 'AfrigoSchemeAdapter',
-      capabilities: [
-        'EMV chip',
-        'Contactless NFC',
-        'Pan-African settlement',
-        'REST-based transmission',
-      ],
+      capabilities: ['EMV chip', 'Contactless NFC', 'Pan-African settlement', 'REST-based transmission'],
     },
     {
       name: 'UnionPay',
@@ -101,17 +78,9 @@ export class SchemeConfigComponent {
       settlementFormat: 'CUPS / CNAPS',
       packagerXml: 'iso8583-unionpay.xml',
       adapter: 'UnionPaySchemeAdapter',
-      capabilities: [
-        'EMV chip',
-        'QPBOC contactless',
-        'SM4 cryptogram (domestic)',
-        'Dual-currency DE49/DE50',
-        '3DES fallback (international)',
-      ],
+      capabilities: ['EMV chip', 'QPBOC contactless', 'SM4 cryptogram (domestic)', 'Dual-currency DE49/DE50', '3DES fallback (international)'],
     },
   ];
 
-  toggle(code: string): void {
-    this.expanded = this.expanded === code ? null : code;
-  }
+  toggle(code: string): void { this.expanded = this.expanded === code ? null : code; }
 }

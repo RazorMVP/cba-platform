@@ -6,12 +6,12 @@ import { AdminService, BulkImportResult, BulkImportJob } from './admin.service';
 type EntityType = 'CUSTOMERS' | 'LOANS';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-bulk-import',
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './bulk-import.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
-  styleUrls: ['./bulk-import.scss'],
+  styleUrls: ['./bulk-import.scss']
 })
 export class BulkImportComponent {
   private svc = inject(AdminService);
@@ -25,10 +25,8 @@ export class BulkImportComponent {
   showHistory = signal(false);
 
   readonly templates: Record<EntityType, string> = {
-    CUSTOMERS:
-      'firstName,lastName,email,phone,nationalId,dateOfBirth,notes\nJohn,Doe,john.doe@example.com,+254712345678,ID123456,1990-05-15,',
-    LOANS:
-      'customerId,productId,linkedAccountId,principalAmount,termMonths,notes\n<uuid>,<uuid>,<uuid>,50000.00,24,',
+    CUSTOMERS: 'firstName,lastName,email,phone,nationalId,dateOfBirth,notes\nJohn,Doe,john.doe@example.com,+254712345678,ID123456,1990-05-15,',
+    LOANS:     'customerId,productId,linkedAccountId,principalAmount,termMonths,notes\n<uuid>,<uuid>,<uuid>,50000.00,24,'
   };
 
   onFileSelected(event: Event): void {
@@ -45,9 +43,7 @@ export class BulkImportComponent {
     this.error.set(null);
   }
 
-  onDragOver(event: DragEvent): void {
-    event.preventDefault();
-  }
+  onDragOver(event: DragEvent): void { event.preventDefault(); }
 
   upload(): void {
     if (!this.selectedFile) return;
@@ -55,21 +51,13 @@ export class BulkImportComponent {
     this.result.set(null);
     this.error.set(null);
 
-    const obs =
-      this.entityType === 'CUSTOMERS'
-        ? this.svc.importCustomers(this.selectedFile)
-        : this.svc.importLoans(this.selectedFile);
+    const obs = this.entityType === 'CUSTOMERS'
+      ? this.svc.importCustomers(this.selectedFile)
+      : this.svc.importLoans(this.selectedFile);
 
     obs.subscribe({
-      next: (r) => {
-        this.result.set(r);
-        this.uploading.set(false);
-        this.loadHistory();
-      },
-      error: (e) => {
-        this.error.set(e?.error?.errors?.[0]?.message ?? 'Upload failed');
-        this.uploading.set(false);
-      },
+      next: r => { this.result.set(r); this.uploading.set(false); this.loadHistory(); },
+      error: e => { this.error.set(e?.error?.errors?.[0]?.message ?? 'Upload failed'); this.uploading.set(false); }
     });
   }
 
@@ -85,12 +73,12 @@ export class BulkImportComponent {
   }
 
   toggleHistory(): void {
-    this.showHistory.update((v) => !v);
+    this.showHistory.update(v => !v);
     if (this.showHistory() && this.jobs().length === 0) this.loadHistory();
   }
 
   private loadHistory(): void {
-    this.svc.bulkImportJobs(this.entityType).subscribe({ next: (j) => this.jobs.set(j) });
+    this.svc.bulkImportJobs(this.entityType).subscribe({ next: j => this.jobs.set(j) });
   }
 
   statusClass(s: string): string {

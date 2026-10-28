@@ -2,63 +2,49 @@ import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/cor
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
-  SystemService,
-  CreditBureau,
-  CreditBureauMapping,
-  CreateCreditBureauRequest,
-  CreateCreditBureauMappingRequest,
+  SystemService, CreditBureau, CreditBureauMapping,
+  CreateCreditBureauRequest, CreateCreditBureauMappingRequest,
 } from './system.service';
 import { StatusBadgeComponent } from '../../shared/components/status-badge/status-badge';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-credit-bureau',
   standalone: true,
   imports: [CommonModule, FormsModule, StatusBadgeComponent],
   templateUrl: './credit-bureau.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './credit-bureau.scss',
 })
 export class CreditBureauComponent implements OnInit {
   private readonly svc = inject(SystemService);
 
-  bureaus: CreditBureau[] = [];
+  bureaus:  CreditBureau[] = [];
   loading = true;
-  error = '';
+  error   = '';
 
   expandedBureau: string | null = null;
-  mappings: Record<string, CreditBureauMapping[]> = {};
+  mappings:       Record<string, CreditBureauMapping[]> = {};
   mappingsLoading: Record<string, boolean> = {};
 
   activeModal: 'create' | 'edit' | 'delete' | 'toggle' | 'add-mapping' | null = null;
-  editTarget: CreditBureau | null = null;
-  deleteTarget: CreditBureau | null = null;
-  toggleTarget: CreditBureau | null = null;
+  editTarget:      CreditBureau | null = null;
+  deleteTarget:    CreditBureau | null = null;
+  toggleTarget:    CreditBureau | null = null;
   mappingBureauId: string | null = null;
-  working = false;
+  working    = false;
   modalError = '';
 
   form: CreateCreditBureauRequest = this.blank();
-  mappingForm: CreateCreditBureauMappingRequest = {
-    loanProductId: '',
-    creditCheckMandatory: false,
-  };
+  mappingForm: CreateCreditBureauMappingRequest = { loanProductId: '', creditCheckMandatory: false };
 
-  ngOnInit(): void {
-    this.load();
-  }
+  ngOnInit(): void { this.load(); }
 
   load(): void {
     this.loading = true;
     this.error = '';
     this.svc.listCreditBureaus().subscribe({
-      next: (list) => {
-        this.bureaus = list;
-        this.loading = false;
-      },
-      error: () => {
-        this.error = 'Failed to load credit bureaus.';
-        this.loading = false;
-      },
+      next: list => { this.bureaus = list; this.loading = false; },
+      error: () => { this.error = 'Failed to load credit bureaus.'; this.loading = false; },
     });
   }
 
@@ -68,21 +54,14 @@ export class CreditBureauComponent implements OnInit {
       return;
     }
     this.expandedBureau = id;
-    if (!this.mappings[id]) {
-      this.loadMappings(id);
-    }
+    if (!this.mappings[id]) { this.loadMappings(id); }
   }
 
   loadMappings(bureauId: string): void {
     this.mappingsLoading[bureauId] = true;
     this.svc.listCreditBureauMappings(bureauId).subscribe({
-      next: (list) => {
-        this.mappings[bureauId] = list;
-        this.mappingsLoading[bureauId] = false;
-      },
-      error: () => {
-        this.mappingsLoading[bureauId] = false;
-      },
+      next: list => { this.mappings[bureauId] = list; this.mappingsLoading[bureauId] = false; },
+      error: () => { this.mappingsLoading[bureauId] = false; },
     });
   }
 
@@ -95,12 +74,7 @@ export class CreditBureauComponent implements OnInit {
   }
 
   openEdit(b: CreditBureau): void {
-    this.form = {
-      name: b.name,
-      country: b.country,
-      implClass: b.implClass,
-      description: b.description ?? '',
-    };
+    this.form = { name: b.name, country: b.country, implClass: b.implClass, description: b.description ?? '' };
     this.editTarget = b;
     this.modalError = '';
     this.working = false;
@@ -128,26 +102,17 @@ export class CreditBureauComponent implements OnInit {
     this.activeModal = 'add-mapping';
   }
 
-  closeModal(): void {
-    this.activeModal = null;
-  }
+  closeModal(): void { this.activeModal = null; }
 
   save(): void {
     this.working = true;
     this.modalError = '';
-    const obs =
-      this.activeModal === 'edit' && this.editTarget
-        ? this.svc.updateCreditBureau(this.editTarget.id, this.form)
-        : this.svc.createCreditBureau(this.form);
+    const obs = this.activeModal === 'edit' && this.editTarget
+      ? this.svc.updateCreditBureau(this.editTarget.id, this.form)
+      : this.svc.createCreditBureau(this.form);
     obs.subscribe({
-      next: () => {
-        this.closeModal();
-        this.load();
-      },
-      error: () => {
-        this.modalError = 'Save failed. Please try again.';
-        this.working = false;
-      },
+      next: () => { this.closeModal(); this.load(); },
+      error: () => { this.modalError = 'Save failed. Please try again.'; this.working = false; },
     });
   }
 
@@ -155,13 +120,8 @@ export class CreditBureauComponent implements OnInit {
     if (!this.deleteTarget) return;
     this.working = true;
     this.svc.deleteCreditBureau(this.deleteTarget.id).subscribe({
-      next: () => {
-        this.closeModal();
-        this.load();
-      },
-      error: () => {
-        this.working = false;
-      },
+      next: () => { this.closeModal(); this.load(); },
+      error: () => { this.working = false; },
     });
   }
 
@@ -172,14 +132,8 @@ export class CreditBureauComponent implements OnInit {
       ? this.svc.deactivateCreditBureau(this.toggleTarget.id)
       : this.svc.activateCreditBureau(this.toggleTarget.id);
     obs.subscribe({
-      next: () => {
-        this.closeModal();
-        this.load();
-      },
-      error: () => {
-        this.modalError = 'Action failed. Please try again.';
-        this.working = false;
-      },
+      next: () => { this.closeModal(); this.load(); },
+      error: () => { this.modalError = 'Action failed. Please try again.'; this.working = false; },
     });
   }
 
@@ -193,19 +147,14 @@ export class CreditBureauComponent implements OnInit {
         this.loadMappings(this.mappingBureauId!);
         this.closeModal();
       },
-      error: () => {
-        this.modalError = 'Save failed. Please try again.';
-        this.working = false;
-      },
+      error: () => { this.modalError = 'Save failed. Please try again.'; this.working = false; },
     });
   }
 
   deleteMapping(bureauId: string, mappingId: string): void {
     this.svc.deleteCreditBureauMapping(bureauId, mappingId).subscribe({
       next: () => this.loadMappings(bureauId),
-      error: () => {
-        this.mappingsLoading[bureauId] = false;
-      },
+      error: () => { this.mappingsLoading[bureauId] = false; },
     });
   }
 

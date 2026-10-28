@@ -2,11 +2,11 @@ import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-kpi-card',
   standalone: true,
   imports: [CommonModule],
   templateUrl: './kpi-card.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './kpi-card.scss',
 })
 export class KpiCardComponent {

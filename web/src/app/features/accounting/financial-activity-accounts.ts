@@ -1,33 +1,28 @@
 import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import {
-  AccountingService,
-  FinancialActivityAccount,
-  FinancialActivityRequest,
-  FinancialActivityType,
-} from './accounting.service';
+import { AccountingService, FinancialActivityAccount, FinancialActivityRequest, FinancialActivityType } from './accounting.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-financial-activity-accounts',
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './financial-activity-accounts.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './financial-activity-accounts.scss',
 })
 export class FinancialActivityAccountsComponent implements OnInit {
   private readonly svc = inject(AccountingService);
 
-  items: FinancialActivityAccount[] = [];
-  loading = true;
-  error = '';
+  items:   FinancialActivityAccount[] = [];
+  loading  = true;
+  error    = '';
 
   // Modal state
-  showModal = false;
+  showModal    = false;
   editingId: string | null = null;
-  working = false;
-  modalError = '';
+  working      = false;
+  modalError   = '';
 
   form: FinancialActivityRequest = { financialActivity: 'ASSET_FUND_SOURCE', glAccountId: '' };
 
@@ -36,77 +31,67 @@ export class FinancialActivityAccountsComponent implements OnInit {
 
   // One entry per backend FinancialActivity constant; the backend rejects any other value.
   readonly activityLabels: Record<FinancialActivityType, string> = {
-    ASSET_FUND_SOURCE: 'Asset — Fund Source (Cash at Bank)',
-    ASSET_CASH_AT_TELLER: 'Asset — Cash at Teller',
-    ASSET_INTEREST_RECEIVABLE: 'Asset — Interest Receivable',
-    ASSET_LOAN_PORTFOLIO: 'Asset — Loan Portfolio',
-    ASSET_FEES_RECEIVABLE: 'Asset — Loan Fees and Penalties Receivable',
-    ASSET_DEFERRED_LOAN_FEES: 'Asset (contra) — Deferred Loan Origination Fees',
-    LIABILITY_INCOME_IN_SUSPENSE: 'Liability — Interest and Fees in Suspense',
-    ASSET_LOAN_LOSS_ALLOWANCE: 'Asset (contra) — Loan Loss Allowance (IFRS 9)',
+    ASSET_FUND_SOURCE:              'Asset — Fund Source (Cash at Bank)',
+    ASSET_CASH_AT_TELLER:           'Asset — Cash at Teller',
+    ASSET_INTEREST_RECEIVABLE:      'Asset — Interest Receivable',
+    ASSET_LOAN_PORTFOLIO:           'Asset — Loan Portfolio',
+    ASSET_FEES_RECEIVABLE:          'Asset — Loan Fees and Penalties Receivable',
+    ASSET_DEFERRED_LOAN_FEES:       'Asset (contra) — Deferred Loan Origination Fees',
+    LIABILITY_INCOME_IN_SUSPENSE:   'Liability — Interest and Fees in Suspense',
+    ASSET_LOAN_LOSS_ALLOWANCE:      'Asset (contra) — Loan Loss Allowance (IFRS 9)',
     ASSET_LOAN_MODIFICATION_DISCOUNT: 'Asset (contra) — Loan Modification Discount (IFRS 9 §5.4.3)',
-    ASSET_OVERDRAFT_PORTFOLIO: 'Asset — Overdraft Portfolio',
-    ASSET_FX_POSITION: 'Asset — FX Position',
-    ASSET_FX_POSITION_EQUIVALENT: 'Asset — FX Position Equivalent',
-    LIABILITY_SAVINGS_CONTROL: 'Liability — Savings Control',
+    ASSET_OVERDRAFT_PORTFOLIO:      'Asset — Overdraft Portfolio',
+    ASSET_FX_POSITION:              'Asset — FX Position',
+    ASSET_FX_POSITION_EQUIVALENT:   'Asset — FX Position Equivalent',
+    LIABILITY_SAVINGS_CONTROL:      'Liability — Savings Control',
     LIABILITY_TRANSFER_IN_SUSPENSE: 'Liability — Transfer in Suspense',
-    INCOME_INTEREST: 'Income — Interest',
-    INCOME_FEES: 'Income — Fees',
-    INCOME_PENALTIES: 'Income — Penalties',
-    INCOME_FX_GAIN_LOSS: 'Income — Net FX Gains',
-    EXPENSE_LOAN_LOSS_PROVISION: 'Expense — Credit Impairment Charge (IFRS 9)',
+    INCOME_INTEREST:                'Income — Interest',
+    INCOME_FEES:                    'Income — Fees',
+    INCOME_PENALTIES:               'Income — Penalties',
+    INCOME_FX_GAIN_LOSS:            'Income — Net FX Gains',
+    EXPENSE_LOAN_LOSS_PROVISION:    'Expense — Credit Impairment Charge (IFRS 9)',
     EXPENSE_LOAN_MODIFICATION_LOSS: 'Expense — Loan Modification and Waiver Losses',
-    EXPENSE_WRITE_OFF: 'Expense — Write-off',
-    EXPENSE_INTEREST_ON_SAVINGS: 'Expense — Interest on Savings',
-    EXPENSE_CASH_OVER_SHORT: 'Expense — Cash Over and Short',
-    EQUITY_MIGRATION_CLEARING: 'Equity — Legacy Balance Migration Clearing',
-    EQUITY_RETAINED_EARNINGS: 'Equity — Retained Earnings',
+    EXPENSE_WRITE_OFF:              'Expense — Write-off',
+    EXPENSE_INTEREST_ON_SAVINGS:    'Expense — Interest on Savings',
+    EXPENSE_CASH_OVER_SHORT:        'Expense — Cash Over and Short',
+    EQUITY_MIGRATION_CLEARING:      'Equity — Legacy Balance Migration Clearing',
+    EQUITY_RETAINED_EARNINGS:       'Equity — Retained Earnings',
     EQUITY_REGULATORY_RISK_RESERVE: 'Equity — Regulatory Risk Reserve (CBN, non-distributable)',
   };
 
   ngOnInit(): void {
     this.load();
     this.svc.listGlAccounts({ usage: 'DETAIL' }).subscribe({
-      next: (list) => {
-        this.glAccounts = list.map((g) => ({ id: g.id, glCode: g.glCode, name: g.name }));
-      },
+      next: list => { this.glAccounts = list.map(g => ({ id: g.id, glCode: g.glCode, name: g.name })); },
     });
   }
 
   load(): void {
     this.loading = true;
     this.svc.listFinancialActivityAccounts().subscribe({
-      next: (items) => {
-        this.items = items;
-        this.loading = false;
-      },
-      error: () => {
-        this.error = 'Failed to load financial activity accounts.';
-        this.loading = false;
-      },
+      next:  items => { this.items = items; this.loading = false; },
+      error: ()    => { this.error = 'Failed to load financial activity accounts.'; this.loading = false; },
     });
   }
 
   openCreate(): void {
-    this.editingId = null;
-    this.form = { financialActivity: 'ASSET_FUND_SOURCE', glAccountId: '' };
+    this.editingId  = null;
+    this.form       = { financialActivity: 'ASSET_FUND_SOURCE', glAccountId: '' };
     this.modalError = '';
-    this.showModal = true;
+    this.showModal  = true;
   }
 
   openEdit(item: FinancialActivityAccount): void {
-    this.editingId = item.id;
-    this.form = { financialActivity: item.financialActivity, glAccountId: item.glAccountId };
+    this.editingId  = item.id;
+    this.form       = { financialActivity: item.financialActivity, glAccountId: item.glAccountId };
     this.modalError = '';
-    this.showModal = true;
+    this.showModal  = true;
   }
 
-  closeModal(): void {
-    if (!this.working) this.showModal = false;
-  }
+  closeModal(): void { if (!this.working) this.showModal = false; }
 
   save(): void {
-    this.working = true;
+    this.working    = true;
     this.modalError = '';
     const req$ = this.editingId
       ? this.svc.updateFinancialActivityAccount(this.editingId, this.form)
@@ -114,13 +99,13 @@ export class FinancialActivityAccountsComponent implements OnInit {
 
     req$.subscribe({
       next: () => {
-        this.working = false;
+        this.working   = false;
         this.showModal = false;
         this.load();
       },
       error: () => {
         this.modalError = 'Save failed. Check that this financial activity is not already mapped.';
-        this.working = false;
+        this.working    = false;
       },
     });
   }
@@ -135,7 +120,7 @@ export class FinancialActivityAccountsComponent implements OnInit {
   }
 
   glAccountLabel(id: string): string {
-    const g = this.glAccounts.find((a) => a.id === id);
+    const g = this.glAccounts.find(a => a.id === id);
     return g ? `${g.glCode} — ${g.name}` : id;
   }
 

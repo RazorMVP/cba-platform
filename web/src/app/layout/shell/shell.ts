@@ -4,11 +4,11 @@ import { SidebarComponent } from '../sidebar/sidebar';
 import { TopbarComponent } from '../topbar/topbar';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-shell',
   standalone: true,
   imports: [RouterOutlet, SidebarComponent, TopbarComponent],
   templateUrl: './shell.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './shell.scss',
 })
 export class ShellComponent {

@@ -57,6 +57,36 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 50) — 2026-10-28
+**Web app (`web/`) upgraded from Angular 21 to Angular 22 with no change in behaviour: Angular 22.2.3, CLI/build 22.2.5, TypeScript 6.0.3, keycloak-angular 22, angular-eslint 22.6.0, typescript-eslint 8.72.1, done with `ng update` and its migrations. The unused PrimeNG, primeicons, ng2-charts, chart.js, Angular Material/CDK and NgRx were removed (decision D1a). Plan: `docs/plans/2026-10-28-angular-22-upgrade.md`. Also marks the docs-sites plan merged (#208 `aa4bb86`).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/package.json`, `web/package-lock.json` | Angular 22 set; 9 unused packages removed (465 installed packages, was 624); `overrides` keeps only `undici@^7` (jsdom 28) |
+| 95 component `.ts` files | `changeDetection: ChangeDetectionStrategy.Eager` + import — migration `change-detection-eager` |
+| `web/src/app/app.config.ts` | `provideHttpClient(withXhr(), …)` (migration `http-xhr-backend`); empty `provideStore({})` / `provideEffects([])` removed |
+| `journal-entries.html`, `account-detail.html`, `teller-detail.html` | 4 `$safeNavigationMigration(x?.y)` wraps where `?.` feeds a pipe (migration `safe-optional-chaining`) |
+| `web/tsconfig.app.json` | `extendedDiagnostics` suppress `nullishCoalescingNotNullable` / `optionalChainNotNullable` (migration) |
+| `web/src/styles.scss` | dead `.mat-mdc-*` and `.p-component` rules removed |
+| `CLAUDE.md` | web versions table, stack lines, Angular Change Detection (new components must set Eager), upgrade traps |
+
+#### Key Patterns / Decisions
+- **Angular 22 defaults components to OnPush.** This app sets plain properties in `subscribe()` and needs zone-based Eager detection; the official migration adds Eager to every component. New components must set it themselves.
+- **`ng update`, not a manual bump, across a major** — the migrations carry the behaviour-preserving edits. Peer conflicts (keycloak-angular 21, typescript-eslint 8.56) are resolved by naming those packages in the same `ng update` call, never `--force`.
+- **The migrations run prettier over every file they touch** (~10,000 changed lines of pure formatting). The raw output was committed as a checkpoint, then each file was rebuilt from the pre-update commit with only the migration's semantic edit (script checked counts against the raw output): source diff 205 + / 102 −.
+- Checked and needing nothing: `paramsInheritanceStrategy` → `'always'` (all `:id` routes are flat), style removal on host destroy (`::ng-deep` only under `:host`; component `@keyframes` duplicate global ones), forms `min`/`max` (`MinValidator.min` is still `string | number | null` in 22.2.3), removed APIs (0 uses).
+- **Lint: 95 new errors from `@angular-eslint/prefer-on-push-component-change-detection`**, which angular-eslint 22 enables in `tsRecommended` and which flags the deliberate Eager. Turning it off in `eslint.config.js` was blocked by the config-protection hook; CI lint is report-only, so it doesn't block — left for the user to decide.
+- Local backend responses seen during the browser check (not caused by this change; reproduced with curl): `GET /api/v1/accounts?page=0&size=20` → 400 `customerId is required when template=false`; `GET /api/v1/reports` → 500.
+
+#### Build Verification
+- Plain `npm ci` ✅; `npm audit` **0 vulnerabilities**
+- `ng test`: 115 files / **1170** tests — same as the baseline on `main`
+- `ng build --configuration production` ✅; initial bundle 454.74 kB (main 460.10 kB; 441.08 kB after the library removal, before the upgrade); warnings: the 3 pre-existing ones (2 NG8113, `loan-detail.scss` budget) — the 68 NG8102/NG8107 warnings are gone
+- Lint: 102 errors (95 the rule above + the 7 pre-existing), 63 warnings
+- Browser (`ng serve` + auth bypass + local backend): dashboard, customers, accounts, loans, payments, teller, loan products, journal entries, trial balance, reports, cards, users and a customer detail all reach their loaded state with no interaction (0 skeletons, 0 spinners); `XMLHttpRequest` zone patch present; no console errors from the app
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
 ### Session 125 (cont. 49) — 2026-10-28
 **Dependabot: the 12 alerts that opened after #207 cleared — 6 each in `docs-site/` and `partner-docs/` (both Docusaurus 3.10.2) — fixed in one PR. Plan: `docs/plans/2026-10-28-docs-sites-deps.md`. Supersedes Dependabot #199, #200, #201, #204, #205, #206. Also adds the approved "merge #207" plan to `docs/plans/` (#207 merged `3a689ef`, production deploy green).**
 

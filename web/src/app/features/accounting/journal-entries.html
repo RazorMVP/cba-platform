@@ -1,4 +1,5 @@
 <div class="page">
+
   <!-- ── Header ── -->
   <div class="page-header">
     <div class="page-header__title">
@@ -24,12 +25,8 @@
     </select>
     <div class="search-wrap">
       <span class="material-icons search-icon">search</span>
-      <input
-        class="search-input"
-        type="text"
-        placeholder="Filter by GL code…"
-        [(ngModel)]="glCodeQuery"
-      />
+      <input class="search-input" type="text" placeholder="Filter by GL code…"
+             [(ngModel)]="glCodeQuery" />
     </div>
     <button class="btn-secondary" (click)="loadEntries()">
       <span class="material-icons">filter_list</span> Apply
@@ -39,9 +36,7 @@
   <!-- ── Loading ── -->
   @if (loading) {
     <div class="card skeleton-card">
-      @for (i of [1, 2, 3]; track i) {
-        <div class="skeleton skeleton--group"></div>
-      }
+      @for (i of [1,2,3]; track i) { <div class="skeleton skeleton--group"></div> }
     </div>
   } @else if (error) {
     <div class="card empty-state">
@@ -61,8 +56,8 @@
           <!-- Group header -->
           <div class="entry-group__header">
             <div class="entry-group__meta">
-              <span class="entry-date">{{ g.entryDate | date: 'mediumDate' }}</span>
-              <span class="entry-txn-id mono muted">{{ g.transactionId | slice: 0 : 8 }}…</span>
+              <span class="entry-date">{{ g.entryDate | date:'mediumDate' }}</span>
+              <span class="entry-txn-id mono muted">{{ g.transactionId | slice:0:8 }}…</span>
               <span class="entry-ref muted mono">{{ g.currencyCode }}</span>
               @if (g.reference) {
                 <span class="entry-ref muted">Ref: {{ g.reference }}</span>
@@ -72,10 +67,8 @@
               }
             </div>
             <div class="entry-group__badges">
-              <app-status-badge
-                [variant]="createdByVariant(g.createdByType)"
-                [label]="g.createdByType === 'USER' ? 'Manual' : 'Auto'"
-              />
+              <app-status-badge [variant]="createdByVariant(g.createdByType)"
+                                [label]="g.createdByType === 'USER' ? 'Manual' : 'Auto'" />
               @if (g.reversed) {
                 <app-status-badge variant="neutral" label="Reversed" />
               }
@@ -107,7 +100,7 @@
                     <span class="mono gl-code">{{ d.glAccountCode }}</span>
                     <span class="gl-name">{{ d.glAccountName }}</span>
                   </td>
-                  <td class="amount-col amount--debit">{{ d.amount | number: '1.2-2' }}</td>
+                  <td class="amount-col amount--debit">{{ d.amount | number:'1.2-2' }}</td>
                   <td class="amount-col muted">—</td>
                 </tr>
               }
@@ -118,25 +111,24 @@
                     <span class="gl-name">{{ c.glAccountName }}</span>
                   </td>
                   <td class="amount-col muted">—</td>
-                  <td class="amount-col amount--credit">{{ c.amount | number: '1.2-2' }}</td>
+                  <td class="amount-col amount--credit">{{ c.amount | number:'1.2-2' }}</td>
                 </tr>
               }
             </tbody>
             <tfoot>
               <tr class="totals-row">
                 <td class="totals-label">Totals</td>
-                <td class="amount-col amount--debit">{{ g.totalDebit | number: '1.2-2' }}</td>
-                <td class="amount-col amount--credit">{{ g.totalCredit | number: '1.2-2' }}</td>
+                <td class="amount-col amount--debit">{{ g.totalDebit | number:'1.2-2' }}</td>
+                <td class="amount-col amount--credit">{{ g.totalCredit | number:'1.2-2' }}</td>
               </tr>
             </tfoot>
           </table>
         </div>
       }
     </div>
-    <div class="list-footer">
-      {{ groups.length }} transaction{{ groups.length === 1 ? '' : 's' }}
-    </div>
+    <div class="list-footer">{{ groups.length }} transaction{{ groups.length === 1 ? '' : 's' }}</div>
   }
+
 </div>
 
 <!-- ── Reverse Modal ── -->
@@ -150,27 +142,18 @@
       <div class="modal__body">
         <p class="confirm-text">
           This will post an equal and opposite journal entry for transaction
-          <strong class="mono"
-            >{{ $safeNavigationMigration(reverseGroup?.transactionId) | slice: 0 : 8 }}…</strong
-          >
-          dated
-          <strong>{{
-            $safeNavigationMigration(reverseGroup?.entryDate) | date: 'mediumDate'
-          }}</strong
-          >. This action cannot be undone.
+          <strong class="mono">{{ $safeNavigationMigration(reverseGroup?.transactionId) | slice:0:8 }}…</strong>
+          dated <strong>{{ $safeNavigationMigration(reverseGroup?.entryDate) | date:'mediumDate' }}</strong>.
+          This action cannot be undone.
         </p>
         @if (reverseError) {
           <div class="modal__error">{{ reverseError }}</div>
         }
       </div>
       <div class="modal__footer">
-        <button class="btn-secondary" (click)="closeReverseModal()" [disabled]="reverseWorking">
-          Cancel
-        </button>
+        <button class="btn-secondary" (click)="closeReverseModal()" [disabled]="reverseWorking">Cancel</button>
         <button class="btn-danger" (click)="submitReverse()" [disabled]="reverseWorking">
-          @if (reverseWorking) {
-            <span class="spinner"></span>
-          }
+          @if (reverseWorking) { <span class="spinner"></span> }
           Reverse Entry
         </button>
       </div>
@@ -187,6 +170,7 @@
         New Manual Journal Entry
       </div>
       <div class="modal__body">
+
         <!-- Header fields -->
         <div class="form-row">
           <div class="form-field form-field--third">
@@ -195,52 +179,28 @@
           </div>
           <div class="form-field form-field--third">
             <label class="form-label">Currency <span class="required">*</span></label>
-            <input
-              class="form-input mono"
-              type="text"
-              maxlength="3"
-              [(ngModel)]="entryCurrency"
-              placeholder="USD"
-            />
+            <input class="form-input mono" type="text" maxlength="3" [(ngModel)]="entryCurrency" placeholder="USD" />
           </div>
           <div class="form-field form-field--third">
             <label class="form-label">Reference <span class="form-hint">(optional)</span></label>
-            <input
-              class="form-input"
-              type="text"
-              [(ngModel)]="entryRef"
-              placeholder="e.g. INV-2026-001"
-            />
+            <input class="form-input" type="text" [(ngModel)]="entryRef" placeholder="e.g. INV-2026-001" />
           </div>
           <div class="form-field form-field--third">
             <label class="form-label">Notes <span class="form-hint">(optional)</span></label>
-            <input
-              class="form-input"
-              type="text"
-              [(ngModel)]="entryNote"
-              placeholder="Brief description"
-            />
+            <input class="form-input" type="text" [(ngModel)]="entryNote" placeholder="Brief description" />
           </div>
         </div>
 
         <!-- Balance indicator -->
-        <div
-          class="balance-bar"
-          [class.balance-bar--ok]="isBalanced"
-          [class.balance-bar--err]="!isBalanced && debitTotal > 0"
-        >
+        <div class="balance-bar" [class.balance-bar--ok]="isBalanced" [class.balance-bar--err]="!isBalanced && debitTotal > 0">
           <span class="material-icons">{{ isBalanced ? 'check_circle' : 'warning' }}</span>
-          Debits: <strong>{{ debitTotal | number: '1.2-2' }}</strong> &nbsp;|&nbsp; Credits:
-          <strong>{{ creditTotal | number: '1.2-2' }}</strong>
+          Debits: <strong>{{ debitTotal | number:'1.2-2' }}</strong>
+          &nbsp;|&nbsp;
+          Credits: <strong>{{ creditTotal | number:'1.2-2' }}</strong>
           @if (!isBalanced && debitTotal > 0) {
-            &nbsp;—
-            <span class="balance-diff"
-              >Difference: {{ debitTotal - creditTotal | number: '1.2-2' }}</span
-            >
+            &nbsp;— <span class="balance-diff">Difference: {{ (debitTotal - creditTotal) | number:'1.2-2' }}</span>
           }
-          @if (isBalanced) {
-            &nbsp;— Balanced
-          }
+          @if (isBalanced) { &nbsp;— Balanced }
         </div>
 
         <!-- Debits section -->
@@ -259,14 +219,8 @@
                   <option [value]="a.id">{{ a.glCode }} — {{ a.name }}</option>
                 }
               </select>
-              <input
-                class="form-input entry-line__amount"
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                [(ngModel)]="line.amount"
-              />
+              <input class="form-input entry-line__amount" type="number" min="0" step="0.01"
+                     placeholder="0.00" [(ngModel)]="line.amount" />
               @if (debitLines.length > 1) {
                 <button class="btn-remove-line" (click)="removeLine('debit', i)">
                   <span class="material-icons">remove_circle_outline</span>
@@ -292,14 +246,8 @@
                   <option [value]="a.id">{{ a.glCode }} — {{ a.name }}</option>
                 }
               </select>
-              <input
-                class="form-input entry-line__amount"
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                [(ngModel)]="line.amount"
-              />
+              <input class="form-input entry-line__amount" type="number" min="0" step="0.01"
+                     placeholder="0.00" [(ngModel)]="line.amount" />
               @if (creditLines.length > 1) {
                 <button class="btn-remove-line" (click)="removeLine('credit', i)">
                   <span class="material-icons">remove_circle_outline</span>
@@ -314,17 +262,10 @@
         }
       </div>
       <div class="modal__footer">
-        <button class="btn-secondary" (click)="closeCreateModal()" [disabled]="createWorking">
-          Cancel
-        </button>
-        <button
-          class="btn-primary"
-          (click)="submitCreate()"
-          [disabled]="createWorking || !isBalanced || !entryDate"
-        >
-          @if (createWorking) {
-            <span class="spinner"></span>
-          }
+        <button class="btn-secondary" (click)="closeCreateModal()" [disabled]="createWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitCreate()"
+                [disabled]="createWorking || !isBalanced || !entryDate">
+          @if (createWorking) { <span class="spinner"></span> }
           Post Entry
         </button>
       </div>

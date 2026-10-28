@@ -6,51 +6,45 @@ import { StatusBadgeComponent } from '../../../../shared/components/status-badge
 import { PaymentService, Payment } from '../payment.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-payment-detail',
   standalone: true,
   imports: [CommonModule, RouterLink, FormsModule, StatusBadgeComponent],
   templateUrl: './payment-detail.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './payment-detail.scss',
 })
 export class PaymentDetailComponent implements OnInit {
-  private readonly route = inject(ActivatedRoute);
-  private readonly svc = inject(PaymentService);
+  private readonly route      = inject(ActivatedRoute);
+  private readonly svc        = inject(PaymentService);
 
   payment: Payment | null = null;
   loading = true;
-  error = '';
+  error   = '';
 
   // Reverse modal
   showReverseModal = false;
-  reverseReason = '';
-  reverseWorking = false;
-  reverseError = '';
+  reverseReason    = '';
+  reverseWorking   = false;
+  reverseError     = '';
 
   readonly typeLabels: Record<string, string> = {
     INTERNAL_TRANSFER: 'Internal Transfer',
-    EXTERNAL_PAYMENT: 'External Payment',
-    STANDING_ORDER: 'Standing Order',
-    BILL_PAYMENT: 'Bill Payment',
+    EXTERNAL_PAYMENT:  'External Payment',
+    STANDING_ORDER:    'Standing Order',
+    BILL_PAYMENT:      'Bill Payment',
   };
   readonly typeIcons: Record<string, string> = {
     INTERNAL_TRANSFER: 'swap_horiz',
-    EXTERNAL_PAYMENT: 'public',
-    STANDING_ORDER: 'repeat',
-    BILL_PAYMENT: 'receipt',
+    EXTERNAL_PAYMENT:  'public',
+    STANDING_ORDER:    'repeat',
+    BILL_PAYMENT:      'receipt',
   };
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id')!;
     this.svc.get(id).subscribe({
-      next: (p) => {
-        this.payment = p;
-        this.loading = false;
-      },
-      error: () => {
-        this.error = 'Payment not found.';
-        this.loading = false;
-      },
+      next:  p  => { this.payment = p; this.loading = false; },
+      error: () => { this.error = 'Payment not found.'; this.loading = false; },
     });
   }
 
@@ -58,27 +52,25 @@ export class PaymentDetailComponent implements OnInit {
 
   openReverseModal(): void {
     this.showReverseModal = true;
-    this.reverseReason = '';
-    this.reverseError = '';
-    this.reverseWorking = false;
+    this.reverseReason    = '';
+    this.reverseError     = '';
+    this.reverseWorking   = false;
   }
 
-  closeReverseModal(): void {
-    if (!this.reverseWorking) this.showReverseModal = false;
-  }
+  closeReverseModal(): void { if (!this.reverseWorking) this.showReverseModal = false; }
 
   submitReverse(): void {
     if (!this.payment || !this.reverseReason.trim()) return;
     this.reverseWorking = true;
-    this.reverseError = '';
+    this.reverseError   = '';
     this.svc.reverse(this.payment.id, this.reverseReason.trim()).subscribe({
-      next: (p) => {
-        this.payment = p;
+      next: p => {
+        this.payment        = p;
         this.reverseWorking = false;
         this.showReverseModal = false;
       },
       error: () => {
-        this.reverseError = 'Reversal failed. Only COMPLETED payments can be reversed.';
+        this.reverseError   = 'Reversal failed. Only COMPLETED payments can be reversed.';
         this.reverseWorking = false;
       },
     });

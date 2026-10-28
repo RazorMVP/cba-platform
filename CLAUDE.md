@@ -61,11 +61,11 @@ These are the verified-working versions for all production components. Update th
 
 | Component | Version | Notes |
 |-----------|---------|-------|
-| **Docusaurus** | 3.10.2 | `@docusaurus/core`, `@docusaurus/preset-classic` (docs-site too). `package.json` `overrides` lift build-only transitives Docusaurus still pins to vulnerable majors: `tinypool ^2.2.0`, `serialize-javascript ^7.1.2`, `uuid ^11.1.1`, `qs ^6.16.1`, `postcss-selector-parser ^7.1.6` — kept because the built site is the same file set with **byte-identical CSS** (cont. 37). **Never `npm audit fix` here:** it "fixes" by downgrading `@docusaurus/core` to 3.7.0. `braces` ≤3.0.3 has no fix (build-time globbing only) |
+| **Docusaurus** | 3.10.2 | `@docusaurus/core`, `@docusaurus/preset-classic` (docs-site too). `package.json` `overrides` lift build-only transitives Docusaurus still pins to vulnerable majors: `tinypool ^2.2.0`, `serialize-javascript ^7.1.3` (floor raised cont. 49, GHSA-m5mm-p8h7-m29v), `uuid ^11.1.1`, `qs ^6.16.1`, `postcss-selector-parser ^7.1.6` — kept because the built site is the same file set with **byte-identical CSS** (cont. 37, re-checked cont. 49). cont. 49 also moved `body-parser` 1.20.9, `fast-uri` 3.1.9, `follow-redirects` 1.16.2 in both lockfiles (in range). **Never `npm audit fix` here:** it "fixes" by downgrading `@docusaurus/core` (to 3.7.0, or `preset-classic` to 3.6.3). What remains, unfixable: `deepmerge` 4.3.1 (low, GHSA-gcqx-w48m-w2h4, via `@svgr/plugin-svgo`, build-time SVG processing; 4.3.1 is the latest release) |
 | **React** | 19.x | Docusaurus 3.10 peer dep |
 | **Node** | ≥20 | CI `NODE_VERSION: '20'` |
 | **Vercel deployment** | `partner-docs-b15nvegyp-razormvps-projects.vercel.app` | Production ✅ Session 117 |
-| **Last git commit** | `b9b9b64` | Session 118 — Nubeero logo applied to all four apps |
+| **Last git commit** | Session 125 cont. 49 | Dependency security patch in `partner-docs/` and `docs-site/` (`serialize-javascript` floor ^7.1.3; `body-parser`, `fast-uri`, `follow-redirects` in-range); build output unchanged. Earlier: `b9b9b64` (Session 118) — Nubeero logo applied to all four apps |
 
 ### Card Service (`card-service/`)
 

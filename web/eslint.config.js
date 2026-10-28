@@ -28,6 +28,10 @@ module.exports = defineConfig([
       '@typescript-eslint/no-empty-function': 'warn',
       // Allow explicit any in banking data structures (runtime API responses)
       '@typescript-eslint/no-explicit-any': 'warn',
+      // Components set plain properties inside RxJS subscribes, which only re-render
+      // under zone-based Eager change detection (see app.config.ts). Angular 22 defaults
+      // to OnPush, so every component sets ChangeDetectionStrategy.Eager on purpose.
+      '@angular-eslint/prefer-on-push-component-change-detection': 'off',
     },
   },
   {

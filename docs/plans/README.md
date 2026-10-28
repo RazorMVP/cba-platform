@@ -20,5 +20,7 @@ Every change that goes through plan mode has its approved plan kept here, one fi
 | 2026-10-21 | [Backlog 20 — card-service rate limiter on the verified caller](2026-10-21-backlog-20-card-rate-limit.md) | #189 | `c69b860` |
 | 2026-10-22 | [Backlog 15a — card clearing posts to the GL](2026-10-22-backlog-15a-card-clearing-gl.md) | #194 | `6bcd9d4` |
 | 2026-10-23 | [Backlog 15b — card interchange income, scheme fees and the scheme cash leg](2026-10-23-backlog-15b-card-interchange-settlement.md) | #195 | `88e9bf7` |
+| 2026-10-27 | [Merge #207 — web dependency security fix](2026-10-27-merge-207-web-deps.md) | #207 | `3a689ef` |
+| 2026-10-28 | [Docs sites — clear the 12 new Dependabot alerts](2026-10-28-docs-sites-deps.md) | open | — |
 
 **Not here:** work done without an approved plan, including the overdue fix (#150, `f3f22fe`) and everything before 2026-10-13. Plans from those sessions weren't kept. `cba-log.md` is the record for them.

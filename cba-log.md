@@ -57,6 +57,28 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 49) — 2026-10-28
+**Dependabot: the 12 alerts that opened after #207 cleared — 6 each in `docs-site/` and `partner-docs/` (both Docusaurus 3.10.2) — fixed in one PR. Plan: `docs/plans/2026-10-28-docs-sites-deps.md`. Supersedes Dependabot #199, #200, #201, #204, #205, #206. Also adds the approved "merge #207" plan to `docs/plans/` (#207 merged `3a689ef`, production deploy green).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `docs-site/package.json`, `partner-docs/package.json` | `overrides` `serialize-javascript` `^7.1.2` → `^7.1.3` |
+| `docs-site/package-lock.json`, `partner-docs/package-lock.json` | Only these move: `body-parser` 1.20.8 → 1.20.9 (high GHSA-27r3-jxmh-p828, via `express` `~1.20.3`), `fast-uri` 3.1.8 → 3.1.9 (2 medium + 2 low, via `ajv` `^3.0.1`), `serialize-javascript` 7.1.2 → 7.1.4 (low GHSA-m5mm-p8h7-m29v), `follow-redirects` 1.16.1 → 1.16.2 (via `http-proxy`; Dependabot PRs, no alert) |
+| `docs/plans/2026-10-27-merge-207-web-deps.md`, `docs/plans/2026-10-28-docs-sites-deps.md`, `docs/plans/README.md` | The two approved plans + index rows |
+| `CLAUDE.md` | Partner Docs rows: override floor, what moved, what remains |
+
+#### Key Patterns / Decisions
+- **Everything here runs at build or dev-server time**, not in the deployed static sites: `body-parser` is the local dev server (`docusaurus start`/`serve`), `fast-uri` schema validation, `serialize-javascript` the webpack copy/CSS-minimizer plugins.
+- `serialize-javascript` needed our own floor raised: it is held on v7 by our `overrides` (the plugins ask for `^6`), so Dependabot never offers a fix for it.
+- Lockfile moved with `npm install --package-lock-only` + `npm update body-parser fast-uri follow-redirects --package-lock-only` — no `npm audit fix` (it downgrades Docusaurus). The lockfile diff was checked package by package: exactly these four changed.
+- What's left: `deepmerge` 4.3.1 (low, GHSA-gcqx-w48m-w2h4, via `@svgr/plugin-svgo`) — already on `main`, 4.3.1 is the latest release, npm's only offer is the Docusaurus downgrade. The `braces` finding CLAUDE.md listed no longer appears.
+
+#### Build Verification
+- Both apps: plain `npm ci` ✅; `npm audit` 0 critical / high / moderate, 5 low (all the `deepmerge` chain) ✅
+- `npm run build` ✅; output vs a `main` build: **same file set** (docs-site 62 files, partner-docs 48) and **byte-identical CSS** (sha256)
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
 ### Session 125 (cont. 48) — 2026-10-26
 **Dependabot: all 13 open alerts on `main` cleared. 6 high `follow-redirects` 1.16.0 → 1.16.1 alerts closed by merging Dependabot #191 (partner-portal), #192 (docs-site), #193 (partner-docs). The 7 in `web/` (vite 7.3.6 ×3, `@modelcontextprotocol/sdk` 1.31.0 ×3, `@vitest/mocker` 4.1.11) cleared in one PR: `@angular/build`/`@angular/cli` ^21.2.28 (vite 7.3.7, MCP SDK 1.32.1), `vitest`/`@vitest/coverage-v8` ^4.1.12. Re-resolving also surfaced advisories not yet raised as alerts — high `undici` ≤ 7.30.0 (pinned exactly to 7.29.1 by `@angular/build` 21.2.28, the last v21; fixed upstream only in v22) and moderate `fast-uri`, `ip-address` — fixed with `overrides` (`undici@^7` → ^7.30.1, `undici@^6` → ^6.29.1) and an in-range lockfile update. Supersedes Dependabot #190, #157, #160, #158 (each fixed part of it, so the all-or-nothing audit gate failed them).**
 

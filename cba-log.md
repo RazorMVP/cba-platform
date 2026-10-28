@@ -57,6 +57,24 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 51) — 2026-10-29
+**Web lint: `@angular-eslint/prefer-on-push-component-change-detection` turned off, the follow-up #209 left open (user: "merge 209 and 1, let it go in a follow-up PR"). angular-eslint 22 enables it in `tsRecommended`, and it flagged all 95 components that set `ChangeDetectionStrategy.Eager` on purpose. Also marks the Angular 22 plan merged (#209 `0482f3c`).**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/eslint.config.js` | rule `off`, with a comment on why (plain-property updates in `subscribe()` need zone-based Eager detection). Edited by the user — the config-protection hook blocks Claude from editing linter configs |
+| `CLAUDE.md` | web Last git commit row; Angular Change Detection — the rule is off, so lint does not check that new components set Eager |
+| `docs/plans/2026-10-28-angular-22-upgrade.md`, `docs/plans/README.md` | status merged — #209, `0482f3c` |
+
+#### Key Patterns / Decisions
+- **Off, not inverted.** No angular-eslint rule requires Eager, so after this nothing in lint catches a new component that forgets it — the CLAUDE.md rule and code review are the guard. A CI check that greps for components without `ChangeDetectionStrategy.Eager` is possible if wanted (not built).
+
+#### Build Verification
+- `ng lint`: 70 problems (**7 errors**, 63 warnings) — the pre-existing set; `prefer-on-push` 0 hits (was 102 errors)
+- No source, test or build change — `ng test` / `ng build` not affected (only `eslint.config.js` changed)
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
 ### Session 125 (cont. 50) — 2026-10-28
 **Web app (`web/`) upgraded from Angular 21 to Angular 22 with no change in behaviour: Angular 22.2.3, CLI/build 22.2.5, TypeScript 6.0.3, keycloak-angular 22, angular-eslint 22.6.0, typescript-eslint 8.72.1, done with `ng update` and its migrations. The unused PrimeNG, primeicons, ng2-charts, chart.js, Angular Material/CDK and NgRx were removed (decision D1a). Plan: `docs/plans/2026-10-28-angular-22-upgrade.md`. Also marks the docs-sites plan merged (#208 `aa4bb86`).**
 

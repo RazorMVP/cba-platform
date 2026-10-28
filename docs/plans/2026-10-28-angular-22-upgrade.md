@@ -1,4 +1,4 @@
-> **Status:** open — PR pending. Approved 2026-10-28 in plan mode (user: "1 first then we do 2(plan an Angular 22 upgrade)"; D1a by default). Body verbatim.
+> **Status:** merged — PR #209, merge commit `0482f3c`. The lint rule it left on was turned off in the follow-up (cont. 51). Approved 2026-10-28 in plan mode (user: "1 first then we do 2(plan an Angular 22 upgrade)"; D1a by default). Body verbatim.
 
 # Upgrade the web app (`web/`) from Angular 21 to Angular 22
 

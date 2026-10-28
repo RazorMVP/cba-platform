@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AdminService, Office, CreateOfficeRequest } from './admin.service';
@@ -6,6 +6,7 @@ import { AdminService, Office, CreateOfficeRequest } from './admin.service';
 type ModalType = 'create' | 'edit' | null;
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-offices',
   standalone: true,
   imports: [CommonModule, FormsModule],

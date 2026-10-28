@@ -29,19 +29,19 @@ These are the verified-working versions for all production components. Update th
 
 | Component | Version | Notes |
 |-----------|---------|-------|
-| **Angular** | 21.2.25 | `@angular/core` + framework packages; floors `^21.2.25` (Session 125 cont. 23, security — router SSR DoS GHSA-ff3f-86qr-9cv3; was `^21.2.23` since Session 124) |
-| **Angular CLI / @angular/build** | 21.2.28 | Used for `vercel build --prod` (CI); `^21.2.28` (cont. 48 — vite 7.3.7, `@modelcontextprotocol/sdk` 1.32.1; cont. 23 cleared critical `piscina` GHSA-67c8-pqhq-4rmx and high `@modelcontextprotocol/sdk`, `http-cache-semantics`, `source-map-js`). **21.2.28 pins `undici` 7.29.1 exactly** (high GHSA-4qv8-2p9j-2685 and others; Angular's fix is only in v22), so `web/package.json` `overrides` forces `undici@^7` → `^7.30.1` and `undici@^6` (node-gyp via the CLI) → `^6.29.1`. **Drop both overrides when moving to an `@angular/build` that ships a fixed undici** |
-| **Angular Material / CDK** | 21.2.14 | `^21.2.14` |
-| **PrimeNG** | 21.1.10 | UI component library |
+| **Angular** | 22.2.3 | `@angular/core` + framework packages; floors `^22.2.3` (cont. 50, Angular 21 → 22 via `ng update` and its migrations). Earlier floors: `^21.2.25` (cont. 23, router SSR DoS GHSA-ff3f-86qr-9cv3) |
+| **Angular CLI / @angular/build** | 22.2.5 | Used for `vercel build --prod` (CI); `^22.2.5` (cont. 50). Brings vite 8.3.5; no longer depends on `undici` or `@modelcontextprotocol/sdk`. `web/package.json` `overrides` keeps one entry, `undici@^7` → `^7.30.1`, for `jsdom` 28 (`undici ^7.21`); the `undici@^6` entry (node-gyp via CLI 21) was dropped. History: cont. 48 pinned undici for 21.2.28's exact 7.29.1 (GHSA-4qv8-2p9j-2685); cont. 23 cleared critical `piscina` |
+| **Angular Material / CDK** | removed | cont. 50 — installed but never imported; removed with PrimeNG, ng2-charts/chart.js and NgRx (also unused; NgRx was only an empty `provideStore({})`). Re-add with `npm install` if a screen needs one |
+| **PrimeNG** | removed | cont. 50 — never imported (no `primeng/*` imports, no theme provider). See the row above |
 | **RxJS** | 7.8.x | Reactive extensions; `~7.8.0` pinned |
-| **TypeScript** | 5.9.3 | `~5.9.2` pinned |
+| **TypeScript** | 6.0.3 | `~6.0.3` (cont. 50) — Angular 22 requires `>=6.0 <6.1`. `typescript-eslint` 8.72.1 (8.56 capped TS at `<6.0`); `angular-eslint` 22.6.0. TS 6 defaults `types: []` — `tsconfig.app.json` already sets it, the spec config lists `vitest/globals` |
 | **zone.js** | 0.16.3 | **REQUIRED** — zone-based CD; see "Angular Change Detection" below. Bumped S124, browser-verified |
-| **Vitest / @vitest/coverage-v8** | 4.1.12 | Angular 21 default test runner (replaced Karma); 1170 unit tests (all components+services). **Same lockfile trap as partner-portal (cont. 48):** any resolve that moves Vitest 4.1.x crashes npm 10.9 with `Cannot read properties of null (reading 'edgesOut')` — even a targeted `npm install -D`. Write the lockfile with `npm install --package-lock-only --legacy-peer-deps …`, then run a plain `npm install --package-lock-only` (the first pass leaves out peers such as `@emnapi/*`, and `npm ci` refuses the lockfile until they're added), then prove it with a plain `npm ci` |
+| **Vitest / @vitest/coverage-v8** | 4.1.12 | Angular 21/22 default test runner (replaced Karma); 1170 unit tests (all components+services). **Same lockfile trap as partner-portal (cont. 48):** any resolve that moves Vitest 4.1.x crashes npm 10.9 with `Cannot read properties of null (reading 'edgesOut')` — even a targeted `npm install -D`. Write the lockfile with `npm install --package-lock-only --legacy-peer-deps …`, then run a plain `npm install --package-lock-only` (the first pass leaves out peers such as `@emnapi/*`, and `npm ci` refuses the lockfile until they're added), then prove it with a plain `npm ci` |
 | **@playwright/test** | 1.61.1 | E2E (cont. 14) — `npm run e2e`; 5 deployed-shell smoke tests vs `BASE_URL` (prod alias default) |
 | **npm audit (high+)** | **0 vulnerabilities** (0 at any level, cont. 48) | Session 124 — was 1 critical + 18 high, which was failing CI's `security` job and blocking all deploys. cont. 48 cleared 7 Dependabot alerts + new `undici`/`fast-uri`/`ip-address` advisories in one PR (Dependabot's per-group PRs #190/#157/#160/#158 couldn't pass the gate alone) |
-| **Node (local dev)** | v24.14.0 | Satisfies Angular 21's `>=24.0.0`. **Below the Angular CLI v22 floor of v24.15.0** — an Angular 22 upgrade needs a local Node bump. CI uses Node 22.x |
+| **Node (local dev)** | v22.23.3 | Angular 22 needs `^22.22.3 \|\| ^24.15.0 \|\| >=26`; local and CI (Node `'22'`) both qualify. (Until cont. 50 this row said CLI v22 needed Node ≥ 24.15 — the 22.x line is also supported) |
 | **Vercel deployment** | `cba-2lq213thc-razormvps-projects.vercel.app` | Production alias: `cba-web-nine.vercel.app` |
-| **Last git commit** | Session 125 cont. 48 | cont. 48 — toolchain security bump: `@angular/build`/`@angular/cli` 21.2.28, Vitest 4.1.12, `undici` overrides; `npm audit` 0; 1170 tests, production build green. Earlier: Session 124 — Angular 21.2.x latest-patch security bump; cleared 1 critical + 18 high npm advisories that had been failing the CI `security` gate and **blocking the S122/123 CORS + zone.js fixes from ever deploying**. (`0f4ac0b`: Playwright E2E setup; cont. 12: component coverage COMPLETE) |
+| **Last git commit** | Session 125 cont. 50 | cont. 50 — Angular 21 → 22.2.3 / CLI 22.2.5 / TypeScript 6.0.3 / keycloak-angular 22 via `ng update` (migrations: `ChangeDetectionStrategy.Eager` on all 95 components, `withXhr()`, 4 `$safeNavigationMigration()` wraps, NG8102/NG8107 suppressed); unused PrimeNG, Material/CDK, ng2-charts and NgRx removed; 1170 tests, production build, browser check green. Earlier: cont. 48 — `@angular/build`/`cli` 21.2.28, Vitest 4.1.12, `undici` overrides. Session 124 — Angular 21.2.x latest-patch security bump that unblocked the CI `security` gate |
 
 ### Partner Portal (`partner-portal/`)
 
@@ -215,11 +215,10 @@ fineract-cob            — Close of Business batch processing
 
 ### Web Frontend — Angular 17+ (Production Frontend)
 - Standalone components (`--standalone`)
-- Angular Material + PrimeNG for UI components
-- NGRx for state management
+- Own design-system SCSS (`assets/styles/_design-system.scss`) for UI components — Angular Material, PrimeNG, NgRx and ng2-charts were installed but never used, and were removed in cont. 50
+- Component state is plain properties set in RxJS `subscribe()`s under zone-based change detection (see "Angular Change Detection")
 - keycloak-angular for OIDC
-- Lazy-loaded feature modules with resolvers (see `openMF/web-app` for patterns)
-- Chart.js / ng2-charts for dashboards
+- Lazy-loaded feature routes (`loadChildren` / `loadComponent`)
 
 ### Mobile Frontend — Flutter 3+ ❌ NOT YET BUILT (Phase 3)
 
@@ -2823,6 +2822,8 @@ Products lists are not server-paginated (small datasets); Customers list uses `s
 
 - `web/package.json` includes `zone.js`; `web/angular.json` build options set `"polyfills": ["zone.js"]`; `web/src/app/app.config.ts` calls **`provideZoneChangeDetection({ eventCoalescing: true })`** as the first provider.
 - **Angular 21 defaults to ZONELESS even when zone.js is loaded.** The polyfill alone is a no-op — `window.Zone` loads but the app stays in the `<root>` zone, HTTP responses don't trigger CD, and every data screen freezes on its initial (skeleton/empty) render until a stray user event forces a pass. `provideZoneChangeDetection()` is what actually switches it on.
+- **Angular 22 defaults components to `OnPush`** _(cont. 50)_. The `ng update` migration `change-detection-eager` set `changeDetection: ChangeDetectionStrategy.Eager` on all 95 components; **every new component must set it too** (`ng generate component` doesn't), or its plain-property updates never render. The angular-eslint 22 rule `prefer-on-push-component-change-detection` flags these 95 as errors (lint is report-only in CI)
+- `provideHttpClient(withXhr(), …)` _(cont. 50, migration `http-xhr-backend`)_ keeps the XMLHttpRequest backend, which zone.js patches — the browser probe below relies on it
 - Do NOT remove zone.js, drop the polyfill, or delete the provider unless you also migrate every component to signals / async pipe / `markForCheck`. Removing any one silently breaks all data screens (they render only after an interaction) with **no console error** — a browser-only failure curl and unit tests can't catch.
 - Symptom to recognize: request returns 200 with a readable body, view stuck on skeleton, no error → change-detection miss, not a network bug. Confirm with a headless-browser probe: `window.Zone.current.name` should be `angular` (in the Angular zone), and an interaction-then-recount reveals already-loaded data.
 
@@ -2844,7 +2845,7 @@ The `web/` npm audit gate in `web-ci.yml` (`security` job → `npm audit --audit
 |------|--------------|------------|
 | `npm audit fix` | **Cannot bump direct dependencies.** Loops indefinitely printing "fix available via `npm audit fix`" while changing nothing. Fine for transitives only. | Edit `package.json` floors explicitly |
 | `npm install @angular/core@X` | **ERESOLVE.** Angular packages peer-depend on each other at **exact patch versions** (`peerOptional @angular/animations@"21.2.8" from @angular/platform-browser@21.2.8`), so partial upgrades are structurally impossible; npm reconciles against the stale installed tree and gives up | Update **all** `@angular/*` atomically, then delete the lockfile and re-resolve. **Never** `--force` / `--legacy-peer-deps` — both accept a knowingly-broken tree |
-| `ng update @angular/core@^21` | Downloads the **latest** CLI (v22) to perform *any* update; CLI v22 requires Node ≥ v24.15.0 and local is v24.14.0 → hard-fails before doing anything. The temp CLI is pointless when staying on v21 | Manifest edit + clean re-resolve |
+| `ng update @angular/core@^21` | Downloads the **latest** CLI to perform *any* update, which is pointless when staying on the current major. (The cont. 23 note that CLI v22 needs Node ≥ 24.15 was wrong: it accepts `^22.22.3` too) | Within a major: manifest edit + clean re-resolve. **Across a major: `ng update` — it runs the migrations** (cont. 50: Angular 22's `change-detection-eager` is what keeps the app rendering). Pass every package with a conflicting peer in the same call (`ng update @angular/core@22 @angular/cli@22 angular-eslint@22 keycloak-angular@22 typescript-eslint@8.72.1`) rather than `--force`. The migrations run prettier over every file they touch (the repo has a `.prettierrc` the code was never formatted with) — cont. 50 re-applied only their semantic edits to keep the diff reviewable |
 
 - **Raise declared floors, don't just move the lockfile.** With `^21.2.0` left in place, a future regenerated lockfile can legally resolve back to vulnerable 21.2.8. The floor is what makes the fix durable.
 - **`ng update --dry-run` does not exist in Angular CLI 21** (it appears in the old GitHub wiki). Supported: `--force`, `--next`, `--migrate-only`, `--name`, `--from`, `--to`, `--allow-dirty`, `--verbose`, `-C/--create-commits`.

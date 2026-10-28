@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AccountingService, GlClosure } from './accounting.service';
@@ -6,6 +6,7 @@ import { AdminService } from '../admin/admin.service';
 import type { Office } from '../admin/admin.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-gl-closures',
   standalone: true,
   imports: [CommonModule, FormsModule, DatePipe],

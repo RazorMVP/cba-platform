@@ -1,10 +1,11 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule, CurrencyPipe, DatePipe, PercentPipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge';
 import { LoanService, Loan, RepaymentInstallment, isOverdue, stillOwed, installmentDisplayStatus } from './loan.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-loans-list',
   standalone: true,
   imports: [CommonModule, RouterLink, StatusBadgeComponent, CurrencyPipe, DatePipe, PercentPipe],

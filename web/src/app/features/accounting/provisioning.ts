@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -27,6 +27,7 @@ const DEFAULT_DEFINITIONS: ProvisioningDefinition[] = [
 type ModalType = 'create' | 'edit' | 'delete' | null;
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-provisioning',
   standalone: true,
   imports: [CommonModule, FormsModule],

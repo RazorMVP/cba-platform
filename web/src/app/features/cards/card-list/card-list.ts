@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -6,6 +6,7 @@ import { CardsService, Card, CardType, CardStatus, IssueCardRequest } from '../c
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-card-list',
   standalone: true,
   imports: [CommonModule, RouterLink, FormsModule, StatusBadgeComponent],

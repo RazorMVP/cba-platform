@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -8,6 +8,7 @@ import { StatusBadgeComponent } from '../../../shared/components/status-badge/st
 type V = 'success' | 'warning' | 'error' | 'info' | 'neutral' | 'primary';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-card-detail',
   standalone: true,
   imports: [CommonModule, FormsModule, StatusBadgeComponent],

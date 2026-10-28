@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AdminService, AuditLog, AuditFilter } from './admin.service';
@@ -10,6 +10,7 @@ const ENTITY_TYPES = [
 ];
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-audit-log',
   standalone: true,
   imports: [CommonModule, FormsModule, DatePipe],

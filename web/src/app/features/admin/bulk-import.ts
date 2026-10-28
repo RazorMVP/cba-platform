@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AdminService, BulkImportResult, BulkImportJob } from './admin.service';
@@ -6,6 +6,7 @@ import { AdminService, BulkImportResult, BulkImportJob } from './admin.service';
 type EntityType = 'CUSTOMERS' | 'LOANS';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-bulk-import',
   standalone: true,
   imports: [CommonModule, FormsModule],

@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -10,6 +10,7 @@ import {
 type Tab = 'members' | 'collection-sheet' | 'glim' | 'staff';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-group-detail',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, StatusBadgeComponent],

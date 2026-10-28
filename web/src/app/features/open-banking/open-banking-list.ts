@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -6,6 +6,7 @@ import { StatusBadgeComponent } from '../../shared/components/status-badge/statu
 import { OpenBankingService, Consent, ConsentType, ConsentStatus } from './open-banking.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-open-banking-list',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, StatusBadgeComponent],

@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -6,6 +6,7 @@ import { StatusBadgeComponent } from '../../../../shared/components/status-badge
 import { PaymentService, Payment } from '../payment.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-payment-detail',
   standalone: true,
   imports: [CommonModule, RouterLink, FormsModule, StatusBadgeComponent],

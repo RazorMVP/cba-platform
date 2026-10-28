@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { KpiCardComponent } from '../../../shared/components/kpi-card/kpi-card';
@@ -8,6 +8,7 @@ import { DashboardService, DashboardKpi, LoanPortfolioItem, RecentTransaction, K
 const AVATAR_COLORS = ['#3b82f6','#16a34a','#7c3aed','#ea580c','#db2777','#0891b2'];
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-dashboard',
   standalone: true,
   imports: [CommonModule, RouterLink, KpiCardComponent, StatusBadgeComponent, CurrencyPipe, DatePipe],

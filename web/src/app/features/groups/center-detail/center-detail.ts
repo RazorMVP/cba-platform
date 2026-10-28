@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge';
@@ -7,6 +7,7 @@ import { GroupsService, Center, Group, GroupMember } from '../groups.service';
 type Tab = 'groups' | 'members';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-center-detail',
   standalone: true,
   imports: [CommonModule, RouterLink, StatusBadgeComponent],

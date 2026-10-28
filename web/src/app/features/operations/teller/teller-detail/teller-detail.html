@@ -446,7 +446,7 @@
         <div class="settle-preview">
           <div class="settle-row">
             <span>Opening Float</span>
-            <span>{{ selectedSession?.openingBalance | number:'1.2-2' }} {{ selectedSession?.currencyCode }}</span>
+            <span>{{ $safeNavigationMigration(selectedSession?.openingBalance) | number:'1.2-2' }} {{ selectedSession?.currencyCode }}</span>
           </div>
           <div class="settle-row">
             <span>Running Balance</span>

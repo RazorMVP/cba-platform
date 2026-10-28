@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject } from 'rxjs';
@@ -16,6 +16,7 @@ type ActiveTab = 'position' | 'cashflow' | 'reserves' | 'history';
 type ActiveModal = 'createReserve' | 'editReserve' | 'deleteReserve' | 'snapshot' | null;
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-treasury-liquidity',
   standalone: true,
   imports: [CommonModule, FormsModule],

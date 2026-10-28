@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CardsService, ApiKey, IssueApiKeyRequest, IssueApiKeyResponse } from '../cards.service';
@@ -15,6 +15,7 @@ const TIER_LABELS: Record<Tier, string> = {
 };
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-api-keys',
   standalone: true,
   imports: [CommonModule, FormsModule],

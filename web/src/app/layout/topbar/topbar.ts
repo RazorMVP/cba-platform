@@ -1,9 +1,10 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import Keycloak from 'keycloak-js';
 import { NotificationBellComponent } from '../notification-bell/notification-bell';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-topbar',
   standalone: true,
   imports: [CommonModule, NotificationBellComponent],

@@ -31,16 +31,6 @@ html, body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: $radius-full; }
 
-// Angular Material theme overrides
-.mat-mdc-button, .mat-mdc-raised-button {
-  font-family: $font-primary !important;
-  font-weight: $font-weight-semibold !important;
-  border-radius: $radius-full !important;
-}
-
-// PrimeNG resets
-.p-component { font-family: $font-primary; }
-
 // ─────────────────────────────────────────────────────────────────────────────
 // UTILITY CLASSES
 // ─────────────────────────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ReportService, ReportMailingJob, ReportMailingRequest, MailingOutputType, Report } from './report.service';
@@ -13,6 +13,7 @@ const RRULE_PRESETS = [
 ];
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-report-mailing',
   standalone: true,
   imports: [CommonModule, FormsModule],

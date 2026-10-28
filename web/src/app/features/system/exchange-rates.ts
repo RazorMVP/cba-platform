@@ -1,10 +1,11 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SystemService, ExchangeRateResponse, ExchangeRateRequest } from './system.service';
 import { StatusBadgeComponent } from '../../shared/components/status-badge/status-badge';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-exchange-rates',
   standalone: true,
   imports: [CommonModule, FormsModule, StatusBadgeComponent],

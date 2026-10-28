@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
@@ -38,6 +38,7 @@ const TIME_TYPES_BY_APPLIES: Record<ChargeAppliesTo, ChargeTimeType[]> = {
 };
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-charges',
   standalone: true,
   imports: [CommonModule, FormsModule, StatusBadgeComponent],

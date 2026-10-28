@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SystemService, TenantAlgorithmConfig, UpdateAlgorithmConfigRequest } from './system.service';
@@ -9,6 +9,7 @@ const ALGORITHMS    = ['MIFOS', 'NUBAN'] as const;
 const VALIDATION_MODES = ['STRICT', 'PARANOID'] as const;
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-account-algorithms',
   standalone: true,
   imports: [CommonModule, FormsModule],

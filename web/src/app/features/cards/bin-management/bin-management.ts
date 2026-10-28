@@ -1,10 +1,11 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CardsService, BinRange, BinRangeRequest, SchemeType, CardType } from '../cards.service';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-bin-management',
   standalone: true,
   imports: [CommonModule, FormsModule, StatusBadgeComponent],

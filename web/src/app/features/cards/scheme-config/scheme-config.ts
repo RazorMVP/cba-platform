@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 interface SchemeInfo {
@@ -14,6 +14,7 @@ interface SchemeInfo {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-scheme-config',
   standalone: true,
   imports: [CommonModule],

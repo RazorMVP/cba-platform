@@ -142,8 +142,8 @@
       <div class="modal__body">
         <p class="confirm-text">
           This will post an equal and opposite journal entry for transaction
-          <strong class="mono">{{ reverseGroup?.transactionId | slice:0:8 }}…</strong>
-          dated <strong>{{ reverseGroup?.entryDate | date:'mediumDate' }}</strong>.
+          <strong class="mono">{{ $safeNavigationMigration(reverseGroup?.transactionId) | slice:0:8 }}…</strong>
+          dated <strong>{{ $safeNavigationMigration(reverseGroup?.entryDate) | date:'mediumDate' }}</strong>.
           This action cannot be undone.
         </p>
         @if (reverseError) {

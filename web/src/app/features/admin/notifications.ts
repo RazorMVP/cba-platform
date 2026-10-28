@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AdminService, NotificationTemplate, NotificationLog, CreateTemplateRequest } from './admin.service';
@@ -8,6 +8,7 @@ import { NotificationBellService, InAppNotification } from '../../layout/notific
 type Tab = 'templates' | 'history' | 'feed';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-notifications',
   standalone: true,
   imports: [CommonModule, FormsModule, StatusBadgeComponent],

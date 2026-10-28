@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -9,6 +9,7 @@ import { AdminService } from '../admin/admin.service';
 type ModalType = 'create' | null;
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-groups-list',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, StatusBadgeComponent],

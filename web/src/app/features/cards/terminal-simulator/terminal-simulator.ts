@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CardsService, SimulateRequest, SimulateResponse, EntryMode } from '../cards.service';
@@ -6,6 +6,7 @@ import { CardsService, SimulateRequest, SimulateResponse, EntryMode } from '../c
 type TxnType = 'purchase' | 'withdrawal' | 'balance' | 'reversal' | 'signon' | 'echo';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-terminal-simulator',
   standalone: true,
   imports: [CommonModule, FormsModule],

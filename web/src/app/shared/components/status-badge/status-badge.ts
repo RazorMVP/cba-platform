@@ -1,9 +1,10 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 export type BadgeVariant = 'success' | 'warning' | 'error' | 'info' | 'neutral' | 'primary';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-status-badge',
   standalone: true,
   imports: [CommonModule],

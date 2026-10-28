@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { CardsService, SettlementBatch, SettlementTransmission, BatchStatus } from '../cards.service';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge';
@@ -6,6 +6,7 @@ import { StatusBadgeComponent } from '../../../shared/components/status-badge/st
 type V = 'success' | 'warning' | 'error' | 'info' | 'neutral' | 'primary';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-settlement',
   standalone: true,
   imports: [CommonModule, StatusBadgeComponent],

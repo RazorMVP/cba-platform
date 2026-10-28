@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -12,6 +12,7 @@ type ActiveTab = 'overview' | 'cashiers' | 'sessions';
 type ModalType = 'open-session' | 'settle' | 'cash-txn' | 'activate' | 'close-teller' | 'assign-cashier' | null;
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-teller-detail',
   standalone: true,
   imports: [CommonModule, RouterLink, FormsModule, StatusBadgeComponent],

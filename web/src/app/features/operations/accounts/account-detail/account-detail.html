@@ -887,7 +887,7 @@
       <div class="modal__body">
         <p class="confirm-text">
           Release the hold of
-          <strong>{{ holdToRelease?.amount | number:'1.2-2' }} {{ account?.currencyCode }}</strong>
+          <strong>{{ $safeNavigationMigration(holdToRelease?.amount) | number:'1.2-2' }} {{ account?.currencyCode }}</strong>
           for <em>"{{ holdToRelease?.reason }}"</em>?
           Funds will be returned to the available balance immediately.
         </p>

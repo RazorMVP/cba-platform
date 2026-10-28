@@ -1,4 +1,4 @@
-import { Component, inject, OnDestroy, OnInit } from '@angular/core';
+import { Component, inject, OnDestroy, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -13,6 +13,7 @@ type ModalType = 'transfer' | 'standing-order' | 'external' | null;
 type TransferStep = 1 | 2 | 3;   // 1=accounts, 2=amount+desc, 3=confirm
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.Eager,
   selector: 'app-payments-list',
   standalone: true,
   imports: [CommonModule, RouterLink, FormsModule, StatusBadgeComponent],

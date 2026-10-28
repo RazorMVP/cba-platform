@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
 import { Router } from '@angular/router';
 import Keycloak from 'keycloak-js';
 import { environment } from '../../../environments/environment';
@@ -7,6 +7,7 @@ import { environment } from '../../../environments/environment';
   selector: 'app-login',
   standalone: true,
   templateUrl: './login.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './login.scss',
 })
 export class LoginComponent {

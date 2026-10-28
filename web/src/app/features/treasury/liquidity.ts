@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject } from 'rxjs';
@@ -20,6 +20,7 @@ type ActiveModal = 'createReserve' | 'editReserve' | 'deleteReserve' | 'snapshot
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './liquidity.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './liquidity.scss',
 })
 export class TreasuryLiquidityComponent implements OnInit, OnDestroy {
@@ -76,29 +77,37 @@ export class TreasuryLiquidityComponent implements OnInit, OnDestroy {
 
   loadPositions(): void {
     this.loadingPositions = true;
-    this.svc.getLiquidityPositions().pipe(takeUntil(this.destroy$)).subscribe({
-      next: (data) => { this.positions = data; this.loadingPositions = false; },
-      error: () => { this.loadingPositions = false; },
-    });
+    this.svc
+      .getLiquidityPositions()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (data) => {
+          this.positions = data;
+          this.loadingPositions = false;
+        },
+        error: () => {
+          this.loadingPositions = false;
+        },
+      });
   }
 
   get selectedPosition(): LiquidityPosition | undefined {
-    return this.positions.find(p => p.currency === this.selectedCurrency);
+    return this.positions.find((p) => p.currency === this.selectedCurrency);
   }
 
   get currenciesAvailable(): string[] {
-    return this.positions.map(p => p.currency);
+    return this.positions.map((p) => p.currency);
   }
 
   alertClass(level: string): string {
     if (level === 'BREACH') return 'alert-breach';
-    if (level === 'WARN')   return 'alert-warn';
+    if (level === 'WARN') return 'alert-warn';
     return 'alert-ok';
   }
 
   alertLabel(level: string): string {
     if (level === 'BREACH') return 'Below Reserve';
-    if (level === 'WARN')   return 'Near Threshold';
+    if (level === 'WARN') return 'Near Threshold';
     return 'Adequate';
   }
 
@@ -106,26 +115,33 @@ export class TreasuryLiquidityComponent implements OnInit, OnDestroy {
 
   loadCashFlow(): void {
     this.loadingCashFlow = true;
-    this.svc.getCashFlowForecast(this.selectedCurrency, this.forecastDays)
-      .pipe(takeUntil(this.destroy$)).subscribe({
-        next: (data) => { this.cashFlow = data; this.loadingCashFlow = false; },
-        error: () => { this.loadingCashFlow = false; },
+    this.svc
+      .getCashFlowForecast(this.selectedCurrency, this.forecastDays)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (data) => {
+          this.cashFlow = data;
+          this.loadingCashFlow = false;
+        },
+        error: () => {
+          this.loadingCashFlow = false;
+        },
       });
   }
 
   cashFlowInflows(): number {
-    return this.cashFlow.filter(e => e.direction === 'INFLOW').reduce((s, e) => s + e.amount, 0);
+    return this.cashFlow.filter((e) => e.direction === 'INFLOW').reduce((s, e) => s + e.amount, 0);
   }
 
   cashFlowOutflows(): number {
-    return this.cashFlow.filter(e => e.direction === 'OUTFLOW').reduce((s, e) => s + e.amount, 0);
+    return this.cashFlow.filter((e) => e.direction === 'OUTFLOW').reduce((s, e) => s + e.amount, 0);
   }
 
   typeLabel(type: string): string {
     const map: Record<string, string> = {
-      PLACEMENT_MATURITY:  'Placement Maturity',
+      PLACEMENT_MATURITY: 'Placement Maturity',
       INTERBANK_REPAYMENT: 'Interbank Repayment',
-      LOAN_REPAYMENT:      'Loan Repayment',
+      LOAN_REPAYMENT: 'Loan Repayment',
     };
     return map[type] ?? type;
   }
@@ -134,10 +150,18 @@ export class TreasuryLiquidityComponent implements OnInit, OnDestroy {
 
   loadReserves(): void {
     this.loadingReserves = true;
-    this.svc.listReserveRequirements().pipe(takeUntil(this.destroy$)).subscribe({
-      next: (data) => { this.reserves = data; this.loadingReserves = false; },
-      error: () => { this.loadingReserves = false; },
-    });
+    this.svc
+      .listReserveRequirements()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (data) => {
+          this.reserves = data;
+          this.loadingReserves = false;
+        },
+        error: () => {
+          this.loadingReserves = false;
+        },
+      });
   }
 
   openCreateReserve(): void {
@@ -149,11 +173,11 @@ export class TreasuryLiquidityComponent implements OnInit, OnDestroy {
   openEditReserve(r: ReserveRequirement): void {
     this.editingReserve = r;
     this.reserveForm = {
-      currencyCode:           r.currencyCode,
-      minimumBalance:         r.minimumBalance,
-      minimumRatioPercent:    r.minimumRatioPercent,
-      alertThresholdPercent:  r.alertThresholdPercent,
-      regulatoryReference:    r.regulatoryReference,
+      currencyCode: r.currencyCode,
+      minimumBalance: r.minimumBalance,
+      minimumRatioPercent: r.minimumRatioPercent,
+      alertThresholdPercent: r.alertThresholdPercent,
+      regulatoryReference: r.regulatoryReference,
     };
     this.activeModal = 'editReserve';
   }
@@ -169,16 +193,27 @@ export class TreasuryLiquidityComponent implements OnInit, OnDestroy {
       ? this.svc.updateReserveRequirement(this.editingReserve.id, this.reserveForm)
       : this.svc.createReserveRequirement(this.reserveForm);
     obs.pipe(takeUntil(this.destroy$)).subscribe({
-      next: () => { this.activeModal = null; this.savingReserve = false; this.loadReserves(); },
-      error: () => { this.savingReserve = false; },
+      next: () => {
+        this.activeModal = null;
+        this.savingReserve = false;
+        this.loadReserves();
+      },
+      error: () => {
+        this.savingReserve = false;
+      },
     });
   }
 
   confirmDeleteReserve(): void {
     if (!this.deletingReserve) return;
-    this.svc.deleteReserveRequirement(this.deletingReserve.id)
-      .pipe(takeUntil(this.destroy$)).subscribe({
-        next: () => { this.activeModal = null; this.loadReserves(); },
+    this.svc
+      .deleteReserveRequirement(this.deletingReserve.id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.activeModal = null;
+          this.loadReserves();
+        },
       });
   }
 
@@ -186,32 +221,50 @@ export class TreasuryLiquidityComponent implements OnInit, OnDestroy {
 
   loadSnapshots(): void {
     this.loadingSnapshots = true;
-    this.svc.getLiquiditySnapshots(this.snapshotCurrency)
-      .pipe(takeUntil(this.destroy$)).subscribe({
-        next: (data) => { this.snapshots = data; this.loadingSnapshots = false; },
-        error: () => { this.loadingSnapshots = false; },
+    this.svc
+      .getLiquiditySnapshots(this.snapshotCurrency)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (data) => {
+          this.snapshots = data;
+          this.loadingSnapshots = false;
+        },
+        error: () => {
+          this.loadingSnapshots = false;
+        },
       });
   }
 
   triggerSnapshot(): void {
     this.takingSnapshot = true;
-    this.svc.takeSnapshot().pipe(takeUntil(this.destroy$)).subscribe({
-      next: () => {
-        this.takingSnapshot = false;
-        this.activeModal = null;
-        if (this.activeTab === 'history') this.loadSnapshots();
-      },
-      error: () => { this.takingSnapshot = false; },
-    });
+    this.svc
+      .takeSnapshot()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.takingSnapshot = false;
+          this.activeModal = null;
+          if (this.activeTab === 'history') this.loadSnapshots();
+        },
+        error: () => {
+          this.takingSnapshot = false;
+        },
+      });
   }
 
   // ── Shared ───────────────────────────────────────────────────────────────────
 
-  closeModal(): void { this.activeModal = null; }
+  closeModal(): void {
+    this.activeModal = null;
+  }
 
   fmt(n: number | undefined, ccy = 'USD'): string {
     if (n == null) return '—';
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: ccy, maximumFractionDigits: 0 }).format(n);
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: ccy,
+      maximumFractionDigits: 0,
+    }).format(n);
   }
 
   pct(part: number, total: number): string {

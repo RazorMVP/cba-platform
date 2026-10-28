@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
@@ -9,6 +9,7 @@ import { TreasuryService, TreasuryInterbankPosition, InterbankRequest } from './
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './interbank.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './interbank.scss',
 })
 export class TreasuryInterbankComponent implements OnInit, OnDestroy {
@@ -56,10 +57,19 @@ export class TreasuryInterbankComponent implements OnInit, OnDestroy {
   load(): void {
     this.loading = true;
     this.error = '';
-    this.svc.listPositions().pipe(takeUntil(this.destroy$)).subscribe({
-      next: p => { this.positions = p; this.loading = false; },
-      error: e => { this.error = e?.error?.errors?.[0]?.message ?? 'Failed to load positions'; this.loading = false; },
-    });
+    this.svc
+      .listPositions()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (p) => {
+          this.positions = p;
+          this.loading = false;
+        },
+        error: (e) => {
+          this.error = e?.error?.errors?.[0]?.message ?? 'Failed to load positions';
+          this.loading = false;
+        },
+      });
   }
 
   openCreate(): void {
@@ -106,7 +116,13 @@ export class TreasuryInterbankComponent implements OnInit, OnDestroy {
   }
 
   submitModal(): void {
-    if (!this.formReference || !this.formCounterparty || !this.formAmount || !this.formRate || !this.formStartDate) {
+    if (
+      !this.formReference ||
+      !this.formCounterparty ||
+      !this.formAmount ||
+      !this.formRate ||
+      !this.formStartDate
+    ) {
       this.modalError = 'Please fill in all required fields.';
       return;
     }
@@ -124,33 +140,65 @@ export class TreasuryInterbankComponent implements OnInit, OnDestroy {
     };
     this.modalWorking = true;
     this.modalError = '';
-    const obs = this.activeModal === 'create'
-      ? this.svc.createPosition(req)
-      : this.svc.updatePosition(this.editingId, req);
+    const obs =
+      this.activeModal === 'create'
+        ? this.svc.createPosition(req)
+        : this.svc.updatePosition(this.editingId, req);
     obs.pipe(takeUntil(this.destroy$)).subscribe({
-      next: () => { this.activeModal = null; this.modalWorking = false; this.load(); },
-      error: e => { this.modalError = e?.error?.errors?.[0]?.message ?? 'Save failed'; this.modalWorking = false; },
+      next: () => {
+        this.activeModal = null;
+        this.modalWorking = false;
+        this.load();
+      },
+      error: (e) => {
+        this.modalError = e?.error?.errors?.[0]?.message ?? 'Save failed';
+        this.modalWorking = false;
+      },
     });
   }
 
   submitDelete(): void {
     this.modalWorking = true;
-    this.svc.deletePosition(this.deletingId).pipe(takeUntil(this.destroy$)).subscribe({
-      next: () => { this.activeModal = null; this.modalWorking = false; this.load(); },
-      error: e => { this.modalError = e?.error?.errors?.[0]?.message ?? 'Delete failed'; this.modalWorking = false; },
-    });
+    this.svc
+      .deletePosition(this.deletingId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.activeModal = null;
+          this.modalWorking = false;
+          this.load();
+        },
+        error: (e) => {
+          this.modalError = e?.error?.errors?.[0]?.message ?? 'Delete failed';
+          this.modalWorking = false;
+        },
+      });
   }
 
   submitCommand(): void {
     this.modalWorking = true;
-    this.svc.commandPosition(this.commandId, this.commandVerb).pipe(takeUntil(this.destroy$)).subscribe({
-      next: () => { this.activeModal = null; this.modalWorking = false; this.load(); },
-      error: e => { this.modalError = e?.error?.errors?.[0]?.message ?? 'Command failed'; this.modalWorking = false; },
-    });
+    this.svc
+      .commandPosition(this.commandId, this.commandVerb)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.activeModal = null;
+          this.modalWorking = false;
+          this.load();
+        },
+        error: (e) => {
+          this.modalError = e?.error?.errors?.[0]?.message ?? 'Command failed';
+          this.modalWorking = false;
+        },
+      });
   }
 
   availableCommands(pos: TreasuryInterbankPosition): { label: string; cmd: string }[] {
-    if (pos.status === 'ACTIVE') return [{ label: 'Settle', cmd: 'settle' }, { label: 'Cancel', cmd: 'cancel' }];
+    if (pos.status === 'ACTIVE')
+      return [
+        { label: 'Settle', cmd: 'settle' },
+        { label: 'Cancel', cmd: 'cancel' },
+      ];
     return [];
   }
 
@@ -163,7 +211,11 @@ export class TreasuryInterbankComponent implements OnInit, OnDestroy {
   }
 
   formatAmount(n: number, ccy: string): string {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: ccy, maximumFractionDigits: 2 }).format(n);
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: ccy,
+      maximumFractionDigits: 2,
+    }).format(n);
   }
 
   private resetForm(): void {

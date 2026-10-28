@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SystemService, Fund, CreateFundRequest } from './system.service';
@@ -8,30 +8,39 @@ import { SystemService, Fund, CreateFundRequest } from './system.service';
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './funds.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './funds.scss',
 })
 export class FundsComponent implements OnInit {
   private readonly svc = inject(SystemService);
 
-  funds:   Fund[] = [];
+  funds: Fund[] = [];
   loading = true;
-  error   = '';
+  error = '';
 
   activeModal: 'create' | 'edit' | null = null;
-  editTarget:  Fund | null = null;
-  working    = false;
+  editTarget: Fund | null = null;
+  working = false;
   modalError = '';
 
   form: CreateFundRequest = this.blank();
 
-  ngOnInit(): void { this.load(); }
+  ngOnInit(): void {
+    this.load();
+  }
 
   load(): void {
     this.loading = true;
     this.error = '';
     this.svc.listFunds().subscribe({
-      next: list => { this.funds = list; this.loading = false; },
-      error: () => { this.error = 'Failed to load funds.'; this.loading = false; },
+      next: (list) => {
+        this.funds = list;
+        this.loading = false;
+      },
+      error: () => {
+        this.error = 'Failed to load funds.';
+        this.loading = false;
+      },
     });
   }
 
@@ -51,17 +60,26 @@ export class FundsComponent implements OnInit {
     this.activeModal = 'edit';
   }
 
-  closeModal(): void { this.activeModal = null; }
+  closeModal(): void {
+    this.activeModal = null;
+  }
 
   save(): void {
     this.working = true;
     this.modalError = '';
-    const obs = this.activeModal === 'edit' && this.editTarget
-      ? this.svc.updateFund(this.editTarget.id, this.form)
-      : this.svc.createFund(this.form);
+    const obs =
+      this.activeModal === 'edit' && this.editTarget
+        ? this.svc.updateFund(this.editTarget.id, this.form)
+        : this.svc.createFund(this.form);
     obs.subscribe({
-      next: () => { this.closeModal(); this.load(); },
-      error: () => { this.modalError = 'Save failed. Please try again.'; this.working = false; },
+      next: () => {
+        this.closeModal();
+        this.load();
+      },
+      error: () => {
+        this.modalError = 'Save failed. Please try again.';
+        this.working = false;
+      },
     });
   }
 

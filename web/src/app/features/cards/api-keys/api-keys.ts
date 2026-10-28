@@ -1,9 +1,16 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CardsService, ApiKey, IssueApiKeyRequest, IssueApiKeyResponse } from '../cards.service';
 
-const ALL_SCOPES = ['cards:read', 'cards:write', 'analytics:read', 'webhooks:manage', 'disputes:read', 'settlement:read'];
+const ALL_SCOPES = [
+  'cards:read',
+  'cards:write',
+  'analytics:read',
+  'webhooks:manage',
+  'disputes:read',
+  'settlement:read',
+];
 
 type Tier = 'SANDBOX' | 'BASIC' | 'PRO' | 'ENTERPRISE';
 
@@ -19,6 +26,7 @@ const TIER_LABELS: Record<Tier, string> = {
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './api-keys.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './api-keys.scss',
 })
 export class ApiKeysComponent implements OnInit {
@@ -35,35 +43,65 @@ export class ApiKeysComponent implements OnInit {
   readonly tiers: Tier[] = ['SANDBOX', 'BASIC', 'PRO', 'ENTERPRISE'];
   readonly tierLabels = TIER_LABELS;
 
-  ngOnInit(): void { this.load(); }
+  ngOnInit(): void {
+    this.load();
+  }
 
   load(): void {
     this.loading = true;
-    this.svc.listApiKeys().subscribe({ next: k => { this.keys = k; this.loading = false; }, error: () => { this.loading = false; } });
+    this.svc.listApiKeys().subscribe({
+      next: (k) => {
+        this.keys = k;
+        this.loading = false;
+      },
+      error: () => {
+        this.loading = false;
+      },
+    });
   }
 
-  openCreate(): void { this.form = { name: '', scopes: [], tier: 'BASIC' }; this.newKeyResult = null; this.showModal = true; }
-  closeModal(): void { this.showModal = false; this.newKeyResult = null; if (this.copiedKey) this.load(); this.copiedKey = false; }
+  openCreate(): void {
+    this.form = { name: '', scopes: [], tier: 'BASIC' };
+    this.newKeyResult = null;
+    this.showModal = true;
+  }
+  closeModal(): void {
+    this.showModal = false;
+    this.newKeyResult = null;
+    if (this.copiedKey) this.load();
+    this.copiedKey = false;
+  }
 
   toggleScope(scope: string): void {
     const idx = this.form.scopes.indexOf(scope);
-    if (idx >= 0) this.form.scopes.splice(idx, 1); else this.form.scopes.push(scope);
+    if (idx >= 0) this.form.scopes.splice(idx, 1);
+    else this.form.scopes.push(scope);
   }
 
-  hasScope(scope: string): boolean { return this.form.scopes.includes(scope); }
+  hasScope(scope: string): boolean {
+    return this.form.scopes.includes(scope);
+  }
 
   submit(): void {
-    this.svc.issueApiKey(this.form).subscribe({ next: r => { this.newKeyResult = r; } });
+    this.svc.issueApiKey(this.form).subscribe({
+      next: (r) => {
+        this.newKeyResult = r;
+      },
+    });
   }
 
   copyKey(): void {
     if (!this.newKeyResult) return;
-    navigator.clipboard.writeText(this.newKeyResult.key).then(() => { this.copiedKey = true; });
+    navigator.clipboard.writeText(this.newKeyResult.key).then(() => {
+      this.copiedKey = true;
+    });
   }
 
   revoke(id: string): void {
     this.svc.revokeApiKey(id).subscribe({ next: () => this.load() });
   }
 
-  formatDate(d: string | null): string { return d ? new Date(d).toLocaleString() : '—'; }
+  formatDate(d: string | null): string {
+    return d ? new Date(d).toLocaleString() : '—';
+  }
 }

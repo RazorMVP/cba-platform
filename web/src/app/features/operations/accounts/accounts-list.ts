@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -10,6 +10,7 @@ import { AccountService, Account } from './account.service';
   standalone: true,
   imports: [CommonModule, RouterLink, FormsModule, StatusBadgeComponent, CurrencyPipe, DatePipe],
   templateUrl: './accounts-list.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './accounts-list.scss',
 })
 export class AccountsListComponent implements OnInit {
@@ -23,30 +24,61 @@ export class AccountsListComponent implements OnInit {
   typeFilter: Account['accountType'] | '' = '';
 
   readonly typeFilters: Array<{ label: string; value: Account['accountType'] | '' }> = [
-    { label: 'All',           value: '' },
-    { label: 'Savings',       value: 'SAVINGS' },
-    { label: 'Checking',      value: 'CHECKING' },
+    { label: 'All', value: '' },
+    { label: 'Savings', value: 'SAVINGS' },
+    { label: 'Checking', value: 'CHECKING' },
     { label: 'Fixed Deposit', value: 'FIXED_DEPOSIT' },
   ];
 
-  ngOnInit(): void { this.loadPage(); }
+  ngOnInit(): void {
+    this.loadPage();
+  }
 
   loadPage(): void {
     this.loading = true;
-    this.svc.list(this.page, this.pageSize)
-      .subscribe({ next: p => { this.accounts = p.content; this.totalElements = p.totalElements; this.loading = false; },
-                   error: () => { this.loading = false; } });
+    this.svc.list(this.page, this.pageSize).subscribe({
+      next: (p) => {
+        this.accounts = p.content;
+        this.totalElements = p.totalElements;
+        this.loading = false;
+      },
+      error: () => {
+        this.loading = false;
+      },
+    });
   }
 
-  prevPage(): void { if (this.page > 0) { this.page--; this.loadPage(); } }
-  nextPage(): void { if ((this.page + 1) * this.pageSize < this.totalElements) { this.page++; this.loadPage(); } }
+  prevPage(): void {
+    if (this.page > 0) {
+      this.page--;
+      this.loadPage();
+    }
+  }
+  nextPage(): void {
+    if ((this.page + 1) * this.pageSize < this.totalElements) {
+      this.page++;
+      this.loadPage();
+    }
+  }
 
-  get totalPages(): number { return Math.ceil(this.totalElements / this.pageSize); }
-  get startRow():   number { return this.totalElements === 0 ? 0 : this.page * this.pageSize + 1; }
-  get endRow():     number { return Math.min((this.page + 1) * this.pageSize, this.totalElements); }
+  get totalPages(): number {
+    return Math.ceil(this.totalElements / this.pageSize);
+  }
+  get startRow(): number {
+    return this.totalElements === 0 ? 0 : this.page * this.pageSize + 1;
+  }
+  get endRow(): number {
+    return Math.min((this.page + 1) * this.pageSize, this.totalElements);
+  }
 
   statusVariant(s: Account['status']): 'success' | 'warning' | 'error' | 'neutral' {
-    return s === 'ACTIVE' ? 'success' : s === 'DORMANT' ? 'warning' : s === 'FROZEN' ? 'error' : 'neutral';
+    return s === 'ACTIVE'
+      ? 'success'
+      : s === 'DORMANT'
+        ? 'warning'
+        : s === 'FROZEN'
+          ? 'error'
+          : 'neutral';
   }
   typeIcon(t: Account['accountType']): string {
     return t === 'SAVINGS' ? 'savings' : t === 'CHECKING' ? 'account_balance_wallet' : 'lock_clock';

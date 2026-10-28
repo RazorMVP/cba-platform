@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 export type BadgeVariant = 'success' | 'warning' | 'error' | 'info' | 'neutral' | 'primary';
@@ -8,6 +8,7 @@ export type BadgeVariant = 'success' | 'warning' | 'error' | 'info' | 'neutral' 
   standalone: true,
   imports: [CommonModule],
   template: `<span class="badge" [class]="'badge--' + variant">{{ label }}</span>`,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './status-badge.scss',
 })
 export class StatusBadgeComponent {

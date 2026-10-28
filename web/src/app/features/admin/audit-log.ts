@@ -1,12 +1,25 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AdminService, AuditLog, AuditFilter } from './admin.service';
 
 const ENTITY_TYPES = [
-  'CUSTOMER', 'ACCOUNT', 'LOAN', 'PAYMENT', 'USER', 'ROLE',
-  'LOAN_PRODUCT', 'DEPOSIT_PRODUCT', 'TELLER', 'CASHIER', 'SESSION',
-  'GL_ACCOUNT', 'JOURNAL_ENTRY', 'GL_CLOSURE', 'CARD', 'DISPUTE',
+  'CUSTOMER',
+  'ACCOUNT',
+  'LOAN',
+  'PAYMENT',
+  'USER',
+  'ROLE',
+  'LOAN_PRODUCT',
+  'DEPOSIT_PRODUCT',
+  'TELLER',
+  'CASHIER',
+  'SESSION',
+  'GL_ACCOUNT',
+  'JOURNAL_ENTRY',
+  'GL_CLOSURE',
+  'CARD',
+  'DISPUTE',
 ];
 
 @Component({
@@ -14,6 +27,7 @@ const ENTITY_TYPES = [
   standalone: true,
   imports: [CommonModule, FormsModule, DatePipe],
   templateUrl: './audit-log.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './audit-log.scss',
 })
 export class AuditLogComponent implements OnInit {
@@ -26,13 +40,13 @@ export class AuditLogComponent implements OnInit {
   pendingFilter: AuditFilter = {};
 
   // ── List state ───────────────────────────────────────────────────────────
-  rows: AuditLog[]  = [];
-  loading           = false;
-  error             = '';
-  page              = 0;
-  pageSize          = 20;
-  totalElements     = 0;
-  totalPages        = 0;
+  rows: AuditLog[] = [];
+  loading = false;
+  error = '';
+  page = 0;
+  pageSize = 20;
+  totalElements = 0;
+  totalPages = 0;
 
   // ── Detail panel ─────────────────────────────────────────────────────────
   selected: AuditLog | null = null;
@@ -43,16 +57,16 @@ export class AuditLogComponent implements OnInit {
 
   load(): void {
     this.loading = true;
-    this.error   = '';
+    this.error = '';
     this.svc.listAuditLogs(this.page, this.filter).subscribe({
-      next: page => {
-        this.rows          = page.content;
+      next: (page) => {
+        this.rows = page.content;
         this.totalElements = page.totalElements;
-        this.totalPages    = page.totalPages;
-        this.loading       = false;
+        this.totalPages = page.totalPages;
+        this.loading = false;
       },
       error: () => {
-        this.error   = 'Failed to load audit logs.';
+        this.error = 'Failed to load audit logs.';
         this.loading = false;
       },
     });
@@ -60,23 +74,29 @@ export class AuditLogComponent implements OnInit {
 
   applyFilter(): void {
     this.filter = { ...this.pendingFilter };
-    this.page   = 0;
+    this.page = 0;
     this.load();
   }
 
   clearFilter(): void {
     this.pendingFilter = {};
-    this.filter        = {};
-    this.page          = 0;
+    this.filter = {};
+    this.page = 0;
     this.load();
   }
 
   prevPage(): void {
-    if (this.page > 0) { this.page--; this.load(); }
+    if (this.page > 0) {
+      this.page--;
+      this.load();
+    }
   }
 
   nextPage(): void {
-    if (this.page < this.totalPages - 1) { this.page++; this.load(); }
+    if (this.page < this.totalPages - 1) {
+      this.page++;
+      this.load();
+    }
   }
 
   openDetail(row: AuditLog): void {
@@ -90,8 +110,11 @@ export class AuditLogComponent implements OnInit {
   // ── Helpers ──────────────────────────────────────────────────────────────
   prettyJson(raw?: string): string {
     if (!raw) return '';
-    try { return JSON.stringify(JSON.parse(raw), null, 2); }
-    catch { return raw; }
+    try {
+      return JSON.stringify(JSON.parse(raw), null, 2);
+    } catch {
+      return raw;
+    }
   }
 
   actionVariant(action: string): string {
@@ -106,13 +129,17 @@ export class AuditLogComponent implements OnInit {
   entityVariant(type: string): string {
     const t = type.toUpperCase();
     if (t === 'CUSTOMER') return 'primary';
-    if (t === 'LOAN')     return 'warning';
+    if (t === 'LOAN') return 'warning';
     if (/ACCOUNT/.test(t)) return 'info';
-    if (t === 'PAYMENT')  return 'success';
+    if (t === 'PAYMENT') return 'success';
     if (/USER|ROLE/.test(t)) return 'neutral';
     return 'neutral';
   }
 
-  fromIndex(): number { return this.page * this.pageSize + 1; }
-  toIndex():   number { return Math.min((this.page + 1) * this.pageSize, this.totalElements); }
+  fromIndex(): number {
+    return this.page * this.pageSize + 1;
+  }
+  toIndex(): number {
+    return Math.min((this.page + 1) * this.pageSize, this.totalElements);
+  }
 }

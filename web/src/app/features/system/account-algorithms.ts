@@ -1,11 +1,15 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { SystemService, TenantAlgorithmConfig, UpdateAlgorithmConfigRequest } from './system.service';
+import {
+  SystemService,
+  TenantAlgorithmConfig,
+  UpdateAlgorithmConfigRequest,
+} from './system.service';
 import { AdminService, Tenant } from '../admin/admin.service';
 
 const ACCOUNT_TYPES = ['SAVINGS', 'CHECKING', 'FIXED_DEPOSIT', 'LOAN', 'SHARE'] as const;
-const ALGORITHMS    = ['MIFOS', 'NUBAN'] as const;
+const ALGORITHMS = ['MIFOS', 'NUBAN'] as const;
 const VALIDATION_MODES = ['STRICT', 'PARANOID'] as const;
 
 @Component({
@@ -13,29 +17,30 @@ const VALIDATION_MODES = ['STRICT', 'PARANOID'] as const;
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './account-algorithms.html',
-  styleUrl:    './account-algorithms.scss',
+  changeDetection: ChangeDetectionStrategy.Eager,
+  styleUrl: './account-algorithms.scss',
 })
 export class AccountAlgorithmsComponent implements OnInit {
-  private readonly svc       = inject(SystemService);
+  private readonly svc = inject(SystemService);
   private readonly tenantSvc = inject(AdminService);
 
-  tenants:  Tenant[] = [];
-  configs:  Map<string, TenantAlgorithmConfig> = new Map();
-  loading   = true;
-  error     = '';
+  tenants: Tenant[] = [];
+  configs: Map<string, TenantAlgorithmConfig> = new Map();
+  loading = true;
+  error = '';
 
   // edit state
   editingTenantId = '';
   editForm: UpdateAlgorithmConfigRequest = {
-    bankCode:       '',
+    bankCode: '',
     validationMode: 'STRICT',
-    algorithms:     {},
+    algorithms: {},
   };
   editWorking = false;
-  editError   = '';
+  editError = '';
 
-  readonly accountTypes    = ACCOUNT_TYPES;
-  readonly algorithms      = ALGORITHMS;
+  readonly accountTypes = ACCOUNT_TYPES;
+  readonly algorithms = ALGORITHMS;
   readonly validationModes = VALIDATION_MODES;
 
   ngOnInit(): void {
@@ -45,12 +50,15 @@ export class AccountAlgorithmsComponent implements OnInit {
         // Load config for each tenant in parallel
         list.forEach((t: Tenant) =>
           this.svc.getAlgorithmConfig(t.id).subscribe({
-            next: cfg => this.configs.set(t.id, cfg),
-          })
+            next: (cfg) => this.configs.set(t.id, cfg),
+          }),
         );
         this.loading = false;
       },
-      error: () => { this.error = 'Failed to load tenants.'; this.loading = false; },
+      error: () => {
+        this.error = 'Failed to load tenants.';
+        this.loading = false;
+      },
     });
   }
 
@@ -66,17 +74,19 @@ export class AccountAlgorithmsComponent implements OnInit {
     const cfg = this.configs.get(tenant.id);
     this.editingTenantId = tenant.id;
     this.editForm = {
-      bankCode:       cfg?.bankCode       ?? '',
+      bankCode: cfg?.bankCode ?? '',
       validationMode: cfg?.validationMode ?? 'STRICT',
-      algorithms:     cfg?.algorithms
+      algorithms: cfg?.algorithms
         ? { ...cfg.algorithms }
-        : Object.fromEntries(ACCOUNT_TYPES.map(t => [t, 'MIFOS'])),
+        : Object.fromEntries(ACCOUNT_TYPES.map((t) => [t, 'MIFOS'])),
     };
     this.editWorking = false;
-    this.editError   = '';
+    this.editError = '';
   }
 
-  cancelEdit(): void { this.editingTenantId = ''; }
+  cancelEdit(): void {
+    this.editingTenantId = '';
+  }
 
   setAlgorithm(type: string, algo: string): void {
     this.editForm.algorithms = { ...this.editForm.algorithms, [type]: algo };
@@ -93,13 +103,13 @@ export class AccountAlgorithmsComponent implements OnInit {
     }
     this.editWorking = true;
     this.svc.updateAlgorithmConfig(tenant.id, this.editForm).subscribe({
-      next: updated => {
+      next: (updated) => {
         this.configs.set(tenant.id, updated);
         this.editingTenantId = '';
-        this.editWorking     = false;
+        this.editWorking = false;
       },
-      error: err => {
-        this.editError   = err?.error?.errors?.[0]?.message ?? 'Failed to save.';
+      error: (err) => {
+        this.editError = err?.error?.errors?.[0]?.message ?? 'Failed to save.';
         this.editWorking = false;
       },
     });

@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AccountingService, GlClosure } from './accounting.service';
@@ -10,10 +10,11 @@ import type { Office } from '../admin/admin.service';
   standalone: true,
   imports: [CommonModule, FormsModule, DatePipe],
   templateUrl: './gl-closures.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './gl-closures.scss',
 })
 export class GlClosuresComponent implements OnInit {
-  private readonly svc      = inject(AccountingService);
+  private readonly svc = inject(AccountingService);
   private readonly adminSvc = inject(AdminService);
 
   offices: Office[] = [];
@@ -36,7 +37,7 @@ export class GlClosuresComponent implements OnInit {
 
   ngOnInit(): void {
     this.adminSvc.listOffices().subscribe({
-      next: offices => {
+      next: (offices) => {
         this.offices = offices;
         if (offices.length) {
           this.selectedOfficeId = offices[0].id;
@@ -51,8 +52,14 @@ export class GlClosuresComponent implements OnInit {
     this.loading = true;
     this.error = '';
     this.svc.listClosures(this.selectedOfficeId).subscribe({
-      next:  c  => { this.closures = c; this.loading = false; },
-      error: () => { this.error = 'Failed to load GL closures.'; this.loading = false; },
+      next: (c) => {
+        this.closures = c;
+        this.loading = false;
+      },
+      error: () => {
+        this.error = 'Failed to load GL closures.';
+        this.loading = false;
+      },
     });
   }
 
@@ -63,9 +70,9 @@ export class GlClosuresComponent implements OnInit {
 
   openCreate(): void {
     this.form = {
-      officeId:    this.selectedOfficeId,
+      officeId: this.selectedOfficeId,
       closingDate: new Date().toISOString().slice(0, 10),
-      comments:    '',
+      comments: '',
     };
     this.saveError = '';
     this.showCreateModal = true;
@@ -79,16 +86,20 @@ export class GlClosuresComponent implements OnInit {
     this.saving = true;
     this.saveError = '';
     this.svc.createClosure(this.form).subscribe({
-      next: closure => {
+      next: (closure) => {
         this.closures = [closure, ...this.closures];
         this.showCreateModal = false;
         this.saving = false;
       },
-      error: () => { this.saveError = 'Failed to create closure. The date may already be closed for this office.'; this.saving = false; },
+      error: () => {
+        this.saveError =
+          'Failed to create closure. The date may already be closed for this office.';
+        this.saving = false;
+      },
     });
   }
 
   selectedOfficeName(): string {
-    return this.offices.find(o => o.id === this.selectedOfficeId)?.name ?? '';
+    return this.offices.find((o) => o.id === this.selectedOfficeId)?.name ?? '';
   }
 }

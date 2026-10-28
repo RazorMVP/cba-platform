@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ReportService, CobJob, CobJobHistory } from './report.service';
@@ -8,23 +8,24 @@ import { ReportService, CobJob, CobJobHistory } from './report.service';
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './cob-scheduler.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './cob-scheduler.scss',
 })
 export class CobSchedulerComponent implements OnInit {
   private readonly svc = inject(ReportService);
 
-  jobs:    CobJob[] = [];
-  loading  = true;
-  error    = '';
+  jobs: CobJob[] = [];
+  loading = true;
+  error = '';
 
   // History panel
-  selectedJob:    CobJob | null = null;
-  history:        CobJobHistory[] = [];
-  historyLoading  = false;
+  selectedJob: CobJob | null = null;
+  history: CobJobHistory[] = [];
+  historyLoading = false;
 
   // Per-job run state
   runningJobs = new Set<string>();
-  runErrors   = new Map<string, string>();
+  runErrors = new Map<string, string>();
 
   ngOnInit(): void {
     this.loadJobs();
@@ -32,8 +33,14 @@ export class CobSchedulerComponent implements OnInit {
 
   loadJobs(): void {
     this.svc.listJobs().subscribe({
-      next: list => { this.jobs = list; this.loading = false; },
-      error: () => { this.error = 'Failed to load CoB jobs.'; this.loading = false; },
+      next: (list) => {
+        this.jobs = list;
+        this.loading = false;
+      },
+      error: () => {
+        this.error = 'Failed to load CoB jobs.';
+        this.loading = false;
+      },
     });
   }
 
@@ -42,7 +49,7 @@ export class CobSchedulerComponent implements OnInit {
     this.runningJobs.add(key);
     this.runErrors.delete(key);
     this.svc.runJob(key).subscribe({
-      next: run => {
+      next: (run) => {
         this.runningJobs.delete(key);
         // The request returns 200 even when the job itself FAILS — surface that.
         if (run?.status === 'FAILED') {
@@ -65,7 +72,7 @@ export class CobSchedulerComponent implements OnInit {
   selectJob(job: CobJob): void {
     if (this.selectedJob?.jobName === job.jobName) {
       this.selectedJob = null;
-      this.history     = [];
+      this.history = [];
       return;
     }
     this.selectedJob = job;
@@ -75,11 +82,13 @@ export class CobSchedulerComponent implements OnInit {
   loadHistory(job: CobJob): void {
     this.historyLoading = true;
     this.svc.getJobHistory(job.jobName).subscribe({
-      next: h => {
-        this.history        = h.sort((a, b) => b.startTime.localeCompare(a.startTime));
+      next: (h) => {
+        this.history = h.sort((a, b) => b.startTime.localeCompare(a.startTime));
         this.historyLoading = false;
       },
-      error: () => { this.historyLoading = false; },
+      error: () => {
+        this.historyLoading = false;
+      },
     });
   }
 
@@ -96,7 +105,7 @@ export class CobSchedulerComponent implements OnInit {
   statusVariant(s: string | null | undefined): 'success' | 'warning' | 'neutral' | 'error' {
     if (!s) return 'neutral';
     if (s === 'SUCCESS') return 'success';
-    if (s === 'FAILED')  return 'error';
+    if (s === 'FAILED') return 'error';
     if (s === 'RUNNING') return 'warning';
     return 'neutral';
   }
@@ -104,8 +113,8 @@ export class CobSchedulerComponent implements OnInit {
   duration(h: CobJobHistory): string {
     if (!h.endTime) return 'Running…';
     const ms = new Date(h.endTime).getTime() - new Date(h.startTime).getTime();
-    if (ms < 1000)   return `${ms}ms`;
-    if (ms < 60000)  return `${(ms / 1000).toFixed(1)}s`;
+    if (ms < 1000) return `${ms}ms`;
+    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
     return `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`;
   }
 }

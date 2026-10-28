@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SystemService, ExchangeRateResponse, ExchangeRateRequest } from './system.service';
@@ -9,6 +9,7 @@ import { StatusBadgeComponent } from '../../shared/components/status-badge/statu
   standalone: true,
   imports: [CommonModule, FormsModule, StatusBadgeComponent],
   templateUrl: './exchange-rates.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './exchange-rates.scss',
 })
 export class ExchangeRatesComponent implements OnInit {
@@ -16,23 +17,31 @@ export class ExchangeRatesComponent implements OnInit {
 
   rates: ExchangeRateResponse[] = [];
   loading = true;
-  error   = '';
+  error = '';
 
   activeModal: 'upsert' | 'deactivate' | null = null;
   deactivateTarget: ExchangeRateResponse | null = null;
-  working    = false;
+  working = false;
   modalError = '';
 
   form: ExchangeRateRequest = { fromCurrency: '', toCurrency: '', rate: 0 };
 
-  ngOnInit(): void { this.load(); }
+  ngOnInit(): void {
+    this.load();
+  }
 
   load(): void {
     this.loading = true;
     this.error = '';
     this.svc.listExchangeRates().subscribe({
-      next: r => { this.rates = r; this.loading = false; },
-      error: () => { this.error = 'Failed to load exchange rates.'; this.loading = false; },
+      next: (r) => {
+        this.rates = r;
+        this.loading = false;
+      },
+      error: () => {
+        this.error = 'Failed to load exchange rates.';
+        this.loading = false;
+      },
     });
   }
 
@@ -51,14 +60,22 @@ export class ExchangeRatesComponent implements OnInit {
     this.activeModal = 'deactivate';
   }
 
-  closeModal(): void { this.activeModal = null; }
+  closeModal(): void {
+    this.activeModal = null;
+  }
 
   save(): void {
     this.working = true;
     this.modalError = '';
     this.svc.upsertExchangeRate(this.form).subscribe({
-      next: () => { this.closeModal(); this.load(); },
-      error: () => { this.modalError = 'Save failed. Please try again.'; this.working = false; },
+      next: () => {
+        this.closeModal();
+        this.load();
+      },
+      error: () => {
+        this.modalError = 'Save failed. Please try again.';
+        this.working = false;
+      },
     });
   }
 
@@ -67,11 +84,20 @@ export class ExchangeRatesComponent implements OnInit {
     this.working = true;
     const { fromCurrency, toCurrency } = this.deactivateTarget;
     this.svc.deactivateExchangeRate(fromCurrency, toCurrency).subscribe({
-      next: () => { this.closeModal(); this.load(); },
-      error: () => { this.working = false; },
+      next: () => {
+        this.closeModal();
+        this.load();
+      },
+      error: () => {
+        this.working = false;
+      },
     });
   }
 
-  activeRates(): ExchangeRateResponse[] { return this.rates.filter(r => r.active); }
-  inactiveRates(): ExchangeRateResponse[] { return this.rates.filter(r => !r.active); }
+  activeRates(): ExchangeRateResponse[] {
+    return this.rates.filter((r) => r.active);
+  }
+  inactiveRates(): ExchangeRateResponse[] {
+    return this.rates.filter((r) => !r.active);
+  }
 }

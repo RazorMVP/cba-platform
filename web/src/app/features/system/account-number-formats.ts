@@ -1,9 +1,12 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
-  SystemService, AccountNumberFormat, CreateAccountNumberFormatRequest,
-  AccountType, PrefixType,
+  SystemService,
+  AccountNumberFormat,
+  CreateAccountNumberFormatRequest,
+  AccountType,
+  PrefixType,
 } from './system.service';
 
 @Component({
@@ -11,6 +14,7 @@ import {
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './account-number-formats.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './account-number-formats.scss',
 })
 export class AccountNumberFormatsComponent implements OnInit {
@@ -18,29 +22,41 @@ export class AccountNumberFormatsComponent implements OnInit {
 
   formats: AccountNumberFormat[] = [];
   loading = true;
-  error   = '';
+  error = '';
 
   activeModal: 'create' | 'edit' | 'delete' | null = null;
-  editTarget:   AccountNumberFormat | null = null;
+  editTarget: AccountNumberFormat | null = null;
   deleteTarget: AccountNumberFormat | null = null;
-  working    = false;
+  working = false;
   modalError = '';
 
   form: CreateAccountNumberFormatRequest = this.blank();
 
   readonly accountTypes: AccountType[] = ['LOAN', 'SAVINGS', 'CLIENT', 'SHARE'];
-  readonly prefixTypes:  PrefixType[]  = [
-    'NONE', 'ACCOUNT_TYPE', 'OFFICE_NAME', 'LOAN_PRODUCT_SHORT_NAME', 'CLIENT_NAME',
+  readonly prefixTypes: PrefixType[] = [
+    'NONE',
+    'ACCOUNT_TYPE',
+    'OFFICE_NAME',
+    'LOAN_PRODUCT_SHORT_NAME',
+    'CLIENT_NAME',
   ];
 
-  ngOnInit(): void { this.load(); }
+  ngOnInit(): void {
+    this.load();
+  }
 
   load(): void {
     this.loading = true;
     this.error = '';
     this.svc.listAccountNumberFormats().subscribe({
-      next: list => { this.formats = list; this.loading = false; },
-      error: () => { this.error = 'Failed to load account number formats.'; this.loading = false; },
+      next: (list) => {
+        this.formats = list;
+        this.loading = false;
+      },
+      error: () => {
+        this.error = 'Failed to load account number formats.';
+        this.loading = false;
+      },
     });
   }
 
@@ -66,17 +82,26 @@ export class AccountNumberFormatsComponent implements OnInit {
     this.activeModal = 'delete';
   }
 
-  closeModal(): void { this.activeModal = null; }
+  closeModal(): void {
+    this.activeModal = null;
+  }
 
   save(): void {
     this.working = true;
     this.modalError = '';
-    const obs = this.activeModal === 'edit' && this.editTarget
-      ? this.svc.updateAccountNumberFormat(this.editTarget.id, this.form)
-      : this.svc.createAccountNumberFormat(this.form);
+    const obs =
+      this.activeModal === 'edit' && this.editTarget
+        ? this.svc.updateAccountNumberFormat(this.editTarget.id, this.form)
+        : this.svc.createAccountNumberFormat(this.form);
     obs.subscribe({
-      next: () => { this.closeModal(); this.load(); },
-      error: () => { this.modalError = 'Save failed. Please try again.'; this.working = false; },
+      next: () => {
+        this.closeModal();
+        this.load();
+      },
+      error: () => {
+        this.modalError = 'Save failed. Please try again.';
+        this.working = false;
+      },
     });
   }
 
@@ -84,8 +109,13 @@ export class AccountNumberFormatsComponent implements OnInit {
     if (!this.deleteTarget) return;
     this.working = true;
     this.svc.deleteAccountNumberFormat(this.deleteTarget.id).subscribe({
-      next: () => { this.closeModal(); this.load(); },
-      error: () => { this.working = false; },
+      next: () => {
+        this.closeModal();
+        this.load();
+      },
+      error: () => {
+        this.working = false;
+      },
     });
   }
 

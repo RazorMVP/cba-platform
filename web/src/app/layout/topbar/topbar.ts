@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import Keycloak from 'keycloak-js';
 import { NotificationBellComponent } from '../notification-bell/notification-bell';
@@ -8,6 +8,7 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
   standalone: true,
   imports: [CommonModule, NotificationBellComponent],
   templateUrl: './topbar.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './topbar.scss',
 })
 export class TopbarComponent {

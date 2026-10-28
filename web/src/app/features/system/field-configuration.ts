@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -13,6 +13,7 @@ import {
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './field-configuration.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './field-configuration.scss',
 })
 export class FieldConfigurationComponent implements OnInit {
@@ -27,7 +28,7 @@ export class FieldConfigurationComponent implements OnInit {
   activeEntity = '';
 
   get fields(): FieldConfiguration[] {
-    return this.all.filter(f => f.entityType === this.activeEntity);
+    return this.all.filter((f) => f.entityType === this.activeEntity);
   }
 
   // Inline edit
@@ -53,15 +54,18 @@ export class FieldConfigurationComponent implements OnInit {
   private load(): void {
     this.loading = true;
     this.svc.listFieldConfigurations().subscribe({
-      next: list => {
+      next: (list) => {
         this.all = list.sort((a, b) => a.displayOrder - b.displayOrder);
-        this.entityTypes = [...new Set(list.map(f => f.entityType))].sort();
+        this.entityTypes = [...new Set(list.map((f) => f.entityType))].sort();
         if (!this.activeEntity && this.entityTypes.length) {
           this.activeEntity = this.entityTypes[0];
         }
         this.loading = false;
       },
-      error: () => { this.error = 'Failed to load field configurations.'; this.loading = false; },
+      error: () => {
+        this.error = 'Failed to load field configurations.';
+        this.loading = false;
+      },
     });
   }
 
@@ -73,63 +77,89 @@ export class FieldConfigurationComponent implements OnInit {
   startEdit(f: FieldConfiguration): void {
     this.editingId = f.id;
     this.editForm = {
-      fieldLabel:   f.fieldLabel,
-      enabled:      f.enabled,
-      mandatory:    f.mandatory,
+      fieldLabel: f.fieldLabel,
+      enabled: f.enabled,
+      mandatory: f.mandatory,
       displayOrder: f.displayOrder,
-      description:  f.description ?? '',
+      description: f.description ?? '',
     };
-    this.editWorking = false; this.editError = '';
+    this.editWorking = false;
+    this.editError = '';
   }
 
-  cancelEdit(): void { this.editingId = ''; }
+  cancelEdit(): void {
+    this.editingId = '';
+  }
 
   saveEdit(f: FieldConfiguration): void {
     this.editWorking = true;
     this.svc.updateFieldConfig(f.id, this.editForm).subscribe({
-      next: updated => {
-        this.all = this.all.map(x => x.id === updated.id ? updated : x);
-        this.editingId = ''; this.editWorking = false;
+      next: (updated) => {
+        this.all = this.all.map((x) => (x.id === updated.id ? updated : x));
+        this.editingId = '';
+        this.editWorking = false;
       },
-      error: () => { this.editError = 'Save failed.'; this.editWorking = false; },
+      error: () => {
+        this.editError = 'Save failed.';
+        this.editWorking = false;
+      },
     });
   }
 
   openCreate(): void {
-    this.createForm = { entityType: this.activeEntity, fieldName: '', fieldLabel: '',
-                        enabled: true, mandatory: false, displayOrder: 0 };
-    this.createError = ''; this.createWorking = false; this.showCreate = true;
+    this.createForm = {
+      entityType: this.activeEntity,
+      fieldName: '',
+      fieldLabel: '',
+      enabled: true,
+      mandatory: false,
+      displayOrder: 0,
+    };
+    this.createError = '';
+    this.createWorking = false;
+    this.showCreate = true;
   }
 
   submitCreate(): void {
     this.createWorking = true;
     this.svc.createFieldConfig(this.createForm).subscribe({
-      next: created => {
+      next: (created) => {
         this.all = [...this.all, created].sort((a, b) => a.displayOrder - b.displayOrder);
         if (!this.entityTypes.includes(created.entityType)) {
           this.entityTypes = [...this.entityTypes, created.entityType].sort();
         }
-        this.showCreate = false; this.createWorking = false;
+        this.showCreate = false;
+        this.createWorking = false;
       },
-      error: () => { this.createError = 'Failed to create field.'; this.createWorking = false; },
+      error: () => {
+        this.createError = 'Failed to create field.';
+        this.createWorking = false;
+      },
     });
   }
 
-  confirmDelete(id: string): void { this.deletingId = id; }
-  cancelDelete(): void { this.deletingId = ''; }
+  confirmDelete(id: string): void {
+    this.deletingId = id;
+  }
+  cancelDelete(): void {
+    this.deletingId = '';
+  }
 
   doDelete(): void {
     this.deleteWorking = true;
     this.svc.deleteFieldConfig(this.deletingId).subscribe({
       next: () => {
-        this.all = this.all.filter(f => f.id !== this.deletingId);
-        this.entityTypes = [...new Set(this.all.map(f => f.entityType))].sort();
+        this.all = this.all.filter((f) => f.id !== this.deletingId);
+        this.entityTypes = [...new Set(this.all.map((f) => f.entityType))].sort();
         if (!this.entityTypes.includes(this.activeEntity) && this.entityTypes.length) {
           this.activeEntity = this.entityTypes[0];
         }
-        this.deletingId = ''; this.deleteWorking = false;
+        this.deletingId = '';
+        this.deleteWorking = false;
       },
-      error: () => { this.deleteWorking = false; },
+      error: () => {
+        this.deleteWorking = false;
+      },
     });
   }
 }

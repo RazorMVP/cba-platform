@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
@@ -9,6 +9,7 @@ import { TreasuryService, TreasuryPlacement, PlacementRequest } from './treasury
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './placements.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './placements.scss',
 })
 export class TreasuryPlacementsComponent implements OnInit, OnDestroy {
@@ -59,10 +60,19 @@ export class TreasuryPlacementsComponent implements OnInit, OnDestroy {
   load(): void {
     this.loading = true;
     this.error = '';
-    this.svc.listPlacements().pipe(takeUntil(this.destroy$)).subscribe({
-      next: p => { this.placements = p; this.loading = false; },
-      error: e => { this.error = e?.error?.errors?.[0]?.message ?? 'Failed to load placements'; this.loading = false; },
-    });
+    this.svc
+      .listPlacements()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (p) => {
+          this.placements = p;
+          this.loading = false;
+        },
+        error: (e) => {
+          this.error = e?.error?.errors?.[0]?.message ?? 'Failed to load placements';
+          this.loading = false;
+        },
+      });
   }
 
   openCreate(): void {
@@ -110,7 +120,14 @@ export class TreasuryPlacementsComponent implements OnInit, OnDestroy {
   }
 
   submitModal(): void {
-    if (!this.formReference || !this.formCounterparty || !this.formPrincipal || !this.formRate || !this.formStartDate || !this.formMaturityDate) {
+    if (
+      !this.formReference ||
+      !this.formCounterparty ||
+      !this.formPrincipal ||
+      !this.formRate ||
+      !this.formStartDate ||
+      !this.formMaturityDate
+    ) {
       this.modalError = 'Please fill in all required fields.';
       return;
     }
@@ -129,39 +146,78 @@ export class TreasuryPlacementsComponent implements OnInit, OnDestroy {
     };
     this.modalWorking = true;
     this.modalError = '';
-    const obs = this.activeModal === 'create'
-      ? this.svc.createPlacement(req)
-      : this.svc.updatePlacement(this.editingId, req);
+    const obs =
+      this.activeModal === 'create'
+        ? this.svc.createPlacement(req)
+        : this.svc.updatePlacement(this.editingId, req);
     obs.pipe(takeUntil(this.destroy$)).subscribe({
-      next: () => { this.activeModal = null; this.modalWorking = false; this.load(); },
-      error: e => { this.modalError = e?.error?.errors?.[0]?.message ?? 'Save failed'; this.modalWorking = false; },
+      next: () => {
+        this.activeModal = null;
+        this.modalWorking = false;
+        this.load();
+      },
+      error: (e) => {
+        this.modalError = e?.error?.errors?.[0]?.message ?? 'Save failed';
+        this.modalWorking = false;
+      },
     });
   }
 
   submitDelete(): void {
     this.modalWorking = true;
-    this.svc.deletePlacement(this.deletingId).pipe(takeUntil(this.destroy$)).subscribe({
-      next: () => { this.activeModal = null; this.modalWorking = false; this.load(); },
-      error: e => { this.modalError = e?.error?.errors?.[0]?.message ?? 'Delete failed'; this.modalWorking = false; },
-    });
+    this.svc
+      .deletePlacement(this.deletingId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.activeModal = null;
+          this.modalWorking = false;
+          this.load();
+        },
+        error: (e) => {
+          this.modalError = e?.error?.errors?.[0]?.message ?? 'Delete failed';
+          this.modalWorking = false;
+        },
+      });
   }
 
   submitCommand(): void {
     this.modalWorking = true;
-    this.svc.commandPlacement(this.commandId, this.commandVerb).pipe(takeUntil(this.destroy$)).subscribe({
-      next: () => { this.activeModal = null; this.modalWorking = false; this.load(); },
-      error: e => { this.modalError = e?.error?.errors?.[0]?.message ?? 'Command failed'; this.modalWorking = false; },
-    });
+    this.svc
+      .commandPlacement(this.commandId, this.commandVerb)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.activeModal = null;
+          this.modalWorking = false;
+          this.load();
+        },
+        error: (e) => {
+          this.modalError = e?.error?.errors?.[0]?.message ?? 'Command failed';
+          this.modalWorking = false;
+        },
+      });
   }
 
   availableCommands(p: TreasuryPlacement): { label: string; cmd: string }[] {
     if (p.status === 'PENDING') return [{ label: 'Activate', cmd: 'activate' }];
-    if (p.status === 'ACTIVE') return [{ label: 'Mature', cmd: 'mature' }, { label: 'Cancel', cmd: 'cancel' }];
+    if (p.status === 'ACTIVE')
+      return [
+        { label: 'Mature', cmd: 'mature' },
+        { label: 'Cancel', cmd: 'cancel' },
+      ];
     return [];
   }
 
   statusClass(s: string): string {
-    return { PENDING: 'badge-warning', ACTIVE: 'badge-success', MATURED: 'badge-info', CANCELLED: 'badge-neutral' }[s] ?? '';
+    return (
+      {
+        PENDING: 'badge-warning',
+        ACTIVE: 'badge-success',
+        MATURED: 'badge-info',
+        CANCELLED: 'badge-neutral',
+      }[s] ?? ''
+    );
   }
 
   typeLabel(t: string): string {
@@ -169,7 +225,11 @@ export class TreasuryPlacementsComponent implements OnInit, OnDestroy {
   }
 
   formatAmount(n: number, ccy: string): string {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: ccy, maximumFractionDigits: 2 }).format(n);
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: ccy,
+      maximumFractionDigits: 2,
+    }).format(n);
   }
 
   private resetForm(): void {

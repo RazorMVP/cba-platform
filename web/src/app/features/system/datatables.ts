@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SystemService, DataTable, CreateDataTableRequest } from './system.service';
@@ -8,34 +8,43 @@ import { SystemService, DataTable, CreateDataTableRequest } from './system.servi
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './datatables.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './datatables.scss',
 })
 export class DataTablesComponent implements OnInit {
   private readonly svc = inject(SystemService);
 
-  tables:  DataTable[] = [];
+  tables: DataTable[] = [];
   loading = true;
-  error   = '';
+  error = '';
 
   expandedTable: string | null = null;
 
   activeModal: 'create' | 'delete' | null = null;
   deleteTarget: DataTable | null = null;
-  working    = false;
+  working = false;
   modalError = '';
 
   form: CreateDataTableRequest = this.blank();
 
   readonly columnTypes = ['STRING', 'INTEGER', 'DECIMAL', 'BOOLEAN', 'DATE', 'TEXT'];
 
-  ngOnInit(): void { this.load(); }
+  ngOnInit(): void {
+    this.load();
+  }
 
   load(): void {
     this.loading = true;
     this.error = '';
     this.svc.listDataTables().subscribe({
-      next: list => { this.tables = list; this.loading = false; },
-      error: () => { this.error = 'Failed to load data tables.'; this.loading = false; },
+      next: (list) => {
+        this.tables = list;
+        this.loading = false;
+      },
+      error: () => {
+        this.error = 'Failed to load data tables.';
+        this.loading = false;
+      },
     });
   }
 
@@ -56,10 +65,18 @@ export class DataTablesComponent implements OnInit {
     this.activeModal = 'delete';
   }
 
-  closeModal(): void { this.activeModal = null; }
+  closeModal(): void {
+    this.activeModal = null;
+  }
 
   addColumn(): void {
-    this.form.columns.push({ columnName: '', columnType: 'STRING', columnLength: null, nullable: true, unique: false });
+    this.form.columns.push({
+      columnName: '',
+      columnType: 'STRING',
+      columnLength: null,
+      nullable: true,
+      unique: false,
+    });
   }
 
   removeColumn(index: number): void {
@@ -70,8 +87,14 @@ export class DataTablesComponent implements OnInit {
     this.working = true;
     this.modalError = '';
     this.svc.createDataTable(this.form).subscribe({
-      next: () => { this.closeModal(); this.load(); },
-      error: () => { this.modalError = 'Save failed. Please try again.'; this.working = false; },
+      next: () => {
+        this.closeModal();
+        this.load();
+      },
+      error: () => {
+        this.modalError = 'Save failed. Please try again.';
+        this.working = false;
+      },
     });
   }
 
@@ -79,22 +102,33 @@ export class DataTablesComponent implements OnInit {
     if (!this.deleteTarget) return;
     this.working = true;
     this.svc.deleteDataTable(this.deleteTarget.registeredTableName).subscribe({
-      next: () => { this.closeModal(); this.load(); },
-      error: () => { this.working = false; },
+      next: () => {
+        this.closeModal();
+        this.load();
+      },
+      error: () => {
+        this.working = false;
+      },
     });
   }
 
   get canSave(): boolean {
-    return !!this.form.registeredTableName.trim() &&
-           !!this.form.applicationTableName.trim() &&
-           this.form.columns.length > 0 &&
-           this.form.columns.every(c => !!c.columnName.trim());
+    return (
+      !!this.form.registeredTableName.trim() &&
+      !!this.form.applicationTableName.trim() &&
+      this.form.columns.length > 0 &&
+      this.form.columns.every((c) => !!c.columnName.trim())
+    );
   }
 
   private blank(): CreateDataTableRequest {
     return {
-      registeredTableName: '', applicationTableName: '', allowMultipleRows: false,
-      columns: [{ columnName: '', columnType: 'STRING', columnLength: null, nullable: true, unique: false }],
+      registeredTableName: '',
+      applicationTableName: '',
+      allowMultipleRows: false,
+      columns: [
+        { columnName: '', columnType: 'STRING', columnLength: null, nullable: true, unique: false },
+      ],
     };
   }
 }

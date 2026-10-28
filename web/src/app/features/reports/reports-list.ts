@@ -1,7 +1,13 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ReportService, Report, ReportParameter, ReportCategory, REPORT_CATEGORY_LABELS } from './report.service';
+import {
+  ReportService,
+  Report,
+  ReportParameter,
+  ReportCategory,
+  REPORT_CATEGORY_LABELS,
+} from './report.service';
 
 /** The API's own error text (envelope errors[0].message), or the fallback. */
 function apiMessage(err: unknown, fallback: string): string {
@@ -12,8 +18,8 @@ function apiMessage(err: unknown, fallback: string): string {
 type ModalType = 'run' | 'delete' | null;
 
 interface ParamFormEntry {
-  param:  ReportParameter;
-  value:  string;
+  param: ReportParameter;
+  value: string;
 }
 
 @Component({
@@ -21,45 +27,50 @@ interface ParamFormEntry {
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './reports-list.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './reports-list.scss',
 })
 export class ReportsListComponent implements OnInit {
   private readonly svc = inject(ReportService);
 
-  reports:  Report[] = [];
+  reports: Report[] = [];
   filtered: Report[] = [];
-  loading   = true;
-  error     = '';
+  loading = true;
+  error = '';
 
-  searchQuery    = '';
+  searchQuery = '';
   categoryFilter = '';
 
   /** Categories present in the list (enum values), ordered by label. */
   get categories(): ReportCategory[] {
-    const cats = new Set(this.reports.map(r => r.reportCategory).filter((c): c is ReportCategory => !!c));
-    return Array.from(cats).sort((a, b) => this.categoryLabel(a).localeCompare(this.categoryLabel(b)));
+    const cats = new Set(
+      this.reports.map((r) => r.reportCategory).filter((c): c is ReportCategory => !!c),
+    );
+    return Array.from(cats).sort((a, b) =>
+      this.categoryLabel(a).localeCompare(this.categoryLabel(b)),
+    );
   }
 
   categoryLabel(c: ReportCategory | undefined): string {
-    return c ? REPORT_CATEGORY_LABELS[c] ?? c : '';
+    return c ? (REPORT_CATEGORY_LABELS[c] ?? c) : '';
   }
 
   // ── Run modal ──────────────────────────────────────────────────────────────
-  activeModal:   ModalType = null;
+  activeModal: ModalType = null;
   selectedReport: Report | null = null;
-  paramEntries:  ParamFormEntry[] = [];
+  paramEntries: ParamFormEntry[] = [];
 
-  running    = false;
-  runError   = '';
-  results:   Record<string, unknown>[] = [];
+  running = false;
+  runError = '';
+  results: Record<string, unknown>[] = [];
   resultCols: string[] = [];
-  hasRun     = false;
+  hasRun = false;
 
   // ── Delete modal ───────────────────────────────────────────────────────────
-  deletingId    = '';
-  deletingName  = '';
+  deletingId = '';
+  deletingName = '';
   deleteWorking = false;
-  deleteError   = '';
+  deleteError = '';
 
   ngOnInit(): void {
     this.loadReports();
@@ -67,18 +78,27 @@ export class ReportsListComponent implements OnInit {
 
   loadReports(): void {
     this.svc.listReports().subscribe({
-      next: list => { this.reports = list; this.applyFilter(); this.loading = false; },
-      error: () => { this.error = 'Failed to load reports.'; this.loading = false; },
+      next: (list) => {
+        this.reports = list;
+        this.applyFilter();
+        this.loading = false;
+      },
+      error: () => {
+        this.error = 'Failed to load reports.';
+        this.loading = false;
+      },
     });
   }
 
   applyFilter(): void {
     let r = this.reports;
-    if (this.categoryFilter) r = r.filter(x => (x.reportCategory ?? '') === this.categoryFilter);
+    if (this.categoryFilter) r = r.filter((x) => (x.reportCategory ?? '') === this.categoryFilter);
     if (this.searchQuery) {
       const q = this.searchQuery.toLowerCase();
-      r = r.filter(x => x.reportName.toLowerCase().includes(q) ||
-                         (x.description ?? '').toLowerCase().includes(q));
+      r = r.filter(
+        (x) =>
+          x.reportName.toLowerCase().includes(q) || (x.description ?? '').toLowerCase().includes(q),
+      );
     }
     this.filtered = r;
   }
@@ -86,41 +106,44 @@ export class ReportsListComponent implements OnInit {
   // ── Run modal ──────────────────────────────────────────────────────────────
 
   openRunModal(r: Report): void {
-    this.activeModal     = 'run';
-    this.selectedReport  = r;
-    this.paramEntries    = (r.reportParameters ?? []).map(p => ({
+    this.activeModal = 'run';
+    this.selectedReport = r;
+    this.paramEntries = (r.reportParameters ?? []).map((p) => ({
       param: p,
       value: p.defaultValue ?? '',
     }));
-    this.running   = false;
-    this.runError  = '';
-    this.results   = [];
+    this.running = false;
+    this.runError = '';
+    this.results = [];
     this.resultCols = [];
-    this.hasRun    = false;
+    this.hasRun = false;
   }
 
   runReport(): void {
     if (!this.selectedReport) return;
     // Validate required params
-    const missing = this.paramEntries.filter(e => !e.param.optional && !e.value.trim());
+    const missing = this.paramEntries.filter((e) => !e.param.optional && !e.value.trim());
     if (missing.length > 0) {
-      this.runError = `Required: ${missing.map(e => e.param.parameterLabel ?? e.param.parameterName).join(', ')}`;
+      this.runError = `Required: ${missing.map((e) => e.param.parameterLabel ?? e.param.parameterName).join(', ')}`;
       return;
     }
-    this.running  = true;
+    this.running = true;
     this.runError = '';
     const params: Record<string, string> = {};
     for (const e of this.paramEntries) {
       if (e.value.trim()) params[e.param.parameterName] = e.value.trim();
     }
     this.svc.runReport(this.selectedReport.reportName, params).subscribe({
-      next: rows => {
-        this.results    = rows;
+      next: (rows) => {
+        this.results = rows;
         this.resultCols = rows.length > 0 ? Object.keys(rows[0]) : [];
-        this.running    = false;
-        this.hasRun     = true;
+        this.running = false;
+        this.hasRun = true;
       },
-      error: () => { this.runError = 'Report execution failed. Check parameters.'; this.running = false; },
+      error: () => {
+        this.runError = 'Report execution failed. Check parameters.';
+        this.running = false;
+      },
     });
   }
 
@@ -137,33 +160,41 @@ export class ReportsListComponent implements OnInit {
   }
 
   closeRunModal(): void {
-    if (!this.running) { this.activeModal = null; this.selectedReport = null; }
+    if (!this.running) {
+      this.activeModal = null;
+      this.selectedReport = null;
+    }
   }
 
   // ── Delete modal ───────────────────────────────────────────────────────────
 
   openDeleteModal(r: Report): void {
-    this.activeModal   = 'delete';
-    this.deletingId    = r.id;
-    this.deletingName  = r.reportName;
+    this.activeModal = 'delete';
+    this.deletingId = r.id;
+    this.deletingName = r.reportName;
     this.deleteWorking = false;
-    this.deleteError   = '';
+    this.deleteError = '';
   }
 
   submitDelete(): void {
     this.deleteWorking = true;
     this.svc.deleteReport(this.deletingId).subscribe({
       next: () => {
-        this.reports = this.reports.filter(r => r.id !== this.deletingId);
+        this.reports = this.reports.filter((r) => r.id !== this.deletingId);
         this.applyFilter();
         this.deleteWorking = false;
-        this.activeModal   = null;
+        this.activeModal = null;
       },
-      error: err => { this.deleteError = apiMessage(err, 'Cannot delete a core system report.'); this.deleteWorking = false; },
+      error: (err) => {
+        this.deleteError = apiMessage(err, 'Cannot delete a core system report.');
+        this.deleteWorking = false;
+      },
     });
   }
 
-  closeDeleteModal(): void { if (!this.deleteWorking) this.activeModal = null; }
+  closeDeleteModal(): void {
+    if (!this.deleteWorking) this.activeModal = null;
+  }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -173,8 +204,8 @@ export class ReportsListComponent implements OnInit {
   }
 
   paramInputType(p: ReportParameter): string {
-    if (p.parameterType === 'DATE')    return 'date';
-    if (p.parameterType === 'NUMBER')  return 'number';
+    if (p.parameterType === 'DATE') return 'date';
+    if (p.parameterType === 'NUMBER') return 'number';
     return 'text';
   }
 }

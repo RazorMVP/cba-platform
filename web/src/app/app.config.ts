@@ -1,8 +1,17 @@
-import { ApplicationConfig, provideBrowserGlobalErrorListeners, provideZoneChangeDetection } from '@angular/core';
+import {
+  ApplicationConfig,
+  provideBrowserGlobalErrorListeners,
+  provideZoneChangeDetection,
+} from '@angular/core';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
-import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
-import { provideKeycloak, withAutoRefreshToken, AutoRefreshTokenService, UserActivityService } from 'keycloak-angular';
+import {
+  provideKeycloak,
+  withAutoRefreshToken,
+  AutoRefreshTokenService,
+  UserActivityService,
+} from 'keycloak-angular';
 import Keycloak from 'keycloak-js';
 
 import { routes } from './app.routes';
@@ -41,7 +50,7 @@ export const appConfig: ApplicationConfig = {
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes, withComponentInputBinding()),
-    provideHttpClient(withInterceptors([authInterceptor])),
+    provideHttpClient(withXhr(), withInterceptors([authInterceptor])),
     provideAnimationsAsync(),
     ...keycloakProviders,
   ],

@@ -57,6 +57,29 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 52) — 2026-10-29
+**Web CI: blocking check that every Angular component sets `changeDetection: ChangeDetectionStrategy.Eager` (user: "add the CI check that fails when a component is missing ChangeDetectionStrategy.Eager"). Closes the gap cont. 51 left: with `prefer-on-push` off, nothing caught a new component that forgot Eager, and Angular 22's OnPush default freezes such a component in the browser with no error.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `web/scripts/check-change-detection.js` | NEW — parses every non-spec `src/**/*.ts` with the TypeScript compiler API; each `@Component` decorator must have `changeDetection: ChangeDetectionStrategy.Eager`; prints file:line + what it found, exit 1 |
+| `web/package.json` | script `check:change-detection` |
+| `.github/workflows/web-ci.yml` | Lint & Test: new step `Change detection check (Eager)` after Lint — blocking (lint stays `\|\| true`); covered by the required `Web CI gate` |
+| `CLAUDE.md` | web Last git commit row; Angular Change Detection — CI enforces Eager |
+
+#### Key Patterns / Decisions
+- **Own CI step, not a lint rule:** CI lint is report-only (`|| true`, 7 pre-existing errors), so a rule there could never fail a build; and no angular-eslint rule requires Eager.
+- **AST, not grep:** a file can hold several components; the AST checks each decorator's own metadata. `typescript` is already a devDependency — no new package.
+- **`OnPush` fails too.** The request was "missing Eager"; a component deliberately written for OnPush (signals / async pipe only) needs the script changed first, which makes that a reviewed decision.
+- Spec files are skipped (1 has a test-host component).
+
+#### Build Verification
+- Real tree: `OK: all 95 components set ChangeDetectionStrategy.Eager.` exit 0
+- Probe file with 3 components (Eager / none / OnPush): `2 of 98 components do not set …`, both reported with file:line, exit 1; probe deleted
+- No app source, test or build change — `ng test` / `ng build` not affected
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
 ### Session 125 (cont. 51) — 2026-10-29
 **Web lint: `@angular-eslint/prefer-on-push-component-change-detection` turned off, the follow-up #209 left open (user: "merge 209 and 1, let it go in a follow-up PR"). angular-eslint 22 enables it in `tsRecommended`, and it flagged all 95 components that set `ChangeDetectionStrategy.Eager` on purpose. Also marks the Angular 22 plan merged (#209 `0482f3c`).**
 

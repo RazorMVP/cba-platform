@@ -9,6 +9,7 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "lint": "ng lint",
+    "check:change-detection": "node scripts/check-change-detection.js",
     "e2e": "playwright test"
   },
   "private": true,

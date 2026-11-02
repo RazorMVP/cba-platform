@@ -1,6 +1,6 @@
 # Backlog 21: correct the card scheme settlement files (card-service)
 
-> Status: approved 2026-11-02 (no D1 reply → default **D1a**); in progress on `fix/card-settlement-files`.
+> Status: merged 2026-11-02 — #220 (`0a10e36`). Approved with no D1 reply → default **D1a**.
 
 ## Context
 `docs/deferred-backlog.md` item 21 lists defects in the nightly settlement-file export. Today they're harmless, because every exporter

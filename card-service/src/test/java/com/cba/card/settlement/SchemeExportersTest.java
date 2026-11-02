@@ -27,8 +27,9 @@ class SchemeExportersTest {
 
     private static final LocalDate DATE = LocalDate.of(2026, 6, 20);
 
+    /** Gross in minor units, at scale 4 — the shape {@code settlement_items.amount} (NUMERIC(19,4)) comes back in. */
     private static SettlementExportRecord rec(String pan, long grossMinor, String merchantName) {
-        BigDecimal gross = BigDecimal.valueOf(grossMinor);
+        BigDecimal gross = BigDecimal.valueOf(grossMinor).setScale(4);
         return new SettlementExportRecord(
                 UUID.randomUUID(), UUID.randomUUID(),
                 SettlementExportRecord.maskPan(pan), pan, "DEBIT", "X",
@@ -60,6 +61,8 @@ class SchemeExportersTest {
         int len = ((out[0] & 0xFF) << 8) | (out[1] & 0xFF);   // 2-byte big-endian prefix
         assertThat(out).hasSize(2 + len);                      // single record
         assertThat(new String(out, 2, 4, StandardCharsets.US_ASCII)).isEqualTo("1240"); // MTI
+        // prefix(2) + MTI(4) + bitmap(8) + DE2 LLVAR(2+16) + DE3(6) = 38, then DE4 n12 in minor units
+        assertThat(new String(out, 38, 12, StandardCharsets.US_ASCII)).isEqualTo("000000010000");
     }
 
     // ── Verve / NIBSS (pipe-delimited flat file) ───────────────────────────────
@@ -81,7 +84,9 @@ class SchemeExportersTest {
         String[] header = lines[0].split("\\|");
         assertThat(header[0]).isEqualTo("506099");                      // institution code
         assertThat(header[2]).isEqualTo("1");                           // total records
+        assertThat(header[3]).isEqualTo("10000");                       // total, minor units
         assertThat(lines[1]).startsWith("1|").contains("5060991111111118"); // seq 1 + PAN
+        assertThat(lines[1].split("\\|")[3]).isEqualTo("10000");        // row amount: same unit as the header
     }
 
     // ── Afrigo / PAPSS (JSON over HTTPS) ───────────────────────────────────────
@@ -103,7 +108,10 @@ class SchemeExportersTest {
                 .contains("\"totalRecords\": 1")
                 .contains("\"transactions\"")
                 .contains("\"batchRef\": \"a\\\"b\"")   // escaped quote
-                .contains("5061001111111111");
+                .contains("5061001111111111")
+                .contains("\"totalAmount\": 10000,")
+                .contains("\"amount\": 10000,")          // was 10000.0000
+                .contains("\"currencyCode\": \"566\"");
     }
 
     // ── UnionPay CUPS (300-byte GB18030 fixed-width) ───────────────────────────
@@ -124,5 +132,8 @@ class SchemeExportersTest {
         assertThat((char) out[0]).isEqualTo('H');
         assertThat((char) out[300]).isEqualTo('D');
         assertThat((char) out[600]).isEqualTo('T');
+        // D: type(1) + BIN(8) + PAN(19) + date(6) = 34, then amount(12); T: type(1) + count(8) + total(12)
+        assertThat(new String(out, 300 + 34, 12, StandardCharsets.US_ASCII)).isEqualTo("000000010000");
+        assertThat(new String(out, 600 + 9, 12, StandardCharsets.US_ASCII)).isEqualTo("000000010000");
     }
 }

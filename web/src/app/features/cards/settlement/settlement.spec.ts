@@ -75,6 +75,19 @@ describe('SettlementComponent', () => {
     expect(svc.listBatches).toHaveBeenCalled();
   });
 
+  it('triggerExport shows the server refusal and clears it on the next try', () => {
+    svc.triggerExport.mockReturnValue(throwError(() => ({
+      error: { errors: [{ code: 'PRESENTMENT_REQUIRES_ACQUIRER_ROLE', message: 'an issuer does not send them' }] },
+    })));
+    const c = make();
+    c.triggerExport('b1');
+    expect(c.exportError).toBe('an issuer does not send them');
+
+    svc.triggerExport.mockReturnValue(of(void 0));
+    c.triggerExport('b1');
+    expect(c.exportError).toBeNull();
+  });
+
   it('toggleExpand expands then collapses the same batch', () => {
     const c = make();
     c.toggleExpand('b1');
@@ -96,6 +109,7 @@ describe('SettlementComponent', () => {
     expect(c.statusVariant('SETTLED')).toBe('success');
     expect(c.statusVariant('FAILED')).toBe('error');
     expect(c.statusVariant('TRANSMITTED')).toBe('success');
+    expect(c.statusVariant('SENDING')).toBe('info');
     expect(c.statusVariant('ZZZ')).toBe('neutral');
   });
 

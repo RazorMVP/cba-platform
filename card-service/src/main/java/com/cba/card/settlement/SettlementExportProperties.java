@@ -59,6 +59,23 @@ public class SettlementExportProperties {
     /** Seconds to wait between retry attempts. */
     private long retryDelaySeconds = 300;
 
+    /**
+     * {@code ISSUER} (default) or {@code ACQUIRER}. The five exporters write acquirer presentments (BASE II
+     * clearing records, IPM First Presentment, …): an issuer receives those and doesn't send them (backlog 21).
+     * Under ISSUER nothing is exported, whatever a scheme's {@code enabled} says. Any other value counts as ISSUER.
+     */
+    private String role = "ISSUER";
+
+    /** Days back the nightly run looks for CLOSED or SETTLED batches not yet sent — a batch can close late. */
+    private int lookbackDays = 7;
+
+    /** Minutes after which a SENDING transmission counts as interrupted: FAILED, never resent automatically. */
+    private long sendingLeaseMinutes = 30;
+
+    public boolean isAcquirer() {
+        return role != null && "ACQUIRER".equalsIgnoreCase(role.trim());
+    }
+
     /** Per-scheme configuration map. Keys are lowercase scheme names: visa, mastercard, etc. */
     private Map<String, SchemeExportConfig> schemes = new HashMap<>();
 

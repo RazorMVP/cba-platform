@@ -9,7 +9,7 @@
 > every remaining deferral marker (items 4–7 + the roadmap section). **Items 8–9 added Session 125
 > cont. 10 (2026-09-23)**: the CI secrets and variables that deployment and SonarCloud need. **Item 10 added
 > Session 125 cont. 32 (2026-10-14)**: user-defined (custom) reports, withdrawn on security review. **Items 11–13 added
-> cont. 33**: found while wiring the backend → card-service service token. **Items 14–17 added cont. 35**. **Item 18 added cont. 37; items 19–20 added cont. 42 (2026-10-19)**: the partner portal has no reachable API; card-service's rate limiter keys on unverified identity.
+> cont. 33**: found while wiring the backend → card-service service token. **Items 14–17 added cont. 35**. **Item 18 added cont. 37; items 19–20 added cont. 42 (2026-10-19)**: the partner portal has no reachable API; card-service's rate limiter keys on unverified identity. **Item 21 added cont. 46; item 22 added cont. 53 (2026-11-02)** when 21 was closed: what an issuer sends the schemes (chargebacks, retrieval requests, fee collections).
 >
 > **Not in this list** (deliberately): intentional dev features that are correct as-is —
 > `DevAuthBypassFilter` (prod uses Keycloak), fraud/3DS last-resort scalar guards, Stitch
@@ -612,11 +612,19 @@ verified principal (API key id / JWT `azp`/`sub`), anonymous on `request.getRemo
 
 ---
 
-## 21. Card scheme settlement files: amounts, late batches and the issuer side
+## 21. ✅ DONE (cont. 53) — Card scheme settlement files: amounts, late batches and the issuer side
 
-**Effort**: M · **Risk**: money — wrong amounts in a scheme file once an exporter is enabled (all are `enabled: false` today)
+**Resolved** (plan `docs/plans/2026-11-02-scheme-settlement-files.md`, decision D1a):
+- Every exporter writes whole minor units through `SettlementAmounts`. A fractional or over-wide amount, or a record with no currency, fails the file instead of being written. There are no `840`/`566`/`156` defaults.
+- Records take interchange, fee and net from `settlement_items` (minor units), not `interchange_log`.
+- No transaction spans an attempt and nothing sleeps:
+  - inserting the PENDING row claims the file (V14 unique index on live rows);
+  - a failed send goes back to PENDING with `next_retry_at`, picked up by a scheduled poller;
+  - a send stuck in SENDING past its lease becomes FAILED and is never resent automatically.
+- The nightly run covers CLOSED/SETTLED batches from the last `lookback-days` under their own date. A manual export refuses OPEN batches and other dates.
+- **Issuer side:** `card.settlement.export.role` defaults to `ISSUER`, under which nothing is exported (`409 PRESENTMENT_REQUIRES_ACQUIRER_ROLE`). What an issuer *does* send is item 22.
 
-Found while building 15b (cont. 46); not changed there:
+Original finding, kept for the record. Found while building 15b (cont. 46); not changed there:
 - **Amounts ×10⁴.** `VisaBase2Exporter`, `MastercardIpmExporter` and `UnionPayCupsExporter` write
   `grossAmount().toPlainString().replace(".", "")`. Amounts read from `NUMERIC(19,4)` carry four decimals, so 25.00 is
   written as `250000`, not `2500`. The tests build amounts with `BigDecimal.valueOf(long)` (scale 0), so they don't see it.
@@ -628,6 +636,31 @@ Found while building 15b (cont. 46); not changed there:
   receives clearing files (15d) rather than presenting them. Decide what, if anything, the issuer sends.
 - `interchange_log` rows before V13 are the acquirer view in DE4 minor units; from V13 the issuer view in major units —
   the export SQL reads `net_settlement_amount` (no exporter uses it yet).
+
+---
+
+## 22. Issuer outbound scheme files: chargebacks, retrieval requests, fee collections
+
+**Effort**: L · **Risk**: money (chargebacks recover disputed funds) · **Blocked on**: the schemes' clearing specs, like item 7
+
+### What it is
+An issuer doesn't present transactions: it receives the acquirers' clearing records (incoming, item 15d). It sends the scheme:
+- **chargebacks**: Visa BASE II chargeback records, Mastercard IPM 1442;
+- **retrieval requests**: Mastercard 1644, function 603;
+- **fee collections**: Mastercard 1740, Visa fee collection.
+
+The schemes' rules: Visa Core Rules (the Acquirer submits clearing records; the Issuer may charge back); Mastercard *IPM Clearing Formats* and *Chargeback Guide*.
+
+### Current state (cont. 53)
+- The dispute module tracks chargebacks through their states and deadlines (`DisputeService`: retrieval → chargeback → representment → pre-arbitration). No file or message reaches a scheme.
+- The 5 settlement exporters write acquirer presentments and are off under `card.settlement.export.role=ISSUER` (item 21).
+- The transport layer is reusable as it is: `SettlementFileTransmitter` (SFTP with pinned host keys, HTTPS with optional mTLS), plus the claim/retry/lease pattern in `SettlementFileExportService`.
+
+### What's needed
+1. Each scheme's chargeback / retrieval / fee-collection record layout (spec documents, as for item 7).
+2. An outbound queue fed by `DisputeService` state changes, one record per chargeback. Its amounts are minor units through `SettlementAmounts`.
+3. Chargeback GL: a chargeback raised moves the disputed amount from the customer's provisional credit (if given) to a receivable from the scheme; representment and arbitration reverse or settle it. Check IFRS 9 / CBN treatment and cite it before designing.
+4. Incoming side: chargeback responses and representments arrive in the clearing files (15d).
 
 ---
 

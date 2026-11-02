@@ -16,9 +16,15 @@ import java.util.UUID;
  *
  * <h3>Status lifecycle</h3>
  * <pre>
- *   PENDING → TRANSMITTED → ACKNOWLEDGED
- *           ↘ FAILED (retryable — attempt_count incremented on each try)
+ *   PENDING → SENDING → TRANSMITTED → ACKNOWLEDGED
+ *      ↑         │
+ *      └─────────┤ attempt failed: back to PENDING with next_retry_at (the retry poller sends it again)
+ *                ↘ FAILED — attempts used up, a data error, or interrupted mid-send (SENDING past its lease)
  * </pre>
+ *
+ * <p>Inserting the PENDING row claims the batch+scheme: a unique index (V14) admits one live row
+ * (PENDING, SENDING, TRANSMITTED or ACKNOWLEDGED), so two runs can't send the same file. A FAILED row
+ * doesn't block a new claim, but only a manual export makes one — an interrupted send may have arrived.
  *
  * <p>A partial-retry invariant: a TRANSMITTED record is never overwritten.
  * If acknowledgement is missing (scheme did not send ACK), the record stays
@@ -63,9 +69,13 @@ public class SettlementTransmission {
     @Column(length = 255)
     private String endpoint;
 
-    /** PENDING → TRANSMITTED → ACKNOWLEDGED | FAILED */
+    /** PENDING → SENDING → TRANSMITTED → ACKNOWLEDGED | FAILED */
     @Column(nullable = false, length = 20)
     private String status = "PENDING";
+
+    /** When a PENDING transmission is due for its next attempt; null while SENDING or once settled. */
+    @Column(name = "next_retry_at")
+    private OffsetDateTime nextRetryAt;
 
     @Column(name = "attempt_count", nullable = false)
     private int attemptCount = 0;

@@ -109,8 +109,14 @@ card:
       acquirer-bin: ${ACQUIRER_BIN:000000}     # Bank's BIN — embedded in all scheme file headers
       member-id: ${MEMBER_ID:CBA001}           # Scheme membership identifier
       export-cron: "0 58 23 * * *"             # Nightly export at 23:58 — runs after settlement batch closes at 23:57
+      # ISSUER (default) sends no files: the exporters write acquirer presentments, which an issuer receives
+      # rather than sends (backlog 21). Set ACQUIRER only for an acquiring business with its own transactions.
+      role: ${CARD_SETTLEMENT_EXPORT_ROLE:ISSUER}
+      lookback-days: 7                         # nightly run also picks up batches that closed late
       max-retries: 3
-      retry-delay-seconds: 300                 # 5 minutes between retries
+      retry-delay-seconds: 300                 # 5 minutes between retries (scheduled, never a sleep)
+      retry-poll-ms: 60000                     # how often due retries are picked up
+      sending-lease-minutes: 30                # a send stuck this long is FAILED, never resent automatically
       # ── Transport security ────────────────────────────────────────────────────
       # SFTP schemes: the host key MUST be pinned before a scheme can be enabled.
       #   Supply EITHER sftp-known-hosts-path (an OpenSSH known_hosts file — preferred,

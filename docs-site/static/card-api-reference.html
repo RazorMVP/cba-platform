@@ -613,6 +613,8 @@ next day: operations record each scheme's settlement report → backend POST /ap
 <section id="settlement-export">
 <h2>Settlement File Export</h2>
 <p>Pluggable scheme file exporters. Each scheme has its own file format (Visa BASE II, Mastercard IPM, Verve NIBSS, Afrigo PAPSS, UnionPay CUPS). Exporters are disabled by default — flip <code>enabled: true</code> and supply credentials in <code>application.yml</code> to activate at production.</p>
+<div class="callout info"><strong>Issuer or acquirer (backlog 21).</strong> These five formats are <em>acquirer presentments</em>: the acquirer submits clearing records, the issuer receives them and sends back chargebacks and fee collections. This platform issues cards, so <code>card.settlement.export.role</code> defaults to <code>ISSUER</code> and nothing is exported — the nightly run and the retry poller do nothing and a manual export answers <code>409 PRESENTMENT_REQUIRES_ACQUIRER_ROLE</code>, whatever a scheme's <code>enabled</code> says. Set <code>ACQUIRER</code> only for an acquiring business with its own transactions.</div>
+<p><strong>Amounts</strong> in every file are whole ISO 4217 minor units (DE4), the same unit in data records and trailer totals; a fractional or over-wide amount, or a record without a currency, fails the file instead of being written. <strong>Nightly</strong> (<code>export-cron</code>): CLOSED or SETTLED batches from the last <code>lookback-days</code> (7) under their own settlement date, first attempts only. <strong>Retries</strong> are scheduled, never slept: a failed send goes back to <code>PENDING</code> with <code>nextRetryAt</code> (+<code>retry-delay-seconds</code>) and the poller (<code>retry-poll-ms</code>) sends it again, up to <code>max-retries</code>, then <code>FAILED</code>. Transmission statuses: <code>PENDING → SENDING → TRANSMITTED</code> (→ <code>ACKNOWLEDGED</code>) or <code>FAILED</code>. One live transmission per batch + scheme (unique index); a send stuck in <code>SENDING</code> past <code>sending-lease-minutes</code> becomes <code>FAILED</code> ("INTERRUPTED") and is never resent automatically — confirm with the scheme, then export again by hand.</p>
 
 <details class="endpoint">
   <summary class="endpoint-header">
@@ -623,13 +625,23 @@ next day: operations record each scheme's settlement report → backend POST /ap
   <div class="endpoint-body">
     <h4>Query Parameters</h4>
     <table><tr><th>Param</th><th>Description</th></tr>
-      <tr><td>settlementDate</td><td>Override date (YYYY-MM-DD). Defaults to batch date.</td></tr>
+      <tr><td>settlementDate</td><td>Optional (YYYY-MM-DD). Files always carry the batch's own settlement date; any other date → <code>400 SETTLEMENT_DATE_MISMATCH</code>.</td></tr>
     </table>
-    <pre><code>// Response (200) — one record per enabled exporter
+    <h4>Errors</h4>
+    <table><tr><th>Status</th><th>Code</th><th>When</th></tr>
+      <tr><td>409</td><td><code>PRESENTMENT_REQUIRES_ACQUIRER_ROLE</code></td><td><code>card.settlement.export.role</code> isn't <code>ACQUIRER</code> (the default <code>ISSUER</code>)</td></tr>
+      <tr><td>409</td><td><code>BATCH_NOT_CLOSED</code></td><td>The batch isn't CLOSED or SETTLED (an OPEN batch would send a partial file)</td></tr>
+      <tr><td>400</td><td><code>SETTLEMENT_DATE_MISMATCH</code></td><td><code>settlementDate</code> isn't the batch's date</td></tr>
+      <tr><td>404</td><td><code>BATCH_NOT_FOUND</code></td><td>No such batch</td></tr>
+    </table>
+    <pre><code>// Response (200) — one transmission per enabled scheme sent now; schemes with a live
+// transmission (PENDING, SENDING, TRANSMITTED) are skipped. A FAILED one can be sent again.
 { "data": [
   { "id": "...", "scheme": "VISA", "status": "TRANSMITTED", "attemptCount": 1,
-    "transmittedAt": "2026-01-15T23:59:00Z" },
-  { "id": "...", "scheme": "MASTERCARD", "status": "FAILED", "errorMessage": "SFTP timeout" }
+    "recordCount": 42, "totalAmount": 1250000,          // minor units
+    "transmittedAt": "2026-01-15T23:59:00Z", "nextRetryAt": null },
+  { "id": "...", "scheme": "MASTERCARD", "status": "PENDING", "attemptCount": 1,
+    "errorMessage": "SFTP timeout", "nextRetryAt": "2026-01-16T00:04:00Z" }
 ], "errors": [] }</code></pre>
   </div>
 </details>

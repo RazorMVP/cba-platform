@@ -45,8 +45,14 @@ public class SettlementExportController {
      *   <li>A specific scheme's file needs to be re-sent (e.g. SFTP timeout recovery)</li>
      * </ul>
      *
+     * <p>Refused with {@code 409 PRESENTMENT_REQUIRES_ACQUIRER_ROLE} unless
+     * {@code card.settlement.export.role} is ACQUIRER (an issuer doesn't send presentments — backlog 21), and
+     * with {@code 409 BATCH_NOT_CLOSED} for a batch that isn't CLOSED or SETTLED. Returns one transmission per
+     * scheme sent: TRANSMITTED, or PENDING with {@code nextRetryAt} when the retry poller will send it again.
+     *
      * @param batchId        UUID of the settlement batch to export
-     * @param settlementDate ISO date to embed in filenames; defaults to today if omitted
+     * @param settlementDate optional; files carry the batch's own settlement date, and any other date is
+     *                       refused ({@code 400 SETTLEMENT_DATE_MISMATCH})
      */
     @PostMapping("/export/{batchId}")
     @PreAuthorize("hasRole('ADMIN')")
@@ -55,8 +61,7 @@ public class SettlementExportController {
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate settlementDate) {
 
-        LocalDate date = (settlementDate != null) ? settlementDate : LocalDate.now();
-        List<SettlementTransmission> results = exportService.exportBatch(batchId, date);
+        List<SettlementTransmission> results = exportService.exportBatch(batchId, settlementDate);
         return ResponseEntity.ok(ApiResponse.ok(results));
     }
 
@@ -65,7 +70,8 @@ public class SettlementExportController {
     /**
      * List settlement file transmission records.
      *
-     * @param status optional filter: {@code PENDING}, {@code TRANSMITTED}, {@code ACKNOWLEDGED}, {@code FAILED}
+     * @param status optional filter: {@code PENDING}, {@code SENDING}, {@code TRANSMITTED}, {@code ACKNOWLEDGED},
+     *               {@code FAILED}
      */
     @GetMapping("/transmissions")
     @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")

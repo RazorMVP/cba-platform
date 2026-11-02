@@ -24,6 +24,9 @@ import java.util.StringJoiner;
  *   SequenceNo|PAN|ProcessingCode|Amount|STAN|RRN|AuthCode|
  *   MerchantId|TerminalId|MCC|TransactionDate|CurrencyCode
  *
+ * Amounts (TotalAmount, Amount) are whole ISO 4217 minor units (kobo), the same unit in header and rows.
+ * The layout hasn't been checked against the NIBSS specification yet — confirm both before enabling.
+ *
  * Transmission: SFTP to NIBSS e-Settlement gateway.
  */
 @Slf4j
@@ -51,12 +54,9 @@ public class VerveNibssExporter implements SettlementFileExporter {
                          LocalDate exportDate) {
         log.info("VerveNibssExporter: exporting {} records for batch={}", records.size(), batch.getBatchRef());
 
-        long totalMinor = records.stream()
-                .mapToLong(r -> r.grossAmount() != null ? r.grossAmount().longValue() : 0L)
-                .sum();
+        long totalMinor = SettlementAmounts.totalMinor(records);
 
-        String currency = records.isEmpty() ? "566"
-                : (records.get(0).currencyCode() != null ? records.get(0).currencyCode() : "566");
+        String currency = records.isEmpty() ? "" : SettlementAmounts.currency(records.get(0));
 
         StringBuilder sb = new StringBuilder();
 
@@ -75,7 +75,7 @@ public class VerveNibssExporter implements SettlementFileExporter {
                     String.valueOf(seq++),
                     r.pan() != null ? r.pan() : "",
                     r.processingCode() != null ? r.processingCode() : "000000",
-                    r.grossAmount() != null ? r.grossAmount().toPlainString() : "0",
+                    String.valueOf(SettlementAmounts.minor(r.grossAmount())),
                     r.stan() != null ? r.stan() : "",
                     r.rrn() != null ? r.rrn() : "",
                     r.authCode() != null ? r.authCode() : "",
@@ -83,7 +83,7 @@ public class VerveNibssExporter implements SettlementFileExporter {
                     r.terminalId() != null ? r.terminalId() : "",
                     r.mcc() != null ? r.mcc() : "0000",
                     r.transactionDate() != null ? r.transactionDate().format(DATE_FMT) : "",
-                    r.currencyCode() != null ? r.currencyCode() : currency
+                    SettlementAmounts.currency(r)
             )).append("\n");
         }
 

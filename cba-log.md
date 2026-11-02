@@ -57,6 +57,44 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 53) — 2026-11-02
+**Backlog 21: card scheme settlement files (user: "let's work on 21"; plan approved, no D1 reply → default D1a). Visa, Mastercard and UnionPay wrote amounts ×10⁴, late batches were never sent, retries slept inside a transaction, and the files — acquirer presentments — would have presented the issuer's own cardholders' spend. Now: exact minor units, claim + scheduled retry, lookback, and `card.settlement.export.role=ISSUER` (default) exports nothing.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/…/settlement/SettlementAmounts.java` | NEW — `minor`, `minorDigits` (BigDecimal or long, fixed width), `totalMinor`, `currency`: whole minor units from a scale-4 column; throws on fractional, negative or over-wide amounts and missing currency |
+| `VisaBase2Exporter`, `MastercardIpmExporter`, `UnionPayCupsExporter`, `VerveNibssExporter`, `AfrigoPapssExporter` | amounts through `SettlementAmounts` (data rows and totals in one unit); no `840`/`566`/`156` currency defaults; NIBSS/PAPSS javadoc: minor units, spec unconfirmed |
+| `SettlementExportRecord` | javadoc: minor units at scale 4, issuer-view interchange/fee/net |
+| `SettlementFileExportService` | rewritten: role guard; nightly over CLOSED/SETTLED batches in `lookback-days` under their own date, first attempts only; claim by inserting PENDING; attempt PENDING → SENDING → TRANSMITTED / PENDING + `nextRetryAt` / FAILED; `@Scheduled` retry poller; stale SENDING → FAILED (INTERRUPTED); bad data → FAILED at once; manual export refuses OPEN batches and other dates; records from `settlement_items` figures, not `interchange_log`; no `@Transactional`, no `Thread.sleep` |
+| `SettlementExportProperties`, `application.yml` | `role` (`CARD_SETTLEMENT_EXPORT_ROLE`, default `ISSUER`), `lookback-days` 7, `sending-lease-minutes` 30, `retry-poll-ms` 60000 |
+| `SettlementTransmission`, `SettlementTransmissionRepository`, `SettlementBatchRepository` | `nextRetryAt`, SENDING in the lifecycle; claim/retry/lease finders; batch window finder |
+| `SettlementExportController` | passes the optional `settlementDate` through (no longer defaults to today); javadoc lists the new errors |
+| `db/migration/V14__settlement_export_claim.sql` | NEW — `next_retry_at`; leftover PENDING → FAILED; unique index on live rows replaces the TRANSMITTED-only one; retry index |
+| `SettlementFileExportServiceTest` | NEW — 14 tests (role, refusals, claim race, retry scheduling without sleep, poller, max retries, interrupted send, lookback) |
+| `VisaBase2ExporterTest`, `SchemeExportersTest` | amounts at scale 4; exact amount fields per scheme; refusal cases |
+| `SettlementFileExportServiceIntegrationTest` | item figures win over a conflicting `interchange_log`; scale-4 DB amount → `000000010000` in a real UnionPay file; V14 index: second live row refused, FAILED doesn't block |
+| `card-service/docs/openapi-snapshot.yaml` | `SettlementTransmission.nextRetryAt` |
+| `web/…/cards/cards.service.ts`, `settlement/settlement.{ts,html,scss,spec.ts}` | `nextRetryAt`/`errorMessage` on the type; SENDING badge; Next Retry column; export refusal shown in an error banner (+1 spec) |
+| `docs/card-api-reference.html`, `docs/api-reference.html`, `docs/cba-postman-collection-v2.json` (+ `docs-site/static/` copies) | export endpoint: role guard, errors (409 ×2, 400, 404), date rule, statuses, `nextRetryAt`, minor units; Postman: optional `settlementDate` + 4 example responses |
+| `docs/deferred-backlog.md` | item 21 ✅ DONE; new item 22 — issuer outbound files (chargebacks, retrieval requests, fee collections) |
+| `docs/plans/2026-11-02-scheme-settlement-files.md`, `docs/plans/README.md` | approved plan + index row |
+| `CLAUDE.md` | card-service versions rows (217 unit / 249 full); Settlement File Export — backlog 21 section; gap-analysis row |
+
+#### Key Patterns / Decisions
+- **D1a — issuer exports nothing.** BASE II clearing records, IPM First Presentment 1240 and the NIBSS/PAPSS/CUPS files are what an *acquirer* submits; an issuer receives them and sends chargebacks / retrieval requests / fee collections (Visa Core Rules; Mastercard *IPM Clearing Formats*). card-service only authorizes the bank's own cards, so the guard keeps a flipped `enabled: true` from presenting them. The fixed serializers stay for an acquiring business.
+- **Fail rather than write a different amount.** `RoundingMode.UNNECESSARY` + width check: a file that can't carry the exact amount isn't built (FAILED at once, not retried).
+- **The INSERT is the lock; `@Version` decides who advances a row.** No transaction spans an HTTP/SFTP call. An interrupted send is never resent automatically — a duplicate presentment is worse than a late one; ops resend after checking with the scheme.
+- **Nightly = first attempts only**; retries belong to the poller (bounded by `max-retries`), anything past that to a person.
+
+#### Build Verification
+- card-service `./mvnw -o test`: **217/217**; `DOCKER_HOST=… ./mvnw clean verify -Pfull-integration`: **249/249** (was 232; V14 applied on PostgreSQL 16; snapshot regenerated with `-Dupdate.api.snapshot=true`, diff = `nextRetryAt` only). SpotBugs not run locally (Java 25) — CI.
+- web: `ng test` **1171/1171** (115 files), `check:change-detection` OK (95), production build OK.
+- Gate grep: no `@*Mapping`/`@RequestParam`/`@PathVariable` change; the export endpoint's behaviour and response changed, so card-api-reference, api-reference and Postman were updated (+ static copies, which matched their sources on main).
+
+#### Confirmed Platform Versions
+No dependency changed. card-service: Spring Boot 3.5.16, Java 21; tests 217 unit / 249 `-Pfull-integration`. web: Angular 22.2.3, tests 1171.
+
 ### Session 125 (cont. 52) — 2026-10-29
 **Web CI: blocking check that every Angular component sets `changeDetection: ChangeDetectionStrategy.Eager` (user: "add the CI check that fails when a component is missing ChangeDetectionStrategy.Eager"). Closes the gap cont. 51 left: with `prefer-on-push` off, nothing caught a new component that forgot Eager, and Angular 22's OnPush default freezes such a component in the browser with no error.**
 

@@ -6,6 +6,12 @@
     </div>
   </div>
 
+  @if (exportError) {
+    <div class="error-banner">
+      <span class="material-icons">error_outline</span> {{ exportError }}
+    </div>
+  }
+
   <div class="tab-bar">
     <button class="tab-item" [class.tab-item--active]="activeTab === 'batches'"
             (click)="activeTab = 'batches'">Batches</button>
@@ -105,7 +111,7 @@
           <thead>
             <tr>
               <th>Batch</th><th>Scheme</th><th>Status</th>
-              <th>Attempts</th><th>Last Attempt</th><th>Transmitted</th>
+              <th>Attempts</th><th>Last Attempt</th><th>Transmitted</th><th>Next Retry</th>
             </tr>
           </thead>
           <tbody>
@@ -117,6 +123,9 @@
                 <td>{{ t.attemptCount }}</td>
                 <td class="muted small">{{ t.lastAttemptAt ? (t.lastAttemptAt | date:'short') : '—' }}</td>
                 <td class="muted small">{{ t.transmittedAt ? (t.transmittedAt | date:'short') : '—' }}</td>
+                <td class="muted small" [attr.title]="t.errorMessage ?? null">
+                  {{ t.nextRetryAt ? (t.nextRetryAt | date:'short') : '—' }}
+                </td>
               </tr>
             }
           </tbody>

@@ -2,6 +2,14 @@
 
 :host { display: block; }
 
+.error-banner {
+  display: flex; align-items: center; gap: $space-2;
+  font-size: $text-sm; color: $color-error-600;
+  background: #fff5f5; border: 1px solid $color-error-100; border-radius: $radius-sm;
+  padding: $space-3 $space-4; margin-bottom: $space-4;
+  .material-icons { font-size: 18px; }
+}
+
 .batch-card { margin-bottom: 1rem; }
 
 .batch-header {

@@ -23247,11 +23247,195 @@
                     "settlement",
                     "export",
                     ":batchId"
+                  ],
+                  "query": [
+                    {
+                      "key": "settlementDate",
+                      "value": "2026-01-15",
+                      "description": "Optional. Must be the batch's own settlement date (YYYY-MM-DD).",
+                      "disabled": true
+                    }
+                  ],
+                  "variable": [
+                    {
+                      "key": "batchId",
+                      "value": "",
+                      "description": "Settlement batch UUID (CLOSED or SETTLED)"
+                    }
                   ]
                 },
-                "description": "Manually trigger settlement file export for a specific batch. Runs all enabled scheme exporters (Visa BASE II / MC IPM / Verve NIBSS / Afrigo PAPSS / UnionPay CUPS). Optional ?settlementDate=YYYY-MM-DD. Records result in settlement_transmissions."
+                "description": "Export a CLOSED or SETTLED batch's scheme files now (Visa BASE II / MC IPM / Verve NIBSS / Afrigo PAPSS / UnionPay CUPS), for each enabled scheme with no live transmission. Files carry the batch's own settlement date; the optional settlementDate must equal it. Amounts in every file are whole ISO 4217 minor units. Returns one transmission per scheme sent: TRANSMITTED, or PENDING with nextRetryAt \u2014 failed sends are retried by a scheduled poller (no sleep), up to max-retries, then FAILED. Refused with 409 PRESENTMENT_REQUIRES_ACQUIRER_ROLE unless card.settlement.export.role=ACQUIRER: these are acquirer presentments, and the default ISSUER sends none (backlog 21). 409 BATCH_NOT_CLOSED for an OPEN batch, 400 SETTLEMENT_DATE_MISMATCH for another date."
               },
-              "response": []
+              "response": [
+                {
+                  "name": "200 \u2014 sent (one TRANSMITTED, one PENDING retry)",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{access_token}}"
+                      },
+                      {
+                        "key": "X-Tenant-ID",
+                        "value": "{{tenant_id}}"
+                      }
+                    ],
+                    "url": {
+                      "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/export/:batchId",
+                      "host": [
+                        "http:"
+                      ],
+                      "path": [
+                        "",
+                        "{{cardServiceHost}}",
+                        "api",
+                        "v1",
+                        "cards",
+                        "settlement",
+                        "export",
+                        ":batchId"
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"data\": [\n    {\n      \"id\": \"8f1c\\u2026\",\n      \"batchId\": \"3a7d\\u2026\",\n      \"scheme\": \"VISA\",\n      \"fileName\": \"V412345260115001\",\n      \"recordCount\": 42,\n      \"totalAmount\": 1250000,\n      \"settlementDate\": \"2026-01-15\",\n      \"status\": \"TRANSMITTED\",\n      \"attemptCount\": 1,\n      \"transmittedAt\": \"2026-01-15T23:59:00Z\",\n      \"nextRetryAt\": null,\n      \"errorMessage\": null\n    },\n    {\n      \"id\": \"9b2e\\u2026\",\n      \"batchId\": \"3a7d\\u2026\",\n      \"scheme\": \"MASTERCARD\",\n      \"fileName\": \"412345260115001.IPM\",\n      \"recordCount\": 7,\n      \"totalAmount\": 180000,\n      \"settlementDate\": \"2026-01-15\",\n      \"status\": \"PENDING\",\n      \"attemptCount\": 1,\n      \"transmittedAt\": null,\n      \"nextRetryAt\": \"2026-01-16T00:04:00Z\",\n      \"errorMessage\": \"SFTP timeout\"\n    }\n  ],\n  \"meta\": {},\n  \"errors\": []\n}"
+                },
+                {
+                  "name": "409 \u2014 issuer role (default)",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{access_token}}"
+                      },
+                      {
+                        "key": "X-Tenant-ID",
+                        "value": "{{tenant_id}}"
+                      }
+                    ],
+                    "url": {
+                      "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/export/:batchId",
+                      "host": [
+                        "http:"
+                      ],
+                      "path": [
+                        "",
+                        "{{cardServiceHost}}",
+                        "api",
+                        "v1",
+                        "cards",
+                        "settlement",
+                        "export",
+                        ":batchId"
+                      ]
+                    }
+                  },
+                  "status": "Conflict",
+                  "code": 409,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"PRESENTMENT_REQUIRES_ACQUIRER_ROLE\",\n      \"message\": \"Settlement files are acquirer presentments; card.settlement.export.role is ISSUER, and an issuer doesn't send them\",\n      \"field\": null\n    }\n  ]\n}"
+                },
+                {
+                  "name": "409 \u2014 batch not closed",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{access_token}}"
+                      },
+                      {
+                        "key": "X-Tenant-ID",
+                        "value": "{{tenant_id}}"
+                      }
+                    ],
+                    "url": {
+                      "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/export/:batchId",
+                      "host": [
+                        "http:"
+                      ],
+                      "path": [
+                        "",
+                        "{{cardServiceHost}}",
+                        "api",
+                        "v1",
+                        "cards",
+                        "settlement",
+                        "export",
+                        ":batchId"
+                      ]
+                    }
+                  },
+                  "status": "Conflict",
+                  "code": 409,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"BATCH_NOT_CLOSED\",\n      \"message\": \"Settlement batch BATCH-20260115 is OPEN: only a CLOSED or SETTLED batch can be exported\",\n      \"field\": null\n    }\n  ]\n}"
+                },
+                {
+                  "name": "400 \u2014 date mismatch",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Authorization",
+                        "value": "Bearer {{access_token}}"
+                      },
+                      {
+                        "key": "X-Tenant-ID",
+                        "value": "{{tenant_id}}"
+                      }
+                    ],
+                    "url": {
+                      "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/export/:batchId",
+                      "host": [
+                        "http:"
+                      ],
+                      "path": [
+                        "",
+                        "{{cardServiceHost}}",
+                        "api",
+                        "v1",
+                        "cards",
+                        "settlement",
+                        "export",
+                        ":batchId"
+                      ]
+                    }
+                  },
+                  "status": "Bad Request",
+                  "code": 400,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"SETTLEMENT_DATE_MISMATCH\",\n      \"message\": \"Settlement batch BATCH-20260115 settles on 2026-01-15, not 2026-01-16\",\n      \"field\": null\n    }\n  ]\n}"
+                }
+              ]
             },
             {
               "name": "List Transmission Records",

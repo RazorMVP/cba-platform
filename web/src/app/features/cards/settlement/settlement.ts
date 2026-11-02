@@ -21,6 +21,7 @@ export class SettlementComponent implements OnInit {
   loading = true;
   activeTab: 'batches' | 'transmissions' = 'batches';
   expandedBatch: string | null = null;
+  exportError: string | null = null;
 
   ngOnInit(): void { this.load(); }
 
@@ -31,13 +32,20 @@ export class SettlementComponent implements OnInit {
   }
 
   closeBatch(id: string): void { this.svc.closeBatch(id).subscribe({ next: () => this.load() }); }
-  triggerExport(batchId: string): void { this.svc.triggerExport(batchId).subscribe({ next: () => this.load() }); }
+  // Card-service refuses an export with a reason (e.g. 409 PRESENTMENT_REQUIRES_ACQUIRER_ROLE for an issuer).
+  triggerExport(batchId: string): void {
+    this.exportError = null;
+    this.svc.triggerExport(batchId).subscribe({
+      next: () => this.load(),
+      error: e => { this.exportError = e?.error?.errors?.[0]?.message ?? 'Export failed'; },
+    });
+  }
   toggleExpand(id: string): void { this.expandedBatch = this.expandedBatch === id ? null : id; }
 
   batchTransmissions(batchId: string): SettlementTransmission[] { return this.transmissions.filter(t => t.batchId === batchId); }
 
   statusVariant(s: BatchStatus | string): V {
-    const m: Record<string, V> = { OPEN: 'info', CLOSED: 'warning', SETTLED: 'success', FAILED: 'error', TRANSMITTED: 'success', PENDING: 'info', ACKNOWLEDGED: 'success' };
+    const m: Record<string, V> = { OPEN: 'info', CLOSED: 'warning', SETTLED: 'success', FAILED: 'error', TRANSMITTED: 'success', PENDING: 'info', SENDING: 'info', ACKNOWLEDGED: 'success' };
     return m[s] ?? 'neutral';
   }
 

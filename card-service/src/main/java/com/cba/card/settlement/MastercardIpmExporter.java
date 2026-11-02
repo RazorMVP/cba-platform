@@ -79,9 +79,7 @@ public class MastercardIpmExporter implements SettlementFileExporter {
                     .getBytes(StandardCharsets.US_ASCII));
 
             // DE 4: Amount — 12 digits fixed (minor units)
-            String amt = r.grossAmount() != null
-                    ? padLeft(r.grossAmount().toPlainString().replace(".", ""), 12, '0') : "000000000000";
-            msg.write(amt.getBytes(StandardCharsets.US_ASCII));
+            msg.write(SettlementAmounts.minorDigits(r.grossAmount(), 12).getBytes(StandardCharsets.US_ASCII));
 
             // DE 11: STAN — 6 digits fixed
             msg.write(padLeft(r.stan() != null ? r.stan() : "000000", 6, '0')
@@ -111,7 +109,7 @@ public class MastercardIpmExporter implements SettlementFileExporter {
             msg.write(pad(r.merchantName() != null ? r.merchantName() : "", 40).getBytes(StandardCharsets.US_ASCII));
 
             // DE 49: Currency code — 3 chars fixed
-            msg.write(pad(r.currencyCode() != null ? r.currencyCode() : "840", 3)
+            msg.write(pad(SettlementAmounts.currency(r), 3)
                     .getBytes(StandardCharsets.US_ASCII));
 
         } catch (IOException e) {

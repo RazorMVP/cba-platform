@@ -135,6 +135,9 @@ export interface SettlementTransmission {
   attemptCount: number;
   lastAttemptAt: string | null;
   transmittedAt: string | null;
+  /** PENDING after a failed attempt: when the retry poller sends it again. */
+  nextRetryAt?: string | null;
+  errorMessage?: string | null;
 }
 
 // ── Disputes ──────────────────────────────────────────────────────────────────

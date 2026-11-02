@@ -10,7 +10,11 @@ import java.util.UUID;
  *
  * <p>Each {@link SettlementFileExporter} receives a list of these records
  * and is responsible for serializing them into its scheme-specific file
- * format. All monetary amounts are in minor units (cents / kobo / pesewas).
+ * format. All monetary amounts are ISO 4217 minor units (cents / kobo / pesewas),
+ * taken from the settlement item, but they arrive with the column's four decimals
+ * ({@code 2500.0000}) — format them with {@link SettlementAmounts}, never
+ * {@code toPlainString()}. Interchange, scheme fee and net are the issuer's view
+ * (backlog 15b): net is what the bank owes the scheme for the item.
  *
  * <p>Fields marked "populated from authorization_log JOIN" are joined at
  * query time by {@link SettlementFileExportService} — the exporter receives
@@ -38,7 +42,7 @@ public record SettlementExportRecord(
         String processingCode,    // DE3
         String entryMode,         // DE22
 
-        // ── Amounts (all in minor units, ISO 4217 numeric currency code) ──────
+        // ── Amounts (minor units, scale 4 from the DB; ISO 4217 numeric currency code) ──
         BigDecimal grossAmount,
         BigDecimal interchangeAmount,
         BigDecimal schemeFeeAmount,

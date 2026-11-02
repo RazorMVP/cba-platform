@@ -78,9 +78,7 @@ public class UnionPayCupsExporter implements SettlementFileExporter {
                     padAscii(exportDate.format(DateTimeFormatter.ofPattern("yyMMdd")), 6),
                     padAscii(String.valueOf(records.size()), 10)));
 
-            long totalMinor = records.stream()
-                    .mapToLong(r -> r.grossAmount() != null ? r.grossAmount().longValue() : 0L)
-                    .sum();
+            long totalMinor = SettlementAmounts.totalMinor(records);
 
             for (SettlementExportRecord r : records) {
                 out.write(buildRecord('D',
@@ -88,9 +86,9 @@ public class UnionPayCupsExporter implements SettlementFileExporter {
                         padAscii(r.pan() != null ? r.pan() : "", 19),
                         padAscii(r.transactionDate() != null
                                 ? r.transactionDate().format(DateTimeFormatter.ofPattern("yyMMdd")) : "000000", 6),
-                        padLeftAscii(r.grossAmount() != null
-                                ? r.grossAmount().toPlainString().replace(".", "") : "0", 12, '0'),
-                        padAscii(r.currencyCode() != null ? r.currencyCode() : "156", 3),
+                        SettlementAmounts.minorDigits(r.grossAmount(), 12)
+                                .getBytes(java.nio.charset.StandardCharsets.US_ASCII),
+                        padAscii(SettlementAmounts.currency(r), 3),
                         padAscii(r.stan() != null ? r.stan() : "", 6),
                         padAscii(r.rrn() != null ? r.rrn() : "", 12),
                         padAscii(r.authCode() != null ? r.authCode() : "", 6),
@@ -103,7 +101,8 @@ public class UnionPayCupsExporter implements SettlementFileExporter {
             // Trailer record
             out.write(buildRecord('T',
                     padLeftAscii(String.valueOf(records.size()), 8, '0'),
-                    padLeftAscii(String.valueOf(totalMinor), 12, '0')));
+                    SettlementAmounts.minorDigits(totalMinor, 12)
+                            .getBytes(java.nio.charset.StandardCharsets.US_ASCII)));
 
         } catch (java.io.IOException e) {
             throw new IllegalStateException("CUPS export failed", e);

@@ -57,9 +57,7 @@ public class VisaBase2Exporter implements SettlementFileExporter {
                     pad(batch.getBatchRef(), 20),
                     pad(String.valueOf(records.size()), 6)));
 
-            long totalMinor = records.stream()
-                    .mapToLong(r -> r.grossAmount() != null ? r.grossAmount().longValue() : 0L)
-                    .sum();
+            long totalMinor = SettlementAmounts.totalMinor(records);
 
             for (SettlementExportRecord r : records) {
                 String pan = r.pan() != null ? r.pan() : "";
@@ -68,8 +66,8 @@ public class VisaBase2Exporter implements SettlementFileExporter {
                         pad(pan, 19),
                         "    ",                                                         // expiry YYMM — not in record
                         pad(formatDate(r.transactionDate()), 6),
-                        padLeft(r.grossAmount() != null ? r.grossAmount().toPlainString().replace(".", "") : "0", 12, '0'),
-                        pad(r.currencyCode() != null ? r.currencyCode() : "840", 3),
+                        SettlementAmounts.minorDigits(r.grossAmount(), 12),
+                        pad(SettlementAmounts.currency(r), 3),
                         pad(r.stan() != null ? r.stan() : "", 6),
                         pad(r.rrn() != null ? r.rrn() : "", 12),
                         pad(r.authCode() != null ? r.authCode() : "", 6),
@@ -81,7 +79,7 @@ public class VisaBase2Exporter implements SettlementFileExporter {
             // Trailer
             out.write(buildRecord('T',
                     padLeft(String.valueOf(records.size()), 6, '0'),
-                    padLeft(String.valueOf(totalMinor), 12, '0')));
+                    SettlementAmounts.minorDigits(totalMinor, 12)));
 
         } catch (IOException e) {
             throw new IllegalStateException("BASE II export failed", e);

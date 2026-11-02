@@ -16,6 +16,9 @@ import java.util.List;
  * settlement batch envelope. This exporter produces the JSON byte payload; the
  * {@link SettlementFileTransmitter} posts it via HTTPS to the PAPSS clearing endpoint.
  *
+ * {@code totalAmount} and each {@code amount} are whole ISO 4217 minor units. The payload hasn't been
+ * checked against the PAPSS specification yet — confirm the shape and the amount unit before enabling.
+ *
  * Transmission: HTTPS POST to PAPSS clearing API (configure endpoint in application.yml).
  */
 @Slf4j
@@ -43,11 +46,8 @@ public class AfrigoPapssExporter implements SettlementFileExporter {
                          LocalDate exportDate) {
         log.info("AfrigoPapssExporter: exporting {} records for batch={}", records.size(), batch.getBatchRef());
 
-        long totalMinor = records.stream()
-                .mapToLong(r -> r.grossAmount() != null ? r.grossAmount().longValue() : 0L)
-                .sum();
-        String currency = records.isEmpty() ? "566"
-                : (records.get(0).currencyCode() != null ? records.get(0).currencyCode() : "566");
+        long totalMinor = SettlementAmounts.totalMinor(records);
+        String currency = records.isEmpty() ? "" : SettlementAmounts.currency(records.get(0));
 
         StringBuilder json = new StringBuilder();
         json.append("{\n");
@@ -64,14 +64,14 @@ public class AfrigoPapssExporter implements SettlementFileExporter {
             json.append("    {\n");
             json.append("      \"pan\": \"").append(esc(r.pan() != null ? r.pan() : "")).append("\",\n");
             json.append("      \"processingCode\": \"").append(esc(r.processingCode() != null ? r.processingCode() : "000000")).append("\",\n");
-            json.append("      \"amount\": ").append(r.grossAmount() != null ? r.grossAmount().toPlainString() : "0").append(",\n");
+            json.append("      \"amount\": ").append(SettlementAmounts.minor(r.grossAmount())).append(",\n");
             json.append("      \"stan\": \"").append(esc(r.stan() != null ? r.stan() : "")).append("\",\n");
             json.append("      \"rrn\": \"").append(esc(r.rrn() != null ? r.rrn() : "")).append("\",\n");
             json.append("      \"authCode\": \"").append(esc(r.authCode() != null ? r.authCode() : "")).append("\",\n");
             json.append("      \"merchantId\": \"").append(esc(r.merchantId() != null ? r.merchantId() : "")).append("\",\n");
             json.append("      \"mcc\": \"").append(esc(r.mcc() != null ? r.mcc() : "0000")).append("\",\n");
             json.append("      \"transactionDate\": \"").append(r.transactionDate() != null ? r.transactionDate().format(DATE_FMT) : "").append("\",\n");
-            json.append("      \"currencyCode\": \"").append(esc(r.currencyCode() != null ? r.currencyCode() : currency)).append("\"\n");
+            json.append("      \"currencyCode\": \"").append(esc(SettlementAmounts.currency(r))).append("\"\n");
             json.append("    }").append(i < records.size() - 1 ? "," : "").append("\n");
         }
 

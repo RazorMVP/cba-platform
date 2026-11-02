@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Testcontainers integration test for {@link SettlementFileExportService#buildExportRecords}
@@ -18,7 +19,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>resolves the scheme via a BIN range-scan and normalizes {@code UNION_PAY → UNIONPAY}
  *       (so it matches {@code UnionPayCupsExporter.getScheme()});</li>
  *   <li>produces a masked PAN (first 6 + mask + last 4), never the full PAN;</li>
- *   <li>nets interchange via the latest {@code interchange_log} row;</li>
+ *   <li>takes interchange, scheme fee and net from the item's own minor-unit figures, not
+ *       {@code interchange_log} (whose units changed at V13);</li>
  *   <li>only includes {@code SETTLED} items.</li>
  * </ul>
  *
@@ -28,6 +30,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class SettlementFileExportServiceIntegrationTest extends AbstractCardIntegrationTest {
 
     @Autowired SettlementFileExportService service;
+    @Autowired SettlementTransmissionRepository transmissionRepository;
+    @Autowired UnionPayCupsExporter unionPayExporter;
     @Autowired JdbcTemplate jdbc;
 
     @Test
@@ -62,9 +66,11 @@ class SettlementFileExportServiceIntegrationTest extends AbstractCardIntegration
                 VALUES (?, ?, '000123', 'RRN000000001', '0100', '000000', 10000, '156', '00', 'CHIP',
                         'MERCH01', 'UP Shop', '5411')
                 """, authId, cardId);
+        // interchange_log mixes units across V13 (minor before, major after), so the export must not read it:
+        // these values differ from the item's own figures below on purpose.
         jdbc.update("""
                 INSERT INTO interchange_log (authorization_log_id, scheme, interchange_amount, scheme_fee_amount, net_settlement_amount)
-                VALUES (?, 'UNIONPAY', 150, 13, 9837)
+                VALUES (?, 'UNIONPAY', 1.50, 0.13, 98.37)
                 """, authId);
 
         // ── Seed: a CLOSED batch with one SETTLED item (included) + one PENDING item (excluded) ──
@@ -72,9 +78,11 @@ class SettlementFileExportServiceIntegrationTest extends AbstractCardIntegration
                 INSERT INTO settlement_batches (id, batch_ref, status, settlement_date, total_amount, item_count)
                 VALUES (?, ?, 'CLOSED', CURRENT_DATE, 10000, 1)
                 """, batchId, batchId.toString());
+        // The item's own figures (minor units, set at clearing since 15b); scheme left null → BIN range-scan.
         jdbc.update("""
-                INSERT INTO settlement_items (id, batch_id, authorization_log_id, amount, currency_code, status)
-                VALUES (?, ?, ?, 10000, '156', 'SETTLED')
+                INSERT INTO settlement_items (id, batch_id, authorization_log_id, amount, currency_code, status,
+                                              interchange_amount, scheme_fee_amount, gl_net)
+                VALUES (?, ?, ?, 10000, '156', 'SETTLED', 150, 13, 9837)
                 """, settledItemId, batchId, authId);
         jdbc.update("""
                 INSERT INTO settlement_items (id, batch_id, authorization_log_id, amount, currency_code, status)
@@ -95,9 +103,44 @@ class SettlementFileExportServiceIntegrationTest extends AbstractCardIntegration
         assertThat(r.grossAmount()).isEqualByComparingTo("10000");
         assertThat(r.interchangeAmount()).isEqualByComparingTo("150");
         assertThat(r.schemeFeeAmount()).isEqualByComparingTo("13");
-        assertThat(r.netAmount()).isEqualByComparingTo("9837");       // from interchange_log
+        assertThat(r.netAmount()).isEqualByComparingTo("9837");       // the item's gl_net, not interchange_log
         assertThat(r.cardType()).isEqualTo("DEBIT");
         assertThat(r.merchantName()).isEqualTo("UP Shop");
+
+        // The column comes back at scale 4 (10000.0000); the file must carry 10000 minor units, not ×10⁴.
+        assertThat(r.grossAmount().scale()).isEqualTo(4);
+        byte[] file = unionPayExporter.export(records, batch, java.time.LocalDate.now());
+        assertThat(new String(file, 300 + 34, 12, java.nio.charset.StandardCharsets.US_ASCII))
+                .isEqualTo("000000010000");
+    }
+
+    @Test
+    @DisplayName("V14: one live transmission per batch+scheme; a FAILED one doesn't block a new claim")
+    void oneLiveTransmissionPerBatchAndScheme() {
+        UUID batchId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO settlement_batches (id, batch_ref, status, settlement_date, total_amount, item_count)
+                VALUES (?, ?, 'CLOSED', CURRENT_DATE, 0, 0)
+                """, batchId, batchId.toString());
+
+        SettlementTransmission first = transmissionRepository.saveAndFlush(transmission(batchId));
+        assertThatThrownBy(() -> transmissionRepository.saveAndFlush(transmission(batchId)))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+
+        first.setStatus("FAILED");
+        transmissionRepository.saveAndFlush(first);
+        SettlementTransmission retried = transmissionRepository.saveAndFlush(transmission(batchId));
+        assertThat(retried.getId()).isNotEqualTo(first.getId());
+        assertThat(transmissionRepository.existsByBatchIdAndScheme(batchId, "VISA")).isTrue();
+    }
+
+    private static SettlementTransmission transmission(UUID batchId) {
+        SettlementTransmission tx = new SettlementTransmission();
+        tx.setBatchId(batchId);
+        tx.setScheme("VISA");
+        tx.setFileName("V-" + batchId);
+        tx.setSettlementDate(java.time.LocalDate.now());
+        return tx;
     }
 
     @Test
@@ -137,7 +180,7 @@ class SettlementFileExportServiceIntegrationTest extends AbstractCardIntegration
 
         assertThat(records).hasSize(1);
         assertThat(records.get(0).scheme()).isEqualTo("UNKNOWN");
-        // net falls back to the gross amount when there is no interchange_log row
+        // net falls back to the gross amount when the item has no gl_net (e.g. cleared before 15b)
         assertThat(records.get(0).netAmount()).isEqualByComparingTo("2000");
     }
 }

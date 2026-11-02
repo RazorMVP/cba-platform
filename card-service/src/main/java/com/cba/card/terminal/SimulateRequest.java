@@ -65,5 +65,11 @@ public record SimulateRequest(
          * Network management code for 0800 messages.
          * "0001"=sign-on, "0002"=sign-off, "0301"=echo.
          */
-        String networkCode
+        String networkCode,
+
+        /**
+         * Optional DE19 Acquiring Institution Country, 3-digit ISO 3166 numeric ("566" = Nigeria). Sent on
+         * purchases, balance enquiries and withdrawals when set — exercises the card's international control.
+         */
+        String acquiringCountry
 ) {}

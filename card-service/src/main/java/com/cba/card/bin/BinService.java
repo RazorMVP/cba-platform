@@ -39,6 +39,22 @@ public class BinService {
     }
 
     /**
+     * The issuing country of a card, ISO 3166 alpha-3 ({@code bin_ranges.country_code}) of the most specific
+     * active range matching its first 8 digits, or {@code null} when no range matches or it has no country.
+     */
+    @Transactional(readOnly = true)
+    public String issuingCountry(String panPrefix) {
+        if (panPrefix == null || panPrefix.length() < 6) return null;
+        String pan8 = panPrefix.length() >= 8 ? panPrefix.substring(0, 8) : panPrefix;
+        return binRangeRepository.findByPan8(pan8).stream()
+                .findFirst()
+                .map(BinRange::getCountryCode)
+                .filter(c -> !c.isBlank())
+                .map(c -> c.trim().toUpperCase(java.util.Locale.ROOT))
+                .orElse(null);
+    }
+
+    /**
      * Export all BIN→scheme mappings for FEP cache pre-population.
      * Returns: key = first 8 digits of binStart, value = scheme name string.
      */

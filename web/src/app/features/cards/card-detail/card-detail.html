@@ -101,6 +101,31 @@
           </div>
         </div>
       </div>
+
+      <div class="card controls-card">
+        <div class="controls-card__header">
+          <h3 class="controls-card__title">Controls</h3>
+          <span class="controls-card__hint">A switched-off channel is declined (response code 57).</span>
+        </div>
+        @if (controlsError) {
+          <div class="controls-card__error" role="alert">{{ controlsError }}</div>
+        }
+        <label class="controls-card__row">
+          <input type="checkbox" [checked]="card.contactlessEnabled" [disabled]="savingControls"
+                 (change)="setControl('contactlessEnabled', $any($event.target))" />
+          Contactless (tap) payments
+        </label>
+        <label class="controls-card__row">
+          <input type="checkbox" [checked]="card.cnpEnabled" [disabled]="savingControls"
+                 (change)="setControl('cnpEnabled', $any($event.target))" />
+          Online and other card-not-present payments
+        </label>
+        <label class="controls-card__row">
+          <input type="checkbox" [checked]="card.internationalEnabled" [disabled]="savingControls"
+                 (change)="setControl('internationalEnabled', $any($event.target))" />
+          Use outside the card's home country
+        </label>
+      </div>
     }
 
     @if (activeTab === 'authorizations') {

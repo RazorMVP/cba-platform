@@ -1,5 +1,6 @@
 package com.cba.card.card;
 
+import com.cba.card.bin.BinService;
 import com.cba.card.common.CbaException;
 import com.cba.card.limits.CardLimit;
 import com.cba.card.limits.CardLimitRepository;
@@ -33,6 +34,7 @@ public class CardService {
     private final CardProductRepository     cardProductRepository;
     private final PhysicalCardOrderRepository physicalCardOrderRepository;
     private final CardLimitRepository       cardLimitRepository;
+    private final BinService                binService;
 
     @Value("${card.pan.hmac-key}")
     private String panHmacKey;
@@ -157,6 +159,60 @@ public class CardService {
             log.warn("Webhook publish failed for card command {}: {}", command, e.getMessage());
         }
         return saved;
+    }
+
+    // ── Cardholder Controls ───────────────────────────────────────────────────
+
+    /**
+     * Freeze and the contactless / card-not-present / international switches. Freeze goes through the
+     * block/unblock commands (same state rules and events); a null switch is left as it is. Turning
+     * international off needs the card's home country, so it's refused when the card's BIN range has none —
+     * the switch could never decline anything. {@code CARD.CONTROLS_CHANGED} fires when a switch changes.
+     */
+    @Transactional
+    public Card updateControls(UUID cardId, Boolean freeze, Boolean contactlessEnabled,
+                               Boolean cnpEnabled, Boolean internationalEnabled) {
+        Card card = findById(cardId);
+        if (Boolean.TRUE.equals(freeze)) {
+            card = executeCommand(cardId, "block");
+        } else if (Boolean.FALSE.equals(freeze)) {
+            card = executeCommand(cardId, "unblock");
+        }
+        if (Boolean.FALSE.equals(internationalEnabled) && card.isInternationalEnabled()
+                && issuingCountry(card) == null) {
+            throw CbaException.badRequest("CARD_COUNTRY_UNKNOWN",
+                    "International use can't be turned off: the card's BIN range has no country");
+        }
+        boolean changed = false;
+        if (contactlessEnabled != null && contactlessEnabled != card.isContactlessEnabled()) {
+            card.setContactlessEnabled(contactlessEnabled);
+            changed = true;
+        }
+        if (cnpEnabled != null && cnpEnabled != card.isCnpEnabled()) {
+            card.setCnpEnabled(cnpEnabled);
+            changed = true;
+        }
+        if (internationalEnabled != null && internationalEnabled != card.isInternationalEnabled()) {
+            card.setInternationalEnabled(internationalEnabled);
+            changed = true;
+        }
+        if (!changed) return card;
+        Card saved = cardRepository.save(card);
+        try {
+            webhookService.publishEvent("CARD.CONTROLS_CHANGED", Map.of(
+                    "cardId", cardId,
+                    "contactlessEnabled", saved.isContactlessEnabled(),
+                    "cnpEnabled", saved.isCnpEnabled(),
+                    "internationalEnabled", saved.isInternationalEnabled()));
+        } catch (Exception e) {
+            log.warn("Webhook publish failed for card controls {}: {}", cardId, e.getMessage());
+        }
+        return saved;
+    }
+
+    /** The card's home country (ISO 3166 alpha-3) from its BIN range, or {@code null} when unknown. */
+    public String issuingCountry(Card card) {
+        return binService.issuingCountry(card.getPanPrefix());
     }
 
     private void block(Card card) {

@@ -79,6 +79,18 @@ public class Card {
     @Column(name = "pin_set", nullable = false)
     private boolean pinSet = false;
 
+    /** Cardholder control: taps (DE22 07x / 91x) are allowed. Enforced in {@code CardAuthorizationService}. */
+    @Column(name = "contactless_enabled", nullable = false)
+    private boolean contactlessEnabled = true;
+
+    /** Cardholder control: card-not-present use (e-commerce, manual entry) is allowed. */
+    @Column(name = "cnp_enabled", nullable = false)
+    private boolean cnpEnabled = true;
+
+    /** Cardholder control: use where the acquirer's country (DE19) isn't the card's home country is allowed. */
+    @Column(name = "international_enabled", nullable = false)
+    private boolean internationalEnabled = true;
+
     @Version
     private long version;
 

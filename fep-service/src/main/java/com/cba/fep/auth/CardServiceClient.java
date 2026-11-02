@@ -68,6 +68,7 @@ public class CardServiceClient {
             body.put("arqcValid",       request.arqcValid());
             body.put("isFinancial",     request.isFinancial());
             body.put("schemeData",      request.schemeData());
+            body.put("acquiringCountry", request.acquiringCountry());   // DE19 — card-service's international control
 
             @SuppressWarnings("unchecked")
             Map<String, Object> response = restTemplate.postForObject(

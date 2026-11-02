@@ -203,6 +203,7 @@ Each entry shows HTTP status, response body, attempt count, and next retry time.
 | `CARD.EXPIRED` | `cardId`, `expiredAt` |
 | `CARD.PIN_CHANGED` | `cardId`, `changedAt` |
 | `CARD.LIMIT_CHANGED` | `cardId`, `newLimits`, `changedAt` |
+| `CARD.CONTROLS_CHANGED` | `cardId`, `contactlessEnabled`, `cnpEnabled`, `internationalEnabled` |
 
 ### Fraud Events
 

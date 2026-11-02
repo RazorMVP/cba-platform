@@ -3167,7 +3167,7 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <p>Builds real ISO 8583-1987 messages and fires them at the FEP TCP socket (port 8583). Returns decoded response + raw hex dump of request and response frames. PAN is passed from request body (no PAN lookup at this layer). Use for integration testing before connecting real ATM/POS hardware.</p>
 <table>
 <tr><th>Method</th><th>Path</th><th>MTI</th><th>Description</th><th>Role</th></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/purchase</code></td><td>0100</td><td>Card purchase at POS (DE3=000000). Body: cardNumber, expiryDate, amount, currency, terminalId, merchantId, merchantName, entryMode (SWIPE/CHIP/CONTACTLESS), pinBlock (optional)</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/purchase</code></td><td>0100</td><td>Card purchase at POS (DE3=000000). Body: cardNumber, expiryDate, amount, currency, terminalId, merchantId, merchantName, entryMode (SWIPE/CHIP/CONTACTLESS), pinBlock (optional), acquiringCountry (optional DE19, 3-digit ISO 3166 numeric; otherwise 400 INVALID_ACQUIRING_COUNTRY)</td><td>ADMIN, TELLER</td></tr>
 <tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/withdrawal</code></td><td>0200</td><td>ATM cash withdrawal (DE3=010000)</td><td>ADMIN, TELLER</td></tr>
 <tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/balance</code></td><td>0100</td><td>Balance enquiry (DE3=310000). Returns availableBalance in DE54.</td><td>ADMIN, TELLER</td></tr>
 <tr><td><span class="method post">POST</span></td><td><code>/api/v1/simulate/reversal</code></td><td>0400</td><td>Transaction reversal. Body must include originalStan and originalRrn for DE90.</td><td>ADMIN, TELLER</td></tr>
@@ -3214,7 +3214,7 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <h4>Card Controls (FAPI 2.0 / API Key)</h4>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
-<tr><td><span class="method put">PUT</span></td><td><code>/card-api/v1/cards/{id}/controls</code></td><td>Freeze/unfreeze (maps to BLOCK/UNBLOCK); advisory flags: contactlessEnabled, cnpEnabled, internationalEnabled</td><td>API_KEY, ADMIN, TELLER</td></tr>
+<tr><td><span class="method put">PUT</span></td><td><code>/card-api/v1/cards/{id}/controls</code></td><td>Freeze/unfreeze (maps to BLOCK/UNBLOCK) and the contactlessEnabled, cnpEnabled, internationalEnabled switches — stored on the card (default on) and enforced at authorization: a switched-off channel declines RC 57 before funds are reserved. Contactless = DE22 07x/91x; card-not-present = DE22 not 02/05/07/80/90/91 (blank included); international = DE19 ≠ the card's BIN-range country, failing closed when DE19 is missing. A field left out is unchanged. 400 CARD_COUNTRY_UNKNOWN when international is turned off for a card whose BIN range has no country. Fires CARD.CONTROLS_CHANGED</td><td>API_KEY, ADMIN, TELLER</td></tr>
 <tr><td><span class="method put">PUT</span></td><td><code>/card-api/v1/cards/{id}/limits</code></td><td>Update daily purchase, daily withdrawal, per-transaction, and monthly limits (NUMERIC 19,4)</td><td>API_KEY, ADMIN, TELLER</td></tr>
 <tr><td><span class="method post">POST</span></td><td><code>/card-api/v1/cards/{id}/pin/change</code></td><td>PIN change via HSM adapter — ISO-0 pin blocks; HSM verifies old (CA/DC) before setting new (A2); PIN never logged</td><td>API_KEY, ADMIN, TELLER</td></tr>
 </table>
@@ -3238,7 +3238,7 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 
 <h4>Webhook Management (API Key)</h4>
 <p>Delivery mechanism: immediate <code>@Async</code> WebClient POST + <code>@Scheduled</code> (60s) retry picker. Exponential backoff: 15s → 60s → 5m → 30m → 2h (max 5 attempts). HMAC-SHA256 signature: <code>X-CBA-Signature: sha256={hex}</code>. Empty <code>events</code> array subscribes to all event types.</p>
-<p><strong>Webhook Event Catalogue:</strong> AUTHORIZATION.APPROVED, AUTHORIZATION.DECLINED, AUTHORIZATION.REVERSED, CARD.ISSUED, CARD.ACTIVATED, CARD.BLOCKED, CARD.UNBLOCKED, CARD.EXPIRED, CARD.PIN_CHANGED, CARD.LIMIT_CHANGED, FRAUD.RULE_TRIGGERED, FRAUD.CARD_STEP_UP, FRAUD.CARD_DECLINED_HIGH_RISK, DISPUTE.RAISED, DISPUTE.RESOLVED</p>
+<p><strong>Webhook Event Catalogue:</strong> AUTHORIZATION.APPROVED, AUTHORIZATION.DECLINED, AUTHORIZATION.REVERSED, CARD.ISSUED, CARD.ACTIVATED, CARD.BLOCKED, CARD.UNBLOCKED, CARD.EXPIRED, CARD.PIN_CHANGED, CARD.LIMIT_CHANGED, CARD.CONTROLS_CHANGED, FRAUD.RULE_TRIGGERED, FRAUD.CARD_STEP_UP, FRAUD.CARD_DECLINED_HIGH_RISK, DISPUTE.RAISED, DISPUTE.RESOLVED</p>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
 <tr><td><span class="method post">POST</span></td><td><code>/card-api/v1/webhooks</code></td><td>Register webhook — secret returned once; use for HMAC verification</td><td>API_KEY, ADMIN</td></tr>
@@ -3851,7 +3851,7 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <tr><td>POST</td><td>/card-api/v1/cards</td><td>Issue card (BaaS — auto PAN/expiry/CVV from BIN)</td><td>API_KEY, ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/card-api/v1/cards</td><td>List cards; optional ?customerId= filter</td><td>API_KEY, ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/card-api/v1/cards/{id}</td><td>Get card detail</td><td>API_KEY, ADMIN, TELLER</td></tr>
-<tr><td>PUT</td><td>/card-api/v1/cards/{id}/controls</td><td>Freeze/unfreeze; advisory contactless/CNP/international flags</td><td>API_KEY, ADMIN, TELLER</td></tr>
+<tr><td>PUT</td><td>/card-api/v1/cards/{id}/controls</td><td>Freeze/unfreeze; contactless, card-not-present and international switches (enforced, RC 57)</td><td>API_KEY, ADMIN, TELLER</td></tr>
 <tr><td>PUT</td><td>/card-api/v1/cards/{id}/limits</td><td>Update spending limits (daily/per-txn/monthly)</td><td>API_KEY, ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/card-api/v1/cards/{id}/pin/change</td><td>PIN change via HSM (ISO-0 pin blocks)</td><td>API_KEY, ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/card-api/v1/cards/{id}/authorizations</td><td>Full authorization log (approved + declined)</td><td>API_KEY, ADMIN, TELLER</td></tr>

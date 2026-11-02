@@ -90,7 +90,7 @@ class CardAuthorizationServiceTest {
     private static CardAuthRequest req(BigDecimal amount, String processingCode, boolean pinVerified) {
         return new CardAuthRequest(PAN, processingCode, amount, "840", "000001",
                 "TERM01", "MERCH01", "Shop", "5411", "CHIP", "00", "RRN0001", "VISA",
-                pinVerified, true, false, null);
+                pinVerified, true, false, null, null);
     }
 
     private static FraudEvaluationResult approve() {
@@ -328,10 +328,10 @@ class CardAuthorizationServiceTest {
                 .isNotEqualTo(ref);
         assertThat(CardAuthorizationService.holdReference(card, new CardAuthRequest(PAN, "000000",
                 new BigDecimal("2500"), "840", "000001", "TERM02", "MERCH01", "Shop", "5411", "CHIP", "00",
-                "RRN0001", "VISA", false, true, false, null))).isNotEqualTo(ref);
+                "RRN0001", "VISA", false, true, false, null, null))).isNotEqualTo(ref);
         assertThat(CardAuthorizationService.holdReference(card, new CardAuthRequest(PAN, "000000",
                 new BigDecimal("2500"), "840", "000001", "TERM01", "MERCH01", "Shop", "5411", "CHIP", "00",
-                null, "VISA", false, true, false, null))).isNotEqualTo(ref);
+                null, "VISA", false, true, false, null, null))).isNotEqualTo(ref);
     }
 
     @Test
@@ -433,7 +433,7 @@ class CardAuthorizationServiceTest {
         stubBackendHold(false, "CURRENCY_MISMATCH");
 
         CardAuthRequest eur = new CardAuthRequest(PAN, "000000", new BigDecimal("1000"), "978", "000001",
-                "TERM01", "MERCH01", "Shop", "5411", "CHIP", "00", "RRN0001", "VISA", false, true, false, null);
+                "TERM01", "MERCH01", "Shop", "5411", "CHIP", "00", "RRN0001", "VISA", false, true, false, null, null);
         assertThat(service.authorize(eur).responseCode()).isEqualTo("57");
     }
 
@@ -446,7 +446,7 @@ class CardAuthorizationServiceTest {
         stubBackendHold(true, null);
 
         CardAuthRequest jpy = new CardAuthRequest(PAN, "000000", new BigDecimal("600"), "392", "000001",
-                "TERM01", "MERCH01", "Shop", "5411", "CHIP", "00", "RRN0001", "VISA", false, true, false, null);
+                "TERM01", "MERCH01", "Shop", "5411", "CHIP", "00", "RRN0001", "VISA", false, true, false, null, null);
         assertThat(service.authorize(jpy).responseCode()).isEqualTo("00");
         var body = postedHold();
         assertThat((BigDecimal) body.get("amount")).isEqualByComparingTo("600");
@@ -662,7 +662,7 @@ class CardAuthorizationServiceTest {
                 .when(backendRestTemplate).exchange(contains("/card-debits"), eq(HttpMethod.POST), any(HttpEntity.class),
                         any(ParameterizedTypeReference.class));
         CardAuthRequest atm = new CardAuthRequest(PAN, "010000", new BigDecimal("20000"), "840", "000002",
-                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0002", "VISA", true, true, true, null);
+                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0002", "VISA", true, true, true, null, null);
 
         assertThat(service.authorize(atm).responseCode()).isEqualTo("00");
 
@@ -696,7 +696,7 @@ class CardAuthorizationServiceTest {
                 .when(backendRestTemplate).exchange(contains("/card-debits"), eq(HttpMethod.POST), any(HttpEntity.class),
                         any(ParameterizedTypeReference.class));
         CardAuthRequest atm = new CardAuthRequest(PAN, "010000", new BigDecimal("20000"), "840", "000002",
-                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0002", "VISA", true, true, true, null);
+                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0002", "VISA", true, true, true, null, null);
 
         assertThat(service.authorize(atm).responseCode()).isEqualTo("00");
 
@@ -729,7 +729,7 @@ class CardAuthorizationServiceTest {
                 .when(backendRestTemplate).exchange(contains("/card-debits"), eq(HttpMethod.POST), any(HttpEntity.class),
                         any(ParameterizedTypeReference.class));
         CardAuthRequest atm = new CardAuthRequest(PAN, "010000", new BigDecimal("20000"), "840", "000003",
-                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0003", "VISA", true, true, true, null);
+                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0003", "VISA", true, true, true, null, null);
 
         assertThat(service.authorize(atm).responseCode()).isEqualTo("00");
         @SuppressWarnings("unchecked")
@@ -753,7 +753,7 @@ class CardAuthorizationServiceTest {
                 .when(backendRestTemplate).exchange(contains("/card-debits"), eq(HttpMethod.POST), any(HttpEntity.class),
                         any(ParameterizedTypeReference.class));
         CardAuthRequest atm = new CardAuthRequest(PAN, "010000", new BigDecimal("20000"), "840", "000003",
-                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0003", "VISA", true, true, true, null);
+                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0003", "VISA", true, true, true, null, null);
 
         assertThat(service.authorize(atm).responseCode()).isEqualTo("51");
         verify(settlementService, never()).addAuthorization(any(), any(), any(), any(Boolean.class));
@@ -980,7 +980,7 @@ class CardAuthorizationServiceTest {
                 any(ParameterizedTypeReference.class)))
                 .thenThrow(new org.springframework.web.client.ResourceAccessException("read timed out"));
         CardAuthRequest atm = new CardAuthRequest(PAN, "010000", new BigDecimal("20000"), "840", "000004",
-                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0004", "VISA", true, true, true, null);
+                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0004", "VISA", true, true, true, null, null);
 
         assertThat(service.authorize(atm).responseCode()).isEqualTo("91");
         verify(backendRestTemplate).exchange(contains("/card-holds/" + CardAuthorizationService.holdReference(card, atm)
@@ -999,7 +999,7 @@ class CardAuthorizationServiceTest {
                 any(ParameterizedTypeReference.class)))
                 .thenThrow(new org.springframework.web.client.ResourceAccessException("down"));
         CardAuthRequest atm = new CardAuthRequest(PAN, "010000", new BigDecimal("20000"), "840", "000005",
-                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0005", "VISA", true, true, true, null);
+                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0005", "VISA", true, true, true, null, null);
 
         assertThat(service.authorize(atm).responseCode()).isEqualTo("91");
         String ref = CardAuthorizationService.holdReference(card, atm);
@@ -1020,5 +1020,106 @@ class CardAuthorizationServiceTest {
 
         assertThat(service.reverse(PAN, new BigDecimal("100.00"), REV_STAN, "x")).isEqualTo("00");
         verify(settlementService).markReversed(original.getId());
+    }
+
+    // ── Cardholder controls (backlog 5) ────────────────────────────────────────
+
+    private static CardAuthRequest controlled(String entryMode, String acquiringCountry) {
+        return new CardAuthRequest(PAN, "000000", new BigDecimal("100"), "840", "000001",
+                "TERM01", "MERCH01", "Shop", "5411", entryMode, "00", "RRN0001", "VISA",
+                false, true, false, null, acquiringCountry);
+    }
+
+    private Card cardWithClearFraud(CardType type) {
+        Card card = prepaidCard();
+        card.setCardType(type);
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        return card;
+    }
+
+    private void assertDeclinedWithNothingReserved(CardAuthRequest request) {
+        assertThat(service.authorize(request).responseCode()).isEqualTo("57");
+        verify(walletRepository, never()).findByCardIdForUpdate(any());
+        verifyNoInteractions(backendRestTemplate);
+    }
+
+    @Test
+    @DisplayName("contactless off: a tap (DE22 071) declines 57 before any funds are reserved")
+    void contactlessOffDeclinesTap() {
+        Card card = cardWithClearFraud(CardType.DEBIT);
+        card.setContactlessEnabled(false);
+        assertDeclinedWithNothingReserved(controlled("071", null));
+    }
+
+    @Test
+    @DisplayName("contactless off: contactless magstripe (DE22 911) declines too, chip insert is approved")
+    void contactlessOffAllowsChip() {
+        Card card = cardWithClearFraud(CardType.PREPAID);
+        card.setContactlessEnabled(false);
+        assertThat(service.authorize(controlled("911", null)).responseCode()).isEqualTo("57");
+
+        when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(wallet("1000")));
+        assertThat(service.authorize(controlled("051", null)).responseCode()).isEqualTo("00");
+    }
+
+    @Test
+    @DisplayName("card-not-present off: manual entry, e-commerce and a blank DE22 all decline 57")
+    void cnpOffDeclinesCardNotPresent() {
+        Card card = cardWithClearFraud(CardType.DEBIT);
+        card.setCnpEnabled(false);
+        assertThat(service.authorize(controlled("010", null)).responseCode()).isEqualTo("57");
+        assertThat(service.authorize(controlled("812", null)).responseCode()).isEqualTo("57");
+        assertThat(service.authorize(controlled(null, null)).responseCode()).isEqualTo("57");
+        verifyNoInteractions(backendRestTemplate);
+    }
+
+    @Test
+    @DisplayName("card-not-present off: a chip transaction (DE22 051) is approved")
+    void cnpOffAllowsCardPresent() {
+        Card card = cardWithClearFraud(CardType.PREPAID);
+        card.setCnpEnabled(false);
+        when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(wallet("1000")));
+        assertThat(service.authorize(controlled("051", null)).responseCode()).isEqualTo("00");
+    }
+
+    @Test
+    @DisplayName("international off: an acquirer in the card's home country is approved")
+    void internationalOffAllowsDomestic() {
+        Card card = cardWithClearFraud(CardType.PREPAID);
+        card.setInternationalEnabled(false);
+        when(cardService.issuingCountry(card)).thenReturn("USA");
+        when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(wallet("1000")));
+        assertThat(service.authorize(controlled("051", "840")).responseCode()).isEqualTo("00");
+    }
+
+    @Test
+    @DisplayName("international off: an acquirer abroad (DE19 566 on a USA card) declines 57")
+    void internationalOffDeclinesAbroad() {
+        Card card = cardWithClearFraud(CardType.DEBIT);
+        card.setInternationalEnabled(false);
+        when(cardService.issuingCountry(card)).thenReturn("USA");
+        assertDeclinedWithNothingReserved(controlled("051", "566"));
+    }
+
+    @Test
+    @DisplayName("international off fails closed: no DE19, or a code that isn't ISO 3166, declines 57")
+    void internationalOffFailsClosed() {
+        Card card = cardWithClearFraud(CardType.DEBIT);
+        card.setInternationalEnabled(false);
+        when(cardService.issuingCountry(card)).thenReturn("USA");
+        assertThat(service.authorize(controlled("051", null)).responseCode()).isEqualTo("57");
+        assertThat(service.authorize(controlled("051", "999")).responseCode()).isEqualTo("57");
+        verifyNoInteractions(backendRestTemplate);
+    }
+
+    @Test
+    @DisplayName("every control on: no country lookup, and taps and e-commerce go through")
+    void allControlsOnChangeNothing() {
+        Card card = cardWithClearFraud(CardType.PREPAID);
+        when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(wallet("1000")));
+        assertThat(service.authorize(controlled("071", null)).responseCode()).isEqualTo("00");
+        assertThat(service.authorize(controlled("812", null)).responseCode()).isEqualTo("00");
+        verify(cardService, never()).issuingCountry(any());
     }
 }

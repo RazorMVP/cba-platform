@@ -1,5 +1,6 @@
 package com.cba.card.card;
 
+import com.cba.card.bin.BinService;
 import com.cba.card.common.CbaException;
 import com.cba.card.limits.CardLimitRepository;
 import com.cba.card.openbanking.webhook.WebhookService;
@@ -21,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -37,6 +39,7 @@ class CardServiceTest {
     @Mock PhysicalCardOrderRepository physicalCardOrderRepository;
     @Mock CardLimitRepository cardLimitRepository;
     @Mock WebhookService webhookService;
+    @Mock BinService binService;
 
     @InjectMocks CardService service;
 
@@ -172,5 +175,78 @@ class CardServiceTest {
         String other = service.hashPan("5111111111111118");
         assertThat(h1).isEqualTo(h2).hasSize(64).matches("[0-9a-f]{64}");
         assertThat(h1).isNotEqualTo(other);
+    }
+
+    // ── Cardholder controls (backlog 5) ───────────────────────────────────────
+
+    private Card stored(CardStatus status) {
+        Card c = card(status);
+        c.setPanPrefix("41000000");
+        when(cardRepository.findById(c.getId())).thenReturn(Optional.of(c));
+        return c;
+    }
+
+    @Test
+    @DisplayName("controls: switches are saved and CARD.CONTROLS_CHANGED carries all three")
+    void controlsSaved() {
+        Card c = stored(CardStatus.ACTIVE);
+        when(cardRepository.save(any(Card.class))).thenAnswer(i -> i.getArgument(0));
+
+        Card result = service.updateControls(c.getId(), null, false, false, null);
+
+        assertThat(result.isContactlessEnabled()).isFalse();
+        assertThat(result.isCnpEnabled()).isFalse();
+        assertThat(result.isInternationalEnabled()).isTrue();     // null leaves it as it was
+        assertThat(result.getStatus()).isEqualTo(CardStatus.ACTIVE);
+        verify(webhookService).publishEvent(eq("CARD.CONTROLS_CHANGED"), eq(java.util.Map.of(
+                "cardId", c.getId(), "contactlessEnabled", false, "cnpEnabled", false,
+                "internationalEnabled", true)));
+    }
+
+    @Test
+    @DisplayName("controls: nothing changed → nothing saved, no event")
+    void controlsUnchanged() {
+        Card c = stored(CardStatus.ACTIVE);
+
+        service.updateControls(c.getId(), null, true, null, true);
+
+        verify(cardRepository, never()).save(any());
+        verify(webhookService, never()).publishEvent(any(), anyMap());
+    }
+
+    @Test
+    @DisplayName("controls: freeze still blocks through the command (CARD.BLOCKED)")
+    void controlsFreeze() {
+        Card c = stored(CardStatus.ACTIVE);
+        when(cardRepository.save(any(Card.class))).thenAnswer(i -> i.getArgument(0));
+
+        Card result = service.updateControls(c.getId(), true, null, null, null);
+
+        assertThat(result.getStatus()).isEqualTo(CardStatus.BLOCKED);
+        verify(webhookService).publishEvent(eq("CARD.BLOCKED"), anyMap());
+        verify(webhookService, never()).publishEvent(eq("CARD.CONTROLS_CHANGED"), anyMap());
+    }
+
+    @Test
+    @DisplayName("controls: international off needs the card's home country — 400 CARD_COUNTRY_UNKNOWN, nothing saved")
+    void internationalOffNeedsCountry() {
+        Card c = stored(CardStatus.ACTIVE);
+        when(binService.issuingCountry("41000000")).thenReturn(null);
+
+        assertThatThrownBy(() -> service.updateControls(c.getId(), null, false, null, false))
+                .isInstanceOf(CbaException.class)
+                .hasMessageContaining("no country");
+        assertThat(c.isContactlessEnabled()).isTrue();
+        verify(cardRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("controls: international off is saved when the BIN range has a country")
+    void internationalOffWithCountry() {
+        Card c = stored(CardStatus.ACTIVE);
+        when(binService.issuingCountry("41000000")).thenReturn("USA");
+        when(cardRepository.save(any(Card.class))).thenAnswer(i -> i.getArgument(0));
+
+        assertThat(service.updateControls(c.getId(), null, null, null, false).isInternationalEnabled()).isFalse();
     }
 }

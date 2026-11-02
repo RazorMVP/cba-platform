@@ -48,7 +48,10 @@ public record AuthorizationRequest(
         boolean   isSingleMessage,  // true = 0120 advice (already completed at terminal)
 
         // --- Scheme-specific private data (populated by SchemeAdapter) ---
-        Map<String, String> schemeData
+        Map<String, String> schemeData,
+
+        // --- DE19 Acquiring Institution Country (ISO 3166 numeric); card-service's international control ---
+        String    acquiringCountry
 ) {
     // Compact canonical constructor — provide defaults for optional fields
     public AuthorizationRequest {

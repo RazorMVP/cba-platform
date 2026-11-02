@@ -99,12 +99,22 @@ curl -X PUT https://sandbox.nubbank.com/card-api/v1/cards/{id}/controls \
   -H "Authorization: ApiKey cba_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "frozen": false,
+    "freeze": false,
     "contactlessEnabled": true,
     "cnpEnabled": false,
     "internationalEnabled": false
   }'
 ```
+
+The switches are stored on the card (all on by default) and checked at authorization, before any funds are reserved. A switched-off channel is declined with response code **57**:
+
+| Switch off | Declined when |
+|---|---|
+| `contactlessEnabled` | the POS entry mode (DE22) is a tap: `07x` or `91x` |
+| `cnpEnabled` | the card isn't present: e-commerce, manual entry, or no entry mode at all |
+| `internationalEnabled` | the acquirer's country (DE19) isn't the card's home country, or the acquirer sent none |
+
+A field you leave out is unchanged. Turning `internationalEnabled` off for a card whose BIN range has no country returns `400 CARD_COUNTRY_UNKNOWN`. Each change fires `CARD.CONTROLS_CHANGED`.
 
 ---
 

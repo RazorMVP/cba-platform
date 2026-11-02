@@ -69,4 +69,25 @@ export class CardDetailComponent implements OnInit {
   }
 
   rcVariant(rc: string): V { return rc === '00' ? 'success' : 'error'; }
+
+  controlsError = '';
+  savingControls = false;
+  /**
+   * Turns one cardholder control on or off. On a refusal the checkbox is put back — its [checked] binding
+   * didn't change, so Angular wouldn't reset it — and the server's message is shown.
+   */
+  setControl(key: 'contactlessEnabled' | 'cnpEnabled' | 'internationalEnabled', input: HTMLInputElement): void {
+    if (!this.card) return;
+    const enabled = input.checked;
+    this.controlsError = '';
+    this.savingControls = true;
+    this.svc.updateControls(this.card.id, { [key]: enabled }).subscribe({
+      next: c => { this.card = c; this.savingControls = false; },
+      error: (e: { error?: { errors?: { message?: string }[] } }) => {
+        input.checked = !enabled;
+        this.controlsError = e?.error?.errors?.[0]?.message ?? 'Could not update the control';
+        this.savingControls = false;
+      },
+    });
+  }
 }

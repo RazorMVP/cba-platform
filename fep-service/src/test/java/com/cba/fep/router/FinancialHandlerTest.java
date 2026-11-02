@@ -15,6 +15,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 
+import com.cba.fep.auth.AuthorizationRequest;
+import org.mockito.ArgumentCaptor;
+import static org.mockito.Mockito.verify;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -92,5 +95,26 @@ class FinancialHandlerTest {
 
         assertThat(resp.getMTI()).isEqualTo("0230");
         assertThat(resp.getString(IsoField.RESPONSE_CODE)).isEqualTo("00");
+    }
+
+    @Test
+    @DisplayName("0200 forwards DE22, DE18, DE43 and DE19 — without DE22 an ATM withdrawal looked card-not-present")
+    void forwardsEntryModeAndCountry() throws Exception {
+        when(schemeAdapterFactory.detectScheme(anyString())).thenReturn(SchemeType.VISA);
+        when(cardServiceClient.authorize(any())).thenReturn(AuthorizationResult.approve("AUTH01"));
+        ISOMsg msg = financialRequest("010000");
+        msg.set(IsoField.POS_ENTRY_MODE, "051");
+        msg.set(IsoField.MCC, "6011");
+        msg.set(IsoField.CARD_ACCEPTOR_NAME, "ATM LAGOS");
+        msg.set(IsoField.ACQUIRING_COUNTRY, "566");
+
+        handler.handleRequest(msg);
+
+        ArgumentCaptor<AuthorizationRequest> sent = ArgumentCaptor.forClass(AuthorizationRequest.class);
+        verify(cardServiceClient).authorize(sent.capture());
+        assertThat(sent.getValue().posEntryMode()).isEqualTo("051");
+        assertThat(sent.getValue().mcc()).isEqualTo("6011");
+        assertThat(sent.getValue().merchantName()).isEqualTo("ATM LAGOS");
+        assertThat(sent.getValue().acquiringCountry()).isEqualTo("566");
     }
 }

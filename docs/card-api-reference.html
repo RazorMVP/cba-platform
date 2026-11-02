@@ -270,7 +270,7 @@ It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port
   <tr><td><span class="badge badge-delete">DELETE</span></td><td><code>/card-api/v1/api-keys/{id}</code></td><td>ADMIN</td><td>Revoke API key</td></tr>
   <tr><td><span class="badge badge-post">POST</span></td><td><code>/card-api/v1/cards</code></td><td>API_KEY/ADMIN/TELLER</td><td>Issue card (BaaS)</td></tr>
   <tr><td><span class="badge badge-get">GET</span></td><td><code>/card-api/v1/cards</code></td><td>API_KEY/ADMIN/TELLER</td><td>List cards (BaaS)</td></tr>
-  <tr><td><span class="badge badge-put">PUT</span></td><td><code>/card-api/v1/cards/{id}/controls</code></td><td>API_KEY/ADMIN/TELLER</td><td>Freeze/unfreeze, toggle contactless/CNP</td></tr>
+  <tr><td><span class="badge badge-put">PUT</span></td><td><code>/card-api/v1/cards/{id}/controls</code></td><td>API_KEY/ADMIN/TELLER</td><td>Freeze/unfreeze; contactless, card-not-present and international switches (enforced, RC 57)</td></tr>
   <tr><td><span class="badge badge-put">PUT</span></td><td><code>/card-api/v1/cards/{id}/limits</code></td><td>API_KEY/ADMIN/TELLER</td><td>Update card limits</td></tr>
   <tr><td><span class="badge badge-post">POST</span></td><td><code>/card-api/v1/cards/{id}/pin/change</code></td><td>API_KEY/ADMIN/TELLER</td><td>PIN change via HSM</td></tr>
   <tr><td><span class="badge badge-get">GET</span></td><td><code>/card-api/v1/cards/{id}/analytics/by-category</code></td><td>API_KEY/ADMIN</td><td>Spend by MCC category</td></tr>
@@ -771,7 +771,9 @@ next day: operations record each scheme's settlement report → backend POST /ap
   "merchantId": "MERCH000000001",
   "merchantName": "Coffee Shop Lagos",
   "entryMode": "CHIP",            // CHIP | SWIPE | CONTACTLESS
-  "pinBlock": null                // optional ISO-0 encrypted PIN block
+  "pinBlock": null,               // optional ISO-0 encrypted PIN block
+  "acquiringCountry": "566"       // optional DE19, 3-digit ISO 3166 numeric — tests the international switch;
+                                  // not 3 digits → 400 INVALID_ACQUIRING_COUNTRY
 }
 
 // Response (200)
@@ -879,8 +881,8 @@ next day: operations record each scheme's settlement report → backend POST /ap
 
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <section id="card-api-controls">
-<h2>Card Controls (Consent-gated)</h2>
-<p>Customer card controls require FAPI 2.0 consent or an API key. Controls include freeze/unfreeze, enabling/disabling contactless/CNP transactions, and PIN change via HSM.</p>
+<h2>Card Controls</h2>
+<p>Card controls take an API key or an ADMIN/TELLER token (customer tokens aren't admitted: card-service has no customer ownership check). Controls are freeze/unfreeze, the contactless, card-not-present and international switches, and PIN change via HSM.</p>
 
 <details class="endpoint">
   <summary class="endpoint-header">
@@ -889,12 +891,33 @@ next day: operations record each scheme's settlement report → backend POST /ap
     <span class="endpoint-summary">Update card controls (freeze, contactless, CNP, international)</span>
   </summary>
   <div class="endpoint-body">
-    <pre><code>{
-  "frozen": false,
+    <pre><code>// Request — every field optional; one left out is unchanged
+{
+  "freeze": false,              // true = block, false = unblock (CARD.BLOCKED / CARD.UNBLOCKED)
   "contactlessEnabled": true,
   "cnpEnabled": false,
   "internationalEnabled": true
-}</code></pre>
+}
+
+// Response (200) — the card, with its switches
+{ "data": { "id": "…", "status": "ACTIVE", "contactlessEnabled": true, "cnpEnabled": false,
+            "internationalEnabled": true, … }, "meta": {}, "errors": [] }</code></pre>
+    <p>The switches are stored on the card (default on) and enforced at authorization, before any funds are
+       reserved. A switched-off channel declines with <strong>RC 57</strong> (transaction not permitted to
+       cardholder); reversals (0400) are never blocked.</p>
+    <table>
+      <tr><th>Switch off</th><th>Declined when</th></tr>
+      <tr><td><code>contactlessEnabled</code></td><td>DE22 starts <code>07</code> (contactless chip) or <code>91</code> (contactless magstripe)</td></tr>
+      <tr><td><code>cnpEnabled</code></td><td>DE22 isn't card present — card present is <code>02</code>, <code>05</code>, <code>07</code>, <code>80</code>, <code>90</code>, <code>91</code>; manual entry <code>01</code>, e-commerce <code>81</code> and a missing DE22 are not</td></tr>
+      <tr><td><code>internationalEnabled</code></td><td>the acquirer's country (DE19, ISO 3166 numeric) isn't the card's home country (its BIN range's <code>country_code</code>). <strong>Fails closed:</strong> a request without DE19, or with a code that isn't ISO 3166, is declined too</td></tr>
+    </table>
+    <p><code>CARD.CONTROLS_CHANGED</code> fires when a switch changes.</p>
+    <table>
+      <tr><th>Status</th><th>Code</th><th>When</th></tr>
+      <tr><td>400</td><td><code>CARD_COUNTRY_UNKNOWN</code></td><td><code>internationalEnabled: false</code> for a card whose BIN range has no country — the switch could never decline anything</td></tr>
+      <tr><td>400</td><td><code>INVALID_STATE</code></td><td><code>freeze</code> on a card that isn't ACTIVE, or unfreeze on one that isn't BLOCKED; nothing is changed</td></tr>
+      <tr><td>404</td><td><code>CARD_NOT_FOUND</code></td><td>no such card</td></tr>
+    </table>
   </div>
 </details>
 
@@ -954,6 +977,7 @@ X-CBA-Delivery: {uuid}</code></pre>
   <tr><td>CARD.EXPIRED</td><td>Card reached expiry (nightly CoB job)</td></tr>
   <tr><td>CARD.PIN_CHANGED</td><td>PIN changed via HSM</td></tr>
   <tr><td>CARD.LIMIT_CHANGED</td><td>Any spending limit updated</td></tr>
+  <tr><td>CARD.CONTROLS_CHANGED</td><td>A contactless / card-not-present / international switch changed — <code>{cardId, contactlessEnabled, cnpEnabled, internationalEnabled}</code></td></tr>
   <tr><td>FRAUD.RULE_TRIGGERED</td><td>Any fraud rule score &gt; 0</td></tr>
   <tr><td>FRAUD.CARD_STEP_UP</td><td>Score 30–69; contactless step-up to online PIN</td></tr>
   <tr><td>FRAUD.CARD_DECLINED_HIGH_RISK</td><td>Score ≥ 70</td></tr>

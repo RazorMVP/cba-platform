@@ -197,6 +197,7 @@ GET /api/v1/partners/{orgId}/webhooks/{webhookId}/deliveries
 | `CARD.EXPIRED` | Card reached expiry date |
 | `CARD.PIN_CHANGED` | PIN changed via HSM |
 | `CARD.LIMIT_CHANGED` | Spending limit updated |
+| `CARD.CONTROLS_CHANGED` | Contactless, card-not-present or international switch changed (`cardId`, `contactlessEnabled`, `cnpEnabled`, `internationalEnabled`) |
 
 ### Fraud events
 

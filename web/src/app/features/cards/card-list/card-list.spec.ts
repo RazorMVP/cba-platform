@@ -11,7 +11,8 @@ function card(over: Partial<Card> = {}): Card {
     id: 'cd1', panPrefix: '457312', panSuffix: '1234', expiryDate: '2612',
     cardType: 'DEBIT', status: 'ACTIVE', virtualFlag: false, customerId: 'cust-1',
     linkedEntityId: 'acc-1', productId: 'p1', productName: 'Classic Debit',
-    pinRetryCount: 0, createdAt: '2026-01-01', updatedAt: '2026-01-01', ...over,
+    pinRetryCount: 0, contactlessEnabled: true, cnpEnabled: true, internationalEnabled: true,
+    createdAt: '2026-01-01', updatedAt: '2026-01-01', ...over,
   };
 }
 

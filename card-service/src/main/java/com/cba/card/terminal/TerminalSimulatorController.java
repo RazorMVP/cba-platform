@@ -85,7 +85,7 @@ public class TerminalSimulatorController {
             @RequestBody(required = false) SimulateRequest req) {
         SimulateRequest actual = req != null ? req
                 : new SimulateRequest(null, null, null, null,
-                                      null, null, null, null, null, null, null, null, "0001");
+                                      null, null, null, null, null, null, null, null, "0001", null);
         return ResponseEntity.ok(ApiResponse.ok(simulatorService.networkManagement(actual)));
     }
 
@@ -99,7 +99,7 @@ public class TerminalSimulatorController {
             @RequestBody(required = false) SimulateRequest req) {
         SimulateRequest actual = req != null ? req
                 : new SimulateRequest(null, null, null, null,
-                                      null, null, null, null, null, null, null, null, "0301");
+                                      null, null, null, null, null, null, null, null, "0301", null);
         return ResponseEntity.ok(ApiResponse.ok(simulatorService.networkManagement(actual)));
     }
 }

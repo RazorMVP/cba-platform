@@ -57,6 +57,47 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 54) — 2026-11-02
+**Backlog 5: cardholder controls are enforced (user: "5"; plan approved, no D1/D2 reply → defaults D1a + D2a). `PUT /card-api/v1/cards/{id}/controls` dropped `contactlessEnabled`, `cnpEnabled` and `internationalEnabled` — nothing stored them, nothing checked them, so a customer who turned contactless off could still tap. Now stored per card and checked at authorization (RC 57) before any funds are reserved.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/…/card/Card.java`, `db/migration/V15__card_controls.sql` | three `BOOLEAN NOT NULL DEFAULT true` columns — existing cards behave as before |
+| `card-service/…/card/CardService.java` | NEW `updateControls(id, freeze, contactless, cnp, international)` (freeze through block/unblock as before; null = unchanged; `400 CARD_COUNTRY_UNKNOWN`; `CARD.CONTROLS_CHANGED` on a change) and `issuingCountry(card)` |
+| `card-service/…/openbanking/CardApiController.java` | controls endpoint is one call to `updateControls` |
+| `card-service/…/auth/CardAuthorizationService.java` | step 2b `blockingControl` after the fraud decline, before funds: contactless / card-not-present / international → RC 57 |
+| `card-service/…/auth/PosEntryModes.java` | NEW — the DE22 rule (card present 02/05/07/80/90/91, contactless 07/91); `InterchangeQualificationEngine.mapChannel` delegates to it, unchanged behaviour |
+| `card-service/…/auth/CountryCodes.java`, `resources/iso3166-countries.csv` | NEW — ISO 3166-1 numeric → alpha-3, all 249 countries, generated from pycountry 26.2.16 (Debian iso-codes) |
+| `card-service/…/bin/BinService.java` | NEW `issuingCountry(panPrefix)` — BIN range `country_code` via the existing `findByPan8` |
+| `card-service/…/auth/CardAuthRequest.java` | `acquiringCountry` (DE19) |
+| `card-service/…/terminal/SimulateRequest.java`, `TerminalSimulatorService.java`, `TerminalSimulatorController.java` | optional `acquiringCountry` → DE19 on 0100/0200; not 3 digits → `400 INVALID_ACQUIRING_COUNTRY` |
+| `fep-service/…/auth/AuthorizationRequest.java`, `CardServiceClient.java`, `router/AuthorizationHandler.java`, `router/FinancialHandler.java` | DE19 forwarded; **0200 now sends DE22, MCC and merchant name** (it sent none — every ATM withdrawal looked card-not-present, and interchange priced it as CNP) |
+| card-service tests | `CardAuthorizationServiceTest` +8 (each decline asserts no backend / wallet call), `CardServiceTest` +5, NEW `PosEntryModesTest` (22 cases), NEW `CountryCodesTest` (table vs the JDK's alpha-3 list), `FepAuthorizeContractTest` binds `acquiringCountry` |
+| fep-service tests | `AuthorizationHandlerTest` +1, `FinancialHandlerTest` +1, NEW `CardServiceClientTest` (the hand-built authorize body) |
+| `card-service/docs/openapi-snapshot.yaml` | `Card` +3 booleans; `acquiringCountry` on `CardAuthRequest` and `SimulateRequest` |
+| `web/…/cards/cards.service.ts`, `card-detail/*`, `card-list/card-list.spec.ts`, `webhooks/webhooks.ts` | `Card` flags + `updateControls()`; Controls block on the Overview tab (a refusal puts the checkbox back and shows the message); `CARD.CONTROLS_CHANGED` in the event list (+3 specs) |
+| `docs/card-api-reference.html`, `docs/api-reference.html`, `docs/cba-postman-collection-v2.json` (+ `docs-site/static/` copies) | controls: enforced switches, decline rules, errors, event; simulator `acquiringCountry`. Fixed while there: the example body used `"frozen"` (the field is `freeze`) and the section claimed customer consent works (CUSTOMER isn't admitted since cont. 29) |
+| `partner-docs/docs/card-api.md`, `partner-docs/docs/webhooks.md`, `docs-site/docs/api/card.md`, `docs-site/docs/webhooks.md` | same fixes (`frozen` → `freeze`, `cardNotPresentEnabled` → `cnpEnabled`, auth line) + decline table + event row |
+| `docs/deferred-backlog.md` | item 5 ✅ DONE |
+| `docs/plans/2026-11-02-card-controls.md`, `docs/plans/README.md` | approved plan + index row |
+| `CLAUDE.md` | card-service rows (255 / 287), fep-service count (94), web rows (1174), event catalogue, component map, "Cardholder controls" section |
+
+#### Key Patterns / Decisions
+- **D1a — international = acquirer country (DE19) vs the card's BIN-range country**, not currency: a USD purchase in Lagos is domestic, a naira one abroad isn't.
+- **D2a — fail closed.** International off + no DE19 (or a code that isn't ISO 3166) → decline. To keep the switch honest, it can't be turned off for a card whose BIN range has no country.
+- **Check before reserving.** The control check sits before the first backend or wallet call; tests prove each decline makes no backend call.
+- **RC 57 for all three** — "transaction not permitted to cardholder", the code for a cardholder-chosen restriction.
+
+#### Build Verification
+- card-service `./mvnw -o test`: **255/255** (was 217); `DOCKER_HOST=… ./mvnw clean verify -Pfull-integration`: **287/287** (was 249; V15 applied on PostgreSQL 16 under `ddl-auto=validate`; snapshot regenerated, diff = the 3 `Card` booleans + 2 `acquiringCountry` fields).
+- fep-service `./mvnw -o test`: **94/94** (was 91).
+- web: `ng test` **1174/1174** (115 files), `check:change-detection` OK (95), production build OK (the `loan-detail.scss` budget warning predates this).
+- Gate grep (tracked + untracked Java): no `@*Mapping`/`@RequestParam`/`@PathVariable` change. The controls endpoint's behaviour and response, the authorize contract and the simulator body changed, so card-api-reference, api-reference and Postman were updated (+ static copies, which matched their sources on main).
+
+#### Confirmed Platform Versions
+No dependency changed. card-service: Spring Boot 3.5.16, Java 21; tests 255 unit / 287 `-Pfull-integration`. fep-service: tests 94. web: Angular 22.2.3, tests 1174.
+
 ### Session 125 (cont. 53) — 2026-11-02
 **Backlog 21: card scheme settlement files (user: "let's work on 21"; plan approved, no D1 reply → default D1a). Visa, Mastercard and UnionPay wrote amounts ×10⁴, late batches were never sent, retries slept inside a transaction, and the files — acquirer presentments — would have presented the issuer's own cardholders' spend. Now: exact minor units, claim + scheduled retry, lookback, and `card.settlement.export.role=ISSUER` (default) exports nothing.**
 

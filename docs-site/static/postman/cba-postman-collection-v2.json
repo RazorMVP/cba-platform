@@ -23858,10 +23858,10 @@
                     "purchase"
                   ]
                 },
-                "description": "MTI 0100 purchase authorization. entryMode: SWIPE|CHIP|CONTACTLESS",
+                "description": "MTI 0100 purchase authorization. entryMode: SWIPE|CHIP|CONTACTLESS acquiringCountry (optional): DE19, 3-digit ISO 3166 numeric (566 = Nigeria) \u2014 exercises the card's international switch; anything else \u2192 400 INVALID_ACQUIRING_COUNTRY.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"cardNumber\": \"4111111111111111\",\n  \"expiryDate\": \"2712\",\n  \"amount\": 100.0,\n  \"currency\": \"840\",\n  \"terminalId\": \"TERM0001\",\n  \"merchantId\": \"MERCHANT0000001\",\n  \"merchantName\": \"SUPERMART NAIROBI KE\",\n  \"mcc\": \"5411\",\n  \"entryMode\": \"CHIP\",\n  \"pinBlock\": null\n}",
+                  "raw": "{\n  \"cardNumber\": \"4111111111111111\",\n  \"expiryDate\": \"2712\",\n  \"amount\": 100.0,\n  \"currency\": \"840\",\n  \"terminalId\": \"TERM0001\",\n  \"merchantId\": \"MERCHANT0000001\",\n  \"merchantName\": \"SUPERMART NAIROBI KE\",\n  \"mcc\": \"5411\",\n  \"entryMode\": \"CHIP\",\n  \"pinBlock\": null,\n  \"acquiringCountry\": \"566\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -23893,10 +23893,10 @@
                     "withdrawal"
                   ]
                 },
-                "description": "MTI 0200 cash withdrawal. PIN block strongly recommended.",
+                "description": "MTI 0200 cash withdrawal. PIN block strongly recommended. acquiringCountry (optional): DE19, 3-digit ISO 3166 numeric (566 = Nigeria) \u2014 exercises the card's international switch; anything else \u2192 400 INVALID_ACQUIRING_COUNTRY.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"cardNumber\": \"4111111111111111\",\n  \"expiryDate\": \"2712\",\n  \"amount\": 500.0,\n  \"currency\": \"840\",\n  \"terminalId\": \"ATM00001\",\n  \"merchantId\": \"BANK000000000001\",\n  \"merchantName\": \"CBA ATM NAIROBI BRANCH\",\n  \"mcc\": \"6010\",\n  \"entryMode\": \"CHIP\",\n  \"pinBlock\": \"0123456789ABCDEF\"\n}",
+                  "raw": "{\n  \"cardNumber\": \"4111111111111111\",\n  \"expiryDate\": \"2712\",\n  \"amount\": 500.0,\n  \"currency\": \"840\",\n  \"terminalId\": \"ATM00001\",\n  \"merchantId\": \"BANK000000000001\",\n  \"merchantName\": \"CBA ATM NAIROBI BRANCH\",\n  \"mcc\": \"6010\",\n  \"entryMode\": \"CHIP\",\n  \"pinBlock\": \"0123456789ABCDEF\",\n  \"acquiringCountry\": \"566\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -25374,7 +25374,7 @@
               "name": "Card Controls",
               "item": [
                 {
-                  "name": "Update Card Controls (Freeze / Unfreeze)",
+                  "name": "Update Card Controls (Freeze / Switches)",
                   "request": {
                     "method": "PUT",
                     "header": [
@@ -25410,7 +25410,7 @@
                         }
                       ]
                     },
-                    "description": "freeze=true maps to BLOCK command (card \u2192 BLOCKED status). freeze=false maps to UNBLOCK command (card \u2192 ACTIVE). contactless/CNP/international are advisory flags not yet wired to product config. API_KEY or ADMIN/TELLER required (CUSTOMER has no access until card ownership checks exist)."
+                    "description": "freeze=true maps to the BLOCK command (card \u2192 BLOCKED), freeze=false to UNBLOCK (card \u2192 ACTIVE); a field left out is unchanged. contactlessEnabled / cnpEnabled / internationalEnabled are stored on the card (default true) and enforced at authorization before funds are reserved: a switched-off channel declines RC 57. Contactless = DE22 07x/91x; card-not-present = DE22 not 02/05/07/80/90/91 (blank included); international = DE19 acquiring country \u2260 the card's BIN-range country, failing closed when DE19 is missing. 400 CARD_COUNTRY_UNKNOWN when international is turned off for a card whose BIN range has no country. Fires CARD.CONTROLS_CHANGED on a switch change. API_KEY or ADMIN/TELLER required (CUSTOMER has no access until card ownership checks exist)."
                   },
                   "response": [
                     {
@@ -25424,6 +25424,18 @@
                       "status": "Bad Request",
                       "code": 400,
                       "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [{\"code\":\"INVALID_STATE\",\"message\":\"Only ACTIVE cards can be blocked\"}]\n}"
+                    },
+                    {
+                      "name": "200 OK \u2014 Contactless and online off",
+                      "status": "OK",
+                      "code": 200,
+                      "body": "{\n  \"data\": {\n    \"id\": \"c1a2b3c4-0000-0000-0000-000000000001\",\n    \"status\": \"ACTIVE\",\n    \"contactlessEnabled\": false,\n    \"cnpEnabled\": false,\n    \"internationalEnabled\": true\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+                    },
+                    {
+                      "name": "400 \u2014 Card country unknown",
+                      "status": "Bad Request",
+                      "code": 400,
+                      "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"CARD_COUNTRY_UNKNOWN\",\n      \"message\": \"International use can't be turned off: the card's BIN range has no country\",\n      \"field\": null\n    }\n  ]\n}"
                     }
                   ]
                 },

@@ -3,6 +3,7 @@ package com.cba.card.interchange;
 import com.cba.card.auth.AuthorizationLog;
 import com.cba.card.auth.AuthorizationLogRepository;
 import com.cba.card.auth.CardAuthorizationService;
+import com.cba.card.auth.PosEntryModes;
 import com.cba.card.card.Card;
 import com.cba.card.card.CardRepository;
 import com.cba.card.card.CardType;
@@ -175,13 +176,7 @@ public class InterchangeQualificationEngine {
      * simulator's names (CHIP, CONTACTLESS, SWIPE) are accepted too.
      */
     static ChannelType mapChannel(String entryMode) {
-        if (entryMode == null || entryMode.isBlank()) return ChannelType.CNP;
-        String m = entryMode.trim().toUpperCase(Locale.ROOT);
-        return switch (m) {
-            case "CHIP", "CONTACTLESS", "SWIPE" -> ChannelType.CARD_PRESENT;
-            default -> m.length() >= 2 && Set.of("02", "05", "07", "80", "90", "91").contains(m.substring(0, 2))
-                    ? ChannelType.CARD_PRESENT : ChannelType.CNP;
-        };
+        return PosEntryModes.isCardPresent(entryMode) ? ChannelType.CARD_PRESENT : ChannelType.CNP;
     }
 
     /**

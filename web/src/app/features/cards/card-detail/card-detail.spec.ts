@@ -1,12 +1,12 @@
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute } from '@angular/router';
 import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { CardDetailComponent } from './card-detail';
 import { CardsService, Card, CardBalance, CardLimit, AuthorizationLog } from '../cards.service';
 
 type Svc = Record<
-  'getCard' | 'getCardBalance' | 'listAuthorizations' | 'updateCardLimits' | 'commandCard',
+  'getCard' | 'getCardBalance' | 'listAuthorizations' | 'updateCardLimits' | 'commandCard' | 'updateControls',
   ReturnType<typeof vi.fn>
 >;
 
@@ -15,7 +15,8 @@ function card(over: Partial<Card> = {}): Card {
     id: 'card-1', panPrefix: '457312', panSuffix: '1234', expiryDate: '2612',
     cardType: 'DEBIT', status: 'ACTIVE', virtualFlag: false, customerId: 'cust-1',
     linkedEntityId: 'acc-1', productId: 'p1', productName: 'Classic Debit',
-    pinRetryCount: 0, createdAt: '2026-01-01', updatedAt: '2026-01-01', ...over,
+    pinRetryCount: 0, contactlessEnabled: true, cnpEnabled: true, internationalEnabled: true,
+    createdAt: '2026-01-01', updatedAt: '2026-01-01', ...over,
   };
 }
 const balance: CardBalance = { availableBalance: 5000, cardType: 'DEBIT' };
@@ -42,6 +43,7 @@ describe('CardDetailComponent', () => {
       listAuthorizations: vi.fn().mockReturnValue(of([auth()])),
       updateCardLimits: vi.fn().mockReturnValue(of({ ...limit, dailyPurchaseLimit: 999 })),
       commandCard: vi.fn().mockReturnValue(of(card({ status: 'BLOCKED' }))),
+      updateControls: vi.fn().mockReturnValue(of(card({ contactlessEnabled: false }))),
     };
     TestBed.configureTestingModule({
       imports: [CardDetailComponent],
@@ -123,5 +125,41 @@ describe('CardDetailComponent', () => {
     expect(c.statusVariant('CANCELLED')).toBe('neutral');
     expect(c.rcVariant('00')).toBe('success');
     expect(c.rcVariant('05')).toBe('error');
+  });
+
+  describe('controls', () => {
+    function checkbox(checked: boolean): HTMLInputElement {
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = checked;
+      return input;
+    }
+
+    it('sends only the switched control and shows the card the server returns', () => {
+      const c = make();
+      c.setControl('contactlessEnabled', checkbox(false));
+      expect(svc.updateControls).toHaveBeenCalledWith('card-1', { contactlessEnabled: false });
+      expect(c.card?.contactlessEnabled).toBe(false);
+      expect(c.savingControls).toBe(false);
+    });
+
+    it('a refusal shows the server message and puts the checkbox back', () => {
+      svc.updateControls.mockReturnValue(throwError(() => ({
+        error: { errors: [{ code: 'CARD_COUNTRY_UNKNOWN', message: "the card's BIN range has no country" }] },
+      })));
+      const c = make();
+      const input = checkbox(false);
+      c.setControl('internationalEnabled', input);
+      expect(c.controlsError).toContain('no country');
+      expect(input.checked).toBe(true);
+      expect(c.card?.internationalEnabled).toBe(true);
+    });
+
+    it('renders the three controls on the overview tab', () => {
+      const fixture = TestBed.createComponent(CardDetailComponent);
+      fixture.detectChanges();
+      const rows = (fixture.nativeElement as HTMLElement).querySelectorAll('.controls-card__row input');
+      expect(rows.length).toBe(3);
+    });
   });
 });

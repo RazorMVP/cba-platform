@@ -105,6 +105,13 @@ public class CardAuthorizationService {
                         fraud.totalScore(), fraud.decision());
             }
 
+            // 2b. Cardholder controls (backlog 5) — before anything is reserved, so a declined tap holds nothing.
+            String blockedBy = blockingControl(card, req);
+            if (blockedBy != null) {
+                log.info("Card {} declined 57: {} is turned off", card.getId(), blockedBy);
+                return logAndReturn(card, req, CardAuthResponse.decline("57"), fraud.totalScore(), fraud.decision());
+            }
+
             // STEP_UP: inform FEP to require online PIN — FEP handles protocol-level step-up
             // We still proceed to balance check; FEP may re-submit with pinVerified=true
 
@@ -609,6 +616,26 @@ public class CardAuthorizationService {
             log.warn("Debit hold release failed for card {}: {}", card.getId(), e.getMessage());
             return new Release(ReleaseOutcome.UNREACHABLE, null);
         }
+    }
+
+    /**
+     * The cardholder control that refuses this request, or {@code null} when none does.
+     * <ul>
+     *   <li>contactless off — DE22 07x / 91x;</li>
+     *   <li>card-not-present off — any DE22 that isn't card present (blank included);</li>
+     *   <li>international off — the acquirer's country (DE19) isn't the card's home country (its BIN range).
+     *       Fails closed: a request with no DE19, or one that isn't a known ISO 3166 code, is refused too.</li>
+     * </ul>
+     */
+    String blockingControl(Card card, CardAuthRequest req) {
+        if (!card.isContactlessEnabled() && PosEntryModes.isContactless(req.posEntryMode())) return "contactless";
+        if (!card.isCnpEnabled() && !PosEntryModes.isCardPresent(req.posEntryMode())) return "card-not-present";
+        if (!card.isInternationalEnabled()) {
+            String acquirer = CountryCodes.alpha3(req.acquiringCountry());
+            String home = cardService.issuingCountry(card);
+            if (acquirer == null || home == null || !acquirer.equals(home)) return "international";
+        }
+        return null;
     }
 
     /** An ISO 4217 currency from a numeric (DE49, "840") or alphabetic ("USD") code; null if unknown. */

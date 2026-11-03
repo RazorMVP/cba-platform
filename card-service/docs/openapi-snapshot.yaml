@@ -2049,6 +2049,12 @@ components:
           format: int32
         pinSet:
           type: boolean
+        contactlessEnabled:
+          type: boolean
+        cnpEnabled:
+          type: boolean
+        internationalEnabled:
+          type: boolean
         version:
           type: integer
           format: int64
@@ -2701,6 +2707,8 @@ components:
           type: string
         networkCode:
           type: string
+        acquiringCountry:
+          type: string
     ApiResponseSimulateResponse:
       type: object
       properties:
@@ -2802,6 +2810,8 @@ components:
           type: object
           additionalProperties:
             type: string
+        acquiringCountry:
+          type: string
     CardAuthResponse:
       type: object
       properties:

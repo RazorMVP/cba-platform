@@ -36,3 +36,21 @@
 .score-high { color: #dc2626; font-weight: 600; }
 .score-med  { color: #d97706; font-weight: 600; }
 .score-low  { color: #15803d; font-weight: 600; }
+
+.controls-card {
+  margin-top: $space-4;
+  padding: $space-4 $space-5;
+  display: flex; flex-direction: column; gap: $space-2;
+}
+.controls-card__header { display: flex; align-items: baseline; gap: $space-3; flex-wrap: wrap; }
+.controls-card__title { margin: 0; font-size: $text-base; font-weight: 600; }
+.controls-card__hint { font-size: $text-sm; color: var(--color-muted); }
+.controls-card__error {
+  font-size: $text-sm; color: $color-error-600;
+  background: #fff5f5; border: 1px solid $color-error-100; border-radius: $radius-sm;
+  padding: $space-2 $space-3;
+}
+.controls-card__row {
+  display: flex; align-items: center; gap: $space-2; font-size: $text-sm; cursor: pointer;
+  input { width: 16px; height: 16px; }
+}

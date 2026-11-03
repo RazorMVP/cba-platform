@@ -1,5 +1,6 @@
 package com.cba.card.terminal;
 
+import com.cba.card.common.CbaException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -91,6 +92,7 @@ public class TerminalSimulatorService {
                 .set(43, merchantName(req))                                    // DE43 Merchant Name
                 .set(49, req.currency() != null ? req.currency() : defaultSimulatorCurrency);   // DE49 Currency
 
+        setAcquiringCountry(builder, req);
         if (req.pinBlock() != null && !req.pinBlock().isBlank()) {
             // DE52 PIN Block — 8 binary bytes (16 hex chars)
             // Stored as raw hex string; FEP interprets binary
@@ -125,6 +127,7 @@ public class TerminalSimulatorService {
                 .set(43, merchantName(req))
                 .set(49, req.currency() != null ? req.currency() : defaultSimulatorCurrency);
 
+        setAcquiringCountry(builder, req);
         if (req.pinBlock() != null && !req.pinBlock().isBlank()) {
             builder.set(52, req.pinBlock().substring(0, Math.min(16, req.pinBlock().length())));
         }
@@ -307,6 +310,17 @@ public class TerminalSimulatorService {
     }
 
     // ── Field Helpers ─────────────────────────────────────────────────────────
+
+    /** DE19 (n3) when the request names an acquiring country; a value that isn't 3 digits is refused. */
+    private static void setAcquiringCountry(Iso8583Builder builder, SimulateRequest req) {
+        String country = req.acquiringCountry();
+        if (country == null || country.isBlank()) return;
+        if (!country.trim().matches("\\d{3}")) {
+            throw CbaException.badRequest("INVALID_ACQUIRING_COUNTRY",
+                    "acquiringCountry must be a 3-digit ISO 3166 numeric code, e.g. 566");
+        }
+        builder.set(19, country.trim());
+    }
 
     private static String mapEntryMode(String mode) {
         if (mode == null) return "010"; // CNP default

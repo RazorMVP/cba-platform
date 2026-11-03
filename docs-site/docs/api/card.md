@@ -127,23 +127,33 @@ GET /cards/{cardId}
 
 ## Card Controls
 
-These endpoints require the customer to authorise via FAPI 2.0 consent (scope: `card_read`).
+These endpoints take an API key or a staff ADMIN/TELLER token. Customer tokens aren't admitted yet: card-service has no check that a card belongs to the calling customer.
 
 ### Freeze / Unfreeze Card
 
 ```
 PUT /cards/{cardId}/controls
-Authorization: Bearer CUSTOMER_TOKEN
+Authorization: ApiKey cba_YOUR_KEY        (or a staff ADMIN/TELLER token)
 ```
 
 ```json
 {
-  "frozen": true,
+  "freeze": true,
   "contactlessEnabled": true,
-  "cardNotPresentEnabled": false,
+  "cnpEnabled": false,
   "internationalEnabled": true
 }
 ```
+
+The switches are stored on the card (all on by default) and checked at authorization, before any funds are reserved. A switched-off channel is declined with response code **57**:
+
+| Switch off | Declined when |
+|---|---|
+| `contactlessEnabled` | the POS entry mode (DE22) is a tap: `07x` or `91x` |
+| `cnpEnabled` | the card isn't present: e-commerce, manual entry, or no entry mode at all |
+| `internationalEnabled` | the acquirer's country (DE19) isn't the card's home country, or the acquirer sent none |
+
+A field you leave out is unchanged. Turning `internationalEnabled` off for a card whose BIN range has no country returns `400 CARD_COUNTRY_UNKNOWN`. Each change fires `CARD.CONTROLS_CHANGED`.
 
 ### Update Spending Limits
 
@@ -326,6 +336,7 @@ function verifySignature(payload, signature, secret) {
 | Card Lifecycle | `CARD.EXPIRED` | Card expired (nightly job) |
 | Card Lifecycle | `CARD.PIN_CHANGED` | PIN changed via HSM |
 | Card Lifecycle | `CARD.LIMIT_CHANGED` | Spending limit updated |
+| Card Lifecycle | `CARD.CONTROLS_CHANGED` | Contactless, card-not-present or international switch changed |
 | Fraud | `FRAUD.RULE_TRIGGERED` | Any fraud rule fired |
 | Fraud | `FRAUD.CARD_STEP_UP` | Score 30–69: online PIN required |
 | Fraud | `FRAUD.CARD_DECLINED_HIGH_RISK` | Score ≥ 70: declined |

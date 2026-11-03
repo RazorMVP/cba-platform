@@ -36,7 +36,7 @@ class TerminalSimulatorServiceTest {
 
     private static SimulateRequest req() {
         return new SimulateRequest("4111111111111111", "2612", new BigDecimal("25.00"), "840",
-                "TERM0001", "MERCHANT0000001", "Test Shop", "5411", "CHIP", null, null, null, "0301");
+                "TERM0001", "MERCHANT0000001", "Test Shop", "5411", "CHIP", null, null, null, "0301", null);
     }
 
     /**

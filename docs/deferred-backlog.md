@@ -161,7 +161,16 @@ dev-simplified and not covered end-to-end. `ArqcValidatorTest` proves the dev de
 
 ---
 
-## 5. Card controls (contactless / CNP / international) are advisory, not enforced
+## 5. ✅ DONE (cont. 54) — Card controls (contactless / CNP / international) are advisory, not enforced
+
+> Closed in Session 125 cont. 54 (plan `docs/plans/2026-11-02-card-controls.md`, defaults D1a + D2a). The three
+> switches are stored on `cards` (V15, default true) and checked in `CardAuthorizationService.authorize` right after
+> the fraud decision and before any funds call — RC 57. Contactless = DE22 07x/91x, card-not-present = DE22 not
+> 02/05/07/80/90/91 (`PosEntryModes`, shared with interchange); international = DE19 (fep-service now forwards it)
+> ≠ the card's BIN-range `country_code`, through an ISO 3166 numeric → alpha-3 table (`CountryCodes`), failing
+> closed when DE19 is missing; turning it off for a card whose BIN range has no country is `400
+> CARD_COUNTRY_UNKNOWN`. New event `CARD.CONTROLS_CHANGED`. Also found: fep-service's 0200 handler never sent DE22,
+> MCC or merchant name, so every ATM withdrawal looked card-not-present (fixed). Kept below for history.
 
 **Effort: S–M · Risk: authorization decision path**
 

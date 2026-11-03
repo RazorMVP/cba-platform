@@ -83,6 +83,7 @@ public class AuthorizationHandler {
                 .posEntryMode(request.getString(IsoField.POS_ENTRY_MODE))
                 .posConditionCode(request.getString(IsoField.POS_CONDITION_CODE))
                 .rrn(request.getString(IsoField.RETRIEVAL_REF_NUMBER))
+                .acquiringCountry(request.getString(IsoField.ACQUIRING_COUNTRY))
                 .scheme(scheme)
                 .build();
 

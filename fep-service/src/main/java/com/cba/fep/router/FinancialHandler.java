@@ -56,6 +56,12 @@ public class FinancialHandler {
                 .stan(stan)
                 .terminalId(request.getString(IsoField.TERMINAL_ID))
                 .merchantId(request.getString(IsoField.CARD_ACCEPTOR_ID))
+                .merchantName(request.getString(IsoField.CARD_ACCEPTOR_NAME))
+                .mcc(request.getString(IsoField.MCC))
+                // DE22 and DE19 drive card-service's cardholder controls; without DE22 an ATM withdrawal
+                // looked card-not-present.
+                .posEntryMode(request.getString(IsoField.POS_ENTRY_MODE))
+                .acquiringCountry(request.getString(IsoField.ACQUIRING_COUNTRY))
                 .rrn(request.getString(IsoField.RETRIEVAL_REF_NUMBER))
                 .scheme(scheme)
                 .isFinancial(true)

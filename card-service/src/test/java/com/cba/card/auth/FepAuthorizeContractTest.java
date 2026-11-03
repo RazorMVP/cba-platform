@@ -37,6 +37,7 @@ class FepAuthorizeContractTest {
         body.put("merchantName", "ACME STORE");
         body.put("mcc", "5411");
         body.put("posEntryMode", "CHIP");
+        body.put("acquiringCountry", "566");
         body.put("scheme", "VISA");
         body.put("pinVerified", true);
         body.put("arqcValid", true);
@@ -62,6 +63,7 @@ class FepAuthorizeContractTest {
         assertThat(req.merchantId()).isEqualTo("MERCH000000001");
         assertThat(req.mcc()).isEqualTo("5411");
         assertThat(req.posEntryMode()).isEqualTo("CHIP");
+        assertThat(req.acquiringCountry()).isEqualTo("566");
         assertThat(req.scheme()).isEqualTo("VISA");
         assertThat(req.pinVerified()).isTrue();
         assertThat(req.arqcValid()).isTrue();

@@ -44,8 +44,20 @@ export interface Card {
   productId: string;
   productName: string;
   pinRetryCount: number;
+  /** Cardholder controls — a switched-off channel declines with RC 57. */
+  contactlessEnabled: boolean;
+  cnpEnabled: boolean;
+  internationalEnabled: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Body of PUT /card-api/v1/cards/{id}/controls; a field left out is unchanged. */
+export interface CardControlsRequest {
+  freeze?: boolean;
+  contactlessEnabled?: boolean;
+  cnpEnabled?: boolean;
+  internationalEnabled?: boolean;
 }
 
 export interface IssueCardRequest {
@@ -385,6 +397,9 @@ export class CardsService {
   getCard(id: string): Observable<Card> { return this.get<Card>(`/cards/${id}`); }
   issueCard(req: IssueCardRequest): Observable<Card> { return this.post<Card>('/cards', req); }
   commandCard(id: string, command: string): Observable<Card> { return this.cmd<Card>(`/cards/${id}`, command); }
+  updateControls(id: string, req: CardControlsRequest): Observable<Card> {
+    return this.put<Card>(`/cards/${id}/controls`, req, true);
+  }
   getCardBalance(id: string): Observable<CardBalance> { return this.get<CardBalance>(`/cards/${id}/balance`); }
   getCardLimits(id: string): Observable<CardLimit> {
     return this.http.get<ApiResponse<CardLimit>>(`${this.cardApi}/cards/${id}/limits`).pipe(map(r => r.data));

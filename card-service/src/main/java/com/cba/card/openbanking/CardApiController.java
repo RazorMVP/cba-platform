@@ -130,8 +130,9 @@ public class CardApiController {
     // ══════════════════════════════════════════════════════════════════════════
 
     /**
-     * Update card behavioral controls: freeze, contactless, CNP, international.
-     * Delegates to {@link CardService#executeCommand} for state transitions.
+     * Update card controls: freeze (block/unblock), and the contactless, card-not-present and international
+     * switches — stored on the card and enforced at authorization (declined RC 57). A null field is left
+     * as it is.
      */
     @PutMapping("/cards/{id}/controls")
     @PreAuthorize("hasRole('API_KEY') or hasAnyRole('ADMIN', 'TELLER')")
@@ -139,16 +140,8 @@ public class CardApiController {
             @PathVariable UUID id,
             @Valid @RequestBody CardControlsRequest req) {
 
-        // Map control actions to the card command state machine
-        Card card = cardService.findById(id);
-        if (Boolean.TRUE.equals(req.freeze())) {
-            card = cardService.executeCommand(id, "block");
-        } else if (Boolean.FALSE.equals(req.freeze())) {
-            card = cardService.executeCommand(id, "unblock");
-        }
-        // contactless / CNP / international flags are stored in card_limits / product features
-        // For now these are advisory flags returned as-is; full implementation wires to card product config
-        return ResponseEntity.ok(ApiResponse.ok(card));
+        return ResponseEntity.ok(ApiResponse.ok(cardService.updateControls(id, req.freeze(),
+                req.contactlessEnabled(), req.cnpEnabled(), req.internationalEnabled())));
     }
 
     /** Update daily/per-transaction/monthly spending limits for a card. */

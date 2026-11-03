@@ -24,5 +24,6 @@ public record CardAuthRequest(
         boolean            pinVerified,
         boolean            arqcValid,
         boolean            isFinancial,
-        Map<String,String> schemeData        // scheme-specific data (parsed private DEs / EMV tags); matches fep-service AuthorizationRequest.schemeData
+        Map<String,String> schemeData,       // scheme-specific data (parsed private DEs / EMV tags); matches fep-service AuthorizationRequest.schemeData
+        String             acquiringCountry  // DE19, ISO 3166 numeric (566 = Nigeria); null when the acquirer sent none
 ) {}

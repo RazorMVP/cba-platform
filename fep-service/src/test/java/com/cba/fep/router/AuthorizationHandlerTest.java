@@ -18,6 +18,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.cba.fep.auth.AuthorizationRequest;
+import org.mockito.ArgumentCaptor;
+import static org.mockito.Mockito.verify;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -95,5 +98,21 @@ class AuthorizationHandlerTest {
 
         assertThat(resp.getMTI()).isEqualTo("0130");
         assertThat(resp.getString(IsoField.RESPONSE_CODE)).isEqualTo("00");
+    }
+
+    @Test
+    @DisplayName("DE19 acquiring country is forwarded to card-service for the international control")
+    void forwardsAcquiringCountry() throws Exception {
+        when(schemeAdapterFactory.detectScheme(anyString())).thenReturn(SchemeType.VISA);
+        when(schemeAdapterFactory.getAdapter(SchemeType.VISA)).thenReturn(adapter);
+        when(cardServiceClient.authorize(any())).thenReturn(AuthorizationResult.approve("A1B2C3"));
+        ISOMsg msg = authRequest();
+        msg.set(IsoField.ACQUIRING_COUNTRY, "566");
+
+        handler.handleRequest(msg);
+
+        ArgumentCaptor<AuthorizationRequest> sent = ArgumentCaptor.forClass(AuthorizationRequest.class);
+        verify(cardServiceClient).authorize(sent.capture());
+        assertThat(sent.getValue().acquiringCountry()).isEqualTo("566");
     }
 }

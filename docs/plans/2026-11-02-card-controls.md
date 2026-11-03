@@ -1,6 +1,6 @@
 # Backlog 5: enforce card controls (contactless, online/CNP, international)
 
-> Status: approved 2026-11-02 (no D1/D2 reply → defaults **D1a + D2a**); in progress on `feat/card-controls`.
+> Status: merged 2026-11-03 — #222 (`f5dfdfa`). Approved with no D1/D2 reply → defaults **D1a + D2a**.
 
 ## Context
 `PUT /card-api/v1/cards/{id}/controls` accepts `freeze`, `contactlessEnabled`, `cnpEnabled` and `internationalEnabled`. Only `freeze` does anything: it blocks or unblocks the card. The other three are dropped (`CardApiController.java:148`: "For now these are advisory flags returned as-is"). They are never stored and never checked. A customer who turns contactless off can still pay by tap. Goal: store the three flags per card and decline transactions that a switched-off channel would allow.

@@ -15,9 +15,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -33,6 +31,11 @@ import java.util.UUID;
  *
  * <p>Card accounts (from card-service) are merged into bank accounts. If card-service
  * is unavailable, responses degrade gracefully — bank accounts are always returned.
+ *
+ * <p>A CUSTOMER reads their own data. A TPP ({@code API_CLIENT}, partner API key) names its consent
+ * in {@code x-consent-id}; the customer is the consent's, and each resource needs the consent's scope
+ * for it ({@code accounts_read} / {@code balances_read} / {@code transactions_read} for bank accounts,
+ * {@code card_read} / {@code card_balances_read} / {@code card_transactions_read} for cards).
  */
 @RestController
 @RequestMapping("/open-banking/v3.1/aisp")
@@ -45,6 +48,9 @@ public class AccountInfoController {
     private final TransactionRepository transactionRepository;
     private final CardServiceClient     cardServiceClient;
     private final CustomerAccess        customerAccess;
+    private final ConsentService        consentService;
+
+    static final String CONSENT_HEADER = "x-consent-id";
 
     // ── GET /accounts ─────────────────────────────────────────────────────────
 
@@ -53,13 +59,15 @@ public class AccountInfoController {
     @Operation(summary = "List accounts and cards for the authenticated customer (AISP)")
     public ResponseEntity<Map<String, Object>> getAccounts(
             @RequestHeader(value = "x-fapi-interaction-id", required = false) String interactionId,
-            @AuthenticationPrincipal Jwt jwt) {
+            @RequestHeader(value = CONSENT_HEADER, required = false) String consentId) {
 
-        UUID customerId = resolveCustomerId(jwt);
+        Reader reader = reader(consentId, ConsentScope.ACCOUNTS_READ, ConsentScope.CARD_READ);
+        UUID customerId = reader.customerId();
 
         // 1. Bank accounts (monolith)
-        List<Account> accounts = accountRepository
-                .findByCustomerId(customerId, PageRequest.of(0, 100)).getContent();
+        List<Account> accounts = reader.may(ConsentScope.ACCOUNTS_READ)
+                ? accountRepository.findByCustomerId(customerId, PageRequest.of(0, 100)).getContent()
+                : List.of();
         List<Map<String, Object>> accountData = new ArrayList<>(accounts.stream()
                 .map(a -> Map.<String, Object>of(
                         "AccountId",   a.getId().toString(),
@@ -71,7 +79,9 @@ public class AccountInfoController {
                 )).toList());
 
         // 2. Cards (card-service) — merged in; silently omitted if card-service is down
-        List<CardServiceClient.CardDto> cards = cardServiceClient.getCardsForCustomer(customerId);
+        List<CardServiceClient.CardDto> cards = reader.may(ConsentScope.CARD_READ)
+                ? cardServiceClient.getCardsForCustomer(customerId)
+                : List.of();
         cards.stream()
                 .filter(c -> "ACTIVE".equals(c.status()) || "ISSUED".equals(c.status()))
                 .map(CardAccountAdapter::toObAccount)
@@ -91,15 +101,17 @@ public class AccountInfoController {
     public ResponseEntity<Map<String, Object>> getBalances(
             @PathVariable UUID accountId,
             @RequestHeader(value = "x-fapi-interaction-id", required = false) String interactionId,
-            @AuthenticationPrincipal Jwt jwt) {
+            @RequestHeader(value = CONSENT_HEADER, required = false) String consentId) {
 
-        UUID customerId = resolveCustomerId(jwt);
+        Reader reader = reader(consentId, ConsentScope.BALANCES_READ, ConsentScope.CARD_BALANCES_READ);
+        UUID customerId = reader.customerId();
 
         // Try bank account first
         var bankAccount = accountRepository.findById(accountId);
         if (bankAccount.isPresent()) {
             Account account = bankAccount.get();
             enforceOwnership(account.getCustomer().getId(), customerId, accountId);
+            reader.require(ConsentScope.BALANCES_READ);
             Map<String, Object> balance = Map.of(
                     "AccountId",            accountId.toString(),
                     "Amount",               Map.of("Amount", account.getBalance().toPlainString(),
@@ -116,6 +128,7 @@ public class AccountInfoController {
         if (cardOpt.isPresent()) {
             CardServiceClient.CardDto card = cardOpt.get();
             enforceCardOwnership(card.customerId(), customerId, accountId);
+            reader.require(ConsentScope.CARD_BALANCES_READ);
             var balOpt = cardServiceClient.getCardBalance(accountId);
             String ccy = deriveCurrency(card);
             Map<String, Object> balance = balOpt.isPresent()
@@ -143,15 +156,17 @@ public class AccountInfoController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
                     OffsetDateTime toBookingDateTime,
             @RequestHeader(value = "x-fapi-interaction-id", required = false) String interactionId,
-            @AuthenticationPrincipal Jwt jwt) {
+            @RequestHeader(value = CONSENT_HEADER, required = false) String consentId) {
 
-        UUID customerId = resolveCustomerId(jwt);
+        Reader reader = reader(consentId, ConsentScope.TRANSACTIONS_READ, ConsentScope.CARD_TRANSACTIONS_READ);
+        UUID customerId = reader.customerId();
 
         // Try bank account first
         var bankAccount = accountRepository.findById(accountId);
         if (bankAccount.isPresent()) {
             Account account = bankAccount.get();
             enforceOwnership(account.getCustomer().getId(), customerId, accountId);
+            reader.require(ConsentScope.TRANSACTIONS_READ);
             var transactions = transactionRepository.findByAccountId(accountId, PageRequest.of(0, 100));
             List<Map<String, Object>> txData = transactions.getContent().stream()
                     .map(t -> Map.<String, Object>of(
@@ -171,6 +186,7 @@ public class AccountInfoController {
         var cardOpt = cardServiceClient.getCard(accountId);
         if (cardOpt.isPresent()) {
             enforceCardOwnership(cardOpt.get().customerId(), customerId, accountId);
+            reader.require(ConsentScope.CARD_TRANSACTIONS_READ);
             List<Map<String, Object>> txData = cardServiceClient
                     .getCardAuthorizations(accountId).stream()
                     .map(auth -> CardAccountAdapter.toObTransaction(accountId.toString(), auth))
@@ -184,24 +200,36 @@ public class AccountInfoController {
     // ── Private helpers ───────────────────────────────────────────────────────
 
     /**
-     * A customer's token carries their Keycloak id as {@code sub}, which maps to
-     * {@code customers.keycloak_id} — not to {@code customers.id}, which this used to assume,
-     * so real customers saw no accounts or cards. A TPP ({@code API_CLIENT}) token keeps the
-     * old behaviour until AISP resolves the customer from the consent (follow-up).
+     * Whose data the call reads, and under which consent. A customer's token carries their Keycloak
+     * id as {@code sub}, which maps to {@code customers.keycloak_id}; no consent is involved. A TPP
+     * reads only through its own usable consent (see {@link ConsentService#requireUsableConsent}),
+     * which must grant at least one of {@code anyOf}; the customer is the consent's.
      */
-    private UUID resolveCustomerId(Jwt jwt) {
+    private Reader reader(String consentId, ConsentScope... anyOf) {
         boolean customer = SecurityContextHolder.getContext().getAuthentication() != null
                 && SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
                         .anyMatch(a -> "ROLE_CUSTOMER".equals(a.getAuthority()));
         if (customer) {
-            return customerAccess.callerCustomerId()
-                    .orElseThrow(() -> CbaException.notFound("Customer", jwt.getSubject()));
+            UUID customerId = customerAccess.callerCustomerId()
+                    .orElseThrow(() -> CbaException.notFound("Customer", CustomerAccess.callerSubject()));
+            return new Reader(customerId, null);
         }
-        String sub = jwt.getSubject();
-        try {
-            return UUID.fromString(sub);
-        } catch (IllegalArgumentException e) {
-            throw CbaException.badRequest("INVALID_SUBJECT", "Cannot resolve customer from token subject");
+        if (consentId == null || consentId.isBlank()) {
+            throw CbaException.badRequest("CONSENT_ID_REQUIRED",
+                    "TPP calls must name their consent in the " + CONSENT_HEADER + " header");
+        }
+        UsableConsent consent = consentService.requireUsableConsent(consentId, anyOf);
+        return new Reader(consent.customerId(), consent);
+    }
+
+    /** The customer being read; {@code consent} is null for the customer themselves (every scope). */
+    private record Reader(UUID customerId, UsableConsent consent) {
+        boolean may(ConsentScope scope) {
+            return consent == null || consent.has(scope);
+        }
+
+        void require(ConsentScope scope) {
+            if (consent != null) consent.require(scope);
         }
     }
 

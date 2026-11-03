@@ -57,6 +57,42 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 55) — 2026-11-03
+**Backlog 13: Open Banking consents are bound to the TPP and the customer (user: "13"; plan approved, no D1/D2 reply → defaults D1a + D2a). TPPs (partner API key) got a 500 on every AISP call — the controller read a JWT an API key doesn't have — and nothing tied a consent to the TPP using it or the customer authorising it: any TPP could create consents in another TPP's name, read or revoke any consent; any customer could authorise any consent; and PISP/CBPII checked only status and scope, so any authorised payments consent could debit any account and any funds consent could probe any balance. Now a TPP reaches customer data only through its own AUTHORISED, unexpired consent with the right scope, for that consent's customer.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/…/openbanking/ConsentService.java` | create binds `tppClientId` to the API key's org (`400 TPP_CLIENT_MISMATCH`), catalogue scopes only (`400 INVALID_SCOPE`); get/revoke = the consent's TPP or customer, authorise = its customer (else 404); NEW `requireUsableConsent` (404 another org's / unknown; 403 `CONSENT_NOT_AUTHORISED` / `CONSENT_REVOKED` / `CONSENT_EXPIRED` / `CONSENT_SCOPE_MISSING`; `403 TPP_UNIDENTIFIED` without an org), `authorisePaymentInitiation` (source account must be the consent customer's), `requireOwnPayment`; `confirmFunds` checks the account/card owner; `validatePispConsent` removed |
+| `backend/…/openbanking/UsableConsent.java` | NEW — the checked consent copied out of its transaction (customer id, scopes) |
+| `backend/…/openbanking/AccountInfoController.java` | no `@AuthenticationPrincipal Jwt`; TPP names its consent in `x-consent-id` (`400 CONSENT_ID_REQUIRED`), customer from the consent; per-resource scopes (bank `accounts_read`/`balances_read`/`transactions_read`, card `card_read`/`card_balances_read`/`card_transactions_read`) |
+| `backend/…/openbanking/ConsentController.java`, `PispController.java`, `CbpiiController.java` | roles: create API_CLIENT; get/revoke API_CLIENT+CUSTOMER; authorise CUSTOMER; PISP/CBPII API_CLIENT only (CUSTOMER could initiate PISP payments with any consent). `GET /pisp/domestic-payments/{id}` → own consents only, id typed `UUID`, response carries `consentId` |
+| `backend/…/openbanking/ConsentScope.java`, `dto/ConsentRequest.java`, `common/exception/CbaException.java` | `fromValue`; `tppClientId` optional, `customerId` `@NotNull`; `forbidden(code, message)` |
+| backend tests | `AccountInfoControllerTest` rewritten (11 — TPP authenticated as the real filter does, which is how the 500 hid), `ConsentServiceTest` 25 → 33, NEW `PispControllerTest` (3, no transfer on a refusal), NEW `OpenBankingConsentIT` (3, real partner API key over HTTP) |
+| `backend/docs/openapi-snapshot.yaml` | `x-consent-id` on the 3 AISP operations, endpoint descriptions, payment id `uuid` |
+| `docs/api-reference.html`, `docs/cba-postman-collection-v2.json` (+ `docs-site/static/` copies) | consent-binding rules + error table; real paths (`/pisp/domestic-payments`, `/cbpii/funds-confirmations` — the matrix and Postman had `/domestic-payments`, `/funds-confirmation`); AISP rows (were missing); Postman Open Banking folder rebuilt: 10 requests incl. the 3 AISP ones and GET payment, `ApiKey {{partner_api_key}}`, catalogue scopes, `currency` (was `currencyCode`, which the DTO doesn't have), error examples, 7 languages; variables `partner_api_key`, `partner_org_id`, `consentId`, `domesticPaymentId` |
+| `partner-docs/docs/open-banking.md` | rewritten to the real API — it described UK OB paths and bodies the backend never had (`/account-access-consents`, `Data.Permissions`, `/domestic-payment-consents`) and Bearer FAPI tokens |
+| `docs/deferred-backlog.md` | item 13 ✅ DONE; NEW 23 (web Open Banking admin screen calls endpoints that don't exist), NEW 24 (PISP consents carry no amount or creditor) |
+| `docs/plans/2026-11-03-open-banking-consent-binding.md`, `docs/plans/README.md` | approved plan + index row |
+| `CLAUDE.md` | backend row (985), Open Banking module rules |
+
+#### Key Patterns / Decisions
+- **D1a — bind everywhere in one PR.** Fixing only the AISP 500 would have opened the other gaps the moment TPP reads started working; PISP moves money.
+- **D2a — catalogue scopes only.** `"accounts"` (Postman's old example) granted nothing silently; now it's `400 INVALID_SCOPE`.
+- **TPP identity = the partner org of the API key** (`PartnerSecurity.currentOrgId()`), the rule the partner consents API (`revokeConsentForOrg`) already used. No Keycloak client holds `API_CLIENT`, so there's no JWT path to support.
+- **404 for another party's consent, account or payment**, 403 for your own consent that can't be used — no enumeration of consent ids.
+- **`CONSENT_REVOKED` has its own code** (plan said `CONSENT_NOT_AUTHORISED` for every non-AUTHORISED status): partner-docs already promised `403 CONSENT_REVOKED`.
+- Customer authorisation still needs a Keycloak CUSTOMER login; the IT marks consents AUTHORISED in SQL for that step.
+
+#### Build Verification
+- backend `DOCKER_HOST=… ./mvnw clean verify -Pfull-integration -Dupdate.api.snapshot=true`: **985/985** (was 955), then `OpenApiSnapshotTest` + `OpenBankingConsentIT` in compare mode: green.
+- Gate grep (tracked + untracked Java): `@RequestHeader x-consent-id` ×3 (AISP), `@PathVariable String → UUID domesticPaymentId`; no new mappings. Documented in api-reference + Postman (+ static copies, which matched their sources on main).
+
+#### Confirmed Platform Versions
+No dependency changed. backend: Spring Boot 3.5.16, Java 21; `-Pfull-integration` 985.
+
+---
+
 ### Session 125 (cont. 54) — 2026-11-02
 **Backlog 5: cardholder controls are enforced (user: "5"; plan approved, no D1/D2 reply → defaults D1a + D2a). `PUT /card-api/v1/cards/{id}/controls` dropped `contactlessEnabled`, `cnpEnabled` and `internationalEnabled` — nothing stored them, nothing checked them, so a customer who turned contactless off could still tap. Now stored per card and checked at authorization (RC 57) before any funds are reserved.**
 

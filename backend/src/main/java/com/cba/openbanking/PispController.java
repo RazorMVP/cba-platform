@@ -36,14 +36,17 @@ public class PispController {
     private final PartnerWebhookDeliveryService webhookDelivery;
 
     @PostMapping("/domestic-payments")
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'API_CLIENT')")
-    @Operation(summary = "Initiate a domestic payment (PISP)")
+    @PreAuthorize("hasRole('API_CLIENT')")
+    @Operation(summary = "Initiate a domestic payment (PISP)",
+            description = "Partner API key only. Needs the caller's own AUTHORISED consent with 'payments'; "
+                    + "the source account must belong to the consent's customer (404 otherwise).")
     public ResponseEntity<DomesticPaymentResponse> initiateDomesticPayment(
             @RequestHeader(value = "x-fapi-interaction-id", required = false) String interactionId,
             @Valid @RequestBody DomesticPaymentRequest request) {
 
-        // Validate that the consent is authorised and has payment scope
-        consentService.validatePispConsent(request.consentId());
+        // The caller's own authorised payments consent, debiting only its customer's account
+        UsableConsent consent = consentService.authorisePaymentInitiation(
+                request.consentId(), request.sourceAccountId());
 
         TransferRequest transfer = new TransferRequest(
                 request.sourceAccountId(),
@@ -52,10 +55,11 @@ public class PispController {
                 request.reference(),
                 null
         );
-        PaymentResponse payment = paymentService.transfer(transfer, "open-banking:" + request.consentId());
+        PaymentResponse payment = paymentService.transfer(transfer,
+                PaymentReversalPartnerNotifier.OB_ACTOR_PREFIX + consent.consentId());
 
         // Notify the initiating partner (if this consent belongs to one) of the payment outcome
-        UUID partnerOrg = PartnerWebhookDeliveryService.parseOrg(consentService.tppClientIdFor(request.consentId()));
+        UUID partnerOrg = PartnerWebhookDeliveryService.parseOrg(consent.tppClientId());
         if (partnerOrg != null) {
             webhookDelivery.publishEvent(partnerOrg, "PAYMENT.INITIATED", Map.of(
                     "paymentId", payment.id().toString(),
@@ -88,18 +92,19 @@ public class PispController {
     }
 
     @GetMapping("/domestic-payments/{domesticPaymentId}")
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'API_CLIENT')")
-    @Operation(summary = "Get a domestic payment by ID (PISP)")
+    @PreAuthorize("hasRole('API_CLIENT')")
+    @Operation(summary = "Get a domestic payment by ID (PISP)",
+            description = "Only a payment initiated under one of the caller's consents; anything else is 404.")
     public ResponseEntity<DomesticPaymentResponse> getDomesticPayment(
-            @PathVariable String domesticPaymentId,
+            @PathVariable UUID domesticPaymentId,
             @RequestHeader(value = "x-fapi-interaction-id", required = false) String interactionId) {
 
-        PaymentResponse payment = paymentService.getPayment(
-                java.util.UUID.fromString(domesticPaymentId));
+        String consentId = consentService.requireOwnPayment(domesticPaymentId);
+        PaymentResponse payment = paymentService.getPayment(domesticPaymentId);
 
         DomesticPaymentResponse response = new DomesticPaymentResponse(
                 payment.id().toString(),
-                null,
+                consentId,
                 payment.status().name(),
                 payment.sourceAccountId(),
                 payment.destinationAccountId(),

@@ -26,8 +26,10 @@ public class ConsentController {
     private final ConsentService consentService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'API_CLIENT', 'ADMIN')")
-    @Operation(summary = "Create a new consent (TPP access request)")
+    @PreAuthorize("hasRole('API_CLIENT')")
+    @Operation(summary = "Create a new consent (TPP access request)",
+            description = "Partner API key only. The consent belongs to the key's organisation; scopes must be "
+                    + "ConsentScope values (400 INVALID_SCOPE otherwise).")
     public ResponseEntity<ConsentResponse> createConsent(
             @RequestHeader(value = "x-fapi-interaction-id", required = false) String interactionId,
             @Valid @RequestBody ConsentRequest request) {
@@ -35,8 +37,9 @@ public class ConsentController {
     }
 
     @GetMapping("/{consentId}")
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'API_CLIENT', 'ADMIN')")
-    @Operation(summary = "Get consent details by consentId")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'API_CLIENT')")
+    @Operation(summary = "Get consent details by consentId",
+            description = "The consent's TPP or its customer only; anyone else gets 404.")
     public ResponseEntity<ConsentResponse> getConsent(
             @PathVariable String consentId,
             @RequestHeader(value = "x-fapi-interaction-id", required = false) String interactionId) {
@@ -44,8 +47,9 @@ public class ConsentController {
     }
 
     @PutMapping("/{consentId}/authorise")
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN')")
-    @Operation(summary = "Authorise a consent (customer approval step)")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Authorise a consent (customer approval step)",
+            description = "Only the customer the consent names; anyone else gets 404.")
     public ResponseEntity<ConsentResponse> authoriseConsent(
             @PathVariable String consentId,
             @RequestHeader(value = "x-fapi-interaction-id", required = false) String interactionId) {
@@ -53,8 +57,9 @@ public class ConsentController {
     }
 
     @DeleteMapping("/{consentId}")
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'API_CLIENT', 'ADMIN')")
-    @Operation(summary = "Revoke a consent")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'API_CLIENT')")
+    @Operation(summary = "Revoke a consent",
+            description = "The consent's TPP or its customer only; anyone else gets 404.")
     public ResponseEntity<ConsentResponse> revokeConsent(
             @PathVariable String consentId,
             @RequestHeader(value = "x-fapi-interaction-id", required = false) String interactionId) {

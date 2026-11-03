@@ -3848,8 +3848,9 @@ components:
           minItems: 1
           type: "array"
         tppClientId:
-          minLength: 1
           type: "string"
+      required:
+      - "customerId"
       type: "object"
     ConsentResponse:
       properties:
@@ -22615,6 +22616,11 @@ paths:
         required: false
         schema:
           type: "string"
+      - in: "header"
+        name: "x-consent-id"
+        required: false
+        schema:
+          type: "string"
       responses:
         "200":
           content:
@@ -22641,6 +22647,11 @@ paths:
           type: "string"
       - in: "header"
         name: "x-fapi-interaction-id"
+        required: false
+        schema:
+          type: "string"
+      - in: "header"
+        name: "x-consent-id"
         required: false
         schema:
           type: "string"
@@ -22685,6 +22696,11 @@ paths:
         required: false
         schema:
           type: "string"
+      - in: "header"
+        name: "x-consent-id"
+        required: false
+        schema:
+          type: "string"
       responses:
         "200":
           content:
@@ -22701,6 +22717,9 @@ paths:
       - "Open Banking — AISP"
   /open-banking/v3.1/cbpii/funds-confirmations:
     post:
+      description: "Partner API key only. Needs the caller's own AUTHORISED consent\
+        \ with 'fundsconfirmation'; the account or card must belong to the consent's\
+        \ customer (404 otherwise)."
       operationId: "confirmFunds"
       parameters:
       - in: "header"
@@ -22728,6 +22747,8 @@ paths:
       - "Open Banking — CBPII"
   /open-banking/v3.1/consents:
     post:
+      description: "Partner API key only. The consent belongs to the key's organisation;\
+        \ scopes must be ConsentScope values (400 INVALID_SCOPE otherwise)."
       operationId: "createConsent"
       parameters:
       - in: "header"
@@ -22755,6 +22776,7 @@ paths:
       - "Open Banking — Consents"
   /open-banking/v3.1/consents/{consentId}:
     delete:
+      description: "The consent's TPP or its customer only; anyone else gets 404."
       operationId: "revokeConsent"
       parameters:
       - in: "path"
@@ -22780,6 +22802,7 @@ paths:
       tags:
       - "Open Banking — Consents"
     get:
+      description: "The consent's TPP or its customer only; anyone else gets 404."
       operationId: "getConsent"
       parameters:
       - in: "path"
@@ -22806,6 +22829,7 @@ paths:
       - "Open Banking — Consents"
   /open-banking/v3.1/consents/{consentId}/authorise:
     put:
+      description: "Only the customer the consent names; anyone else gets 404."
       operationId: "authoriseConsent"
       parameters:
       - in: "path"
@@ -22832,6 +22856,9 @@ paths:
       - "Open Banking — Consents"
   /open-banking/v3.1/pisp/domestic-payments:
     post:
+      description: "Partner API key only. Needs the caller's own AUTHORISED consent\
+        \ with 'payments'; the source account must belong to the consent's customer\
+        \ (404 otherwise)."
       operationId: "initiateDomesticPayment"
       parameters:
       - in: "header"
@@ -22859,12 +22886,15 @@ paths:
       - "Open Banking — PISP"
   /open-banking/v3.1/pisp/domestic-payments/{domesticPaymentId}:
     get:
+      description: "Only a payment initiated under one of the caller's consents; anything\
+        \ else is 404."
       operationId: "getDomesticPayment"
       parameters:
       - in: "path"
         name: "domesticPaymentId"
         required: true
         schema:
+          format: "uuid"
           type: "string"
       - in: "header"
         name: "x-fapi-interaction-id"

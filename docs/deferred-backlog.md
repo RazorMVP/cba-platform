@@ -457,7 +457,13 @@ doesn't exist. Found in cont. 33's exploration.
 
 ---
 
-## 13. Open Banking AISP for TPP (`API_CLIENT`) tokens: customer from the consent
+## 13. ✅ DONE (cont. 55) — Open Banking AISP for TPP (`API_CLIENT`) tokens: customer from the consent
+
+> **Resolved Session 125 cont. 55** (plan `docs/plans/2026-11-03-open-banking-consent-binding.md`). Worse than
+> described: TPP calls were a 500 (the controller read a JWT an API key doesn't have), and consents were bound
+> to nothing — any TPP could create one in another's name, read or revoke any consent, any customer could
+> authorise any consent, and PISP/CBPII never checked the account belonged to the consent's customer. Now every
+> TPP call goes through `ConsentService.requireUsableConsent`; AISP names the consent in `x-consent-id`.
 
 **Effort**: M · **Risk**: TPPs see no accounts
 
@@ -688,3 +694,27 @@ The schemes' rules: Visa Core Rules (the Acquirer submits clearing records; the 
 - Event mechanism + already-wired events: see **CLAUDE.md → Partner Module → "Partner/BaaS Hardening"**.
 - External-integration credential/go-live steps: `docs/integration-runbook.md`.
 - Full partner webhook event catalogue (17 events): CLAUDE.md Partner Module.
+
+---
+
+## 23. Web Open Banking admin screen calls endpoints that don't exist
+
+**Effort**: S–M · **Risk**: the screen has never worked
+
+`web/src/app/features/open-banking/open-banking.service.ts` lists consents with `GET /open-banking/v3.1/consents`
+(no such endpoint) and authorises/revokes with `?command=authorise|revoke` (the endpoints are
+`PUT …/consents/{id}/authorise` and `DELETE …/consents/{id}`). `/open-banking/**` also admits only CUSTOMER and
+API_CLIENT, so a staff (ADMIN) screen can't reach it at all. A staff view needs its own endpoint under
+`/api/v1/` (list by customer / TPP, revoke on a customer's behalf); authorising stays the customer's own step.
+Found in cont. 55; not changed there.
+
+---
+
+## 24. PISP consents carry no instructed amount or creditor
+
+**Effort**: M · **Risk**: an authorised `payments` consent allows any payment from the customer's accounts
+
+UK OB has a domestic-payment consent per payment (`InstructedAmount`, `CreditorAccount`); ours is a scope string.
+Since cont. 55 the payment must come from the consent customer's account, but its amount and destination are
+whatever the TPP sends, and the consent is reusable until revoked or expired. Needs the consent to store the
+initiation (amount, currency, creditor), the payment to match it, and the consent to be used once.

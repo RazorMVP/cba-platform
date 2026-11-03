@@ -39,4 +39,8 @@ public class CbaException extends RuntimeException {
     public static CbaException forbidden(String message) {
         return new CbaException("ACCESS_DENIED", message, HttpStatus.FORBIDDEN);
     }
+
+    public static CbaException forbidden(String code, String message) {
+        return new CbaException(code, message, HttpStatus.FORBIDDEN);
+    }
 }

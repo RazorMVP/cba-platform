@@ -1,5 +1,8 @@
 package com.cba.openbanking;
 
+import java.util.Arrays;
+import java.util.Optional;
+
 /**
  * Canonical consent scope values for the CBA Open Banking platform.
  *
@@ -43,5 +46,10 @@ public enum ConsentScope {
     /** The string as stored in the {@code consent_scopes} table. */
     public String value() {
         return value;
+    }
+
+    /** The scope stored as {@code value}, if it is one of the catalogue's. */
+    public static Optional<ConsentScope> fromValue(String value) {
+        return Arrays.stream(values()).filter(s -> s.value.equals(value)).findFirst();
     }
 }

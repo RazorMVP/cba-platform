@@ -1902,12 +1902,25 @@ difference = actual_cash - closing_balance</pre>
 <tr><td>Card AISP</td><td><code>card_balances_read</code></td><td>Read card available balance via AISP /accounts/{id}/balances; also enables CBPII card fallback</td></tr>
 <tr><td>Card AISP</td><td><code>card_transactions_read</code></td><td>Read card authorization history via AISP /accounts/{id}/transactions</td></tr>
 </table>
-<p><strong>Note:</strong> Scope strings are stored as plain text in the <code>consent_scopes</code> table. Use the <code>ConsentScope</code> enum constants in code to avoid hardcoded strings.</p>
+<p><strong>Note:</strong> Scope strings are stored as plain text in the <code>consent_scopes</code> table. Use the <code>ConsentScope</code> enum constants in code to avoid hardcoded strings. Since cont. 55, <code>POST /consents</code> accepts only these strings; anything else (e.g. the old <code>"accounts"</code>) is <code>400 INVALID_SCOPE</code>.</p>
+
+<h3>Consent binding — who may use a consent (cont. 55, backlog 13)</h3>
+<p>A TPP is a partner organisation calling with its API key (<code>Authorization: ApiKey cba_…</code>, role <code>API_CLIENT</code>). A consent binds that organisation (<code>tppClientId</code>), one customer and the authorised scopes. Every TPP data call goes through the consent:</p>
+<table>
+<tr><th>Rule</th><th>Refusal</th></tr>
+<tr><td>Caller has a partner organisation (API key)</td><td><code>403 TPP_UNIDENTIFIED</code></td></tr>
+<tr><td>The consent belongs to the caller's organisation (a consent of another TPP looks like none at all)</td><td><code>404 CONSENT_NOT_FOUND</code></td></tr>
+<tr><td>Status AUTHORISED</td><td><code>403 CONSENT_NOT_AUTHORISED</code> / <code>CONSENT_REVOKED</code> / <code>CONSENT_EXPIRED</code></td></tr>
+<tr><td>Not past <code>expiryDate</code></td><td><code>403 CONSENT_EXPIRED</code></td></tr>
+<tr><td>Grants the endpoint's scope</td><td><code>403 CONSENT_SCOPE_MISSING</code></td></tr>
+<tr><td>The account / card belongs to the consent's customer</td><td><code>404 ACCOUNT_NOT_FOUND</code></td></tr>
+</table>
+<p>Consent lifecycle: <strong>create</strong> = API_CLIENT only; the consent always belongs to the caller's organisation (<code>tppClientId</code> may be omitted; a different value is <code>400 TPP_CLIENT_MISMATCH</code>). <strong>Get / revoke</strong> = the consent's TPP or its customer, anyone else <code>404</code>. <strong>Authorise</strong> = only the customer the consent names (CUSTOMER token whose <code>keycloak_id</code> is that customer), anyone else <code>404</code>. PISP and CBPII are API_CLIENT only.</p>
 
 <h3>AISP — Account Information</h3>
 <p><code>GET /open-banking/v3.1/aisp/accounts</code> — returns bank accounts <em>and</em> card accounts (card-service) merged in a single response. Card accounts have <code>"AccountType": "Card"</code> and <code>"AccountSubType": "DebitCard" | "CreditCard" | "PrepaidCard"</code>. If card-service is unavailable, only bank accounts are returned (graceful degradation).</p>
 <p><code>GET /open-banking/v3.1/aisp/accounts/{id}/balances</code> and <code>/transactions</code> — the <code>{id}</code> may be either a bank account UUID (monolith) or a card UUID (card-service). The controller tries local first; falls back to card-service if not found. For card transactions, the authorization log is returned as OB transaction objects.</p>
-<p><strong>Customer and card-service access (cont. 33).</strong> For a <code>CUSTOMER</code> token the customer is the one whose <code>keycloak_id</code> is the token <code>sub</code> (before, <code>sub</code> was wrongly taken as <code>customers.id</code>, so customers saw nothing); no such customer → <code>404 CUSTOMER_NOT_FOUND</code>. <code>API_CLIENT</code> (TPP) tokens are unchanged until AISP resolves the customer from the consent. Card data comes from card-service with the backend's service token (Keycloak client <code>cba-backend-service</code>, role <code>CARD_READER</code>, env <code>CBA_BACKEND_SERVICE_SECRET</code>); without it card-service refuses and card accounts are omitted.</p>
+<p><strong>Who is read (cont. 33, cont. 55).</strong> For a <code>CUSTOMER</code> token the customer is the one whose <code>keycloak_id</code> is the token <code>sub</code>; no such customer → <code>404 CUSTOMER_NOT_FOUND</code>; no consent involved. A TPP (API key) must send header <code>x-consent-id: &lt;consentId&gt;</code> (missing → <code>400 CONSENT_ID_REQUIRED</code>); the customer is the consent's. Scopes per endpoint: <code>/accounts</code> lists bank accounts with <code>accounts_read</code> and cards with <code>card_read</code> (neither → 403); <code>/balances</code> needs <code>balances_read</code> (bank) or <code>card_balances_read</code> (card); <code>/transactions</code> needs <code>transactions_read</code> or <code>card_transactions_read</code>. Until cont. 55 a TPP call failed with <code>500</code> (the controller read a JWT an API key doesn't have). Card data comes from card-service with the backend's service token (Keycloak client <code>cba-backend-service</code>, role <code>CARD_READER</code>, env <code>CBA_BACKEND_SERVICE_SECRET</code>); without it card-service refuses and card accounts are omitted.</p>
 
 <details class="endpoint">
   <summary class="endpoint-header">
@@ -1916,7 +1929,8 @@ difference = actual_cash - closing_balance</pre>
     <span class="endpoint-summary">Create consent</span>
   </summary>
   <div class="endpoint-body">
-    <pre>{ "tppClientId": "tpp-001", "customerId": "...", "scopes": ["accounts", "payments"], "expiryDate": "2026-07-07T00:00:00Z" }</pre>
+    <pre>{ "customerId": "...", "scopes": ["accounts_read", "balances_read", "payments"], "expiryDate": "2026-12-31T00:00:00Z" }</pre>
+    <p>API_CLIENT only. <code>tppClientId</code> is optional — the consent belongs to the API key's organisation; another value is <code>400 TPP_CLIENT_MISMATCH</code>. <code>customerId</code> required. Unknown scope → <code>400 INVALID_SCOPE</code>.</p>
   </div>
 </details>
 
@@ -1927,19 +1941,31 @@ difference = actual_cash - closing_balance</pre>
     <span class="endpoint-summary">Authorise consent</span>
   </summary>
   <div class="endpoint-body">
-    <p>Transitions consent from AWAITING_AUTHORISATION → AUTHORISED. No request body required.</p>
+    <p>Transitions consent from AWAITING_AUTHORISATION → AUTHORISED. No request body required. CUSTOMER only, and only the customer the consent names; anyone else gets <code>404 CONSENT_NOT_FOUND</code>.</p>
   </div>
 </details>
 
 <details class="endpoint">
   <summary class="endpoint-header">
     <span class="method POST">POST</span>
-    <span class="endpoint-path">/open-banking/v3.1/domestic-payments</span>
+    <span class="endpoint-path">/open-banking/v3.1/pisp/domestic-payments</span>
     <span class="endpoint-summary">Initiate domestic payment (PISP)</span>
   </summary>
   <div class="endpoint-body">
-    <pre>{ "consentId": "ob-a3f8c12e9b4d...", "sourceAccountId": "...", "destinationAccountId": "...", "amount": "150.00" }</pre>
-    <p>Requires AUTHORISED consent with <code>payments</code> scope. Audit trail shows <code>createdBy: open-banking:{consentId}</code>.</p>
+    <pre>{ "consentId": "ob-a3f8c12e9b4d...", "sourceAccountId": "...", "destinationAccountId": "...", "amount": "150.00", "currency": "USD" }</pre>
+    <p>API_CLIENT only. Requires the caller's own AUTHORISED consent with <code>payments</code> scope; <code>sourceAccountId</code> must belong to the consent's customer (<code>404 ACCOUNT_NOT_FOUND</code> otherwise, checked before any money moves). Audit trail shows <code>createdBy: open-banking:{consentId}</code>. <code>GET /pisp/domestic-payments/{id}</code> returns only a payment made under one of the caller's consents (otherwise <code>404 PAYMENT_NOT_FOUND</code>) and now includes its <code>consentId</code>.</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/open-banking/v3.1/cbpii/funds-confirmations</span>
+    <span class="endpoint-summary">Confirm funds (CBPII)</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "consentId": "ob-a3f8c12e9b4d...", "accountId": "...", "amount": "75.00", "currency": "USD" }</pre>
+    <p>API_CLIENT only. Caller's own AUTHORISED consent with <code>fundsconfirmation</code>; the account or card must belong to the consent's customer (<code>404 ACCOUNT_NOT_FOUND</code>). A card also needs <code>card_read</code> or <code>card_balances_read</code> (<code>403 CONSENT_SCOPE_MISSING</code>).</p>
   </div>
 </details>
 </section>
@@ -3463,12 +3489,16 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <tr><td>GET</td><td>/api/v1/self/loans</td><td>My loans</td><td>CUSTOMER</td></tr>
 <tr><td>GET</td><td>/api/v1/self/loans/{id}</td><td>My loan details</td><td>CUSTOMER</td></tr>
 <!-- Open Banking -->
-<tr><td>POST</td><td>/open-banking/v3.1/consents</td><td>Create consent</td><td>API_CLIENT</td></tr>
-<tr><td>GET</td><td>/open-banking/v3.1/consents/{id}</td><td>Get consent</td><td>API_CLIENT</td></tr>
-<tr><td>PUT</td><td>/open-banking/v3.1/consents/{id}/authorise</td><td>Authorise consent</td><td>ADMIN</td></tr>
-<tr><td>DELETE</td><td>/open-banking/v3.1/consents/{id}</td><td>Revoke consent</td><td>API_CLIENT</td></tr>
-<tr><td>POST</td><td>/open-banking/v3.1/domestic-payments</td><td>PISP payment</td><td>API_CLIENT</td></tr>
-<tr><td>POST</td><td>/open-banking/v3.1/funds-confirmation</td><td>CBPII check</td><td>API_CLIENT</td></tr>
+<tr><td>POST</td><td>/open-banking/v3.1/consents</td><td>Create consent (owned by the caller's org)</td><td>API_CLIENT</td></tr>
+<tr><td>GET</td><td>/open-banking/v3.1/consents/{id}</td><td>Get consent (its TPP or customer)</td><td>API_CLIENT, CUSTOMER</td></tr>
+<tr><td>PUT</td><td>/open-banking/v3.1/consents/{id}/authorise</td><td>Authorise consent (its customer only)</td><td>CUSTOMER</td></tr>
+<tr><td>DELETE</td><td>/open-banking/v3.1/consents/{id}</td><td>Revoke consent (its TPP or customer)</td><td>API_CLIENT, CUSTOMER</td></tr>
+<tr><td>GET</td><td>/open-banking/v3.1/aisp/accounts</td><td>AISP accounts + cards (TPP: <code>x-consent-id</code>)</td><td>API_CLIENT, CUSTOMER</td></tr>
+<tr><td>GET</td><td>/open-banking/v3.1/aisp/accounts/{id}/balances</td><td>AISP balance (TPP: <code>x-consent-id</code>)</td><td>API_CLIENT, CUSTOMER</td></tr>
+<tr><td>GET</td><td>/open-banking/v3.1/aisp/accounts/{id}/transactions</td><td>AISP transactions (TPP: <code>x-consent-id</code>)</td><td>API_CLIENT, CUSTOMER</td></tr>
+<tr><td>POST</td><td>/open-banking/v3.1/pisp/domestic-payments</td><td>PISP payment</td><td>API_CLIENT</td></tr>
+<tr><td>GET</td><td>/open-banking/v3.1/pisp/domestic-payments/{id}</td><td>PISP payment status (own consents only)</td><td>API_CLIENT</td></tr>
+<tr><td>POST</td><td>/open-banking/v3.1/cbpii/funds-confirmations</td><td>CBPII check</td><td>API_CLIENT</td></tr>
 <!-- Tenants -->
 <tr><td>GET</td><td>/api/v1/tenants</td><td>List tenants</td><td>ADMIN</td></tr>
 <!-- Exchange Rates -->

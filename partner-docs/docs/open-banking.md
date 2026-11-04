@@ -2,174 +2,173 @@
 id: open-banking
 title: Open Banking v3.1
 sidebar_position: 4
-description: AISP, PISP, and CBPII endpoints following UK Open Banking v3.1 and FAPI 2.0.
+description: AISP, PISP, and CBPII endpoints, the consent flow, and how a consent limits what you can reach.
 ---
 
 # Open Banking v3.1
 
-NubBank implements the UK Open Banking Read/Write API Specification v3.1 (FAPI 2.0 profile).
+NubBank's Open Banking API follows UK Open Banking v3.1 resource shapes for account information (AISP), payment initiation (PISP) and funds confirmation (CBPII).
 
 **Base path:** `https://sandbox.nubbank.com/open-banking/v3.1/`
+
+**Authentication:** every call from your platform uses your partner API key:
+
+```text
+Authorization: ApiKey cba_YOUR_KEY
+```
 
 ---
 
 ## Consent Flow
 
-All Open Banking access requires a **Consent** record that the bank customer explicitly authorises.
+You reach a customer's data only through a **consent**: one customer, the scopes they authorised, owned by your organisation.
 
-```
-1. TPP creates consent  →  POST /open-banking/v3.1/account-access-consents
-2. Customer authorises  →  PUT  /consents/{id}/authorise  (via your app + Keycloak)
-3. TPP accesses data    →  GET  /open-banking/v3.1/accounts  (with authorised consent)
-4. TPP revokes consent  →  DELETE /consents/{id}  (or customer revokes in portal)
+```text
+1. You create a consent      →  POST /open-banking/v3.1/consents
+2. The customer authorises   →  PUT  /open-banking/v3.1/consents/{consentId}/authorise  (the customer, signed in)
+3. You call AISP/PISP/CBPII  →  naming the consent
+4. You or the customer revoke → DELETE /open-banking/v3.1/consents/{consentId}
 ```
 
 **Consent status flow:**
-```
+
+```text
 AWAITING_AUTHORISATION → AUTHORISED → REVOKED / EXPIRED
 ```
+
+### What a consent lets you do
+
+- **Only your own consents.** A consent belongs to the organisation whose API key created it. Another organisation's consent id gets `404 CONSENT_NOT_FOUND`, exactly like one that doesn't exist.
+- **Only that customer.** Accounts and cards outside the consent's customer get `404 ACCOUNT_NOT_FOUND`, including as a PISP source account or a CBPII account.
+- **Only authorised and current.** Before the customer authorises: `403 CONSENT_NOT_AUTHORISED`. After revocation: `403 CONSENT_REVOKED`. After `expiryDate`: `403 CONSENT_EXPIRED`.
+- **Only the authorised scopes.** A call outside them gets `403 CONSENT_SCOPE_MISSING`.
+
+### Create a consent
+
+```bash
+curl -X POST https://sandbox.nubbank.com/open-banking/v3.1/consents \
+  -H "Authorization: ApiKey cba_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customerId": "CUSTOMER_ID",
+    "scopes": ["accounts_read", "balances_read", "transactions_read"],
+    "expiryDate": "2026-12-31T00:00:00Z"
+  }'
+```
+
+- `customerId` is required. Only that customer can authorise the consent.
+- `tppClientId` is optional. The consent is always your organisation's, and any other value is `400 TPP_CLIENT_MISMATCH`.
+- `scopes` must come from the list below. Anything else is `400 INVALID_SCOPE`.
+
+The response carries `consentId` (`ob-…`) and status `AWAITING_AUTHORISATION`.
 
 ---
 
 ## AISP — Account Information
 
-### Create consent
-
-```bash
-curl -X POST https://sandbox.nubbank.com/open-banking/v3.1/account-access-consents \
-  -H "Authorization: Bearer FAPI_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "Data": {
-      "Permissions": ["ReadAccountsBasic", "ReadBalances", "ReadTransactionsCredits"],
-      "ExpirationDateTime": "2026-12-31T00:00:00Z"
-    },
-    "Risk": {}
-  }'
-```
+Name the consent in the **`x-consent-id`** header on every AISP call. If it's missing, the call returns `400 CONSENT_ID_REQUIRED`.
 
 ### List accounts
 
 ```bash
-curl https://sandbox.nubbank.com/open-banking/v3.1/accounts \
-  -H "Authorization: Bearer FAPI_ACCESS_TOKEN" \
+curl https://sandbox.nubbank.com/open-banking/v3.1/aisp/accounts \
+  -H "Authorization: ApiKey cba_YOUR_KEY" \
+  -H "x-consent-id: ob-a3f8c12e9b4d5e6f70" \
   -H "x-fapi-interaction-id: $(uuidgen)"
 ```
 
-**Response includes bank accounts and card accounts** (debit, credit, prepaid):
+Bank accounts are listed with `accounts_read` and cards with `card_read`. You get whichever of the two your consent grants.
 
 ```json
 {
   "Data": {
     "Account": [
       {
-        "AccountId": "acct_demo_savings",
-        "AccountType": "Personal",
+        "AccountId": "5b9e…",
+        "AccountNumber": "****1234",
+        "AccountType": "SAVINGS",
         "AccountSubType": "CurrentAccount",
-        "Currency": "GBP",
-        "Nickname": "Main Savings",
-        "Account": [{"SchemeName": "UK.OBIE.SortCodeAccountNumber", "Identification": "001SAV0001234"}]
-      },
-      {
-        "AccountId": "card_demo_debit",
-        "AccountType": "Personal",
-        "AccountSubType": "DebitCard",
-        "Currency": "GBP",
-        "Nickname": "Debit Card ****1234"
+        "Status": "ACTIVE",
+        "Currency": "USD"
       }
     ]
-  }
+  },
+  "Meta": { "TotalPages": 1, "TotalCount": 1 },
+  "Links": { "Self": "/open-banking/v3.1/aisp/accounts" }
 }
 ```
 
 ### Get balances
 
 ```bash
-curl https://sandbox.nubbank.com/open-banking/v3.1/accounts/{accountId}/balances \
-  -H "Authorization: Bearer FAPI_ACCESS_TOKEN" \
-  -H "x-fapi-interaction-id: $(uuidgen)"
+curl https://sandbox.nubbank.com/open-banking/v3.1/aisp/accounts/{accountId}/balances \
+  -H "Authorization: ApiKey cba_YOUR_KEY" \
+  -H "x-consent-id: ob-a3f8c12e9b4d5e6f70"
 ```
+
+Needs `balances_read` for a bank account, or `card_balances_read` for a card.
 
 ### Get transactions
 
 ```bash
-curl "https://sandbox.nubbank.com/open-banking/v3.1/accounts/{accountId}/transactions?fromBookingDateTime=2026-01-01T00:00:00Z" \
-  -H "Authorization: Bearer FAPI_ACCESS_TOKEN" \
-  -H "x-fapi-interaction-id: $(uuidgen)"
+curl "https://sandbox.nubbank.com/open-banking/v3.1/aisp/accounts/{accountId}/transactions?fromBookingDateTime=2026-01-01T00:00:00Z" \
+  -H "Authorization: ApiKey cba_YOUR_KEY" \
+  -H "x-consent-id: ob-a3f8c12e9b4d5e6f70"
 ```
+
+Needs `transactions_read` for a bank account, or `card_transactions_read` for a card (you get its authorization history).
 
 ---
 
 ## PISP — Payment Initiation
 
-### Create domestic payment consent
+The consent needs `payments`. The source account must belong to the consent's customer; otherwise the call returns `404`, and no money moves.
 
 ```bash
-curl -X POST https://sandbox.nubbank.com/open-banking/v3.1/domestic-payment-consents \
-  -H "Authorization: Bearer FAPI_ACCESS_TOKEN" \
+curl -X POST https://sandbox.nubbank.com/open-banking/v3.1/pisp/domestic-payments \
+  -H "Authorization: ApiKey cba_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "Data": {
-      "Initiation": {
-        "InstructionIdentification": "INSTR001",
-        "EndToEndIdentification": "E2E001",
-        "InstructedAmount": {"Amount": "50.00", "Currency": "GBP"},
-        "CreditorAccount": {
-          "SchemeName": "UK.OBIE.SortCodeAccountNumber",
-          "Identification": "20000319570701",
-          "Name": "Jane Smith"
-        }
-      }
-    },
-    "Risk": {}
+    "consentId": "ob-a3f8c12e9b4d5e6f70",
+    "sourceAccountId": "SOURCE_ACCOUNT_ID",
+    "destinationAccountId": "DESTINATION_ACCOUNT_ID",
+    "amount": "50.00",
+    "currency": "USD",
+    "reference": "INV-1001"
   }'
 ```
 
-### Submit domestic payment
-
-After the customer authorises the consent:
-
-```bash
-curl -X POST https://sandbox.nubbank.com/open-banking/v3.1/domestic-payments \
-  -H "Authorization: Bearer FAPI_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "Data": {
-      "ConsentId": "consent_abc123",
-      "Initiation": { ... }
-    },
-    "Risk": {}
-  }'
-```
+`GET /open-banking/v3.1/pisp/domestic-payments/{domesticPaymentId}` returns a payment you initiated, including its `consentId`. Any other payment is `404`.
 
 ---
 
 ## CBPII — Funds Confirmation
 
-Check whether sufficient funds are available without moving money:
+Use this to check that an account (or card) has at least an amount, without moving money. The consent needs `fundsconfirmation`, and a card also needs `card_read` or `card_balances_read`.
 
 ```bash
-curl -X POST https://sandbox.nubbank.com/open-banking/v3.1/funds-confirmations \
-  -H "Authorization: Bearer FAPI_ACCESS_TOKEN" \
+curl -X POST https://sandbox.nubbank.com/open-banking/v3.1/cbpii/funds-confirmations \
+  -H "Authorization: ApiKey cba_YOUR_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "Data": {
-      "ConsentId": "consent_abc123",
-      "Reference": "Order-001",
-      "InstructedAmount": {"Amount": "25.00", "Currency": "GBP"}
-    }
+    "consentId": "ob-a3f8c12e9b4d5e6f70",
+    "accountId": "ACCOUNT_ID",
+    "amount": "25.00",
+    "currency": "USD"
   }'
 ```
 
 **Response:**
+
 ```json
 {
-  "Data": {
-    "FundsAvailableResult": {
-      "FundsAvailableDateTime": "2026-04-26T14:30:00Z",
-      "FundsAvailable": true
-    }
-  }
+  "fundsConfirmationId": "fc-1a2b3c4d5e6f708192",
+  "consentId": "ob-a3f8c12e9b4d5e6f70",
+  "fundsAvailable": true,
+  "accountId": "ACCOUNT_ID",
+  "amount": 25.00,
+  "currency": "USD",
+  "creationDateTime": "2026-11-03T10:06:00Z"
 }
 ```
 
@@ -177,35 +176,33 @@ curl -X POST https://sandbox.nubbank.com/open-banking/v3.1/funds-confirmations \
 
 ## Consent Scopes
 
-| Scope | API type | Description |
-|-------|---------|-------------|
-| `ReadAccountsBasic` | AISP | Account list, identifiers |
-| `ReadAccountsDetail` | AISP | Full account details |
-| `ReadBalances` | AISP | Account balances |
-| `ReadTransactionsCredits` | AISP | Credit transactions |
-| `ReadTransactionsDebits` | AISP | Debit transactions |
+| Scope | API type | Grants |
+| ----- | ------- | ------ |
+| `accounts_read` | AISP | Bank accounts in `/aisp/accounts` |
+| `balances_read` | AISP | Bank account balances |
+| `transactions_read` | AISP | Bank account transactions |
 | `payments` | PISP | Domestic payment initiation |
-| `fundsconfirmations` | CBPII | Funds confirmation |
-| `card_read` | Card AISP | Card account list |
-| `card_balances_read` | Card AISP | Card balances |
+| `fundsconfirmation` | CBPII | Funds confirmation |
+| `card_read` | Card AISP | Cards in `/aisp/accounts`; card funds confirmation |
+| `card_balances_read` | Card AISP | Card balances; card funds confirmation |
 | `card_transactions_read` | Card AISP | Card authorization history |
 
 ---
 
-## Required Headers
+## Headers
 
 | Header | Required | Description |
-|--------|----------|-------------|
-| `Authorization` | ✓ | `Bearer {fapi_access_token}` |
-| `x-fapi-interaction-id` | ✓ | UUID per request — echoed in response for tracing |
-| `x-fapi-customer-ip-address` | Recommended | Customer's IP address |
+| ------ | -------- | ----------- |
+| `Authorization` | ✓ | `ApiKey cba_…` |
+| `x-consent-id` | AISP calls | The consent you're reading under |
+| `x-fapi-interaction-id` | Recommended | UUID per request, for tracing |
 | `Content-Type` | On POST/PUT | `application/json` |
 
 ---
 
 ## Manage Consents (Partner API)
 
-Partners can view and revoke their customers' consents:
+You can also list and revoke your organisation's consents from the partner API:
 
 ```bash
 # List all consents for this organisation

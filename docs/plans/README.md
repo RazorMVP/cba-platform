@@ -25,5 +25,6 @@ Every change that goes through plan mode has its approved plan kept here, one fi
 | 2026-10-28 | [Web app — Angular 21 → 22](2026-10-28-angular-22-upgrade.md) | #209 | `0482f3c` |
 | 2026-11-02 | [Backlog 21 — card scheme settlement files](2026-11-02-scheme-settlement-files.md) | #220 | `0a10e36` |
 | 2026-11-02 | [Backlog 5 — enforce card controls](2026-11-02-card-controls.md) | #222 | `f5dfdfa` |
+| 2026-11-03 | [Backlog 13 — Open Banking consent binding](2026-11-03-open-banking-consent-binding.md) | — | — |
 
 **Not here:** work done without an approved plan, including the overdue fix (#150, `f3f22fe`) and everything before 2026-10-13. Plans from those sessions weren't kept. `cba-log.md` is the record for them.

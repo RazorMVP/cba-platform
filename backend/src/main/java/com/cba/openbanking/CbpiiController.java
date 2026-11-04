@@ -26,8 +26,10 @@ public class CbpiiController {
     private final ConsentService consentService;
 
     @PostMapping("/funds-confirmations")
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'API_CLIENT')")
-    @Operation(summary = "Confirm funds availability for a given account and amount (CBPII)")
+    @PreAuthorize("hasRole('API_CLIENT')")
+    @Operation(summary = "Confirm funds availability for a given account and amount (CBPII)",
+            description = "Partner API key only. Needs the caller's own AUTHORISED consent with 'fundsconfirmation'; "
+                    + "the account or card must belong to the consent's customer (404 otherwise).")
     public ResponseEntity<FundsConfirmationResponse> confirmFunds(
             @RequestHeader(value = "x-fapi-interaction-id", required = false) String interactionId,
             @Valid @RequestBody FundsConfirmationRequest request) {

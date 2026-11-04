@@ -20,6 +20,26 @@
       "key": "tenant_id",
       "value": "default",
       "type": "string"
+    },
+    {
+      "key": "partner_api_key",
+      "value": "cba_...",
+      "description": "Partner API key (shown once at creation) \u2014 TPP Open Banking calls"
+    },
+    {
+      "key": "partner_org_id",
+      "value": "",
+      "description": "Partner organisation id \u2014 owner of consents it creates"
+    },
+    {
+      "key": "consentId",
+      "value": "",
+      "description": "Open Banking consent id (ob-\u2026)"
+    },
+    {
+      "key": "domesticPaymentId",
+      "value": "",
+      "description": "PISP payment id"
     }
   ],
   "auth": {
@@ -5720,13 +5740,17 @@
     },
     {
       "name": "07 \u00b7 Open Banking (FAPI 2.0)",
-      "description": "## Open Banking Module \u2014 FAPI 2.0\n\nUK Open Banking v3.1 compliant endpoints for Third-Party Providers (TPPs).\n\n### Base Path\nAll Open Banking endpoints use `/open-banking/v3.1/` prefix.\n\n### Roles\n| Role | Description |\n|------|-------------|\n| AISP | Account Information Service Provider \u2014 read account/transaction data |\n| PISP | Payment Initiation Service Provider \u2014 initiate domestic payments |\n| CBPII | Card-Based Payment Instrument Issuer \u2014 funds confirmation |\n\n### Consent Flow\n```\nPOST /consents \u2192 AWAITING_AUTHORISATION\nPUT /consents/{id}/authorise \u2192 AUTHORISED\n(use for AISP/PISP/CBPII operations)\nDELETE /consents/{id} \u2192 REVOKED\n```\n\n### Required Scopes\n| Scope | Operations Allowed |\n|-------|-------------------|\n| `accounts` | AISP: read accounts, balances, transactions |\n| `payments` | PISP: initiate domestic payments |\n| `fundsconfirmation` | CBPII: check available funds |\n\n### Consent Validation\nBefore every PISP or CBPII call, the platform validates:\n1. Consent status = AUTHORISED\n2. Required scope is present\n3. Consent has not expired",
+      "description": "## Open Banking Module \u2014 FAPI 2.0\n\nUK Open Banking v3.1 compliant endpoints for Third-Party Providers (TPPs).\n\n### Base Path\nAll Open Banking endpoints use `/open-banking/v3.1/` prefix.\n\n### Roles\n| Role | Description |\n|------|-------------|\n| AISP | Account Information Service Provider \u2014 read account/transaction data |\n| PISP | Payment Initiation Service Provider \u2014 initiate domestic payments |\n| CBPII | Card-Based Payment Instrument Issuer \u2014 funds confirmation |\n\n### Consent Flow\n```\nPOST /consents \u2192 AWAITING_AUTHORISATION\nPUT /consents/{id}/authorise \u2192 AUTHORISED\n(use for AISP/PISP/CBPII operations)\nDELETE /consents/{id} \u2192 REVOKED\n```\n\n### Required Scopes\n| Scope | Operations Allowed |\n|-------|-------------------|\n| `accounts` | AISP: read accounts, balances, transactions |\n| `payments` | PISP: initiate domestic payments |\n| `fundsconfirmation` | CBPII: check available funds |\n\n### Consent Validation\nBefore every PISP or CBPII call, the platform validates:\n1. Consent status = AUTHORISED\n2. Required scope is present\n3. Consent has not expired\n\n**Consent binding (cont. 55):** TPP calls use a partner API key (`{{partner_api_key}}`). A consent belongs to the creating organisation and one customer; AISP calls name it in `x-consent-id`, PISP/CBPII in the body. Another TPP's consent is a 404.",
       "item": [
         {
           "name": "Create Consent",
           "request": {
             "method": "POST",
             "header": [
+              {
+                "key": "Authorization",
+                "value": "ApiKey {{partner_api_key}}"
+              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
@@ -5747,10 +5771,10 @@
                 "consents"
               ]
             },
-            "description": "Create a new consent record for a TPP. Status starts at AWAITING_AUTHORISATION. The customer must authorise the consent before the TPP can access data.",
+            "description": "Create a consent for one customer. **Partner API key only** (`Authorization: ApiKey cba_\u2026`). The consent always belongs to the key's organisation: `tppClientId` may be omitted, and a different value is `400 TPP_CLIENT_MISMATCH`. `customerId` is required; only that customer can authorise the consent. `scopes` must come from the catalogue (`accounts_read`, `balances_read`, `transactions_read`, `payments`, `fundsconfirmation`, `card_read`, `card_balances_read`, `card_transactions_read`); anything else is `400 INVALID_SCOPE`.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"tppClientId\": \"tpp-fintech-app-001\",\n  \"customerId\": \"{{customerId}}\",\n  \"scopes\": [\n    \"accounts\",\n    \"payments\"\n  ],\n  \"expiryDate\": \"2026-07-07T00:00:00Z\"\n}",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"scopes\": [\"accounts_read\", \"balances_read\", \"transactions_read\", \"payments\", \"fundsconfirmation\"],\n  \"expiryDate\": \"2026-12-31T00:00:00Z\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -5758,38 +5782,72 @@
               }
             }
           },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": \"6f1c0000-0000-0000-0000-000000000001\",\n  \"consentId\": \"ob-a3f8c12e9b4d5e6f70\",\n  \"customerId\": \"{{customerId}}\",\n  \"tppClientId\": \"{{partner_org_id}}\",\n  \"scopes\": [\n    \"accounts_read\",\n    \"balances_read\",\n    \"transactions_read\",\n    \"payments\",\n    \"fundsconfirmation\"\n  ],\n  \"status\": \"AWAITING_AUTHORISATION\",\n  \"expiryDate\": \"2026-12-31T00:00:00Z\",\n  \"createdAt\": \"2026-11-03T10:00:00Z\",\n  \"updatedAt\": \"2026-11-03T10:00:00Z\"\n}"
+            },
+            {
+              "name": "400 \u2014 unknown scope",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"INVALID_SCOPE\",\n      \"message\": \"Unknown scope(s) [accounts]; allowed: [accounts_read, balances_read, transactions_read, payments, fundsconfirmation, card_read, card_balances_read, card_transactions_read]\",\n      \"field\": null\n    }\n  ]\n}"
+            },
+            {
+              "name": "400 \u2014 another org's tppClientId",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"TPP_CLIENT_MISMATCH\",\n      \"message\": \"tppClientId must be the calling partner organisation ({{partner_org_id}}) or omitted\",\n      \"field\": null\n    }\n  ]\n}"
+            }
+          ],
           "x-code-samples": [
             {
               "lang": "cURL",
-              "source": "curl -X POST '{{base_url}}/open-banking/v3.1/consents' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -d '{\n  \"tppClientId\": \"tpp-fintech-app-001\",\n  \"customerId\": \"{{customerId}}\",\n  \"scopes\": [\n    \"accounts\",\n    \"payments\"\n  ],\n  \"expiryDate\": \"2026-07-07T00:00:00Z\"\n}'"
+              "source": "curl -X POST '{{base_url}}/open-banking/v3.1/consents' \\\n  -H 'Authorization: ApiKey {{partner_api_key}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -d '{\n  \"customerId\": \"{{customerId}}\",\n  \"scopes\": [\"accounts_read\", \"balances_read\", \"transactions_read\", \"payments\", \"fundsconfirmation\"],\n  \"expiryDate\": \"2026-12-31T00:00:00Z\"\n}'"
             },
             {
               "lang": "JavaScript (fetch)",
-              "source": "fetch('{{base_url}}/open-banking/v3.1/consents', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  },\n  body: JSON.stringify({\"tppClientId\": \"tpp-fintech-app-001\", \"customerId\": \"{{customerId}}\", \"scopes\": [\"accounts\", \"payments\"], \"expiryDate\": \"2026-07-07T00:00:00Z\"})\n}).then(r => r.json()).then(console.log);"
+              "source": "fetch('{{base_url}}/open-banking/v3.1/consents', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'ApiKey {{partner_api_key}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  },\n  body: JSON.stringify({\n  \"customerId\": \"{{customerId}}\",\n  \"scopes\": [\"accounts_read\", \"balances_read\", \"transactions_read\", \"payments\", \"fundsconfirmation\"],\n  \"expiryDate\": \"2026-12-31T00:00:00Z\"\n})\n}).then(r => r.json()).then(console.log);"
             },
             {
               "lang": "Python (requests)",
-              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/open-banking/v3.1/consents',\n    headers={\n        'Authorization': 'Bearer {{access_token}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    },\n    json={\"tppClientId\": \"tpp-fintech-app-001\", \"customerId\": \"{{customerId}}\", \"scopes\": [\"accounts\", \"payments\"], \"expiryDate\": \"2026-07-07T00:00:00Z\"}\n)\nprint(response.json())"
+              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/open-banking/v3.1/consents',\n    headers={\n        'Authorization': 'ApiKey {{partner_api_key}}',\n        'Content-Type': 'application/json',\n        'X-Tenant-ID': '{{tenant_id}}'\n    },\n    json={\n  \"customerId\": \"{{customerId}}\",\n  \"scopes\": [\"accounts_read\", \"balances_read\", \"transactions_read\", \"payments\", \"fundsconfirmation\"],\n  \"expiryDate\": \"2026-12-31T00:00:00Z\"\n}\n)\nprint(response.json())"
             },
             {
               "lang": "Java (OkHttp)",
-              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/open-banking/v3.1/consents\")\n    .post(RequestBody.create(\"{\\\"tppClientId\\\": \\\"tpp-fintech-app-001\\\", \\\"customerId\\\": \\\"{{customerId}}\\\", \\\"scopes\\\": [\\\"accounts\\\", \\\"payments\\\"], \\\"expiryDate\\\": \\\"2026-07-07T00:00:00Z\\\"}\", MediaType.parse(\"application/json\")))\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
+              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/open-banking/v3.1/consents\")\n    .method(\"POST\", RequestBody.create(\"{\n  \\\"customerId\\\": \\\"{{customerId}}\\\",\n  \\\"scopes\\\": [\\\"accounts_read\\\", \\\"balances_read\\\", \\\"transactions_read\\\", \\\"payments\\\", \\\"fundsconfirmation\\\"],\n  \\\"expiryDate\\\": \\\"2026-12-31T00:00:00Z\\\"\n}\", MediaType.parse(\"application/json\")))\n    .addHeader(\"Authorization\", \"ApiKey {{partner_api_key}}\")\n    .addHeader(\"Content-Type\", \"application/json\")\n    .addHeader(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
             },
             {
               "lang": "C# (HttpClient)",
-              "source": "var client = new HttpClient();\nclient.DefaultRequestHeaders.Authorization =\n    new AuthenticationHeaderValue(\"Bearer\", \"{{access_token}}\");\nclient.DefaultRequestHeaders.Add(\"X-Tenant-ID\", \"{{tenant_id}}\");\nvar content = new StringContent(\"{\\\"tppClientId\\\": \\\"tpp-fintech-app-001\\\", \\\"customerId\\\": \\\"{{customerId}}\\\", \\\"scopes\\\": [\\\"accounts\\\", \\\"payments\\\"], \\\"expiryDate\\\": \\\"2026-07-07T00:00:00Z\\\"}\", Encoding.UTF8, \"application/json\");\nvar response = await client.PostAsync(\"{{base_url}}/open-banking/v3.1/consents\", content);\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
-            },
-            {
-              "lang": "PHP (cURL)",
-              "source": "<?php\n$ch = curl_init();\ncurl_setopt_array($ch, [\n    CURLOPT_URL => '{{base_url}}/open-banking/v3.1/consents',\n    CURLOPT_CUSTOMREQUEST => 'POST',\n    CURLOPT_POSTFIELDS => json_encode({\"tppClientId\": \"tpp-fintech-app-001\", \"customerId\": \"{{customerId}}\", \"scopes\": [\"accounts\", \"payments\"], \"expiryDate\": \"2026-07-07T00:00:00Z\"}),\n    CURLOPT_HTTPHEADER => [\n        'Authorization: Bearer {{access_token}}',\n        'Content-Type: application/json',\n        'X-Tenant-ID: {{tenant_id}}'\n    ],\n    CURLOPT_RETURNTRANSFER => true\n]);\necho curl_exec($ch);\ncurl_close($ch);"
+              "source": "var client = new HttpClient();\nvar req = new HttpRequestMessage(new HttpMethod(\"POST\"), \"{{base_url}}/open-banking/v3.1/consents\");\nreq.Headers.TryAddWithoutValidation(\"Authorization\", \"ApiKey {{partner_api_key}}\");\nreq.Headers.TryAddWithoutValidation(\"Content-Type\", \"application/json\");\nreq.Headers.TryAddWithoutValidation(\"X-Tenant-ID\", \"{{tenant_id}}\");\nreq.Content = new StringContent(\"{\n  \\\"customerId\\\": \\\"{{customerId}}\\\",\n  \\\"scopes\\\": [\\\"accounts_read\\\", \\\"balances_read\\\", \\\"transactions_read\\\", \\\"payments\\\", \\\"fundsconfirmation\\\"],\n  \\\"expiryDate\\\": \\\"2026-12-31T00:00:00Z\\\"\n}\", Encoding.UTF8, \"application/json\");\nvar response = await client.SendAsync(req);\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
             },
             {
               "lang": "Go (net/http)",
-              "source": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n    \"strings\"\n    \"io/ioutil\"\n)\n\nfunc main() {\n    body := strings.NewReader(\"{\\\"tppClientId\\\": \\\"tpp-fintech-app-001\\\", \\\"customerId\\\": \\\"{{customerId}}\\\", \\\"scopes\\\": [\\\"accounts\\\", \\\"payments\\\"], \\\"expiryDate\\\": \\\"2026-07-07T00:00:00Z\\\"}\")\nreq, _ := http.NewRequest(\"POST\", \"{{base_url}}/open-banking/v3.1/consents\", body)\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"Content-Type\", \"application/json\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := new(http.Client).Do(req)\n    defer resp.Body.Close()\n    b, _ := ioutil.ReadAll(resp.Body)\n    fmt.Println(string(b))\n}"
+              "source": "package main\n\nimport (\n\t\"fmt\"\n\t\"io\"\n\t\"net/http\"\n\t\"strings\"\n)\n\nfunc main() {\n\tbody := strings.NewReader(\"{\\n  \\\"customerId\\\": \\\"{{customerId}}\\\",\\n  \\\"scopes\\\": [\\\"accounts_read\\\", \\\"balances_read\\\", \\\"transactions_read\\\", \\\"payments\\\", \\\"fundsconfirmation\\\"],\\n  \\\"expiryDate\\\": \\\"2026-12-31T00:00:00Z\\\"\\n}\")\n\treq, _ := http.NewRequest(\"POST\", \"{{base_url}}/open-banking/v3.1/consents\", body)\n\treq.Header.Set(\"Authorization\", \"ApiKey {{partner_api_key}}\")\n\treq.Header.Set(\"Content-Type\", \"application/json\")\n\treq.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n\tresp, err := http.DefaultClient.Do(req)\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\tdefer resp.Body.Close()\n\tb, _ := io.ReadAll(resp.Body)\n\tfmt.Println(string(b))\n}"
             },
             {
               "lang": "Ruby (Net::HTTP)",
-              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/open-banking/v3.1/consents')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Post.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq.body = \"{\\\"tppClientId\\\": \\\"tpp-fintech-app-001\\\", \\\"customerId\\\": \\\"{{customerId}}\\\", \\\"scopes\\\": [\\\"accounts\\\", \\\"payments\\\"], \\\"expiryDate\\\": \\\"2026-07-07T00:00:00Z\\\"}\"\nputs http.request(req).body"
+              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/open-banking/v3.1/consents')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Post.new(uri)\nreq['Authorization'] = 'ApiKey {{partner_api_key}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq.body = \"{\\n  \\\"customerId\\\": \\\"{{customerId}}\\\",\\n  \\\"scopes\\\": [\\\"accounts_read\\\", \\\"balances_read\\\", \\\"transactions_read\\\", \\\"payments\\\", \\\"fundsconfirmation\\\"],\\n  \\\"expiryDate\\\": \\\"2026-12-31T00:00:00Z\\\"\\n}\"\nputs http.request(req).body"
             }
           ]
         },
@@ -5799,8 +5857,8 @@
             "method": "GET",
             "header": [
               {
-                "key": "Content-Type",
-                "value": "application/json"
+                "key": "Authorization",
+                "value": "ApiKey {{partner_api_key}}"
               },
               {
                 "key": "X-Tenant-ID",
@@ -5819,40 +5877,62 @@
                 "{{consentId}}"
               ]
             },
-            "description": "Retrieve consent details including status, granted scopes, and expiry."
+            "description": "The consent's TPP (its API key) or its customer (CUSTOMER token). Anyone else gets `404 CONSENT_NOT_FOUND`, the same as an unknown id."
           },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": \"6f1c0000-0000-0000-0000-000000000001\",\n  \"consentId\": \"ob-a3f8c12e9b4d5e6f70\",\n  \"customerId\": \"{{customerId}}\",\n  \"tppClientId\": \"{{partner_org_id}}\",\n  \"scopes\": [\n    \"accounts_read\",\n    \"balances_read\",\n    \"transactions_read\",\n    \"payments\",\n    \"fundsconfirmation\"\n  ],\n  \"status\": \"AUTHORISED\",\n  \"expiryDate\": \"2026-12-31T00:00:00Z\",\n  \"createdAt\": \"2026-11-03T10:00:00Z\",\n  \"updatedAt\": \"2026-11-03T10:00:00Z\"\n}"
+            },
+            {
+              "name": "404 \u2014 not your consent",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"CONSENT_NOT_FOUND\",\n      \"message\": \"Consent not found: ob-a3f8c12e9b4d5e6f70\",\n      \"field\": null\n    }\n  ]\n}"
+            }
+          ],
           "x-code-samples": [
             {
               "lang": "cURL",
-              "source": "curl -X GET '{{base_url}}/open-banking/v3.1/consents/{{consentId}}' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}'"
+              "source": "curl -X GET '{{base_url}}/open-banking/v3.1/consents/{{consentId}}' \\\n  -H 'Authorization: ApiKey {{partner_api_key}}' \\\n  -H 'X-Tenant-ID: {{tenant_id}}'"
             },
             {
               "lang": "JavaScript (fetch)",
-              "source": "fetch('{{base_url}}/open-banking/v3.1/consents/{{consentId}}', {\n  method: 'GET',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  }\n}).then(r => r.json()).then(console.log);"
+              "source": "fetch('{{base_url}}/open-banking/v3.1/consents/{{consentId}}', {\n  method: 'GET',\n  headers: {\n    'Authorization': 'ApiKey {{partner_api_key}}',\n    'X-Tenant-ID': '{{tenant_id}}'\n  }\n}).then(r => r.json()).then(console.log);"
             },
             {
               "lang": "Python (requests)",
-              "source": "import requests\n\nresponse = requests.get(\n    '{{base_url}}/open-banking/v3.1/consents/{{consentId}}',\n    headers={\n        'Authorization': 'Bearer {{access_token}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    }\n)\nprint(response.json())"
+              "source": "import requests\n\nresponse = requests.get(\n    '{{base_url}}/open-banking/v3.1/consents/{{consentId}}',\n    headers={\n        'Authorization': 'ApiKey {{partner_api_key}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    }\n)\nprint(response.json())"
             },
             {
               "lang": "Java (OkHttp)",
-              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/open-banking/v3.1/consents/{{consentId}}\")\n    .get()\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
+              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/open-banking/v3.1/consents/{{consentId}}\")\n    .get()\n    .addHeader(\"Authorization\", \"ApiKey {{partner_api_key}}\")\n    .addHeader(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
             },
             {
               "lang": "C# (HttpClient)",
-              "source": "var client = new HttpClient();\nclient.DefaultRequestHeaders.Authorization =\n    new AuthenticationHeaderValue(\"Bearer\", \"{{access_token}}\");\nclient.DefaultRequestHeaders.Add(\"X-Tenant-ID\", \"{{tenant_id}}\");\nvar response = await client.GetAsync(\"{{base_url}}/open-banking/v3.1/consents/{{consentId}}\");\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
-            },
-            {
-              "lang": "PHP (cURL)",
-              "source": "<?php\n$ch = curl_init();\ncurl_setopt_array($ch, [\n    CURLOPT_URL => '{{base_url}}/open-banking/v3.1/consents/{{consentId}}',\n    CURLOPT_CUSTOMREQUEST => 'GET',\n    CURLOPT_HTTPHEADER => [\n        'Authorization: Bearer {{access_token}}',\n        'Content-Type: application/json',\n        'X-Tenant-ID: {{tenant_id}}'\n    ],\n    CURLOPT_RETURNTRANSFER => true\n]);\necho curl_exec($ch);\ncurl_close($ch);"
+              "source": "var client = new HttpClient();\nvar req = new HttpRequestMessage(new HttpMethod(\"GET\"), \"{{base_url}}/open-banking/v3.1/consents/{{consentId}}\");\nreq.Headers.TryAddWithoutValidation(\"Authorization\", \"ApiKey {{partner_api_key}}\");\nreq.Headers.TryAddWithoutValidation(\"X-Tenant-ID\", \"{{tenant_id}}\");\nvar response = await client.SendAsync(req);\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
             },
             {
               "lang": "Go (net/http)",
-              "source": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n    \"strings\"\n    \"io/ioutil\"\n)\n\nfunc main() {\n    req, _ := http.NewRequest(\"GET\", \"{{base_url}}/open-banking/v3.1/consents/{{consentId}}\", nil)\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"Content-Type\", \"application/json\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := new(http.Client).Do(req)\n    defer resp.Body.Close()\n    b, _ := ioutil.ReadAll(resp.Body)\n    fmt.Println(string(b))\n}"
+              "source": "package main\n\nimport (\n\t\"fmt\"\n\t\"io\"\n\t\"net/http\"\n)\n\nfunc main() {\n\treq, _ := http.NewRequest(\"GET\", \"{{base_url}}/open-banking/v3.1/consents/{{consentId}}\", nil)\n\treq.Header.Set(\"Authorization\", \"ApiKey {{partner_api_key}}\")\n\treq.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n\tresp, err := http.DefaultClient.Do(req)\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\tdefer resp.Body.Close()\n\tb, _ := io.ReadAll(resp.Body)\n\tfmt.Println(string(b))\n}"
             },
             {
               "lang": "Ruby (Net::HTTP)",
-              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/open-banking/v3.1/consents/{{consentId}}')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Get.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nputs http.request(req).body"
+              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/open-banking/v3.1/consents/{{consentId}}')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Get.new(uri)\nreq['Authorization'] = 'ApiKey {{partner_api_key}}'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nputs http.request(req).body"
             }
           ]
         },
@@ -5862,8 +5942,8 @@
             "method": "PUT",
             "header": [
               {
-                "key": "Content-Type",
-                "value": "application/json"
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
               },
               {
                 "key": "X-Tenant-ID",
@@ -5883,16 +5963,42 @@
                 "authorise"
               ]
             },
-            "description": "Authorise a consent (AWAITING_AUTHORISATION \u2192 AUTHORISED). In a production system this is triggered by the customer confirming in the bank's authentication UI. In CBA API-only mode, this endpoint is called directly."
+            "description": "The customer approves the consent: AWAITING_AUTHORISATION \u2192 AUTHORISED. **CUSTOMER only, and only the customer the consent names** \u2014 another customer gets `404 CONSENT_NOT_FOUND`."
           },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": \"6f1c0000-0000-0000-0000-000000000001\",\n  \"consentId\": \"ob-a3f8c12e9b4d5e6f70\",\n  \"customerId\": \"{{customerId}}\",\n  \"tppClientId\": \"{{partner_org_id}}\",\n  \"scopes\": [\n    \"accounts_read\",\n    \"balances_read\",\n    \"transactions_read\",\n    \"payments\",\n    \"fundsconfirmation\"\n  ],\n  \"status\": \"AUTHORISED\",\n  \"expiryDate\": \"2026-12-31T00:00:00Z\",\n  \"createdAt\": \"2026-11-03T10:00:00Z\",\n  \"updatedAt\": \"2026-11-03T10:00:00Z\"\n}"
+            },
+            {
+              "name": "404 \u2014 not your consent",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"CONSENT_NOT_FOUND\",\n      \"message\": \"Consent not found: ob-a3f8c12e9b4d5e6f70\",\n      \"field\": null\n    }\n  ]\n}"
+            }
+          ],
           "x-code-samples": [
             {
               "lang": "cURL",
-              "source": "curl -X PUT '{{base_url}}/open-banking/v3.1/consents/{{consentId}}/authorise' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}'"
+              "source": "curl -X PUT '{{base_url}}/open-banking/v3.1/consents/{{consentId}}/authorise' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'X-Tenant-ID: {{tenant_id}}'"
             },
             {
               "lang": "JavaScript (fetch)",
-              "source": "fetch('{{base_url}}/open-banking/v3.1/consents/{{consentId}}/authorise', {\n  method: 'PUT',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  }\n}).then(r => r.json()).then(console.log);"
+              "source": "fetch('{{base_url}}/open-banking/v3.1/consents/{{consentId}}/authorise', {\n  method: 'PUT',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'X-Tenant-ID': '{{tenant_id}}'\n  }\n}).then(r => r.json()).then(console.log);"
             },
             {
               "lang": "Python (requests)",
@@ -5900,23 +6006,19 @@
             },
             {
               "lang": "Java (OkHttp)",
-              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/open-banking/v3.1/consents/{{consentId}}/authorise\")\n    .get()\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
+              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/open-banking/v3.1/consents/{{consentId}}/authorise\")\n    .method(\"PUT\", null)\n    .addHeader(\"Authorization\", \"Bearer {{access_token}}\")\n    .addHeader(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
             },
             {
               "lang": "C# (HttpClient)",
-              "source": "var client = new HttpClient();\nclient.DefaultRequestHeaders.Authorization =\n    new AuthenticationHeaderValue(\"Bearer\", \"{{access_token}}\");\nclient.DefaultRequestHeaders.Add(\"X-Tenant-ID\", \"{{tenant_id}}\");\nvar response = await client.GetAsync(\"{{base_url}}/open-banking/v3.1/consents/{{consentId}}/authorise\");\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
-            },
-            {
-              "lang": "PHP (cURL)",
-              "source": "<?php\n$ch = curl_init();\ncurl_setopt_array($ch, [\n    CURLOPT_URL => '{{base_url}}/open-banking/v3.1/consents/{{consentId}}/authorise',\n    CURLOPT_CUSTOMREQUEST => 'PUT',\n    CURLOPT_HTTPHEADER => [\n        'Authorization: Bearer {{access_token}}',\n        'Content-Type: application/json',\n        'X-Tenant-ID: {{tenant_id}}'\n    ],\n    CURLOPT_RETURNTRANSFER => true\n]);\necho curl_exec($ch);\ncurl_close($ch);"
+              "source": "var client = new HttpClient();\nvar req = new HttpRequestMessage(new HttpMethod(\"PUT\"), \"{{base_url}}/open-banking/v3.1/consents/{{consentId}}/authorise\");\nreq.Headers.TryAddWithoutValidation(\"Authorization\", \"Bearer {{access_token}}\");\nreq.Headers.TryAddWithoutValidation(\"X-Tenant-ID\", \"{{tenant_id}}\");\nvar response = await client.SendAsync(req);\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
             },
             {
               "lang": "Go (net/http)",
-              "source": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n    \"strings\"\n    \"io/ioutil\"\n)\n\nfunc main() {\n    req, _ := http.NewRequest(\"PUT\", \"{{base_url}}/open-banking/v3.1/consents/{{consentId}}/authorise\", nil)\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"Content-Type\", \"application/json\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := new(http.Client).Do(req)\n    defer resp.Body.Close()\n    b, _ := ioutil.ReadAll(resp.Body)\n    fmt.Println(string(b))\n}"
+              "source": "package main\n\nimport (\n\t\"fmt\"\n\t\"io\"\n\t\"net/http\"\n)\n\nfunc main() {\n\treq, _ := http.NewRequest(\"PUT\", \"{{base_url}}/open-banking/v3.1/consents/{{consentId}}/authorise\", nil)\n\treq.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n\treq.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n\tresp, err := http.DefaultClient.Do(req)\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\tdefer resp.Body.Close()\n\tb, _ := io.ReadAll(resp.Body)\n\tfmt.Println(string(b))\n}"
             },
             {
               "lang": "Ruby (Net::HTTP)",
-              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/open-banking/v3.1/consents/{{consentId}}/authorise')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Put.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nputs http.request(req).body"
+              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/open-banking/v3.1/consents/{{consentId}}/authorise')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Put.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nputs http.request(req).body"
             }
           ]
         },
@@ -5926,8 +6028,8 @@
             "method": "DELETE",
             "header": [
               {
-                "key": "Content-Type",
-                "value": "application/json"
+                "key": "Authorization",
+                "value": "ApiKey {{partner_api_key}}"
               },
               {
                 "key": "X-Tenant-ID",
@@ -5946,40 +6048,381 @@
                 "{{consentId}}"
               ]
             },
-            "description": "Revoke an active consent. The TPP loses access immediately. The consent record is retained for audit."
+            "description": "The consent's TPP or its customer revokes it. Anyone else gets `404 CONSENT_NOT_FOUND`. Later data calls under it get `403 CONSENT_REVOKED`."
           },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": \"6f1c0000-0000-0000-0000-000000000001\",\n  \"consentId\": \"ob-a3f8c12e9b4d5e6f70\",\n  \"customerId\": \"{{customerId}}\",\n  \"tppClientId\": \"{{partner_org_id}}\",\n  \"scopes\": [\n    \"accounts_read\",\n    \"balances_read\",\n    \"transactions_read\",\n    \"payments\",\n    \"fundsconfirmation\"\n  ],\n  \"status\": \"REVOKED\",\n  \"expiryDate\": \"2026-12-31T00:00:00Z\",\n  \"createdAt\": \"2026-11-03T10:00:00Z\",\n  \"updatedAt\": \"2026-11-03T10:00:00Z\"\n}"
+            },
+            {
+              "name": "404 \u2014 not your consent",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"CONSENT_NOT_FOUND\",\n      \"message\": \"Consent not found: ob-a3f8c12e9b4d5e6f70\",\n      \"field\": null\n    }\n  ]\n}"
+            }
+          ],
           "x-code-samples": [
             {
               "lang": "cURL",
-              "source": "curl -X DELETE '{{base_url}}/open-banking/v3.1/consents/{{consentId}}' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}'"
+              "source": "curl -X DELETE '{{base_url}}/open-banking/v3.1/consents/{{consentId}}' \\\n  -H 'Authorization: ApiKey {{partner_api_key}}' \\\n  -H 'X-Tenant-ID: {{tenant_id}}'"
             },
             {
               "lang": "JavaScript (fetch)",
-              "source": "fetch('{{base_url}}/open-banking/v3.1/consents/{{consentId}}', {\n  method: 'DELETE',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  }\n}).then(r => r.json()).then(console.log);"
+              "source": "fetch('{{base_url}}/open-banking/v3.1/consents/{{consentId}}', {\n  method: 'DELETE',\n  headers: {\n    'Authorization': 'ApiKey {{partner_api_key}}',\n    'X-Tenant-ID': '{{tenant_id}}'\n  }\n}).then(r => r.json()).then(console.log);"
             },
             {
               "lang": "Python (requests)",
-              "source": "import requests\n\nresponse = requests.delete(\n    '{{base_url}}/open-banking/v3.1/consents/{{consentId}}',\n    headers={\n        'Authorization': 'Bearer {{access_token}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    }\n)\nprint(response.json())"
+              "source": "import requests\n\nresponse = requests.delete(\n    '{{base_url}}/open-banking/v3.1/consents/{{consentId}}',\n    headers={\n        'Authorization': 'ApiKey {{partner_api_key}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    }\n)\nprint(response.json())"
             },
             {
               "lang": "Java (OkHttp)",
-              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/open-banking/v3.1/consents/{{consentId}}\")\n    .get()\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
+              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/open-banking/v3.1/consents/{{consentId}}\")\n    .method(\"DELETE\", null)\n    .addHeader(\"Authorization\", \"ApiKey {{partner_api_key}}\")\n    .addHeader(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
             },
             {
               "lang": "C# (HttpClient)",
-              "source": "var client = new HttpClient();\nclient.DefaultRequestHeaders.Authorization =\n    new AuthenticationHeaderValue(\"Bearer\", \"{{access_token}}\");\nclient.DefaultRequestHeaders.Add(\"X-Tenant-ID\", \"{{tenant_id}}\");\nvar response = await client.GetAsync(\"{{base_url}}/open-banking/v3.1/consents/{{consentId}}\");\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
-            },
-            {
-              "lang": "PHP (cURL)",
-              "source": "<?php\n$ch = curl_init();\ncurl_setopt_array($ch, [\n    CURLOPT_URL => '{{base_url}}/open-banking/v3.1/consents/{{consentId}}',\n    CURLOPT_CUSTOMREQUEST => 'DELETE',\n    CURLOPT_HTTPHEADER => [\n        'Authorization: Bearer {{access_token}}',\n        'Content-Type: application/json',\n        'X-Tenant-ID: {{tenant_id}}'\n    ],\n    CURLOPT_RETURNTRANSFER => true\n]);\necho curl_exec($ch);\ncurl_close($ch);"
+              "source": "var client = new HttpClient();\nvar req = new HttpRequestMessage(new HttpMethod(\"DELETE\"), \"{{base_url}}/open-banking/v3.1/consents/{{consentId}}\");\nreq.Headers.TryAddWithoutValidation(\"Authorization\", \"ApiKey {{partner_api_key}}\");\nreq.Headers.TryAddWithoutValidation(\"X-Tenant-ID\", \"{{tenant_id}}\");\nvar response = await client.SendAsync(req);\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
             },
             {
               "lang": "Go (net/http)",
-              "source": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n    \"strings\"\n    \"io/ioutil\"\n)\n\nfunc main() {\n    req, _ := http.NewRequest(\"DELETE\", \"{{base_url}}/open-banking/v3.1/consents/{{consentId}}\", nil)\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"Content-Type\", \"application/json\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := new(http.Client).Do(req)\n    defer resp.Body.Close()\n    b, _ := ioutil.ReadAll(resp.Body)\n    fmt.Println(string(b))\n}"
+              "source": "package main\n\nimport (\n\t\"fmt\"\n\t\"io\"\n\t\"net/http\"\n)\n\nfunc main() {\n\treq, _ := http.NewRequest(\"DELETE\", \"{{base_url}}/open-banking/v3.1/consents/{{consentId}}\", nil)\n\treq.Header.Set(\"Authorization\", \"ApiKey {{partner_api_key}}\")\n\treq.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n\tresp, err := http.DefaultClient.Do(req)\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\tdefer resp.Body.Close()\n\tb, _ := io.ReadAll(resp.Body)\n\tfmt.Println(string(b))\n}"
             },
             {
               "lang": "Ruby (Net::HTTP)",
-              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/open-banking/v3.1/consents/{{consentId}}')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Delete.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nputs http.request(req).body"
+              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/open-banking/v3.1/consents/{{consentId}}')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Delete.new(uri)\nreq['Authorization'] = 'ApiKey {{partner_api_key}}'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nputs http.request(req).body"
+            }
+          ]
+        },
+        {
+          "name": "List Accounts (AISP)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "ApiKey {{partner_api_key}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "x-consent-id",
+                "value": "{{consentId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/open-banking/v3.1/aisp/accounts",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "open-banking",
+                "v3.1",
+                "aisp",
+                "accounts"
+              ]
+            },
+            "description": "Bank accounts (scope `accounts_read`) and cards (scope `card_read`) of the consent's customer. A TPP must name its consent in **`x-consent-id`** (missing \u2192 `400 CONSENT_ID_REQUIRED`). The consent must be the caller's own (`404`), AUTHORISED (`403 CONSENT_NOT_AUTHORISED` / `CONSENT_REVOKED` / `CONSENT_EXPIRED`) and grant at least one of the two scopes (`403 CONSENT_SCOPE_MISSING`). A CUSTOMER token reads its own accounts and needs no header."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"Data\": {\n    \"Account\": [\n      {\n        \"AccountId\": \"{{accountId}}\",\n        \"AccountNumber\": \"****1234\",\n        \"AccountType\": \"SAVINGS\",\n        \"AccountSubType\": \"CurrentAccount\",\n        \"Status\": \"ACTIVE\",\n        \"Currency\": \"USD\"\n      }\n    ]\n  },\n  \"Meta\": {\n    \"TotalPages\": 1,\n    \"TotalCount\": 1\n  },\n  \"Links\": {\n    \"Self\": \"/open-banking/v3.1/aisp/accounts\"\n  }\n}"
+            },
+            {
+              "name": "400 \u2014 no x-consent-id",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"CONSENT_ID_REQUIRED\",\n      \"message\": \"TPP calls must name their consent in the x-consent-id header\",\n      \"field\": null\n    }\n  ]\n}"
+            },
+            {
+              "name": "403 \u2014 not authorised yet",
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"CONSENT_NOT_AUTHORISED\",\n      \"message\": \"Consent ob-a3f8c12e9b4d5e6f70 has not been authorised by the customer\",\n      \"field\": null\n    }\n  ]\n}"
+            },
+            {
+              "name": "404 \u2014 not your consent",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"CONSENT_NOT_FOUND\",\n      \"message\": \"Consent not found: ob-a3f8c12e9b4d5e6f70\",\n      \"field\": null\n    }\n  ]\n}"
+            }
+          ],
+          "x-code-samples": [
+            {
+              "lang": "cURL",
+              "source": "curl -X GET '{{base_url}}/open-banking/v3.1/aisp/accounts' \\\n  -H 'Authorization: ApiKey {{partner_api_key}}' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -H 'x-consent-id: {{consentId}}'"
+            },
+            {
+              "lang": "JavaScript (fetch)",
+              "source": "fetch('{{base_url}}/open-banking/v3.1/aisp/accounts', {\n  method: 'GET',\n  headers: {\n    'Authorization': 'ApiKey {{partner_api_key}}',\n    'X-Tenant-ID': '{{tenant_id}}',\n    'x-consent-id': '{{consentId}}'\n  }\n}).then(r => r.json()).then(console.log);"
+            },
+            {
+              "lang": "Python (requests)",
+              "source": "import requests\n\nresponse = requests.get(\n    '{{base_url}}/open-banking/v3.1/aisp/accounts',\n    headers={\n        'Authorization': 'ApiKey {{partner_api_key}}',\n        'X-Tenant-ID': '{{tenant_id}}',\n        'x-consent-id': '{{consentId}}'\n    }\n)\nprint(response.json())"
+            },
+            {
+              "lang": "Java (OkHttp)",
+              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/open-banking/v3.1/aisp/accounts\")\n    .get()\n    .addHeader(\"Authorization\", \"ApiKey {{partner_api_key}}\")\n    .addHeader(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    .addHeader(\"x-consent-id\", \"{{consentId}}\")\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
+            },
+            {
+              "lang": "C# (HttpClient)",
+              "source": "var client = new HttpClient();\nvar req = new HttpRequestMessage(new HttpMethod(\"GET\"), \"{{base_url}}/open-banking/v3.1/aisp/accounts\");\nreq.Headers.TryAddWithoutValidation(\"Authorization\", \"ApiKey {{partner_api_key}}\");\nreq.Headers.TryAddWithoutValidation(\"X-Tenant-ID\", \"{{tenant_id}}\");\nreq.Headers.TryAddWithoutValidation(\"x-consent-id\", \"{{consentId}}\");\nvar response = await client.SendAsync(req);\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
+            },
+            {
+              "lang": "Go (net/http)",
+              "source": "package main\n\nimport (\n\t\"fmt\"\n\t\"io\"\n\t\"net/http\"\n)\n\nfunc main() {\n\treq, _ := http.NewRequest(\"GET\", \"{{base_url}}/open-banking/v3.1/aisp/accounts\", nil)\n\treq.Header.Set(\"Authorization\", \"ApiKey {{partner_api_key}}\")\n\treq.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n\treq.Header.Set(\"x-consent-id\", \"{{consentId}}\")\n\tresp, err := http.DefaultClient.Do(req)\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\tdefer resp.Body.Close()\n\tb, _ := io.ReadAll(resp.Body)\n\tfmt.Println(string(b))\n}"
+            },
+            {
+              "lang": "Ruby (Net::HTTP)",
+              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/open-banking/v3.1/aisp/accounts')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Get.new(uri)\nreq['Authorization'] = 'ApiKey {{partner_api_key}}'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq['x-consent-id'] = '{{consentId}}'\nputs http.request(req).body"
+            }
+          ]
+        },
+        {
+          "name": "Get Account Balances (AISP)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "ApiKey {{partner_api_key}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "x-consent-id",
+                "value": "{{consentId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/open-banking/v3.1/aisp/accounts/{{accountId}}/balances",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "open-banking",
+                "v3.1",
+                "aisp",
+                "accounts",
+                "{{accountId}}",
+                "balances"
+              ]
+            },
+            "description": "Balance of one account (scope `balances_read`) or card (scope `card_balances_read`) of the consent's customer. TPP: `x-consent-id` required. An account of another customer is `404 ACCOUNT_NOT_FOUND`; the customer's account under a consent without the scope is `403 CONSENT_SCOPE_MISSING`."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"Data\": {\n    \"Balance\": [\n      {\n        \"AccountId\": \"{{accountId}}\",\n        \"Amount\": {\n          \"Amount\": \"1250.0000\",\n          \"Currency\": \"USD\"\n        },\n        \"CreditDebitIndicator\": \"Credit\",\n        \"Type\": \"ClosingAvailable\",\n        \"DateTime\": \"2026-11-03T10:00:00Z\"\n      }\n    ]\n  },\n  \"Meta\": {\n    \"TotalPages\": 1\n  },\n  \"Links\": {\n    \"Self\": \"/open-banking/v3.1/aisp/accounts/{{accountId}}/balances\"\n  }\n}"
+            },
+            {
+              "name": "403 \u2014 scope missing",
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"CONSENT_SCOPE_MISSING\",\n      \"message\": \"Consent ob-a3f8c12e9b4d5e6f70 does not grant 'balances_read'\",\n      \"field\": null\n    }\n  ]\n}"
+            },
+            {
+              "name": "404 \u2014 not the consent customer's account",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"ACCOUNT_NOT_FOUND\",\n      \"message\": \"Account not found: {{accountId}}\",\n      \"field\": null\n    }\n  ]\n}"
+            }
+          ],
+          "x-code-samples": [
+            {
+              "lang": "cURL",
+              "source": "curl -X GET '{{base_url}}/open-banking/v3.1/aisp/accounts/{{accountId}}/balances' \\\n  -H 'Authorization: ApiKey {{partner_api_key}}' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -H 'x-consent-id: {{consentId}}'"
+            },
+            {
+              "lang": "JavaScript (fetch)",
+              "source": "fetch('{{base_url}}/open-banking/v3.1/aisp/accounts/{{accountId}}/balances', {\n  method: 'GET',\n  headers: {\n    'Authorization': 'ApiKey {{partner_api_key}}',\n    'X-Tenant-ID': '{{tenant_id}}',\n    'x-consent-id': '{{consentId}}'\n  }\n}).then(r => r.json()).then(console.log);"
+            },
+            {
+              "lang": "Python (requests)",
+              "source": "import requests\n\nresponse = requests.get(\n    '{{base_url}}/open-banking/v3.1/aisp/accounts/{{accountId}}/balances',\n    headers={\n        'Authorization': 'ApiKey {{partner_api_key}}',\n        'X-Tenant-ID': '{{tenant_id}}',\n        'x-consent-id': '{{consentId}}'\n    }\n)\nprint(response.json())"
+            },
+            {
+              "lang": "Java (OkHttp)",
+              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/open-banking/v3.1/aisp/accounts/{{accountId}}/balances\")\n    .get()\n    .addHeader(\"Authorization\", \"ApiKey {{partner_api_key}}\")\n    .addHeader(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    .addHeader(\"x-consent-id\", \"{{consentId}}\")\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
+            },
+            {
+              "lang": "C# (HttpClient)",
+              "source": "var client = new HttpClient();\nvar req = new HttpRequestMessage(new HttpMethod(\"GET\"), \"{{base_url}}/open-banking/v3.1/aisp/accounts/{{accountId}}/balances\");\nreq.Headers.TryAddWithoutValidation(\"Authorization\", \"ApiKey {{partner_api_key}}\");\nreq.Headers.TryAddWithoutValidation(\"X-Tenant-ID\", \"{{tenant_id}}\");\nreq.Headers.TryAddWithoutValidation(\"x-consent-id\", \"{{consentId}}\");\nvar response = await client.SendAsync(req);\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
+            },
+            {
+              "lang": "Go (net/http)",
+              "source": "package main\n\nimport (\n\t\"fmt\"\n\t\"io\"\n\t\"net/http\"\n)\n\nfunc main() {\n\treq, _ := http.NewRequest(\"GET\", \"{{base_url}}/open-banking/v3.1/aisp/accounts/{{accountId}}/balances\", nil)\n\treq.Header.Set(\"Authorization\", \"ApiKey {{partner_api_key}}\")\n\treq.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n\treq.Header.Set(\"x-consent-id\", \"{{consentId}}\")\n\tresp, err := http.DefaultClient.Do(req)\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\tdefer resp.Body.Close()\n\tb, _ := io.ReadAll(resp.Body)\n\tfmt.Println(string(b))\n}"
+            },
+            {
+              "lang": "Ruby (Net::HTTP)",
+              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/open-banking/v3.1/aisp/accounts/{{accountId}}/balances')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Get.new(uri)\nreq['Authorization'] = 'ApiKey {{partner_api_key}}'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq['x-consent-id'] = '{{consentId}}'\nputs http.request(req).body"
+            }
+          ]
+        },
+        {
+          "name": "Get Account Transactions (AISP)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "ApiKey {{partner_api_key}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              },
+              {
+                "key": "x-consent-id",
+                "value": "{{consentId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/open-banking/v3.1/aisp/accounts/{{accountId}}/transactions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "open-banking",
+                "v3.1",
+                "aisp",
+                "accounts",
+                "{{accountId}}",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "fromBookingDateTime",
+                  "value": "2026-01-01T00:00:00Z",
+                  "disabled": true
+                },
+                {
+                  "key": "toBookingDateTime",
+                  "value": "2026-12-31T23:59:59Z",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Transactions of one account (scope `transactions_read`) or a card's authorizations (scope `card_transactions_read`) of the consent's customer. TPP: `x-consent-id` required. Same refusals as balances."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"Data\": {\n    \"Transaction\": [\n      {\n        \"TransactionId\": \"7a2e0000-0000-0000-0000-000000000001\",\n        \"AccountId\": \"{{accountId}}\",\n        \"CreditDebitIndicator\": \"Credit\",\n        \"Status\": \"Booked\",\n        \"BookingDateTime\": \"2026-11-02T09:15:00Z\",\n        \"Amount\": {\n          \"Amount\": \"500.0000\",\n          \"Currency\": \"USD\"\n        },\n        \"TransactionInformation\": \"Salary\"\n      }\n    ]\n  },\n  \"Meta\": {\n    \"TotalPages\": 1\n  },\n  \"Links\": {\n    \"Self\": \"/open-banking/v3.1/aisp/accounts/{{accountId}}/transactions\"\n  }\n}"
+            },
+            {
+              "name": "404 \u2014 not the consent customer's account",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"ACCOUNT_NOT_FOUND\",\n      \"message\": \"Account not found: {{accountId}}\",\n      \"field\": null\n    }\n  ]\n}"
+            }
+          ],
+          "x-code-samples": [
+            {
+              "lang": "cURL",
+              "source": "curl -X GET '{{base_url}}/open-banking/v3.1/aisp/accounts/{{accountId}}/transactions' \\\n  -H 'Authorization: ApiKey {{partner_api_key}}' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -H 'x-consent-id: {{consentId}}'"
+            },
+            {
+              "lang": "JavaScript (fetch)",
+              "source": "fetch('{{base_url}}/open-banking/v3.1/aisp/accounts/{{accountId}}/transactions', {\n  method: 'GET',\n  headers: {\n    'Authorization': 'ApiKey {{partner_api_key}}',\n    'X-Tenant-ID': '{{tenant_id}}',\n    'x-consent-id': '{{consentId}}'\n  }\n}).then(r => r.json()).then(console.log);"
+            },
+            {
+              "lang": "Python (requests)",
+              "source": "import requests\n\nresponse = requests.get(\n    '{{base_url}}/open-banking/v3.1/aisp/accounts/{{accountId}}/transactions',\n    headers={\n        'Authorization': 'ApiKey {{partner_api_key}}',\n        'X-Tenant-ID': '{{tenant_id}}',\n        'x-consent-id': '{{consentId}}'\n    }\n)\nprint(response.json())"
+            },
+            {
+              "lang": "Java (OkHttp)",
+              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/open-banking/v3.1/aisp/accounts/{{accountId}}/transactions\")\n    .get()\n    .addHeader(\"Authorization\", \"ApiKey {{partner_api_key}}\")\n    .addHeader(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    .addHeader(\"x-consent-id\", \"{{consentId}}\")\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
+            },
+            {
+              "lang": "C# (HttpClient)",
+              "source": "var client = new HttpClient();\nvar req = new HttpRequestMessage(new HttpMethod(\"GET\"), \"{{base_url}}/open-banking/v3.1/aisp/accounts/{{accountId}}/transactions\");\nreq.Headers.TryAddWithoutValidation(\"Authorization\", \"ApiKey {{partner_api_key}}\");\nreq.Headers.TryAddWithoutValidation(\"X-Tenant-ID\", \"{{tenant_id}}\");\nreq.Headers.TryAddWithoutValidation(\"x-consent-id\", \"{{consentId}}\");\nvar response = await client.SendAsync(req);\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
+            },
+            {
+              "lang": "Go (net/http)",
+              "source": "package main\n\nimport (\n\t\"fmt\"\n\t\"io\"\n\t\"net/http\"\n)\n\nfunc main() {\n\treq, _ := http.NewRequest(\"GET\", \"{{base_url}}/open-banking/v3.1/aisp/accounts/{{accountId}}/transactions\", nil)\n\treq.Header.Set(\"Authorization\", \"ApiKey {{partner_api_key}}\")\n\treq.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n\treq.Header.Set(\"x-consent-id\", \"{{consentId}}\")\n\tresp, err := http.DefaultClient.Do(req)\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\tdefer resp.Body.Close()\n\tb, _ := io.ReadAll(resp.Body)\n\tfmt.Println(string(b))\n}"
+            },
+            {
+              "lang": "Ruby (Net::HTTP)",
+              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/open-banking/v3.1/aisp/accounts/{{accountId}}/transactions')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Get.new(uri)\nreq['Authorization'] = 'ApiKey {{partner_api_key}}'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq['x-consent-id'] = '{{consentId}}'\nputs http.request(req).body"
             }
           ]
         },
@@ -5989,6 +6432,10 @@
             "method": "POST",
             "header": [
               {
+                "key": "Authorization",
+                "value": "ApiKey {{partner_api_key}}"
+              },
+              {
                 "key": "Content-Type",
                 "value": "application/json"
               },
@@ -5998,20 +6445,21 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/open-banking/v3.1/domestic-payments",
+              "raw": "{{base_url}}/open-banking/v3.1/pisp/domestic-payments",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "open-banking",
                 "v3.1",
+                "pisp",
                 "domestic-payments"
               ]
             },
-            "description": "Initiate a domestic payment on behalf of a customer using an AUTHORISED consent with `payments` scope. The `consentId` must be AUTHORISED and not expired. The payment is recorded with `createdBy = open-banking:{consentId}` for full audit traceability.",
+            "description": "**Partner API key only.** Needs the caller's own AUTHORISED consent with `payments`. `sourceAccountId` must belong to the consent's customer \u2014 otherwise `404 ACCOUNT_NOT_FOUND`, checked before any money moves. The payment is recorded as created by `open-banking:{consentId}`.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"consentId\": \"{{consentId}}\",\n  \"sourceAccountId\": \"{{sourceAccountId}}\",\n  \"destinationAccountId\": \"{{destinationAccountId}}\",\n  \"amount\": \"150.00\",\n  \"currencyCode\": \"USD\",\n  \"reference\": \"Invoice INV-2026-0042\",\n  \"description\": \"Payment for consulting services\"\n}",
+              "raw": "{\n  \"consentId\": \"{{consentId}}\",\n  \"sourceAccountId\": \"{{sourceAccountId}}\",\n  \"destinationAccountId\": \"{{destinationAccountId}}\",\n  \"amount\": \"150.00\",\n  \"currency\": \"USD\",\n  \"reference\": \"INV-1001\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -6019,38 +6467,146 @@
               }
             }
           },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"domesticPaymentId\": \"8b3f0000-0000-0000-0000-000000000001\",\n  \"consentId\": \"{{consentId}}\",\n  \"status\": \"COMPLETED\",\n  \"sourceAccountId\": \"{{sourceAccountId}}\",\n  \"destinationAccountId\": \"{{destinationAccountId}}\",\n  \"amount\": 150.0,\n  \"currency\": \"USD\",\n  \"reference\": \"INV-1001\",\n  \"creationDateTime\": \"2026-11-03T10:05:00Z\"\n}"
+            },
+            {
+              "name": "403 \u2014 no payments scope",
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"CONSENT_SCOPE_MISSING\",\n      \"message\": \"Consent ob-a3f8c12e9b4d5e6f70 grants none of [payments]\",\n      \"field\": null\n    }\n  ]\n}"
+            },
+            {
+              "name": "404 \u2014 source account not the consent customer's",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"ACCOUNT_NOT_FOUND\",\n      \"message\": \"Account not found: {{sourceAccountId}}\",\n      \"field\": null\n    }\n  ]\n}"
+            }
+          ],
           "x-code-samples": [
             {
               "lang": "cURL",
-              "source": "curl -X POST '{{base_url}}/open-banking/v3.1/domestic-payments' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -d '{\n  \"consentId\": \"{{consentId}}\",\n  \"sourceAccountId\": \"{{sourceAccountId}}\",\n  \"destinationAccountId\": \"{{destinationAccountId}}\",\n  \"amount\": \"150.00\",\n  \"currencyCode\": \"USD\",\n  \"reference\": \"Invoice INV-2026-0042\",\n  \"description\": \"Payment for consulting services\"\n}'"
+              "source": "curl -X POST '{{base_url}}/open-banking/v3.1/pisp/domestic-payments' \\\n  -H 'Authorization: ApiKey {{partner_api_key}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -d '{\n  \"consentId\": \"{{consentId}}\",\n  \"sourceAccountId\": \"{{sourceAccountId}}\",\n  \"destinationAccountId\": \"{{destinationAccountId}}\",\n  \"amount\": \"150.00\",\n  \"currency\": \"USD\",\n  \"reference\": \"INV-1001\"\n}'"
             },
             {
               "lang": "JavaScript (fetch)",
-              "source": "fetch('{{base_url}}/open-banking/v3.1/domestic-payments', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  },\n  body: JSON.stringify({\"consentId\": \"{{consentId}}\", \"sourceAccountId\": \"{{sourceAccountId}}\", \"destinationAccountId\": \"{{destinationAccountId}}\", \"amount\": \"150.00\", \"currencyCode\": \"USD\", \"reference\": \"Invoice INV-2026-0042\", \"description\": \"Payment for consulting services\"})\n}).then(r => r.json()).then(console.log);"
+              "source": "fetch('{{base_url}}/open-banking/v3.1/pisp/domestic-payments', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'ApiKey {{partner_api_key}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  },\n  body: JSON.stringify({\n  \"consentId\": \"{{consentId}}\",\n  \"sourceAccountId\": \"{{sourceAccountId}}\",\n  \"destinationAccountId\": \"{{destinationAccountId}}\",\n  \"amount\": \"150.00\",\n  \"currency\": \"USD\",\n  \"reference\": \"INV-1001\"\n})\n}).then(r => r.json()).then(console.log);"
             },
             {
               "lang": "Python (requests)",
-              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/open-banking/v3.1/domestic-payments',\n    headers={\n        'Authorization': 'Bearer {{access_token}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    },\n    json={\"consentId\": \"{{consentId}}\", \"sourceAccountId\": \"{{sourceAccountId}}\", \"destinationAccountId\": \"{{destinationAccountId}}\", \"amount\": \"150.00\", \"currencyCode\": \"USD\", \"reference\": \"Invoice INV-2026-0042\", \"description\": \"Payment for consulting services\"}\n)\nprint(response.json())"
+              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/open-banking/v3.1/pisp/domestic-payments',\n    headers={\n        'Authorization': 'ApiKey {{partner_api_key}}',\n        'Content-Type': 'application/json',\n        'X-Tenant-ID': '{{tenant_id}}'\n    },\n    json={\n  \"consentId\": \"{{consentId}}\",\n  \"sourceAccountId\": \"{{sourceAccountId}}\",\n  \"destinationAccountId\": \"{{destinationAccountId}}\",\n  \"amount\": \"150.00\",\n  \"currency\": \"USD\",\n  \"reference\": \"INV-1001\"\n}\n)\nprint(response.json())"
             },
             {
               "lang": "Java (OkHttp)",
-              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/open-banking/v3.1/domestic-payments\")\n    .post(RequestBody.create(\"{\\\"consentId\\\": \\\"{{consentId}}\\\", \\\"sourceAccountId\\\": \\\"{{sourceAccountId}}\\\", \\\"destinationAccountId\\\": \\\"{{destinationAccountId}}\\\", \\\"amount\\\": \\\"150.00\\\", \\\"currencyCode\\\": \\\"USD\\\", \\\"reference\\\": \\\"Invoice INV-2026-0042\\\", \\\"description\\\": \\\"Payment for consulting services\\\"}\", MediaType.parse(\"application/json\")))\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
+              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/open-banking/v3.1/pisp/domestic-payments\")\n    .method(\"POST\", RequestBody.create(\"{\n  \\\"consentId\\\": \\\"{{consentId}}\\\",\n  \\\"sourceAccountId\\\": \\\"{{sourceAccountId}}\\\",\n  \\\"destinationAccountId\\\": \\\"{{destinationAccountId}}\\\",\n  \\\"amount\\\": \\\"150.00\\\",\n  \\\"currency\\\": \\\"USD\\\",\n  \\\"reference\\\": \\\"INV-1001\\\"\n}\", MediaType.parse(\"application/json\")))\n    .addHeader(\"Authorization\", \"ApiKey {{partner_api_key}}\")\n    .addHeader(\"Content-Type\", \"application/json\")\n    .addHeader(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
             },
             {
               "lang": "C# (HttpClient)",
-              "source": "var client = new HttpClient();\nclient.DefaultRequestHeaders.Authorization =\n    new AuthenticationHeaderValue(\"Bearer\", \"{{access_token}}\");\nclient.DefaultRequestHeaders.Add(\"X-Tenant-ID\", \"{{tenant_id}}\");\nvar content = new StringContent(\"{\\\"consentId\\\": \\\"{{consentId}}\\\", \\\"sourceAccountId\\\": \\\"{{sourceAccountId}}\\\", \\\"destinationAccountId\\\": \\\"{{destinationAccountId}}\\\", \\\"amount\\\": \\\"150.00\\\", \\\"currencyCode\\\": \\\"USD\\\", \\\"reference\\\": \\\"Invoice INV-2026-0042\\\", \\\"description\\\": \\\"Payment for consulting services\\\"}\", Encoding.UTF8, \"application/json\");\nvar response = await client.PostAsync(\"{{base_url}}/open-banking/v3.1/domestic-payments\", content);\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
-            },
-            {
-              "lang": "PHP (cURL)",
-              "source": "<?php\n$ch = curl_init();\ncurl_setopt_array($ch, [\n    CURLOPT_URL => '{{base_url}}/open-banking/v3.1/domestic-payments',\n    CURLOPT_CUSTOMREQUEST => 'POST',\n    CURLOPT_POSTFIELDS => json_encode({\"consentId\": \"{{consentId}}\", \"sourceAccountId\": \"{{sourceAccountId}}\", \"destinationAccountId\": \"{{destinationAccountId}}\", \"amount\": \"150.00\", \"currencyCode\": \"USD\", \"reference\": \"Invoice INV-2026-0042\", \"description\": \"Payment for consulting services\"}),\n    CURLOPT_HTTPHEADER => [\n        'Authorization: Bearer {{access_token}}',\n        'Content-Type: application/json',\n        'X-Tenant-ID: {{tenant_id}}'\n    ],\n    CURLOPT_RETURNTRANSFER => true\n]);\necho curl_exec($ch);\ncurl_close($ch);"
+              "source": "var client = new HttpClient();\nvar req = new HttpRequestMessage(new HttpMethod(\"POST\"), \"{{base_url}}/open-banking/v3.1/pisp/domestic-payments\");\nreq.Headers.TryAddWithoutValidation(\"Authorization\", \"ApiKey {{partner_api_key}}\");\nreq.Headers.TryAddWithoutValidation(\"Content-Type\", \"application/json\");\nreq.Headers.TryAddWithoutValidation(\"X-Tenant-ID\", \"{{tenant_id}}\");\nreq.Content = new StringContent(\"{\n  \\\"consentId\\\": \\\"{{consentId}}\\\",\n  \\\"sourceAccountId\\\": \\\"{{sourceAccountId}}\\\",\n  \\\"destinationAccountId\\\": \\\"{{destinationAccountId}}\\\",\n  \\\"amount\\\": \\\"150.00\\\",\n  \\\"currency\\\": \\\"USD\\\",\n  \\\"reference\\\": \\\"INV-1001\\\"\n}\", Encoding.UTF8, \"application/json\");\nvar response = await client.SendAsync(req);\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
             },
             {
               "lang": "Go (net/http)",
-              "source": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n    \"strings\"\n    \"io/ioutil\"\n)\n\nfunc main() {\n    body := strings.NewReader(\"{\\\"consentId\\\": \\\"{{consentId}}\\\", \\\"sourceAccountId\\\": \\\"{{sourceAccountId}}\\\", \\\"destinationAccountId\\\": \\\"{{destinationAccountId}}\\\", \\\"amount\\\": \\\"150.00\\\", \\\"currencyCode\\\": \\\"USD\\\", \\\"reference\\\": \\\"Invoice INV-2026-0042\\\", \\\"description\\\": \\\"Payment for consulting services\\\"}\")\nreq, _ := http.NewRequest(\"POST\", \"{{base_url}}/open-banking/v3.1/domestic-payments\", body)\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"Content-Type\", \"application/json\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := new(http.Client).Do(req)\n    defer resp.Body.Close()\n    b, _ := ioutil.ReadAll(resp.Body)\n    fmt.Println(string(b))\n}"
+              "source": "package main\n\nimport (\n\t\"fmt\"\n\t\"io\"\n\t\"net/http\"\n\t\"strings\"\n)\n\nfunc main() {\n\tbody := strings.NewReader(\"{\\n  \\\"consentId\\\": \\\"{{consentId}}\\\",\\n  \\\"sourceAccountId\\\": \\\"{{sourceAccountId}}\\\",\\n  \\\"destinationAccountId\\\": \\\"{{destinationAccountId}}\\\",\\n  \\\"amount\\\": \\\"150.00\\\",\\n  \\\"currency\\\": \\\"USD\\\",\\n  \\\"reference\\\": \\\"INV-1001\\\"\\n}\")\n\treq, _ := http.NewRequest(\"POST\", \"{{base_url}}/open-banking/v3.1/pisp/domestic-payments\", body)\n\treq.Header.Set(\"Authorization\", \"ApiKey {{partner_api_key}}\")\n\treq.Header.Set(\"Content-Type\", \"application/json\")\n\treq.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n\tresp, err := http.DefaultClient.Do(req)\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\tdefer resp.Body.Close()\n\tb, _ := io.ReadAll(resp.Body)\n\tfmt.Println(string(b))\n}"
             },
             {
               "lang": "Ruby (Net::HTTP)",
-              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/open-banking/v3.1/domestic-payments')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Post.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq.body = \"{\\\"consentId\\\": \\\"{{consentId}}\\\", \\\"sourceAccountId\\\": \\\"{{sourceAccountId}}\\\", \\\"destinationAccountId\\\": \\\"{{destinationAccountId}}\\\", \\\"amount\\\": \\\"150.00\\\", \\\"currencyCode\\\": \\\"USD\\\", \\\"reference\\\": \\\"Invoice INV-2026-0042\\\", \\\"description\\\": \\\"Payment for consulting services\\\"}\"\nputs http.request(req).body"
+              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/open-banking/v3.1/pisp/domestic-payments')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Post.new(uri)\nreq['Authorization'] = 'ApiKey {{partner_api_key}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq.body = \"{\\n  \\\"consentId\\\": \\\"{{consentId}}\\\",\\n  \\\"sourceAccountId\\\": \\\"{{sourceAccountId}}\\\",\\n  \\\"destinationAccountId\\\": \\\"{{destinationAccountId}}\\\",\\n  \\\"amount\\\": \\\"150.00\\\",\\n  \\\"currency\\\": \\\"USD\\\",\\n  \\\"reference\\\": \\\"INV-1001\\\"\\n}\"\nputs http.request(req).body"
+            }
+          ]
+        },
+        {
+          "name": "Get Domestic Payment (PISP)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "ApiKey {{partner_api_key}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/open-banking/v3.1/pisp/domestic-payments/{{domesticPaymentId}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "open-banking",
+                "v3.1",
+                "pisp",
+                "domestic-payments",
+                "{{domesticPaymentId}}"
+              ]
+            },
+            "description": "Status of a payment initiated under one of the caller's consents (response includes its `consentId`). Any other payment \u2014 another TPP's, or one not made through PISP \u2014 is `404 PAYMENT_NOT_FOUND`."
+          },
+          "response": [
+            {
+              "name": "404 \u2014 not your payment",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"PAYMENT_NOT_FOUND\",\n      \"message\": \"Payment not found: {{domesticPaymentId}}\",\n      \"field\": null\n    }\n  ]\n}"
+            }
+          ],
+          "x-code-samples": [
+            {
+              "lang": "cURL",
+              "source": "curl -X GET '{{base_url}}/open-banking/v3.1/pisp/domestic-payments/{{domesticPaymentId}}' \\\n  -H 'Authorization: ApiKey {{partner_api_key}}' \\\n  -H 'X-Tenant-ID: {{tenant_id}}'"
+            },
+            {
+              "lang": "JavaScript (fetch)",
+              "source": "fetch('{{base_url}}/open-banking/v3.1/pisp/domestic-payments/{{domesticPaymentId}}', {\n  method: 'GET',\n  headers: {\n    'Authorization': 'ApiKey {{partner_api_key}}',\n    'X-Tenant-ID': '{{tenant_id}}'\n  }\n}).then(r => r.json()).then(console.log);"
+            },
+            {
+              "lang": "Python (requests)",
+              "source": "import requests\n\nresponse = requests.get(\n    '{{base_url}}/open-banking/v3.1/pisp/domestic-payments/{{domesticPaymentId}}',\n    headers={\n        'Authorization': 'ApiKey {{partner_api_key}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    }\n)\nprint(response.json())"
+            },
+            {
+              "lang": "Java (OkHttp)",
+              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/open-banking/v3.1/pisp/domestic-payments/{{domesticPaymentId}}\")\n    .get()\n    .addHeader(\"Authorization\", \"ApiKey {{partner_api_key}}\")\n    .addHeader(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
+            },
+            {
+              "lang": "C# (HttpClient)",
+              "source": "var client = new HttpClient();\nvar req = new HttpRequestMessage(new HttpMethod(\"GET\"), \"{{base_url}}/open-banking/v3.1/pisp/domestic-payments/{{domesticPaymentId}}\");\nreq.Headers.TryAddWithoutValidation(\"Authorization\", \"ApiKey {{partner_api_key}}\");\nreq.Headers.TryAddWithoutValidation(\"X-Tenant-ID\", \"{{tenant_id}}\");\nvar response = await client.SendAsync(req);\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
+            },
+            {
+              "lang": "Go (net/http)",
+              "source": "package main\n\nimport (\n\t\"fmt\"\n\t\"io\"\n\t\"net/http\"\n)\n\nfunc main() {\n\treq, _ := http.NewRequest(\"GET\", \"{{base_url}}/open-banking/v3.1/pisp/domestic-payments/{{domesticPaymentId}}\", nil)\n\treq.Header.Set(\"Authorization\", \"ApiKey {{partner_api_key}}\")\n\treq.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n\tresp, err := http.DefaultClient.Do(req)\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\tdefer resp.Body.Close()\n\tb, _ := io.ReadAll(resp.Body)\n\tfmt.Println(string(b))\n}"
+            },
+            {
+              "lang": "Ruby (Net::HTTP)",
+              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/open-banking/v3.1/pisp/domestic-payments/{{domesticPaymentId}}')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Get.new(uri)\nreq['Authorization'] = 'ApiKey {{partner_api_key}}'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nputs http.request(req).body"
             }
           ]
         },
@@ -6060,6 +6616,10 @@
             "method": "POST",
             "header": [
               {
+                "key": "Authorization",
+                "value": "ApiKey {{partner_api_key}}"
+              },
+              {
                 "key": "Content-Type",
                 "value": "application/json"
               },
@@ -6069,20 +6629,21 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/open-banking/v3.1/funds-confirmation",
+              "raw": "{{base_url}}/open-banking/v3.1/cbpii/funds-confirmations",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "open-banking",
                 "v3.1",
-                "funds-confirmation"
+                "cbpii",
+                "funds-confirmations"
               ]
             },
-            "description": "Check whether sufficient funds are available in an account without moving any money. Returns `fundsAvailable: true/false`. Requires AUTHORISED consent with `fundsconfirmation` scope.",
+            "description": "Whether the account (or card) has at least `amount`, without moving money. **Partner API key only.** Needs the caller's own AUTHORISED consent with `fundsconfirmation`; the account or card must belong to the consent's customer (`404 ACCOUNT_NOT_FOUND`). A card also needs `card_read` or `card_balances_read`.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"consentId\": \"{{consentId}}\",\n  \"accountId\": \"{{accountId}}\",\n  \"amount\": \"75.00\",\n  \"currencyCode\": \"USD\"\n}",
+              "raw": "{\n  \"consentId\": \"{{consentId}}\",\n  \"accountId\": \"{{accountId}}\",\n  \"amount\": \"75.00\",\n  \"currency\": \"USD\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -6090,38 +6651,60 @@
               }
             }
           },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"fundsConfirmationId\": \"fc-1a2b3c4d5e6f708192\",\n  \"consentId\": \"{{consentId}}\",\n  \"fundsAvailable\": true,\n  \"accountId\": \"{{accountId}}\",\n  \"amount\": 75.0,\n  \"currency\": \"USD\",\n  \"creationDateTime\": \"2026-11-03T10:06:00Z\"\n}"
+            },
+            {
+              "name": "404 \u2014 not the consent customer's account",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"ACCOUNT_NOT_FOUND\",\n      \"message\": \"Account not found: {{accountId}}\",\n      \"field\": null\n    }\n  ]\n}"
+            }
+          ],
           "x-code-samples": [
             {
               "lang": "cURL",
-              "source": "curl -X POST '{{base_url}}/open-banking/v3.1/funds-confirmation' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -d '{\n  \"consentId\": \"{{consentId}}\",\n  \"accountId\": \"{{accountId}}\",\n  \"amount\": \"75.00\",\n  \"currencyCode\": \"USD\"\n}'"
+              "source": "curl -X POST '{{base_url}}/open-banking/v3.1/cbpii/funds-confirmations' \\\n  -H 'Authorization: ApiKey {{partner_api_key}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -d '{\n  \"consentId\": \"{{consentId}}\",\n  \"accountId\": \"{{accountId}}\",\n  \"amount\": \"75.00\",\n  \"currency\": \"USD\"\n}'"
             },
             {
               "lang": "JavaScript (fetch)",
-              "source": "fetch('{{base_url}}/open-banking/v3.1/funds-confirmation', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  },\n  body: JSON.stringify({\"consentId\": \"{{consentId}}\", \"accountId\": \"{{accountId}}\", \"amount\": \"75.00\", \"currencyCode\": \"USD\"})\n}).then(r => r.json()).then(console.log);"
+              "source": "fetch('{{base_url}}/open-banking/v3.1/cbpii/funds-confirmations', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'ApiKey {{partner_api_key}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  },\n  body: JSON.stringify({\n  \"consentId\": \"{{consentId}}\",\n  \"accountId\": \"{{accountId}}\",\n  \"amount\": \"75.00\",\n  \"currency\": \"USD\"\n})\n}).then(r => r.json()).then(console.log);"
             },
             {
               "lang": "Python (requests)",
-              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/open-banking/v3.1/funds-confirmation',\n    headers={\n        'Authorization': 'Bearer {{access_token}}',\n        'X-Tenant-ID': '{{tenant_id}}'\n    },\n    json={\"consentId\": \"{{consentId}}\", \"accountId\": \"{{accountId}}\", \"amount\": \"75.00\", \"currencyCode\": \"USD\"}\n)\nprint(response.json())"
+              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/open-banking/v3.1/cbpii/funds-confirmations',\n    headers={\n        'Authorization': 'ApiKey {{partner_api_key}}',\n        'Content-Type': 'application/json',\n        'X-Tenant-ID': '{{tenant_id}}'\n    },\n    json={\n  \"consentId\": \"{{consentId}}\",\n  \"accountId\": \"{{accountId}}\",\n  \"amount\": \"75.00\",\n  \"currency\": \"USD\"\n}\n)\nprint(response.json())"
             },
             {
               "lang": "Java (OkHttp)",
-              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/open-banking/v3.1/funds-confirmation\")\n    .post(RequestBody.create(\"{\\\"consentId\\\": \\\"{{consentId}}\\\", \\\"accountId\\\": \\\"{{accountId}}\\\", \\\"amount\\\": \\\"75.00\\\", \\\"currencyCode\\\": \\\"USD\\\"}\", MediaType.parse(\"application/json\")))\n    .addHeader(\"Authorization\", \"Bearer \" + accessToken)\n    .addHeader(\"X-Tenant-ID\", tenantId)\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
+              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/open-banking/v3.1/cbpii/funds-confirmations\")\n    .method(\"POST\", RequestBody.create(\"{\n  \\\"consentId\\\": \\\"{{consentId}}\\\",\n  \\\"accountId\\\": \\\"{{accountId}}\\\",\n  \\\"amount\\\": \\\"75.00\\\",\n  \\\"currency\\\": \\\"USD\\\"\n}\", MediaType.parse(\"application/json\")))\n    .addHeader(\"Authorization\", \"ApiKey {{partner_api_key}}\")\n    .addHeader(\"Content-Type\", \"application/json\")\n    .addHeader(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
             },
             {
               "lang": "C# (HttpClient)",
-              "source": "var client = new HttpClient();\nclient.DefaultRequestHeaders.Authorization =\n    new AuthenticationHeaderValue(\"Bearer\", \"{{access_token}}\");\nclient.DefaultRequestHeaders.Add(\"X-Tenant-ID\", \"{{tenant_id}}\");\nvar content = new StringContent(\"{\\\"consentId\\\": \\\"{{consentId}}\\\", \\\"accountId\\\": \\\"{{accountId}}\\\", \\\"amount\\\": \\\"75.00\\\", \\\"currencyCode\\\": \\\"USD\\\"}\", Encoding.UTF8, \"application/json\");\nvar response = await client.PostAsync(\"{{base_url}}/open-banking/v3.1/funds-confirmation\", content);\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
-            },
-            {
-              "lang": "PHP (cURL)",
-              "source": "<?php\n$ch = curl_init();\ncurl_setopt_array($ch, [\n    CURLOPT_URL => '{{base_url}}/open-banking/v3.1/funds-confirmation',\n    CURLOPT_CUSTOMREQUEST => 'POST',\n    CURLOPT_POSTFIELDS => json_encode({\"consentId\": \"{{consentId}}\", \"accountId\": \"{{accountId}}\", \"amount\": \"75.00\", \"currencyCode\": \"USD\"}),\n    CURLOPT_HTTPHEADER => [\n        'Authorization: Bearer {{access_token}}',\n        'Content-Type: application/json',\n        'X-Tenant-ID: {{tenant_id}}'\n    ],\n    CURLOPT_RETURNTRANSFER => true\n]);\necho curl_exec($ch);\ncurl_close($ch);"
+              "source": "var client = new HttpClient();\nvar req = new HttpRequestMessage(new HttpMethod(\"POST\"), \"{{base_url}}/open-banking/v3.1/cbpii/funds-confirmations\");\nreq.Headers.TryAddWithoutValidation(\"Authorization\", \"ApiKey {{partner_api_key}}\");\nreq.Headers.TryAddWithoutValidation(\"Content-Type\", \"application/json\");\nreq.Headers.TryAddWithoutValidation(\"X-Tenant-ID\", \"{{tenant_id}}\");\nreq.Content = new StringContent(\"{\n  \\\"consentId\\\": \\\"{{consentId}}\\\",\n  \\\"accountId\\\": \\\"{{accountId}}\\\",\n  \\\"amount\\\": \\\"75.00\\\",\n  \\\"currency\\\": \\\"USD\\\"\n}\", Encoding.UTF8, \"application/json\");\nvar response = await client.SendAsync(req);\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
             },
             {
               "lang": "Go (net/http)",
-              "source": "package main\n\nimport (\n    \"fmt\"\n    \"net/http\"\n    \"strings\"\n    \"io/ioutil\"\n)\n\nfunc main() {\n    body := strings.NewReader(\"{\\\"consentId\\\": \\\"{{consentId}}\\\", \\\"accountId\\\": \\\"{{accountId}}\\\", \\\"amount\\\": \\\"75.00\\\", \\\"currencyCode\\\": \\\"USD\\\"}\")\nreq, _ := http.NewRequest(\"POST\", \"{{base_url}}/open-banking/v3.1/funds-confirmation\", body)\n    req.Header.Set(\"Authorization\", \"Bearer {{access_token}}\")\n    req.Header.Set(\"Content-Type\", \"application/json\")\n    req.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    resp, _ := new(http.Client).Do(req)\n    defer resp.Body.Close()\n    b, _ := ioutil.ReadAll(resp.Body)\n    fmt.Println(string(b))\n}"
+              "source": "package main\n\nimport (\n\t\"fmt\"\n\t\"io\"\n\t\"net/http\"\n\t\"strings\"\n)\n\nfunc main() {\n\tbody := strings.NewReader(\"{\\n  \\\"consentId\\\": \\\"{{consentId}}\\\",\\n  \\\"accountId\\\": \\\"{{accountId}}\\\",\\n  \\\"amount\\\": \\\"75.00\\\",\\n  \\\"currency\\\": \\\"USD\\\"\\n}\")\n\treq, _ := http.NewRequest(\"POST\", \"{{base_url}}/open-banking/v3.1/cbpii/funds-confirmations\", body)\n\treq.Header.Set(\"Authorization\", \"ApiKey {{partner_api_key}}\")\n\treq.Header.Set(\"Content-Type\", \"application/json\")\n\treq.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n\tresp, err := http.DefaultClient.Do(req)\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\tdefer resp.Body.Close()\n\tb, _ := io.ReadAll(resp.Body)\n\tfmt.Println(string(b))\n}"
             },
             {
               "lang": "Ruby (Net::HTTP)",
-              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/open-banking/v3.1/funds-confirmation')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Post.new(uri)\nreq['Authorization'] = 'Bearer {{access_token}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq.body = \"{\\\"consentId\\\": \\\"{{consentId}}\\\", \\\"accountId\\\": \\\"{{accountId}}\\\", \\\"amount\\\": \\\"75.00\\\", \\\"currencyCode\\\": \\\"USD\\\"}\"\nputs http.request(req).body"
+              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/open-banking/v3.1/cbpii/funds-confirmations')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Post.new(uri)\nreq['Authorization'] = 'ApiKey {{partner_api_key}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq.body = \"{\\n  \\\"consentId\\\": \\\"{{consentId}}\\\",\\n  \\\"accountId\\\": \\\"{{accountId}}\\\",\\n  \\\"amount\\\": \\\"75.00\\\",\\n  \\\"currency\\\": \\\"USD\\\"\\n}\"\nputs http.request(req).body"
             }
           ]
         }

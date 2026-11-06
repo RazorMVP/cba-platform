@@ -36,18 +36,30 @@ public class ReportExportService {
         PrintWriter pw = new PrintWriter(out);
 
         List<String> columns = new ArrayList<>(rows.get(0).keySet());
-        pw.println(String.join(",", columns));
+        pw.println(String.join(",", columns.stream().map(c -> "\"" + csvText(c).replace("\"", "\"\"") + "\"").toList()));
         for (Map<String, Object> row : rows) {
             List<String> vals = new ArrayList<>();
             for (String col : columns) {
                 Object v = row.get(col);
-                String s = v == null ? "" : v.toString().replace("\"", "\"\"");
-                vals.add("\"" + s + "\"");
+                String text = v == null ? "" : (v instanceof Number ? v.toString() : csvText(v.toString()));
+                vals.add("\"" + text.replace("\"", "\"\"") + "\"");
             }
             pw.println(String.join(",", vals));
         }
         pw.flush();
         return out.toByteArray();
+    }
+
+    /**
+     * Text that a spreadsheet would read as a formula (starts with = + - @ tab or CR) gets a leading
+     * apostrophe (OWASP CSV injection). Report output is user-controlled since custom reports (backlog 10).
+     * Numbers are left as they are, so negative amounts stay numeric.
+     */
+    static String csvText(String value) {
+        if (value.isEmpty()) return value;
+        char first = value.charAt(0);
+        return first == '=' || first == '+' || first == '-' || first == '@' || first == '\t' || first == '\r'
+                ? "'" + value : value;
     }
 
     public byte[] exportToXlsx(String reportName, List<Map<String, Object>> rows) throws IOException {

@@ -57,6 +57,41 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 58) — 2026-11-06
+**Backlog set 1, PR C — item 10: report SQL runs in a sandbox, and custom reports (plan `docs/plans/2026-11-06-backlog-set-1.md`, D5a + D6a). Report SQL ran as the app user (the database owner) behind a keyword filter, and report parameters were pasted into the SQL text behind a 3-character filter — a TELLER could inject SQL through any report parameter.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/…/db/migration/V66__reporting_sandbox.sql` | `reporting` schema of explicit-column views (no PII, secrets, hashes, tokens or free text); `cba_reporting` role (NOLOGIN, read-only, 30 s timeout, `search_path reporting`, no role membership); the 7 core reports rewritten onto the views with bound `:params` (CustomerAcquisition fixed; SavingsBalance no longer joins `platform_users`; TrialBalance per account and currency, no `is_reversed` filter) |
+| `backend/…/report/ReportingDatabase.java` | NEW — sets LOGIN + password (pgjdbc `alterUserPassword`, SCRAM computed client-side) at startup; private Hikari pool; row cap, timeout; `503 REPORTING_NOT_CONFIGURED` |
+| `backend/…/report/ReportSqlValidator.java` | NEW — JSqlParser 5.4: one SELECT, no INTO / data-modifying CTE, only reporting tables, function deny-list |
+| `backend/…/report/ReportService.java`, `ReportController.java`, `dto/ReportRequest.java` (recovered from `f6bc8db`), `dto/ReportResponse.java` | bound typed parameters; create (validated, EXPLAIN dry-run, saved disabled); enable by another admin (identity via `AuditorAware`); `X-Report-Truncated` / `X-Report-Row-Limit`; ADMIN list shows disabled reports; `createdBy` |
+| `backend/…/report/ReportExportService.java` | CSV formula injection: text cells starting = + - @ get a leading apostrophe |
+| `backend/pom.xml` | JSqlParser 5.4 (LGPL-2.1 / Apache-2.0); PostgreSQL driver compile scope |
+| `backend/…/resources/application.yml`, `infrastructure/docker-compose.yml`, `infrastructure/k8s/**` | `app.reports.*`; `REPORTING_DB_PASSWORD` (compose dev default, k8s `<CHANGE_ME>` secret), `REPORTING_DB_USERNAME` configmap |
+| backend tests | NEW `ReportSandboxIT` (26), `ReportServiceTest` rewritten (14), `ReportApiIT` (create-not-exposed removed), `LoanOverdueIT` (`.rows()`) |
+| `backend/docs/openapi-snapshot.yaml` | create/enable endpoints, `ReportRequest`, `createdBy` |
+| `web/…/reports/*` | New Report modal, Enable on disabled reports, truncated note, export as a blob through HttpClient (window.open sent no token); specs |
+| `docs/api-reference.html`, Postman (+ static copies), `CLAUDE.md`, `docs/deferred-backlog.md` | §15 sandbox; create/enable; item 10 ✅ |
+
+#### Key Patterns / Decisions
+- **The database role is the boundary, the parser a second layer (D5a).** `ReportSandboxIT` sends ten attacks straight to the role with the parser bypassed — `public.*` tables, `customers` PII column, `DELETE`, data-modifying CTE, `SELECT INTO`, `set_config('role', …)`, multi-statement — every one refused, the `reports` table unchanged; then shows the parser refuses them first over HTTP.
+- **No password in git or SQL:** the migration creates the role NOLOGIN; the app sets the password at startup with a client-computed SCRAM verifier, so rotation = new secret + restart. The migration user needs CREATEROLE.
+- **Not a `DataSource` bean:** a second DataSource bean would switch off Boot's auto-configured one (and Flyway/Quartz with it).
+- **Four-eyes on the same identity:** `created_by` comes from `AuditorAware` (preferred_username for Keycloak); comparing it with `Authentication.getName()` (the JWT `sub`) would never match and let the creator enable their own report — found while writing the IT.
+- Truncation in headers so the data stays a plain row array for existing clients.
+
+#### Build Verification
+- backend `-Pfull-integration` with `-Dupdate.api.snapshot=true`, then without: **1013/1013** both (main was 985; PR A adds its own).
+- web: **1177/1177**; change detection OK; production build OK.
+- Gate grep: new `@PostMapping /api/v1/reports` and `/api/v1/reports/{id}/enable`; run/export responses gain headers and typed parameter errors — documented in api-reference + Postman.
+
+#### Confirmed Platform Versions
+backend: Spring Boot 3.5.16, Java 21, **JSqlParser 5.4 (new)**; `-Pfull-integration` 1013. web: 1177.
+
+---
+
 ### Session 125 (cont. 57) — 2026-11-06
 **Backlog set 1, PR B — item 17: card authorizations in a foreign currency (plan `docs/plans/2026-11-06-backlog-set-1.md`, D4a). A EUR purchase on a USD card declined RC 57 because card-service compared the merchant's currency (DE49) with the account's; the scheme's converted amount (DE6/DE51) was never read.**
 

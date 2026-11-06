@@ -81,6 +81,14 @@ card:
       token-uri: ${CARD_SERVICE_TOKEN_URI:http://${KEYCLOAK_HOST:localhost}:${KEYCLOAK_PORT:8180}/realms/cba/protocol/openid-connect/token}
 
 app:
+  # Report SQL sandbox (backlog 10): runs as this read-only role; the password is set on the role at startup.
+  # Unset → reports answer 503 REPORTING_NOT_CONFIGURED. Never commit a real value.
+  reports:
+    max-rows: ${REPORTS_MAX_ROWS:10000}
+    query-timeout-seconds: ${REPORTS_QUERY_TIMEOUT_SECONDS:30}
+    db:
+      username: ${REPORTING_DB_USERNAME:cba_reporting}
+      password: ${REPORTING_DB_PASSWORD:}
   image:
     storage: FILE_SYSTEM   # FILE_SYSTEM | DATABASE | S3
     upload-dir: ./uploads/customer-images
@@ -130,6 +138,9 @@ logging:
 # ═══════════════════════════════════════════════════
 app:
   auth-bypass: true   # Bypass Keycloak for local docker-compose stack
+  reports:
+    db:
+      password: ${REPORTING_DB_PASSWORD:cba_reporting_dev}   # local only
 
 spring:
   config:
@@ -174,6 +185,9 @@ logging:
 # ═══════════════════════════════════════════════════
 app:
   auth-bypass: true   # Injects fake ADMIN auth so Angular works without Keycloak
+  reports:
+    db:
+      password: ${REPORTING_DB_PASSWORD:cba_reporting_dev}   # local only
 
 spring:
   config:
@@ -341,6 +355,11 @@ spring:
 
 app:
   auth-bypass: true   # DevAuthBypassFilter — injects fake ADMIN auth; no Keycloak needed
+  reports:
+    max-rows: 50
+    query-timeout-seconds: 3
+    db:
+      password: cba_reporting_test   # Testcontainers only
   partner:
     jwt-secret: test-partner-jwt-secret-32-chars!
 

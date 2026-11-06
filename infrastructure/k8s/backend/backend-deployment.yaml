@@ -32,6 +32,11 @@ spec:
                 secretKeyRef:
                   name: backend-secret
                   key: SPRING_DATASOURCE_PASSWORD
+            - name: REPORTING_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secret
+                  key: REPORTING_DB_PASSWORD
             - name: JASYPT_ENCRYPTOR_PASSWORD
               valueFrom:
                 secretKeyRef:

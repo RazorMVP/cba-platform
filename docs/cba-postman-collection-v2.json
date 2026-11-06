@@ -12587,6 +12587,121 @@
           "response": []
         },
         {
+          "name": "Create custom report",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/reports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports"
+              ]
+            },
+            "description": "ADMIN. One SELECT over the `reporting` views; parameters are `:name` (bound, typed). Validated, dry-run (EXPLAIN as the read-only `cba_reporting` role), saved **disabled** \u2014 a different ADMIN enables it. Errors: `INVALID_REPORT_SQL`, `REPORT_SQL_NOT_SUPPORTED`, `INVALID_REPORT_PARAMETER`, `REPORT_SQL_FAILED`, `REPORT_NAME_EXISTS`.\n\n```bash\ncurl -X POST {{baseUrl}}/api/v1/reports -H 'Authorization: Bearer {{token}}' -H 'Content-Type: application/json' -d '{\"reportName\":\"LoansByStatus\",\"reportSql\":\"SELECT status, COUNT(*) AS loans FROM loans GROUP BY status\",\"reportParameters\":[]}'\n```",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reportName\": \"LoansByStatus\",\n  \"reportCategory\": \"LOAN\",\n  \"description\": \"Loans per status\",\n  \"reportSql\": \"SELECT status, COUNT(*) AS loans FROM loans WHERE status = :status GROUP BY status\",\n  \"reportParameters\": [\n    {\n      \"parameterName\": \"status\",\n      \"parameterLabel\": \"Status\",\n      \"parameterType\": \"STRING\",\n      \"optional\": false\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"5c1e0000-0000-0000-0000-000000000001\",\n    \"reportName\": \"LoansByStatus\",\n    \"reportType\": \"TABLE\",\n    \"reportCategory\": \"LOAN\",\n    \"description\": \"Loans per status\",\n    \"reportSql\": \"SELECT status, COUNT(*) AS loans FROM loans WHERE status = :status GROUP BY status\",\n    \"coreReport\": false,\n    \"useReport\": false,\n    \"reportParameters\": [\n      {\n        \"id\": \"5c1e0000-0000-0000-0000-000000000002\",\n        \"parameterName\": \"status\",\n        \"parameterLabel\": \"Status\",\n        \"parameterType\": \"STRING\",\n        \"defaultValue\": null,\n        \"optional\": false,\n        \"sortOrder\": 1\n      }\n    ],\n    \"createdBy\": \"admin@cba.com\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            },
+            {
+              "name": "400 \u2014 reads outside the reporting views",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"INVALID_REPORT_SQL\",\n      \"message\": \"Report SQL may read only the reporting views (found public.platform_users)\",\n      \"field\": null\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Enable custom report",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/reports/{{reportId}}/enable",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reports",
+                "{{reportId}}",
+                "enable"
+              ]
+            },
+            "description": "ADMIN \u2014 not the one who created it (`403 SAME_USER`)."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"5c1e0000-0000-0000-0000-000000000001\",\n    \"reportName\": \"LoansByStatus\",\n    \"reportType\": \"TABLE\",\n    \"reportCategory\": \"LOAN\",\n    \"description\": \"Loans per status\",\n    \"reportSql\": \"SELECT status, COUNT(*) AS loans FROM loans WHERE status = :status GROUP BY status\",\n    \"coreReport\": false,\n    \"useReport\": true,\n    \"reportParameters\": [\n      {\n        \"id\": \"5c1e0000-0000-0000-0000-000000000002\",\n        \"parameterName\": \"status\",\n        \"parameterLabel\": \"Status\",\n        \"parameterType\": \"STRING\",\n        \"defaultValue\": null,\n        \"optional\": false,\n        \"sortOrder\": 1\n      }\n    ],\n    \"createdBy\": \"admin@cba.com\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            },
+            {
+              "name": "403 \u2014 creator",
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"SAME_USER\",\n      \"message\": \"A report must be enabled by a different administrator from the one who created it\",\n      \"field\": null\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
           "name": "Run Active Loans report",
           "request": {
             "method": "GET",
@@ -12608,7 +12723,7 @@
                 "ActiveLoans"
               ]
             },
-            "description": "",
+            "description": "Runs as the read-only `cba_reporting` role with a timeout and a row cap; response headers `X-Report-Truncated` / `X-Report-Row-Limit`. Parameters are bound and typed (`400 INVALID_PARAM_VALUE`, `400 MISSING_REPORT_PARAM`); `503 REPORTING_NOT_CONFIGURED` without `REPORTING_DB_PASSWORD`.",
             "auth": {
               "type": "bearer",
               "bearer": [

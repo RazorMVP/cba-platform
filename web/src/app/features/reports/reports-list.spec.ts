@@ -4,7 +4,7 @@ import { ReportsListComponent } from './reports-list';
 import { ReportService, Report, ReportParameter } from './report.service';
 
 type Svc = Record<
-  'listReports' | 'runReport' | 'getExportUrl' | 'deleteReport',
+  'listReports' | 'runReport' | 'exportReport' | 'deleteReport' | 'createReport' | 'enableReport',
   ReturnType<typeof vi.fn>
 >;
 
@@ -25,8 +25,10 @@ describe('ReportsListComponent', () => {
   beforeEach(() => {
     svc = {
       listReports: vi.fn().mockReturnValue(of([report()])),
-      runReport: vi.fn().mockReturnValue(of([{ name: 'Loan A', balance: 100 }])),
-      getExportUrl: vi.fn().mockReturnValue('http://x/runreports/Active%20Loans/export?format=csv'),
+      runReport: vi.fn().mockReturnValue(of({ rows: [{ name: 'Loan A', balance: 100 }], truncated: false })),
+      exportReport: vi.fn().mockReturnValue(of(new Blob(['a,b']))),
+      createReport: vi.fn().mockReturnValue(of({ id: 'new1', reportName: 'Mine', reportType: 'TABLE', coreReport: false, useReport: false, reportParameters: [] })),
+      enableReport: vi.fn().mockReturnValue(of({ id: 'new1', reportName: 'Mine', reportType: 'TABLE', coreReport: false, useReport: true, reportParameters: [] })),
       deleteReport: vi.fn().mockReturnValue(of(void 0)),
     };
     TestBed.configureTestingModule({
@@ -137,23 +139,58 @@ describe('ReportsListComponent', () => {
       expect(c.running).toBe(false);
     });
 
-    it('exportReport uses getExportUrl with the chosen format and params', () => {
-      const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    it('exportReport downloads through the service (token-carrying HttpClient), not window.open', () => {
+      const openSpy = vi.spyOn(window, 'open');
+      const createUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:x');
+      const revokeUrl = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
       const c = make();
       c.openRunModal(report());
       c.paramEntries[0].value = '001';
       c.exportFormat = 'xlsx';
       c.exportReport();
-      expect(svc.getExportUrl).toHaveBeenCalledWith('Active Loans', 'xlsx', { branch: '001' });
-      expect(openSpy).toHaveBeenCalled();
-      openSpy.mockRestore();
+      expect(svc.exportReport).toHaveBeenCalledWith('Active Loans', 'xlsx', { branch: '001' });
+      expect(openSpy).not.toHaveBeenCalled();
+      expect(createUrl).toHaveBeenCalled();
+      openSpy.mockRestore(); createUrl.mockRestore(); revokeUrl.mockRestore();
+    });
+
+    it('shows that the result was truncated at the row limit', () => {
+      svc.runReport.mockReturnValue(of({ rows: [{ n: 1 }], truncated: true }));
+      const c = make();
+      c.openRunModal(report());
+      c.paramEntries[0].value = '001';
+      c.runReport();
+      expect(c.truncated).toBe(true);
     });
   });
 
-  it('offers no way to create reports (custom report SQL is not accepted by the API)', () => {
-    const fixture = TestBed.createComponent(ReportsListComponent);
-    fixture.detectChanges();
-    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('New Report');
+  describe('create and enable (custom reports)', () => {
+    it('New Report creates a disabled report and lists it', () => {
+      const fixture = TestBed.createComponent(ReportsListComponent);
+      fixture.detectChanges();
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('New Report');
+      const c = fixture.componentInstance;
+      c.openCreateModal();
+      c.submitCreate();
+      expect(c.createError).toContain('required');
+      c.createForm.reportName = 'Mine';
+      c.createForm.reportSql = 'SELECT status FROM loans WHERE status = :s';
+      c.addParam();
+      c.createForm.reportParameters[0].parameterName = 's';
+      c.submitCreate();
+      expect(svc.createReport).toHaveBeenCalledWith(expect.objectContaining({ reportName: 'Mine' }));
+      expect(c.reports.some(r => r.id === 'new1' && r.useReport === false)).toBe(true);
+      expect(c.activeModal).toBeNull();
+    });
+
+    it('enable replaces the report; a refusal (same admin) is shown', () => {
+      const c = make();
+      c.enable({ id: 'new1', reportName: 'Mine', reportType: 'TABLE', coreReport: false, useReport: false, reportParameters: [] });
+      expect(svc.enableReport).toHaveBeenCalledWith('new1');
+      svc.enableReport.mockReturnValue(throwError(() => ({ error: { errors: [{ message: 'must be enabled by a different administrator' }] } })));
+      c.enable({ id: 'new1', reportName: 'Mine', reportType: 'TABLE', coreReport: false, useReport: false, reportParameters: [] });
+      expect(c.enableError).toContain('different administrator');
+    });
   });
 
   describe('delete modal', () => {

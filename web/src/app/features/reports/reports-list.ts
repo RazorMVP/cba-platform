@@ -1,7 +1,7 @@
 import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ReportService, Report, ReportParameter, ReportCategory, REPORT_CATEGORY_LABELS } from './report.service';
+import { ReportService, Report, ReportParameter, ReportCategory, REPORT_CATEGORY_LABELS, ReportRequest } from './report.service';
 
 /** The API's own error text (envelope errors[0].message), or the fallback. */
 function apiMessage(err: unknown, fallback: string): string {
@@ -9,7 +9,7 @@ function apiMessage(err: unknown, fallback: string): string {
   return e?.error?.errors?.[0]?.message ?? fallback;
 }
 
-type ModalType = 'run' | 'delete' | null;
+type ModalType = 'run' | 'delete' | 'create' | null;
 
 interface ParamFormEntry {
   param:  ReportParameter;
@@ -55,6 +55,16 @@ export class ReportsListComponent implements OnInit {
   results:   Record<string, unknown>[] = [];
   resultCols: string[] = [];
   hasRun     = false;
+  /** More rows than the server's cap: only the first ones are shown. */
+  truncated  = false;
+
+  // ── Create modal (custom report: saved disabled, another admin enables) ────
+  createForm: ReportRequest = this.blankCreate();
+  createWorking = false;
+  createError   = '';
+  readonly createCategories: ReportCategory[] = ['LOAN', 'SAVINGS', 'TELLER', 'CUSTOMER', 'ACCOUNTING', 'MIXED'];
+  readonly paramTypes = ['STRING', 'DATE', 'NUMBER', 'BOOLEAN'] as const;
+  enableError = '';
 
   // ── Delete modal ───────────────────────────────────────────────────────────
   deletingId    = '';
@@ -115,9 +125,10 @@ export class ReportsListComponent implements OnInit {
       if (e.value.trim()) params[e.param.parameterName] = e.value.trim();
     }
     this.svc.runReport(this.selectedReport.reportName, params).subscribe({
-      next: rows => {
-        this.results    = rows;
-        this.resultCols = rows.length > 0 ? Object.keys(rows[0]) : [];
+      next: run => {
+        this.results    = run.rows;
+        this.truncated  = run.truncated;
+        this.resultCols = run.rows.length > 0 ? Object.keys(run.rows[0]) : [];
         this.running    = false;
         this.hasRun     = true;
       },
@@ -133,8 +144,73 @@ export class ReportsListComponent implements OnInit {
     for (const e of this.paramEntries) {
       if (e.value.trim()) params[e.param.parameterName] = e.value.trim();
     }
-    const url = this.svc.getExportUrl(this.selectedReport.reportName, this.exportFormat, params);
-    window.open(url, '_blank');
+    const name = this.selectedReport.reportName;
+    const format = this.exportFormat;
+    this.svc.exportReport(name, format, params).subscribe({
+      next: blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${name}.${format}`;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+      error: () => { this.runError = 'Export failed.'; },
+    });
+  }
+
+  // ── Create / enable ─────────────────────────────────────────────────────────
+
+  openCreateModal(): void {
+    this.activeModal = 'create';
+    this.createForm = this.blankCreate();
+    this.createWorking = false;
+    this.createError = '';
+  }
+
+  addParam(): void {
+    this.createForm.reportParameters.push({ parameterName: '', parameterLabel: '', parameterType: 'STRING', optional: false });
+  }
+
+  removeParam(i: number): void { this.createForm.reportParameters.splice(i, 1); }
+
+  submitCreate(): void {
+    if (!this.createForm.reportName.trim() || !this.createForm.reportSql.trim()) {
+      this.createError = 'Name and SQL are required.';
+      return;
+    }
+    this.createWorking = true;
+    this.svc.createReport(this.createForm).subscribe({
+      next: r => {
+        this.reports = [...this.reports, r];
+        this.applyFilter();
+        this.createWorking = false;
+        this.activeModal = null;
+      },
+      error: (e: { error?: { errors?: { message?: string }[] } }) => {
+        this.createError = e.error?.errors?.[0]?.message ?? 'Could not create the report.';
+        this.createWorking = false;
+      },
+    });
+  }
+
+  closeCreateModal(): void { if (!this.createWorking) this.activeModal = null; }
+
+  enable(r: Report): void {
+    this.enableError = '';
+    this.svc.enableReport(r.id).subscribe({
+      next: updated => {
+        this.reports = this.reports.map(x => x.id === updated.id ? updated : x);
+        this.applyFilter();
+      },
+      error: (e: { error?: { errors?: { message?: string }[] } }) => {
+        this.enableError = e.error?.errors?.[0]?.message ?? 'Could not enable the report.';
+      },
+    });
+  }
+
+  private blankCreate(): ReportRequest {
+    return { reportName: '', reportCategory: 'MIXED', description: '', reportSql: '', reportParameters: [] };
   }
 
   closeRunModal(): void {

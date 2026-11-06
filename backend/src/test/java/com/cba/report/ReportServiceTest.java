@@ -28,7 +28,9 @@ import static org.mockito.Mockito.*;
 class ReportServiceTest {
 
     @Mock ReportRepository reportRepository;
-    @Mock JdbcTemplate jdbcTemplate;
+    @Mock ReportingDatabase reportingDatabase;
+    @org.mockito.Spy ReportSqlValidator sqlValidator = new ReportSqlValidator();
+    @Mock org.springframework.data.domain.AuditorAware<String> auditorAware;
     @Mock AuditLogService auditLogService;
 
     @InjectMocks ReportService service;
@@ -54,7 +56,7 @@ class ReportServiceTest {
             Report r = buildReport("R1", "SELECT 1");
             when(reportRepository.findByEnabledTrue()).thenReturn(List.of(r));
 
-            assertThat(service.listReports()).hasSize(1);
+            assertThat(service.listReports(false)).hasSize(1);
         }
 
         @Test
@@ -100,73 +102,148 @@ class ReportServiceTest {
     }
 
     @Nested
-    @DisplayName("Run Report")
+    @DisplayName("Run Report — sandboxed, parameters bound (backlog 10)")
     class RunReport {
 
-        @Test
-        @DisplayName("runReport executes SELECT SQL")
-        void runReport_success() {
-            Report r = buildReport("CustomerList", "SELECT * FROM customers");
-            when(reportRepository.findByReportName("CustomerList")).thenReturn(Optional.of(r));
-            when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(Map.of("id", "1")));
+        private ReportingDatabase.ReportRows rows(int n) {
+            return new ReportingDatabase.ReportRows(
+                    java.util.stream.IntStream.range(0, n).mapToObj(k -> Map.<String, Object>of("n", k)).toList(), false, 10000);
+        }
 
-            List<Map<String, Object>> result = service.runReport("CustomerList", Map.of());
-            assertThat(result).hasSize(1);
+        @Test
+        @DisplayName("runs the stored SQL in the sandbox and audits it")
+        void runReport_success() {
+            Report r = buildReport("CustomerList", "SELECT id FROM customers");
+            when(reportRepository.findByReportName("CustomerList")).thenReturn(Optional.of(r));
+            when(reportingDatabase.query(eq("SELECT id FROM customers"), any())).thenReturn(rows(1));
+
+            assertThat(service.runReport("CustomerList", Map.of()).rows()).hasSize(1);
             verify(auditLogService).log(eq("REPORT"), anyString(), eq("EXECUTED"), any(), anyString());
         }
 
         @Test
-        @DisplayName("runReport throws when report not found")
-        void runReport_notFound_throws() {
+        @DisplayName("unknown report: 404; disabled: 400 REPORT_DISABLED")
+        void runReport_notFoundOrDisabled() {
             when(reportRepository.findByReportName("Unknown")).thenReturn(Optional.empty());
+            assertThatThrownBy(() -> service.runReport("Unknown", Map.of())).isInstanceOf(CbaException.class);
 
-            assertThatThrownBy(() -> service.runReport("Unknown", Map.of()))
-                .isInstanceOf(CbaException.class);
-        }
-
-        @Test
-        @DisplayName("runReport throws when report is disabled")
-        void runReport_disabled_throws() {
             Report r = buildReport("DisabledReport", "SELECT 1");
             r.setEnabled(false);
             when(reportRepository.findByReportName("DisabledReport")).thenReturn(Optional.of(r));
-
             assertThatThrownBy(() -> service.runReport("DisabledReport", Map.of()))
-                .isInstanceOf(CbaException.class)
-                .hasMessageContaining("disabled");
+                .hasFieldOrPropertyWithValue("errorCode", "REPORT_DISABLED");
+            verifyNoInteractions(reportingDatabase);
         }
 
         @Test
-        @DisplayName("runReport rejects non-SELECT SQL")
+        @DisplayName("stored SQL that isn't a single SELECT is refused before it reaches the database")
         void runReport_dmlSql_throws() {
             Report r = buildReport("DmlReport", "DELETE FROM customers");
             when(reportRepository.findByReportName("DmlReport")).thenReturn(Optional.of(r));
 
             assertThatThrownBy(() -> service.runReport("DmlReport", Map.of()))
-                .isInstanceOf(CbaException.class)
-                .hasMessageContaining("must start with SELECT");
+                .hasFieldOrPropertyWithValue("errorCode", "INVALID_REPORT_SQL");
+            verifyNoInteractions(reportingDatabase);
         }
 
         @Test
-        @DisplayName("runReport rejects parameter with injection characters")
-        void runReport_injectionInParam_throws() {
-            Report r = buildReport("ParamReport", "SELECT * FROM t WHERE x = ${val}");
+        @DisplayName("parameters are bound and typed, never pasted: an injection string is just a value")
+        void runReport_paramsBound() {
+            Report r = buildReport("ParamReport", "SELECT * FROM customers WHERE kyc_status = :status");
+            ReportParameter p = new ReportParameter();
+            p.setParameterName("status");
+            p.setParameterType("STRING");
+            r.getParameters().add(p);
             when(reportRepository.findByReportName("ParamReport")).thenReturn(Optional.of(r));
+            when(reportingDatabase.query(anyString(), any())).thenReturn(rows(0));
 
-            assertThatThrownBy(() -> service.runReport("ParamReport", Map.of("val", "'; DROP TABLE--")))
-                .isInstanceOf(CbaException.class)
-                .hasMessageContaining("forbidden characters");
+            service.runReport("ParamReport", Map.of("status", "x' OR '1'='1"));
+
+            var captor = org.mockito.ArgumentCaptor.forClass(org.springframework.jdbc.core.namedparam.MapSqlParameterSource.class);
+            verify(reportingDatabase).query(eq("SELECT * FROM customers WHERE kyc_status = :status"), captor.capture());
+            assertThat(captor.getValue().getValue("status")).isEqualTo("x' OR '1'='1");
         }
 
         @Test
-        @DisplayName("runReport substitutes param placeholder with supplied value")
-        void runReport_paramSubstitution() {
-            Report r = buildReport("FilteredReport", "SELECT * FROM t WHERE id = ${customerId}");
-            when(reportRepository.findByReportName("FilteredReport")).thenReturn(Optional.of(r));
-            when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        @DisplayName("a DATE parameter must be a date; a required one must be given")
+        void runReport_typedParams() {
+            Report r = buildReport("DateReport", "SELECT * FROM customers WHERE created_at >= :from");
+            ReportParameter p = new ReportParameter();
+            p.setParameterName("from");
+            p.setParameterType("DATE");
+            p.setRequired(true);
+            r.getParameters().add(p);
+            when(reportRepository.findByReportName("DateReport")).thenReturn(Optional.of(r));
 
-            service.runReport("FilteredReport", Map.of("customerId", "123"));
-            verify(jdbcTemplate).queryForList(contains("123"));
+            assertThatThrownBy(() -> service.runReport("DateReport", Map.of("from", "1) OR (1=1")))
+                .hasFieldOrPropertyWithValue("errorCode", "INVALID_PARAM_VALUE");
+            assertThatThrownBy(() -> service.runReport("DateReport", Map.of()))
+                .hasFieldOrPropertyWithValue("errorCode", "MISSING_REPORT_PARAM");
+            verifyNoInteractions(reportingDatabase);
+        }
+
+        @Test
+        @DisplayName("sqlParameters finds :name but not ::casts or text in quotes")
+        void sqlParameters() {
+            assertThat(ReportService.sqlParameters("SELECT x::date FROM t WHERE a = :a AND b = ':b' AND c = :c_1"))
+                .containsExactly("a", "c_1");
+        }
+    }
+
+    @Nested
+    @DisplayName("Create and enable (backlog 10, D6a)")
+    class CreateAndEnable {
+
+        private com.cba.report.dto.ReportRequest request(String sql, List<com.cba.report.dto.ReportRequest.Parameter> params) {
+            return new com.cba.report.dto.ReportRequest("MyReport", null, "LOAN", "d", sql, params);
+        }
+
+        @Test
+        @DisplayName("create: validated, dry-run as the reporting role, saved DISABLED")
+        void create_savedDisabled() {
+            when(reportRepository.findByReportName("MyReport")).thenReturn(Optional.empty());
+            when(reportRepository.save(any())).thenAnswer(inv -> { Report r = inv.getArgument(0); r.setId(UUID.randomUUID()); return r; });
+
+            var r = service.createReport(request("SELECT status, COUNT(*) FROM loans WHERE status = :s GROUP BY status",
+                    List.of(new com.cba.report.dto.ReportRequest.Parameter("s", "Status", "STRING", null, true))));
+
+            assertThat(r.useReport()).isFalse();
+            verify(reportingDatabase).explain(anyString(), any());
+        }
+
+        @Test
+        @DisplayName("create: a :name without a parameter definition, or the old ${name}, is refused")
+        void create_parameterRules() {
+            when(reportRepository.findByReportName("MyReport")).thenReturn(Optional.empty());
+            assertThatThrownBy(() -> service.createReport(request("SELECT * FROM loans WHERE status = :s", List.of())))
+                .hasFieldOrPropertyWithValue("errorCode", "INVALID_REPORT_PARAMETER");
+            assertThatThrownBy(() -> service.createReport(request("SELECT * FROM loans WHERE status = ${s}", List.of())))
+                .hasFieldOrPropertyWithValue("errorCode", "INVALID_REPORT_SQL");
+            verify(reportRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("enable: not by the creator (403 SAME_USER); by another admin → enabled")
+        void enable_fourEyes() {
+            Report r = buildReport("MyReport", "SELECT 1 AS one");
+            r.setId(UUID.randomUUID());
+            r.setEnabled(false);
+            org.springframework.test.util.ReflectionTestUtils.setField(r, "createdBy", "alice");
+            when(reportRepository.findById(r.getId())).thenReturn(Optional.of(r));
+            when(reportRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            when(auditorAware.getCurrentAuditor()).thenReturn(Optional.of("alice"), Optional.of("bob"));
+
+            org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.authentication.TestingAuthenticationToken("alice", null, "ROLE_ADMIN"));
+            try {
+                assertThatThrownBy(() -> service.enableReport(r.getId()))
+                    .hasFieldOrPropertyWithValue("errorCode", "SAME_USER");
+                org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                    new org.springframework.security.authentication.TestingAuthenticationToken("bob", null, "ROLE_ADMIN"));
+                assertThat(service.enableReport(r.getId()).useReport()).isTrue();
+            } finally {
+                org.springframework.security.core.context.SecurityContextHolder.clearContext();
+            }
         }
     }
 }

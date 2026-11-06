@@ -86,13 +86,21 @@ public class CardAuthorizationService {
                 return logAndReturn(null, req, CardAuthResponse.decline("14"), 0, FraudDecision.DECLINE);
             }
 
-            // 2. Fraud evaluation
+            // 1b. Cardholder billing fields (DE6/DE51/DE10) are checked before anything else uses them:
+            //     an inconsistent set is a format error (RC 30), before fraud scoring or any funds call.
+            if (req.billingSent() && !validBilling(req)) {
+                return logAndReturn(card, req, CardAuthResponse.decline("30"), 0, FraudDecision.DECLINE);
+            }
+
+            // 2. Fraud evaluation — the amount rules also see the amount that moves the card's money
             FraudContext ctx = new FraudContext(
                     card, req.pan(), req.amount(), req.currencyCode(),
                     req.processingCode(), req.terminalId(), req.merchantId(),
                     req.merchantName(), req.mcc(), req.posEntryMode(),
                     req.stan(), req.pinVerified(), req.arqcValid(),
-                    req.isFinancial(), null);
+                    req.isFinancial(), null,
+                    req.billingSent() ? req.billingAmount() : null,
+                    req.billingSent() ? req.billingCurrencyCode() : null);
 
             FraudEvaluationResult fraud = fraudEngine.evaluate(ctx);
             publishFraudEvents(card, fraud);
@@ -122,9 +130,6 @@ public class CardAuthorizationService {
             //    The card's money moves in the cardholder billing amount (DE6, currency DE51) when the scheme
             //    sends it — a foreign-currency purchase the scheme converted to the card's currency (backlog 17).
             //    Without DE6 it moves in DE4/DE49. DE6 without DE51, or the reverse, is a format error.
-            if (req.billingSent() && !validBilling(req)) {
-                return logAndReturn(card, req, CardAuthResponse.decline("30"), fraud.totalScore(), fraud.decision());
-            }
             BigDecimal cardMinor = req.billingSent() ? req.billingAmount() : req.amount();
             String cardCurrencyCode = req.billingSent() ? req.billingCurrencyCode() : req.currencyCode();
             boolean inquiry = BALANCE_INQUIRY_CODE.equals(req.processingCode()) || cardMinor == null;
@@ -240,19 +245,48 @@ public class CardAuthorizationService {
     }
 
     /**
-     * DE6 and DE51 together, DE6 a positive whole number of minor units, DE51 a known ISO 4217 numeric
-     * code. Anything else is a format error (RC 30).
+     * A consistent cardholder billing set, else a format error (RC 30):
+     * <ul>
+     *   <li>DE6 a positive whole number of minor units, DE51 a known ISO 4217 numeric code;</li>
+     *   <li>DE10 present (8 digits: decimal places, then the rate) — DE6 is accepted only with the rate
+     *       the scheme converted at;</li>
+     *   <li>DE6 within 1% of DE4 × DE10 (converted between the two currencies' minor units);</li>
+     *   <li>DE51 equal to DE49 means no conversion: DE6 must equal DE4.</li>
+     * </ul>
      */
     static boolean validBilling(CardAuthRequest req) {
         BigDecimal billing = req.billingAmount();
-        return billing != null && billing.signum() > 0 && billing.stripTrailingZeros().scale() <= 0
-                && req.billingCurrencyCode() != null && currency(req.billingCurrencyCode()) != null;
+        java.util.Currency billingCcy = req.billingCurrencyCode() == null ? null : currency(req.billingCurrencyCode());
+        if (billing == null || billing.signum() <= 0 || billing.stripTrailingZeros().scale() > 0 || billingCcy == null) {
+            return false;
+        }
+        java.util.Currency txCcy = req.currencyCode() == null ? null : currency(req.currencyCode());
+        if (req.amount() == null || txCcy == null) {
+            return false;
+        }
+        if (txCcy.equals(billingCcy)) {
+            return billing.compareTo(req.amount()) == 0;
+        }
+        String rate = req.billingConversionRate();
+        if (rate == null || !rate.matches("\\d{8}")) {
+            return false;
+        }
+        BigDecimal conversion = new BigDecimal(rate.substring(1)).movePointLeft(rate.charAt(0) - '0');
+        if (conversion.signum() <= 0) {
+            return false;
+        }
+        BigDecimal expected = toMajorUnits(req.amount(), txCcy).multiply(conversion)
+                .movePointRight(Math.max(billingCcy.getDefaultFractionDigits(), 0));
+        BigDecimal tolerance = expected.abs().multiply(new BigDecimal("0.01")).max(BigDecimal.ONE);
+        return billing.subtract(expected).abs().compareTo(tolerance) <= 0;
     }
 
     /** The reversal amount in the card's currency (see {@link #reverse(String, BigDecimal, String, String, BigDecimal, String)}). */
     static BigDecimal reversalCardMinor(AuthorizationLog original, BigDecimal amount, BigDecimal billingAmount) {
         if (billingAmount != null) {
-            return billingAmount;
+            // Never more than the original moved: a reversal gives back at most what was taken.
+            BigDecimal original0 = original.cardAmount();
+            return original0 == null ? billingAmount : billingAmount.min(original0);
         }
         if (amount == null) {
             return original.cardAmount();

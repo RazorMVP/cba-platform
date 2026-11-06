@@ -565,7 +565,7 @@ Every 6.x release is inside the advisory range; the fix ships only in React Rout
 
 ## 17. ✅ DONE (cont. 57) — Card authorizations in a foreign currency (DE6 cardholder billing amount)
 
-> **Done in backlog set 1, PR B.** fep-service forwards DE6/DE51/DE10 (authorize, 0200, reversal); card-service moves the card's money in DE6/DE51 when sent — hold, 0200 debit, wallet, interchange quote, settlement item, reversal (DE6, or DE4 pro-rated onto the original's DE6) — and keeps DE4/DE49 as the merchant's transaction (V16 `authorization_log.billing_*`). DE6 without DE51 or the reverse → RC 30. Decision D4a: the scheme settles in the billing currency; the settlement currency (DE5/DE50) stays with 15d. Fraud rules stay on DE4/DE49 (the duplicate rule compares with the logged DE4). The text below is the original finding.
+> **Done in backlog set 1, PR B.** fep-service forwards DE6/DE51/DE10 (authorize, 0200, reversal); card-service moves the card's money in DE6/DE51 when sent — hold, 0200 debit, wallet, interchange quote, settlement item, reversal (DE6, or DE4 pro-rated onto the original's DE6) — and keeps DE4/DE49 as the merchant's transaction (V16 `authorization_log.billing_*`). DE6 without DE51 or the reverse → RC 30. Decision D4a: the scheme settles in the billing currency; the settlement currency (DE5/DE50) stays with 15d. DE6 is accepted only with DE10 and within 1% of DE4 × DE10. The fraud amount limit checks both amounts. The text below is the original finding.
 
 **Effort**: M · **Risk**: cross-currency card spend declines
 

@@ -112,6 +112,25 @@ class FraudEngineTest {
     }
 
     @Test
+    @DisplayName("SINGLE_AMOUNT_LIMIT on a foreign-currency transaction: the card amount (DE6/DE51) over its limit triggers too")
+    void cardAmountOverLimitTriggers() {
+        FraudRuleEntity r = rule("SINGLE_AMOUNT_LIMIT", 35,
+                Map.of("thresholds", Map.of("840", 100_000, "978", 1_000_000)));
+        when(ruleRepository.findByEnabledTrue()).thenReturn(List.of(r));
+
+        // 5,000.00 EUR is under the EUR limit, but the 5,750.00 USD it moves is over the USD limit
+        FraudContext fx = new FraudContext(card(CardStatus.ACTIVE, "9912", 0), "411111****1111", amount(500_000), "978",
+                "000000", "TERM0001", "MERCH0001", "Paris Shop", "5411", "CHIP", "000001", true, true, false,
+                Map.of(), amount(575_000), "840");
+        assertThat(engine.evaluate(fx).totalScore()).isEqualTo(35);
+
+        FraudContext small = new FraudContext(card(CardStatus.ACTIVE, "9912", 0), "411111****1111", amount(5_000), "978",
+                "000000", "TERM0001", "MERCH0001", "Paris Shop", "5411", "CHIP", "000001", true, true, false,
+                Map.of(), amount(5_750), "840");
+        assertThat(engine.evaluate(small).totalScore()).isZero();
+    }
+
+    @Test
     @DisplayName("VELOCITY_LIMIT fires when recent approved count reaches the max")
     void velocityLimitFires() {
         when(ruleRepository.findByEnabledTrue()).thenReturn(List.of(

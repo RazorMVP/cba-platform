@@ -462,9 +462,9 @@ It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port
   "scheme": "VISA",
   "billingAmount": 1150,          // optional DE6 — cardholder billing amount, minor units of billingCurrencyCode
   "billingCurrencyCode": "840",   // optional DE51 — sent with DE6
-  "billingConversionRate": "61150000" // optional DE10 — stored for audit only
+  "billingConversionRate": "61150000" // DE10 — required with DE6 (8 digits: decimal places, then the rate)
 }</code></pre>
-    <p><strong>Foreign-currency transactions (backlog 17).</strong> When the scheme sends the cardholder billing amount (DE6) and its currency (DE51), the card's money moves in them: the backend hold or 0200 debit, the prepaid wallet, interchange quotes and the settlement item are all in DE6/DE51, so a EUR purchase on a USD account approves for its USD amount. DE4/DE49 stay on the authorization log as the merchant's transaction (and drive the fraud rules). DE6 without DE51, DE51 without DE6, or a DE6 that isn't a positive whole number → <strong>RC 30</strong>. Without DE6, a transaction in another currency than the account still declines RC 57. The scheme is taken to settle in the billing currency. <code>POST /api/v1/internal/reverse</code> also takes optional <code>billingAmount</code>/<code>billingCurrencyCode</code>: a reversal gives back that DE6, or DE4 pro-rated onto the original's DE6 (HALF_UP); a DE51 that isn't the original's card currency → RC 13.</p>
+    <p><strong>Foreign-currency transactions (backlog 17).</strong> When the scheme sends the cardholder billing amount (DE6) and its currency (DE51), the card's money moves in them: the backend hold or 0200 debit, the prepaid wallet, interchange quotes and the settlement item are all in DE6/DE51, so a EUR purchase on a USD account approves for its USD amount. DE4/DE49 stay on the authorization log as the merchant's transaction (and drive the fraud rules). <strong>RC 30</strong> (checked before fraud scoring) for: DE6 without DE51 or the reverse; DE6 not a positive whole number; DE6 without DE10; DE6 more than 1% from DE4 × DE10 (between the two currencies' minor units); DE51 equal to DE49 with DE6 ≠ DE4. The fraud single-amount limit checks both DE4/DE49 and DE6/DE51 — either over its limit triggers. Without DE6, a transaction in another currency than the account still declines RC 57. The scheme is taken to settle in the billing currency. <code>POST /api/v1/internal/reverse</code> also takes optional <code>billingAmount</code>/<code>billingCurrencyCode</code>: a reversal gives back that DE6 (never more than the original moved), or DE4 pro-rated onto the original's DE6 (HALF_UP); a DE51 that isn't the original's card currency → RC 13.</p>
     <h4>Response</h4>
     <pre><code>{
   "responseCode": "00",
@@ -780,7 +780,7 @@ next day: operations record each scheme's settlement report → backend POST /ap
                                   // not 3 digits → 400 INVALID_ACQUIRING_COUNTRY
   "billingAmount": 11.50,         // optional DE6 (major units of billingCurrency) — a foreign-currency purchase
   "billingCurrency": "840",       //   converted to the card's currency; amount + currency together,
-  "conversionRate": "61150000"    //   rate optional (8 digits) — else 400 INVALID_BILLING_FIELDS
+  "conversionRate": "61150000"    //   all three together, rate 8 digits — else 400 INVALID_BILLING_FIELDS
 }
 // DE4 and DE6 are sent in minor units of their currency (JPY has none; it was ×100 before).
 

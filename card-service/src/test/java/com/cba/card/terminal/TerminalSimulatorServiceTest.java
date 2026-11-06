@@ -99,7 +99,8 @@ class TerminalSimulatorServiceTest {
     @DisplayName("billing fields: amount without currency, a bad currency or a bad rate → 400 INVALID_BILLING_FIELDS")
     void billingFieldsValidated() {
         for (SimulateRequest bad : java.util.List.of(billed("11.50", null, null), billed(null, "840", null),
-                billed("11.50", "USD", null), billed("11.50", "840", "6115"))) {
+                billed("11.50", "USD", "61150000"), billed("11.50", "840", "6115"),
+                billed("11.50", "840", null))) {
             org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.purchase(bad))
                     .hasFieldOrPropertyWithValue("code", "INVALID_BILLING_FIELDS");
         }

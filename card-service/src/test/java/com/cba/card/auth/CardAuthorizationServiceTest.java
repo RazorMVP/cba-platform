@@ -1157,7 +1157,6 @@ class CardAuthorizationServiceTest {
     void billing_incomplete_30() {
         Card card = debitCard(UUID.randomUUID());
         when(cardService.findByPanHash(PAN)).thenReturn(card);
-        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
 
         assertThat(service.authorize(eurPurchaseBilledInUsd("1150", null)).responseCode()).isEqualTo("30");
         assertThat(service.authorize(eurPurchaseBilledInUsd(null, "840")).responseCode()).isEqualTo("30");
@@ -1258,5 +1257,52 @@ class CardAuthorizationServiceTest {
         assertThat(CardAuthorizationService.reversalCardMinor(billed, new BigDecimal("200"), null)).isEqualByComparingTo("667");
         assertThat(CardAuthorizationService.reversalCardMinor(billed, new BigDecimal("300"), null)).isEqualByComparingTo("1000");
         assertThat(CardAuthorizationService.reversalCardMinor(billed, null, null)).isEqualByComparingTo("1000");
+    }
+
+    @Test
+    @DisplayName("billing checks: DE6 needs DE10; DE6 far from DE4 × DE10, or ≠ DE4 in the same currency → RC 30, before fraud")
+    void billing_consistency_30() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+
+        CardAuthRequest noRate = new CardAuthRequest(PAN, "000000", new BigDecimal("1000"), "978", "000001",
+                "TERM01", "MERCH01", "Paris Shop", "5411", "CHIP", "00", "RRN0001", "VISA", false, true, false,
+                null, "250", new BigDecimal("1150"), "840", null);
+        CardAuthRequest inflated = new CardAuthRequest(PAN, "000000", new BigDecimal("1000"), "978", "000001",
+                "TERM01", "MERCH01", "Paris Shop", "5411", "CHIP", "00", "RRN0001", "VISA", false, true, false,
+                null, "250", new BigDecimal("2000"), "840", "61150000");
+        CardAuthRequest sameCurrency = new CardAuthRequest(PAN, "000000", new BigDecimal("1000"), "840", "000001",
+                "TERM01", "MERCH01", "Shop", "5411", "CHIP", "00", "RRN0001", "VISA", false, true, false,
+                null, "840", new BigDecimal("900"), "840", "61000000");
+
+        assertThat(service.authorize(noRate).responseCode()).isEqualTo("30");
+        assertThat(service.authorize(inflated).responseCode()).isEqualTo("30");
+        assertThat(service.authorize(sameCurrency).responseCode()).isEqualTo("30");
+        verify(fraudEngine, never()).evaluate(any());
+    }
+
+    @Test
+    @DisplayName("billing: the fraud context carries DE6/DE51 next to DE4/DE49")
+    void billing_fraudSeesCardAmount() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        stubBackendHold(true, null);
+
+        service.authorize(eurPurchaseBilledInUsd("1150", "840"));
+
+        verify(fraudEngine).evaluate(argThat(c -> c.amount().compareTo(new BigDecimal("1000")) == 0
+                && "978".equals(c.currencyCode())
+                && c.cardAmount().compareTo(new BigDecimal("1150")) == 0 && "840".equals(c.cardCurrencyCode())));
+    }
+
+    @Test
+    @DisplayName("billing reversal: a DE6 above what the original moved is capped at it")
+    void billing_reversalCapped() {
+        AuthorizationLog billed = new AuthorizationLog();
+        billed.setAmount(new BigDecimal("10000"));
+        billed.setBillingAmount(new BigDecimal("11500"));
+        assertThat(CardAuthorizationService.reversalCardMinor(billed, new BigDecimal("10000"), new BigDecimal("99999")))
+                .isEqualByComparingTo("11500");
     }
 }

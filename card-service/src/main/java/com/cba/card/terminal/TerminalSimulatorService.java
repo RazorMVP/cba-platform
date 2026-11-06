@@ -322,26 +322,26 @@ public class TerminalSimulatorService {
     }
 
     /**
-     * DE6 (cardholder billing amount), DE51 (its currency) and optionally DE10 (conversion rate), when the
-     * request sets them: amount and currency together, the currency 3 digits ISO 4217 numeric, the rate
-     * 8 digits; otherwise {@code 400 INVALID_BILLING_FIELDS}.
+     * DE6 (cardholder billing amount), DE51 (its currency) and DE10 (conversion rate), when the request
+     * sets them: all three together (card-service accepts DE6 only with the rate), the currency 3 digits
+     * ISO 4217 numeric, the rate 8 digits; otherwise {@code 400 INVALID_BILLING_FIELDS}.
      */
     private static void setBilling(Iso8583Builder builder, SimulateRequest req) {
         boolean amount = req.billingAmount() != null;
         boolean currency = req.billingCurrency() != null && !req.billingCurrency().isBlank();
         boolean rate = req.conversionRate() != null && !req.conversionRate().isBlank();
         if (!amount && !currency && !rate) return;
-        if (!amount || !currency || req.billingAmount().signum() <= 0
+        if (!amount || !currency || !rate || req.billingAmount().signum() <= 0
                 || !req.billingCurrency().trim().matches("\\d{3}")
                 || (rate && !req.conversionRate().trim().matches("\\d{8}"))) {
             throw CbaException.badRequest("INVALID_BILLING_FIELDS",
-                    "billingAmount (> 0) and billingCurrency (3-digit ISO 4217 numeric) go together; "
-                            + "conversionRate, if set, is 8 digits (first digit = decimal places)");
+                    "billingAmount (> 0), billingCurrency (3-digit ISO 4217 numeric) and conversionRate "
+                            + "(8 digits, first digit = decimal places) go together");
         }
         String ccy = req.billingCurrency().trim();
         builder.set(6, Iso8583Builder.formatAmount(req.billingAmount(), Iso8583Builder.fractionDigits(ccy)));
         builder.set(51, ccy);
-        if (rate) builder.set(10, req.conversionRate().trim());
+        builder.set(10, req.conversionRate().trim());
     }
 
     /** DE19 (n3) when the request names an acquiring country; a value that isn't 3 digits is refused. */

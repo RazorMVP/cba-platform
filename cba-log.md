@@ -69,7 +69,7 @@ _None — all Phase 1 backend modules are now complete._
 | `card-service/…/auth/CardAuthRequest.java`, `CardAuthorizationService.java`, `CardAuthorizationController.java` | billing fields; card amount drives funds/hold/debit/wallet/quote/response; RC 30 for half a pair; reversal in the card's currency (`reversalCardMinor`) |
 | `card-service/…/settlement/SettlementService.java`, `interchange/InterchangeQualificationEngine.java` | settlement item and the calculate tool use the card amount |
 | `card-service/…/terminal/SimulateRequest.java`, `TerminalSimulatorService.java`, `Iso8583Builder.java` | optional billing fields → DE6/DE51/DE10 (`400 INVALID_BILLING_FIELDS`); amounts in the currency's exponent; decoder knows DE6/10/19/51 |
-| tests | card-service `CardAuthorizationServiceTest` +7, `SettlementServiceTest` +1, `TerminalSimulatorServiceTest` +3, `FepAuthorizeContractTest` (billing keys); fep-service `AuthorizationHandlerTest` +1, `ReversalHandlerTest` +1 (6-arg stubs), `CardServiceClientTest`, `PackagerFieldSpecTest` (CANON 6/10, round-trip DE6/10/51) |
+| tests | card-service `CardAuthorizationServiceTest` +10, `FraudEngineTest` +1, `SettlementServiceTest` +1, `TerminalSimulatorServiceTest` +3, `FepAuthorizeContractTest` (billing keys); fep-service `AuthorizationHandlerTest` +1, `ReversalHandlerTest` +1 (6-arg stubs), `CardServiceClientTest`, `PackagerFieldSpecTest` (CANON 6/10, round-trip DE6/10/51) |
 | `card-service/docs/openapi-snapshot.yaml` | billing fields on `CardAuthRequest`, `ReverseRequest`, `SimulateRequest` |
 | `web/…/cards/cards.service.ts`, `terminal-simulator/*` | "Cardholder billing" fieldset; EUR/GBP |
 | `docs/card-api-reference.html`, `docs/api-reference.html`, Postman (+ static copies) | authorize/reverse billing fields and rules; simulator fields |
@@ -77,12 +77,13 @@ _None — all Phase 1 backend modules are now complete._
 
 #### Key Patterns / Decisions
 - **D4a — the scheme settles in the billing currency**, so the settlement item carries DE6/DE51 and the existing capture, `gl_net`, refunds and scheme reports follow unchanged. No new GL: the bank's side is in the account's currency (IAS 21 §20–21); the scheme converted.
-- **Fraud stays on DE4/DE49** (deviation from the plan): the duplicate rule compares with the logged DE4, so feeding it DE6 would break it; per-currency thresholds already fall back to a default.
+- **Fraud:** the single-amount limit checks both DE4/DE49 and DE6/DE51 (`FraudContext` carries the card amount; either over its limit triggers); the duplicate rule stays on DE4, the logged merchant amount.
+- **Commit security review (3 findings):** (1) settlement item on DE4 — not applicable, the reviewer read `main` (PR B's `addAuthorization` uses `cardAmount()`); (2) **valid** — DE6 was trusted as sent: now RC 30 before fraud unless DE10 is present and DE6 is within 1% of DE4 × DE10, and DE6 = DE4 when the currencies are the same; a reversal's DE6 is capped at the original's card amount; the simulator requires the rate with the billing fields; (3) **valid** — the amount limit only saw DE4: fixed as above.
 - **The hold reference still hashes DE4/DE49** — the same message keeps its key; a resend with another DE6 → RC 94.
 - **Found while there:** the simulator's response decoder stopped at any field it didn't know, so DE19 (cont. 54) hid DE39 — fixed with DE6/10/19/51; `formatAmount` multiplied by 100 for every currency (JPY).
 
 #### Build Verification
-- card-service `./mvnw -o clean test`: **266/266** (was 255); `-Pfull-integration` with `-Dupdate.api.snapshot=true`, then without: **298/298** both (was 287).
+- card-service `./mvnw -o clean test`: **270/270** (was 255); `-Pfull-integration` with `-Dupdate.api.snapshot=true`, then without: **298/298** both (was 287); after the security-review fixes **302/302**.
 - fep-service `./mvnw -o test`: **96/96** (was 94).
 - web: **1175/1175**; change detection OK.
 - Gate grep: no mapping/param annotation changed; request bodies changed (`ReverseRequest`, `CardAuthRequest`, `SimulateRequest` + billing fields) — documented in card-api-reference, api-reference and Postman.

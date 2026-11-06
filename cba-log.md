@@ -85,11 +85,11 @@ _None — all Phase 1 backend modules are now complete._
 #### Build Verification
 - card-service `./mvnw -o clean test`: **270/270** (was 255); `-Pfull-integration` with `-Dupdate.api.snapshot=true`, then without: **298/298** both (was 287); after the security-review fixes **302/302**.
 - fep-service `./mvnw -o test`: **96/96** (was 94).
-- web: **1175/1175**; change detection OK.
+- web: **1175/1175** on the pre-cont. 56 base; **1173/1173** after rebasing on #226 (115 files); change detection OK.
 - Gate grep: no mapping/param annotation changed; request bodies changed (`ReverseRequest`, `CardAuthRequest`, `SimulateRequest` + billing fields) — documented in card-api-reference, api-reference and Postman.
 
 #### Confirmed Platform Versions
-No dependency changed. card-service: Spring Boot 3.5.16, `-Pfull-integration` 298. fep-service: 96. web: 1175.
+No dependency changed. card-service: Spring Boot 3.5.16, `-Pfull-integration` 298. fep-service: 96. web: 1173.
 
 ---
 

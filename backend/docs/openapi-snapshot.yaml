@@ -1863,6 +1863,17 @@ components:
         meta:
           $ref: "#/components/schemas/PageMeta"
       type: "object"
+    ApiResponseOrgResponse:
+      properties:
+        data:
+          $ref: "#/components/schemas/OrgResponse"
+        errors:
+          items:
+            $ref: "#/components/schemas/ApiError"
+          type: "array"
+        meta:
+          $ref: "#/components/schemas/PageMeta"
+      type: "object"
     ApiResponsePageAccountingRule:
       properties:
         data:
@@ -2369,6 +2380,17 @@ components:
         meta:
           $ref: "#/components/schemas/PageMeta"
       type: "object"
+    ApiResponsePageStaffConsentResponse:
+      properties:
+        data:
+          $ref: "#/components/schemas/PageStaffConsentResponse"
+        errors:
+          items:
+            $ref: "#/components/schemas/ApiError"
+          type: "array"
+        meta:
+          $ref: "#/components/schemas/PageMeta"
+      type: "object"
     ApiResponsePageStandingInstruction:
       properties:
         data:
@@ -2637,6 +2659,17 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/SmsCampaign"
+        errors:
+          items:
+            $ref: "#/components/schemas/ApiError"
+          type: "array"
+        meta:
+          $ref: "#/components/schemas/PageMeta"
+      type: "object"
+    ApiResponseStaffConsentResponse:
+      properties:
+        data:
+          $ref: "#/components/schemas/StaffConsentResponse"
         errors:
           items:
             $ref: "#/components/schemas/ApiError"
@@ -3842,6 +3875,8 @@ components:
         expiryDate:
           format: "date-time"
           type: "string"
+        initiation:
+          $ref: "#/components/schemas/PaymentInitiation"
         scopes:
           items:
             type: "string"
@@ -3856,6 +3891,9 @@ components:
       properties:
         consentId:
           type: "string"
+        consumedAt:
+          format: "date-time"
+          type: "string"
         createdAt:
           format: "date-time"
           type: "string"
@@ -3868,6 +3906,11 @@ components:
         id:
           format: "uuid"
           type: "string"
+        initiation:
+          $ref: "#/components/schemas/PaymentInitiation"
+        paymentId:
+          format: "uuid"
+          type: "string"
         scopes:
           items:
             type: "string"
@@ -3876,6 +3919,7 @@ components:
           enum:
           - "AWAITING_AUTHORISATION"
           - "AUTHORISED"
+          - "CONSUMED"
           - "REVOKED"
           - "EXPIRED"
           type: "string"
@@ -7991,6 +8035,13 @@ components:
       type: "object"
     OrgResponse:
       properties:
+        activeConsents:
+          format: "int64"
+          type: "integer"
+        applicationStatus:
+          type: "string"
+        businessType:
+          type: "string"
         createdAt:
           type: "string"
         environment:
@@ -8001,11 +8052,15 @@ components:
           type: "string"
         status:
           type: "string"
+        suspensionReason:
+          type: "string"
         tier:
           type: "string"
         totalApiCalls:
           format: "int64"
           type: "integer"
+        useCase:
+          type: "string"
       type: "object"
     PageAccountingRule:
       properties:
@@ -9494,6 +9549,38 @@ components:
           format: "int32"
           type: "integer"
       type: "object"
+    PageStaffConsentResponse:
+      properties:
+        content:
+          items:
+            $ref: "#/components/schemas/StaffConsentResponse"
+          type: "array"
+        empty:
+          type: "boolean"
+        first:
+          type: "boolean"
+        last:
+          type: "boolean"
+        number:
+          format: "int32"
+          type: "integer"
+        numberOfElements:
+          format: "int32"
+          type: "integer"
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
+        size:
+          format: "int32"
+          type: "integer"
+        sort:
+          $ref: "#/components/schemas/SortObject"
+        totalElements:
+          format: "int64"
+          type: "integer"
+        totalPages:
+          format: "int32"
+          type: "integer"
+      type: "object"
     PageStandingInstruction:
       properties:
         content:
@@ -9763,6 +9850,29 @@ components:
         tellerSessionId:
           format: "uuid"
           type: "string"
+      type: "object"
+    PaymentInitiation:
+      properties:
+        creditorAccountId:
+          format: "uuid"
+          type: "string"
+        currency:
+          pattern: "[A-Za-z]{3}"
+          type: "string"
+        debtorAccountId:
+          format: "uuid"
+          type: "string"
+        instructedAmount:
+          minimum: 0.01
+          type: "number"
+        reference:
+          maxLength: 140
+          minLength: 0
+          type: "string"
+      required:
+      - "creditorAccountId"
+      - "currency"
+      - "instructedAmount"
       type: "object"
     PaymentResponse:
       properties:
@@ -10522,6 +10632,13 @@ components:
         reviewedBy:
           type: "string"
       type: "object"
+    RevokeRequest:
+      properties:
+        reason:
+          maxLength: 500
+          minLength: 0
+          type: "string"
+      type: "object"
     Role:
       properties:
         createdAt:
@@ -11044,6 +11161,51 @@ components:
           format: "int64"
           type: "integer"
       type: "object"
+    StaffConsentResponse:
+      properties:
+        consentId:
+          type: "string"
+        consentType:
+          type: "string"
+        consumedAt:
+          format: "date-time"
+          type: "string"
+        createdAt:
+          format: "date-time"
+          type: "string"
+        customerId:
+          format: "uuid"
+          type: "string"
+        customerName:
+          type: "string"
+        expiryDate:
+          format: "date-time"
+          type: "string"
+        initiation:
+          $ref: "#/components/schemas/PaymentInitiation"
+        paymentId:
+          format: "uuid"
+          type: "string"
+        scopes:
+          items:
+            type: "string"
+          type: "array"
+        status:
+          enum:
+          - "AWAITING_AUTHORISATION"
+          - "AUTHORISED"
+          - "CONSUMED"
+          - "REVOKED"
+          - "EXPIRED"
+          type: "string"
+        tppClientId:
+          type: "string"
+        tppName:
+          type: "string"
+        updatedAt:
+          format: "date-time"
+          type: "string"
+      type: "object"
     StaffRequest:
       properties:
         email:
@@ -11461,6 +11623,13 @@ components:
         value:
           format: "int32"
           type: "integer"
+      type: "object"
+    SuspendRequest:
+      properties:
+        reason:
+          maxLength: 500
+          minLength: 0
+          type: "string"
       type: "object"
     SystemPaymentType:
       properties:
@@ -12380,7 +12549,7 @@ paths:
       - "Accounting Rules"
   /api/v1/accountnumberformats:
     get:
-      operationId: "list_38"
+      operationId: "list_39"
       responses:
         "200":
           content:
@@ -13059,7 +13228,7 @@ paths:
       - "Accounts"
   /api/v1/audits:
     get:
-      operationId: "list_37"
+      operationId: "list_38"
       parameters:
       - in: "query"
         name: "pageable"
@@ -13124,7 +13293,7 @@ paths:
       - "Audit Log"
   /api/v1/audits/{id}:
     get:
-      operationId: "get_29"
+      operationId: "get_30"
       parameters:
       - in: "path"
         name: "id"
@@ -14099,7 +14268,7 @@ paths:
       tags:
       - "Codes & Code Values"
     get:
-      operationId: "get_28"
+      operationId: "get_29"
       parameters:
       - in: "path"
         name: "id"
@@ -14301,7 +14470,7 @@ paths:
       - "Compliance Reports"
   /api/v1/configurations:
     get:
-      operationId: "list_36"
+      operationId: "list_37"
       responses:
         "200":
           content:
@@ -14845,7 +15014,7 @@ paths:
       tags:
       - "DataTables"
     get:
-      operationId: "get_27"
+      operationId: "get_28"
       parameters:
       - in: "path"
         name: "id"
@@ -16596,7 +16765,7 @@ paths:
       tags:
       - "Holidays"
     get:
-      operationId: "get_26"
+      operationId: "get_27"
       parameters:
       - in: "path"
         name: "id"
@@ -18339,6 +18508,106 @@ paths:
       summary: "Update an office"
       tags:
       - "Offices & Staff"
+  /api/v1/open-banking/consents:
+    get:
+      description: "Optional filters: customerId, tppClientId (the partner organisation\
+        \ id), status, type (AISP | PISP | CBPII). Newest first by default."
+      operationId: "list_36"
+      parameters:
+      - in: "query"
+        name: "customerId"
+        required: false
+        schema:
+          format: "uuid"
+          type: "string"
+      - in: "query"
+        name: "tppClientId"
+        required: false
+        schema:
+          type: "string"
+      - in: "query"
+        name: "status"
+        required: false
+        schema:
+          enum:
+          - "AWAITING_AUTHORISATION"
+          - "AUTHORISED"
+          - "CONSUMED"
+          - "REVOKED"
+          - "EXPIRED"
+          type: "string"
+      - in: "query"
+        name: "type"
+        required: false
+        schema:
+          type: "string"
+      - in: "query"
+        name: "pageable"
+        required: true
+        schema:
+          $ref: "#/components/schemas/Pageable"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePageStaffConsentResponse"
+          description: "OK"
+      security:
+      - oauth2: []
+      summary: "List consents"
+      tags:
+      - "Open Banking — Staff"
+  /api/v1/open-banking/consents/{consentId}:
+    get:
+      operationId: "get_26"
+      parameters:
+      - in: "path"
+        name: "consentId"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseStaffConsentResponse"
+          description: "OK"
+      security:
+      - oauth2: []
+      summary: "Get a consent by its consentId (ob-…)"
+      tags:
+      - "Open Banking — Staff"
+  /api/v1/open-banking/consents/{consentId}/revoke:
+    post:
+      description: "Needs a reason (audited). The TPP gets CONSENT.REVOKED. 409 if\
+        \ already revoked or consumed."
+      operationId: "revoke"
+      parameters:
+      - in: "path"
+        name: "consentId"
+        required: true
+        schema:
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RevokeRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseStaffConsentResponse"
+          description: "OK"
+      security:
+      - oauth2: []
+      summary: "Revoke a consent on the customer's behalf"
+      tags:
+      - "Open Banking — Staff"
   /api/v1/partners:
     get:
       operationId: "listAll_1"
@@ -18638,6 +18907,25 @@ paths:
           description: "OK"
       tags:
       - "partner-controller"
+  /api/v1/partners/{orgId}/reactivate:
+    post:
+      operationId: "reactivate"
+      parameters:
+      - in: "path"
+        name: "orgId"
+        required: true
+        schema:
+          format: "uuid"
+          type: "string"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseOrgResponse"
+          description: "OK"
+      tags:
+      - "partner-controller"
   /api/v1/partners/{orgId}/reject:
     post:
       operationId: "reject"
@@ -18654,6 +18942,31 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseVoid"
+          description: "OK"
+      tags:
+      - "partner-controller"
+  /api/v1/partners/{orgId}/suspend:
+    post:
+      operationId: "suspend"
+      parameters:
+      - in: "path"
+        name: "orgId"
+        required: true
+        schema:
+          format: "uuid"
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SuspendRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseOrgResponse"
           description: "OK"
       tags:
       - "partner-controller"
@@ -22856,9 +23169,11 @@ paths:
       - "Open Banking — Consents"
   /open-banking/v3.1/pisp/domestic-payments:
     post:
-      description: "Partner API key only. Needs the caller's own AUTHORISED consent\
-        \ with 'payments'; the source account must belong to the consent's customer\
-        \ (404 otherwise)."
+      description: "Partner API key only. Needs the caller's own AUTHORISED payment\
+        \ consent; the payment must match its initiation (amount, currency, creditor)\
+        \ and comes from an account of the consent's customer (404 otherwise). The\
+        \ consent is then CONSUMED. Sending the same payment again returns it with\
+        \ 200 instead of paying twice."
       operationId: "initiateDomesticPayment"
       parameters:
       - in: "header"
@@ -23014,6 +23329,8 @@ tags:
 - description: "Customer address records — HOME, WORK and MAILING address types with\
     \ full postal fields and country code"
   name: "Client Addresses"
+- description: "Consents as bank staff see them: list, view, revoke for a customer"
+  name: "Open Banking — Staff"
 - description: "Cross-entity keyword search across clients, loans, savings accounts\
     \ and groups — mirrors the Mifos /search endpoint"
   name: "Global Search"

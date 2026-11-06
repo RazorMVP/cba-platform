@@ -1,28 +1,31 @@
 import { TestBed } from '@angular/core/testing';
+import { HttpErrorResponse } from '@angular/common/http';
 import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { OpenBankingComponent } from './open-banking';
-import { AdminService, TppRegistration } from './admin.service';
+import { AdminService, TppOrganization } from './admin.service';
 
-type Svc = Record<'listTpps' | 'registerTpp' | 'activateTpp' | 'revokeTpp', ReturnType<typeof vi.fn>>;
+type Svc = Record<'listTpps' | 'approveTpp' | 'rejectTpp' | 'suspendTpp' | 'reactivateTpp', ReturnType<typeof vi.fn>>;
 
-function tpp(over: Partial<TppRegistration> = {}): TppRegistration {
+function tpp(over: Partial<TppOrganization> = {}): TppOrganization {
   return {
-    id: 'tp1', name: 'Acme', clientId: 'client-1', country: 'GB',
-    allowedScopes: ['accounts'], certificateExpiry: null, status: 'PENDING',
-    registeredAt: '2026-01-01', ...over,
+    id: 'org1', organizationName: 'Acme Fintech', status: 'PENDING_REVIEW', tier: 'BASIC',
+    environment: 'SANDBOX', createdAt: '2026-01-01T00:00:00Z', totalApiCalls: 0,
+    applicationStatus: 'PENDING_REVIEW', businessType: 'Lending', useCase: 'Affordability checks',
+    activeConsents: 3, suspensionReason: null, ...over,
   };
 }
 
-describe('OpenBankingComponent', () => {
+describe('OpenBankingComponent (TPP registry)', () => {
   let svc: Svc;
 
   beforeEach(() => {
     svc = {
       listTpps: vi.fn().mockReturnValue(of([tpp()])),
-      registerTpp: vi.fn().mockReturnValue(of(tpp({ id: 'tp2', name: 'New' }))),
-      activateTpp: vi.fn().mockReturnValue(of(tpp({ status: 'ACTIVE' }))),
-      revokeTpp: vi.fn().mockReturnValue(of(tpp({ status: 'REVOKED' }))),
+      approveTpp: vi.fn().mockReturnValue(of(undefined)),
+      rejectTpp: vi.fn().mockReturnValue(of(undefined)),
+      suspendTpp: vi.fn().mockReturnValue(of(tpp({ status: 'SUSPENDED' }))),
+      reactivateTpp: vi.fn().mockReturnValue(of(tpp({ status: 'PRODUCTION' }))),
     };
     TestBed.configureTestingModule({
       imports: [OpenBankingComponent],
@@ -33,77 +36,69 @@ describe('OpenBankingComponent', () => {
   function make() {
     const fixture = TestBed.createComponent(OpenBankingComponent);
     fixture.detectChanges();
-    return fixture.componentInstance;
+    return { c: fixture.componentInstance, el: fixture.nativeElement as HTMLElement };
   }
 
-  it('loads TPPs on init', () => {
-    const c = make();
+  it('loads partner organisations and shows the pending application', () => {
+    const { c, el } = make();
     expect(svc.listTpps).toHaveBeenCalled();
     expect(c.tpps).toHaveLength(1);
-    expect(c.loading).toBe(false);
+    expect(el.textContent).toContain('Acme Fintech');
+    expect(el.textContent).toContain('Affordability checks');
+    expect(el.textContent).not.toContain('Register TPP');
   });
 
   it('flags an error on load failure', () => {
     svc.listTpps.mockReturnValue(throwError(() => new Error('x')));
-    const c = make();
-    expect(c.error).toBe('Failed to load TPP registrations.');
+    const { c } = make();
+    expect(c.error).toBe('Failed to load TPPs.');
   });
 
-  it('toggleScope adds then removes a scope', () => {
-    const c = make();
-    c.openCreateModal();
-    c.toggleScope('payments');
-    expect(c.form.allowedScopes).toEqual(['payments']);
-    c.toggleScope('payments');
-    expect(c.form.allowedScopes).toEqual([]);
-  });
-
-  describe('submitCreate', () => {
-    it('does nothing without name or clientId', () => {
-      const c = make();
-      c.openCreateModal();
-      c.submitCreate();
-      expect(svc.registerTpp).not.toHaveBeenCalled();
-    });
-    it('registers and appends the TPP on success', () => {
-      const c = make();
-      c.openCreateModal();
-      c.form = { name: 'New', clientId: 'c2', country: 'KE', allowedScopes: ['openid'] };
-      c.submitCreate();
-      expect(svc.registerTpp).toHaveBeenCalledWith(c.form);
-      expect(c.tpps).toHaveLength(2);
-      expect(c.activeModal).toBeNull();
-    });
-    it('surfaces an error on failure', () => {
-      svc.registerTpp.mockReturnValue(throwError(() => new Error('x')));
-      const c = make();
-      c.openCreateModal();
-      c.form = { name: 'New', clientId: 'c2', country: 'KE', allowedScopes: [] };
-      c.submitCreate();
-      expect(c.modalError).toBe('Failed to register TPP.');
-    });
-  });
-
-  it('submitDelete revokes and replaces the TPP', () => {
-    const c = make();
-    c.openDeleteModal(tpp());
-    c.submitDelete();
-    expect(svc.revokeTpp).toHaveBeenCalledWith('tp1');
-    expect(c.tpps.find(t => t.id === 'tp1')!.status).toBe('REVOKED');
+  it('approve calls the partner approve endpoint and reloads', () => {
+    const { c } = make();
+    c.open('approve', tpp());
+    c.submit();
+    expect(svc.approveTpp).toHaveBeenCalledWith('org1');
+    expect(svc.listTpps).toHaveBeenCalledTimes(2);
     expect(c.activeModal).toBeNull();
   });
 
-  it('activateTpp replaces the TPP in the list', () => {
-    const c = make();
-    c.activateTpp(tpp());
-    expect(svc.activateTpp).toHaveBeenCalledWith('tp1');
-    expect(c.tpps.find(t => t.id === 'tp1')!.status).toBe('ACTIVE');
+  it('suspend needs a reason, then sends it trimmed', () => {
+    const { c } = make();
+    c.open('suspend', tpp({ status: 'PRODUCTION' }));
+    c.submit();
+    expect(svc.suspendTpp).not.toHaveBeenCalled();
+    c.reason = '  fraud report ';
+    c.submit();
+    expect(svc.suspendTpp).toHaveBeenCalledWith('org1', 'fraud report');
   });
 
-  it('statusVariant maps statuses', () => {
-    const c = make();
-    expect(c.statusVariant('ACTIVE')).toBe('success');
-    expect(c.statusVariant('REVOKED')).toBe('neutral');
-    expect(c.statusVariant('PENDING')).toBe('warning');
+  it('reactivate and reject route to their endpoints', () => {
+    const { c } = make();
+    c.open('reactivate', tpp({ status: 'SUSPENDED' }));
+    c.submit();
+    expect(svc.reactivateTpp).toHaveBeenCalledWith('org1');
+    c.open('reject', tpp());
+    c.submit();
+    expect(svc.rejectTpp).toHaveBeenCalledWith('org1');
+  });
+
+  it('shows the server message when an action is refused', () => {
+    svc.reactivateTpp.mockReturnValue(throwError(() => new HttpErrorResponse({
+      status: 409, error: { errors: [{ code: 'PARTNER_NOT_SUSPENDED', message: 'not suspended' }] },
+    })));
+    const { c } = make();
+    c.open('reactivate', tpp());
+    c.submit();
+    expect(c.modalError).toBe('not suspended');
+    expect(c.modalWorking).toBe(false);
+  });
+
+  it('statusVariant maps partner statuses', () => {
+    const { c } = make();
+    expect(c.statusVariant('PRODUCTION')).toBe('success');
+    expect(c.statusVariant('PENDING_REVIEW')).toBe('warning');
+    expect(c.statusVariant('SUSPENDED')).toBe('error');
+    expect(c.statusVariant('SANDBOX')).toBe('info');
   });
 });

@@ -1,5 +1,6 @@
 package com.cba.openbanking.dto;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -20,10 +21,22 @@ public record ConsentRequest(
         @NotNull
         UUID customerId,
 
-        /** Scopes from {@code ConsentScope}, e.g. ["accounts_read", "balances_read", "payments"]; others are 400 INVALID_SCOPE */
+        /**
+         * Scopes from {@code ConsentScope}, e.g. ["accounts_read", "balances_read"]; others are 400
+         * INVALID_SCOPE. A payment consent is ["payments"] alone, with an {@code initiation}.
+         */
         @NotEmpty
         List<String> scopes,
 
         @Future
-        Instant expiryDate
-) {}
+        Instant expiryDate,
+
+        /** Required with the {@code payments} scope, and only with it: the one payment the consent allows. */
+        @Valid
+        PaymentInitiation initiation
+) {
+    /** A consent without a payment initiation (AISP / CBPII). */
+    public ConsentRequest(String tppClientId, UUID customerId, List<String> scopes, Instant expiryDate) {
+        this(tppClientId, customerId, scopes, expiryDate, null);
+    }
+}

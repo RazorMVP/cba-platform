@@ -39,4 +39,16 @@ public class PartnerOrganization extends AuditableEntity {
 
     private String approvedBy;
     private java.time.Instant approvedAt;
+
+    /** While SUSPENDED: the status to restore on reactivation (SANDBOX, PENDING_REVIEW or PRODUCTION). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status_before_suspension")
+    private PartnerStatus statusBeforeSuspension;
+
+    @Column(name = "suspension_reason", columnDefinition = "TEXT")
+    private String suspensionReason;
+
+    public boolean isSuspended() {
+        return status == PartnerStatus.SUSPENDED;
+    }
 }

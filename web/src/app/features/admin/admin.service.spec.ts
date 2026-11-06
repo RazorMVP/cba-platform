@@ -35,15 +35,26 @@ describe('AdminService', () => {
     expect(api.put).toHaveBeenCalledWith('/roles/r1/permissions', { permissionIds: ['p1', 'p2'] });
   });
 
-  it('maker-checker + TPP + SMS + standing-instruction commands route correctly', () => {
+  it('maker-checker + SMS + standing-instruction commands route correctly', () => {
     service.approveMakerChecker('mc1').subscribe();
     expect(api.command).toHaveBeenCalledWith('/makercheckers/mc1', 'approve');
-    service.activateTpp('tp1').subscribe();
-    expect(api.command).toHaveBeenCalledWith('/openbanking/tpp/tp1', 'activate');
     service.activateSmsCampaign('sc1').subscribe();
     expect(api.command).toHaveBeenCalledWith('/smscampaigns/sc1', 'activate');
     service.disableStandingInstruction('si1').subscribe();
     expect(api.command).toHaveBeenCalledWith('/standinginstructions/si1', 'disable');
+  });
+
+  it('TPPs are partner organisations: list, approve, reject, suspend, reactivate', () => {
+    service.listTpps().subscribe();
+    expect(api.get).toHaveBeenCalledWith('/partners');
+    service.approveTpp('org1').subscribe();
+    expect(api.post).toHaveBeenCalledWith('/partners/org1/approve', {});
+    service.rejectTpp('org1').subscribe();
+    expect(api.post).toHaveBeenCalledWith('/partners/org1/reject', {});
+    service.suspendTpp('org1', 'fraud report').subscribe();
+    expect(api.post).toHaveBeenCalledWith('/partners/org1/suspend', { reason: 'fraud report' });
+    service.reactivateTpp('org1').subscribe();
+    expect(api.post).toHaveBeenCalledWith('/partners/org1/reactivate', {});
   });
 
   describe('listAuditLogs routing (entityId alone must NOT trigger /search)', () => {

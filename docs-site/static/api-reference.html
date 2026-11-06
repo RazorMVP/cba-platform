@@ -1929,8 +1929,13 @@ difference = actual_cash - closing_balance</pre>
     <span class="endpoint-summary">Create consent</span>
   </summary>
   <div class="endpoint-body">
-    <pre>{ "customerId": "...", "scopes": ["accounts_read", "balances_read", "payments"], "expiryDate": "2026-12-31T00:00:00Z" }</pre>
+    <pre>{ "customerId": "...", "scopes": ["accounts_read", "balances_read"], "expiryDate": "2026-12-31T00:00:00Z" }</pre>
     <p>API_CLIENT only. <code>tppClientId</code> is optional — the consent belongs to the API key's organisation; another value is <code>400 TPP_CLIENT_MISMATCH</code>. <code>customerId</code> required. Unknown scope → <code>400 INVALID_SCOPE</code>.</p>
+    <p><strong>Payment consents (backlog 24).</strong> A payment consent is <code>"scopes": ["payments"]</code> alone and names the one payment it allows:</p>
+    <pre>{ "customerId": "...", "scopes": ["payments"], "expiryDate": "2026-12-31T00:00:00Z",
+  "initiation": { "instructedAmount": "150.00", "currency": "USD", "creditorAccountId": "...",
+                  "debtorAccountId": null, "reference": "INV-1001" } }</pre>
+    <p><code>payments</code> without <code>initiation</code> → <code>400 PAYMENT_INITIATION_REQUIRED</code>; <code>initiation</code> without <code>payments</code> → <code>400 INITIATION_WITHOUT_PAYMENTS</code>; <code>payments</code> with other scopes → <code>400 PAYMENT_CONSENT_SCOPES</code>; unknown creditor → <code>400 CREDITOR_ACCOUNT_NOT_FOUND</code>; a <code>debtorAccountId</code> must be the customer's (<code>404 ACCOUNT_NOT_FOUND</code>) and in <code>currency</code> (<code>400 CURRENCY_MISMATCH</code>). The response (and <code>GET /consents/{id}</code>) carries <code>initiation</code>, <code>paymentId</code> and <code>consumedAt</code>; status <code>CONSUMED</code> once the payment is made.</p>
   </div>
 </details>
 
@@ -1941,7 +1946,7 @@ difference = actual_cash - closing_balance</pre>
     <span class="endpoint-summary">Authorise consent</span>
   </summary>
   <div class="endpoint-body">
-    <p>Transitions consent from AWAITING_AUTHORISATION → AUTHORISED. No request body required. CUSTOMER only, and only the customer the consent names; anyone else gets <code>404 CONSENT_NOT_FOUND</code>.</p>
+    <p>Transitions consent from AWAITING_AUTHORISATION → AUTHORISED. No request body required. CUSTOMER only, and only the customer the consent names; anyone else gets <code>404 CONSENT_NOT_FOUND</code>. A consent with <code>accounts_read</code> or <code>card_read</code> also sends the TPP <code>ACCOUNT.ACCESS_GRANTED</code> (one event, listing the accounts it covers).</p>
   </div>
 </details>
 
@@ -1952,8 +1957,8 @@ difference = actual_cash - closing_balance</pre>
     <span class="endpoint-summary">Initiate domestic payment (PISP)</span>
   </summary>
   <div class="endpoint-body">
-    <pre>{ "consentId": "ob-a3f8c12e9b4d...", "sourceAccountId": "...", "destinationAccountId": "...", "amount": "150.00", "currency": "USD" }</pre>
-    <p>API_CLIENT only. Requires the caller's own AUTHORISED consent with <code>payments</code> scope; <code>sourceAccountId</code> must belong to the consent's customer (<code>404 ACCOUNT_NOT_FOUND</code> otherwise, checked before any money moves). Audit trail shows <code>createdBy: open-banking:{consentId}</code>. <code>GET /pisp/domestic-payments/{id}</code> returns only a payment made under one of the caller's consents (otherwise <code>404 PAYMENT_NOT_FOUND</code>) and now includes its <code>consentId</code>.</p>
+    <pre>{ "consentId": "ob-a3f8c12e9b4d...", "sourceAccountId": "...", "destinationAccountId": "...", "amount": "150.00", "currency": "USD", "reference": "INV-1001" }</pre>
+    <p>API_CLIENT only. Requires the caller's own AUTHORISED payment consent; <code>sourceAccountId</code> must belong to the consent's customer (<code>404 ACCOUNT_NOT_FOUND</code> otherwise, checked before any money moves). <strong>The payment must match the consent's initiation</strong> — amount, currency, <code>destinationAccountId</code> = creditor, the debtor account if named, the reference if both give one — else <code>400 PAYMENT_DOES_NOT_MATCH_CONSENT</code> naming the field; the source account must be in the instructed currency (<code>400 CURRENCY_MISMATCH</code>). <strong>One payment per consent:</strong> the consent row is locked for the payment and becomes <code>CONSUMED</code>; sending the same payment again returns it with <code>200</code> (same <code>domesticPaymentId</code>, no second transfer, no webhooks again); any other payment under it → <code>403 CONSENT_CONSUMED</code>. A consent from before this change (no initiation) → <code>403 CONSENT_HAS_NO_INITIATION</code>. A refused transfer (e.g. <code>INSUFFICIENT_FUNDS</code>) rolls back and leaves the consent usable. Audit trail shows <code>createdBy: open-banking:{consentId}</code>. <code>GET /pisp/domestic-payments/{id}</code> returns only a payment made under one of the caller's consents (otherwise <code>404 PAYMENT_NOT_FOUND</code>) and now includes its <code>consentId</code>.</p>
   </div>
 </details>
 
@@ -1968,6 +1973,47 @@ difference = actual_cash - closing_balance</pre>
     <p>API_CLIENT only. Caller's own AUTHORISED consent with <code>fundsconfirmation</code>; the account or card must belong to the consent's customer (<code>404 ACCOUNT_NOT_FOUND</code>). A card also needs <code>card_read</code> or <code>card_balances_read</code> (<code>403 CONSENT_SCOPE_MISSING</code>).</p>
   </div>
 </details>
+
+<h3>Staff view of consents (backlog 23)</h3>
+<p><code>/open-banking/**</code> serves customers and TPPs only, so bank staff read and revoke consents under <code>/api/v1/open-banking/consents</code> (ADMIN, TELLER). Responses use the standard envelope.</p>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/open-banking/consents</span>
+    <span class="endpoint-summary">List consents (staff)</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>Optional filters <code>customerId</code>, <code>tppClientId</code> (partner organisation id), <code>status</code> (AWAITING_AUTHORISATION | AUTHORISED | CONSUMED | REVOKED | EXPIRED), <code>type</code> (AISP | PISP | CBPII — PISP = has <code>payments</code>, CBPII = has <code>fundsconfirmation</code>; anything else <code>400 INVALID_CONSENT_TYPE</code>); <code>page</code>, <code>size</code>, newest first. Each item: <code>consentId, consentType, customerId, customerName, tppClientId, tppName, scopes, status, expiryDate, createdAt, updatedAt, initiation, paymentId, consumedAt</code>.</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/open-banking/consents/{consentId}</span>
+    <span class="endpoint-summary">Get a consent (staff)</span>
+  </summary>
+  <div class="endpoint-body"><p>By its <code>consentId</code> (<code>ob-…</code>); unknown → <code>404 CONSENT_NOT_FOUND</code>.</p></div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/open-banking/consents/{consentId}/revoke</span>
+    <span class="endpoint-summary">Revoke for the customer (staff)</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "reason": "customer asked at branch" }</pre>
+    <p>Reason required (audited). The TPP gets <code>CONSENT.REVOKED</code>. <code>409 CONSENT_ALREADY_REVOKED</code> / <code>409 CONSENT_CONSUMED</code>. Authorising stays the customer's own step. The partner-portal revoke (<code>DELETE /api/v1/partners/{orgId}/consents/{id}</code>) and the TPP/customer <code>DELETE /open-banking/v3.1/consents/{id}</code> now take the same path, so every revocation is audited and notified.</p>
+  </div>
+</details>
+
+<h3>Account webhooks (backlog 3)</h3>
+<ul>
+  <li><code>ACCOUNT.ACCESS_GRANTED</code> — when the customer authorises a consent with <code>accounts_read</code> and/or <code>card_read</code>: <code>{ consentId, scopes, accounts: [{ accountId, type, currency, maskedNumber }] }</code> (bank accounts for <code>accounts_read</code>; cards for <code>card_read</code>, best effort).</li>
+  <li><code>ACCOUNT.BALANCE_UPDATED</code> — a signal only: <code>{ consentId, accountId, updatedAt }</code>; read the balance through AISP. Sent for bank accounts of a customer whose AUTHORISED, unexpired consent with <code>balances_read</code> the TPP holds; at most one per TPP and account per 60 s (<code>app.partner.balance-webhook.window-seconds</code>), and always after the last change in a window. Card balance changes are not covered.</li>
+</ul>
 </section>
 
 <!-- EXCHANGE RATES ──────────────────────────────────────────────────────── -->
@@ -3499,6 +3545,9 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <tr><td>POST</td><td>/open-banking/v3.1/pisp/domestic-payments</td><td>PISP payment</td><td>API_CLIENT</td></tr>
 <tr><td>GET</td><td>/open-banking/v3.1/pisp/domestic-payments/{id}</td><td>PISP payment status (own consents only)</td><td>API_CLIENT</td></tr>
 <tr><td>POST</td><td>/open-banking/v3.1/cbpii/funds-confirmations</td><td>CBPII check</td><td>API_CLIENT</td></tr>
+<tr><td>GET</td><td>/api/v1/open-banking/consents</td><td>Staff consent list (filters, paged)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/open-banking/consents/{consentId}</td><td>Staff consent detail</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/open-banking/consents/{consentId}/revoke</td><td>Revoke for the customer (reason)</td><td>ADMIN, TELLER</td></tr>
 <!-- Tenants -->
 <tr><td>GET</td><td>/api/v1/tenants</td><td>List tenants</td><td>ADMIN</td></tr>
 <!-- Exchange Rates -->
@@ -3905,13 +3954,15 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <tr><td>GET</td><td>/api/v1/partners/usage</td><td>Aggregate usage across all partners; ?days=30</td><td>ADMIN (Keycloak)</td></tr>
 <tr><td>POST</td><td>/api/v1/partners/{orgId}/approve</td><td>Approve production promotion</td><td>ADMIN (Keycloak)</td></tr>
 <tr><td>POST</td><td>/api/v1/partners/{orgId}/reject</td><td>Reject production application</td><td>ADMIN (Keycloak)</td></tr>
+<tr><td>POST</td><td>/api/v1/partners/{orgId}/suspend</td><td>Suspend a TPP (reason); its keys and logins stop working</td><td>ADMIN (Keycloak)</td></tr>
+<tr><td>POST</td><td>/api/v1/partners/{orgId}/reactivate</td><td>Reactivate a suspended TPP</td><td>ADMIN (Keycloak)</td></tr>
 <!-- Partner Portal API — Session 112 -->
 <tr><td>GET</td><td>/api/v1/partners/{orgId}/webhooks</td><td>List active webhooks for the organisation</td><td>Partner JWT</td></tr>
 <tr><td>POST</td><td>/api/v1/partners/{orgId}/webhooks</td><td>Register a new webhook (name, callbackUrl, events, secret)</td><td>Partner JWT</td></tr>
 <tr><td>DELETE</td><td>/api/v1/partners/{orgId}/webhooks/{webhookId}</td><td>Deregister (soft-delete) a webhook</td><td>Partner JWT</td></tr>
 <tr><td>GET</td><td>/api/v1/partners/{orgId}/webhooks/{webhookId}/deliveries</td><td>Delivery log for a webhook — real DELIVERED/FAILED records with retry metadata</td><td>Partner JWT</td></tr>
 <tr><td>GET</td><td>/api/v1/partners/{orgId}/consents</td><td>List Open Banking consents linked to partner (tppClientId = orgId)</td><td>Partner JWT</td></tr>
-<tr><td>DELETE</td><td>/api/v1/partners/{orgId}/consents/{consentId}</td><td>Revoke a partner consent (sets status = REVOKED)</td><td>Partner JWT</td></tr>
+<tr><td>DELETE</td><td>/api/v1/partners/{orgId}/consents/{consentId}</td><td>Revoke a partner consent (REVOKED; audited, CONSENT.REVOKED sent)</td><td>Partner JWT</td></tr>
 <tr><td>PUT</td><td>/api/v1/partners/{orgId}</td><td>Update organisation name and website</td><td>Partner JWT</td></tr>
 <tr><td>PUT</td><td>/api/v1/partners/users/{userId}</td><td>Update partner user email address</td><td>Partner JWT</td></tr>
 <tr><td>POST</td><td>/api/v1/partners/users/{userId}/change-password</td><td>Change partner user password (requires current password)</td><td>Partner JWT</td></tr>
@@ -4213,10 +4264,12 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <table>
 <thead><tr><th>Method</th><th>Endpoint</th><th>Auth</th><th>Description</th></tr></thead>
 <tbody>
-<tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners</code></td><td>ADMIN</td><td>List all registered partner organisations</td></tr>
+<tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners</code></td><td>ADMIN</td><td>List all registered partner organisations (TPPs): <code>id, organizationName, status, tier, environment, createdAt, totalApiCalls, applicationStatus, businessType, useCase, activeConsents, suspensionReason</code></td></tr>
 <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/partners/usage</code></td><td>ADMIN</td><td>Aggregate usage across all partners; <code>?days=30</code> (default)</td></tr>
 <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/{orgId}/approve</code></td><td>ADMIN</td><td>Approve production promotion; sets status to <code>PRODUCTION</code>, records approvedBy from JWT principal</td></tr>
-<tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/{orgId}/reject</code></td><td>ADMIN</td><td>Reject production application; sets <code>applicationStatus=REJECTED</code></td></tr>
+<tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/{orgId}/reject</code></td><td>ADMIN</td><td>Reject production application; sets <code>applicationStatus=REJECTED</code>. 409 <code>PARTNER_SUSPENDED</code> for a suspended org (approve too)</td></tr>
+<tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/{orgId}/suspend</code></td><td>ADMIN</td><td>Body <code>{ "reason": "…" }</code> (required). Status → <code>SUSPENDED</code>, the previous status kept; audited. From then on the org's API keys and partner logins authenticate nothing (both filters read the org's current status; a partner login is <code>403 PARTNER_SUSPENDED</code>), so it can't reach Open Banking or the partner API. Consents are kept. 409 <code>PARTNER_ALREADY_SUSPENDED</code></td></tr>
+<tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/partners/{orgId}/reactivate</code></td><td>ADMIN</td><td>Restores the status the org had before suspension; audited. 409 <code>PARTNER_NOT_SUSPENDED</code></td></tr>
 </tbody>
 </table>
 

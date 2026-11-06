@@ -4,7 +4,6 @@ import com.cba.openbanking.dto.DomesticPaymentRequest;
 import com.cba.openbanking.dto.DomesticPaymentResponse;
 import com.cba.partner.PartnerWebhookDeliveryService;
 import com.cba.payment.PaymentService;
-import com.cba.payment.dto.TransferRequest;
 import com.cba.payment.dto.PaymentResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -32,34 +31,30 @@ import java.util.UUID;
 public class PispController {
 
     private final ConsentService consentService;
+    private final PaymentInitiationService paymentInitiationService;
     private final PaymentService paymentService;
     private final PartnerWebhookDeliveryService webhookDelivery;
 
     @PostMapping("/domestic-payments")
     @PreAuthorize("hasRole('API_CLIENT')")
     @Operation(summary = "Initiate a domestic payment (PISP)",
-            description = "Partner API key only. Needs the caller's own AUTHORISED consent with 'payments'; "
-                    + "the source account must belong to the consent's customer (404 otherwise).")
+            description = "Partner API key only. Needs the caller's own AUTHORISED payment consent; the payment "
+                    + "must match its initiation (amount, currency, creditor) and comes from an account of the "
+                    + "consent's customer (404 otherwise). The consent is then CONSUMED. Sending the same payment "
+                    + "again returns it with 200 instead of paying twice.")
     public ResponseEntity<DomesticPaymentResponse> initiateDomesticPayment(
             @RequestHeader(value = "x-fapi-interaction-id", required = false) String interactionId,
             @Valid @RequestBody DomesticPaymentRequest request) {
 
-        // The caller's own authorised payments consent, debiting only its customer's account
-        UsableConsent consent = consentService.authorisePaymentInitiation(
-                request.consentId(), request.sourceAccountId());
+        // The caller's own authorised payment consent: this exact payment, from its customer's account, once.
+        // Committed before the webhooks below fire.
+        PaymentInitiationService.Initiated initiated = paymentInitiationService.initiate(request);
+        PaymentResponse payment = initiated.payment();
+        UsableConsent consent = initiated.consent();
 
-        TransferRequest transfer = new TransferRequest(
-                request.sourceAccountId(),
-                request.destinationAccountId(),
-                request.amount(),
-                request.reference(),
-                null
-        );
-        PaymentResponse payment = paymentService.transfer(transfer,
-                PaymentReversalPartnerNotifier.OB_ACTOR_PREFIX + consent.consentId());
-
-        // Notify the initiating partner (if this consent belongs to one) of the payment outcome
-        UUID partnerOrg = PartnerWebhookDeliveryService.parseOrg(consent.tppClientId());
+        // Notify the initiating partner (if this consent belongs to one) of the payment outcome — once:
+        // a retry of a payment already made returns it (200) without sending the events again.
+        UUID partnerOrg = initiated.replay() ? null : PartnerWebhookDeliveryService.parseOrg(consent.tppClientId());
         if (partnerOrg != null) {
             webhookDelivery.publishEvent(partnerOrg, "PAYMENT.INITIATED", Map.of(
                     "paymentId", payment.id().toString(),
@@ -81,14 +76,14 @@ public class PispController {
                 payment.id().toString(),
                 request.consentId(),
                 payment.status().name(),
-                request.sourceAccountId(),
-                request.destinationAccountId(),
+                payment.sourceAccountId(),
+                payment.destinationAccountId(),
                 payment.amount(),
-                request.currency(),
-                request.reference(),
-                Instant.now()
+                payment.currencyCode(),
+                payment.description(),
+                payment.createdAt() != null ? payment.createdAt() : Instant.now()
         );
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(initiated.replay() ? HttpStatus.OK : HttpStatus.CREATED).body(response);
     }
 
     @GetMapping("/domestic-payments/{domesticPaymentId}")

@@ -277,25 +277,22 @@ export interface CreateStandingInstructionRequest {
 }
 
 // ── TPP (Open Banking admin) ──────────────────────────────────────────────────
-export type TppStatus = 'ACTIVE' | 'REVOKED' | 'PENDING';
+// A TPP is a partner organisation (it registers itself in the partner portal); `GET /partners`.
+export type TppStatus = 'SANDBOX' | 'PENDING_REVIEW' | 'PRODUCTION' | 'SUSPENDED';
 
-export interface TppRegistration {
+export interface TppOrganization {
   id: string;
-  name: string;
-  clientId: string;
-  country: string;
-  allowedScopes: string[];
-  certificateExpiry: string | null;
+  organizationName: string;
   status: TppStatus;
-  registeredAt: string;
-}
-
-export interface RegisterTppRequest {
-  name: string;
-  clientId: string;
-  country: string;
-  allowedScopes: string[];
-  certificateExpiry?: string;
+  tier: string;
+  environment: string;
+  createdAt: string | null;
+  totalApiCalls: number;
+  applicationStatus: string | null;
+  businessType: string | null;
+  useCase: string | null;
+  activeConsents: number;
+  suspensionReason: string | null;
 }
 
 // ── Login History ─────────────────────────────────────────────────────────────
@@ -586,21 +583,25 @@ export class AdminService {
     return this.api.get<NotificationLog[]>('/notifications/history', params);
   }
 
-  // ── TPP ────────────────────────────────────────────────────────────────────
-  listTpps(): Observable<TppRegistration[]> {
-    return this.api.get<TppRegistration[]>('/openbanking/tpp');
+  // ── TPP (partner organisations) ──────────────────────────────────────────
+  listTpps(): Observable<TppOrganization[]> {
+    return this.api.get<TppOrganization[]>('/partners');
   }
 
-  registerTpp(req: RegisterTppRequest): Observable<TppRegistration> {
-    return this.api.post<TppRegistration>('/openbanking/tpp', req);
+  approveTpp(id: string): Observable<void> {
+    return this.api.post<void>(`/partners/${id}/approve`, {});
   }
 
-  activateTpp(id: string): Observable<TppRegistration> {
-    return this.api.command<TppRegistration>(`/openbanking/tpp/${id}`, 'activate');
+  rejectTpp(id: string): Observable<void> {
+    return this.api.post<void>(`/partners/${id}/reject`, {});
   }
 
-  revokeTpp(id: string): Observable<TppRegistration> {
-    return this.api.command<TppRegistration>(`/openbanking/tpp/${id}`, 'revoke');
+  suspendTpp(id: string, reason: string): Observable<TppOrganization> {
+    return this.api.post<TppOrganization>(`/partners/${id}/suspend`, { reason });
+  }
+
+  reactivateTpp(id: string): Observable<TppOrganization> {
+    return this.api.post<TppOrganization>(`/partners/${id}/reactivate`, {});
   }
 
   // ── Audit Log ──────────────────────────────────────────────────────────────

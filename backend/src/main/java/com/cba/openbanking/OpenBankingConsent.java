@@ -9,6 +9,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -46,6 +47,40 @@ public class OpenBankingConsent {
 
     @Column(name = "expiry_date")
     private Instant expiryDate;
+
+    // ── Payment initiation (PISP consents only; null otherwise) ──────────────
+    // UK OB domestic-payment-consent: the payment must match these, and uses the consent up.
+
+    @Column(name = "instructed_amount", precision = 19, scale = 4)
+    private BigDecimal instructedAmount;
+
+    @Column(name = "instructed_currency", length = 3)
+    private String instructedCurrency;
+
+    @Column(name = "creditor_account_id")
+    private UUID creditorAccountId;
+
+    /** Optional: when set, the payment must come from this account. */
+    @Column(name = "debtor_account_id")
+    private UUID debtorAccountId;
+
+    @Column(name = "payment_reference", length = 140)
+    private String paymentReference;
+
+    /** The payment made under this consent; set when the consent is CONSUMED. */
+    @Column(name = "payment_id")
+    private UUID paymentId;
+
+    @Column(name = "consumed_at")
+    private Instant consumedAt;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version = 0L;
+
+    public boolean hasInitiation() {
+        return instructedAmount != null;
+    }
 
     @CreatedDate
     @Column(name = "created_at", updatable = false)

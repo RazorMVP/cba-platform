@@ -99,7 +99,9 @@ the masking was a deliberate control. Do **not** implement this as a silent chan
 
 ---
 
-## 3. ACCOUNT.ACCESS_GRANTED / ACCOUNT.BALANCE_UPDATED partner webhooks
+## 3. ✅ DONE (cont. 56) — ACCOUNT.ACCESS_GRANTED / ACCOUNT.BALANCE_UPDATED partner webhooks
+
+> **Done in backlog set 1, PR A.** ACCESS_GRANTED: once per consent on authorise (decision D3a — the consent's account list). BALANCE_UPDATED: a JPA entity listener on `Transaction` (every balance change writes one) → AFTER_COMMIT notifier upserts `partner_balance_notifications(org, account)` for each usable `balances_read` consent → a scheduled dispatcher sends a signal-only event (D2a) at most once per 60 s window, trailing edge, re-checking the consent (V65). Bank accounts only — card balances (card-service) have no consent index. The text below is the original analysis.
 
 **Effort: ACCESS_GRANTED S–M · BALANCE_UPDATED M–L · Risk: event volume + missing linkage**
 
@@ -697,7 +699,9 @@ The schemes' rules: Visa Core Rules (the Acquirer submits clearing records; the 
 
 ---
 
-## 23. Web Open Banking admin screen calls endpoints that don't exist
+## 23. ✅ DONE (cont. 56) — Web Open Banking admin screen calls endpoints that don't exist
+
+> **Done in backlog set 1, PR A** (with the TPP registry screen, decision D7b). Staff endpoints `GET /api/v1/open-banking/consents`, `GET …/{consentId}`, `POST …/{consentId}/revoke {reason}` (ADMIN, TELLER); the web consents screens use them. The TPP registry (`/admin/open-banking`, which called a non-existent `/openbanking/tpp`) now lists partner organisations with approve/reject and new `POST /api/v1/partners/{id}/suspend|reactivate`; suspension is enforced by both partner auth filters (it existed as a status but blocked nothing). The text below is the original finding.
 
 **Effort**: S–M · **Risk**: the screen has never worked
 
@@ -710,7 +714,9 @@ Found in cont. 55; not changed there.
 
 ---
 
-## 24. PISP consents carry no instructed amount or creditor
+## 24. ✅ DONE (cont. 56) — PISP consents carry no instructed amount or creditor
+
+> **Done in backlog set 1, PR A.** A payment consent is `["payments"]` alone (D1a) with `initiation {instructedAmount, currency, creditorAccountId, debtorAccountId?, reference?}`; the payment must match it and consumes the consent under a row lock (status `CONSUMED`); the same payment again returns the original (200). V65. The text below is the original finding.
 
 **Effort**: M · **Risk**: an authorised `payments` consent allows any payment from the customer's accounts
 

@@ -57,6 +57,50 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 56) — 2026-11-06
+**Backlog set 1, PR A — items 24 + 23 (incl. the TPP registry, D7b) + 3 (user: "we will do 24,23,17,3 and 10 together"; plan approved with D1–D6 recommended, D7 → b). A `payments` consent let a TPP send any amount to anyone, repeatedly; the staff Open Banking and TPP screens called endpoints that never existed; `SUSPENDED` partners were never refused; two catalogue webhooks never fired.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/…/db/migration/V65__open_banking_payment_consents.sql` | consent initiation columns + `version` + all-or-nothing CHECK; `partner_organizations.status_before_suspension`, `suspension_reason`; NEW `partner_balance_notifications` |
+| `backend/…/openbanking/PaymentInitiationService.java` | NEW — lock the consent, match the request to the initiation, transfer, `CONSUMED`; same payment again → the original (replay) |
+| `backend/…/openbanking/ConsentService.java`, `OpenBankingConsent.java`, `ConsentStatus.java`, `ConsentRepository.java`, `dto/ConsentRequest.java`, `dto/ConsentResponse.java`, `dto/PaymentInitiation.java` (NEW) | initiation rules at create (D1a); `CONSUMED`; `usable()`/`requireTpp()` static; one `revoke(consent, reason)` path; `ACCOUNT.ACCESS_GRANTED` on authorise; locked lookup, usable-by-customer query, count by TPP, `JpaSpecificationExecutor` |
+| `backend/…/openbanking/PispController.java` | calls `initiate`; 201 new / 200 replay (no webhooks on replay); response from the stored payment |
+| `backend/…/openbanking/StaffConsentController.java`, `StaffConsentService.java`, `dto/StaffConsentResponse.java` | NEW — `/api/v1/open-banking/consents` list/get/revoke (ADMIN, TELLER) |
+| `backend/…/account/Transaction.java`, `TransactionBalanceListener.java` (NEW), `AccountBalanceChangedEvent.java` (NEW) | `@PostPersist` → balance-change event |
+| `backend/…/openbanking/AccountBalancePartnerNotifier.java`, `BalanceNotificationDispatcher.java` | NEW — queue after commit; send at most once per window, trailing edge (D2a signal only) |
+| `backend/…/partner/PartnerService.java`, `PartnerController.java`, `PartnerOrganization.java`, `PartnerApiKeyAuthFilter.java`, `PartnerJwtFilter.java`, `config/SecurityConfig.java` | suspend/reactivate (audited); filters refuse SUSPENDED (JWT filter by the org's current status); login 403 / approve-reject 409 for suspended; partner revoke through `ConsentService.revoke`; `OrgResponse` + application, active consents, suspension reason |
+| backend tests | NEW `PaymentInitiationServiceTest` (14), `StaffConsentServiceTest` (5), `BalanceUpdatedWebhookTest` (6), `PartnerSuspensionFiltersTest` (4), `OpenBankingPispIT` (4 — incl. **4 concurrent payments → 1 transfer**); `ConsentServiceTest` +12, `PispControllerTest` rewritten (4), `PartnerServiceTest` +5, `OpenBankingConsentIT` +3 (staff list/revoke, suspend → refused → reactivate, deposit → pending → sent) |
+| `backend/docs/openapi-snapshot.yaml` | staff consent API, suspend/reactivate, initiation/`CONSUMED`/`StaffConsentResponse`/`OrgResponse` fields |
+| `web/…/open-banking/*` | service on `/api/v1/open-banking/consents`; list (server filters + paging, `?tppClientId=`); detail (revoke with reason, no Authorise, PISP initiation); specs rewritten |
+| `web/…/admin/open-banking.*`, `admin.service.ts` (+ specs) | TPP registry on partner orgs: approve/reject/suspend/reactivate; the invented register/activate/revoke calls removed |
+| `docs/api-reference.html`, `docs/cba-postman-collection-v2.json` (+ `docs-site/static/`, `partner-docs/static/postman/` copies) | payment consent + PISP rules and errors, staff consent API, suspend/reactivate, ACCOUNT.* payloads; Postman +6 requests, `creditorAccountId` variable. The `partner-docs` Postman copy was stale since Session 117 (no Open Banking variables) — synced to the source |
+| `partner-docs/docs/open-banking.md`, `webhooks.md` | payment consents, one payment per consent, suspension; ACCOUNT.* payloads and coalescing |
+| `docs/deferred-backlog.md` | items 3, 23, 24 ✅ DONE |
+| `docs/plans/2026-11-06-backlog-set-1.md`, `docs/plans/README.md` | approved plan (all of set 1) + index row |
+| `CLAUDE.md` | backend row (1036), web rows (1172), Open Banking module rules, partner suspension, component map |
+
+#### Key Patterns / Decisions
+- **D1a — a payment consent is `["payments"]` alone**, like UK OB's domestic-payment-consent; the customer authorises one payment, not "payments".
+- **Idempotency from the consent itself:** the consent row lock serialises concurrent payments; a retry of the same initiation returns the original payment (200) instead of a 409 the TPP can't act on — no Idempotency-Key header needed.
+- **Pre-V65 payments consents fail closed** (`403 CONSENT_HAS_NO_INITIATION`) instead of being back-filled with guessed amounts.
+- **D2a — BALANCE_UPDATED is a signal**; the balance is read through AISP under the consent. Coalescing in the database (trailing edge, `FOR UPDATE SKIP LOCKED`), not Redis: survives restarts, safe across instances.
+- **Hook on `Transaction`, not the 12 call sites** — every balance change writes one; the entity listener also catches the interest job's `saveAll`.
+- **D7b — TPP = partner organisation.** The registry's register/clientId/cert fields never existed on any entity; partners self-register. Suspension had to be made real in both filters, and the JWT filter now reads the org's current status (the 24 h token claim would have kept a suspended TPP in).
+- **Scheduled self-calls skip `@Transactional`:** `BalanceNotificationDispatcher.scheduled()` calls `dispatch()` on `this`, so the claim (`FOR UPDATE SKIP LOCKED`) runs inside a `TransactionOperations` (Boot's `TransactionTemplate`), not an annotation — found in self-review before commit; with the annotation the locks were in auto-commit and two instances could send the same event.
+- **Static helpers on a proxied bean:** `ConsentService.usable`/`requireTpp` are static so `PaymentInitiationService` doesn't call package-private methods through the CGLIB proxy (they'd run on the proxy instance, fields null).
+
+#### Build Verification
+- backend `DOCKER_HOST=… ./mvnw -o clean verify -Pfull-integration`: **1036/1036** (was 985), after regenerating the OpenAPI snapshot with the Open Banking ITs (`-Dupdate.api.snapshot=true`, 11/11); the full run compares the snapshot — green.
+- web `CI=true npx ng test --no-watch`: **1172/1172** (115 files); `npm run check:change-detection` OK (95 Eager); `ng build --configuration production` OK.
+- Gate grep: new `@PostMapping /{orgId}/suspend`, `/{orgId}/reactivate`; `@RequestMapping /api/v1/open-banking/consents` with `@GetMapping`, `@GetMapping /{consentId}`, `@PostMapping /{consentId}/revoke` and `@RequestParam customerId/tppClientId/status/type` — all documented in api-reference + Postman.
+
+#### Confirmed Platform Versions
+No dependency changed. backend: Spring Boot 3.5.16, Java 21; `-Pfull-integration` 1036. web: Angular 22.2.3; 1172 tests.
+
+---
+
 ### Session 125 (cont. 55) — 2026-11-03
 **Backlog 13: Open Banking consents are bound to the TPP and the customer (user: "13"; plan approved, no D1/D2 reply → defaults D1a + D2a). TPPs (partner API key) got a 500 on every AISP call — the controller read a JWT an API key doesn't have — and nothing tied a consent to the TPP using it or the customer authorising it: any TPP could create consents in another TPP's name, read or revoke any consent; any customer could authorise any consent; and PISP/CBPII checked only status and scope, so any authorised payments consent could debit any account and any funds consent could probe any balance. Now a TPP reaches customer data only through its own AUTHORISED, unexpired consent with the right scope, for that consent's customer.**
 

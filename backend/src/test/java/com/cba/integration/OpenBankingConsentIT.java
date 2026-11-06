@@ -1,5 +1,7 @@
 package com.cba.integration;
 
+import com.cba.account.AccountService;
+import com.cba.openbanking.BalanceNotificationDispatcher;
 import com.cba.partner.PartnerApiKeys;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -13,6 +15,9 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.math.BigDecimal;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
@@ -27,6 +32,8 @@ class OpenBankingConsentIT extends AbstractIntegrationTest {
 
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
+    @Autowired AccountService accountService;
+    @Autowired BalanceNotificationDispatcher balanceDispatcher;
 
     private UUID customerId;
     private UUID accountId;
@@ -110,5 +117,81 @@ class OpenBankingConsentIT extends AbstractIntegrationTest {
 
         assertThat(r.getStatusCode().value()).as(r.getBody()).isEqualTo(403);
         assertThat(r.getBody()).contains("CONSENT_NOT_AUTHORISED");
+    }
+
+    // ── Backlog 23: staff consents (test profile: no Authorization header = dev bypass, ADMIN) ──
+
+    @Test
+    @DisplayName("staff list by customer shows the consent with type and TPP name; staff revoke with a reason → REVOKED")
+    void staff_listAndRevoke() {
+        UUID org = UUID.randomUUID();
+        String consentId = authorisedConsent(partnerKey(org), "accounts_read");
+
+        ResponseEntity<String> list = rest.getForEntity(
+                "/api/v1/open-banking/consents?customerId=" + customerId + "&type=AISP&size=100", String.class);
+        assertThat(list.getStatusCode().value()).as(list.getBody()).isEqualTo(200);
+        assertThat(list.getBody()).contains(consentId).contains("\"consentType\":\"AISP\"").contains("OB-IT " + org);
+
+        ResponseEntity<String> revoked = rest.postForEntity("/api/v1/open-banking/consents/" + consentId + "/revoke",
+                Map.of("reason", "customer asked at branch"), String.class);
+        assertThat(revoked.getStatusCode().value()).as(revoked.getBody()).isEqualTo(200);
+        assertThat(revoked.getBody()).contains("\"status\":\"REVOKED\"");
+
+        ResponseEntity<String> again = rest.postForEntity("/api/v1/open-banking/consents/" + consentId + "/revoke",
+                Map.of("reason", "twice"), String.class);
+        assertThat(again.getStatusCode().value()).as(again.getBody()).isEqualTo(409);
+    }
+
+    // ── Backlog 23b: a suspended TPP is refused; reactivated, it reads again ──
+
+    @Test
+    @DisplayName("suspend the TPP: its key no longer reads; reactivate: it reads again (consent untouched)")
+    void suspendedTpp_refused() {
+        UUID org = UUID.randomUUID();
+        String key = partnerKey(org);
+        String consentId = authorisedConsent(key, "accounts_read");
+
+        ResponseEntity<String> suspend = rest.postForEntity("/api/v1/partners/" + org + "/suspend",
+                Map.of("reason", "fraud report"), String.class);
+        assertThat(suspend.getStatusCode().value()).as(suspend.getBody()).isEqualTo(200);
+
+        // In production the key authenticates nothing → 401. The test profile's dev bypass then logs the
+        // request in as a placeholder user with no customer record and no organisation, which is refused
+        // too (404 CUSTOMER_NOT_FOUND). Either way: not 200, and none of the customer's data.
+        ResponseEntity<String> refused = accounts(key, consentId);
+        assertThat(refused.getStatusCode().value()).as(refused.getBody()).isIn(401, 403, 404);
+        assertThat(refused.getBody()).doesNotContain(accountId.toString());
+
+        ResponseEntity<String> reactivate = rest.postForEntity("/api/v1/partners/" + org + "/reactivate", null, String.class);
+        assertThat(reactivate.getStatusCode().value()).as(reactivate.getBody()).isEqualTo(200);
+        assertThat(reactivate.getBody()).contains("\"status\":\"PRODUCTION\"");
+        assertThat(accounts(key, consentId).getStatusCode().value()).isEqualTo(200);
+    }
+
+    // ── Backlog 3: ACCOUNT.BALANCE_UPDATED ──
+
+    @Test
+    @DisplayName("a deposit on a consented account marks it pending for the TPP; the dispatcher sends once and clears it")
+    void balanceChange_queuedAndSent() throws Exception {
+        UUID org = UUID.randomUUID();
+        authorisedConsent(partnerKey(org), "balances_read");
+
+        accountService.deposit(accountId, new BigDecimal("3.00"), "BALANCE_UPDATED IT", "it");
+
+        Timestamp pending = null;
+        for (int i = 0; i < 50 && pending == null; i++) {   // the notifier runs after commit, off-thread
+            pending = jdbc.query("SELECT pending_since FROM partner_balance_notifications WHERE org_id = ? AND account_id = ?",
+                    rs -> rs.next() ? rs.getTimestamp(1) : null, org, accountId);
+            if (pending == null) Thread.sleep(100);
+        }
+        assertThat(pending).as("pending row for the TPP after the deposit").isNotNull();
+
+        balanceDispatcher.dispatch(Instant.now());
+
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT pending_since, last_sent_at FROM partner_balance_notifications WHERE org_id = ? AND account_id = ?",
+                org, accountId);
+        assertThat(row.get("pending_since")).isNull();
+        assertThat(row.get("last_sent_at")).isNotNull();
     }
 }

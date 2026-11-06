@@ -13,11 +13,14 @@ import com.cba.partner.PartnerWebhookDeliveryService;
 import com.cba.payment.Payment;
 import com.cba.payment.PaymentRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -68,6 +71,7 @@ public class ConsentService {
         consent.setScopes(scopes);
         consent.setStatus(ConsentStatus.AWAITING_AUTHORISATION);
         consent.setExpiryDate(request.expiryDate());
+        applyInitiation(consent, scopes, request.initiation());
 
         OpenBankingConsent saved = consentRepository.save(consent);
         auditLogService.log("OpenBankingConsent", saved.getConsentId(), "CREATE", null, saved);
@@ -107,7 +111,53 @@ public class ConsentService {
         OpenBankingConsent saved = consentRepository.save(consent);
         auditLogService.log("OpenBankingConsent", consentId, "AUTHORISE", null, saved);
         publishToPartner(saved, "CONSENT.AUTHORISED", Map.of("consentId", consentId));
+        publishAccessGranted(saved);
         return ConsentResponse.from(saved);
+    }
+
+    /**
+     * {@code ACCOUNT.ACCESS_GRANTED}: once per consent that grants account access ({@code accounts_read}
+     * and/or {@code card_read}), listing the accounts it covers at the moment of authorisation. Bank
+     * accounts for {@code accounts_read}; cards for {@code card_read}, best effort (card-service
+     * unreachable → none listed, the event still fires).
+     */
+    private void publishAccessGranted(OpenBankingConsent consent) {
+        List<String> scopes = consent.getScopes() == null ? List.of() : consent.getScopes();
+        boolean bank = scopes.contains(ConsentScope.ACCOUNTS_READ.value());
+        boolean cards = scopes.contains(ConsentScope.CARD_READ.value());
+        if (!bank && !cards) {
+            return;
+        }
+        UUID customerId = consent.getCustomer().getId();
+        List<Map<String, Object>> accounts = new ArrayList<>();
+        if (bank) {
+            accountRepository.findByCustomerId(customerId, PageRequest.of(0, 100)).forEach(a -> {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("accountId", a.getId().toString());
+                m.put("type", a.getAccountType() == null ? null : a.getAccountType().name());
+                m.put("currency", a.getCurrencyCode());
+                m.put("maskedNumber", mask(a.getAccountNumber()));
+                accounts.add(m);
+            });
+        }
+        if (cards) {
+            for (CardServiceClient.CardDto card : cardServiceClient.getCardsForCustomer(customerId)) {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("accountId", card.id().toString());
+                m.put("type", "CARD_" + card.cardType());
+                m.put("currency", null);
+                m.put("maskedNumber", "****" + (card.panSuffix() == null ? "****" : card.panSuffix()));
+                accounts.add(m);
+            }
+        }
+        publishToPartner(consent, "ACCOUNT.ACCESS_GRANTED", Map.of(
+                "consentId", consent.getConsentId(),
+                "scopes", List.copyOf(scopes),
+                "accounts", accounts));
+    }
+
+    private static String mask(String number) {
+        return number == null || number.length() < 4 ? "****" : "****" + number.substring(number.length() - 4);
     }
 
     /** Statuses that can still expire; REVOKED and EXPIRED are terminal. */
@@ -140,16 +190,31 @@ public class ConsentService {
     public ConsentResponse revokeConsent(String consentId) {
         OpenBankingConsent consent = findByConsentId(consentId);
         requireParty(consent);
+        return ConsentResponse.from(revoke(consent, null));
+    }
 
+    /**
+     * The one revoke path — the TPP or customer ({@code DELETE /consents/{id}}), staff on the
+     * customer's behalf, and the partner portal all end here, so every revocation is audited and
+     * fires {@code CONSENT.REVOKED}. 409 if already revoked, or consumed (the payment is made; there
+     * is nothing left to revoke). The caller has already checked who may revoke.
+     */
+    @Transactional
+    public OpenBankingConsent revoke(OpenBankingConsent consent, String reason) {
+        String consentId = consent.getConsentId();
         if (consent.getStatus() == ConsentStatus.REVOKED) {
             throw CbaException.conflict("CONSENT_ALREADY_REVOKED", "Consent " + consentId + " is already revoked");
         }
-
+        if (consent.getStatus() == ConsentStatus.CONSUMED) {
+            throw CbaException.conflict("CONSENT_CONSUMED",
+                    "Consent " + consentId + " has been used for its payment and can't be revoked");
+        }
         consent.setStatus(ConsentStatus.REVOKED);
         OpenBankingConsent saved = consentRepository.save(consent);
-        auditLogService.log("OpenBankingConsent", consentId, "REVOKE", null, saved);
+        auditLogService.log("OpenBankingConsent", consentId, "REVOKE", null,
+                reason == null || reason.isBlank() ? saved : Map.of("status", "REVOKED", "reason", reason));
         publishToPartner(saved, "CONSENT.REVOKED", Map.of("consentId", consentId));
-        return ConsentResponse.from(saved);
+        return saved;
     }
 
     // ── Consent checks for data calls ────────────────────────────────
@@ -166,10 +231,20 @@ public class ConsentService {
         OpenBankingConsent consent = consentRepository.findByConsentId(consentId)
                 .filter(c -> tpp.equals(c.getTppClientId()))
                 .orElseThrow(() -> CbaException.notFound("Consent", consentId));
+        return usable(consent, anyOf);
+    }
 
+    /**
+     * The status, expiry and scope checks of {@link #requireUsableConsent} on a consent already
+     * loaded (and already known to be the caller's) — for the PISP path, which loads it locked.
+     */
+    static UsableConsent usable(OpenBankingConsent consent, ConsentScope... anyOf) {
+        String consentId = consent.getConsentId();
         switch (consent.getStatus()) {
             case REVOKED -> throw CbaException.forbidden("CONSENT_REVOKED", "Consent " + consentId + " has been revoked");
             case EXPIRED -> throw CbaException.forbidden("CONSENT_EXPIRED", "Consent " + consentId + " has expired");
+            case CONSUMED -> throw CbaException.forbidden("CONSENT_CONSUMED",
+                    "Consent " + consentId + " has already been used for its payment");
             case AWAITING_AUTHORISATION -> throw CbaException.forbidden("CONSENT_NOT_AUTHORISED",
                     "Consent " + consentId + " has not been authorised by the customer");
             case AUTHORISED -> { }
@@ -188,22 +263,49 @@ public class ConsentService {
         return usable;
     }
 
-    // ── PISP: Domestic Payment Initiation ────────────────────────────
+    // ── PISP: Domestic Payment Initiation (the payment itself: PaymentInitiationService) ──
 
     /**
-     * A payment may be initiated under the consent only from an account of the consent's customer;
-     * any other source account is a 404, checked before any money moves.
+     * A payment consent's initiation (D1a: a payment consent is {@code ["payments"]} alone):
+     * required with {@code payments}, refused without it; the creditor account must exist; a
+     * debtor account, when named, must be the customer's and in the instructed currency.
      */
-    @Transactional(readOnly = true)
-    public UsableConsent authorisePaymentInitiation(String consentId, UUID sourceAccountId) {
-        UsableConsent consent = requireUsableConsent(consentId, ConsentScope.PAYMENTS);
-        boolean own = accountRepository.findById(sourceAccountId)
-                .map(a -> consent.customerId().equals(a.getCustomer().getId()))
-                .orElse(false);
-        if (!own) {
-            throw CbaException.notFound("Account", sourceAccountId);
+    private void applyInitiation(OpenBankingConsent consent, List<String> scopes, PaymentInitiation initiation) {
+        boolean payments = scopes.contains(ConsentScope.PAYMENTS.value());
+        if (!payments) {
+            if (initiation != null) {
+                throw CbaException.badRequest("INITIATION_WITHOUT_PAYMENTS",
+                        "A payment initiation needs the 'payments' scope");
+            }
+            return;
         }
-        return consent;
+        if (scopes.size() > 1) {
+            throw CbaException.badRequest("PAYMENT_CONSENT_SCOPES",
+                    "A payment consent has the 'payments' scope only; request other access in a separate consent");
+        }
+        if (initiation == null) {
+            throw CbaException.badRequest("PAYMENT_INITIATION_REQUIRED",
+                    "A 'payments' consent must name the payment: initiation.instructedAmount, currency, creditorAccountId");
+        }
+        if (!accountRepository.existsById(initiation.creditorAccountId())) {
+            throw CbaException.badRequest("CREDITOR_ACCOUNT_NOT_FOUND",
+                    "Creditor account " + initiation.creditorAccountId() + " not found");
+        }
+        String currency = initiation.currency().toUpperCase(java.util.Locale.ROOT);
+        if (initiation.debtorAccountId() != null) {
+            var debtor = accountRepository.findById(initiation.debtorAccountId())
+                    .filter(a -> consent.getCustomer().getId().equals(a.getCustomer().getId()))
+                    .orElseThrow(() -> CbaException.notFound("Account", initiation.debtorAccountId()));
+            if (!currency.equalsIgnoreCase(debtor.getCurrencyCode())) {
+                throw CbaException.badRequest("CURRENCY_MISMATCH", "Debtor account " + debtor.getId()
+                        + " is in " + debtor.getCurrencyCode() + ", not " + currency);
+            }
+        }
+        consent.setInstructedAmount(initiation.instructedAmount());
+        consent.setInstructedCurrency(currency);
+        consent.setCreditorAccountId(initiation.creditorAccountId());
+        consent.setDebtorAccountId(initiation.debtorAccountId());
+        consent.setPaymentReference(initiation.reference());
     }
 
     /**
@@ -308,7 +410,7 @@ public class ConsentService {
     }
 
     /** The calling TPP's partner organisation id; 403 {@code TPP_UNIDENTIFIED} if the caller has none. */
-    String requireTpp() {
+    static String requireTpp() {
         UUID org = PartnerSecurity.currentOrgId();
         if (org == null) {
             throw CbaException.forbidden("TPP_UNIDENTIFIED",

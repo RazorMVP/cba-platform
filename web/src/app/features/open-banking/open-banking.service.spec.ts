@@ -5,12 +5,13 @@ import { OpenBankingService } from './open-banking.service';
 
 describe('OpenBankingService', () => {
   let service: OpenBankingService;
-  let api: Record<'get' | 'command', ReturnType<typeof vi.fn>>;
+  let api: Record<'get' | 'getPage' | 'post', ReturnType<typeof vi.fn>>;
 
   beforeEach(() => {
     api = {
-      get: vi.fn().mockReturnValue(of([])),
-      command: vi.fn().mockReturnValue(of({})),
+      get: vi.fn().mockReturnValue(of({})),
+      getPage: vi.fn().mockReturnValue(of({ content: [], totalElements: 0, totalPages: 0, size: 20, number: 0 })),
+      post: vi.fn().mockReturnValue(of({})),
     };
     TestBed.configureTestingModule({
       providers: [OpenBankingService, { provide: ApiService, useValue: api }],
@@ -18,28 +19,27 @@ describe('OpenBankingService', () => {
     service = TestBed.inject(OpenBankingService);
   });
 
-  it('listConsents passes type + status filters when given', () => {
-    service.listConsents('AISP', 'AUTHORISED').subscribe();
-    expect(api.get).toHaveBeenCalledWith('/open-banking/v3.1/consents', {
+  it('listConsents pages the staff endpoint with only the filters that are set', () => {
+    service.listConsents({ type: 'AISP', status: 'AUTHORISED', tppClientId: 'org-1' }, 2, 20).subscribe();
+    expect(api.getPage).toHaveBeenCalledWith('/open-banking/consents', 2, 20, {
       type: 'AISP',
       status: 'AUTHORISED',
+      tppClientId: 'org-1',
     });
   });
 
-  it('listConsents passes undefined params when no filters are given', () => {
+  it('listConsents with no filters sends no filter params', () => {
     service.listConsents().subscribe();
-    expect(api.get).toHaveBeenCalledWith('/open-banking/v3.1/consents', undefined);
+    expect(api.getPage).toHaveBeenCalledWith('/open-banking/consents', 0, 20, {});
   });
 
-  it('getConsent reads a single consent', () => {
-    service.getConsent('cn1').subscribe();
-    expect(api.get).toHaveBeenCalledWith('/open-banking/v3.1/consents/cn1');
+  it('getConsent reads one consent by its consentId', () => {
+    service.getConsent('ob-123').subscribe();
+    expect(api.get).toHaveBeenCalledWith('/open-banking/consents/ob-123');
   });
 
-  it('authorise / revoke use the command pattern', () => {
-    service.authoriseConsent('cn1').subscribe();
-    expect(api.command).toHaveBeenCalledWith('/open-banking/v3.1/consents/cn1', 'authorise');
-    service.revokeConsent('cn1').subscribe();
-    expect(api.command).toHaveBeenCalledWith('/open-banking/v3.1/consents/cn1', 'revoke');
+  it('revokeConsent posts the reason to the staff revoke endpoint', () => {
+    service.revokeConsent('ob-123', 'customer asked').subscribe();
+    expect(api.post).toHaveBeenCalledWith('/open-banking/consents/ob-123/revoke', { reason: 'customer asked' });
   });
 });

@@ -16,7 +16,12 @@ public record ConsentResponse(
         ConsentStatus status,
         Instant expiryDate,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        /** Payment consents only: the payment the customer authorises. */
+        PaymentInitiation initiation,
+        /** Set once the payment has been made (status CONSUMED). */
+        UUID paymentId,
+        Instant consumedAt
 ) {
     public static ConsentResponse from(OpenBankingConsent c) {
         return new ConsentResponse(
@@ -28,7 +33,17 @@ public record ConsentResponse(
                 c.getStatus(),
                 c.getExpiryDate(),
                 c.getCreatedAt(),
-                c.getUpdatedAt()
+                c.getUpdatedAt(),
+                initiationOf(c),
+                c.getPaymentId(),
+                c.getConsumedAt()
         );
+    }
+
+    public static PaymentInitiation initiationOf(OpenBankingConsent c) {
+        return c.hasInitiation()
+                ? new PaymentInitiation(c.getInstructedAmount(), c.getInstructedCurrency(),
+                        c.getCreditorAccountId(), c.getDebtorAccountId(), c.getPaymentReference())
+                : null;
     }
 }

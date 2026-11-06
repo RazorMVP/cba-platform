@@ -4,10 +4,10 @@
       <span class="material-icons">open_in_new</span>
       Third-Party Providers (TPP)
     </div>
-    <button class="btn-primary" (click)="openCreateModal()">
-      <span class="material-icons">add</span> Register TPP
-    </button>
   </div>
+  <p class="muted small">TPPs register themselves in the partner portal. Here you review production
+    applications and suspend or reactivate a TPP. A suspended TPP's API keys and logins stop working at once;
+    its consents stay and work again after reactivation.</p>
 
   <div class="card">
     @if (loading) {
@@ -21,46 +21,55 @@
     } @else if (tpps.length === 0) {
       <div class="empty-state">
         <span class="material-icons">open_in_new</span>
-        <p>No TPPs registered yet.</p>
+        <p>No TPPs have registered yet.</p>
       </div>
     } @else {
       <table class="data-table">
         <thead>
           <tr>
-            <th>TPP Name</th>
-            <th>Client ID</th>
-            <th>Country</th>
-            <th>Allowed Scopes</th>
-            <th>Cert Expiry</th>
+            <th>TPP</th>
             <th>Status</th>
+            <th>Tier</th>
+            <th>Environment</th>
+            <th>Active consents</th>
+            <th>Registered</th>
             <th class="action-cell">Actions</th>
           </tr>
         </thead>
         <tbody>
           @for (t of tpps; track t.id) {
             <tr class="table-row">
-              <td><strong>{{ t.name }}</strong></td>
-              <td class="mono muted small">{{ t.clientId }}</td>
-              <td>{{ t.country }}</td>
               <td>
-                <div class="scope-list">
-                  @for (s of t.allowedScopes; track s) {
-                    <span class="scope-chip">{{ s }}</span>
-                  }
-                </div>
+                <strong>{{ t.organizationName }}</strong>
+                @if (isPendingReview(t) && (t.businessType || t.useCase)) {
+                  <div class="muted small">{{ t.businessType }}@if (t.businessType && t.useCase) { · }{{ t.useCase }}</div>
+                }
+                @if (t.suspensionReason) {
+                  <div class="muted small">Suspended: {{ t.suspensionReason }}</div>
+                }
               </td>
-              <td class="muted small">{{ t.certificateExpiry || '—' }}</td>
+              <td><app-status-badge [label]="t.status" [variant]="statusVariant(t.status)"></app-status-badge></td>
+              <td>{{ t.tier }}</td>
+              <td>{{ t.environment }}</td>
               <td>
-                <app-status-badge [label]="t.status" [variant]="statusVariant(t.status)"></app-status-badge>
+                <a [routerLink]="['/open-banking']" [queryParams]="{ tppClientId: t.id }">{{ t.activeConsents }}</a>
               </td>
+              <td class="muted small">{{ t.createdAt ? (t.createdAt | date:'mediumDate') : '—' }}</td>
               <td class="action-cell">
-                @if (t.status === 'REVOKED' || t.status === 'PENDING') {
-                  <button class="btn-icon btn-icon--success" (click)="activateTpp(t)" title="Activate">
+                @if (isPendingReview(t)) {
+                  <button class="btn-icon btn-icon--success" (click)="open('approve', t)" title="Approve for production">
                     <span class="material-icons">check_circle</span>
                   </button>
+                  <button class="btn-icon btn-icon--danger" (click)="open('reject', t)" title="Reject application">
+                    <span class="material-icons">cancel</span>
+                  </button>
                 }
-                @if (t.status === 'ACTIVE') {
-                  <button class="btn-icon btn-icon--danger" (click)="openDeleteModal(t)" title="Revoke">
+                @if (t.status === 'SUSPENDED') {
+                  <button class="btn-icon btn-icon--success" (click)="open('reactivate', t)" title="Reactivate">
+                    <span class="material-icons">play_circle</span>
+                  </button>
+                } @else {
+                  <button class="btn-icon btn-icon--danger" (click)="open('suspend', t)" title="Suspend">
                     <span class="material-icons">block</span>
                   </button>
                 }
@@ -69,73 +78,41 @@
           }
         </tbody>
       </table>
-      <div class="table-footer">{{ tpps.length }} TPP(s) registered</div>
+      <div class="table-footer">{{ tpps.length }} TPP(s)</div>
     }
   </div>
 </div>
 
-@if (activeModal === 'create') {
-  <div class="modal-backdrop" (click)="closeModal()">
-    <div class="modal" (click)="$event.stopPropagation()">
-      <div class="modal__header">
-        <span class="material-icons modal__icon">open_in_new</span>
-        Register Third-Party Provider
-      </div>
-      <div class="modal__body">
-        <div class="form-field">
-          <label class="form-label">TPP Name <span class="required">*</span></label>
-          <input class="form-input" [(ngModel)]="form.name" placeholder="e.g. FinTech Bank PLC">
-        </div>
-        <div class="form-field">
-          <label class="form-label">Client ID <span class="required">*</span></label>
-          <input class="form-input" [(ngModel)]="form.clientId" placeholder="Keycloak client ID">
-        </div>
-        <div class="form-field">
-          <label class="form-label">Country</label>
-          <input class="form-input" [(ngModel)]="form.country" placeholder="e.g. GB, KE, GH">
-        </div>
-        <div class="form-field">
-          <label class="form-label">Certificate Expiry</label>
-          <input class="form-input" type="date" [(ngModel)]="form.certificateExpiry">
-        </div>
-        <div class="form-field">
-          <label class="form-label">Allowed Scopes</label>
-          <div class="scope-select">
-            @for (s of availableScopes; track s) {
-              <label class="scope-option" [class.scope-option--selected]="form.allowedScopes.includes(s)">
-                <input type="checkbox" [checked]="form.allowedScopes.includes(s)" (change)="toggleScope(s)">
-                {{ s }}
-              </label>
-            }
-          </div>
-        </div>
-        @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
-      </div>
-      <div class="modal__footer">
-        <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
-        <button class="btn-primary" (click)="submitCreate()" [disabled]="modalWorking">
-          @if (modalWorking) { <span class="spinner"></span> } Register
-        </button>
-      </div>
-    </div>
-  </div>
-}
-
-@if (activeModal === 'delete') {
+@if (activeModal && selected) {
   <div class="modal-backdrop" (click)="closeModal()">
     <div class="modal modal--sm" (click)="$event.stopPropagation()">
       <div class="modal__header">
-        <span class="material-icons modal__icon modal__icon--danger">block</span>
-        Revoke TPP Access
+        @switch (activeModal) {
+          @case ('approve') { Approve {{ selected.organizationName }} for production }
+          @case ('reject') { Reject {{ selected.organizationName }}'s application }
+          @case ('suspend') { Suspend {{ selected.organizationName }} }
+          @case ('reactivate') { Reactivate {{ selected.organizationName }} }
+        }
       </div>
       <div class="modal__body">
-        <p>Revoke access for <strong>{{ deletingName }}</strong>? Their active consents will be invalidated.</p>
+        @switch (activeModal) {
+          @case ('approve') { <p>The TPP moves to PRODUCTION and can reach live customer data under consents.</p> }
+          @case ('reject') { <p>The production application is rejected; the TPP stays in the sandbox.</p> }
+          @case ('suspend') {
+            <p>Its API keys and portal logins stop working immediately. Its {{ selected.activeConsents }} active
+              consent(s) are kept and work again if you reactivate it.</p>
+            <label class="form-label" for="suspend-reason">Reason (recorded in the audit log)</label>
+            <textarea id="suspend-reason" class="form-input" rows="3" maxlength="500" [(ngModel)]="reason"></textarea>
+          }
+          @case ('reactivate') { <p>The TPP gets back the status it had before it was suspended.</p> }
+        }
         @if (modalError) { <div class="modal__error">{{ modalError }}</div> }
       </div>
       <div class="modal__footer">
         <button class="btn-secondary" (click)="closeModal()" [disabled]="modalWorking">Cancel</button>
-        <button class="btn-danger" (click)="submitDelete()" [disabled]="modalWorking">
-          @if (modalWorking) { <span class="spinner spinner--dark"></span> } Revoke
+        <button [class]="activeModal === 'suspend' || activeModal === 'reject' ? 'btn-danger' : 'btn-primary'"
+          (click)="submit()" [disabled]="modalWorking || (activeModal === 'suspend' && !reason.trim())">
+          @if (modalWorking) { <span class="spinner"></span> } Confirm
         </button>
       </div>
     </div>

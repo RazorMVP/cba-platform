@@ -70,6 +70,11 @@ public class PartnerApiKeyAuthFilter extends OncePerRequestFilter {
 
     private void authenticate(PartnerApiKey key) {
         PartnerOrganization org = key.getOrganization();
+        if (org.isSuspended()) {
+            // A suspended organisation's keys authenticate nothing: the request stays anonymous and
+            // every partner and Open Banking endpoint refuses it (401). Its consents are untouched.
+            return;
+        }
         String orgId = org.getId().toString();
 
         List<GrantedAuthority> authorities = new ArrayList<>();

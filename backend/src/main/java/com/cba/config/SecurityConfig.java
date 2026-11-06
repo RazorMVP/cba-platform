@@ -81,6 +81,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/v1/partners/usage").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/partners/*/approve").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/v1/partners/*/reject").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/partners/*/suspend").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/partners/*/reactivate").hasRole("ADMIN")
 
                 // Partner — developer self-service (partner JWT or API key; ADMIN = staff/dev-bypass override)
                 .requestMatchers("/api/v1/partners/**")

@@ -18,6 +18,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,6 +32,9 @@ class PartnerServiceTest {
     @Mock BCryptPasswordEncoder passwordEncoder;
     @Mock PartnerJwtService jwtService;
     @Mock PartnerWebhookDeliveryService webhookDelivery;
+    @Mock com.cba.openbanking.ConsentRepository consentRepo;
+    @Mock com.cba.openbanking.ConsentService consentService;
+    @Mock com.cba.audit.AuditLogService auditLogService;
 
     @InjectMocks PartnerService service;
 
@@ -242,6 +246,86 @@ class PartnerServiceTest {
             service.submitApplication(orgId, req);
             verify(applicationRepo).save(any(PartnerApplication.class));
             verify(orgRepo).save(argThat(o -> o.getStatus() == PartnerStatus.PENDING_REVIEW));
+        }
+    }
+
+    @Nested
+    @DisplayName("Suspension (backlog 23b)")
+    class Suspension {
+
+        @Test
+        @DisplayName("suspend keeps the previous status and the reason, and is audited")
+        void suspend() {
+            org.setStatus(PartnerStatus.PRODUCTION);
+            when(orgRepo.findById(orgId)).thenReturn(Optional.of(org));
+            when(orgRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            PartnerOrganization saved = service.suspend(orgId, "  fraud report  ");
+
+            assertThat(saved.getStatus()).isEqualTo(PartnerStatus.SUSPENDED);
+            assertThat(saved.getStatusBeforeSuspension()).isEqualTo(PartnerStatus.PRODUCTION);
+            assertThat(saved.getSuspensionReason()).isEqualTo("fraud report");
+            verify(auditLogService).log(eq("PartnerOrganization"), eq(orgId.toString()), eq("SUSPEND"), any(), any());
+        }
+
+        @Test
+        @DisplayName("suspend without a reason: 400 REASON_REQUIRED; already suspended: 409")
+        void suspendRefusals() {
+            assertThatThrownBy(() -> service.suspend(orgId, " "))
+                .hasFieldOrPropertyWithValue("errorCode", "REASON_REQUIRED");
+
+            org.setStatus(PartnerStatus.SUSPENDED);
+            when(orgRepo.findById(orgId)).thenReturn(Optional.of(org));
+            assertThatThrownBy(() -> service.suspend(orgId, "again"))
+                .hasFieldOrPropertyWithValue("errorCode", "PARTNER_ALREADY_SUSPENDED");
+        }
+
+        @Test
+        @DisplayName("reactivate restores the status it had; reactivating an active org: 409 PARTNER_NOT_SUSPENDED")
+        void reactivate() {
+            org.setStatus(PartnerStatus.SUSPENDED);
+            org.setStatusBeforeSuspension(PartnerStatus.PRODUCTION);
+            org.setSuspensionReason("fraud report");
+            when(orgRepo.findById(orgId)).thenReturn(Optional.of(org));
+            when(orgRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            PartnerOrganization saved = service.reactivate(orgId);
+
+            assertThat(saved.getStatus()).isEqualTo(PartnerStatus.PRODUCTION);
+            assertThat(saved.getStatusBeforeSuspension()).isNull();
+            assertThat(saved.getSuspensionReason()).isNull();
+            assertThatThrownBy(() -> service.reactivate(orgId))
+                .hasFieldOrPropertyWithValue("errorCode", "PARTNER_NOT_SUSPENDED");
+        }
+
+        @Test
+        @DisplayName("a suspended org can't log in (403) or be approved (409)")
+        void suspendedRefused() {
+            org.setStatus(PartnerStatus.SUSPENDED);
+            when(userRepo.findByEmailAndActiveTrue("dev@acme.io")).thenReturn(Optional.of(partnerUser));
+            when(passwordEncoder.matches(anyString(), anyString())).thenReturn(true);
+            assertThatThrownBy(() -> service.login("dev@acme.io", "Secret1!"))
+                .hasFieldOrPropertyWithValue("errorCode", "PARTNER_SUSPENDED");
+            verifyNoInteractions(jwtService);
+
+            when(orgRepo.findById(orgId)).thenReturn(Optional.of(org));
+            assertThatThrownBy(() -> service.approveProduction(orgId, "admin"))
+                .hasFieldOrPropertyWithValue("errorCode", "PARTNER_SUSPENDED");
+            assertThat(org.getStatus()).isEqualTo(PartnerStatus.SUSPENDED);
+        }
+
+        @Test
+        @DisplayName("the partner portal's consent revoke goes through ConsentService.revoke (audit + webhook)")
+        void revokeConsentForOrg() {
+            UUID consentPk = UUID.randomUUID();
+            var consent = new com.cba.openbanking.OpenBankingConsent();
+            consent.setTppClientId(orgId.toString());
+            when(orgRepo.findById(orgId)).thenReturn(Optional.of(org));
+            when(consentRepo.findById(consentPk)).thenReturn(Optional.of(consent));
+
+            service.revokeConsentForOrg(orgId, consentPk);
+
+            verify(consentService).revoke(consent, null);
         }
     }
 }

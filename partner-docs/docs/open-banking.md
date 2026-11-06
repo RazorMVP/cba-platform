@@ -34,6 +34,7 @@ You reach a customer's data only through a **consent**: one customer, the scopes
 
 ```text
 AWAITING_AUTHORISATION → AUTHORISED → REVOKED / EXPIRED
+                                    → CONSUMED   (payment consents, once the payment is made)
 ```
 
 ### What a consent lets you do
@@ -42,6 +43,7 @@ AWAITING_AUTHORISATION → AUTHORISED → REVOKED / EXPIRED
 - **Only that customer.** Accounts and cards outside the consent's customer get `404 ACCOUNT_NOT_FOUND`, including as a PISP source account or a CBPII account.
 - **Only authorised and current.** Before the customer authorises: `403 CONSENT_NOT_AUTHORISED`. After revocation: `403 CONSENT_REVOKED`. After `expiryDate`: `403 CONSENT_EXPIRED`.
 - **Only the authorised scopes.** A call outside them gets `403 CONSENT_SCOPE_MISSING`.
+- **Only while your organisation is active.** If NubBank suspends your organisation, your API keys and portal logins stop working (`401`; a portal login is `403 PARTNER_SUSPENDED`). Your consents are kept and work again when you're reactivated.
 
 ### Create a consent
 
@@ -122,7 +124,35 @@ Needs `transactions_read` for a bank account, or `card_transactions_read` for a 
 
 ## PISP — Payment Initiation
 
-The consent needs `payments`. The source account must belong to the consent's customer; otherwise the call returns `404`, and no money moves.
+A payment consent authorises **one payment**: an amount, a currency and a creditor account, named when you create the consent. The customer authorises that payment, not payments in general.
+
+### Create a payment consent
+
+```bash
+curl -X POST https://sandbox.nubbank.com/open-banking/v3.1/consents \
+  -H "Authorization: ApiKey cba_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customerId": "CUSTOMER_ID",
+    "scopes": ["payments"],
+    "expiryDate": "2026-12-31T00:00:00Z",
+    "initiation": {
+      "instructedAmount": "50.00",
+      "currency": "USD",
+      "creditorAccountId": "DESTINATION_ACCOUNT_ID",
+      "reference": "INV-1001"
+    }
+  }'
+```
+
+- `scopes` is `["payments"]` alone. Ask for account access in a separate consent; mixing them is `400 PAYMENT_CONSENT_SCOPES`.
+- `initiation` is required with `payments` (`400 PAYMENT_INITIATION_REQUIRED`), and only with it (`400 INITIATION_WITHOUT_PAYMENTS`).
+- `debtorAccountId` is optional. If you set it, the payment must come from that account, which must be the customer's and in `currency`.
+- An unknown creditor account is `400 CREDITOR_ACCOUNT_NOT_FOUND`.
+
+### Make the payment
+
+The source account must belong to the consent's customer; otherwise the call returns `404`, and no money moves.
 
 ```bash
 curl -X POST https://sandbox.nubbank.com/open-banking/v3.1/pisp/domestic-payments \
@@ -137,6 +167,14 @@ curl -X POST https://sandbox.nubbank.com/open-banking/v3.1/pisp/domestic-payment
     "reference": "INV-1001"
   }'
 ```
+
+The payment must match the consent: amount, currency, `destinationAccountId` (the creditor), the debtor account if you named one, and the reference if both give one. Anything different is `400 PAYMENT_DOES_NOT_MATCH_CONSENT`, naming the field. The source account must be in the instructed currency (`400 CURRENCY_MISMATCH`).
+
+**One payment per consent.** After the payment, the consent is `CONSUMED`:
+
+- Sending the **same** payment again (for example after a timeout) returns it with `200` and the same `domesticPaymentId`. No second payment is made.
+- Any other payment under that consent is `403 CONSENT_CONSUMED`. Create a new consent.
+- If the payment is refused (for example insufficient funds), nothing changes and the consent can still be used.
 
 `GET /open-banking/v3.1/pisp/domestic-payments/{domesticPaymentId}` returns a payment you initiated, including its `consentId`. Any other payment is `404`.
 
@@ -181,7 +219,7 @@ curl -X POST https://sandbox.nubbank.com/open-banking/v3.1/cbpii/funds-confirmat
 | `accounts_read` | AISP | Bank accounts in `/aisp/accounts` |
 | `balances_read` | AISP | Bank account balances |
 | `transactions_read` | AISP | Bank account transactions |
-| `payments` | PISP | Domestic payment initiation |
+| `payments` | PISP | One domestic payment, as named in the consent's `initiation` |
 | `fundsconfirmation` | CBPII | Funds confirmation |
 | `card_read` | Card AISP | Cards in `/aisp/accounts`; card funds confirmation |
 | `card_balances_read` | Card AISP | Card balances; card funds confirmation |

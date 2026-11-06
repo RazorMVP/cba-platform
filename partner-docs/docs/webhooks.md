@@ -160,8 +160,10 @@ GET /api/v1/partners/{orgId}/webhooks/{webhookId}/deliveries
 
 | Event | Trigger |
 |-------|---------|
-| `ACCOUNT.ACCESS_GRANTED` | AISP consent authorised |
-| `ACCOUNT.BALANCE_UPDATED` | Account balance changed (for monitoring) |
+| `ACCOUNT.ACCESS_GRANTED` | The customer authorised a consent with `accounts_read` or `card_read`. One event per consent: `{ consentId, scopes, accounts: [{ accountId, type, currency, maskedNumber }] }` |
+| `ACCOUNT.BALANCE_UPDATED` | The balance of a bank account changed, and you hold the customer's authorised consent with `balances_read`. A signal only: `{ consentId, accountId, updatedAt }`. Read the balance through AISP |
+
+`ACCOUNT.BALANCE_UPDATED` is sent at most once per account per minute. Changes during that minute are not lost: you get one event after the last of them. Card balance changes don't send it.
 
 ### Partner lifecycle
 

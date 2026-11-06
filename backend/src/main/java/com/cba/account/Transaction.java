@@ -15,6 +15,7 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "transactions")
+@EntityListeners(TransactionBalanceListener.class)
 @Getter
 @NoArgsConstructor
 public class Transaction {

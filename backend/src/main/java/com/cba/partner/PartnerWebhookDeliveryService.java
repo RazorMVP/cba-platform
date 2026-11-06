@@ -37,10 +37,16 @@ public class PartnerWebhookDeliveryService {
     private final PartnerWebhookRepository webhookRepo;
     private final PartnerWebhookDeliveryRepository deliveryRepo;
     private final ObjectMapper objectMapper;
+    private final PartnerOrganizationRepository orgRepo;
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
+
+    /** By id (never through a lazy proxy, which may be outside a session here). Unknown org = not suspended. */
+    private boolean suspended(UUID orgId) {
+        return orgId != null && orgRepo.findById(orgId).map(PartnerOrganization::isSuspended).orElse(false);
+    }
 
     /**
      * Parse a consent {@code tppClientId} (a partner orgId string) into a UUID, or return null if it is
@@ -64,6 +70,11 @@ public class PartnerWebhookDeliveryService {
     @Async
     @Transactional
     public void publishEvent(UUID orgId, String eventType, Object payload) {
+        if (suspended(orgId)) {
+            // A suspended organisation gets nothing — its API access is cut, and so are its webhooks.
+            log.info("Webhook event {} not created for suspended partner {}", eventType, orgId);
+            return;
+        }
         String payloadJson;
         try {
             payloadJson = objectMapper.writeValueAsString(Map.of(
@@ -120,6 +131,12 @@ public class PartnerWebhookDeliveryService {
 
     private void dispatch(PartnerWebhookDelivery delivery) {
         PartnerWebhook hook = delivery.getWebhook();
+        if (hook.getOrganization() != null && suspended(hook.getOrganization().getId())) {
+            // Created before the suspension: not sent while suspended. Left as it is; a retry after
+            // reactivation sends it (FAILED rows), a PENDING one stays recorded but unsent.
+            log.info("Webhook delivery {} held: partner suspended", delivery.getDeliveryUuid());
+            return;
+        }
         String payload = delivery.getPayload() != null ? delivery.getPayload() : "{}";
 
         HttpRequest.Builder builder = HttpRequest.newBuilder()

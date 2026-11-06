@@ -37,6 +37,11 @@
       "description": "Open Banking consent id (ob-\u2026)"
     },
     {
+      "key": "creditorAccountId",
+      "value": "",
+      "description": "Creditor account of a payment consent (PISP initiation)"
+    },
+    {
       "key": "domesticPaymentId",
       "value": "",
       "description": "PISP payment id"
@@ -5771,10 +5776,10 @@
                 "consents"
               ]
             },
-            "description": "Create a consent for one customer. **Partner API key only** (`Authorization: ApiKey cba_\u2026`). The consent always belongs to the key's organisation: `tppClientId` may be omitted, and a different value is `400 TPP_CLIENT_MISMATCH`. `customerId` is required; only that customer can authorise the consent. `scopes` must come from the catalogue (`accounts_read`, `balances_read`, `transactions_read`, `payments`, `fundsconfirmation`, `card_read`, `card_balances_read`, `card_transactions_read`); anything else is `400 INVALID_SCOPE`.",
+            "description": "Create a consent for one customer. **Partner API key only** (`Authorization: ApiKey cba_\u2026`). The consent always belongs to the key's organisation: `tppClientId` may be omitted, and a different value is `400 TPP_CLIENT_MISMATCH`. `customerId` is required; only that customer can authorise the consent. `scopes` must come from the catalogue (`accounts_read`, `balances_read`, `transactions_read`, `payments`, `fundsconfirmation`, `card_read`, `card_balances_read`, `card_transactions_read`); anything else is `400 INVALID_SCOPE`. A payment consent is separate: see **Create Payment Consent (PISP)**.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"scopes\": [\"accounts_read\", \"balances_read\", \"transactions_read\", \"payments\", \"fundsconfirmation\"],\n  \"expiryDate\": \"2026-12-31T00:00:00Z\"\n}",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"scopes\": [\"accounts_read\", \"balances_read\", \"transactions_read\"],\n  \"expiryDate\": \"2026-12-31T00:00:00Z\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -5793,7 +5798,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"id\": \"6f1c0000-0000-0000-0000-000000000001\",\n  \"consentId\": \"ob-a3f8c12e9b4d5e6f70\",\n  \"customerId\": \"{{customerId}}\",\n  \"tppClientId\": \"{{partner_org_id}}\",\n  \"scopes\": [\n    \"accounts_read\",\n    \"balances_read\",\n    \"transactions_read\",\n    \"payments\",\n    \"fundsconfirmation\"\n  ],\n  \"status\": \"AWAITING_AUTHORISATION\",\n  \"expiryDate\": \"2026-12-31T00:00:00Z\",\n  \"createdAt\": \"2026-11-03T10:00:00Z\",\n  \"updatedAt\": \"2026-11-03T10:00:00Z\"\n}"
+              "body": "{\n  \"id\": \"6f1c0000-0000-0000-0000-000000000001\",\n  \"consentId\": \"ob-a3f8c12e9b4d5e6f70\",\n  \"customerId\": \"{{customerId}}\",\n  \"tppClientId\": \"{{partner_org_id}}\",\n  \"scopes\": [\n    \"accounts_read\",\n    \"balances_read\",\n    \"transactions_read\"\n  ],\n  \"status\": \"AWAITING_AUTHORISATION\",\n  \"expiryDate\": \"2026-12-31T00:00:00Z\",\n  \"createdAt\": \"2026-11-03T10:00:00Z\",\n  \"updatedAt\": \"2026-11-03T10:00:00Z\",\n  \"initiation\": null,\n  \"paymentId\": null,\n  \"consumedAt\": null\n}"
             },
             {
               "name": "400 \u2014 unknown scope",
@@ -5818,6 +5823,115 @@
                 }
               ],
               "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"TPP_CLIENT_MISMATCH\",\n      \"message\": \"tppClientId must be the calling partner organisation ({{partner_org_id}}) or omitted\",\n      \"field\": null\n    }\n  ]\n}"
+            }
+          ],
+          "x-code-samples": [
+            {
+              "lang": "cURL",
+              "source": "curl -X POST '{{base_url}}/open-banking/v3.1/consents' \\\n  -H 'Authorization: ApiKey {{partner_api_key}}' \\\n  -H 'Content-Type: application/json' \\\n  -H 'X-Tenant-ID: {{tenant_id}}' \\\n  -d '{\n  \"customerId\": \"{{customerId}}\",\n  \"scopes\": [\"accounts_read\", \"balances_read\", \"transactions_read\", \"payments\", \"fundsconfirmation\"],\n  \"expiryDate\": \"2026-12-31T00:00:00Z\"\n}'"
+            },
+            {
+              "lang": "JavaScript (fetch)",
+              "source": "fetch('{{base_url}}/open-banking/v3.1/consents', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'ApiKey {{partner_api_key}}',\n    'Content-Type': 'application/json',\n    'X-Tenant-ID': '{{tenant_id}}'\n  },\n  body: JSON.stringify({\n  \"customerId\": \"{{customerId}}\",\n  \"scopes\": [\"accounts_read\", \"balances_read\", \"transactions_read\", \"payments\", \"fundsconfirmation\"],\n  \"expiryDate\": \"2026-12-31T00:00:00Z\"\n})\n}).then(r => r.json()).then(console.log);"
+            },
+            {
+              "lang": "Python (requests)",
+              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/open-banking/v3.1/consents',\n    headers={\n        'Authorization': 'ApiKey {{partner_api_key}}',\n        'Content-Type': 'application/json',\n        'X-Tenant-ID': '{{tenant_id}}'\n    },\n    json={\n  \"customerId\": \"{{customerId}}\",\n  \"scopes\": [\"accounts_read\", \"balances_read\", \"transactions_read\", \"payments\", \"fundsconfirmation\"],\n  \"expiryDate\": \"2026-12-31T00:00:00Z\"\n}\n)\nprint(response.json())"
+            },
+            {
+              "lang": "Java (OkHttp)",
+              "source": "OkHttpClient client = new OkHttpClient();\nRequest request = new Request.Builder()\n    .url(\"{{base_url}}/open-banking/v3.1/consents\")\n    .method(\"POST\", RequestBody.create(\"{\n  \\\"customerId\\\": \\\"{{customerId}}\\\",\n  \\\"scopes\\\": [\\\"accounts_read\\\", \\\"balances_read\\\", \\\"transactions_read\\\", \\\"payments\\\", \\\"fundsconfirmation\\\"],\n  \\\"expiryDate\\\": \\\"2026-12-31T00:00:00Z\\\"\n}\", MediaType.parse(\"application/json\")))\n    .addHeader(\"Authorization\", \"ApiKey {{partner_api_key}}\")\n    .addHeader(\"Content-Type\", \"application/json\")\n    .addHeader(\"X-Tenant-ID\", \"{{tenant_id}}\")\n    .build();\nResponse response = client.newCall(request).execute();\nSystem.out.println(response.body().string());"
+            },
+            {
+              "lang": "C# (HttpClient)",
+              "source": "var client = new HttpClient();\nvar req = new HttpRequestMessage(new HttpMethod(\"POST\"), \"{{base_url}}/open-banking/v3.1/consents\");\nreq.Headers.TryAddWithoutValidation(\"Authorization\", \"ApiKey {{partner_api_key}}\");\nreq.Headers.TryAddWithoutValidation(\"Content-Type\", \"application/json\");\nreq.Headers.TryAddWithoutValidation(\"X-Tenant-ID\", \"{{tenant_id}}\");\nreq.Content = new StringContent(\"{\n  \\\"customerId\\\": \\\"{{customerId}}\\\",\n  \\\"scopes\\\": [\\\"accounts_read\\\", \\\"balances_read\\\", \\\"transactions_read\\\", \\\"payments\\\", \\\"fundsconfirmation\\\"],\n  \\\"expiryDate\\\": \\\"2026-12-31T00:00:00Z\\\"\n}\", Encoding.UTF8, \"application/json\");\nvar response = await client.SendAsync(req);\nConsole.WriteLine(await response.Content.ReadAsStringAsync());"
+            },
+            {
+              "lang": "Go (net/http)",
+              "source": "package main\n\nimport (\n\t\"fmt\"\n\t\"io\"\n\t\"net/http\"\n\t\"strings\"\n)\n\nfunc main() {\n\tbody := strings.NewReader(\"{\\n  \\\"customerId\\\": \\\"{{customerId}}\\\",\\n  \\\"scopes\\\": [\\\"accounts_read\\\", \\\"balances_read\\\", \\\"transactions_read\\\", \\\"payments\\\", \\\"fundsconfirmation\\\"],\\n  \\\"expiryDate\\\": \\\"2026-12-31T00:00:00Z\\\"\\n}\")\n\treq, _ := http.NewRequest(\"POST\", \"{{base_url}}/open-banking/v3.1/consents\", body)\n\treq.Header.Set(\"Authorization\", \"ApiKey {{partner_api_key}}\")\n\treq.Header.Set(\"Content-Type\", \"application/json\")\n\treq.Header.Set(\"X-Tenant-ID\", \"{{tenant_id}}\")\n\tresp, err := http.DefaultClient.Do(req)\n\tif err != nil {\n\t\tpanic(err)\n\t}\n\tdefer resp.Body.Close()\n\tb, _ := io.ReadAll(resp.Body)\n\tfmt.Println(string(b))\n}"
+            },
+            {
+              "lang": "Ruby (Net::HTTP)",
+              "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/open-banking/v3.1/consents')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Post.new(uri)\nreq['Authorization'] = 'ApiKey {{partner_api_key}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq.body = \"{\\n  \\\"customerId\\\": \\\"{{customerId}}\\\",\\n  \\\"scopes\\\": [\\\"accounts_read\\\", \\\"balances_read\\\", \\\"transactions_read\\\", \\\"payments\\\", \\\"fundsconfirmation\\\"],\\n  \\\"expiryDate\\\": \\\"2026-12-31T00:00:00Z\\\"\\n}\"\nputs http.request(req).body"
+            }
+          ]
+        },
+        {
+          "name": "Create Payment Consent (PISP)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "ApiKey {{partner_api_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/open-banking/v3.1/consents",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "open-banking",
+                "v3.1",
+                "consents"
+              ]
+            },
+            "description": "A payment consent names the one payment it allows (UK OB domestic-payment-consent, backlog 24): `scopes` is `[\"payments\"]` alone, with `initiation` \u2014 `instructedAmount`, `currency` (ISO alphabetic), `creditorAccountId`, optional `debtorAccountId` (must be the customer's, in `currency`) and `reference`. Errors: `400 PAYMENT_INITIATION_REQUIRED` (payments without initiation), `400 INITIATION_WITHOUT_PAYMENTS`, `400 PAYMENT_CONSENT_SCOPES` (payments mixed with other scopes), `400 CREDITOR_ACCOUNT_NOT_FOUND`, `404 ACCOUNT_NOT_FOUND` / `400 CURRENCY_MISMATCH` for the debtor account. Once the customer authorises it, one payment matching the initiation can be made; the consent then becomes `CONSUMED`.\n\n```bash\ncurl -X POST {{base_url}}/open-banking/v3.1/consents \\\n  -H 'Authorization: ApiKey {{partner_api_key}}' -H 'Content-Type: application/json' \\\n  -d '{\"customerId\":\"{{customerId}}\",\"scopes\":[\"payments\"],\"initiation\":{\"instructedAmount\":\"150.00\",\"currency\":\"USD\",\"creditorAccountId\":\"{{creditorAccountId}}\",\"reference\":\"INV-1001\"}}'\n```",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"scopes\": [\"payments\"],\n  \"expiryDate\": \"2026-12-31T00:00:00Z\",\n  \"initiation\": {\n    \"instructedAmount\": \"150.00\",\n    \"currency\": \"USD\",\n    \"creditorAccountId\": \"{{creditorAccountId}}\",\n    \"debtorAccountId\": null,\n    \"reference\": \"INV-1001\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": \"6f1c0000-0000-0000-0000-000000000002\",\n  \"consentId\": \"ob-7b2c19d04e5f6a7b80\",\n  \"customerId\": \"{{customerId}}\",\n  \"tppClientId\": \"{{partner_org_id}}\",\n  \"scopes\": [\n    \"payments\"\n  ],\n  \"status\": \"AWAITING_AUTHORISATION\",\n  \"expiryDate\": \"2026-12-31T00:00:00Z\",\n  \"createdAt\": \"2026-11-06T10:00:00Z\",\n  \"updatedAt\": \"2026-11-06T10:00:00Z\",\n  \"initiation\": {\n    \"instructedAmount\": 150.0,\n    \"currency\": \"USD\",\n    \"creditorAccountId\": \"{{creditorAccountId}}\",\n    \"debtorAccountId\": null,\n    \"reference\": \"INV-1001\"\n  },\n  \"paymentId\": null,\n  \"consumedAt\": null\n}"
+            },
+            {
+              "name": "400 \u2014 no initiation",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"PAYMENT_INITIATION_REQUIRED\",\n      \"message\": \"A 'payments' consent must name the payment: initiation.instructedAmount, currency, creditorAccountId\",\n      \"field\": null\n    }\n  ]\n}"
+            },
+            {
+              "name": "400 \u2014 mixed scopes",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"PAYMENT_CONSENT_SCOPES\",\n      \"message\": \"A payment consent has the 'payments' scope only; request other access in a separate consent\",\n      \"field\": null\n    }\n  ]\n}"
             }
           ],
           "x-code-samples": [
@@ -6456,10 +6570,10 @@
                 "domestic-payments"
               ]
             },
-            "description": "**Partner API key only.** Needs the caller's own AUTHORISED consent with `payments`. `sourceAccountId` must belong to the consent's customer \u2014 otherwise `404 ACCOUNT_NOT_FOUND`, checked before any money moves. The payment is recorded as created by `open-banking:{consentId}`.",
+            "description": "API_CLIENT only. The payment must match the consent's initiation \u2014 amount, currency, `destinationAccountId` (= creditor), the debtor account if the consent names one, the reference if both give one \u2014 else `400 PAYMENT_DOES_NOT_MATCH_CONSENT`. The source account must be the consent customer's (`404 ACCOUNT_NOT_FOUND`) and in the instructed currency (`400 CURRENCY_MISMATCH`). One payment per consent: the consent becomes `CONSUMED`; sending the same payment again returns it with **200** (same `domesticPaymentId`, no second transfer); any other payment under it is `403 CONSENT_CONSUMED`. A consent created before this change has no initiation \u2192 `403 CONSENT_HAS_NO_INITIATION`.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"consentId\": \"{{consentId}}\",\n  \"sourceAccountId\": \"{{sourceAccountId}}\",\n  \"destinationAccountId\": \"{{destinationAccountId}}\",\n  \"amount\": \"150.00\",\n  \"currency\": \"USD\",\n  \"reference\": \"INV-1001\"\n}",
+              "raw": "{\n  \"consentId\": \"{{consentId}}\",\n  \"sourceAccountId\": \"{{sourceAccountId}}\",\n  \"destinationAccountId\": \"{{creditorAccountId}}\",\n  \"amount\": \"150.00\",\n  \"currency\": \"USD\",\n  \"reference\": \"INV-1001\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -6503,6 +6617,42 @@
                 }
               ],
               "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"ACCOUNT_NOT_FOUND\",\n      \"message\": \"Account not found: {{sourceAccountId}}\",\n      \"field\": null\n    }\n  ]\n}"
+            },
+            {
+              "name": "200 \u2014 same payment sent again (replay)",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"domesticPaymentId\": \"8a1b0000-0000-0000-0000-000000000009\",\n  \"consentId\": \"{{consentId}}\",\n  \"status\": \"COMPLETED\",\n  \"sourceAccountId\": \"{{accountId}}\",\n  \"destinationAccountId\": \"{{creditorAccountId}}\",\n  \"amount\": 150.0,\n  \"currency\": \"USD\",\n  \"reference\": \"INV-1001\",\n  \"creationDateTime\": \"2026-11-06T10:05:00Z\"\n}"
+            },
+            {
+              "name": "400 \u2014 differs from the consent",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"PAYMENT_DOES_NOT_MATCH_CONSENT\",\n      \"message\": \"The payment's amount differs from what consent ob-7b2c19d04e5f6a7b80 authorises\",\n      \"field\": null\n    }\n  ]\n}"
+            },
+            {
+              "name": "403 \u2014 consent already used",
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"CONSENT_CONSUMED\",\n      \"message\": \"Consent ob-7b2c19d04e5f6a7b80 has already been used for its payment\",\n      \"field\": null\n    }\n  ]\n}"
             }
           ],
           "x-code-samples": [
@@ -6705,6 +6855,194 @@
             {
               "lang": "Ruby (Net::HTTP)",
               "source": "require 'net/http'\nrequire 'json'\n\nuri = URI('{{base_url}}/open-banking/v3.1/cbpii/funds-confirmations')\nhttp = Net::HTTP.new(uri.host, uri.port)\nreq = Net::HTTP::Post.new(uri)\nreq['Authorization'] = 'ApiKey {{partner_api_key}}'\nreq['Content-Type'] = 'application/json'\nreq['X-Tenant-ID'] = '{{tenant_id}}'\nreq.body = \"{\\n  \\\"consentId\\\": \\\"{{consentId}}\\\",\\n  \\\"accountId\\\": \\\"{{accountId}}\\\",\\n  \\\"amount\\\": \\\"75.00\\\",\\n  \\\"currency\\\": \\\"USD\\\"\\n}\"\nputs http.request(req).body"
+            }
+          ]
+        },
+        {
+          "name": "[Staff] List Consents",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/open-banking/consents?page=0&size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "open-banking",
+                "consents"
+              ],
+              "query": [
+                {
+                  "key": "customerId",
+                  "value": "{{customerId}}",
+                  "disabled": true
+                },
+                {
+                  "key": "tppClientId",
+                  "value": "{{partner_org_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "AUTHORISED",
+                  "disabled": true
+                },
+                {
+                  "key": "type",
+                  "value": "AISP",
+                  "description": "AISP | PISP | CBPII",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Bank staff (ADMIN, TELLER) list consents (backlog 23). `/open-banking/**` serves customers and TPPs only. Filters are optional; newest first. `type`: PISP = has `payments`, CBPII = has `fundsconfirmation`, AISP = the rest (other values `400 INVALID_CONSENT_TYPE`).\n\n```bash\ncurl '{{base_url}}/api/v1/open-banking/consents?status=AUTHORISED' -H 'Authorization: Bearer {{access_token}}'\n```"
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\"content\": [{\"consentId\": \"ob-a3f8c12e9b4d5e6f70\", \"consentType\": \"AISP\", \"customerId\": \"{{customerId}}\", \"customerName\": \"John Doe\", \"tppClientId\": \"{{partner_org_id}}\", \"tppName\": \"Acme Fintech\", \"scopes\": [\"accounts_read\", \"balances_read\"], \"status\": \"AUTHORISED\", \"expiryDate\": \"2026-12-31T00:00:00Z\", \"createdAt\": \"2026-11-03T10:00:00Z\", \"updatedAt\": \"2026-11-03T10:02:00Z\", \"initiation\": null, \"paymentId\": null, \"consumedAt\": null}], \"totalElements\": 1, \"totalPages\": 1, \"size\": 20, \"number\": 0},\n  \"meta\": {\"page\": 0, \"size\": 20, \"total\": 1},\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "[Staff] Get Consent",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/open-banking/consents/{{consentId}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "open-banking",
+                "consents",
+                "{{consentId}}"
+              ]
+            },
+            "description": "One consent by its `consentId` (ADMIN, TELLER). Unknown \u2192 `404 CONSENT_NOT_FOUND`."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"data\": {\"consentId\": \"ob-a3f8c12e9b4d5e6f70\", \"consentType\": \"AISP\", \"customerId\": \"{{customerId}}\", \"customerName\": \"John Doe\", \"tppClientId\": \"{{partner_org_id}}\", \"tppName\": \"Acme Fintech\", \"scopes\": [\"accounts_read\", \"balances_read\"], \"status\": \"AUTHORISED\", \"expiryDate\": \"2026-12-31T00:00:00Z\", \"createdAt\": \"2026-11-03T10:00:00Z\", \"updatedAt\": \"2026-11-03T10:02:00Z\", \"initiation\": null, \"paymentId\": null, \"consumedAt\": null}, \"meta\": {}, \"errors\": []}"
+            },
+            {
+              "name": "404",
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"CONSENT_NOT_FOUND\",\n      \"message\": \"Consent not found: ob-nope\",\n      \"field\": null\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "[Staff] Revoke Consent for Customer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/open-banking/consents/{{consentId}}/revoke",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "open-banking",
+                "consents",
+                "{{consentId}}",
+                "revoke"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"customer asked at branch\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Revoke on the customer's behalf (ADMIN, TELLER). `reason` required (audited); the TPP gets `CONSENT.REVOKED`. `409 CONSENT_ALREADY_REVOKED`, `409 CONSENT_CONSUMED`.\n\n```bash\ncurl -X POST {{base_url}}/api/v1/open-banking/consents/{{consentId}}/revoke -H 'Authorization: Bearer {{access_token}}' -H 'Content-Type: application/json' -d '{\"reason\":\"customer asked at branch\"}'\n```"
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\"data\": {\"consentId\": \"ob-a3f8c12e9b4d5e6f70\", \"consentType\": \"AISP\", \"customerId\": \"{{customerId}}\", \"customerName\": \"John Doe\", \"tppClientId\": \"{{partner_org_id}}\", \"tppName\": \"Acme Fintech\", \"scopes\": [\"accounts_read\", \"balances_read\"], \"status\": \"REVOKED\", \"expiryDate\": \"2026-12-31T00:00:00Z\", \"createdAt\": \"2026-11-03T10:00:00Z\", \"updatedAt\": \"2026-11-03T10:02:00Z\", \"initiation\": null, \"paymentId\": null, \"consumedAt\": null}, \"meta\": {}, \"errors\": []}"
+            },
+            {
+              "name": "409 \u2014 already revoked",
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"CONSENT_ALREADY_REVOKED\",\n      \"message\": \"Consent ob-a3f8c12e9b4d5e6f70 is already revoked\",\n      \"field\": null\n    }\n  ]\n}"
             }
           ]
         }
@@ -26857,7 +27195,7 @@
                 "partners"
               ]
             },
-            "description": "List all registered partner organisations. Requires Keycloak ADMIN role (bank staff)."
+            "description": "List all registered partner organisations. Requires Keycloak ADMIN role (bank staff). Each organisation now also carries `applicationStatus`, `businessType`, `useCase`, `activeConsents` (AUTHORISED consents) and `suspensionReason` (backlog 23b)."
           },
           "response": []
         },
@@ -26959,6 +27297,123 @@
               "status": "OK",
               "code": 200,
               "body": "{\"data\":null,\"meta\":{},\"errors\":[]}"
+            }
+          ]
+        },
+        {
+          "name": "[ADMIN] Suspend Partner (TPP)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{keycloakAdminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partners/{{orgId}}/suspend",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "{{orgId}}",
+                "suspend"
+              ]
+            },
+            "description": "Suspend a partner organisation (TPP) \u2014 backlog 23b. `reason` required. Status becomes `SUSPENDED` (the previous status is kept for reactivation); audited. From then on its API keys and partner logins authenticate nothing \u2014 both filters read the organisation's current status, a login is `403 PARTNER_SUSPENDED` \u2014 so it can't reach Open Banking or the partner API. Its consents are kept. `409 PARTNER_ALREADY_SUSPENDED`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"fraud report\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"{{orgId}}\",\n    \"organizationName\": \"Acme Fintech\",\n    \"status\": \"SUSPENDED\",\n    \"tier\": \"PRO\",\n    \"environment\": \"PRODUCTION\",\n    \"createdAt\": \"2026-10-01T09:00:00Z\",\n    \"totalApiCalls\": 0,\n    \"applicationStatus\": \"APPROVED\",\n    \"businessType\": \"Lending\",\n    \"useCase\": \"Affordability checks\",\n    \"activeConsents\": 12,\n    \"suspensionReason\": \"fraud report\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            },
+            {
+              "name": "409 \u2014 already suspended",
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"PARTNER_ALREADY_SUSPENDED\",\n      \"message\": \"Partner is already suspended\",\n      \"field\": null\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "[ADMIN] Reactivate Partner (TPP)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{keycloakAdminToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/partners/{{orgId}}/reactivate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "partners",
+                "{{orgId}}",
+                "reactivate"
+              ]
+            },
+            "description": "Lift a suspension; the organisation gets back the status it had (e.g. PRODUCTION). Audited. `409 PARTNER_NOT_SUSPENDED`."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"{{orgId}}\",\n    \"organizationName\": \"Acme Fintech\",\n    \"status\": \"PRODUCTION\",\n    \"tier\": \"PRO\",\n    \"environment\": \"PRODUCTION\",\n    \"createdAt\": \"2026-10-01T09:00:00Z\",\n    \"totalApiCalls\": 0,\n    \"applicationStatus\": \"APPROVED\",\n    \"businessType\": \"Lending\",\n    \"useCase\": \"Affordability checks\",\n    \"activeConsents\": 12,\n    \"suspensionReason\": null\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            },
+            {
+              "name": "409 \u2014 not suspended",
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"PARTNER_NOT_SUSPENDED\",\n      \"message\": \"Partner is not suspended\",\n      \"field\": null\n    }\n  ]\n}"
             }
           ]
         },

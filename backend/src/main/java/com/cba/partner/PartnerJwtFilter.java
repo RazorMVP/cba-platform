@@ -14,12 +14,14 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
 public class PartnerJwtFilter extends OncePerRequestFilter {
 
     private final PartnerJwtService jwtService;
+    private final PartnerOrganizationRepository orgRepository;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -39,21 +41,38 @@ public class PartnerJwtFilter extends OncePerRequestFilter {
 
         try {
             JWTClaimsSet claims = jwtService.verify(header.substring(7));
-            String role = (String) claims.getClaim("role");
-            if (role == null || role.isBlank()) role = "DEVELOPER";
-            // Partner roles are namespaced (ROLE_PARTNER_*) so a partner ADMIN can never
-            // collide with the Keycloak staff ROLE_ADMIN used to gate bank-staff endpoints.
-            var auth = new UsernamePasswordAuthenticationToken(
-                    claims.getSubject(),
-                    null,
-                    List.of(new SimpleGrantedAuthority("ROLE_PARTNER_" + role))
-            );
-            auth.setDetails(claims);
-            SecurityContextHolder.getContext().setAuthentication(auth);
+            if (organisationActive(claims)) {
+                String role = (String) claims.getClaim("role");
+                if (role == null || role.isBlank()) role = "DEVELOPER";
+                // Partner roles are namespaced (ROLE_PARTNER_*) so a partner ADMIN can never
+                // collide with the Keycloak staff ROLE_ADMIN used to gate bank-staff endpoints.
+                var auth = new UsernamePasswordAuthenticationToken(
+                        claims.getSubject(),
+                        null,
+                        List.of(new SimpleGrantedAuthority("ROLE_PARTNER_" + role))
+                );
+                auth.setDetails(claims);
+                SecurityContextHolder.getContext().setAuthentication(auth);
+            }
         } catch (Exception ignored) {
             // invalid partner token — let the chain continue; endpoint will reject if auth required
         }
 
         chain.doFilter(request, response);
+    }
+
+    /**
+     * The organisation as it is now, by the verified {@code orgId} claim — never the token's own
+     * {@code status} claim, which can be up to 24 h old. A suspended (or deleted) organisation's
+     * tokens authenticate nothing.
+     */
+    private boolean organisationActive(JWTClaimsSet claims) {
+        Object orgId = claims.getClaim("orgId");
+        if (orgId == null) {
+            return false;
+        }
+        return orgRepository.findById(UUID.fromString(orgId.toString()))
+                .map(org -> !org.isSuspended())
+                .orElse(false);
     }
 }

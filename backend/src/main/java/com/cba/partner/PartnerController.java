@@ -1,6 +1,7 @@
 package com.cba.partner;
 
 import com.cba.common.response.ApiResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -176,17 +177,37 @@ public class PartnerController {
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<List<OrgResponse>>> listAll() {
-        List<OrgResponse> orgs = partnerService.listAll().stream()
-                .map(o -> new OrgResponse(
-                        o.getId().toString(),
-                        o.getName(),
-                        o.getStatus().name(),
-                        o.getTier(),
-                        o.getEnvironment().name(),
-                        o.getCreatedAt() != null ? o.getCreatedAt().toString() : null,
-                        0))
-                .toList();
+        List<OrgResponse> orgs = partnerService.listAll().stream().map(this::toOrgResponse).toList();
         return ResponseEntity.ok(ApiResponse.ok(orgs));
+    }
+
+    @PostMapping("/{orgId}/suspend")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<OrgResponse>> suspend(@PathVariable UUID orgId,
+                                                            @Valid @RequestBody SuspendRequest req) {
+        return ResponseEntity.ok(ApiResponse.ok(toOrgResponse(partnerService.suspend(orgId, req.reason()))));
+    }
+
+    @PostMapping("/{orgId}/reactivate")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<OrgResponse>> reactivate(@PathVariable UUID orgId) {
+        return ResponseEntity.ok(ApiResponse.ok(toOrgResponse(partnerService.reactivate(orgId))));
+    }
+
+    private OrgResponse toOrgResponse(PartnerOrganization o) {
+        return new OrgResponse(
+                o.getId().toString(),
+                o.getName(),
+                o.getStatus().name(),
+                o.getTier(),
+                o.getEnvironment().name(),
+                o.getCreatedAt() != null ? o.getCreatedAt().toString() : null,
+                0,
+                o.getApplicationStatus(),
+                o.getBusinessType(),
+                o.getUseCase(),
+                partnerService.activeConsentCount(o.getId()),
+                o.getSuspensionReason());
     }
 
     @GetMapping("/usage")
@@ -227,9 +248,19 @@ public class PartnerController {
             String id, String name, String callbackUrl, List<String> events,
             boolean active, String createdAt) {}
 
+    /**
+     * A partner organisation (TPP) for bank staff. {@code applicationStatus}, {@code businessType} and
+     * {@code useCase} describe its production application; {@code activeConsents} counts its AUTHORISED
+     * Open Banking consents; {@code suspensionReason} is set while SUSPENDED.
+     */
     public record OrgResponse(
             String id, String organizationName, String status, String tier,
-            String environment, String createdAt, long totalApiCalls) {}
+            String environment, String createdAt, long totalApiCalls,
+            String applicationStatus, String businessType, String useCase,
+            long activeConsents, String suspensionReason) {}
+
+    public record SuspendRequest(@jakarta.validation.constraints.NotBlank
+                                 @jakarta.validation.constraints.Size(max = 500) String reason) {}
 
     public record DeliveryResponse(
             String id, String eventType, String deliveryUuid, String status,

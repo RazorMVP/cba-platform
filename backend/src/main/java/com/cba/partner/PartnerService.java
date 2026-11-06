@@ -1,7 +1,9 @@
 package com.cba.partner;
 
+import com.cba.audit.AuditLogService;
 import com.cba.common.exception.CbaException;
 import com.cba.openbanking.ConsentRepository;
+import com.cba.openbanking.ConsentService;
 import com.cba.openbanking.ConsentStatus;
 import com.cba.openbanking.OpenBankingConsent;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +37,8 @@ public class PartnerService {
     private final BCryptPasswordEncoder passwordEncoder;
     private final PartnerJwtService jwtService;
     private final PartnerWebhookDeliveryService webhookDelivery;
+    private final ConsentService consentService;
+    private final AuditLogService auditLogService;
 
     // ── Registration ─────────────────────────────────────────────────────────
 
@@ -67,6 +71,9 @@ public class PartnerService {
                 .orElseThrow(() -> CbaException.badRequest("INVALID_CREDENTIALS", "Invalid credentials"));
         if (!passwordEncoder.matches(password, user.getPasswordHash())) {
             throw CbaException.badRequest("INVALID_CREDENTIALS", "Invalid credentials");
+        }
+        if (user.getOrganization().isSuspended()) {
+            throw CbaException.forbidden("PARTNER_SUSPENDED", "This organisation is suspended; contact the bank");
         }
         String token = jwtService.generateToken(user);
         return new LoginResult(token, toUserDto(user));
@@ -173,6 +180,7 @@ public class PartnerService {
     public void approveProduction(UUID orgId, String approvedBy) {
         PartnerOrganization org = orgRepo.findById(orgId)
                 .orElseThrow(() -> CbaException.notFound("PARTNER_NOT_FOUND", "Partner not found"));
+        requireNotSuspended(org);
         org.setStatus(PartnerStatus.PRODUCTION);
         org.setEnvironment(PartnerEnvironment.PRODUCTION);
         org.setApplicationStatus("APPROVED");
@@ -187,9 +195,68 @@ public class PartnerService {
     public void rejectApplication(UUID orgId) {
         PartnerOrganization org = orgRepo.findById(orgId)
                 .orElseThrow(() -> CbaException.notFound("PARTNER_NOT_FOUND", "Partner not found"));
+        requireNotSuspended(org);
         org.setApplicationStatus("REJECTED");
         orgRepo.save(org);
         webhookDelivery.publishEvent(orgId, "APPLICATION.REJECTED", Map.of("orgId", orgId.toString()));
+    }
+
+    /**
+     * Suspend a partner organisation (TPP). From then on its API keys and portal tokens authenticate
+     * nothing ({@code PartnerApiKeyAuthFilter}, {@code PartnerJwtFilter} read the current status), so
+     * it can't reach Open Banking or the partner API. Its consents are left as they are and work again
+     * after {@link #reactivate}. 409 {@code PARTNER_ALREADY_SUSPENDED}.
+     */
+    @Transactional
+    public PartnerOrganization suspend(UUID orgId, String reason) {
+        if (reason == null || reason.isBlank()) {
+            throw CbaException.badRequest("REASON_REQUIRED", "A reason is required to suspend a partner");
+        }
+        PartnerOrganization org = orgRepo.findById(orgId)
+                .orElseThrow(() -> CbaException.notFound("PARTNER_NOT_FOUND", "Partner not found"));
+        if (org.isSuspended()) {
+            throw CbaException.conflict("PARTNER_ALREADY_SUSPENDED", "Partner " + orgId + " is already suspended");
+        }
+        PartnerStatus before = org.getStatus();
+        org.setStatusBeforeSuspension(before);
+        org.setSuspensionReason(reason.trim());
+        org.setStatus(PartnerStatus.SUSPENDED);
+        PartnerOrganization saved = orgRepo.save(org);
+        auditLogService.log("PartnerOrganization", orgId.toString(), "SUSPEND",
+                before.name(), Map.of("status", "SUSPENDED", "reason", reason.trim()));
+        return saved;
+    }
+
+    /** Lift a suspension, restoring the status the organisation had. 409 {@code PARTNER_NOT_SUSPENDED}. */
+    @Transactional
+    public PartnerOrganization reactivate(UUID orgId) {
+        PartnerOrganization org = orgRepo.findById(orgId)
+                .orElseThrow(() -> CbaException.notFound("PARTNER_NOT_FOUND", "Partner not found"));
+        if (!org.isSuspended()) {
+            throw CbaException.conflict("PARTNER_NOT_SUSPENDED", "Partner " + orgId + " is not suspended");
+        }
+        PartnerStatus restored = org.getStatusBeforeSuspension() != null
+                ? org.getStatusBeforeSuspension() : PartnerStatus.SANDBOX;
+        org.setStatus(restored);
+        org.setStatusBeforeSuspension(null);
+        org.setSuspensionReason(null);
+        PartnerOrganization saved = orgRepo.save(org);
+        auditLogService.log("PartnerOrganization", orgId.toString(), "REACTIVATE",
+                PartnerStatus.SUSPENDED.name(), restored.name());
+        return saved;
+    }
+
+    /** AUTHORISED consents this organisation holds (the TPP registry screen). */
+    @Transactional(readOnly = true)
+    public long activeConsentCount(UUID orgId) {
+        return consentRepo.countByTppClientIdAndStatus(orgId.toString(), ConsentStatus.AUTHORISED);
+    }
+
+    private static void requireNotSuspended(PartnerOrganization org) {
+        if (org.isSuspended()) {
+            throw CbaException.conflict("PARTNER_SUSPENDED",
+                    "Partner " + org.getId() + " is suspended; reactivate it first");
+        }
     }
 
     // ── Production Application ────────────────────────────────────────────────
@@ -260,8 +327,8 @@ public class PartnerService {
         if (!orgId.toString().equals(consent.getTppClientId())) {
             throw CbaException.notFound("CONSENT_NOT_FOUND", "Consent not found");
         }
-        consent.setStatus(ConsentStatus.REVOKED);
-        consentRepo.save(consent);
+        // The shared revoke path: audited, CONSENT.REVOKED sent, 409 if already revoked or consumed.
+        consentService.revoke(consent, null);
     }
 
     private Map<String, Object> toConsentMap(OpenBankingConsent c) {

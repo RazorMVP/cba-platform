@@ -1,6 +1,8 @@
 package com.cba.openbanking;
 
 import com.cba.account.AccountRepository;
+import com.cba.partner.PartnerOrganization;
+import com.cba.partner.PartnerOrganizationRepository;
 import com.cba.partner.PartnerWebhookDeliveryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -48,6 +50,7 @@ public class BalanceNotificationDispatcher {
     private final AccountRepository accountRepository;
     private final PartnerWebhookDeliveryService webhookDelivery;
     private final TransactionOperations transactions;
+    private final PartnerOrganizationRepository orgRepository;
 
     @Value("${app.partner.balance-webhook.window-seconds:60}")
     private long windowSeconds;
@@ -94,8 +97,14 @@ public class BalanceNotificationDispatcher {
         return sent;
     }
 
-    /** The consent is the org's, AUTHORISED, unexpired, grants balances_read, and the account is still its customer's. */
+    /**
+     * The org is not suspended, and the consent is the org's, AUTHORISED, unexpired, grants
+     * balances_read, and the account is still its customer's.
+     */
     private boolean stillCovered(UUID org, UUID accountId, String consentId, Instant now) {
+        if (orgRepository.findById(org).map(PartnerOrganization::isSuspended).orElse(true)) {
+            return false;
+        }
         return consentRepository.findByConsentId(consentId)
                 .filter(c -> org.toString().equals(c.getTppClientId()))
                 .filter(c -> c.getStatus() == ConsentStatus.AUTHORISED)

@@ -32,6 +32,8 @@ class BalanceUpdatedWebhookTest {
     ConsentRepository consentRepository = mock(ConsentRepository.class);
     JdbcTemplate jdbc = mock(JdbcTemplate.class);
     PartnerWebhookDeliveryService webhookDelivery = mock(PartnerWebhookDeliveryService.class);
+    com.cba.partner.PartnerOrganizationRepository orgRepository = mock(com.cba.partner.PartnerOrganizationRepository.class);
+    com.cba.partner.PartnerOrganization partnerOrg = new com.cba.partner.PartnerOrganization();
 
     UUID customerId = UUID.randomUUID();
     UUID accountId = UUID.randomUUID();
@@ -107,7 +109,7 @@ class BalanceUpdatedWebhookTest {
         BalanceNotificationDispatcher dispatcher() {
             BalanceNotificationDispatcher d = new BalanceNotificationDispatcher(jdbc, consentRepository,
                     accountRepository, webhookDelivery,
-                    org.springframework.transaction.support.TransactionOperations.withoutTransaction());
+                    org.springframework.transaction.support.TransactionOperations.withoutTransaction(), orgRepository);
             ReflectionTestUtils.setField(d, "windowSeconds", 60L);
             return d;
         }
@@ -118,6 +120,20 @@ class BalanceUpdatedWebhookTest {
                     Map.of("org_id", ORG, "account_id", accountId, "consent_id", consent.getConsentId(),
                             "pending_since", Timestamp.from(changedAt))));
             when(consentRepository.findByConsentId(consent.getConsentId())).thenReturn(Optional.of(consent));
+            partnerOrg.setId(ORG);
+            partnerOrg.setStatus(com.cba.partner.PartnerStatus.PRODUCTION);
+            when(orgRepository.findById(ORG)).thenReturn(Optional.of(partnerOrg));
+        }
+
+        @Test
+        @DisplayName("TPP suspended since the change: nothing sent, the row dropped")
+        void suspendedOrg() {
+            partnerOrg.setStatus(com.cba.partner.PartnerStatus.SUSPENDED);
+
+            assertThat(dispatcher().dispatch(now)).isZero();
+
+            verifyNoInteractions(webhookDelivery);
+            verify(jdbc).update(contains("DELETE FROM partner_balance_notifications"), eq(ORG), eq(accountId));
         }
 
         @Test

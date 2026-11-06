@@ -84,12 +84,12 @@ _None — all Phase 1 backend modules are now complete._
 - **Commit security review (2 findings, both fixed):** (1) the function deny-list matched raw text, so `"set_config"(…)` slipped past it — and a pooled connection would have kept a `set_config(…, false)` (e.g. `default_transaction_read_only = off`) for the next report. Now function names come from the parsed tree (quotes and schema stripped), and **every report gets a new connection** (no pool; a semaphore limits concurrency, `503 REPORTS_BUSY`), so nothing a report does to its session survives it. (2) The row cap didn't bound bytes: pgjdbc `maxResultBuffer` (`app.reports.max-result-bytes`, 20M) now refuses an oversized result before it fills memory. `ReportSandboxIT` +5 (session not shared, byte cap, quoted/qualified/xml functions refused).
 
 #### Build Verification
-- backend `-Pfull-integration` with `-Dupdate.api.snapshot=true`, then without: **1013/1013** both (main was 985; PR A adds its own); after the review fixes the report suites (49) green → **1018**.
-- web: **1177/1177**; change detection OK; production build OK.
+- backend `-Pfull-integration` with `-Dupdate.api.snapshot=true`, then without: **1013/1013** both (main was 985; PR A adds its own); after the review fixes the report suites (49) green → **1018**. After rebasing on #226 + #227 (V65 + V66 together): **1072/1072** (108 suites, 0 failures), OpenAPI snapshot unchanged.
+- web: **1177/1177** on the pre-cont. 56 base; **1176/1176** (115 files) after rebasing on #226 + #227; change detection OK; production build OK.
 - Gate grep: new `@PostMapping /api/v1/reports` and `/api/v1/reports/{id}/enable`; run/export responses gain headers and typed parameter errors — documented in api-reference + Postman.
 
 #### Confirmed Platform Versions
-backend: Spring Boot 3.5.16, Java 21, **JSqlParser 5.4 (new)**; `-Pfull-integration` 1013. web: 1177.
+backend: Spring Boot 3.5.16, Java 21, **JSqlParser 5.4 (new)**; `-Pfull-integration` 1072 (after rebasing on #226 + #227). web: 1176.
 
 ---
 

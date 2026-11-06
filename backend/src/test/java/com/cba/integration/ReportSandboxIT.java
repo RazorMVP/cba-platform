@@ -66,6 +66,25 @@ class ReportSandboxIT extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("a setting a report changes on its session doesn't reach the next report (new connection each time)")
+    void sessionNotShared() {
+        reportingDatabase.query("SELECT set_config('statement_timeout', '0', false) AS t", new MapSqlParameterSource());
+
+        ReportingDatabase.ReportRows next = reportingDatabase.query(
+                "SELECT current_setting('statement_timeout') AS t, current_setting('transaction_read_only') AS ro",
+                new MapSqlParameterSource());
+        assertThat(next.rows().get(0).get("t")).isEqualTo("3s");
+        assertThat(next.rows().get(0).get("ro")).isEqualTo("on");
+    }
+
+    @Test
+    @DisplayName("one huge value is refused by the result byte cap, not loaded into memory")
+    void byteCap() {
+        assertThatThrownBy(() -> reportingDatabase.query("SELECT repeat('x', 5000000) AS big", new MapSqlParameterSource()))
+                .hasFieldOrPropertyWithValue("errorCode", "REPORT_SQL_FAILED");
+    }
+
+    @Test
     @DisplayName("more rows than the cap: the first 50, marked truncated")
     void rowCap() {
         ReportingDatabase.ReportRows r = reportingDatabase.query("SELECT generate_series(1, 100) AS n", new MapSqlParameterSource());
@@ -130,7 +149,10 @@ class ReportSandboxIT extends AbstractIntegrationTest {
             "SELECT set_config('role', 'cba_user', false)",
             "DELETE FROM reports",
             "SELECT 1; SELECT 2",
-            "SELECT * FROM pg_catalog.pg_authid"
+            "SELECT * FROM pg_catalog.pg_authid",
+            "SELECT \"set_config\"('statement_timeout', '0', false)",
+            "SELECT pg_catalog.set_config('statement_timeout', '0', false)",
+            "SELECT query_to_xml('select 1', true, true, '')"
     })
     @DisplayName("create: the parser refuses it before anything runs (400)")
     void parserRefuses(String sql) {

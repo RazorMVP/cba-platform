@@ -86,6 +86,8 @@ app:
   reports:
     max-rows: ${REPORTS_MAX_ROWS:10000}
     query-timeout-seconds: ${REPORTS_QUERY_TIMEOUT_SECONDS:30}
+    max-result-bytes: ${REPORTS_MAX_RESULT_BYTES:20M}   # pgjdbc maxResultBuffer: one huge value can't exhaust memory
+    max-concurrent: ${REPORTS_MAX_CONCURRENT:3}
     db:
       username: ${REPORTING_DB_USERNAME:cba_reporting}
       password: ${REPORTING_DB_PASSWORD:}
@@ -358,6 +360,7 @@ app:
   reports:
     max-rows: 50
     query-timeout-seconds: 3
+    max-result-bytes: 1M
     db:
       password: cba_reporting_test   # Testcontainers only
   partner:

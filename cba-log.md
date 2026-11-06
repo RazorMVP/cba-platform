@@ -64,7 +64,7 @@ _None — all Phase 1 backend modules are now complete._
 | File | Change |
 |------|--------|
 | `backend/…/db/migration/V66__reporting_sandbox.sql` | `reporting` schema of explicit-column views (no PII, secrets, hashes, tokens or free text); `cba_reporting` role (NOLOGIN, read-only, 30 s timeout, `search_path reporting`, no role membership); the 7 core reports rewritten onto the views with bound `:params` (CustomerAcquisition fixed; SavingsBalance no longer joins `platform_users`; TrialBalance per account and currency, no `is_reversed` filter) |
-| `backend/…/report/ReportingDatabase.java` | NEW — sets LOGIN + password (pgjdbc `alterUserPassword`, SCRAM computed client-side) at startup; private Hikari pool; row cap, timeout; `503 REPORTING_NOT_CONFIGURED` |
+| `backend/…/report/ReportingDatabase.java` | NEW — sets LOGIN + password (pgjdbc `alterUserPassword`, SCRAM computed client-side) at startup; a new connection per report (no pooled session state), concurrency semaphore; row cap, byte cap (`maxResultBuffer`), timeout; `503 REPORTING_NOT_CONFIGURED` / `REPORTS_BUSY` |
 | `backend/…/report/ReportSqlValidator.java` | NEW — JSqlParser 5.4: one SELECT, no INTO / data-modifying CTE, only reporting tables, function deny-list |
 | `backend/…/report/ReportService.java`, `ReportController.java`, `dto/ReportRequest.java` (recovered from `f6bc8db`), `dto/ReportResponse.java` | bound typed parameters; create (validated, EXPLAIN dry-run, saved disabled); enable by another admin (identity via `AuditorAware`); `X-Report-Truncated` / `X-Report-Row-Limit`; ADMIN list shows disabled reports; `createdBy` |
 | `backend/…/report/ReportExportService.java` | CSV formula injection: text cells starting = + - @ get a leading apostrophe |
@@ -81,9 +81,10 @@ _None — all Phase 1 backend modules are now complete._
 - **Not a `DataSource` bean:** a second DataSource bean would switch off Boot's auto-configured one (and Flyway/Quartz with it).
 - **Four-eyes on the same identity:** `created_by` comes from `AuditorAware` (preferred_username for Keycloak); comparing it with `Authentication.getName()` (the JWT `sub`) would never match and let the creator enable their own report — found while writing the IT.
 - Truncation in headers so the data stays a plain row array for existing clients.
+- **Commit security review (2 findings, both fixed):** (1) the function deny-list matched raw text, so `"set_config"(…)` slipped past it — and a pooled connection would have kept a `set_config(…, false)` (e.g. `default_transaction_read_only = off`) for the next report. Now function names come from the parsed tree (quotes and schema stripped), and **every report gets a new connection** (no pool; a semaphore limits concurrency, `503 REPORTS_BUSY`), so nothing a report does to its session survives it. (2) The row cap didn't bound bytes: pgjdbc `maxResultBuffer` (`app.reports.max-result-bytes`, 20M) now refuses an oversized result before it fills memory. `ReportSandboxIT` +5 (session not shared, byte cap, quoted/qualified/xml functions refused).
 
 #### Build Verification
-- backend `-Pfull-integration` with `-Dupdate.api.snapshot=true`, then without: **1013/1013** both (main was 985; PR A adds its own).
+- backend `-Pfull-integration` with `-Dupdate.api.snapshot=true`, then without: **1013/1013** both (main was 985; PR A adds its own); after the review fixes the report suites (49) green → **1018**.
 - web: **1177/1177**; change detection OK; production build OK.
 - Gate grep: new `@PostMapping /api/v1/reports` and `/api/v1/reports/{id}/enable`; run/export responses gain headers and typed parameter errors — documented in api-reference + Postman.
 

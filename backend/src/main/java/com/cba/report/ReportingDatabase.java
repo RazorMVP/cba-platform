@@ -1,9 +1,6 @@
 package com.cba.report;
 
 import com.cba.common.exception.CbaException;
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
-import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.postgresql.PGConnection;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.datasource.SimpleDriverDataSource;
 import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
@@ -22,6 +20,9 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Report SQL runs here, as the read-only login role {@code cba_reporting} (backlog 10) — never as the
@@ -33,10 +34,13 @@ import java.util.Map;
  * the client — the password never appears in SQL text or the server log. It's set on every start, so
  * rotating the secret and restarting is enough. Unset → report runs answer {@code 503 REPORTING_NOT_CONFIGURED}.
  *
- * <p><b>Connection.</b> A small private Hikari pool, created on first use — deliberately not a
- * {@link DataSource} bean, so Boot's main DataSource, Flyway and Quartz are untouched. Every query
- * has a timeout and a row cap ({@code app.reports.max-rows}); one row more is read to tell the caller
- * the result was truncated.
+ * <p><b>Connection.</b> A new connection per report, closed afterwards — never pooled, so nothing a
+ * report does to its session ({@code set_config(…, false)}, a changed search path or read-only flag)
+ * can reach the next report. At most {@code app.reports.max-concurrent} run at once ({@code 503 REPORTS_BUSY}
+ * after a short wait). Not a {@link DataSource} bean, so Boot's main DataSource, Flyway and Quartz are
+ * untouched. Every query has a timeout (client-side cancel and the session's {@code statement_timeout}),
+ * a row cap ({@code app.reports.max-rows}; one row more is read to report truncation) and a byte cap
+ * (pgjdbc {@code maxResultBuffer}, {@code app.reports.max-result-bytes}) so one huge value can't exhaust memory.
  */
 @Slf4j
 @Component
@@ -51,22 +55,27 @@ public class ReportingDatabase {
     private final String password;
     private final int maxRows;
     private final int queryTimeoutSeconds;
+    private final String maxResultBytes;
+    private final Semaphore slots;
 
     private volatile boolean configured;
-    private volatile HikariDataSource pool;
 
     public ReportingDatabase(DataSource appDataSource,
                              @Value("${spring.datasource.url}") String url,
                              @Value("${app.reports.db.username:cba_reporting}") String username,
                              @Value("${app.reports.db.password:}") String password,
                              @Value("${app.reports.max-rows:10000}") int maxRows,
-                             @Value("${app.reports.query-timeout-seconds:30}") int queryTimeoutSeconds) {
+                             @Value("${app.reports.query-timeout-seconds:30}") int queryTimeoutSeconds,
+                             @Value("${app.reports.max-result-bytes:20M}") String maxResultBytes,
+                             @Value("${app.reports.max-concurrent:3}") int maxConcurrent) {
         this.appDataSource = appDataSource;
         this.url = url;
         this.username = username;
         this.password = password;
         this.maxRows = maxRows;
         this.queryTimeoutSeconds = queryTimeoutSeconds;
+        this.maxResultBytes = maxResultBytes;
+        this.slots = new Semaphore(Math.max(1, maxConcurrent));
     }
 
     /** Give the role LOGIN and the configured password (as the application user). */
@@ -101,21 +110,41 @@ public class ReportingDatabase {
     /** Run {@code sql} with named parameters as the reporting role. 400 REPORT_SQL_FAILED on a database error. */
     public ReportRows query(String sql, MapSqlParameterSource params) {
         NamedParameterJdbcTemplate jdbc = template(maxRows + 1);
+        acquire();
         try {
             List<Map<String, Object>> rows = jdbc.queryForList(sql, params);
             boolean truncated = rows.size() > maxRows;
             return new ReportRows(truncated ? List.copyOf(rows.subList(0, maxRows)) : rows, truncated, maxRows);
         } catch (DataAccessException e) {
             throw failed(e);
+        } finally {
+            slots.release();
         }
     }
 
     /** {@code EXPLAIN} the SQL as the reporting role: proves it compiles against the views, reads nothing. */
     public void explain(String sql, MapSqlParameterSource params) {
+        NamedParameterJdbcTemplate jdbc = template(0);
+        acquire();
         try {
-            template(0).queryForList("EXPLAIN " + sql, params);
+            jdbc.queryForList("EXPLAIN " + sql, params);
         } catch (DataAccessException e) {
             throw failed(e);
+        } finally {
+            slots.release();
+        }
+    }
+
+    private void acquire() {
+        try {
+            if (!slots.tryAcquire(10, TimeUnit.SECONDS)) {
+                throw new CbaException("REPORTS_BUSY", "Too many reports running; try again shortly",
+                        HttpStatus.SERVICE_UNAVAILABLE);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new CbaException("REPORTS_BUSY", "Interrupted while waiting to run the report",
+                    HttpStatus.SERVICE_UNAVAILABLE);
         }
     }
 
@@ -125,42 +154,31 @@ public class ReportingDatabase {
                     "Reports are unavailable: the reporting database role is not configured",
                     HttpStatus.SERVICE_UNAVAILABLE);
         }
-        JdbcTemplate jdbc = new JdbcTemplate(pool());
+        JdbcTemplate jdbc = new JdbcTemplate(connections());
         jdbc.setQueryTimeout(queryTimeoutSeconds);
         if (rowCap > 0) jdbc.setMaxRows(rowCap);
         return new NamedParameterJdbcTemplate(jdbc);
     }
 
-    private HikariDataSource pool() {
-        HikariDataSource p = pool;
-        if (p == null) {
-            synchronized (this) {
-                if (pool == null) {
-                    HikariConfig cfg = new HikariConfig();
-                    cfg.setPoolName("cba-reporting");
-                    cfg.setJdbcUrl(url);
-                    cfg.setUsername(username);
-                    cfg.setPassword(password);
-                    cfg.setMaximumPoolSize(3);
-                    cfg.setMinimumIdle(0);
-                    cfg.setReadOnly(true);
-                    cfg.setConnectionInitSql("SET statement_timeout = '" + queryTimeoutSeconds + "s'");
-                    pool = new HikariDataSource(cfg);
-                }
-                p = pool;
-            }
-        }
-        return p;
+    /** A new connection for every call (closed after it), as the reporting role, with the result byte cap. */
+    private DataSource connections() {
+        Properties props = new Properties();
+        props.setProperty("user", username);
+        props.setProperty("password", password);
+        props.setProperty("maxResultBuffer", maxResultBytes);
+        props.setProperty("readOnly", "true");
+        props.setProperty("options", "-c statement_timeout=" + queryTimeoutSeconds + "s -c default_transaction_read_only=on");
+        props.setProperty("ApplicationName", "cba-reporting");
+        SimpleDriverDataSource ds = new SimpleDriverDataSource();
+        ds.setDriverClass(org.postgresql.Driver.class);
+        ds.setUrl(url);
+        ds.setConnectionProperties(props);
+        return ds;
     }
 
     private static CbaException failed(DataAccessException e) {
         Throwable root = e.getMostSpecificCause();
         String message = root.getMessage() == null ? "Report SQL failed" : root.getMessage().lines().findFirst().orElse("");
         return CbaException.badRequest("REPORT_SQL_FAILED", message);
-    }
-
-    @PreDestroy
-    void close() {
-        if (pool != null) pool.close();
     }
 }

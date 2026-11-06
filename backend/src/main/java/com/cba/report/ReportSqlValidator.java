@@ -2,6 +2,7 @@ package com.cba.report;
 
 import com.cba.common.exception.CbaException;
 import net.sf.jsqlparser.JSQLParserException;
+import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.statement.Statement;
 import net.sf.jsqlparser.statement.Statements;
@@ -71,7 +72,8 @@ public class ReportSqlValidator {
                 }
             }
         }
-        for (String table : new TablesNamesFinder<Void>().getTables((Statement) select)) {
+        FunctionCollector collector = new FunctionCollector();
+        for (String table : collector.getTables((Statement) select)) {
             String t = table.toLowerCase(Locale.ROOT).replace("\"", "");
             boolean qualified = t.contains(".");
             if ((qualified && !t.startsWith("reporting.")) || t.startsWith("pg_") || t.contains(".pg_")
@@ -80,10 +82,36 @@ public class ReportSqlValidator {
                         "Report SQL may read only the reporting views (found " + table + ")");
             }
         }
+        // Function names from the parsed tree — quotes and schema prefixes removed, so "set_config"(…) or
+        // pg_catalog.set_config(…) can't slip past — then the text check as well.
+        for (String fn : collector.functions) {
+            if (DENIED_NAME.matcher(fn).matches()) {
+                throw CbaException.badRequest("INVALID_REPORT_SQL", "Function " + fn + "() is not allowed in report SQL");
+            }
+        }
         Matcher denied = DENIED_FUNCTION.matcher(LITERALS_AND_COMMENTS.matcher(sql).replaceAll(" "));
         if (denied.find()) {
             throw CbaException.badRequest("INVALID_REPORT_SQL",
                     "Function " + denied.group(1) + "() is not allowed in report SQL");
+        }
+    }
+
+    private static final Pattern DENIED_NAME = Pattern.compile(
+            "set_config|current_setting|pg_[a-z0-9_]*|dblink[a-z0-9_]*|lo_[a-z0-9_]*|[a-z_]*_to_xml[a-z_]*|"
+                    + "query_to_xml[a-z_]*|txid_[a-z0-9_]*|version|inet_[a-z_]*");
+
+    /** Walks the whole statement (as TablesNamesFinder does) and records every function name, normalised. */
+    private static final class FunctionCollector extends TablesNamesFinder<Void> {
+        final java.util.Set<String> functions = new java.util.HashSet<>();
+
+        @Override
+        public <S> Void visit(Function function, S context) {
+            java.util.List<String> parts = function.getMultipartName();
+            String last = parts == null || parts.isEmpty() ? function.getName() : parts.get(parts.size() - 1);
+            if (last != null) {
+                functions.add(last.replace("\"", "").toLowerCase(Locale.ROOT));
+            }
+            return super.visit(function, context);
         }
     }
 }

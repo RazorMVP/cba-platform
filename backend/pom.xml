@@ -61,6 +61,14 @@
             <version>1.11.0</version>
         </dependency>
 
+        <!-- Report SQL shape check (backlog 10): one SELECT, no INTO, no data-modifying CTE, function
+             deny-list. Dual-licensed LGPL-2.1 / Apache-2.0. The read-only reporting role is the boundary. -->
+        <dependency>
+            <groupId>com.github.jsqlparser</groupId>
+            <artifactId>jsqlparser</artifactId>
+            <version>5.4</version>
+        </dependency>
+
         <!-- ── Spring Boot Core ─────────────────────────────────── -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -118,7 +126,8 @@
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
-            <scope>runtime</scope>
+            <!-- compile scope: ReportingDatabase sets the reporting role's password with
+                 PGConnection.alterUserPassword (SCRAM verifier computed client-side) -->
         </dependency>
         <dependency>
             <groupId>org.flywaydb</groupId>

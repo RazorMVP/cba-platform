@@ -23,7 +23,9 @@ public record ReportResponse(
         String reportSql,
         boolean coreReport,
         boolean useReport,
-        List<Parameter> reportParameters
+        List<Parameter> reportParameters,
+        /** Who created it: a custom report must be enabled by someone else. */
+        String createdBy
 ) {
     @Schema(name = "ReportParameterResponse")
     public record Parameter(
@@ -46,6 +48,7 @@ public record ReportResponse(
                 r.getDescription(), r.getReportSql(), r.isCoreReport(), r.isEnabled(),
                 r.getParameters().stream()
                         .sorted(Comparator.comparingInt(ReportParameter::getSortOrder))
-                        .map(Parameter::from).toList());
+                        .map(Parameter::from).toList(),
+                r.getCreatedBy());
     }
 }

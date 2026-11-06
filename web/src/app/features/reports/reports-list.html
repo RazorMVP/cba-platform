@@ -6,7 +6,12 @@
       <span class="material-icons">bar_chart</span>
       Reports
     </div>
+    <button class="btn-primary" (click)="openCreateModal()">
+      <span class="material-icons">add</span> New Report
+    </button>
   </div>
+
+  @if (enableError) { <div class="alert-error">{{ enableError }}</div> }
 
   <!-- ── Filter bar ── -->
   <div class="filter-bar">
@@ -89,9 +94,16 @@
                 </span>
               </td>
               <td class="action-cell">
-                <button class="btn-run" (click)="openRunModal(r); $event.stopPropagation()">
-                  <span class="material-icons">play_arrow</span> Run
-                </button>
+                @if (r.useReport === false) {
+                  <button class="btn-run" title="Created by {{ r.createdBy || 'unknown' }} — another admin must enable it"
+                          (click)="enable(r); $event.stopPropagation()">
+                    <span class="material-icons">check_circle</span> Enable
+                  </button>
+                } @else {
+                  <button class="btn-run" (click)="openRunModal(r); $event.stopPropagation()">
+                    <span class="material-icons">play_arrow</span> Run
+                  </button>
+                }
                 @if (!r.coreReport) {
                   <button class="btn-icon btn-icon--danger" title="Delete"
                           (click)="openDeleteModal(r); $event.stopPropagation()">
@@ -150,6 +162,7 @@
             <div class="results-header">
               <span class="results-title">
                 {{ results.length }} row{{ results.length === 1 ? '' : 's' }} returned
+                @if (truncated) { <span class="truncated-note">— more rows than the limit; only the first are shown</span> }
               </span>
               <div style="display:flex;align-items:center;gap:.5rem">
                 <select class="form-input" style="width:90px;font-size:.8rem;padding:.3rem .5rem" [(ngModel)]="exportFormat">
@@ -223,6 +236,66 @@
         <button class="btn-danger" (click)="submitDelete()" [disabled]="deleteWorking">
           @if (deleteWorking) { <span class="spinner"></span> }
           Delete
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ── Create Report Modal (saved disabled; another admin enables it) ── -->
+@if (activeModal === 'create') {
+  <div class="modal-backdrop" (click)="closeCreateModal()">
+    <div class="modal modal--lg" (click)="$event.stopPropagation()">
+      <div class="modal__header">
+        <span class="material-icons modal__icon">add</span> New Report
+      </div>
+      <div class="modal__body">
+        <p class="muted small">One SELECT over the reporting views (loans, loan_repayment_schedule, accounts, transactions,
+          payments, customers — no names or other personal data — offices, tellers, teller_sessions, cash_transactions,
+          gl_accounts, journal_entries, loan_products, deposit_products). Parameters are <code>:name</code>.
+          The report is saved disabled; a different admin enables it.</p>
+        <div class="form-field">
+          <label class="form-label" for="rep-name">Name</label>
+          <input id="rep-name" class="form-input" maxlength="100" [(ngModel)]="createForm.reportName" />
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="rep-cat">Category</label>
+          <select id="rep-cat" class="form-input" [(ngModel)]="createForm.reportCategory">
+            @for (c of createCategories; track c) { <option [value]="c">{{ categoryLabel(c) }}</option> }
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="rep-desc">Description</label>
+          <input id="rep-desc" class="form-input" [(ngModel)]="createForm.description" />
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="rep-sql">SQL</label>
+          <textarea id="rep-sql" class="form-input mono" rows="7" [(ngModel)]="createForm.reportSql"
+                    placeholder="SELECT status, COUNT(*) AS loans FROM loans WHERE status = :status GROUP BY status"></textarea>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Parameters</label>
+          @for (p of createForm.reportParameters; track $index; let i = $index) {
+            <div class="form-row">
+              <input class="form-input mono" placeholder="name" [(ngModel)]="p.parameterName" />
+              <input class="form-input" placeholder="label" [(ngModel)]="p.parameterLabel" />
+              <select class="form-input" [(ngModel)]="p.parameterType">
+                @for (t of paramTypes; track t) { <option [value]="t">{{ t }}</option> }
+              </select>
+              <label class="small"><input type="checkbox" [(ngModel)]="p.optional" /> optional</label>
+              <button class="btn-icon btn-icon--danger" title="Remove" (click)="removeParam(i)">
+                <span class="material-icons">close</span>
+              </button>
+            </div>
+          }
+          <button class="btn-secondary" (click)="addParam()">Add parameter</button>
+        </div>
+        @if (createError) { <div class="modal__error">{{ createError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeCreateModal()" [disabled]="createWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitCreate()" [disabled]="createWorking">
+          @if (createWorking) { <span class="spinner"></span> } Create (disabled)
         </button>
       </div>
     </div>

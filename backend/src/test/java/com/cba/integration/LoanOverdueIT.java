@@ -108,7 +108,7 @@ class LoanOverdueIT extends AbstractIntegrationTest {
 
         // The LoansInArrears report lists the loan with its oldest overdue date and amount.
         String accountNumber = jdbc.queryForObject("SELECT loan_account_number FROM loans WHERE id = ?", String.class, loanId);
-        List<Map<String, Object>> rows = reportService.runReport("LoansInArrears", Map.of());
+        List<Map<String, Object>> rows = reportService.runReport("LoansInArrears", Map.of()).rows();
         Map<String, Object> row = rows.stream()
                 .filter(r -> accountNumber.equals(r.get("loan_account_number"))).findFirst().orElseThrow();
         assertThat(((Number) row.get("days_overdue")).intValue()).isEqualTo(70);
@@ -121,7 +121,7 @@ class LoanOverdueIT extends AbstractIntegrationTest {
                        total_paid = total_due, status = 'PAID'
                 WHERE loan_id = ? AND installment_no IN (1, 2)""", loanId);
         assertThat(scheduleRepository.countOverdue(today)).isEqualTo(countBefore);
-        assertThat(reportService.runReport("LoansInArrears", Map.of()))
+        assertThat(reportService.runReport("LoansInArrears", Map.of()).rows())
                 .noneMatch(r -> accountNumber.equals(r.get("loan_account_number")));
     }
 

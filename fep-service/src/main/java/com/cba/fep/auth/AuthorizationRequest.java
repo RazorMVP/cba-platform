@@ -51,7 +51,14 @@ public record AuthorizationRequest(
         Map<String, String> schemeData,
 
         // --- DE19 Acquiring Institution Country (ISO 3166 numeric); card-service's international control ---
-        String    acquiringCountry
+        String    acquiringCountry,
+
+        // --- DE6 / DE51 / DE10: cardholder billing amount, its currency and the conversion rate. A
+        //     foreign-currency transaction the scheme converted to the card's currency; card-service moves
+        //     the card's money in DE6/DE51 when present (backlog 17). Null when not sent. ---
+        String    billingAmount,
+        String    billingCurrencyCode,
+        String    billingConversionRate
 ) {
     // Compact canonical constructor — provide defaults for optional fields
     public AuthorizationRequest {

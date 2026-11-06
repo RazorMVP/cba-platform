@@ -44,7 +44,8 @@ public class CardAuthorizationController {
     /** Reversal — called by FEP for 0400/0420 (Reversal Request/Advice). Idempotent. */
     @PostMapping("/reverse")
     public ResponseEntity<ReverseResponse> reverse(@RequestBody ReverseRequest req) {
-        String rc = authorizationService.reverse(req.pan(), req.amount(), req.stan(), req.originalDataElements());
+        String rc = authorizationService.reverse(req.pan(), req.amount(), req.stan(), req.originalDataElements(),
+                req.billingAmount(), req.billingCurrencyCode());
         return ResponseEntity.ok(new ReverseResponse(rc));
     }
 
@@ -75,8 +76,12 @@ public class CardAuthorizationController {
 
     public record DetokenizeResponse(String pan) {}
 
-    /** FEP reversal request (DE2 PAN, DE4 amount, DE11 STAN, DE90 original data elements). */
-    public record ReverseRequest(String pan, BigDecimal amount, String stan, String originalDataElements) {}
+    /**
+     * FEP reversal request (DE2 PAN, DE4 amount, DE11 STAN, DE90 original data elements; DE6/DE51 the
+     * cardholder billing amount and currency when the scheme sends them).
+     */
+    public record ReverseRequest(String pan, BigDecimal amount, String stan, String originalDataElements,
+                                 BigDecimal billingAmount, String billingCurrencyCode) {}
 
     /** FEP reads {@code responseCode} to build the 0410/0430 reply. */
     public record ReverseResponse(String responseCode) {}

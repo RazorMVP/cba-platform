@@ -24,6 +24,12 @@ export class TerminalSimulatorComponent {
     merchantName: 'Test Merchant Ltd       ', entryMode: 'CHIP', pinBlock: '',
   };
 
+  /** Send DE6/DE51/DE10: the merchant's currency differs from the card's (backlog 17). */
+  billing = false;
+  billingAmount: number | null = null;
+  billingCurrency = '840';
+  conversionRate = '';
+
   response: SimulateResponse | null = null;
   loading = false;
   showHexDump = false;
@@ -44,12 +50,19 @@ export class TerminalSimulatorComponent {
     { code: '404', label: 'KES (KSh)' },
     { code: '288', label: 'GHS (GH₵)' },
     { code: '566', label: 'NGN (₦)' },
+    { code: '978', label: 'EUR (€)' },
+    { code: '826', label: 'GBP (£)' },
   ];
 
   send(): void {
     this.loading = true;
     this.response = null;
-    const req = { ...this.request, entryMode: this.entryMode };
+    const req: SimulateRequest = { ...this.request, entryMode: this.entryMode };
+    if (this.billing && this.needsAmount && this.billingAmount != null) {
+      req.billingAmount = this.billingAmount;
+      req.billingCurrency = this.billingCurrency;
+      if (this.conversionRate.trim()) req.conversionRate = this.conversionRate.trim();
+    }
 
     const obs$ = this.txnType === 'purchase'    ? this.svc.simulatePurchase(req)
                : this.txnType === 'withdrawal'  ? this.svc.simulateWithdrawal(req)

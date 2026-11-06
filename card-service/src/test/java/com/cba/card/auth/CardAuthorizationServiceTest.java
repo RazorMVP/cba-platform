@@ -1122,4 +1122,141 @@ class CardAuthorizationServiceTest {
         assertThat(service.authorize(controlled("812", null)).responseCode()).isEqualTo("00");
         verify(cardService, never()).issuingCountry(any());
     }
+
+    // ── Cardholder billing currency — DE6/DE51 (backlog 17) ──────────────────────────────────────
+
+    /** A EUR purchase (DE4 1000 = 10.00 EUR) that the scheme converted to 11.50 USD (DE6 1150, DE51 840). */
+    private static CardAuthRequest eurPurchaseBilledInUsd(String billingAmount, String billingCurrency) {
+        return new CardAuthRequest(PAN, "000000", new BigDecimal("1000"), "978", "000001",
+                "TERM01", "MERCH01", "Paris Shop", "5411", "CHIP", "00", "RRN0001", "VISA", false, true, false,
+                null, "250", billingAmount == null ? null : new BigDecimal(billingAmount), billingCurrency, "61150000");
+    }
+
+    @Test
+    @DisplayName("billing: EUR purchase on a USD debit card holds the DE6 amount in USD and approves")
+    void billing_debitHoldInCardCurrency() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        stubBackendHold(true, null);
+
+        CardAuthResponse r = service.authorize(eurPurchaseBilledInUsd("1150", "840"));
+
+        assertThat(r.responseCode()).isEqualTo("00");
+        var body = postedHold();
+        assertThat((BigDecimal) body.get("amount")).isEqualByComparingTo("11.50");
+        assertThat(body.get("currencyCode")).isEqualTo("USD");
+        verify(authLogRepository).save(argThat(a -> "978".equals(a.getCurrencyCode())
+                && a.getAmount().compareTo(new BigDecimal("1000")) == 0
+                && a.getBillingAmount().compareTo(new BigDecimal("1150")) == 0
+                && "840".equals(a.getBillingCurrencyCode()) && "61150000".equals(a.getConversionRate())));
+    }
+
+    @Test
+    @DisplayName("billing: DE6 without DE51, DE51 without DE6, or a fractional DE6 → RC 30, nothing reserved")
+    void billing_incomplete_30() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+
+        assertThat(service.authorize(eurPurchaseBilledInUsd("1150", null)).responseCode()).isEqualTo("30");
+        assertThat(service.authorize(eurPurchaseBilledInUsd(null, "840")).responseCode()).isEqualTo("30");
+        assertThat(service.authorize(eurPurchaseBilledInUsd("11.5", "840")).responseCode()).isEqualTo("30");
+        verify(backendRestTemplate, never()).exchange(contains("/card-holds"), any(), any(), any(ParameterizedTypeReference.class));
+    }
+
+    @Test
+    @DisplayName("billing: a USD prepaid wallet pays a EUR purchase in its billing amount")
+    void billing_prepaidWallet() {
+        Card card = prepaidCard();
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        PrepaidWallet w = wallet("50");
+        when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(w));
+
+        assertThat(service.authorize(eurPurchaseBilledInUsd("1150", "840")).responseCode()).isEqualTo("00");
+        assertThat(w.getBalance()).isEqualByComparingTo("38.50");
+    }
+
+    @Test
+    @DisplayName("billing: without DE6 a EUR purchase on a USD account still declines 57 (unchanged)")
+    void billing_absent_unchanged() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        stubBackendHold(false, "CURRENCY_MISMATCH");
+
+        assertThat(service.authorize(eurPurchaseBilledInUsd(null, null)).responseCode()).isEqualTo("57");
+        assertThat((String) postedHold().get("currencyCode")).isEqualTo("EUR");
+    }
+
+    private AuthorizationLog billedOriginal(Card card) {
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setMti("0100");
+        original.setAmount(new BigDecimal("10000"));          // 100.00 EUR
+        original.setCurrencyCode("978");
+        original.setBillingAmount(new BigDecimal("11500"));   // 115.00 USD
+        original.setBillingCurrencyCode("840");
+        original.setHoldReference("CARD-billed");
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+        return original;
+    }
+
+    @SuppressWarnings("unchecked")
+    private java.util.Map<String, Object> releaseBody() {
+        org.mockito.ArgumentCaptor<HttpEntity> captor = org.mockito.ArgumentCaptor.forClass(HttpEntity.class);
+        verify(backendRestTemplate).exchange(contains("/card-holds/CARD-billed/release"), eq(HttpMethod.POST),
+                captor.capture(), any(ParameterizedTypeReference.class));
+        return (java.util.Map<String, Object>) captor.getValue().getBody();
+    }
+
+    @Test
+    @DisplayName("billing reversal: a partial 0400 without DE6 gives back the pro-rated USD amount")
+    void billing_partialReversal_proRata() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        billedOriginal(card);
+        when(settlementService.reducePendingItem(any(), any())).thenReturn(SettlementService.PendingReduction.NOT_PENDING);
+
+        // 50.00 EUR of 100.00 EUR → 57.50 USD of 115.00 USD
+        assertThat(service.reverse(PAN, new BigDecimal("5000"), REV_STAN, "x")).isEqualTo("00");
+
+        var body = releaseBody();
+        assertThat((BigDecimal) body.get("amount")).isEqualByComparingTo("57.50");
+        assertThat(body.get("currencyCode")).isEqualTo("USD");
+    }
+
+    @Test
+    @DisplayName("billing reversal: a 0400 with DE6 gives back exactly that; DE51 ≠ the original's → RC 13")
+    void billing_reversalWithDe6() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        billedOriginal(card);
+        when(settlementService.reducePendingItem(any(), any())).thenReturn(SettlementService.PendingReduction.NOT_PENDING);
+
+        assertThat(service.reverse(PAN, new BigDecimal("5000"), REV_STAN, "x", new BigDecimal("5800"), "978"))
+                .isEqualTo("13");
+        assertThat(service.reverse(PAN, new BigDecimal("5000"), REV_STAN, "x", new BigDecimal("5800"), "840"))
+                .isEqualTo("00");
+        assertThat((BigDecimal) releaseBody().get("amount")).isEqualByComparingTo("58.00");
+    }
+
+    @Test
+    @DisplayName("reversalCardMinor: no billing → DE4; billing → DE6 pro-rata, HALF_UP, full at or above the original")
+    void reversalCardMinor_rules() {
+        AuthorizationLog plain = new AuthorizationLog();
+        plain.setAmount(new BigDecimal("1000"));
+        assertThat(CardAuthorizationService.reversalCardMinor(plain, new BigDecimal("400"), null)).isEqualByComparingTo("400");
+
+        AuthorizationLog billed = new AuthorizationLog();
+        billed.setAmount(new BigDecimal("300"));
+        billed.setBillingAmount(new BigDecimal("1000"));
+        assertThat(CardAuthorizationService.reversalCardMinor(billed, new BigDecimal("100"), null)).isEqualByComparingTo("333");
+        assertThat(CardAuthorizationService.reversalCardMinor(billed, new BigDecimal("200"), null)).isEqualByComparingTo("667");
+        assertThat(CardAuthorizationService.reversalCardMinor(billed, new BigDecimal("300"), null)).isEqualByComparingTo("1000");
+        assertThat(CardAuthorizationService.reversalCardMinor(billed, null, null)).isEqualByComparingTo("1000");
+    }
 }

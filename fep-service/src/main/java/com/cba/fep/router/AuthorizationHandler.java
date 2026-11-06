@@ -84,6 +84,9 @@ public class AuthorizationHandler {
                 .posConditionCode(request.getString(IsoField.POS_CONDITION_CODE))
                 .rrn(request.getString(IsoField.RETRIEVAL_REF_NUMBER))
                 .acquiringCountry(request.getString(IsoField.ACQUIRING_COUNTRY))
+                .billingAmount(request.getString(IsoField.AMOUNT_BILLING))
+                .billingCurrencyCode(request.getString(IsoField.CURRENCY_BILLING))
+                .billingConversionRate(request.getString(IsoField.CONVERSION_RATE_BILLING))
                 .scheme(scheme)
                 .build();
 

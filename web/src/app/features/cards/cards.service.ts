@@ -210,6 +210,15 @@ export interface SimulateRequest {
   merchantName: string;
   entryMode: EntryMode;
   pinBlock?: string;
+  /** DE19 acquiring country (ISO 3166 numeric). */
+  acquiringCountry?: string;
+  /**
+   * DE6 / DE51 / DE10 — a foreign-currency transaction the scheme converted to the card's currency:
+   * billing amount (major units of `billingCurrency`), its ISO 4217 numeric code and the 8-digit rate.
+   */
+  billingAmount?: number;
+  billingCurrency?: string;
+  conversionRate?: string;
 }
 
 export interface SimulateResponse {

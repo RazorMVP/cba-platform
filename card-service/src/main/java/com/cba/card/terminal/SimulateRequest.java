@@ -71,5 +71,23 @@ public record SimulateRequest(
          * Optional DE19 Acquiring Institution Country, 3-digit ISO 3166 numeric ("566" = Nigeria). Sent on
          * purchases, balance enquiries and withdrawals when set — exercises the card's international control.
          */
-        String acquiringCountry
-) {}
+        String acquiringCountry,
+
+        /**
+         * Optional cardholder billing amount (DE6), in major units of {@link #billingCurrency} — what the
+         * scheme converted a foreign-currency transaction to in the card's currency (backlog 17). Set together
+         * with {@code billingCurrency}; {@code conversionRate} (DE10, 8 digits) is optional.
+         */
+        BigDecimal billingAmount,
+        String billingCurrency,
+        String conversionRate
+) {
+    /** Without cardholder billing fields. */
+    public SimulateRequest(String cardNumber, String expiryDate, BigDecimal amount, String currency,
+                           String terminalId, String merchantId, String merchantName, String mcc, String entryMode,
+                           String pinBlock, String originalStan, String originalRrn, String networkCode,
+                           String acquiringCountry) {
+        this(cardNumber, expiryDate, amount, currency, terminalId, merchantId, merchantName, mcc, entryMode,
+                pinBlock, originalStan, originalRrn, networkCode, acquiringCountry, null, null, null);
+    }
+}

@@ -43,6 +43,9 @@ class FepAuthorizeContractTest {
         body.put("arqcValid", true);
         body.put("isFinancial", false);
         body.put("schemeData", Map.of("9F26", "AABBCCDD"));
+        body.put("billingAmount", 6100);              // DE6 — cardholder billing amount (backlog 17)
+        body.put("billingCurrencyCode", "566");       // DE51
+        body.put("billingConversionRate", "61220000"); // DE10
         return body;
     }
 
@@ -72,6 +75,11 @@ class FepAuthorizeContractTest {
         assertThat(req.schemeData()).containsEntry("9F26", "AABBCCDD");
         // Not sent by the FEP → null, and that's fine (unused by card-service logic).
         assertThat(req.posConditionCode()).isNull();
+        // DE6 / DE51 / DE10 (backlog 17)
+        assertThat(req.billingAmount()).isEqualByComparingTo(new BigDecimal("6100"));
+        assertThat(req.billingCurrencyCode()).isEqualTo("566");
+        assertThat(req.billingConversionRate()).isEqualTo("61220000");
+        assertThat(req.billingSent()).isTrue();
     }
 
     @Test

@@ -21,6 +21,7 @@
   <isofield id="5"   length="12"  name="Amount Settlement"                 class="org.jpos.iso.IFA_NUMERIC"/>
   <isofield id="6"   length="12"  name="Amount Cardholder Billing"         class="org.jpos.iso.IFA_NUMERIC"/>
   <isofield id="7"   length="10"  name="Transmission Date Time"            class="org.jpos.iso.IFA_NUMERIC"/>
+  <isofield id="10"  length="8"   name="Conversion Rate Cardholder"        class="org.jpos.iso.IFA_NUMERIC"/>
   <isofield id="11"  length="6"   name="STAN"                              class="org.jpos.iso.IFA_NUMERIC"/>
   <isofield id="12"  length="6"   name="Local Transaction Time"            class="org.jpos.iso.IFA_NUMERIC"/>
   <isofield id="13"  length="4"   name="Local Transaction Date"            class="org.jpos.iso.IFA_NUMERIC"/>

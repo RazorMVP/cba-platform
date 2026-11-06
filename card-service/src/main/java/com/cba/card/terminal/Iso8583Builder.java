@@ -109,11 +109,25 @@ public class Iso8583Builder {
         return bytes;
     }
 
-    /** Formats amount to 12-digit numeric string (minor units). */
+    /** Formats a major-units amount to the 12-digit DE4/DE6 numeric string, assuming 2 decimal places. */
     public static String formatAmount(BigDecimal amount) {
+        return formatAmount(amount, 2);
+    }
+
+    /**
+     * Formats a major-units amount to the 12-digit numeric string in minor units of a currency with
+     * {@code fractionDigits} decimal places (JPY 0, USD 2, BHD 3).
+     */
+    public static String formatAmount(BigDecimal amount, int fractionDigits) {
         if (amount == null) return "000000000000";
-        long minor = amount.movePointRight(2).longValue();
+        long minor = amount.movePointRight(Math.max(fractionDigits, 0)).longValue();
         return String.format("%012d", minor);
+    }
+
+    /** Decimal places of an ISO 4217 numeric (or alphabetic) currency code; 2 when unknown. */
+    public static int fractionDigits(String currencyCode) {
+        java.util.Currency c = com.cba.card.auth.CardAuthorizationService.currency(currencyCode);
+        return c == null || c.getDefaultFractionDigits() < 0 ? 2 : c.getDefaultFractionDigits();
     }
 
     /** Formats DE7 Transmission Date Time (MMDDHHmmss). */

@@ -143,9 +143,9 @@ public class InterchangeQualificationEngine {
     /** As {@link #calculateForAuth}, for an authorization in hand. */
     @Transactional
     public InterchangeResult calculate(AuthorizationLog auth) {
-        Currency currency = CardAuthorizationService.currency(auth.getCurrencyCode());
-        BigDecimal grossMajor = currency == null || auth.getAmount() == null
-                ? BigDecimal.ZERO : CardAuthorizationService.toMajorUnits(auth.getAmount(), currency);
+        Currency currency = CardAuthorizationService.currency(auth.cardCurrencyCode());
+        BigDecimal grossMajor = currency == null || auth.cardAmount() == null
+                ? BigDecimal.ZERO : CardAuthorizationService.toMajorUnits(auth.cardAmount(), currency);
         IssuerCharges charges = quote(auth.getScheme(), resolveCardType(auth.getCardId()), auth.getProcessingCode(),
                 auth.getEntryMode(), auth.getMcc(), grossMajor, currency);
         record(auth.getId(), null, charges, grossMajor, currency == null ? null : currency.getCurrencyCode());

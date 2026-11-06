@@ -59,6 +59,29 @@
             </select>
           </div>
         </div>
+        <label class="form-label billing-toggle">
+          <input type="checkbox" [(ngModel)]="billing" /> Cardholder billing (foreign-currency purchase: DE6 / DE51 / DE10)
+        </label>
+        @if (billing) {
+          <div class="form-row">
+            <div class="form-field">
+              <label class="form-label">Billing amount (card's currency)</label>
+              <input class="form-input" type="number" step="0.01" [(ngModel)]="billingAmount" />
+            </div>
+            <div class="form-field">
+              <label class="form-label">Billing currency</label>
+              <select class="form-input" [(ngModel)]="billingCurrency">
+                @for (c of currencies; track c.code) {
+                  <option [value]="c.code">{{ c.label }}</option>
+                }
+              </select>
+            </div>
+            <div class="form-field">
+              <label class="form-label">Conversion rate (8 digits, optional)</label>
+              <input class="form-input mono" maxlength="8" [(ngModel)]="conversionRate" placeholder="61150000" />
+            </div>
+          </div>
+        }
       }
 
       <div class="form-field">

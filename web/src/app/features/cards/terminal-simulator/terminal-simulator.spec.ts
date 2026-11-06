@@ -57,6 +57,22 @@ describe('TerminalSimulatorComponent', () => {
       expect(c.loading).toBe(false);
     });
 
+    it('sends DE6/DE51/DE10 only when cardholder billing is ticked (backlog 17)', () => {
+      const c = make();
+      c.billingAmount = 11.5;
+      c.billingCurrency = '840';
+      c.conversionRate = ' 61150000 ';
+      c.send();
+      expect(svc.simulatePurchase).toHaveBeenLastCalledWith(expect.not.objectContaining({ billingAmount: 11.5 }));
+
+      c.billing = true;
+      c.request.currency = '978';
+      c.send();
+      expect(svc.simulatePurchase).toHaveBeenLastCalledWith(expect.objectContaining({
+        currency: '978', billingAmount: 11.5, billingCurrency: '840', conversionRate: '61150000',
+      }));
+    });
+
     it('routes each txn type to its own service call', () => {
       const c = make();
       c.txnType = 'withdrawal'; c.send();

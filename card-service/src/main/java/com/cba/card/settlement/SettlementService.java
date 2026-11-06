@@ -110,15 +110,17 @@ public class SettlementService {
         SettlementItem item = new SettlementItem();
         item.setScheme(Schemes.normalize(auth.getScheme()));
         item.setAuthorizationLogId(auth.getId());
-        item.setAmount(auth.getAmount());
-        item.setCurrencyCode(auth.getCurrencyCode());
+        // The card's side: DE6/DE51 when the transaction was in a foreign currency (backlog 17, D4a — the
+        // scheme settles in the billing currency), else DE4/DE49.
+        item.setAmount(auth.cardAmount());
+        item.setCurrencyCode(auth.cardCurrencyCode());
         item.setCardId(card.getId());
         item.setCardType(card.getCardType().name());
         item.setAccountId(card.getCardType() == CardType.DEBIT ? card.getLinkedEntityId() : null);
         item.setHoldReference(holdReference);
         item.setStatus(completed ? "SETTLED" : "PENDING");
         item.setClearedAt(completed ? OffsetDateTime.now() : null);
-        Currency currency = CardAuthorizationService.currency(auth.getCurrencyCode());
+        Currency currency = CardAuthorizationService.currency(item.getCurrencyCode());
         if (completed && movesGl(item) && currency != null && item.getAmount() != null) {
             applyPosted(item, posted, currency);   // a 0200 debit: already on the backend, with its fees
         }

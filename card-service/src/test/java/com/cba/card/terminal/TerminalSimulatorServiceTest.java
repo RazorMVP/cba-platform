@@ -76,6 +76,49 @@ class TerminalSimulatorServiceTest {
         assertThat(resp.requestMti()).isEqualTo("0100");
     }
 
+    private static SimulateRequest billed(String billingAmount, String billingCurrency, String rate) {
+        return new SimulateRequest("4111111111111111", "2612", new BigDecimal("10.00"), "978",
+                "TERM0001", "MERCHANT0000001", "Paris Shop", "5411", "CHIP", null, null, null, null, null,
+                billingAmount == null ? null : new BigDecimal(billingAmount), billingCurrency, rate);
+    }
+
+    @Test
+    @DisplayName("billing fields: DE6 (minor units of DE51), DE51 and DE10 go on the 0100 (backlog 17)")
+    void billingFieldsSent() {
+        when(fepClient.send(any(byte[].class))).thenReturn(canned("0110", "00", "AUTH77"));
+
+        service.purchase(billed("11.50", "840", "61150000"));
+
+        org.mockito.ArgumentCaptor<byte[]> sent = org.mockito.ArgumentCaptor.forClass(byte[].class);
+        org.mockito.Mockito.verify(fepClient).send(sent.capture());
+        String wire = new String(sent.getValue(), StandardCharsets.ISO_8859_1);
+        assertThat(wire).contains("000000001150").contains("61150000").contains("000000001000");
+    }
+
+    @Test
+    @DisplayName("billing fields: amount without currency, a bad currency or a bad rate → 400 INVALID_BILLING_FIELDS")
+    void billingFieldsValidated() {
+        for (SimulateRequest bad : java.util.List.of(billed("11.50", null, null), billed(null, "840", null),
+                billed("11.50", "USD", null), billed("11.50", "840", "6115"))) {
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.purchase(bad))
+                    .hasFieldOrPropertyWithValue("code", "INVALID_BILLING_FIELDS");
+        }
+    }
+
+    @Test
+    @DisplayName("JPY has no minor unit: 600 JPY is sent as DE4 000000000600 (was ×100)")
+    void jpyAmount() {
+        when(fepClient.send(any(byte[].class))).thenReturn(canned("0110", "00", "AUTH66"));
+
+        service.purchase(new SimulateRequest("4111111111111111", "2612", new BigDecimal("600"), "392",
+                "TERM0001", "MERCHANT0000001", "Tokyo Shop", "5411", "CHIP", null, null, null, null, null));
+
+        org.mockito.ArgumentCaptor<byte[]> sent = org.mockito.ArgumentCaptor.forClass(byte[].class);
+        org.mockito.Mockito.verify(fepClient).send(sent.capture());
+        String wire = new String(sent.getValue(), StandardCharsets.ISO_8859_1);
+        assertThat(wire).contains("000000000600").doesNotContain("000000060000");
+    }
+
     @Test
     @DisplayName("declined purchase: 0110 RC=05, not approved, no auth code")
     void purchaseDeclined() {

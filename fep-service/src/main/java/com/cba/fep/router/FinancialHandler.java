@@ -62,6 +62,9 @@ public class FinancialHandler {
                 // looked card-not-present.
                 .posEntryMode(request.getString(IsoField.POS_ENTRY_MODE))
                 .acquiringCountry(request.getString(IsoField.ACQUIRING_COUNTRY))
+                .billingAmount(request.getString(IsoField.AMOUNT_BILLING))
+                .billingCurrencyCode(request.getString(IsoField.CURRENCY_BILLING))
+                .billingConversionRate(request.getString(IsoField.CONVERSION_RATE_BILLING))
                 .rrn(request.getString(IsoField.RETRIEVAL_REF_NUMBER))
                 .scheme(scheme)
                 .isFinancial(true)

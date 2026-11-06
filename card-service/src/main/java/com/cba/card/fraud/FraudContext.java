@@ -26,8 +26,19 @@ public record FraudContext(
         boolean            pinVerified,
         boolean            arqcValid,
         boolean            isFinancial,
-        Map<String,Object> ruleParams     // rule-specific config from DB
+        Map<String,Object> ruleParams,    // rule-specific config from DB
+        BigDecimal         cardAmount,       // DE6 when the scheme sent a billing amount (minor units), else null
+        String             cardCurrencyCode  // DE51 with it, else null
 ) {
+    /** A transaction in the card's currency (no DE6/DE51). */
+    public FraudContext(Card card, String pan, BigDecimal amount, String currencyCode, String processingCode,
+                        String terminalId, String merchantId, String merchantName, String mcc, String posEntryMode,
+                        String stan, boolean pinVerified, boolean arqcValid, boolean isFinancial,
+                        Map<String, Object> ruleParams) {
+        this(card, pan, amount, currencyCode, processingCode, terminalId, merchantId, merchantName, mcc,
+                posEntryMode, stan, pinVerified, arqcValid, isFinancial, ruleParams, null, null);
+    }
+
     /** True when the card is expired based on YYMM in expiryDate field. */
     public boolean isCardExpired() {
         if (card == null) return false;

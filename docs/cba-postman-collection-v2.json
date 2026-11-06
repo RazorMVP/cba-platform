@@ -24779,10 +24779,10 @@
                     "purchase"
                   ]
                 },
-                "description": "MTI 0100 purchase authorization. entryMode: SWIPE|CHIP|CONTACTLESS acquiringCountry (optional): DE19, 3-digit ISO 3166 numeric (566 = Nigeria) \u2014 exercises the card's international switch; anything else \u2192 400 INVALID_ACQUIRING_COUNTRY.",
+                "description": "MTI 0100 purchase authorization. entryMode: SWIPE|CHIP|CONTACTLESS acquiringCountry (optional): DE19, 3-digit ISO 3166 numeric (566 = Nigeria) \u2014 exercises the card's international switch; anything else \u2192 400 INVALID_ACQUIRING_COUNTRY.\n\n**Foreign-currency purchase (backlog 17):** optional `billingAmount` (major units of `billingCurrency`), `billingCurrency` (3-digit ISO 4217 numeric) and `conversionRate` (8 digits) \u2014 all three together \u2014 are sent as DE6/DE51/DE10; card-service then reserves the billing amount in the card's currency. Any of the three missing, a non-numeric currency or a rate that isn't 8 digits \u2192 `400 INVALID_BILLING_FIELDS`. Drop the three fields for a same-currency purchase.",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"cardNumber\": \"4111111111111111\",\n  \"expiryDate\": \"2712\",\n  \"amount\": 100.0,\n  \"currency\": \"840\",\n  \"terminalId\": \"TERM0001\",\n  \"merchantId\": \"MERCHANT0000001\",\n  \"merchantName\": \"SUPERMART NAIROBI KE\",\n  \"mcc\": \"5411\",\n  \"entryMode\": \"CHIP\",\n  \"pinBlock\": null,\n  \"acquiringCountry\": \"566\"\n}",
+                  "raw": "{\n  \"cardNumber\": \"4111111111111111\",\n  \"expiryDate\": \"2712\",\n  \"amount\": 100.0,\n  \"currency\": \"840\",\n  \"terminalId\": \"TERM0001\",\n  \"merchantId\": \"MERCHANT0000001\",\n  \"merchantName\": \"SUPERMART NAIROBI KE\",\n  \"mcc\": \"5411\",\n  \"entryMode\": \"CHIP\",\n  \"pinBlock\": null,\n  \"acquiringCountry\": \"566\",\n  \"billingAmount\": 11.5,\n  \"billingCurrency\": \"840\",\n  \"conversionRate\": \"61150000\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"

@@ -47,7 +47,9 @@ class PackagerFieldSpecTest {
         CANON.put(2,   "19 IFA_LLNUM");       // PAN  n..19 LLVAR
         CANON.put(3,   "6 IFA_NUMERIC");      // processing code
         CANON.put(4,   "12 IFA_NUMERIC");     // amount, transaction
+        CANON.put(6,   "12 IFA_NUMERIC");     // amount, cardholder billing (backlog 17)
         CANON.put(7,   "10 IFA_NUMERIC");     // transmission date & time
+        CANON.put(10,  "8 IFA_NUMERIC");      // conversion rate, cardholder billing (backlog 17)
         CANON.put(11,  "6 IFA_NUMERIC");      // STAN
         CANON.put(12,  "6 IFA_NUMERIC");      // local transaction time (1987: n6)
         CANON.put(13,  "4 IFA_NUMERIC");      // local transaction date
@@ -129,12 +131,15 @@ class PackagerFieldSpecTest {
         msg.set(2, "4111111111111111");
         msg.set(3, "000000");
         msg.set(4, "000000010000");
+        msg.set(6, "000000011500");
         msg.set(7, "0628120000");
+        msg.set(10, "61150000");
         msg.set(11, "000123");
         msg.set(41, "TERM0001");
         msg.set(42, "MERCHANT0000001");
         msg.set(43, "ACME STORE");
-        msg.set(49, "840");
+        msg.set(49, "978");
+        msg.set(51, "840");
         msg.set(52, pinBlock);   // binary PIN block (IFB_BINARY)
         msg.set(55, emv);        // EMV TLV (IFB_LLLBINARY)
 
@@ -148,7 +153,10 @@ class PackagerFieldSpecTest {
         assertThat(back.getString(41)).isEqualTo("TERM0001");
         assertThat(back.getString(42)).isEqualTo("MERCHANT0000001");
         assertThat(back.getString(43).trim()).isEqualTo("ACME STORE"); // IF_CHAR space-pads to 40
-        assertThat(back.getString(49)).isEqualTo("840");
+        assertThat(back.getString(49)).isEqualTo("978");
+        assertThat(back.getString(6)).isEqualTo("000000011500");
+        assertThat(back.getString(10)).isEqualTo("61150000");
+        assertThat(back.getString(51)).isEqualTo("840");
         assertThat(back.getBytes(52)).isEqualTo(pinBlock);
         assertThat(back.getBytes(55)).isEqualTo(emv);
     }

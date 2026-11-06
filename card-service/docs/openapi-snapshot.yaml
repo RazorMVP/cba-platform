@@ -2709,6 +2709,12 @@ components:
           type: string
         acquiringCountry:
           type: string
+        billingAmount:
+          type: number
+        billingCurrency:
+          type: string
+        conversionRate:
+          type: string
     ApiResponseSimulateResponse:
       type: object
       properties:
@@ -2755,6 +2761,10 @@ components:
         stan:
           type: string
         originalDataElements:
+          type: string
+        billingAmount:
+          type: number
+        billingCurrencyCode:
           type: string
     ReverseResponse:
       type: object
@@ -2811,6 +2821,12 @@ components:
           additionalProperties:
             type: string
         acquiringCountry:
+          type: string
+        billingAmount:
+          type: number
+        billingCurrencyCode:
+          type: string
+        billingConversionRate:
           type: string
     CardAuthResponse:
       type: object
@@ -3481,6 +3497,12 @@ components:
         amount:
           type: number
         currencyCode:
+          type: string
+        billingAmount:
+          type: number
+        billingCurrencyCode:
+          type: string
+        conversionRate:
           type: string
         responseCode:
           type: string

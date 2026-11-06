@@ -40,6 +40,31 @@ public class AuthorizationLog {
     @Column(name = "currency_code", length = 3)
     private String currencyCode;
 
+    /** DE6 cardholder billing amount (minor units of {@link #billingCurrencyCode}); null when not sent. */
+    @Column(name = "billing_amount", precision = 19, scale = 4)
+    private BigDecimal billingAmount;
+
+    /** DE51 cardholder billing currency (ISO 4217 numeric); null when not sent. */
+    @Column(name = "billing_currency_code", length = 3)
+    private String billingCurrencyCode;
+
+    /** DE10 conversion rate as received — audit only, never recomputed. */
+    @Column(name = "conversion_rate", length = 8)
+    private String conversionRate;
+
+    /**
+     * The amount that touched the cardholder's money: DE6 when the scheme sent it (a foreign-currency
+     * transaction converted to the card's currency), else DE4. Minor units of {@link #cardCurrencyCode()}.
+     */
+    public BigDecimal cardAmount() {
+        return billingAmount != null ? billingAmount : amount;
+    }
+
+    /** DE51 when the scheme sent a billing amount, else DE49. */
+    public String cardCurrencyCode() {
+        return billingAmount != null ? billingCurrencyCode : currencyCode;
+    }
+
     @Column(name = "response_code", nullable = false, length = 2)
     private String responseCode;
 

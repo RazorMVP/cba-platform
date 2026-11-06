@@ -45,7 +45,9 @@ public class ReversalHandler {
                 request.getString(IsoField.PAN),
                 request.getString(IsoField.AMOUNT_TRANSACTION),
                 stan,
-                originalDe90);
+                originalDe90,
+                request.getString(IsoField.AMOUNT_BILLING),     // DE6/DE51 when the scheme sends them (backlog 17)
+                request.getString(IsoField.CURRENCY_BILLING));
 
         ISOMsg response = (ISOMsg) request.clone();
         response.setMTI("0410");
@@ -63,7 +65,9 @@ public class ReversalHandler {
                 request.getString(IsoField.PAN),
                 request.getString(IsoField.AMOUNT_TRANSACTION),
                 stan,
-                request.getString(IsoField.ORIGINAL_DATA_ELEMENTS));
+                request.getString(IsoField.ORIGINAL_DATA_ELEMENTS),
+                request.getString(IsoField.AMOUNT_BILLING),
+                request.getString(IsoField.CURRENCY_BILLING));
 
         ISOMsg response = (ISOMsg) request.clone();
         response.setMTI("0430");

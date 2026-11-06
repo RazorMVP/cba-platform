@@ -36,12 +36,15 @@ class CardServiceClientTest {
 
         client.authorize(AuthorizationRequest.builder()
                 .pan("4111111111111111").stan("000001").scheme(SchemeType.VISA)
-                .posEntryMode("071").acquiringCountry("566").build());
+                .posEntryMode("071").acquiringCountry("566")
+                .billingAmount("000000001150").billingCurrencyCode("840").billingConversionRate("61150000").build());
 
         ArgumentCaptor<HttpEntity> sent = ArgumentCaptor.forClass(HttpEntity.class);
         verify(restTemplate).postForObject(eq("http://card-service/api/v1/internal/authorize"),
                 sent.capture(), eq(Map.class));
         Map<String, Object> body = (Map<String, Object>) sent.getValue().getBody();
-        assertThat(body).containsEntry("posEntryMode", "071").containsEntry("acquiringCountry", "566");
+        assertThat(body).containsEntry("posEntryMode", "071").containsEntry("acquiringCountry", "566")
+                .containsEntry("billingAmount", "000000001150").containsEntry("billingCurrencyCode", "840")
+                .containsEntry("billingConversionRate", "61150000");
     }
 }

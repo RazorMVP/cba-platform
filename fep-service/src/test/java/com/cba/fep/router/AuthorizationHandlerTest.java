@@ -115,4 +115,24 @@ class AuthorizationHandlerTest {
         verify(cardServiceClient).authorize(sent.capture());
         assertThat(sent.getValue().acquiringCountry()).isEqualTo("566");
     }
+
+    @Test
+    @DisplayName("DE6 / DE51 / DE10 are forwarded to card-service (backlog 17)")
+    void forwardsBilling() throws Exception {
+        when(schemeAdapterFactory.detectScheme(anyString())).thenReturn(SchemeType.VISA);
+        when(schemeAdapterFactory.getAdapter(SchemeType.VISA)).thenReturn(adapter);
+        when(cardServiceClient.authorize(any())).thenReturn(AuthorizationResult.approve("A1B2C3"));
+        ISOMsg msg = authRequest();
+        msg.set(IsoField.AMOUNT_BILLING, "000000001150");
+        msg.set(IsoField.CURRENCY_BILLING, "840");
+        msg.set(IsoField.CONVERSION_RATE_BILLING, "61150000");
+
+        handler.handleRequest(msg);
+
+        ArgumentCaptor<AuthorizationRequest> sent = ArgumentCaptor.forClass(AuthorizationRequest.class);
+        verify(cardServiceClient).authorize(sent.capture());
+        assertThat(sent.getValue().billingAmount()).isEqualTo("000000001150");
+        assertThat(sent.getValue().billingCurrencyCode()).isEqualTo("840");
+        assertThat(sent.getValue().billingConversionRate()).isEqualTo("61150000");
+    }
 }

@@ -35,7 +35,7 @@ class ReversalHandlerTest {
     @Test
     @DisplayName("0400 reversal → 0410 carrying card-service's reversal RC")
     void reversalAccepted() throws Exception {
-        when(cardServiceClient.reverse(any(), any(), any(), any())).thenReturn("00");
+        when(cardServiceClient.reverse(any(), any(), any(), any(), any(), any())).thenReturn("00");
 
         ISOMsg resp = handler.handleRequest(reversalRequest("0400"));
 
@@ -46,7 +46,7 @@ class ReversalHandlerTest {
     @Test
     @DisplayName("0400 reversal of an unknown original → 0410 RC=25")
     void reversalOriginalNotFound() throws Exception {
-        when(cardServiceClient.reverse(any(), any(), any(), any())).thenReturn("25");
+        when(cardServiceClient.reverse(any(), any(), any(), any(), any(), any())).thenReturn("25");
 
         ISOMsg resp = handler.handleRequest(reversalRequest("0400"));
 
@@ -57,12 +57,26 @@ class ReversalHandlerTest {
     @Test
     @DisplayName("0420 advice → 0430 RC=00 and still records the reversal")
     void reversalAdvice() throws Exception {
-        when(cardServiceClient.reverse(any(), any(), any(), any())).thenReturn("00");
+        when(cardServiceClient.reverse(any(), any(), any(), any(), any(), any())).thenReturn("00");
 
         ISOMsg resp = handler.handleAdvice(reversalRequest("0420"));
 
         assertThat(resp.getMTI()).isEqualTo("0430");
         assertThat(resp.getString(IsoField.RESPONSE_CODE)).isEqualTo("00");
-        verify(cardServiceClient).reverse(any(), any(), any(), any());
+        verify(cardServiceClient).reverse(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("0400 with DE6/DE51 forwards the cardholder billing amount and currency (backlog 17)")
+    void reversalForwardsBilling() throws Exception {
+        when(cardServiceClient.reverse(any(), any(), any(), any(), any(), any())).thenReturn("00");
+        ISOMsg msg = reversalRequest("0400");
+        msg.set(IsoField.AMOUNT_BILLING, "000000005750");
+        msg.set(IsoField.CURRENCY_BILLING, "840");
+
+        handler.handleRequest(msg);
+
+        verify(cardServiceClient).reverse("4111111111111111", "000000010000", "000009", "0200000001....",
+                "000000005750", "840");
     }
 }

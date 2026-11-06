@@ -86,13 +86,21 @@ public class CardAuthorizationService {
                 return logAndReturn(null, req, CardAuthResponse.decline("14"), 0, FraudDecision.DECLINE);
             }
 
-            // 2. Fraud evaluation
+            // 1b. Cardholder billing fields (DE6/DE51/DE10) are checked before anything else uses them:
+            //     an inconsistent set is a format error (RC 30), before fraud scoring or any funds call.
+            if (req.billingSent() && !validBilling(req)) {
+                return logAndReturn(card, req, CardAuthResponse.decline("30"), 0, FraudDecision.DECLINE);
+            }
+
+            // 2. Fraud evaluation — the amount rules also see the amount that moves the card's money
             FraudContext ctx = new FraudContext(
                     card, req.pan(), req.amount(), req.currencyCode(),
                     req.processingCode(), req.terminalId(), req.merchantId(),
                     req.merchantName(), req.mcc(), req.posEntryMode(),
                     req.stan(), req.pinVerified(), req.arqcValid(),
-                    req.isFinancial(), null);
+                    req.isFinancial(), null,
+                    req.billingSent() ? req.billingAmount() : null,
+                    req.billingSent() ? req.billingCurrencyCode() : null);
 
             FraudEvaluationResult fraud = fraudEngine.evaluate(ctx);
             publishFraudEvents(card, fraud);
@@ -119,9 +127,14 @@ public class CardAuthorizationService {
             //    balances are major units: compare in the same units and currency (they were compared
             //    raw: 25.00 USD read as 2500). An approval reserves its amount — a backend account hold
             //    (debit) or a wallet decrement (prepaid) — so later authorizations can't spend it too.
-            boolean inquiry = BALANCE_INQUIRY_CODE.equals(req.processingCode()) || req.amount() == null;
-            java.util.Currency txCurrency = inquiry ? null : currency(req.currencyCode());
-            BigDecimal amountMajor = inquiry || txCurrency == null ? null : toMajorUnits(req.amount(), txCurrency);
+            //    The card's money moves in the cardholder billing amount (DE6, currency DE51) when the scheme
+            //    sends it — a foreign-currency purchase the scheme converted to the card's currency (backlog 17).
+            //    Without DE6 it moves in DE4/DE49. DE6 without DE51, or the reverse, is a format error.
+            BigDecimal cardMinor = req.billingSent() ? req.billingAmount() : req.amount();
+            String cardCurrencyCode = req.billingSent() ? req.billingCurrencyCode() : req.currencyCode();
+            boolean inquiry = BALANCE_INQUIRY_CODE.equals(req.processingCode()) || cardMinor == null;
+            java.util.Currency txCurrency = inquiry ? null : currency(cardCurrencyCode);
+            BigDecimal amountMajor = inquiry || txCurrency == null ? null : toMajorUnits(cardMinor, txCurrency);
             BigDecimal availableBalance = null;
             if (card.getCardType() == CardType.DEBIT) {
                 if (inquiry) {
@@ -218,7 +231,8 @@ public class CardAuthorizationService {
                 cardService.resetPinRetry(card.getId());
             }
 
-            CardAuthResponse response = CardAuthResponse.approve(authCode, balanceForResponse, req.currencyCode());
+            CardAuthResponse response = CardAuthResponse.approve(authCode, balanceForResponse,
+                    req.billingSent() ? req.billingCurrencyCode() : req.currencyCode());
             return logAndReturn(card, req, response, fraud.totalScore(), fraud.decision(), holdRef, walletDebit, posted);
 
         } catch (Exception e) {
@@ -228,6 +242,63 @@ public class CardAuthorizationService {
             if (holdRef != null) releaseDebitHold(card, holdRef);
             return logAndReturn(card, req, CardAuthResponse.systemError(), 0, FraudDecision.DECLINE);
         }
+    }
+
+    /**
+     * A consistent cardholder billing set, else a format error (RC 30):
+     * <ul>
+     *   <li>DE6 a positive whole number of minor units, DE51 a known ISO 4217 numeric code;</li>
+     *   <li>DE10 present (8 digits: decimal places, then the rate) — DE6 is accepted only with the rate
+     *       the scheme converted at;</li>
+     *   <li>DE6 within 1% of DE4 × DE10 (converted between the two currencies' minor units);</li>
+     *   <li>DE51 equal to DE49 means no conversion: DE6 must equal DE4.</li>
+     * </ul>
+     */
+    static boolean validBilling(CardAuthRequest req) {
+        BigDecimal billing = req.billingAmount();
+        java.util.Currency billingCcy = req.billingCurrencyCode() == null ? null : currency(req.billingCurrencyCode());
+        if (billing == null || billing.signum() <= 0 || billing.stripTrailingZeros().scale() > 0 || billingCcy == null) {
+            return false;
+        }
+        java.util.Currency txCcy = req.currencyCode() == null ? null : currency(req.currencyCode());
+        if (req.amount() == null || txCcy == null) {
+            return false;
+        }
+        if (txCcy.equals(billingCcy)) {
+            return billing.compareTo(req.amount()) == 0;
+        }
+        String rate = req.billingConversionRate();
+        if (rate == null || !rate.matches("\\d{8}")) {
+            return false;
+        }
+        BigDecimal conversion = new BigDecimal(rate.substring(1)).movePointLeft(rate.charAt(0) - '0');
+        if (conversion.signum() <= 0) {
+            return false;
+        }
+        BigDecimal expected = toMajorUnits(req.amount(), txCcy).multiply(conversion)
+                .movePointRight(Math.max(billingCcy.getDefaultFractionDigits(), 0));
+        BigDecimal tolerance = expected.abs().multiply(new BigDecimal("0.01")).max(BigDecimal.ONE);
+        return billing.subtract(expected).abs().compareTo(tolerance) <= 0;
+    }
+
+    /** The reversal amount in the card's currency (see {@link #reverse(String, BigDecimal, String, String, BigDecimal, String)}). */
+    static BigDecimal reversalCardMinor(AuthorizationLog original, BigDecimal amount, BigDecimal billingAmount) {
+        if (billingAmount != null) {
+            // Never more than the original moved: a reversal gives back at most what was taken.
+            BigDecimal original0 = original.cardAmount();
+            return original0 == null ? billingAmount : billingAmount.min(original0);
+        }
+        if (amount == null) {
+            return original.cardAmount();
+        }
+        if (original.getBillingAmount() == null || original.getAmount() == null || original.getAmount().signum() == 0) {
+            return amount;
+        }
+        if (amount.compareTo(original.getAmount()) >= 0) {
+            return original.getBillingAmount();
+        }
+        return original.getBillingAmount().multiply(amount)
+                .divide(original.getAmount(), 0, java.math.RoundingMode.HALF_UP);
     }
 
     /** Emit fraud webhook events from an evaluation result (best-effort — never blocks authorization). */
@@ -304,6 +375,17 @@ public class CardAuthorizationService {
      */
     @Transactional
     public String reverse(String pan, BigDecimal amount, String stan, String originalDataElements) {
+        return reverse(pan, amount, stan, originalDataElements, null, null);
+    }
+
+    /**
+     * As above, with the 0400's cardholder billing amount (DE6) and currency (DE51) when the scheme sends
+     * them. What is given back is in the card's currency: the 0400's DE6; else, for an original that had a
+     * billing amount, DE4 pro-rated onto it ({@code billing × DE4 reversal / DE4 original}, HALF_UP); else DE4.
+     */
+    @Transactional
+    public String reverse(String pan, BigDecimal amount, String stan, String originalDataElements,
+                          BigDecimal billingAmount, String billingCurrencyCode) {
         try {
             Card card;
             try {
@@ -338,15 +420,23 @@ public class CardAuthorizationService {
                 log.warn("Reversal refused for card={} STAN={}: invalid amount {}", card.getId(), stan, amount);
                 return "13";
             }
+            if (billingAmount != null && (billingAmount.signum() <= 0 || billingAmount.stripTrailingZeros().scale() > 0
+                    || billingCurrencyCode == null || !billingCurrencyCode.equals(original.cardCurrencyCode()))) {
+                log.warn("Reversal refused for card={} STAN={}: billing amount {} {} doesn't fit the original",
+                        card.getId(), stan, billingAmount, billingCurrencyCode);
+                return "13";
+            }
 
             if ("00".equals(original.getResponseCode())) {
                 // Give back at most what this reversal covers: a partial reversal (DE4 below the original)
                 // refunds only its amount — never the whole completed debit or wallet decrement.
-                java.util.Currency ccy = currency(original.getCurrencyCode());
-                BigDecimal reversalMinor = amount != null ? amount : original.getAmount();
+                // Everything below is in the card's currency: what the original moved (DE6 if it had one).
+                java.util.Currency ccy = currency(original.cardCurrencyCode());
+                BigDecimal originalCardMinor = original.cardAmount();
+                BigDecimal reversalMinor = reversalCardMinor(original, amount, billingAmount);
                 BigDecimal reversalMajor = ccy == null || reversalMinor == null ? null : toMajorUnits(reversalMinor, ccy);
-                boolean full = original.getAmount() == null || reversalMinor == null
-                        || reversalMinor.compareTo(original.getAmount()) >= 0;
+                boolean full = originalCardMinor == null || reversalMinor == null
+                        || reversalMinor.compareTo(originalCardMinor) >= 0;
                 // A full reversal takes the item out of clearing first (row-locked until this commits), so a
                 // batch close can't capture the purchase between the release below and the 0400 record.
                 SettlementService.ItemReversal marked = full ? settlementService.markReversed(original.getId()) : null;
@@ -398,6 +488,10 @@ public class CardAuthorizationService {
                     false, original.getScheme());
             reversal.setProcessingCode(original.getProcessingCode());
             reversal.setRrn(original.getRrn());
+            if (original.getBillingAmount() != null || billingAmount != null) {
+                reversal.setBillingAmount(reversalCardMinor(original, amount, billingAmount));
+                reversal.setBillingCurrencyCode(original.cardCurrencyCode());
+            }
             reversal.setMcc(original.getMcc());
             authLogRepository.save(reversal);
 
@@ -698,6 +792,11 @@ public class CardAuthorizationService {
         entry.setDecision(decision);
         entry.setHoldReference(holdReference);
         entry.setWalletDebit(walletDebit);
+        if (req.billingSent()) {
+            entry.setBillingAmount(req.billingAmount());
+            entry.setBillingCurrencyCode(req.billingCurrencyCode());
+            entry.setConversionRate(req.billingConversionRate());
+        }
         authLogRepository.save(entry);
 
         // An approval that reserved or moved funds goes into today's settlement batch, in this

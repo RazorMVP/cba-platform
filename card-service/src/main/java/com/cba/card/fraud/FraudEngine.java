@@ -80,7 +80,11 @@ public class FraudEngine {
             // All values are in the currency's minor units (cents, fils, pesewas, etc.).
             BigDecimal amountThreshold = resolveSingleAmountThreshold(
                     limitRule.getParams(), ctx.currencyCode());
-            if (ctx.amount() != null && ctx.amount().compareTo(amountThreshold) > 0) {
+            // A foreign-currency transaction is checked in the merchant's currency (DE4/DE49) AND in the
+            // amount that moves the card's money (DE6/DE51): either over its limit triggers (backlog 17).
+            boolean cardAmountOver = ctx.cardAmount() != null
+                    && ctx.cardAmount().compareTo(resolveSingleAmountThreshold(limitRule.getParams(), ctx.cardCurrencyCode())) > 0;
+            if (cardAmountOver || (ctx.amount() != null && ctx.amount().compareTo(amountThreshold) > 0)) {
                 results.add(FraudRuleResult.triggered("SINGLE_AMOUNT_LIMIT", limitRule.getWeight()));
                 totalScore += limitRule.getWeight();
             } else {

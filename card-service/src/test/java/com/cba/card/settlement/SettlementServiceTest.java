@@ -123,6 +123,29 @@ class SettlementServiceTest {
     }
 
     @Test
+    @DisplayName("addAuthorization: a foreign-currency approval settles in the card's billing amount and currency (backlog 17)")
+    void addAuthorization_billingCurrency() {
+        SettlementBatch batch = openBatch();
+        when(batchRepository.findBySettlementDateAndStatus(any(LocalDate.class), eq(SettlementBatchStatus.OPEN)))
+                .thenReturn(Optional.of(batch));
+        when(itemRepository.save(any(SettlementItem.class))).thenAnswer(i -> i.getArgument(0));
+        Card card = new Card();
+        card.setId(UUID.randomUUID());
+        card.setCardType(CardType.DEBIT);
+        card.setLinkedEntityId(UUID.randomUUID());
+        AuthorizationLog auth = new AuthorizationLog();
+        auth.setAmount(new BigDecimal("1000"));          // 10.00 EUR at the merchant
+        auth.setCurrencyCode("978");
+        auth.setBillingAmount(new BigDecimal("1150"));   // 11.50 USD to the card
+        auth.setBillingCurrencyCode("840");
+
+        SettlementItem item = service.addAuthorization(auth, card, "CARD-fx", false);
+
+        assertThat(item.getAmount()).isEqualByComparingTo("1150");
+        assertThat(item.getCurrencyCode()).isEqualTo("840");
+    }
+
+    @Test
     @DisplayName("addAuthorization: a debit purchase is PENDING with its account + hold; a completed one SETTLED")
     void addAuthorization() {
         SettlementBatch batch = openBatch();

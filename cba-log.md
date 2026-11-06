@@ -57,6 +57,42 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 57) — 2026-11-06
+**Backlog set 1, PR B — item 17: card authorizations in a foreign currency (plan `docs/plans/2026-11-06-backlog-set-1.md`, D4a). A EUR purchase on a USD card declined RC 57 because card-service compared the merchant's currency (DE49) with the account's; the scheme's converted amount (DE6/DE51) was never read.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `fep-service/…/auth/AuthorizationRequest.java`, `CardServiceClient.java`, `router/AuthorizationHandler.java`, `FinancialHandler.java`, `ReversalHandler.java` | DE6/DE51/DE10 read and forwarded on authorize and 0200; DE6/DE51 on 0400/0420 (`reverse` 6-arg overload) |
+| `fep-service/…/resources/iso8583-{mastercard,verve,afrigo}.xml` | DE10 (IFA_NUMERIC 8) — the three lacked it |
+| `card-service/…/db/migration/V16__card_billing_amount.sql`, `auth/AuthorizationLog.java` | `billing_amount`, `billing_currency_code`, `conversion_rate`; `cardAmount()` / `cardCurrencyCode()` |
+| `card-service/…/auth/CardAuthRequest.java`, `CardAuthorizationService.java`, `CardAuthorizationController.java` | billing fields; card amount drives funds/hold/debit/wallet/quote/response; RC 30 for half a pair; reversal in the card's currency (`reversalCardMinor`) |
+| `card-service/…/settlement/SettlementService.java`, `interchange/InterchangeQualificationEngine.java` | settlement item and the calculate tool use the card amount |
+| `card-service/…/terminal/SimulateRequest.java`, `TerminalSimulatorService.java`, `Iso8583Builder.java` | optional billing fields → DE6/DE51/DE10 (`400 INVALID_BILLING_FIELDS`); amounts in the currency's exponent; decoder knows DE6/10/19/51 |
+| tests | card-service `CardAuthorizationServiceTest` +10, `FraudEngineTest` +1, `SettlementServiceTest` +1, `TerminalSimulatorServiceTest` +3, `FepAuthorizeContractTest` (billing keys); fep-service `AuthorizationHandlerTest` +1, `ReversalHandlerTest` +1 (6-arg stubs), `CardServiceClientTest`, `PackagerFieldSpecTest` (CANON 6/10, round-trip DE6/10/51) |
+| `card-service/docs/openapi-snapshot.yaml` | billing fields on `CardAuthRequest`, `ReverseRequest`, `SimulateRequest` |
+| `web/…/cards/cards.service.ts`, `terminal-simulator/*` | "Cardholder billing" fieldset; EUR/GBP |
+| `docs/card-api-reference.html`, `docs/api-reference.html`, Postman (+ static copies) | authorize/reverse billing fields and rules; simulator fields |
+| `docs/deferred-backlog.md`, `CLAUDE.md` | item 17 ✅; card-service/fep/web rows; "Cardholder billing amount" rules |
+
+#### Key Patterns / Decisions
+- **D4a — the scheme settles in the billing currency**, so the settlement item carries DE6/DE51 and the existing capture, `gl_net`, refunds and scheme reports follow unchanged. No new GL: the bank's side is in the account's currency (IAS 21 §20–21); the scheme converted.
+- **Fraud:** the single-amount limit checks both DE4/DE49 and DE6/DE51 (`FraudContext` carries the card amount; either over its limit triggers); the duplicate rule stays on DE4, the logged merchant amount.
+- **Commit security review (3 findings):** (1) settlement item on DE4 — not applicable, the reviewer read `main` (PR B's `addAuthorization` uses `cardAmount()`); (2) **valid** — DE6 was trusted as sent: now RC 30 before fraud unless DE10 is present and DE6 is within 1% of DE4 × DE10, and DE6 = DE4 when the currencies are the same; a reversal's DE6 is capped at the original's card amount; the simulator requires the rate with the billing fields; (3) **valid** — the amount limit only saw DE4: fixed as above.
+- **The hold reference still hashes DE4/DE49** — the same message keeps its key; a resend with another DE6 → RC 94.
+- **Found while there:** the simulator's response decoder stopped at any field it didn't know, so DE19 (cont. 54) hid DE39 — fixed with DE6/10/19/51; `formatAmount` multiplied by 100 for every currency (JPY).
+
+#### Build Verification
+- card-service `./mvnw -o clean test`: **270/270** (was 255); `-Pfull-integration` with `-Dupdate.api.snapshot=true`, then without: **298/298** both (was 287); after the security-review fixes **302/302**.
+- fep-service `./mvnw -o test`: **96/96** (was 94).
+- web: **1175/1175** on the pre-cont. 56 base; **1173/1173** after rebasing on #226 (115 files); change detection OK.
+- Gate grep: no mapping/param annotation changed; request bodies changed (`ReverseRequest`, `CardAuthRequest`, `SimulateRequest` + billing fields) — documented in card-api-reference, api-reference and Postman.
+
+#### Confirmed Platform Versions
+No dependency changed. card-service: Spring Boot 3.5.16, `-Pfull-integration` 298. fep-service: 96. web: 1173.
+
+---
+
 ### Session 125 (cont. 56) — 2026-11-06
 **Backlog set 1, PR A — items 24 + 23 (incl. the TPP registry, D7b) + 3 (user: "we will do 24,23,17,3 and 10 together"; plan approved with D1–D6 recommended, D7 → b). A `payments` consent let a TPP send any amount to anyone, repeatedly; the staff Open Banking and TPP screens called endpoints that never existed; `SUSPENDED` partners were never refused; two catalogue webhooks never fired.**
 

@@ -69,6 +69,10 @@ public class CardServiceClient {
             body.put("isFinancial",     request.isFinancial());
             body.put("schemeData",      request.schemeData());
             body.put("acquiringCountry", request.acquiringCountry());   // DE19 — card-service's international control
+            // DE6 / DE51 / DE10 — card-service moves the card's money in the billing amount when sent (backlog 17)
+            body.put("billingAmount",         request.billingAmount());
+            body.put("billingCurrencyCode",   request.billingCurrencyCode());
+            body.put("billingConversionRate", request.billingConversionRate());
 
             @SuppressWarnings("unchecked")
             Map<String, Object> response = restTemplate.postForObject(
@@ -112,12 +116,22 @@ public class CardServiceClient {
      * @return RC=00 if accepted, RC=25 if original not found, RC=96 if error
      */
     public String reverse(String pan, String amount, String stan, String originalDataElements) {
+        return reverse(pan, amount, stan, originalDataElements, null, null);
+    }
+
+    /** As above, with the reversal's DE6/DE51 when the scheme sends them (backlog 17); null = not sent. */
+    public String reverse(String pan, String amount, String stan, String originalDataElements,
+                          String billingAmount, String billingCurrencyCode) {
         try {
-            Map<String, Object> body = Map.of(
-                    "pan",                  pan != null ? pan : "",
-                    "amount",               amount != null ? amount : "0",
-                    "stan",                 stan != null ? stan : "",
-                    "originalDataElements", originalDataElements != null ? originalDataElements : "");
+            Map<String, Object> body = new HashMap<>();
+            body.put("pan",                  pan != null ? pan : "");
+            body.put("amount",               amount != null ? amount : "0");
+            body.put("stan",                 stan != null ? stan : "");
+            body.put("originalDataElements", originalDataElements != null ? originalDataElements : "");
+            if (billingAmount != null && !billingAmount.isBlank()) {
+                body.put("billingAmount",       billingAmount);
+                body.put("billingCurrencyCode", billingCurrencyCode);
+            }
             @SuppressWarnings("unchecked")
             Map<String, Object> response = restTemplate.postForObject(
                     cardServiceBaseUrl + "/api/v1/internal/reverse",

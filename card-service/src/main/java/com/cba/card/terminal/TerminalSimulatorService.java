@@ -78,7 +78,7 @@ public class TerminalSimulatorService {
         Iso8583Builder builder = new Iso8583Builder("0100")
                 .set(2,  Iso8583Builder.llvar(pan))                           // DE2  PAN
                 .set(3,  processingCode)                                       // DE3  Processing Code
-                .set(4,  Iso8583Builder.formatAmount(amount))                  // DE4  Amount
+                .set(4,  Iso8583Builder.formatAmount(amount, Iso8583Builder.fractionDigits(currencyOf(req))))  // DE4  Amount
                 .set(7,  Iso8583Builder.transmissionDateTime())                // DE7  Transmission DT
                 .set(11, stan)                                                 // DE11 STAN
                 .set(12, Iso8583Builder.localTime())                           // DE12 Local Time
@@ -93,6 +93,7 @@ public class TerminalSimulatorService {
                 .set(49, req.currency() != null ? req.currency() : defaultSimulatorCurrency);   // DE49 Currency
 
         setAcquiringCountry(builder, req);
+        setBilling(builder, req);
         if (req.pinBlock() != null && !req.pinBlock().isBlank()) {
             // DE52 PIN Block — 8 binary bytes (16 hex chars)
             // Stored as raw hex string; FEP interprets binary
@@ -113,7 +114,7 @@ public class TerminalSimulatorService {
         Iso8583Builder builder = new Iso8583Builder("0200")
                 .set(2,  Iso8583Builder.llvar(pan))
                 .set(3,  processingCode)
-                .set(4,  Iso8583Builder.formatAmount(amount))
+                .set(4,  Iso8583Builder.formatAmount(amount, Iso8583Builder.fractionDigits(currencyOf(req))))
                 .set(7,  Iso8583Builder.transmissionDateTime())
                 .set(11, stan)
                 .set(12, Iso8583Builder.localTime())
@@ -128,6 +129,7 @@ public class TerminalSimulatorService {
                 .set(49, req.currency() != null ? req.currency() : defaultSimulatorCurrency);
 
         setAcquiringCountry(builder, req);
+        setBilling(builder, req);
         if (req.pinBlock() != null && !req.pinBlock().isBlank()) {
             builder.set(52, req.pinBlock().substring(0, Math.min(16, req.pinBlock().length())));
         }
@@ -254,12 +256,15 @@ public class TerminalSimulatorService {
                 }
                 case 3  -> fieldLen = 6;
                 case 4  -> fieldLen = 12;
+                case 6  -> fieldLen = 12;   // cardholder billing amount
                 case 7  -> fieldLen = 10;
+                case 10 -> fieldLen = 8;    // cardholder billing conversion rate
                 case 11 -> fieldLen = 6;
                 case 12 -> fieldLen = 6;
                 case 13 -> fieldLen = 4;
                 case 14 -> fieldLen = 4;
                 case 18 -> fieldLen = 4;
+                case 19 -> fieldLen = 3;    // acquiring country — echoed back; decoding stopped here before
                 case 22 -> fieldLen = 3;
                 case 35 -> { // LLVAR Track2
                     if (pos + 2 > bytes.length) break;
@@ -287,6 +292,7 @@ public class TerminalSimulatorService {
                 case 42 -> fieldLen = 15;
                 case 43 -> fieldLen = 40;
                 case 49 -> fieldLen = 3;
+                case 51 -> fieldLen = 3;    // cardholder billing currency
                 case 54 -> { // Additional Amounts — variable (we peek first 20 chars as balance hint)
                     fieldLen = Math.min(20, bytes.length - pos);
                     if (fieldLen > 0) {
@@ -310,6 +316,33 @@ public class TerminalSimulatorService {
     }
 
     // ── Field Helpers ─────────────────────────────────────────────────────────
+
+    private String currencyOf(SimulateRequest req) {
+        return req.currency() != null ? req.currency() : defaultSimulatorCurrency;
+    }
+
+    /**
+     * DE6 (cardholder billing amount), DE51 (its currency) and DE10 (conversion rate), when the request
+     * sets them: all three together (card-service accepts DE6 only with the rate), the currency 3 digits
+     * ISO 4217 numeric, the rate 8 digits; otherwise {@code 400 INVALID_BILLING_FIELDS}.
+     */
+    private static void setBilling(Iso8583Builder builder, SimulateRequest req) {
+        boolean amount = req.billingAmount() != null;
+        boolean currency = req.billingCurrency() != null && !req.billingCurrency().isBlank();
+        boolean rate = req.conversionRate() != null && !req.conversionRate().isBlank();
+        if (!amount && !currency && !rate) return;
+        if (!amount || !currency || !rate || req.billingAmount().signum() <= 0
+                || !req.billingCurrency().trim().matches("\\d{3}")
+                || (rate && !req.conversionRate().trim().matches("\\d{8}"))) {
+            throw CbaException.badRequest("INVALID_BILLING_FIELDS",
+                    "billingAmount (> 0), billingCurrency (3-digit ISO 4217 numeric) and conversionRate "
+                            + "(8 digits, first digit = decimal places) go together");
+        }
+        String ccy = req.billingCurrency().trim();
+        builder.set(6, Iso8583Builder.formatAmount(req.billingAmount(), Iso8583Builder.fractionDigits(ccy)));
+        builder.set(51, ccy);
+        builder.set(10, req.conversionRate().trim());
+    }
 
     /** DE19 (n3) when the request names an acquiring country; a value that isn't 3 digits is refused. */
     private static void setAcquiringCountry(Iso8583Builder builder, SimulateRequest req) {

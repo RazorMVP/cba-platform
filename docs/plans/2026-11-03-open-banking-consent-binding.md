@@ -1,6 +1,6 @@
 # Backlog 13: Open Banking: TPPs read through the consent; consents bound to TPP and customer
 
-> Status: approved 2026-11-03 (user: "13"); no D1/D2 reply → defaults **D1a + D2a**.
+> Status: merged 2026-11-04 — #224 (`53a7bb0`). Approved with no D1/D2 reply → defaults **D1a + D2a**.
 
 ## Context
 Backlog 13 says AISP takes a TPP token's `sub` as the customer, so TPPs see no accounts. Reading the code shows more:

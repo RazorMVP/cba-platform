@@ -76,6 +76,7 @@ _None — all Phase 1 backend modules are now complete._
 | `docs/api-reference.html`, Postman (+ static copies), `CLAUDE.md`, `docs/deferred-backlog.md` | §15 sandbox; create/enable; item 10 ✅ |
 
 #### Key Patterns / Decisions
+- **SpotBugs `SQL_NONCONSTANT_STRING_PASSED_TO_EXECUTE` (CI, after the rebase):** `initialiseRole` concatenated the (regex-checked) role name into `ALTER ROLE … LOGIN`. Now the name is bound with `set_config('cba.reporting_role', ?, true)` and quoted by PostgreSQL in `DO … EXECUTE format('ALTER ROLE %I LOGIN', …)` inside one transaction — no identifier in SQL text, no exclusion added. Report suites 48/48 green.
 - **The database role is the boundary, the parser a second layer (D5a).** `ReportSandboxIT` sends ten attacks straight to the role with the parser bypassed — `public.*` tables, `customers` PII column, `DELETE`, data-modifying CTE, `SELECT INTO`, `set_config('role', …)`, multi-statement — every one refused, the `reports` table unchanged; then shows the parser refuses them first over HTTP.
 - **No password in git or SQL:** the migration creates the role NOLOGIN; the app sets the password at startup with a client-computed SCRAM verifier, so rotation = new secret + restart. The migration user needs CREATEROLE.
 - **Not a `DataSource` bean:** a second DataSource bean would switch off Boot's auto-configured one (and Flyway/Quartz with it).

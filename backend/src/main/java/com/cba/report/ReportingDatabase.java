@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
@@ -89,8 +90,8 @@ public class ReportingDatabase {
             log.error("app.reports.db.username '{}' is not a plain role name; reports disabled", username);
             return;
         }
-        try (Connection c = appDataSource.getConnection(); Statement s = c.createStatement()) {
-            s.execute("ALTER ROLE " + username + " LOGIN");
+        try (Connection c = appDataSource.getConnection()) {
+            grantLogin(c);
             c.unwrap(PGConnection.class).alterUserPassword(username, password.toCharArray(), "scram-sha-256");
             configured = true;
             log.info("Reporting role {} ready", username);
@@ -98,6 +99,31 @@ public class ReportingDatabase {
             log.error("Could not set up the reporting role {}: {} — reports disabled", username, e.getMessage());
         }
     }
+
+    /**
+     * {@code ALTER ROLE <username> LOGIN} without putting the name into SQL text: it is bound as a
+     * transaction-local setting and quoted by PostgreSQL ({@code format('%I')}). The name is also
+     * checked against a plain-identifier pattern before this runs.
+     */
+    private void grantLogin(Connection c) throws SQLException {
+        boolean autoCommit = c.getAutoCommit();
+        c.setAutoCommit(false);
+        try (PreparedStatement bind = c.prepareStatement(BIND_ROLE_NAME); Statement s = c.createStatement()) {
+            bind.setString(1, username);
+            bind.execute();
+            s.execute(GRANT_LOGIN);
+            c.commit();
+        } catch (SQLException | RuntimeException e) {
+            c.rollback();
+            throw e;
+        } finally {
+            c.setAutoCommit(autoCommit);
+        }
+    }
+
+    private static final String BIND_ROLE_NAME = "SELECT set_config('cba.reporting_role', ?, true)";
+    private static final String GRANT_LOGIN =
+            "DO $$ BEGIN EXECUTE format('ALTER ROLE %I LOGIN', current_setting('cba.reporting_role')); END $$";
 
     public boolean isConfigured() {
         return configured;

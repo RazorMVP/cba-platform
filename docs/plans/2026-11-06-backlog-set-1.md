@@ -1,6 +1,6 @@
 # Backlog set 1 — items 24, 23, 3, 17, 10
 
-> Status: approved 2026-11-06 (D1–D6 recommended; D7 → b). PR A (24 + 23 + 3) in progress; PRs B and C follow.
+> Status: merged — PR A (24 + 23 + 3) #226 `3aa9410`, PR B (17) #227 `c0d1b89`, PR C (10) #228 `92ae99a` (2026-11-06 to 2026-11-08). Approved 2026-11-06 (D1–D6 recommended; D7 → b).
 > On approval this file is copied to `docs/plans/2026-11-06-backlog-set-1.md` and committed with PR A.
 > The previous content of this file (backlog 13) is in `docs/plans/2026-11-03-open-banking-consent-binding.md` (#224).
 

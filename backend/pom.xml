@@ -58,7 +58,7 @@
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-csv</artifactId>
-            <version>1.11.0</version>
+            <version>1.14.1</version>
         </dependency>
 
         <!-- Report SQL shape check (backlog 10): one SELECT, no INTO, no data-modifying CTE, function

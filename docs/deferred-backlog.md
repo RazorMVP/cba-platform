@@ -377,7 +377,9 @@ coverage quality gate CLAUDE.md describes is not enforced by anything**.
 
 ---
 
-## 10. Custom reports — user-defined SQL needs a sandbox first
+## 10. ✅ DONE (cont. 58) — Custom reports — user-defined SQL needs a sandbox first
+
+> **Done in backlog set 1, PR C.** V66: `reporting` schema of explicit-column views (no PII, secrets or free text) + `cba_reporting` role (NOLOGIN in the migration; LOGIN and password from `REPORTING_DB_PASSWORD` set at startup via pgjdbc `alterUserPassword`; read-only, 30 s timeout, `search_path reporting`). `ReportingDatabase` (private pool, row cap, timeout), `ReportSqlValidator` (JSqlParser 5.4, D5a), bound typed parameters, the 7 core reports rewritten onto the views, `POST /api/v1/reports` (saved disabled) + `/enable` by another ADMIN (D6a), CSV formula neutralising, web create modal and blob export. `ReportSandboxIT` proves the role holds with the parser bypassed. The withdrawn PR #151 code was recovered from the local reflog (`f6bc8db`) — it was never on main. The text below is the original analysis.
 
 **Effort**: M · **Risk**: security — any ADMIN could read the whole database
 

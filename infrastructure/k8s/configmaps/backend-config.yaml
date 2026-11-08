@@ -7,6 +7,7 @@ data:
   SPRING_PROFILES_ACTIVE: "prod"
   SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres-main:5432/cba_db"
   SPRING_DATASOURCE_USERNAME: "cba_user"
+  REPORTING_DB_USERNAME: "cba_reporting"
   SPRING_DATA_REDIS_HOST: "redis"
   SPRING_DATA_REDIS_PORT: "6379"
   SPRING_MAIL_HOST: "mailhog"

@@ -59,16 +59,6 @@ class ReportApiIT extends AbstractIntegrationTest {
         assertThat(json.readTree(one.getBody()).get("data").get("reportParameters")).hasSize(2);
     }
 
-    @Test
-    @DisplayName("no create endpoint: user-supplied report SQL is not accepted (core reports come from migrations)")
-    void createIsNotExposed() {
-        ResponseEntity<String> r = rest.postForEntity("/api/v1/reports",
-                Map.of("reportName", "ItNope", "reportSql", "SELECT 1"), String.class);
-        assertThat(r.getStatusCode().value()).as(r.getBody()).isEqualTo(405);
-        assertThat(r.getHeaders().getAllow()).contains(org.springframework.http.HttpMethod.GET)
-                .doesNotContain(org.springframework.http.HttpMethod.POST);
-    }
-
     private static List<String> names(JsonNode data) {
         return StreamSupport.stream(data.spliterator(), false).map(n -> n.get("reportName").asText()).toList();
     }

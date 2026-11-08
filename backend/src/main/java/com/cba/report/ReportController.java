@@ -1,6 +1,7 @@
 package com.cba.report;
 
 import com.cba.common.response.ApiResponse;
+import com.cba.report.dto.ReportRequest;
 import com.cba.report.dto.ReportResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -31,8 +32,28 @@ public class ReportController {
     @Operation(summary = "List all enabled reports",
                description = "Mifos field names: reportCategory (LOAN|SAVINGS|TELLER|CUSTOMER|ACCOUNTING|MIXED), "
                        + "useReport, coreReport, reportParameters[] (optional = not required).")
-    public ResponseEntity<ApiResponse<List<ReportResponse>>> listReports() {
-        return ResponseEntity.ok(ApiResponse.ok(reportService.listReports()));
+    public ResponseEntity<ApiResponse<List<ReportResponse>>> listReports(org.springframework.security.core.Authentication auth) {
+        boolean admin = auth != null && auth.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        return ResponseEntity.ok(ApiResponse.ok(reportService.listReports(admin)));
+    }
+
+    @PostMapping("/api/v1/reports")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Create a custom report (saved disabled)",
+            description = "The SQL must be one SELECT over the reporting views (reporting.loans, accounts, customers "
+                    + "without PII, …); parameters are :name placeholders, bound and typed by reportParameters. "
+                    + "Validated and dry-run (EXPLAIN as the read-only reporting role) before saving. "
+                    + "A different ADMIN must enable it: POST /api/v1/reports/{id}/enable.")
+    public ResponseEntity<ApiResponse<ReportResponse>> createReport(@jakarta.validation.Valid @RequestBody ReportRequest request) {
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+                .body(ApiResponse.ok(reportService.createReport(request)));
+    }
+
+    @PostMapping("/api/v1/reports/{id}/enable")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Enable a report", description = "Not by the ADMIN who created it (403 SAME_USER).")
+    public ResponseEntity<ApiResponse<ReportResponse>> enableReport(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok(reportService.enableReport(id)));
     }
 
     @GetMapping("/api/v1/reports/{id}")
@@ -58,12 +79,19 @@ public class ReportController {
     @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
     @Operation(
         summary = "Run a report by name",
-        description = "Pass report parameters as query parameters. Returns rows as JSON array."
+        description = "Pass report parameters as query parameters (bound, typed: DATE yyyy-MM-dd, NUMBER, BOOLEAN). "
+                + "Runs as the read-only reporting role with a timeout and a row cap; headers X-Report-Truncated "
+                + "(true when there were more rows than X-Report-Row-Limit). 503 REPORTING_NOT_CONFIGURED when "
+                + "the reporting role has no password."
     )
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> runReport(
             @PathVariable String reportName,
             @RequestParam Map<String, String> params) {
-        return ResponseEntity.ok(ApiResponse.ok(reportService.runReport(reportName, params)));
+        ReportingDatabase.ReportRows result = reportService.runReport(reportName, params);
+        return ResponseEntity.ok()
+                .header("X-Report-Truncated", String.valueOf(result.truncated()))
+                .header("X-Report-Row-Limit", String.valueOf(result.rowLimit()))
+                .body(ApiResponse.ok(result.rows()));
     }
 
     @GetMapping("/api/v1/runreports/{reportName}/export")
@@ -81,7 +109,7 @@ public class ReportController {
         Map<String, String> reportParams = new java.util.HashMap<>(params);
         reportParams.remove("format");
 
-        List<Map<String, Object>> rows = reportService.runReport(reportName, reportParams);
+        List<Map<String, Object>> rows = reportService.runReport(reportName, reportParams).rows();
 
         return switch (format.toLowerCase(Locale.ROOT)) {
             case "xlsx" -> {

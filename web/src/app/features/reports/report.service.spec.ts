@@ -1,4 +1,6 @@
 import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { of } from 'rxjs';
 import { ApiService } from '../../core/api/api.service';
 import { ReportService } from './report.service';
@@ -26,7 +28,7 @@ describe('ReportService', () => {
       base: 'http://localhost:8080/api/v1',
     };
     TestBed.configureTestingModule({
-      providers: [ReportService, { provide: ApiService, useValue: api }],
+      providers: [ReportService, { provide: ApiService, useValue: api }, provideHttpClient(), provideHttpClientTesting()],
     });
     service = TestBed.inject(ReportService);
   });
@@ -40,16 +42,31 @@ describe('ReportService', () => {
     expect(api.delete).toHaveBeenCalledWith('/reports/r1');
   });
 
-  it('runReport URL-encodes the report name and passes params', () => {
-    service.runReport('Active Loans', { branch: '001' }).subscribe();
-    expect(api.get).toHaveBeenCalledWith('/runreports/Active%20Loans', { branch: '001' });
+  it('runReport GETs the run URL with the params and reads X-Report-Truncated', () => {
+    const http = TestBed.inject(HttpTestingController);
+    let result: unknown;
+    service.runReport('Active Loans', { branch: '001' }).subscribe(r => (result = r));
+    const req = http.expectOne(r => r.url.endsWith('/runreports/Active%20Loans') && r.params.get('branch') === '001');
+    req.flush({ data: [{ n: 1 }], meta: {}, errors: [] }, { headers: { 'X-Report-Truncated': 'true' } });
+    expect(result).toEqual({ rows: [{ n: 1 }], truncated: true });
+    http.verify();
   });
 
-  it('getExportUrl builds a fully-qualified download URL with the format', () => {
-    const url = service.getExportUrl('Active Loans', 'csv', { branch: '001' });
-    expect(url).toContain('http://localhost:8080/api/v1/runreports/Active%20Loans/export?');
-    expect(url).toContain('branch=001');
-    expect(url).toContain('format=csv');
+  it('exportReport fetches the file as a blob with the format', () => {
+    const http = TestBed.inject(HttpTestingController);
+    service.exportReport('Active Loans', 'csv', { branch: '001' }).subscribe();
+    const req = http.expectOne(r => r.url.endsWith('/runreports/Active%20Loans/export')
+      && r.params.get('format') === 'csv' && r.params.get('branch') === '001');
+    expect(req.request.responseType).toBe('blob');
+    req.flush(new Blob(['a']));
+    http.verify();
+  });
+
+  it('createReport POSTs the definition; enableReport POSTs to /enable', () => {
+    service.createReport({ reportName: 'Mine', reportCategory: 'LOAN', reportSql: 'SELECT 1', reportParameters: [] }).subscribe();
+    expect(api.post).toHaveBeenCalledWith('/reports', expect.objectContaining({ reportName: 'Mine' }));
+    service.enableReport('r1').subscribe();
+    expect(api.post).toHaveBeenCalledWith('/reports/r1/enable', {});
   });
 
   it('CoB jobs URL-encode the job name', () => {

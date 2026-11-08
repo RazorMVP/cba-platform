@@ -1,7 +1,10 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { ApiService } from '../../core/api/api.service';
+import { ApiResponse } from '../../core/models/api-response.model';
+import { environment } from '../../../environments/environment';
 
 // ── Reports ────────────────────────────────────────────────────────────────────
 
@@ -35,6 +38,8 @@ export interface Report {
   coreReport: boolean;
   useReport: boolean;
   reportParameters: ReportParameter[];
+  /** Who created it — a custom report must be enabled by a different admin. */
+  createdBy?: string | null;
 }
 
 // ── CoB Scheduler ──────────────────────────────────────────────────────────────
@@ -97,9 +102,31 @@ export interface ReportMailingRequest {
 
 // ── Service ────────────────────────────────────────────────────────────────────
 
+/** A custom report (ADMIN). SQL: one SELECT over the reporting views, parameters as :name. */
+export interface ReportRequest {
+  reportName: string;
+  reportCategory: ReportCategory;
+  description?: string;
+  reportSql: string;
+  reportParameters: {
+    parameterName: string;
+    parameterLabel?: string;
+    parameterType: 'STRING' | 'DATE' | 'NUMBER' | 'BOOLEAN';
+    defaultValue?: string;
+    optional: boolean;
+  }[];
+}
+
+/** A report run: the rows, and whether there were more than the server's row cap. */
+export interface ReportRun {
+  rows: Record<string, unknown>[];
+  truncated: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ReportService {
   private readonly api = inject(ApiService);
+  private readonly http = inject(HttpClient);
 
   // Reports CRUD
   listReports(): Observable<Report[]> {
@@ -112,16 +139,32 @@ export class ReportService {
     return this.api.delete<void>(`/reports/${id}`);
   }
 
-  // Run report — returns array of arbitrary row objects
-  runReport(reportName: string, params: Record<string, string>): Observable<Record<string, unknown>[]> {
-    return this.api.get<Record<string, unknown>[]>(`/runreports/${encodeURIComponent(reportName)}`, params);
+  /** Custom report — saved disabled; another admin enables it. */
+  createReport(req: ReportRequest): Observable<Report> {
+    return this.api.post<Report>('/reports', req);
+  }
+  enableReport(id: string): Observable<Report> {
+    return this.api.post<Report>(`/reports/${id}/enable`, {});
   }
 
-  // Export report — triggers browser file download via URL navigation
-  getExportUrl(reportName: string, format: 'csv' | 'xlsx' | 'pdf', params: Record<string, string>): string {
-    const base = this.api['base'] as string;
-    const query = new URLSearchParams({ ...params, format }).toString();
-    return `${base}/runreports/${encodeURIComponent(reportName)}/export?${query}`;
+  /** Run a report: rows plus the server's X-Report-Truncated flag (row cap reached). */
+  runReport(reportName: string, params: Record<string, string>): Observable<ReportRun> {
+    return this.http.get<ApiResponse<Record<string, unknown>[]>>(
+      `${environment.apiBaseUrl}/runreports/${encodeURIComponent(reportName)}`,
+      { params: new HttpParams({ fromObject: params }), observe: 'response' },
+    ).pipe(map(r => ({
+      rows: r.body?.data ?? [],
+      truncated: r.headers.get('X-Report-Truncated') === 'true',
+    })));
+  }
+
+  /**
+   * Export through HttpClient (so the bearer token goes with it) as a file; `window.open` sent none and
+   * failed once login was enforced.
+   */
+  exportReport(reportName: string, format: 'csv' | 'xlsx' | 'pdf', params: Record<string, string>): Observable<Blob> {
+    return this.http.get(`${environment.apiBaseUrl}/runreports/${encodeURIComponent(reportName)}/export`,
+      { params: new HttpParams({ fromObject: { ...params, format } }), responseType: 'blob' });
   }
 
   // CoB Scheduler

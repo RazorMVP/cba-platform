@@ -10532,6 +10532,25 @@ components:
           format: "int64"
           type: "integer"
       type: "object"
+    ReportParameterRequest:
+      properties:
+        defaultValue:
+          maxLength: 255
+          minLength: 0
+          type: "string"
+        optional:
+          type: "boolean"
+        parameterLabel:
+          maxLength: 100
+          minLength: 0
+          type: "string"
+        parameterName:
+          maxLength: 100
+          minLength: 0
+          type: "string"
+        parameterType:
+          type: "string"
+      type: "object"
     ReportParameterResponse:
       properties:
         defaultValue:
@@ -10551,10 +10570,32 @@ components:
           format: "int32"
           type: "integer"
       type: "object"
+    ReportRequest:
+      properties:
+        description:
+          type: "string"
+        reportCategory:
+          type: "string"
+        reportName:
+          maxLength: 100
+          minLength: 0
+          type: "string"
+        reportParameters:
+          items:
+            $ref: "#/components/schemas/ReportParameterRequest"
+          type: "array"
+        reportSql:
+          minLength: 1
+          type: "string"
+        reportType:
+          type: "string"
+      type: "object"
     ReportResponse:
       properties:
         coreReport:
           type: "boolean"
+        createdBy:
+          type: "string"
         description:
           type: "string"
         id:
@@ -20023,6 +20064,29 @@ paths:
       summary: "List all enabled reports"
       tags:
       - "Reports"
+    post:
+      description: "The SQL must be one SELECT over the reporting views (reporting.loans,\
+        \ accounts, customers without PII, …); parameters are :name placeholders,\
+        \ bound and typed by reportParameters. Validated and dry-run (EXPLAIN as the\
+        \ read-only reporting role) before saving. A different ADMIN must enable it:\
+        \ POST /api/v1/reports/{id}/enable."
+      operationId: "createReport"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReportResponse"
+          description: "OK"
+      summary: "Create a custom report (saved disabled)"
+      tags:
+      - "Reports"
   /api/v1/reports/{id}:
     delete:
       operationId: "deleteReport"
@@ -20060,6 +20124,27 @@ paths:
                 $ref: "#/components/schemas/ApiResponseReportResponse"
           description: "OK"
       summary: "Get report definition by ID"
+      tags:
+      - "Reports"
+  /api/v1/reports/{id}/enable:
+    post:
+      description: "Not by the ADMIN who created it (403 SAME_USER)."
+      operationId: "enableReport"
+      parameters:
+      - in: "path"
+        name: "id"
+        required: true
+        schema:
+          format: "uuid"
+          type: "string"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReportResponse"
+          description: "OK"
+      summary: "Enable a report"
       tags:
       - "Reports"
   /api/v1/roles:
@@ -20206,8 +20291,11 @@ paths:
       - "Roles & Permissions"
   /api/v1/runreports/{reportName}:
     get:
-      description: "Pass report parameters as query parameters. Returns rows as JSON\
-        \ array."
+      description: "Pass report parameters as query parameters (bound, typed: DATE\
+        \ yyyy-MM-dd, NUMBER, BOOLEAN). Runs as the read-only reporting role with\
+        \ a timeout and a row cap; headers X-Report-Truncated (true when there were\
+        \ more rows than X-Report-Row-Limit). 503 REPORTING_NOT_CONFIGURED when the\
+        \ reporting role has no password."
       operationId: "runReport"
       parameters:
       - in: "path"

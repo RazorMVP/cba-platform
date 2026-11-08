@@ -168,6 +168,8 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-main:5432/cba_db
       SPRING_DATASOURCE_USERNAME: cba_user
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_MAIN_PASSWORD:-cba_dev_password}
+      # Report SQL sandbox (backlog 10): the read-only cba_reporting role gets this password at startup
+      REPORTING_DB_PASSWORD: ${REPORTING_DB_PASSWORD:-cba_reporting_dev}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: "6379"
       SPRING_MAIL_HOST: mailhog

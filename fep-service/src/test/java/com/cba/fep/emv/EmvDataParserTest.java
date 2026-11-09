@@ -82,13 +82,52 @@ class EmvDataParserTest {
     }
 
     @Test
-    @DisplayName("length overflow stops parsing gracefully, keeping tags parsed so far")
-    void overflowStopsGracefully() {
-        // 82 (AIP) 2 bytes AABB  -> parsed
-        // 95 length 0xFF (255) but only 1 byte left -> overflow, break
-        EmvData result = parser.parse(hex("82 02 AABB 95 FF 01"));
-        assertThat(result.getTagHex("82")).isEqualTo("AABB");
-        assertThat(result.hasTag("95")).as("overflowing tag is dropped, not partially read").isFalse();
+    @DisplayName("length overflow fails closed: no tags at all, so there is no ARQC to validate")
+    void overflowFailsClosed() {
+        // 9F26 parsed fine, then 95 claims 255 bytes with only 1 left
+        EmvData result = parser.parse(hex("9F26 08 1122334455667788 95 FF 01"));
+        assertThat(result.size()).as("malformed DE55 yields no partial result").isZero();
+        assertThat(result.hasTag(EmvTag.ARQC)).isFalse();
+    }
+
+    @Test
+    @DisplayName("unsupported length form (83) fails closed")
+    void unsupportedLengthFailsClosed() {
+        assertThat(parser.parse(hex("95 83 000005 0000008000")).size()).isZero();
+    }
+
+    @Test
+    @DisplayName("three-byte tag (DF8101) is read whole and the next tag is still in step")
+    void threeByteTag() {
+        EmvData result = parser.parse(hex("DF8101 02 ABCD 9F26 08 1122334455667788"));
+        assertThat(result.getTagHex("DF8101")).isEqualTo("ABCD");
+        assertThat(result.getTagHex("9F26")).isEqualTo("1122334455667788");
+        assertThat(result.size()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("00 / FF padding before, between and after objects is skipped")
+    void paddingSkipped() {
+        EmvData result = parser.parse(hex("00 FF 9F27 01 80 0000 9F36 02 001C FF FF 00"));
+        assertThat(result.getTagHex("9F27")).isEqualTo("80");
+        assertThat(result.getTagHex("9F36")).isEqualTo("001C");
+        assertThat(result.size()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("a duplicate tag does not replace the first occurrence (an appended 9F26 can't swap the ARQC)")
+    void duplicateFirstWins() {
+        EmvData result = parser.parse(hex("9F26 08 1122334455667788 9F26 08 AAAAAAAAAAAAAAAA"));
+        assertThat(result.getTagHex("9F26")).isEqualTo("1122334455667788");
+    }
+
+    @Test
+    @DisplayName("nested templates (70 → 77 → primitive) are descended")
+    void nestedTemplates() {
+        EmvData result = parser.parse(hex("70 0D 77 0B 9F26 08 1122334455667788"));
+        assertThat(result.getTagHex("9F26")).isEqualTo("1122334455667788");
+        assertThat(result.hasTag("70")).isFalse();
+        assertThat(result.hasTag("77")).isFalse();
     }
 
     @Test

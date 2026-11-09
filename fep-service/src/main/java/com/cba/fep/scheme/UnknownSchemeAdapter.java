@@ -30,7 +30,7 @@ public class UnknownSchemeAdapter implements SchemeAdapter {
     }
 
     @Override
-    public void embedArpc(ISOMsg response, byte[] arpc) {
+    public void embedArpc(ISOMsg response, byte[] arpc, byte[] arc) {
         // No ARPC for unknown scheme
     }
 

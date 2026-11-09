@@ -1,30 +1,28 @@
 package com.cba.fep.emv;
 
+import com.cba.fep.emv.tlv.BerTlvParser;
+import com.cba.fep.emv.tlv.Tlv;
+import com.cba.fep.emv.tlv.TlvParseException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
- * BER-TLV parser for EMV DE55 (ICC Data).
+ * Reads EMV DE55 (ICC data) into a flat {@link EmvData} map of tag → value.
  *
- * <p>Parses the raw bytes from ISO 8583 DE55 into a flat map of
- * tag → value. Constructed tags (template tags like 70, 77, 80) are
- * unwrapped — their content is flattened into the same map.
+ * <p>Decoding is {@link BerTlvParser} (EMV Book 3 Annex B: multi-byte tags, {@code 81}/{@code 82}
+ * lengths, {@code 00}/{@code FF} padding). Templates (constructed tags such as {@code 70}, {@code 77})
+ * are descended and only their primitive children are stored; the template tags themselves are not.
  *
- * <p>Handles:
- * <ul>
- *   <li>1-byte and 2-byte tags (BER-TLV multi-byte tag encoding)</li>
- *   <li>1-byte and 2-byte lengths (BER long-form length encoding)</li>
- *   <li>Constructed tags (bit 6 of first byte = 1) — recursively parsed</li>
- * </ul>
+ * <p>When a tag occurs more than once the <b>first</b> occurrence is kept (the rest are logged): a
+ * duplicate {@code 9F26} appended after the genuine one must not replace the cryptogram that gets
+ * validated.
  *
- * <p>Does NOT handle:
- * <ul>
- *   <li>Indefinite-length encoding (not used in EMV)</li>
- *   <li>3+ byte lengths (max EMV field is 999 bytes)</li>
- * </ul>
+ * <p>Malformed ICC data gives an <b>empty</b> {@code EmvData} — no partial result. With no {@code 9F26}
+ * the ARQC check fails, so a chip transaction with broken DE55 is not authenticated.
  */
 @Slf4j
 @Component
@@ -34,75 +32,33 @@ public class EmvDataParser {
      * Parse raw DE55 bytes into an {@link EmvData} object.
      *
      * @param iccData raw bytes from DE55
-     * @return parsed EMV tags; empty if input is null or malformed
+     * @return parsed EMV tags; empty if input is null, empty or malformed
      */
     public EmvData parse(byte[] iccData) {
         if (iccData == null || iccData.length == 0) {
             return new EmvData(Map.of());
         }
+        List<Tlv> objects;
+        try {
+            objects = BerTlvParser.parse(iccData);
+        } catch (TlvParseException e) {
+            log.warn("EMV DE55 is not valid BER-TLV ({} bytes): {} — treated as no ICC data",
+                    iccData.length, e.getMessage());
+            return new EmvData(Map.of());
+        }
         Map<String, byte[]> tags = new HashMap<>();
-        parseTlv(iccData, 0, iccData.length, tags);
+        flatten(objects, tags);
         log.debug("EMV parse: {} tags extracted from {} bytes", tags.size(), iccData.length);
         return new EmvData(tags);
     }
 
-    private int parseTlv(byte[] data, int offset, int end, Map<String, byte[]> out) {
-        int pos = offset;
-        while (pos < end) {
-            if (pos >= data.length) break;
-
-            // --- Parse tag ---
-            int tagStart = pos;
-            boolean isConstructed = (data[pos] & 0x20) != 0;
-            String tag;
-
-            if ((data[pos] & 0x1F) == 0x1F) {
-                // Multi-byte tag: first byte has 0x1F in low 5 bits
-                if (pos + 1 >= data.length) break;
-                tag = String.format("%02X%02X", data[pos] & 0xFF, data[pos + 1] & 0xFF);
-                pos += 2;
-            } else {
-                tag = String.format("%02X", data[pos] & 0xFF);
-                pos++;
+    private static void flatten(List<Tlv> objects, Map<String, byte[]> out) {
+        for (Tlv t : objects) {
+            if (t.constructed()) {
+                flatten(t.children(), out);
+            } else if (out.putIfAbsent(t.tag(), t.value()) != null) {
+                log.warn("EMV DE55: duplicate tag {} ignored — first occurrence kept", t.tag());
             }
-
-            if (pos >= end) break;
-
-            // --- Parse length ---
-            int len;
-            if ((data[pos] & 0x80) == 0) {
-                // Short form: length in low 7 bits
-                len = data[pos] & 0x7F;
-                pos++;
-            } else {
-                // Long form: next N bytes carry the length value
-                int numLenBytes = data[pos] & 0x7F;
-                pos++;
-                if (numLenBytes > 2 || pos + numLenBytes > end) break;
-                len = 0;
-                for (int i = 0; i < numLenBytes; i++) {
-                    len = (len << 8) | (data[pos++] & 0xFF);
-                }
-            }
-
-            if (pos + len > end) {
-                log.warn("EMV TLV: tag {} length {} overflows buffer at pos {}", tag, len, pos);
-                break;
-            }
-
-            // --- Extract value ---
-            byte[] value = new byte[len];
-            System.arraycopy(data, pos, value, 0, len);
-
-            if (isConstructed) {
-                // Recurse into constructed tags (unwrap templates)
-                parseTlv(data, pos, pos + len, out);
-            } else {
-                out.put(tag.toUpperCase(), value);
-            }
-
-            pos += len;
         }
-        return pos;
     }
 }

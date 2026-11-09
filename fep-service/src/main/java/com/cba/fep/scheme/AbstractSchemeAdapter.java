@@ -1,6 +1,8 @@
 package com.cba.fep.scheme;
 
 import com.cba.fep.auth.AuthorizationResult;
+import com.cba.fep.emv.EmvTag;
+import com.cba.fep.emv.tlv.BerTlvBuilder;
 import com.cba.fep.iso.IsoField;
 import com.cba.fep.iso.IsoMessageFactory;
 import org.jpos.iso.ISOException;
@@ -39,36 +41,21 @@ public abstract class AbstractSchemeAdapter implements SchemeAdapter {
     }
 
     @Override
-    public void embedArpc(ISOMsg response, byte[] arpc) throws ISOException {
-        // Build minimal DE55 update with ARPC tag (9F26) + ARC tag (8A)
-        // In a production system this would merge with the existing DE55 TLV stream.
-        // The EMV spec requires the ARPC to be in tag 9F26 position 2 of the ATC response.
-        // For now, append the ARPC as raw bytes if DE55 was in the request.
-        if (response.hasField(IsoField.ICC_DATA)) {
-            byte[] existing = response.getBytes(IsoField.ICC_DATA);
-            byte[] withArpc = appendArpcTag(existing, arpc);
-            response.set(IsoField.ICC_DATA, withArpc);
+    public void embedArpc(ISOMsg response, byte[] arpc, byte[] arc) throws ISOException {
+        // DE55 of a 0110/0210 = tag 91 Issuer Authentication Data only (decision D8a): ARPC (8) || ARC (2).
+        // Issuer scripts (71/72) would be appended here as further TLV objects; none are generated yet.
+        if (arpc == null || arpc.length != 8 || arc == null || arc.length != 2) {
+            throw new IllegalArgumentException("Tag 91 needs an 8-byte ARPC and a 2-byte ARC");
         }
+        byte[] issuerAuthData = new byte[10];
+        System.arraycopy(arpc, 0, issuerAuthData, 0, 8);
+        System.arraycopy(arc, 0, issuerAuthData, 8, 2);
+        response.set(IsoField.ICC_DATA, BerTlvBuilder.encode(EmvTag.ISSUER_AUTH_DATA, issuerAuthData));
     }
 
     @Override
     public void finalizeResponse(ISOMsg response, AuthorizationResult result, SchemeType scheme)
             throws ISOException {
         // Default: no scheme-specific finalization needed
-    }
-
-    /**
-     * Append the ARPC as a TLV-encoded tag 9F26 into the existing DE55 byte stream.
-     * This is a simplified append — production code would use a proper TLV builder.
-     */
-    protected byte[] appendArpcTag(byte[] existingTlv, byte[] arpc) {
-        // Tag 9F26 = ARQC/ARPC, length 8 bytes
-        byte[] tag = new byte[]{(byte) 0x9F, 0x26};
-        byte[] result = new byte[existingTlv.length + tag.length + 1 + arpc.length];
-        System.arraycopy(existingTlv, 0, result, 0, existingTlv.length);
-        System.arraycopy(tag, 0, result, existingTlv.length, tag.length);
-        result[existingTlv.length + tag.length] = (byte) arpc.length;
-        System.arraycopy(arpc, 0, result, existingTlv.length + tag.length + 1, arpc.length);
-        return result;
     }
 }

@@ -73,6 +73,7 @@ public class FinancialHandler {
         AuthorizationResult result = cardServiceClient.authorize(authReq);
 
         ISOMsg response = (ISOMsg) request.clone();
+        response.unset(IsoField.ICC_DATA);   // never echo the request's ICC data
         response.setMTI("0210");
         response.set(IsoField.RESPONSE_CODE, result.responseCode());
         if (result.approved()) {
@@ -96,6 +97,7 @@ public class FinancialHandler {
                 stan);
 
         ISOMsg response = (ISOMsg) request.clone();
+        response.unset(IsoField.ICC_DATA);   // never echo the request's ICC data
         response.setMTI("0230");
         response.set(IsoField.RESPONSE_CODE, result.responseCode());
         response.set(IsoField.TRANSMISSION_DATETIME, LocalDateTime.now().format(DATETIME_FMT));

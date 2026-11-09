@@ -1,6 +1,9 @@
 package com.cba.fep.scheme;
 
 import com.cba.fep.emv.CryptogramAlgorithm;
+import com.cba.fep.emv.tlv.BerTlvParser;
+import com.cba.fep.emv.tlv.Tlv;
+import com.cba.fep.emv.tlv.TlvParseException;
 import com.cba.fep.iso.IsoField;
 import com.cba.fep.iso.IsoMessageFactory;
 import lombok.extern.slf4j.Slf4j;
@@ -9,6 +12,7 @@ import org.jpos.iso.ISOMsg;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -126,6 +130,10 @@ public class UnionPaySchemeAdapter extends AbstractSchemeAdapter {
                 data.put("cup.vlp_txn_limit",
                         bytesToHex(qpbocTags.get(TAG_VLP_TXN_LIMIT)));
             }
+            if (qpbocTags.containsKey(TAG_VLP_AVAILABLE)) {
+                data.put("cup.vlp_available",
+                        bytesToHex(qpbocTags.get(TAG_VLP_AVAILABLE)));
+            }
             if (qpbocTags.containsKey(TAG_CUSTOMER_EXCLUSIVE)) {
                 data.put("cup.customer_exclusive",
                         bytesToHex(qpbocTags.get(TAG_CUSTOMER_EXCLUSIVE)));
@@ -145,43 +153,28 @@ public class UnionPaySchemeAdapter extends AbstractSchemeAdapter {
     }
 
     /**
-     * Parse QPBOC-specific tags from an EMV TLV byte stream.
-     * This is a simplified BER-TLV parser targeting the CUP proprietary tags.
-     * Only 2-byte tags with 1-byte lengths are handled (covers 9F7C/9F77/9F78/9F79).
+     * The tags of an EMV TLV byte stream, templates descended, first occurrence of each kept
+     * ({@link BerTlvParser}: multi-byte tags, long-form lengths, padding). Malformed data gives no tags.
      */
     private Map<String, byte[]> parseQpbocTags(byte[] tlv) {
         Map<String, byte[]> tags = new HashMap<>();
-        int pos = 0;
-        while (pos < tlv.length - 2) {
-            try {
-                // Read tag — handle 1-byte and 2-byte tags
-                int tag;
-                int tagLen;
-                if ((tlv[pos] & 0x1F) == 0x1F) {
-                    // Two-byte tag
-                    tag = ((tlv[pos] & 0xFF) << 8) | (tlv[pos + 1] & 0xFF);
-                    tagLen = 2;
-                } else {
-                    tag = tlv[pos] & 0xFF;
-                    tagLen = 1;
-                }
-                pos += tagLen;
-                if (pos >= tlv.length) break;
-
-                // Read length (simple form only — no BER extended length)
-                int len = tlv[pos] & 0xFF;
-                pos++;
-                if (pos + len > tlv.length) break;
-
-                byte[] value = new byte[len];
-                System.arraycopy(tlv, pos, value, 0, len);
-                tags.put(String.format("%X", tag), value);
-                pos += len;
-            } catch (ArrayIndexOutOfBoundsException e) {
-                break;
-            }
+        try {
+            collect(BerTlvParser.parse(tlv), tags);
+        } catch (TlvParseException e) {
+            log.warn("UnionPay DE55 is not valid BER-TLV: {} — QPBOC tags not read", e.getMessage());
+            return Map.of();
         }
         return tags;
+    }
+
+    private static void collect(List<Tlv> objects, Map<String, byte[]> out) {
+        for (Tlv t : objects) {
+            if (t.constructed()) {
+                collect(t.children(), out);
+            } else {
+                out.putIfAbsent(t.tag(), t.value());
+            }
+        }
     }
 
     private String bytesToHex(byte[] bytes) {

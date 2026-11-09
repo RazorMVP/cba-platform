@@ -85,13 +85,13 @@ _None — all Phase 1 backend modules are now complete._
 - **Opening balance PREPAID** reads card-service through the backend's service token; an unreachable card-service is a 503, never read as "no wallets". The demo wallet (50,000 USD) enters 2500 this way.
 
 #### Build Verification
-- backend `./mvnw -o test`: 921 green; `-Pfull-integration` with `-Dupdate.api.snapshot=true`: **1078/1078** (was 1072; `CardPrepaidIT` 6/6).
+- backend `./mvnw -o test`: 921 green; `-Pfull-integration` with `-Dupdate.api.snapshot=true`: **1078/1078** (was 1072; `CardPrepaidIT` 6/6); **1102/1102** after rebasing on cont. 60 (#237), snapshot unchanged.
 - card-service `./mvnw -o test`: **285/285** (was 270); `-Pfull-integration` with snapshot update: **318/318** (was 302).
-- web: **1185/1185** (was 1176); change detection OK; `tsc` clean.
+- web: **1185/1185** (was 1176); **1194/1194** after rebasing on cont. 60; change detection OK; `tsc` clean.
 - Gate grep (untracked new controllers): `@RequestMapping /api/v1/card-prepaid` + `/loads`, `/unloads`, `/clearings`, `/clearings/{reference}/refund`; card-service `/{id}/wallet`, `/{id}/wallet/loads`, `/{id}/wallet/unloads`, `/wallets/totals`; opening-balances scope PREPAID — all documented in api-reference, card-api-reference and Postman.
 
 #### Confirmed Platform Versions
-backend: Spring Boot 3.5.16, Java 21; `-Pfull-integration` 1078. card-service: Spring Boot 3.5.16; 318. web: Angular 22.2.3, 1185. No dependency changes.
+backend: Spring Boot 3.5.16, Java 21; `-Pfull-integration` 1102. card-service: Spring Boot 3.5.16; 318. web: Angular 22.2.3, 1194. No dependency changes.
 
 ---
 

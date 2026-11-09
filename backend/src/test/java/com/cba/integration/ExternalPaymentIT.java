@@ -110,7 +110,7 @@ class ExternalPaymentIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("unsigned, wrongly signed or stale callbacks → 401, nothing moves; every one is stored")
+    @DisplayName("unsigned, wrongly signed or stale callbacks → 401, nothing moves; nothing from their body is stored")
     void badSignatures() {
         UUID acc = account("EXT-B", "500.00");
         PaymentResponse p = pay(acc, "10.00");
@@ -124,8 +124,9 @@ class ExternalPaymentIT extends AbstractIntegrationTest {
 
         assertThat(status(p.id())).isEqualTo("PROCESSING");
         assertThat(balance(acc)).isEqualByComparingTo("490.00");
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM external_payment_callbacks WHERE reference = ? AND result = 'INVALID_SIGNATURE'",
-                Integer.class, p.referenceNumber())).isEqualTo(3);
+        // Anyone can send an unsigned body: none of its content is stored (at most a bare "invalid attempt" row).
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM external_payment_callbacks WHERE result = 'INVALID_SIGNATURE' "
+                + "AND (reference IS NOT NULL OR reason IS NOT NULL OR outcome IS NOT NULL)", Integer.class)).isZero();
     }
 
     @Test

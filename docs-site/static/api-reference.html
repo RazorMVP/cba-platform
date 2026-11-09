@@ -1529,7 +1529,7 @@ X-Gateway-Signature: sha256=&lt;hex(HMAC-SHA256(secret, timestamp + "." + rawBod
       </tbody>
     </table>
     <p><strong>200:</strong> <code>{ "result": "APPLIED" | "REPEAT", "paymentId", "reference", "status" }</code> — the same outcome sent again is a <code>REPEAT</code> (nothing posted twice; the payment row is locked).</p>
-    <p><strong>Errors:</strong> <code>401 INVALID_SIGNATURE</code> (missing, wrong or stale), <code>503 CALLBACK_NOT_CONFIGURED</code> (secret unset — fails closed), <code>400 INVALID_CALLBACK</code>, <code>404</code> unknown payment, <code>409 PAYMENT_NOT_PROCESSING</code> (a different outcome after the payment left PROCESSING — a return after settlement is an incoming credit, not handled here). Every callback is stored in <code>external_payment_callbacks</code>, whatever its result. Not rate-limited.</p>
+    <p><strong>Errors:</strong> <code>401 INVALID_SIGNATURE</code> (missing, wrong or stale), <code>503 CALLBACK_NOT_CONFIGURED</code> (secret unset — fails closed), <code>400 INVALID_CALLBACK</code>, <code>404</code> unknown payment, <code>409 PAYMENT_NOT_PROCESSING</code> (a different outcome after the payment left PROCESSING — a return after settlement is an incoming credit, not handled here). Every signed callback is stored in <code>external_payment_callbacks</code>, whatever its result; nothing from an unsigned body is stored (a bare invalid-attempt row at most once a minute per address). Not rate-limited.</p>
   </div>
 </details>
 

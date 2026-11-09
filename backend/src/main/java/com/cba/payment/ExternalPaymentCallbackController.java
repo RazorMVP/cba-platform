@@ -27,8 +27,9 @@ import java.util.Map;
 /**
  * The external payments gateway's settlement callback (backlog 1). No user token: the gateway
  * signs the raw body ({@link CallbackSignature}) with {@code EXTERNAL_PAYMENT_CALLBACK_SECRET}.
- * Unset secret → 503 (fails closed); a bad or stale signature → 401. Every callback is stored,
- * whatever happens to it.
+ * Unset secret → 503 (fails closed); a bad or stale signature → 401. Every signed callback is
+ * stored, whatever happens to it; an unsigned one only as "an invalid attempt from this address"
+ * (no body content), at most once a minute per address.
  *
  * <p>Body: {@code {"reference":"EXT-…","networkReference":"…","status":"SETTLED|RETURNED|REJECTED","reason":"…"}}
  * — {@code reference} (ours, sent with the submit) or {@code networkReference} names the payment.
@@ -42,15 +43,18 @@ public class ExternalPaymentCallbackController {
     private final ExternalPaymentOutcomeService outcomes;
     private final ExternalPaymentCallbackRepository callbacks;
     private final ObjectMapper objectMapper;
+    private final com.cba.config.RateLimitService rateLimitService;
     private final String secret;
 
     public ExternalPaymentCallbackController(ExternalPaymentOutcomeService outcomes,
                                              ExternalPaymentCallbackRepository callbacks,
                                              ObjectMapper objectMapper,
+                                             com.cba.config.RateLimitService rateLimitService,
                                              @Value("${app.payments.external.callback-secret:}") String secret) {
         this.outcomes = outcomes;
         this.callbacks = callbacks;
         this.objectMapper = objectMapper;
+        this.rateLimitService = rateLimitService;
         this.secret = secret;
     }
 
@@ -74,18 +78,22 @@ public class ExternalPaymentCallbackController {
                     "CALLBACK_NOT_CONFIGURED", "External payment callbacks are not configured"));
         }
         CallbackSignature.Verdict verdict = CallbackSignature.verify(secret, timestamp, signature, body, Instant.now());
+        if (verdict != CallbackSignature.Verdict.OK) {
+            // Nothing from an unsigned body is stored (anyone can send one), and at most one row per
+            // address per minute — the endpoint isn't rate-limited, so this keeps the table from filling.
+            if (rateLimitService.firstEventInWindow("ext-pay-callback-invalid:" + request.getRemoteAddr())) {
+                record(row, false, "INVALID_SIGNATURE");
+            }
+            log.warn("External payment callback with {} signature from {}", verdict, request.getRemoteAddr());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error(
+                    "INVALID_SIGNATURE", "The callback signature is missing, stale or wrong"));
+        }
         JsonNode json = parse(body);
         if (json != null) {
             row.setReference(text(json, "reference", 50));
             row.setNetworkReference(text(json, "networkReference", 64));
             row.setOutcome(text(json, "status", 20));
             row.setReason(text(json, "reason", 2000));
-        }
-        if (verdict != CallbackSignature.Verdict.OK) {
-            record(row, false, "INVALID_SIGNATURE");
-            log.warn("External payment callback with {} signature from {}", verdict, request.getRemoteAddr());
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error(
-                    "INVALID_SIGNATURE", "The callback signature is missing, stale or wrong"));
         }
         if (json == null || (row.getReference() == null && row.getNetworkReference() == null)) {
             record(row, true, "INVALID_CALLBACK");

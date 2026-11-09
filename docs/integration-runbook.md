@@ -87,7 +87,7 @@ Legend for **State**:
 
   {"reference":"EXT-4F2A91C0","networkReference":"<UETR>","status":"SETTLED|RETURNED|REJECTED","reason":"..."}
   ```
-  `SETTLED` → DR 2400 / CR nostro (activity `ASSET_EXTERNAL_PAYMENT_NOSTRO`, default **1002 Cash at Bank** — remap it to the correspondent's nostro GL in Financial Activity Accounts). `RETURNED`/`REJECTED` → source credited back, DR 2400 / CR deposit. A repeat answers `REPEAT`; a different outcome once the payment left `PROCESSING` → `409`. Every callback is stored in `external_payment_callbacks` (signature verdict, result, remote address).
+  `SETTLED` → DR 2400 / CR nostro (activity `ASSET_EXTERNAL_PAYMENT_NOSTRO`, default **1002 Cash at Bank** — remap it to the correspondent's nostro GL in Financial Activity Accounts). `RETURNED`/`REJECTED` → source credited back, DR 2400 / CR deposit. A repeat answers `REPEAT`; a different outcome once the payment left `PROCESSING` → `409`. Every signed callback is stored in `external_payment_callbacks` (result, remote address); an unsigned one only as a bare invalid-attempt row, at most once a minute per address.
 - **Stuck payments:** `GET /api/v1/payments/external?status=PROCESSING` lists them; an ADMIN other than the initiator closes one with `POST /api/v1/payments/{id}/external-outcome {outcome, reason}`. **2400 must reconcile to the sum of PROCESSING external payments.**
 - **Not built:** a return after settlement (an incoming credit), external-payment fees (OUR/SHA charges), cross-currency external payments.
 - **Contract:** 🔴 needs a real PSP / correspondent-banking / SWIFT-service-bureau relationship.

@@ -50,15 +50,48 @@ class HttpExternalPaymentGatewayTest {
     }
 
     @Test
-    @DisplayName("server error → rejected (never throws)")
+    @DisplayName("5xx → UNKNOWN, not rejected: the payment may have gone out (never throws)")
     void submit_serverError() {
         HttpExternalPaymentGateway gw = new HttpExternalPaymentGateway(restTemplate, "https://psp.test/pay", "k");
         server.expect(requestTo("https://psp.test/pay")).andRespond(withServerError());
 
         GatewayResult r = gw.submit(instruction());
 
-        assertThat(r.accepted()).isFalse();
-        assertThat(r.errorCode()).isNotNull();
+        assertThat(r.status()).isEqualTo(GatewayResult.Status.UNKNOWN);
+        assertThat(r.errorCode()).isEqualTo("HTTP_500");
+    }
+
+    @Test
+    @DisplayName("4xx → REJECTED: a definite refusal, so the debit rolls back")
+    void submit_clientError() {
+        HttpExternalPaymentGateway gw = new HttpExternalPaymentGateway(restTemplate, "https://psp.test/pay", "k");
+        server.expect(requestTo("https://psp.test/pay")).andRespond(withStatus(org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY));
+
+        GatewayResult r = gw.submit(instruction());
+
+        assertThat(r.status()).isEqualTo(GatewayResult.Status.REJECTED);
+        assertThat(r.errorCode()).isEqualTo("HTTP_422");
+    }
+
+    @Test
+    @DisplayName("transport error (timeout, reset) → UNKNOWN")
+    void submit_transportError() {
+        HttpExternalPaymentGateway gw = new HttpExternalPaymentGateway(restTemplate, "https://psp.test/pay", "k");
+        server.expect(requestTo("https://psp.test/pay")).andRespond(withException(new java.net.SocketTimeoutException("read timed out")));
+
+        GatewayResult r = gw.submit(instruction());
+
+        assertThat(r.status()).isEqualTo(GatewayResult.Status.UNKNOWN);
+        assertThat(r.errorCode()).isEqualTo("TRANSPORT_ERROR");
+    }
+
+    @Test
+    @DisplayName("an accepted submit is not settled: settlement comes by callback")
+    void submit_acceptedNotSettled() {
+        HttpExternalPaymentGateway gw = new HttpExternalPaymentGateway(restTemplate, "https://psp.test/pay", "k");
+        server.expect(requestTo("https://psp.test/pay")).andRespond(withSuccess("{\"id\":\"T1\"}", MediaType.APPLICATION_JSON));
+
+        assertThat(gw.submit(instruction()).settled()).isFalse();
     }
 
     @Test

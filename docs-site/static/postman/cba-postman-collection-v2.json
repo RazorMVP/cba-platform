@@ -4099,7 +4099,7 @@
                 "external"
               ]
             },
-            "description": "Debits source account and records outbound external payment. Supports SWIFT, SEPA, and ACH networks. Actual network transmission is handled by the external payments gateway.",
+            "description": "Debits the source account under the withdrawal rules and posts DR customer deposit / CR 2400 Outgoing Payments in Transit, then submits to the external payments gateway. Gateway 4xx \u2192 400 EXTERNAL_PAYMENT_REJECTED (nothing debited). Accepted \u2192 201 status PROCESSING (submitOutcome ACCEPTED, networkReference) until the signed callback or ops settle/return it. Timeout/5xx \u2192 PROCESSING with submitOutcome UNKNOWN (debit kept). The simulated dev gateway settles at once (COMPLETED, outcomeSource GATEWAY). 400 CURRENCY_MISMATCH when currencyCode isn't the account's.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"sourceAccountId\": \"{{account_id}}\",\n  \"amount\": 1500.0,\n  \"currencyCode\": \"USD\",\n  \"network\": \"SWIFT\",\n  \"beneficiaryName\": \"John Doe\",\n  \"beneficiaryIban\": \"GB29NWBK60161331926819\",\n  \"beneficiaryBic\": \"NWBKGB2L\",\n  \"beneficiaryBankName\": \"NatWest\",\n  \"beneficiaryCountryCode\": \"GB\",\n  \"chargeType\": \"SHA\",\n  \"description\": \"Invoice settlement\",\n  \"externalReference\": \"INV-2026-042\"\n}",
@@ -4110,7 +4110,52 @@
               }
             }
           },
-          "response": []
+          "response": [
+            {
+              "name": "201 Created \u2014 PROCESSING",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/payments/external",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "payments",
+                    "external"
+                  ]
+                },
+                "description": "Debits the source account under the withdrawal rules and posts DR customer deposit / CR 2400 Outgoing Payments in Transit, then submits to the external payments gateway. Gateway 4xx \u2192 400 EXTERNAL_PAYMENT_REJECTED (nothing debited). Accepted \u2192 201 status PROCESSING (submitOutcome ACCEPTED, networkReference) until the signed callback or ops settle/return it. Timeout/5xx \u2192 PROCESSING with submitOutcome UNKNOWN (debit kept). The simulated dev gateway settles at once (COMPLETED, outcomeSource GATEWAY). 400 CURRENCY_MISMATCH when currencyCode isn't the account's.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sourceAccountId\": \"{{account_id}}\",\n  \"amount\": 1500.0,\n  \"currencyCode\": \"USD\",\n  \"network\": \"SWIFT\",\n  \"beneficiaryName\": \"John Doe\",\n  \"beneficiaryIban\": \"GB29NWBK60161331926819\",\n  \"beneficiaryBic\": \"NWBKGB2L\",\n  \"beneficiaryBankName\": \"NatWest\",\n  \"beneficiaryCountryCode\": \"GB\",\n  \"chargeType\": \"SHA\",\n  \"description\": \"Invoice settlement\",\n  \"externalReference\": \"INV-2026-042\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"6f0d8f0e-2c1a-4f7e-9a51-1c2b3d4e5f60\",\n    \"referenceNumber\": \"EXT-4F2A91C0\",\n    \"paymentType\": \"EXTERNAL_PAYMENT\",\n    \"sourceAccountId\": \"{{account_id}}\",\n    \"amount\": 1500.0,\n    \"currencyCode\": \"USD\",\n    \"status\": \"PROCESSING\",\n    \"externalNetwork\": \"SWIFT\",\n    \"beneficiaryName\": \"John Doe\",\n    \"externalReference\": \"INV-2026-042\",\n    \"chargeType\": \"SHA\",\n    \"networkReference\": \"eb6305c9-1f7f-49de-aed0-16487c27b42d\",\n    \"submitOutcome\": \"ACCEPTED\",\n    \"settledAt\": null,\n    \"outcomeSource\": null,\n    \"failureReason\": null\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            }
+          ]
         },
         {
           "name": "List External Payments",
@@ -4135,6 +4180,12 @@
               ],
               "query": [
                 {
+                  "key": "status",
+                  "value": "PROCESSING",
+                  "disabled": true,
+                  "description": "Optional: PENDING | PROCESSING | COMPLETED | FAILED | REVERSED | RETURNED"
+                },
+                {
                   "key": "page",
                   "value": "0",
                   "description": "Page number (0-based)"
@@ -4147,6 +4198,130 @@
               ]
             },
             "description": "Paginated list of all EXTERNAL_PAYMENT type records (SWIFT/SEPA/ACH), including full beneficiary detail fields."
+          },
+          "response": []
+        },
+        {
+          "name": "External Payment Settlement Callback (gateway, HMAC-signed)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Signs the body like the gateway: sha256=hex(HMAC-SHA256(secret, timestamp + '.' + rawBody))",
+                  "const ts = Math.floor(Date.now() / 1000).toString();",
+                  "const body = pm.request.body.raw;",
+                  "const sig = CryptoJS.HmacSHA256(ts + '.' + body, pm.environment.get('external_payment_callback_secret') || '').toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'X-Gateway-Timestamp', value: ts });",
+                  "pm.request.headers.upsert({ key: 'X-Gateway-Signature', value: 'sha256=' + sig });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/payments/external/callbacks",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                "external",
+                "callbacks"
+              ]
+            },
+            "description": "Called by the external payments gateway, not by staff. No Authorization header: the body is signed with EXTERNAL_PAYMENT_CALLBACK_SECRET (X-Gateway-Timestamp epoch seconds within 5 minutes; X-Gateway-Signature: sha256=hex(HMAC-SHA256(secret, timestamp + '.' + rawBody))). status SETTLED \u2192 DR 2400 / CR nostro, payment COMPLETED; RETURNED \u2192 source credited, DR 2400 / CR deposit, RETURNED; REJECTED \u2192 same postings, FAILED. Same outcome again \u2192 REPEAT. Errors: 401 INVALID_SIGNATURE, 503 CALLBACK_NOT_CONFIGURED, 400 INVALID_CALLBACK, 404, 409 PAYMENT_NOT_PROCESSING / REFERENCE_MISMATCH. The pre-request script signs it from the environment variable external_payment_callback_secret.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reference\": \"EXT-4F2A91C0\",\n  \"networkReference\": \"eb6305c9-1f7f-49de-aed0-16487c27b42d\",\n  \"status\": \"SETTLED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK \u2014 applied",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"result\": \"APPLIED\",\n    \"paymentId\": \"6f0d8f0e-2c1a-4f7e-9a51-1c2b3d4e5f60\",\n    \"reference\": \"EXT-4F2A91C0\",\n    \"status\": \"COMPLETED\"\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            },
+            {
+              "name": "401 \u2014 bad signature",
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"INVALID_SIGNATURE\",\n      \"message\": \"The callback signature is missing, stale or wrong\",\n      \"field\": null\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Record External Payment Outcome (ops)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/payments/:paymentId/external-outcome",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                ":paymentId",
+                "external-outcome"
+              ],
+              "variable": [
+                {
+                  "key": "paymentId",
+                  "value": "{{payment_id}}"
+                }
+              ]
+            },
+            "description": "ADMIN, and not the user who initiated the payment (403 SAME_USER). For a PROCESSING external payment the gateway hasn't reported on: outcome SETTLED (DR 2400 / CR nostro) or RETURNED (source credited back); reason required. outcomeSource MANUAL, audited. Errors: 400 INVALID_OUTCOME / REASON_REQUIRED, 409 PAYMENT_NOT_PROCESSING.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"outcome\": \"RETURNED\",\n  \"reason\": \"Correspondent confirmed return AC04\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "response": []
         }

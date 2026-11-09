@@ -79,4 +79,9 @@ describe('PaymentService', () => {
     service.initiateExternalPayment(body).subscribe();
     expect(api.post).toHaveBeenCalledWith('/payments/external', body);
   });
+
+  it('recordExternalOutcome() posts the outcome and reason to /payments/{id}/external-outcome', () => {
+    service.recordExternalOutcome('p1', 'RETURNED', 'confirmed').subscribe();
+    expect(api.post).toHaveBeenCalledWith('/payments/p1/external-outcome', { outcome: 'RETURNED', reason: 'confirmed' });
+  });
 });

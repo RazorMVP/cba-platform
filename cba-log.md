@@ -57,6 +57,45 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 60) — 2026-11-09
+**Backlog set 2, PR A — item 1: external payments settle asynchronously and post to the GL (plan `docs/plans/2026-11-09-backlog-set-2.md`, D1a–D4a). An external payment was `COMPLETED` on the gateway's acknowledgement and posted no journal at all (GL 2001 drifted from the deposit sub-ledger); the debit skipped the row lock and hold check; a gateway timeout rolled the debit back although the payment may have left; reversing one was a NullPointerException.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/…/db/migration/V67__external_payment_settlement.sql` | GL **2400 Outgoing Payments in Transit**; activities `LIABILITY_EXTERNAL_PAYMENT_IN_TRANSIT` → 2400, `ASSET_EXTERNAL_PAYMENT_NOSTRO` → 1002; `payments.network_reference` (unique), `submit_outcome`, `settled_at`, `outcome_source`; `external_payment_callbacks` |
+| `backend/…/payment/PaymentService.java` | `initiateExternalPayment` rewritten: currency check, `debitForSubledger` + DR deposit / CR 2400, then submit; REJECTED rolls back, ACCEPTED/UNKNOWN → PROCESSING, settled → COMPLETED + DR 2400 / CR nostro; fraud event; `reversePayment` refuses external payments; `listExternalPayments(status)` |
+| `backend/…/payment/ExternalPaymentOutcomeService.java` | NEW — SETTLED / RETURNED / FAILED for a PROCESSING payment under a row lock; repeat-safe; manual path refuses the initiator (`SAME_USER`, via `AuditorAware`) |
+| `backend/…/payment/ExternalPaymentCallbackController.java`, `CallbackSignature.java`, `ExternalPaymentCallback(.java, Repository)` | NEW — `POST /api/v1/payments/external/callbacks`: HMAC-SHA256 over `timestamp.body`, 5-minute window, constant-time compare, unset secret → 503; every callback stored |
+| `backend/…/payment/gateway/*` | `GatewayResult` gains `UNKNOWN` + `settled`; HTTP gateway 4xx → REJECTED, 5xx/transport → UNKNOWN; simulated settles at once |
+| `backend/…/account/AccountGlPosting.java` | `postExternalPaymentMovement`, `postExternalPaymentSettlement` |
+| `backend/…/payment/PaymentController.java`, `dto/*`, `Payment.java`, `PaymentRepository.java`, `PaymentStatus.java` (`RETURNED`) | `POST /{id}/external-outcome` (ADMIN); `?status=`; response adds `networkReference`, `submitOutcome`, `settledAt`, `outcomeSource`, `failureReason`; locked finders |
+| `backend/…/config/SecurityConfig.java`, `RateLimitFilter.java`, `resources/application.yml` | callback `permitAll` + not rate-limited; `app.payments.external.callback-secret` (`EXTERNAL_PAYMENT_CALLBACK_SECRET`; test profile has one) |
+| backend tests | `PaymentServiceTest` external block rewritten (7), NEW `ExternalPaymentOutcomeServiceTest` (8), `CallbackSignatureTest` (3), `HttpExternalPaymentGatewayTest` +3, `SimulatedExternalPaymentGatewayTest`, NEW `ExternalPaymentIT` (6: settle, return, bad signatures, concurrent callbacks → one journal, manual outcome, GL ↔ sub-ledger) |
+| `backend/docs/openapi-snapshot.yaml` | callback + outcome endpoints, response fields, `status` param |
+| `web/…/operations/payments/*` | `RETURNED`; Send Abroad "awaiting settlement" notice + server error text; detail: beneficiary route, network fields, Awaiting-settlement banner (unknown-submit warning), Mark settled / Mark returned modal, no Reverse on external payments; specs |
+| `docs/api-reference.html`, Postman (+ static copies), `docs/integration-runbook.md` | lifecycle, callback signing (Postman pre-request script signs it), outcome endpoint, error codes; go-live steps |
+| `CLAUDE.md`, `docs/deferred-backlog.md`, `docs/plans/2026-11-09-backlog-set-2.md` (+ README row) | Payment Module lifecycle, §14 GL, backend row; item 1 ✅; set 2 plan |
+
+#### Key Patterns / Decisions
+- **D1a — in-transit liability:** debiting the customer moves the deposit to an obligation to remit, discharged only when the bank pays out of its nostro (IFRS 9 §3.3.1, B3.3.1(a); IAS 32 §11). The nostro is an activity mapped to 1002 by default so each correspondent can be remapped without code.
+- **D2a — debit before submit, keep the debit on an unknown outcome.** The old order (submit, then debit) could send a payment and then roll back its debit; a timeout rolled back too. Only a 4xx is a definite refusal.
+- **D3a:** only PROCESSING payments move; a return after settlement is an incoming credit (not built). **D4a:** ops close stuck payments with a reason, not as the initiator — same identity source as report enabling.
+- **Callback authentication by HMAC, not a user token:** the path is `permitAll` and excluded from the per-IP limiter (one machine sender); the controller fails closed with no secret. **Commit security review:** an unsigned callback had its body stored (attacker-chosen text in the audit table, unlimited) — now nothing from an unsigned body is stored, and its bare "invalid attempt" row at most once a minute per address (`RateLimitService.firstEventInWindow`). The timestamp is inside the MAC, so a captured callback can't be replayed after 5 minutes, and an outcome replayed within it is a no-op (`REPEAT`).
+- **A return credits through `creditForSubledger`, which needs an ACTIVE account** — a return to a frozen/closed account is refused and stays PROCESSING for ops.
+- **IT uses a `@MockitoBean` gateway** (ACCEPTED, not settled, like a real PSP) instead of WireMock: the callback still goes over HTTP with a real signature; `HttpExternalPaymentGateway`'s wire mapping is covered by `HttpExternalPaymentGatewayTest` and the existing WireMock IT.
+- **PR D (#236, item 4 TLV) commit security review:** tag 91 was produced for any 9F26 — an ARPC oracle; now only for a verified ARQC with CID = ARQC (fixed on #236, fep-service 148/148).
+
+#### Build Verification
+- backend `./mvnw -o test`: green. `-Pfull-integration` with `-Dupdate.api.snapshot=true`: **1096/1096** (was 1072; `ExternalPaymentIT` 6/6).
+- web: **1185/1185** (was 1176; 115 files); change detection OK (95 components Eager); `tsc` clean.
+- Gate grep: `@PostMapping /{id}/external-outcome` + `@PathVariable`, `@RequestParam status` on `GET /external`, new controller `@RequestMapping /api/v1/payments/external/callbacks` — all documented in api-reference + Postman.
+
+#### Confirmed Platform Versions
+backend: Spring Boot 3.5.16, Java 21; `-Pfull-integration` 1096. web: Angular 22.2.3, 1185. No dependency changes.
+
+---
+
 ### Session 125 (cont. 58) — 2026-11-06
 **Backlog set 1, PR C — item 10: report SQL runs in a sandbox, and custom reports (plan `docs/plans/2026-11-06-backlog-set-1.md`, D5a + D6a). Report SQL ran as the app user (the database owner) behind a keyword filter, and report parameters were pasted into the SQL text behind a 3-character filter — a TELLER could inject SQL through any report parameter.**
 

@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterLink, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { StatusBadgeComponent } from '../../../../shared/components/status-badge/status-badge';
-import { PaymentService, Payment } from '../payment.service';
+import { PaymentService, Payment, ExternalOutcome } from '../payment.service';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -26,6 +26,13 @@ export class PaymentDetailComponent implements OnInit {
   reverseReason    = '';
   reverseWorking   = false;
   reverseError     = '';
+
+  // External payment outcome (ops) — backlog 1
+  showOutcomeModal = false;
+  outcome: ExternalOutcome = 'SETTLED';
+  outcomeReason    = '';
+  outcomeWorking   = false;
+  outcomeError     = '';
 
   readonly typeLabels: Record<string, string> = {
     INTERNAL_TRANSFER: 'Internal Transfer',
@@ -76,6 +83,47 @@ export class PaymentDetailComponent implements OnInit {
     });
   }
 
+  // ── External payment outcome (ops) ──────────────────────────────────────────
+
+  openOutcomeModal(outcome: ExternalOutcome): void {
+    this.outcome          = outcome;
+    this.outcomeReason    = '';
+    this.outcomeError     = '';
+    this.outcomeWorking   = false;
+    this.showOutcomeModal = true;
+  }
+
+  closeOutcomeModal(): void { if (!this.outcomeWorking) this.showOutcomeModal = false; }
+
+  submitOutcome(): void {
+    if (!this.payment || !this.outcomeReason.trim()) return;
+    this.outcomeWorking = true;
+    this.outcomeError   = '';
+    this.svc.recordExternalOutcome(this.payment.id, this.outcome, this.outcomeReason.trim()).subscribe({
+      next: p => {
+        this.payment          = p;
+        this.outcomeWorking   = false;
+        this.showOutcomeModal = false;
+      },
+      error: err => {
+        const code = err?.error?.errors?.[0]?.code;
+        this.outcomeError = code === 'SAME_USER'
+          ? 'The outcome must be recorded by someone other than the user who sent the payment.'
+          : (err?.error?.errors?.[0]?.message ?? 'Could not record the outcome.');
+        this.outcomeWorking = false;
+      },
+    });
+  }
+
+  get isExternal(): boolean {
+    return this.payment?.paymentType === 'EXTERNAL_PAYMENT';
+  }
+
+  /** A PROCESSING external payment waits for the gateway's callback, or for ops. */
+  get awaitingSettlement(): boolean {
+    return this.isExternal && this.payment?.status === 'PROCESSING';
+  }
+
   // ── Display helpers ────────────────────────────────────────────────────────
 
   statusVariant(s: string): 'success' | 'warning' | 'error' | 'neutral' {
@@ -85,7 +133,8 @@ export class PaymentDetailComponent implements OnInit {
     return 'neutral';
   }
 
+  /** External payments aren't reversed: a return comes from the beneficiary's bank. */
   get canReverse(): boolean {
-    return this.payment?.status === 'COMPLETED';
+    return this.payment?.status === 'COMPLETED' && !this.isExternal;
   }
 }

@@ -57,6 +57,23 @@
       }
     </div>
 
+    @if (awaitingSettlement) {
+      <div class="settlement-banner" role="status">
+        <span class="material-icons">schedule</span>
+        <div class="settlement-banner__text">
+          <strong>Awaiting settlement.</strong>
+          The source account has been debited; the gateway confirms settlement or a return.
+          @if (payment.submitOutcome === 'UNKNOWN') {
+            The gateway didn't answer the submit, so it may or may not have gone out — check with the payment provider before recording an outcome.
+          }
+        </div>
+        <div class="settlement-banner__actions">
+          <button class="btn-secondary" (click)="openOutcomeModal('SETTLED')">Mark settled</button>
+          <button class="btn-danger" (click)="openOutcomeModal('RETURNED')">Mark returned</button>
+        </div>
+      </div>
+    }
+
     <!-- ── Content Grid ── -->
     <div class="detail-grid">
 
@@ -78,9 +95,15 @@
           <div class="route-account">
             <div class="route-account__label">To</div>
             <div class="route-account__number">
-              <a [routerLink]="['/operations/accounts', payment.destinationAccountId]" class="link">
-                {{ payment.destinationAccountNumber }}
-              </a>
+              @if (isExternal) {
+                {{ payment.beneficiaryName }}
+                @if (payment.beneficiaryIban) { <span class="mono">· {{ payment.beneficiaryIban }}</span> }
+                @if (payment.beneficiaryBic) { <span class="mono">· {{ payment.beneficiaryBic }}</span> }
+              } @else {
+                <a [routerLink]="['/operations/accounts', payment.destinationAccountId]" class="link">
+                  {{ payment.destinationAccountNumber }}
+                </a>
+              }
             </div>
           </div>
         </div>
@@ -116,6 +139,27 @@
 
           <dt>Created</dt>
           <dd>{{ payment.createdAt | date:'medium' }}</dd>
+
+          @if (isExternal) {
+            <dt>Network</dt>
+            <dd>{{ payment.externalNetwork }}</dd>
+            @if (payment.networkReference) {
+              <dt>Network reference</dt>
+              <dd class="mono">{{ payment.networkReference }}</dd>
+            }
+            @if (payment.settledAt) {
+              <dt>Settled</dt>
+              <dd>{{ payment.settledAt | date:'medium' }}</dd>
+            }
+            @if (payment.outcomeSource) {
+              <dt>Outcome from</dt>
+              <dd>{{ payment.outcomeSource }}</dd>
+            }
+            @if (payment.failureReason) {
+              <dt>Return reason</dt>
+              <dd>{{ payment.failureReason }}</dd>
+            }
+          }
         </dl>
       </div>
 
@@ -180,6 +224,54 @@
         <button class="btn-danger" (click)="submitReverse()" [disabled]="reverseWorking || !reverseReason.trim()">
           @if (reverseWorking) { <span class="spinner"></span> }
           Reverse Payment
+        </button>
+      </div>
+
+    </div>
+  </div>
+}
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     EXTERNAL PAYMENT OUTCOME MODAL (ops)
+══════════════════════════════════════════════════════════════════════════ -->
+
+@if (showOutcomeModal) {
+  <div class="modal-backdrop" (click)="closeOutcomeModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+
+      <div class="modal__header">
+        <span class="material-icons modal__icon" [class.modal__icon--danger]="outcome === 'RETURNED'">
+          {{ outcome === 'SETTLED' ? 'task_alt' : 'assignment_return' }}
+        </span>
+        {{ outcome === 'SETTLED' ? 'Mark as settled' : 'Mark as returned' }}
+      </div>
+
+      <div class="modal__body">
+        @if (outcome === 'SETTLED') {
+          <p>Record that <strong>{{ payment?.referenceNumber }}</strong> was paid out of the nostro.</p>
+        } @else {
+          <p>Record that <strong>{{ payment?.referenceNumber }}</strong> came back: the source account is credited
+            {{ payment?.amount | number:'1.2-2' }} {{ payment?.currencyCode }}.</p>
+        }
+        <p class="modal__hint">Use this only when the gateway hasn't reported the outcome. It must be done by someone other than the user who sent the payment.</p>
+
+        <div class="form-field">
+          <label class="form-label">Reason <span class="required">*</span></label>
+          <input type="text" class="form-input" [(ngModel)]="outcomeReason"
+                 placeholder="e.g. Confirmed with the correspondent bank" maxlength="500" />
+        </div>
+
+        @if (outcomeError) {
+          <div class="modal__error">{{ outcomeError }}</div>
+        }
+      </div>
+
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeOutcomeModal()" [disabled]="outcomeWorking">Cancel</button>
+        <button [class]="outcome === 'SETTLED' ? 'btn-primary' : 'btn-danger'" (click)="submitOutcome()"
+                [disabled]="outcomeWorking || !outcomeReason.trim()">
+          @if (outcomeWorking) { <span class="spinner"></span> }
+          {{ outcome === 'SETTLED' ? 'Mark settled' : 'Mark returned' }}
         </button>
       </div>
 

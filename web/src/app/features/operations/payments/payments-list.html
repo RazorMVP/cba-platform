@@ -19,6 +19,16 @@
     </div>
   </div>
 
+  @if (externalNotice) {
+    <div class="notice-banner" role="status">
+      <span class="material-icons">schedule_send</span>
+      <span>{{ externalNotice }}</span>
+      <button class="notice-banner__close" (click)="externalNotice = ''" aria-label="Dismiss">
+        <span class="material-icons">close</span>
+      </button>
+    </div>
+  }
+
   <!-- ── Account Context Picker ── -->
   <div class="context-picker card">
     <div class="context-picker__label">

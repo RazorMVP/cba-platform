@@ -112,6 +112,9 @@ app:
       http:
         url: ${EXTERNAL_PAYMENT_URL:}                 # gateway submit POST endpoint (PSP / correspondent bank)
         api-key: ${EXTERNAL_PAYMENT_API_KEY:}         # Bearer token
+      # HMAC-SHA256 secret the gateway signs its settlement callbacks with
+      # (POST /api/v1/payments/external/callbacks). Unset → callbacks answer 503 (fail closed).
+      callback-secret: ${EXTERNAL_PAYMENT_CALLBACK_SECRET:}
   push:
     provider: ${PUSH_PROVIDER:NONE}   # NONE = simulate/log (no Firebase/APNs); HTTP = real push relay / FCM proxy
     http:
@@ -365,6 +368,9 @@ app:
       password: cba_reporting_test   # Testcontainers only
   partner:
     jwt-secret: test-partner-jwt-secret-32-chars!
+  payments:
+    external:
+      callback-secret: it-callback-secret   # ExternalPaymentIT signs its callbacks with it
 
 cba:
   encryption:

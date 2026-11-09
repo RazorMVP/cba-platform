@@ -113,6 +113,22 @@ public class Payment {
     @Column(name = "charge_type", length = 5)
     private String chargeType;
 
+    // Settlement of an external payment (V67)
+    /** The gateway's own reference (e.g. SWIFT UETR); callbacks may name the payment by it. */
+    @Column(name = "network_reference", length = 64)
+    private String networkReference;
+
+    /** ACCEPTED, or UNKNOWN when the submit timed out / got a 5xx (it may have gone out). */
+    @Column(name = "submit_outcome", length = 10)
+    private String submitOutcome;
+
+    @Column(name = "settled_at")
+    private Instant settledAt;
+
+    /** GATEWAY (settled at submit), CALLBACK (the gateway reported it later) or MANUAL (ops resolved it). */
+    @Column(name = "outcome_source", length = 10)
+    private String outcomeSource;
+
     // Reversal tracking (V10 migration)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reversal_of")

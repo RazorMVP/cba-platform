@@ -10,6 +10,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
@@ -22,8 +23,10 @@ import java.util.Map;
  * {@code app.payments.external.gateway=HTTP}; dormant until credentials are supplied.
  *
  * <p>Gateway-agnostic JSON body; a numeric-or-string {@code networkReference}/{@code uetr}
- * in the 2xx response marks acceptance. Any non-2xx or transport error is a
- * {@link GatewayResult#rejected} — {@code PaymentService} then rolls back the debit.
+ * in the 2xx response marks acceptance (not settlement — that comes by callback). A 4xx is
+ * a definite {@link GatewayResult#rejected} ({@code PaymentService} rolls back the debit);
+ * a 5xx, timeout or transport error is {@link GatewayResult#unknown} (the debit is kept and
+ * the payment waits in PROCESSING).
  */
 @Component
 @ConditionalOnProperty(name = "app.payments.external.gateway", havingValue = "HTTP")
@@ -77,12 +80,23 @@ public class HttpExternalPaymentGateway implements ExternalPaymentGateway {
             if (resp.getStatusCode().is2xxSuccessful()) {
                 return GatewayResult.accepted(extractRef(resp.getBody()));
             }
-            return GatewayResult.rejected("HTTP_" + resp.getStatusCode().value(),
-                    "Gateway returned " + resp.getStatusCode());
+            return outcomeOf(resp.getStatusCode().value());
+        } catch (HttpStatusCodeException e) {
+            log.warn("[EXT_PAY:HTTP] submit answered {}", e.getStatusCode());
+            return outcomeOf(e.getStatusCode().value());
         } catch (Exception e) {
-            log.warn("[EXT_PAY:HTTP] submit failed: {}", e.toString());
-            return GatewayResult.rejected("TRANSPORT_ERROR", e.getMessage());
+            // Timeout or connection reset after the request may have arrived: the payment may
+            // have gone out, so this is not a rejection (see GatewayResult).
+            log.warn("[EXT_PAY:HTTP] submit outcome unknown: {}", e.toString());
+            return GatewayResult.unknown("TRANSPORT_ERROR", e.getMessage());
         }
+    }
+
+    /** 4xx: the gateway refused it (definite). 5xx or anything else: the outcome is unknown. */
+    private static GatewayResult outcomeOf(int status) {
+        return status >= 400 && status < 500
+                ? GatewayResult.rejected("HTTP_" + status, "Gateway refused the payment (HTTP " + status + ")")
+                : GatewayResult.unknown("HTTP_" + status, "Gateway answered HTTP " + status + "; outcome unknown");
     }
 
     @Override

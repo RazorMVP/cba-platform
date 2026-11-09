@@ -12,7 +12,8 @@ import java.util.UUID;
  * network reference without contacting any bank. Active when
  * {@code app.payments.external.gateway} is absent or {@code SIMULATED}.
  *
- * <p>Keeps the platform fully usable in dev/demo (external payments settle immediately),
+ * <p>Keeps the platform fully usable in dev/demo (external payments settle immediately —
+ * {@link GatewayResult#settled}, so no callback is expected),
  * while routing through the same seam a real gateway will use — so going live is a config
  * flip, not a code change.
  */
@@ -29,7 +30,7 @@ public class SimulatedExternalPaymentGateway implements ExternalPaymentGateway {
         log.info("[EXT_PAY:SIM] accepted {} {} to {} → {}",
                 instruction.network(), instruction.currencyCode(),
                 instruction.beneficiaryBic(), networkRef);
-        return GatewayResult.accepted(networkRef);
+        return GatewayResult.settled(networkRef);
     }
 
     @Override

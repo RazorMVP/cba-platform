@@ -23,7 +23,7 @@ Legend for **State**:
 |-------------|---------------|-------------------------------|
 | SMS gateway | `SMS_PROVIDER=HTTP` | `SMS_HTTP_URL`, `SMS_HTTP_API_KEY`, `SMS_HTTP_SENDER` |
 | Credit bureau | `CREDIT_BUREAU_PROVIDER=HTTP` | `CREDIT_BUREAU_URL`, `CREDIT_BUREAU_API_KEY`, `CREDIT_BUREAU_MIN_SCORE` |
-| External payments | `EXTERNAL_PAYMENT_GATEWAY=HTTP` | `EXTERNAL_PAYMENT_URL`, `EXTERNAL_PAYMENT_API_KEY` |
+| External payments | `EXTERNAL_PAYMENT_GATEWAY=HTTP` | `EXTERNAL_PAYMENT_URL`, `EXTERNAL_PAYMENT_API_KEY`, `EXTERNAL_PAYMENT_CALLBACK_SECRET` |
 | Push notifications | `PUSH_PROVIDER=HTTP` | `PUSH_HTTP_URL`, `PUSH_HTTP_API_KEY` |
 | Email / SMTP | (always real) | `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` |
 | Object storage (images) | `app.image.storage=S3` | `app.image.s3.{bucket,region,access-key,secret-key,endpoint-override}` |
@@ -71,8 +71,25 @@ Legend for **State**:
   1. `EXTERNAL_PAYMENT_GATEWAY=HTTP`
   2. `EXTERNAL_PAYMENT_URL=` PSP / correspondent-bank submit endpoint.
   3. `EXTERNAL_PAYMENT_API_KEY=` bearer token.
-- **Safety contract:** the gateway is called **before** the source account is debited. A rejection (or transport error) throws → the transaction rolls back → **no funds leave the account**. Verify this behaviour is preserved in any custom gateway before production.
-- **Async settlement:** the current model is a synchronous submit-ack (`COMPLETED` on accept). Real SWIFT/SEPA settlement is asynchronous — a status webhook → `PROCESSING → COMPLETED/RETURNED` lifecycle is future work.
+  4. `EXTERNAL_PAYMENT_CALLBACK_SECRET=` a random shared secret (≥ 32 bytes) agreed with the PSP. **Unset → every callback answers `503 CALLBACK_NOT_CONFIGURED`**, so payments stay `PROCESSING` until ops resolve them by hand.
+  5. Give the PSP the callback URL `https://<api-host>/api/v1/payments/external/callbacks` and the signing scheme below; route it through the ingress (it needs no user token).
+- **Lifecycle _(cont. 59, backlog 1)_:** in one transaction the source is debited under the withdrawal rules and `DR deposit / CR 2400 Outgoing Payments in Transit` is posted, then the instruction is submitted with our `EXT-` reference.
+  - **4xx** → `400 EXTERNAL_PAYMENT_REJECTED`, everything rolls back (no funds leave the account).
+  - **2xx** → `PROCESSING` (`submitOutcome=ACCEPTED`, `networkReference` from the response's `networkReference`/`uetr`/`reference`/`id`/`trn`).
+  - **5xx / timeout / connection error** → `PROCESSING` with `submitOutcome=UNKNOWN` and **the debit kept**: the payment may have gone out. Ask the PSP before recording an outcome.
+- **Callback the PSP must send** (one per payment outcome, safe to retry):
+  ```
+  POST /api/v1/payments/external/callbacks
+  Content-Type: application/json
+  X-Gateway-Timestamp: <epoch seconds, within 5 minutes>
+  X-Gateway-Signature: sha256=<hex(HMAC-SHA256(secret, timestamp + "." + rawBody))>
+  (no Authorization header)
+
+  {"reference":"EXT-4F2A91C0","networkReference":"<UETR>","status":"SETTLED|RETURNED|REJECTED","reason":"..."}
+  ```
+  `SETTLED` → DR 2400 / CR nostro (activity `ASSET_EXTERNAL_PAYMENT_NOSTRO`, default **1002 Cash at Bank** — remap it to the correspondent's nostro GL in Financial Activity Accounts). `RETURNED`/`REJECTED` → source credited back, DR 2400 / CR deposit. A repeat answers `REPEAT`; a different outcome once the payment left `PROCESSING` → `409`. Every signed callback is stored in `external_payment_callbacks` (result, remote address); an unsigned one only as a bare invalid-attempt row, at most once a minute per address.
+- **Stuck payments:** `GET /api/v1/payments/external?status=PROCESSING` lists them; an ADMIN other than the initiator closes one with `POST /api/v1/payments/{id}/external-outcome {outcome, reason}`. **2400 must reconcile to the sum of PROCESSING external payments.**
+- **Not built:** a return after settlement (an incoming credit), external-payment fees (OUR/SHA charges), cross-currency external payments.
 - **Contract:** 🔴 needs a real PSP / correspondent-banking / SWIFT-service-bureau relationship.
 
 ## 4. Push notifications 🟢

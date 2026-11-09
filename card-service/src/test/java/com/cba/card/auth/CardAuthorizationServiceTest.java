@@ -41,6 +41,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -66,6 +68,7 @@ class CardAuthorizationServiceTest {
     @Mock RestClientConfig restClientConfig;
     @Mock WebhookService webhookService;
     @Mock SettlementService settlementService;
+    @Mock com.cba.card.settlement.BackendClearingClient clearingClient;
     @Mock com.cba.card.interchange.InterchangeQualificationEngine interchangeEngine;
 
     @InjectMocks CardAuthorizationService service;
@@ -147,7 +150,7 @@ class CardAuthorizationServiceTest {
     }
 
     @Test
-    @DisplayName("a missing prepaid wallet declines with RC=91 (issuer unavailable)")
+    @DisplayName("a prepaid card never loaded (no wallet) declines RC 51 — no funds, not an outage (backlog 15c)")
     void prepaidWalletMissing() {
         Card card = prepaidCard();
         when(cardService.findByPanHash(PAN)).thenReturn(card);
@@ -155,7 +158,7 @@ class CardAuthorizationServiceTest {
         when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.empty());
 
         assertThat(service.authorize(req(new BigDecimal("100"), "000000", false)).responseCode())
-                .isEqualTo("91");
+                .isEqualTo("51");
     }
 
     @Test
@@ -612,9 +615,80 @@ class CardAuthorizationServiceTest {
                 .thenReturn(Optional.of(original));
         PrepaidWallet w = wallet("20.00");
         when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(w));
+        when(settlementService.reversePrepaidItem(original.getId(), new BigDecimal("3000"), true))
+                .thenReturn(new SettlementService.PrepaidItemReversal(SettlementService.PrepaidItemReversal.Outcome.NOT_CLEARED, null));
 
         assertThat(service.reverse(PAN, new BigDecimal("3000"), REV_STAN, "x")).isEqualTo("00");
         assertThat(w.getBalance()).isEqualByComparingTo("50.00");
+        verifyNoInteractions(clearingClient);   // not cleared yet: nothing on the backend
+        verify(settlementService, never()).markReversed(any());
+    }
+
+    private AuthorizationLog prepaidOriginal(Card card) {
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setWalletDebit(new BigDecimal("30.00"));
+        original.setAmount(new BigDecimal("3000"));
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+        return original;
+    }
+
+    @Test
+    @DisplayName("prepaid reversal after clearing: the backend refunds first (DR 2300 / CR 2500), then the wallet is credited")
+    void reverse_prepaidCleared_refundsThenRestores() {
+        Card card = prepaidCard();
+        AuthorizationLog original = prepaidOriginal(card);
+        PrepaidWallet w = wallet("20.00");
+        when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(w));
+        when(settlementService.reversePrepaidItem(original.getId(), new BigDecimal("3000"), true))
+                .thenReturn(new SettlementService.PrepaidItemReversal(SettlementService.PrepaidItemReversal.Outcome.CLEARED, "PPD-abc"));
+        when(clearingClient.prepaidRefund(eq("PPD-abc"), anyString(), eq(new BigDecimal("30.00")), eq("USD")))
+                .thenReturn(new com.cba.card.settlement.BackendClearingClient.PrepaidPost(true, false, "R", null, "J",
+                        null, "EARNED", null, new BigDecimal("0.30"), new BigDecimal("0.05")));
+
+        assertThat(service.reverse(PAN, new BigDecimal("3000"), REV_STAN, "x")).isEqualTo("00");
+        assertThat(w.getBalance()).isEqualByComparingTo("50.00");
+        verify(settlementService).recordRefund(eq(original.getId()), eq(new BigDecimal("3000")), any());
+    }
+
+    @Test
+    @DisplayName("prepaid reversal after clearing with the backend unreachable → 96, wallet untouched, nothing recorded")
+    void reverse_prepaidCleared_backendDown() {
+        Card card = prepaidCard();
+        AuthorizationLog original = prepaidOriginal(card);
+        when(settlementService.reversePrepaidItem(original.getId(), new BigDecimal("3000"), true))
+                .thenReturn(new SettlementService.PrepaidItemReversal(SettlementService.PrepaidItemReversal.Outcome.CLEARED, "PPD-abc"));
+        when(clearingClient.prepaidRefund(any(), any(), any(), any())).thenReturn(null);
+
+        assertThat(service.reverse(PAN, new BigDecimal("3000"), REV_STAN, "x")).isEqualTo("96");
+        verify(walletRepository, never()).save(any());
+        verify(authLogRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("prepaid reversal while the item is being cleared → 96 (retry)")
+    void reverse_prepaidInClearing() {
+        Card card = prepaidCard();
+        AuthorizationLog original = prepaidOriginal(card);
+        when(settlementService.reversePrepaidItem(original.getId(), new BigDecimal("3000"), true))
+                .thenReturn(new SettlementService.PrepaidItemReversal(SettlementService.PrepaidItemReversal.Outcome.IN_CLEARING, null));
+
+        assertThat(service.reverse(PAN, new BigDecimal("3000"), REV_STAN, "x")).isEqualTo("96");
+        verify(walletRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("prepaid reversal of an expired item: the wallet already had it back — not given twice")
+    void reverse_prepaidExpired() {
+        Card card = prepaidCard();
+        AuthorizationLog original = prepaidOriginal(card);
+        when(settlementService.reversePrepaidItem(original.getId(), new BigDecimal("3000"), true))
+                .thenReturn(new SettlementService.PrepaidItemReversal(SettlementService.PrepaidItemReversal.Outcome.ALREADY_RETURNED, null));
+
+        assertThat(service.reverse(PAN, new BigDecimal("3000"), REV_STAN, "x")).isEqualTo("00");
+        verify(walletRepository, never()).save(any());
     }
 
     @Test
@@ -760,7 +834,7 @@ class CardAuthorizationServiceTest {
     }
 
     @Test
-    @DisplayName("an approved prepaid purchase goes into the batch completed (the wallet already paid)")
+    @DisplayName("an approved prepaid purchase goes into the batch PENDING under a PPD- reference: batch close clears it (backlog 15c)")
     void prepaid_addsCompletedItem() {
         Card card = prepaidCard();
         when(cardService.findByPanHash(PAN)).thenReturn(card);
@@ -768,7 +842,7 @@ class CardAuthorizationServiceTest {
         when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(wallet("500")));
 
         assertThat(service.authorize(req(new BigDecimal("2500"), "000000", false)).responseCode()).isEqualTo("00");
-        verify(settlementService).addAuthorization(any(AuthorizationLog.class), eq(card), isNull(), eq(true));
+        verify(settlementService).addAuthorization(any(AuthorizationLog.class), eq(card), startsWith("PPD-"), eq(false));
     }
 
     @Test

@@ -34,6 +34,8 @@ public class FinancialActivityAccount {
         ASSET_EXTERNAL_PAYMENT_NOSTRO,
         /** Cleared card transactions owed to the card schemes until they settle (GL 2300, V63). */
         LIABILITY_CARD_SETTLEMENT,
+        /** Prepaid card wallet balances owed to cardholders (GL 2500, V68; CBN stored-value guidelines). */
+        LIABILITY_PREPAID_CARD,
         /** The bank's account at its card settlement bank: scheme net settlements go through it (GL 1003, V64). */
         ASSET_CARD_SCHEME_SETTLEMENT,
         /** Interchange earned as card issuer on cleared purchases (GL 4005, V64; IFRS 15 B35, B37, §38). */

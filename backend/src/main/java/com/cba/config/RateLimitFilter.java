@@ -69,7 +69,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
             "/api/v1/sandbox/",
             // The payments gateway's signed callback: one machine sender, verified by HMAC in the
             // controller — counting it in the anonymous per-IP bucket would drop settlements.
-            "/api/v1/payments/external/callbacks"
+            "/api/v1/payments/external/callbacks",
+            // card-service's prepaid postings (service role only): batch close clears every prepaid item in
+            // turn, and a 429 there would leave the batch open.
+            "/api/v1/card-prepaid/"
     );
 
     private final RateLimitService rateLimitService;

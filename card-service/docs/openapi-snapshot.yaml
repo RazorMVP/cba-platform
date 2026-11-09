@@ -803,6 +803,56 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseCard"
+  /api/v1/cards/{id}/wallet/unloads:
+    post:
+      tags:
+      - wallet-controller
+      operationId: unload
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UnloadRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseWalletMovement"
+  /api/v1/cards/{id}/wallet/loads:
+    post:
+      tags:
+      - wallet-controller
+      operationId: load
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoadRequest"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseWalletMovement"
   /api/v1/cards/settlement/scheme-reports:
     get:
       tags:
@@ -1528,6 +1578,25 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseInterchangeResult"
+  /api/v1/cards/{id}/wallet:
+    get:
+      tags:
+      - wallet-controller
+      operationId: wallet
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseWalletView"
   /api/v1/cards/{id}/balance:
     get:
       tags:
@@ -1566,6 +1635,18 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseListAuthorizationLog"
+  /api/v1/cards/wallets/totals:
+    get:
+      tags:
+      - wallet-controller
+      operationId: totals
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseMapStringBigDecimal"
   /api/v1/cards/settlement/transmissions:
     get:
       tags:
@@ -2854,6 +2935,85 @@ components:
           type: number
         stan:
           type: string
+    UnloadRequest:
+      type: object
+      properties:
+        destinationAccountId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+      required:
+      - amount
+      - destinationAccountId
+    ApiResponseWalletMovement:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/WalletMovement"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    WalletMovement:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        walletId:
+          type: string
+          format: uuid
+        cardId:
+          type: string
+          format: uuid
+        movementType:
+          type: string
+        reference:
+          type: string
+        accountId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+        currencyCode:
+          type: string
+        status:
+          type: string
+        failureReason:
+          type: string
+        nextRetryAt:
+          type: string
+          format: date-time
+        attempts:
+          type: integer
+          format: int32
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int64
+    LoadRequest:
+      type: object
+      properties:
+        sourceAccountId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+        currencyCode:
+          type: string
+      required:
+      - amount
+      - sourceAccountId
     SchemeReportRequest:
       type: object
       properties:
@@ -3738,6 +3898,36 @@ components:
           enum:
           - EARNED
           - PAID
+    ApiResponseWalletView:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/WalletView"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    WalletView:
+      type: object
+      properties:
+        cardId:
+          type: string
+          format: uuid
+        walletId:
+          type: string
+          format: uuid
+        balance:
+          type: number
+        currencyCode:
+          type: string
+        status:
+          type: string
+        movements:
+          type: array
+          items:
+            $ref: "#/components/schemas/WalletMovement"
     ApiResponseBalanceResult:
       type: object
       properties:
@@ -3756,6 +3946,19 @@ components:
           type: number
         cardType:
           type: string
+    ApiResponseMapStringBigDecimal:
+      type: object
+      properties:
+        data:
+          type: object
+          additionalProperties:
+            type: number
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
     ApiResponseSettlementTransmission:
       type: object
       properties:

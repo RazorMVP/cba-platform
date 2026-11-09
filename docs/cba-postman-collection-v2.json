@@ -1477,6 +1477,168 @@
           ]
         },
         {
+          "name": "Prepaid wallet load (card-service)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/card-prepaid/loads",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "card-prepaid",
+                "loads"
+              ]
+            },
+            "description": "Role CARD_SERVICE only. Debits accountId under the withdrawal rules: DR customer deposit / CR 2500 Prepaid Card Liabilities (backlog 15c). Account must be customerId's (else ACCOUNT_NOT_FOUND) and in the currency. Idempotent on reference. 200 approved=false reasons: REFERENCE_CONFLICT, ACCOUNT_NOT_FOUND, CURRENCY_MISMATCH, ACCOUNT_NOT_ACTIVE, ACCOUNT_IN_LOCKIN_PERIOD, INSUFFICIENT_FUNDS, INVALID_AMOUNT, UNKNOWN_CURRENCY.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reference\": \"WLD-3f6c\",\n  \"customerId\": \"{{customer_id}}\",\n  \"cardId\": \"{{card_id}}\",\n  \"accountId\": \"{{account_id}}\",\n  \"amount\": 100.0,\n  \"currencyCode\": \"USD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"approved\": true,\n    \"repeat\": false,\n    \"reference\": \"WLD-3f6c\",\n    \"reason\": null,\n    \"journalTransactionId\": \"GL-1\",\n    \"interchangeAmount\": null,\n    \"interchangeDirection\": null,\n    \"schemeFeeAmount\": null,\n    \"interchangeReversed\": null,\n    \"schemeFeeReversed\": null\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "Prepaid wallet unload (card-service)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/card-prepaid/unloads",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "card-prepaid",
+                "unloads"
+              ]
+            },
+            "description": "Role CARD_SERVICE only. Credits accountId: DR 2500 / CR customer deposit. Same reasons as a load, without the funds check.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reference\": \"WUL-77aa\",\n  \"customerId\": \"{{customer_id}}\",\n  \"cardId\": \"{{card_id}}\",\n  \"accountId\": \"{{account_id}}\",\n  \"amount\": 25.0,\n  \"currencyCode\": \"USD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Prepaid spend clearing (card-service batch close)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/card-prepaid/clearings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "card-prepaid",
+                "clearings"
+              ]
+            },
+            "description": "Role CARD_SERVICE only. DR 2500 / CR 2300 with interchange (EARNED DR 2300 / CR 4005; PAID DR 5007 / CR 2300) and scheme fees (DR 5006 / CR 2300). Idempotent; a repeat returns the first figures. Reasons: REFERENCE_CONFLICT, INVALID_AMOUNT, UNKNOWN_CURRENCY, INVALID_CARD_FEES.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reference\": \"PPD-9b2e\",\n  \"cardId\": \"{{card_id}}\",\n  \"amount\": 25.0,\n  \"currencyCode\": \"USD\",\n  \"scheme\": \"VISA\",\n  \"interchangeAmount\": 0.38,\n  \"interchangeDirection\": \"EARNED\",\n  \"schemeFeeAmount\": 0.03\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Prepaid clearing refund (card-service reversal)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/card-prepaid/clearings/:reference/refund",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "card-prepaid",
+                "clearings",
+                ":reference",
+                "refund"
+              ],
+              "variable": [
+                {
+                  "key": "reference",
+                  "value": "PPD-9b2e"
+                }
+              ]
+            },
+            "description": "Role CARD_SERVICE only. The opposite of the clearing for amount (<= cleared), interchange and fees pro rata (HALF_UP); once per clearing; idempotent on refundReference. Reasons: CLEARING_NOT_FOUND, CURRENCY_MISMATCH, ALREADY_REFUNDED, AMOUNT_EXCEEDS_CLEARED, INVALID_AMOUNT, REFERENCE_CONFLICT.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refundReference\": \"REV-1a2b\",\n  \"amount\": 10.0,\n  \"currencyCode\": \"USD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
           "name": "Post Card Scheme Settlement (card-service)",
           "request": {
             "method": "POST",
@@ -12428,6 +12590,44 @@
           ]
         },
         {
+          "name": "Preview PREPAID opening balances / reconciliation",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/journalentries/opening-balances?scope=PREPAID",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "journalentries",
+                "opening-balances"
+              ],
+              "query": [
+                {
+                  "key": "scope",
+                  "value": "PREPAID",
+                  "description": "Sub-ledger to bring forward: DEPOSITS or LOANS (term deposits and shares follow with their GL posting). Posted once per scope."
+                }
+              ]
+            },
+            "description": "Scope PREPAID (backlog 15c): card-service's prepaid wallet balances per currency (read with the backend's service token) against GL 2500 Prepaid Card Liabilities, offset on 3900. Before posting: the lines; after: the 2500 \u2194 wallets reconciliation. card-service unreachable \u2192 503 PREPAID_TOTALS_UNAVAILABLE.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
           "name": "Post opening-balance journal (one-time)",
           "request": {
             "method": "POST",
@@ -12556,6 +12756,44 @@
               "body": "{\n  \"data\": null,\n  \"errors\": [\n    {\n      \"code\": \"OPENING_BALANCES_ALREADY_POSTED\",\n      \"message\": \"The opening-balance journal for DEPOSITS has already been posted\",\n      \"field\": null\n    }\n  ]\n}"
             }
           ]
+        },
+        {
+          "name": "Post PREPAID opening-balance journal (one-time)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/journalentries/opening-balances?scope=PREPAID",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "journalentries",
+                "opening-balances"
+              ],
+              "query": [
+                {
+                  "key": "scope",
+                  "value": "PREPAID",
+                  "description": "Sub-ledger to bring forward: DEPOSITS or LOANS (term deposits and shares follow with their GL posting). Posted once per scope."
+                }
+              ]
+            },
+            "description": "Scope PREPAID (backlog 15c): card-service's prepaid wallet balances per currency (read with the backend's service token) against GL 2500 Prepaid Card Liabilities, offset on 3900. Before posting: the lines; after: the 2500 \u2194 wallets reconciliation. card-service unreachable \u2192 503 PREPAID_TOTALS_UNAVAILABLE.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": []
         }
       ]
     },
@@ -23666,6 +23904,166 @@
                     "description": "Available balance routed by card type: DEBIT \u2192 linked account in monolith; PREPAID \u2192 internal wallet; CREDIT \u2192 revolving credit line. Returns null balance on graceful degradation.\n\nAuth: ADMIN, TELLER or CARD_READER (the backend's service account, Keycloak client cba-backend-service)."
                   },
                   "response": []
+                },
+                {
+                  "name": "Get Prepaid Wallet",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "http://{{cardServiceHost}}/api/v1/cards/:cardId/wallet",
+                      "host": [
+                        "{{cardServiceHost}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "cards",
+                        ":cardId",
+                        "wallet"
+                      ],
+                      "variable": [
+                        {
+                          "key": "cardId",
+                          "value": "{{card_id}}"
+                        }
+                      ]
+                    },
+                    "description": "ADMIN, TELLER. Wallet balance + last 50 loads/unloads (backlog 15c); walletId null until the first load."
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Load Prepaid Wallet",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "http://{{cardServiceHost}}/api/v1/cards/:cardId/wallet/loads",
+                      "host": [
+                        "{{cardServiceHost}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "cards",
+                        ":cardId",
+                        "wallet",
+                        "loads"
+                      ],
+                      "variable": [
+                        {
+                          "key": "cardId",
+                          "value": "{{card_id}}"
+                        }
+                      ]
+                    },
+                    "description": "ADMIN, TELLER. From the cardholder's backend account (DR deposit / CR 2500 on the backend). 201 COMPLETED, 202 PENDING (retried every minute with the same reference), 400 with the backend's reason (movement kept FAILED). First load opens the wallet in currencyCode (400 CURRENCY_REQUIRED without it); later loads must match. 400 NOT_A_PREPAID_CARD / CARD_NOT_LOADABLE / INVALID_AMOUNT.",
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"sourceAccountId\": \"{{account_id}}\",\n  \"amount\": 100.0,\n  \"currencyCode\": \"USD\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Unload Prepaid Wallet",
+                  "request": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "http://{{cardServiceHost}}/api/v1/cards/:cardId/wallet/unloads",
+                      "host": [
+                        "{{cardServiceHost}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "cards",
+                        ":cardId",
+                        "wallet",
+                        "unloads"
+                      ],
+                      "variable": [
+                        {
+                          "key": "cardId",
+                          "value": "{{card_id}}"
+                        }
+                      ]
+                    },
+                    "description": "ADMIN, TELLER. The amount leaves the wallet first; the backend credits the account (DR 2500 / CR deposit). A refusal gives it back. 400 INSUFFICIENT_WALLET_BALANCE / NO_WALLET.",
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"destinationAccountId\": \"{{account_id}}\",\n  \"amount\": 25.0\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    }
+                  },
+                  "response": []
+                },
+                {
+                  "name": "Prepaid Wallet Totals (reconciliation)",
+                  "request": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "http://{{cardServiceHost}}/api/v1/cards/wallets/totals",
+                      "host": [
+                        "{{cardServiceHost}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "cards",
+                        "wallets",
+                        "totals"
+                      ]
+                    },
+                    "description": "ADMIN, CARD_READER. Wallet balances per currency \u2014 the backend's PREPAID opening balance / GL 2500 reconciliation."
+                  },
+                  "response": [
+                    {
+                      "name": "200 OK",
+                      "status": "OK",
+                      "code": 200,
+                      "_postman_previewlanguage": "json",
+                      "header": [
+                        {
+                          "key": "Content-Type",
+                          "value": "application/json"
+                        }
+                      ],
+                      "body": "{\n  \"data\": {\n    \"USD\": 50000.0\n  },\n  \"meta\": {},\n  \"errors\": []\n}"
+                    }
+                  ]
                 },
                 {
                   "name": "Get Card Authorization History",

@@ -118,6 +118,87 @@ public class BackendClearingClient {
         }
     }
 
+    // ── Prepaid wallets (backlog 15c) ───────────────────────────────────────
+
+    /**
+     * The backend's {@code PrepaidMovementResult}: approved, or a reason. Figures are what the backend posted
+     * (clearing) or reversed (refund), major units. Null from the calls below when the backend couldn't be reached.
+     */
+    public record PrepaidPost(boolean approved, boolean repeat, String reference, String reason,
+                              String journalTransactionId, BigDecimal interchangeAmount, String interchangeDirection,
+                              BigDecimal schemeFeeAmount, BigDecimal interchangeReversed, BigDecimal schemeFeeReversed) {
+
+        /** As a clearing result for {@link SettlementService}. */
+        public Result asClearing() {
+            return new Result(approved, approved ? "CLEARED" : null, reason, interchangeAmount, interchangeDirection,
+                    schemeFeeAmount);
+        }
+
+        /** What a refund reversed, for {@code scheme}. */
+        public IssuerCharges reversed(String scheme) {
+            InterchangeDirection direction = interchangeDirection == null ? null : InterchangeDirection.valueOf(interchangeDirection);
+            return new IssuerCharges(scheme, interchangeReversed, direction, schemeFeeReversed, "BACKEND");
+        }
+    }
+
+    /** Wallet load: the backend debits {@code accountId} and posts DR deposit / CR 2500. */
+    public PrepaidPost prepaidLoad(String reference, UUID customerId, UUID cardId, UUID accountId,
+                                   BigDecimal amountMajor, String currencyAlpha) {
+        return prepaidTransfer("/api/v1/card-prepaid/loads", reference, customerId, cardId, accountId, amountMajor, currencyAlpha);
+    }
+
+    /** Wallet unload: the backend credits {@code accountId} and posts DR 2500 / CR deposit. */
+    public PrepaidPost prepaidUnload(String reference, UUID customerId, UUID cardId, UUID accountId,
+                                     BigDecimal amountMajor, String currencyAlpha) {
+        return prepaidTransfer("/api/v1/card-prepaid/unloads", reference, customerId, cardId, accountId, amountMajor, currencyAlpha);
+    }
+
+    private PrepaidPost prepaidTransfer(String path, String reference, UUID customerId, UUID cardId, UUID accountId,
+                                        BigDecimal amountMajor, String currencyAlpha) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("reference", reference);
+        body.put("customerId", customerId);
+        body.put("cardId", cardId);
+        body.put("accountId", accountId);
+        body.put("amount", amountMajor);
+        body.put("currencyCode", currencyAlpha);
+        return postPrepaid(path, body, reference);
+    }
+
+    /** Prepaid spend cleared at batch close: DR 2500 / CR 2300 with interchange and fees. Idempotent. */
+    public PrepaidPost prepaidClearing(String reference, UUID cardId, BigDecimal amountMajor, String currencyAlpha,
+                                       IssuerCharges charges) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("reference", reference);
+        body.put("cardId", cardId);
+        body.put("amount", amountMajor);
+        body.put("currencyCode", currencyAlpha);
+        putCharges(body, charges);
+        return postPrepaid("/api/v1/card-prepaid/clearings", body, reference);
+    }
+
+    /** A cleared prepaid purchase reversed: the backend posts the opposite, pro rata. Once per clearing. */
+    public PrepaidPost prepaidRefund(String clearingReference, String refundReference, BigDecimal amountMajor,
+                                     String currencyAlpha) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("refundReference", refundReference);
+        body.put("amount", amountMajor);
+        body.put("currencyCode", currencyAlpha);
+        return postPrepaid("/api/v1/card-prepaid/clearings/" + clearingReference + "/refund", body, refundReference);
+    }
+
+    private PrepaidPost postPrepaid(String path, Map<String, Object> body, String reference) {
+        try {
+            ResponseEntity<Envelope<PrepaidPost>> resp = backendRestTemplate.exchange(
+                    restClientConfig.getBackendBaseUrl() + path, HttpMethod.POST, new HttpEntity<>(body),
+                    new ParameterizedTypeReference<Envelope<PrepaidPost>>() {});
+            return resp.getBody() != null ? resp.getBody().data() : null;
+        } catch (RestClientException e) {
+            log.warn("Prepaid {} {} could not reach the backend: {}", path, reference, e.getMessage());
+            return null;
+        }
+    }
+
     /** Adds the fee figures to a request body (the backend treats absent fields as none). */
     static void putCharges(Map<String, Object> body, IssuerCharges charges) {
         if (charges == null) return;

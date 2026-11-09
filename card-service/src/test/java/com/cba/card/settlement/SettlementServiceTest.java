@@ -44,6 +44,7 @@ class SettlementServiceTest {
     @Mock BackendClearingClient clearingClient;
     @Mock PlatformTransactionManager transactionManager;   // TransactionTemplate runs the callback
     @Mock InterchangeQualificationEngine interchangeEngine;
+    @Mock com.cba.card.wallet.PrepaidWalletRepository walletRepository;
 
     @InjectMocks SettlementService service;
 
@@ -222,6 +223,7 @@ class SettlementServiceTest {
     void closeBatchSettles() {
         SettlementBatch batch = openBatch();
         SettlementItem legacy = new SettlementItem(); legacy.setId(UUID.randomUUID()); legacy.setStatus("PENDING");
+        // A prepaid item from before 15c has no clearing reference: nothing to post.
         SettlementItem prepaid = new SettlementItem(); prepaid.setId(UUID.randomUUID());
         prepaid.setStatus("PENDING"); prepaid.setCardType("PREPAID");
         stubBatch(batch, legacy, prepaid);
@@ -538,5 +540,105 @@ class SettlementServiceTest {
         when(itemRepository.findByAuthorizationLogIdForUpdate(notCleared)).thenReturn(Optional.of(pending));
         service.recordRefund(notCleared, new BigDecimal("100"), charges("0", InterchangeDirection.EARNED, "0"));
         assertThat(pending.getRefundGlNet()).isNull();
+    }
+
+    // ── Prepaid (backlog 15c) ────────────────────────────────────────────────
+
+    private SettlementItem prepaidItem(String status) {
+        SettlementItem i = new SettlementItem();
+        i.setId(UUID.randomUUID());
+        i.setStatus(status);
+        i.setCardType("PREPAID");
+        i.setCardId(UUID.randomUUID());
+        i.setHoldReference("PPD-" + UUID.randomUUID());
+        i.setAmount(new BigDecimal("2500"));
+        i.setCurrencyCode("840");
+        i.setScheme("VISA");
+        return i;
+    }
+
+    @Test
+    @DisplayName("closeBatch: prepaid spend clears on the backend (DR 2500 / CR 2300) with its quoted charges; glNet set")
+    void closeBatchClearsPrepaid() {
+        SettlementBatch batch = openBatch();
+        SettlementItem item = prepaidItem("PENDING");
+        stubBatch(batch, item);
+        stubReread(item);
+        when(itemRepository.save(any(SettlementItem.class))).thenAnswer(i -> i.getArgument(0));
+        when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
+        when(interchangeEngine.quote(any(), eq(com.cba.card.card.CardType.PREPAID), any(), any(), any(), any(), any()))
+                .thenReturn(new com.cba.card.interchange.IssuerCharges("VISA", new BigDecimal("0.38"),
+                        com.cba.card.interchange.InterchangeDirection.EARNED, new BigDecimal("0.03"), "Q"));
+        when(authLogRepository.findById(any())).thenReturn(Optional.of(new com.cba.card.auth.AuthorizationLog()));
+        item.setAuthorizationLogId(UUID.randomUUID());
+        when(clearingClient.prepaidClearing(eq(item.getHoldReference()), eq(item.getCardId()), eq(new BigDecimal("25.00")),
+                eq("USD"), any())).thenReturn(new BackendClearingClient.PrepaidPost(true, false, item.getHoldReference(), null,
+                "J1", new BigDecimal("0.38"), "EARNED", new BigDecimal("0.03"), null, null));
+
+        service.closeBatch(batch.getId());
+
+        assertThat(item.getStatus()).isEqualTo("SETTLED");
+        assertThat(item.getGlNet()).isEqualByComparingTo("2465");   // 2500 − 38 earned + 3 fees
+        verify(clearingClient, never()).capture(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("closeBatch: prepaid clearing with the backend unreachable leaves the item CLEARING and the batch OPEN")
+    void closeBatchPrepaidUnreachable() {
+        SettlementBatch batch = openBatch();
+        SettlementItem item = prepaidItem("PENDING");
+        stubBatch(batch, item);
+        stubReread(item);
+        when(itemRepository.save(any(SettlementItem.class))).thenAnswer(i -> i.getArgument(0));
+        when(clearingClient.prepaidClearing(any(), any(), any(), any(), any())).thenReturn(null);
+
+        SettlementBatch result = service.closeBatch(batch.getId());
+
+        assertThat(result.getStatus()).isEqualTo(SettlementBatchStatus.OPEN);
+        assertThat(item.getStatus()).isEqualTo("CLEARING");
+    }
+
+    @Test
+    @DisplayName("reversePrepaidItem: PENDING → full REVERSED / partial lowered (NOT_CLEARED); cleared → CLEARED; CLEARING → retry")
+    void reversePrepaidItem() {
+        UUID authId = UUID.randomUUID();
+        SettlementItem item = prepaidItem("PENDING");
+        when(itemRepository.findByAuthorizationLogIdForUpdate(authId)).thenReturn(Optional.of(item));
+
+        assertThat(service.reversePrepaidItem(authId, new BigDecimal("1000"), false).outcome())
+                .isEqualTo(SettlementService.PrepaidItemReversal.Outcome.NOT_CLEARED);
+        assertThat(item.getAmount()).isEqualByComparingTo("1500");
+        assertThat(item.getStatus()).isEqualTo("PENDING");
+
+        item.setStatus("SETTLED");
+        item.setGlNet(new BigDecimal("1480"));
+        var cleared = service.reversePrepaidItem(authId, new BigDecimal("1500"), true);
+        assertThat(cleared.outcome()).isEqualTo(SettlementService.PrepaidItemReversal.Outcome.CLEARED);
+        assertThat(cleared.clearingReference()).isEqualTo(item.getHoldReference());
+        assertThat(item.getStatus()).isEqualTo("REVERSED");
+
+        item.setStatus("CLEARING");
+        assertThat(service.reversePrepaidItem(authId, null, true).outcome())
+                .isEqualTo(SettlementService.PrepaidItemReversal.Outcome.IN_CLEARING);
+
+        item.setStatus("FAILED");
+        item.setFailureReason("NOT_CLEARED_BEFORE_EXPIRY");
+        assertThat(service.reversePrepaidItem(authId, null, true).outcome())
+                .isEqualTo(SettlementService.PrepaidItemReversal.Outcome.ALREADY_RETURNED);
+    }
+
+    @Test
+    @DisplayName("expiry: a prepaid item never cleared gives its wallet decrement back (as a debit hold expires)")
+    void expiryGivesPrepaidBack() {
+        SettlementItem item = prepaidItem("PENDING");
+        com.cba.card.wallet.PrepaidWallet w = new com.cba.card.wallet.PrepaidWallet();
+        w.setBalance(new BigDecimal("10.00"));
+        when(itemRepository.findExpiredPendingItems(any())).thenReturn(List.of(item));
+        when(walletRepository.findByCardIdForUpdate(item.getCardId())).thenReturn(Optional.of(w));
+
+        service.expireUnmatchedAuthorizations();
+
+        assertThat(item.getStatus()).isEqualTo("FAILED");
+        assertThat(w.getBalance()).isEqualByComparingTo("35.00");
     }
 }

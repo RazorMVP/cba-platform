@@ -65,6 +65,7 @@ public class CardAuthorizationService {
     private final RestTemplate              backendRestTemplate;
     private final RestClientConfig          restClientConfig;
     private final SettlementService         settlementService;
+    private final com.cba.card.settlement.BackendClearingClient clearingClient;
     private final InterchangeQualificationEngine interchangeEngine;
 
     /** Injected lazily to break the potential cycle: CardAuthorizationService ← WebhookDeliveryService ← WebhookService. */
@@ -200,7 +201,8 @@ public class CardAuthorizationService {
             } else if (card.getCardType() == CardType.PREPAID) {
                 PrepaidWallet wallet = walletRepository.findByCardIdForUpdate(card.getId()).orElse(null);
                 if (wallet == null || wallet.getBalance() == null) {
-                    return logAndReturn(card, req, CardAuthResponse.decline("91"), fraud.totalScore(), fraud.decision());
+                    // Never loaded (a wallet is opened by its first load): no funds, not an outage.
+                    return logAndReturn(card, req, CardAuthResponse.decline("51"), fraud.totalScore(), fraud.decision());
                 }
                 availableBalance = wallet.getBalance();
                 if (!inquiry) {
@@ -439,12 +441,37 @@ public class CardAuthorizationService {
                         || reversalMinor.compareTo(originalCardMinor) >= 0;
                 // A full reversal takes the item out of clearing first (row-locked until this commits), so a
                 // batch close can't capture the purchase between the release below and the 0400 record.
-                SettlementService.ItemReversal marked = full ? settlementService.markReversed(original.getId()) : null;
+                boolean prepaid = original.getWalletDebit() != null && original.getWalletDebit().signum() > 0;
+                // (Prepaid items are handled by reversePrepaidItem below, which also knows whether they were cleared.)
+                SettlementService.ItemReversal marked = full && !prepaid ? settlementService.markReversed(original.getId()) : null;
                 if (marked == SettlementService.ItemReversal.IN_CLEARING) {
                     // Being cleared right now: answer "try again"; the retry refunds the cleared debit.
                     return "96";
                 }
-                if (original.getHoldReference() != null) {
+                boolean walletBack = true;
+                if (prepaid) {
+                    // Prepaid (backlog 15c): before clearing nothing is on the backend; after clearing the backend
+                    // refunds it first (DR 2300 / CR 2500, pro rata), then the wallet is credited.
+                    SettlementService.PrepaidItemReversal pr = settlementService.reversePrepaidItem(original.getId(), reversalMinor, full);
+                    switch (pr.outcome()) {
+                        case IN_CLEARING -> { return "96"; }
+                        case ALREADY_RETURNED -> walletBack = false;   // expired: the wallet already had it back
+                        case CLEARED -> {
+                            com.cba.card.settlement.BackendClearingClient.PrepaidPost refund = clearingClient.prepaidRefund(pr.clearingReference(),
+                                    reversalReference(pr.clearingReference(), stan, reversalMinor), reversalMajor,
+                                    ccy == null ? null : ccy.getCurrencyCode());
+                            if (refund == null || !refund.approved()) {
+                                rollbackOnly();   // undo the REVERSED mark: nothing was given back
+                                if (refund != null) log.warn("Prepaid refund refused for card={} STAN={}: {}", card.getId(), stan, refund.reason());
+                                return refund == null ? "96" : "13";
+                            }
+                            settlementService.recordRefund(original.getId(), reversalMinor,
+                                    refund.reversed(Schemes.normalize(original.getScheme())));
+                        }
+                        default -> { }
+                    }
+                }
+                if (!prepaid && original.getHoldReference() != null) {
                     // A partial reversal of a purchase not yet cleared keeps the hold: batch close clears only
                     // what remains and the backend frees the rest. Otherwise release (or partly refund).
                     SettlementService.PendingReduction reduced = full ? null
@@ -471,7 +498,7 @@ public class CardAuthorizationService {
                         }
                     }
                 }
-                if (original.getWalletDebit() != null && original.getWalletDebit().signum() > 0) {
+                if (walletBack && original.getWalletDebit() != null && original.getWalletDebit().signum() > 0) {
                     BigDecimal restore = reversalMajor == null ? original.getWalletDebit()
                             : reversalMajor.min(original.getWalletDebit()).max(BigDecimal.ZERO);
                     walletRepository.findByCardIdForUpdate(card.getId()).ifPresent(w -> {
@@ -545,6 +572,11 @@ public class CardAuthorizationService {
      * card, STAN, RRN, terminal, amount and currency, so it maps to the same hold; any other
      * authorization — even one reusing a STAN, or with no RRN — gets its own key (SHA-256, hex).
      */
+    /** The backend's idempotency key for clearing a prepaid approval (backlog 15c): the hold key, prefixed PPD-. */
+    static String prepaidReference(Card card, CardAuthRequest req) {
+        return "PPD-" + holdReference(card, req).substring("CARD-".length());
+    }
+
     static String holdReference(Card card, CardAuthRequest req) {
         String material = card.getId() + "|" + req.stan() + "|" + req.rrn() + "|" + req.terminalId()
                 + "|" + (req.amount() != null ? req.amount().stripTrailingZeros().toPlainString() : "")
@@ -805,8 +837,12 @@ public class CardAuthorizationService {
         if (response.approved() && card != null && (holdReference != null || walletDebit != null)) {
             if (posted != null) {
                 settlementService.addAuthorization(entry, card, holdReference, true, posted);
+            } else if (walletDebit != null) {
+                // Prepaid (backlog 15c): the wallet decrement is the hold; batch close clears it on the backend
+                // (DR 2500 / CR 2300), under its own reference.
+                settlementService.addAuthorization(entry, card, prepaidReference(card, req), false);
             } else {
-                settlementService.addAuthorization(entry, card, holdReference, walletDebit != null || req.isFinancial());
+                settlementService.addAuthorization(entry, card, holdReference, req.isFinancial());
             }
         }
 

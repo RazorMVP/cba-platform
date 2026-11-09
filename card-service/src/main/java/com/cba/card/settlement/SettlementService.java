@@ -64,6 +64,7 @@ public class SettlementService {
     private final BackendClearingClient     clearingClient;
     private final PlatformTransactionManager transactionManager;
     private final InterchangeQualificationEngine interchangeEngine;
+    private final com.cba.card.wallet.PrepaidWalletRepository walletRepository;
 
     @Value("${card.settlement.auth-expiry-days:7}")
     private int authExpiryDays;
@@ -158,10 +159,18 @@ public class SettlementService {
         itemRepository.save(item);
     }
 
-    /** A debit-card item that clears on the backend (and so moves the GL). */
+    /**
+     * An item that clears on the backend (and so moves the GL): a debit-card purchase against its account hold,
+     * or prepaid spend (backlog 15c) — the wallet decrement was its hold; clearing posts DR 2500 / CR 2300.
+     */
     private static boolean movesGl(SettlementItem item) {
-        return CardType.DEBIT.name().equals(item.getCardType())
-                && item.getHoldReference() != null && item.getAccountId() != null;
+        if (item.getHoldReference() == null) return false;
+        if (isPrepaid(item)) return true;
+        return CardType.DEBIT.name().equals(item.getCardType()) && item.getAccountId() != null;
+    }
+
+    private static boolean isPrepaid(SettlementItem item) {
+        return CardType.PREPAID.name().equals(item.getCardType());
     }
 
     /** Stores the figures the backend posted (minor units) and what the bank now owes the scheme for the item. */
@@ -278,6 +287,56 @@ public class SettlementService {
         return ItemReversal.MARKED;
     }
 
+    /**
+     * A reversal of a prepaid approval (backlog 15c), in the reversal's transaction with the item locked until it
+     * commits (so a batch close can't claim it in between):
+     * <ul>
+     *   <li>PENDING — not cleared yet: a full reversal marks it REVERSED, a partial one lowers it. The caller gives
+     *       the wallet back; nothing is on the backend.</li>
+     *   <li>SETTLED and cleared (GL posted) — the caller must refund on the backend first ({@code CLEARED}, with the
+     *       clearing reference); a full reversal marks it REVERSED here (undone if the refund fails).</li>
+     *   <li>CLEARING — being cleared right now: the caller answers "try again".</li>
+     *   <li>FAILED after expiry — its wallet decrement was already given back: the caller must not give it again.</li>
+     * </ul>
+     */
+    @Transactional
+    public PrepaidItemReversal reversePrepaidItem(UUID authLogId, BigDecimal reversalMinor, boolean full) {
+        SettlementItem item = authLogId == null ? null : itemRepository.findByAuthorizationLogIdForUpdate(authLogId).orElse(null);
+        if (item == null) return new PrepaidItemReversal(PrepaidItemReversal.Outcome.NONE, null);
+        String status = item.getStatus();
+        if (CLEARING.equals(status)) return new PrepaidItemReversal(PrepaidItemReversal.Outcome.IN_CLEARING, null);
+        if ("FAILED".equals(status) && "NOT_CLEARED_BEFORE_EXPIRY".equals(item.getFailureReason())) {
+            return new PrepaidItemReversal(PrepaidItemReversal.Outcome.ALREADY_RETURNED, null);
+        }
+        if ("PENDING".equals(status)) {
+            BigDecimal rest = full || reversalMinor == null ? BigDecimal.ZERO : item.getAmount().subtract(reversalMinor);
+            if (rest.signum() <= 0) {
+                item.setStatus("REVERSED");
+            } else {
+                item.setAmount(rest);
+            }
+            itemRepository.save(item);
+            return new PrepaidItemReversal(PrepaidItemReversal.Outcome.NOT_CLEARED, null);
+        }
+        if ("SETTLED".equals(status) && item.getGlNet() != null) {
+            if (full) {
+                item.setStatus("REVERSED");
+                itemRepository.save(item);
+            }
+            return new PrepaidItemReversal(PrepaidItemReversal.Outcome.CLEARED, item.getHoldReference());
+        }
+        if ("SETTLED".equals(status) && full) {   // settled before prepaid posted to the GL: nothing on the backend
+            item.setStatus("REVERSED");
+            itemRepository.save(item);
+        }
+        return new PrepaidItemReversal(PrepaidItemReversal.Outcome.NONE, null);
+    }
+
+    /** Outcome of {@link #reversePrepaidItem}; {@code clearingReference} set for CLEARED. */
+    public record PrepaidItemReversal(Outcome outcome, String clearingReference) {
+        public enum Outcome { NOT_CLEARED, CLEARED, IN_CLEARING, ALREADY_RETURNED, NONE }
+    }
+
     /** Outcome of {@link #markReversed}. */
     public enum ItemReversal {
         /** The item is now REVERSED (rolls back with the reversal if that fails). */
@@ -362,9 +421,16 @@ public class SettlementService {
         } else {
             // The figures quoted at the claim (a retried close reuses them, so the backend's idempotent
             // repeat sees the same request).
-            result = clearingClient.capture(item.getAccountId(), item.getHoldReference(),
-                    CardAuthorizationService.toMajorUnits(item.getAmount(), currency), currency.getCurrencyCode(),
-                    storedCharges(item, currency));
+            BigDecimal major = CardAuthorizationService.toMajorUnits(item.getAmount(), currency);
+            if (isPrepaid(item)) {
+                // Prepaid spend: DR 2500 / CR 2300 with the same interchange and fees (backlog 15c, D5a).
+                BackendClearingClient.PrepaidPost post = clearingClient.prepaidClearing(item.getHoldReference(),
+                        item.getCardId(), major, currency.getCurrencyCode(), storedCharges(item, currency));
+                result = post == null ? null : post.asClearing();
+            } else {
+                result = clearingClient.capture(item.getAccountId(), item.getHoldReference(), major,
+                        currency.getCurrencyCode(), storedCharges(item, currency));
+            }
             if (result == null) return false;
             status = result.approved() ? "SETTLED" : "FAILED";
             reason = result.approved() ? null : result.reason();
@@ -406,7 +472,8 @@ public class SettlementService {
         if (currency == null || item.getAmount() == null) return;
         AuthorizationLog auth = item.getAuthorizationLogId() == null ? null
                 : authLogRepository.findById(item.getAuthorizationLogId()).orElse(null);
-        IssuerCharges quoted = auth == null ? null : interchangeEngine.quote(item.getScheme(), CardType.DEBIT,
+        CardType cardType = isPrepaid(item) ? CardType.PREPAID : CardType.DEBIT;
+        IssuerCharges quoted = auth == null ? null : interchangeEngine.quote(item.getScheme(), cardType,
                 auth.getProcessingCode(), auth.getEntryMode(), auth.getMcc(),
                 CardAuthorizationService.toMajorUnits(item.getAmount(), currency), currency);
         IssuerCharges q = quoted == null ? IssuerCharges.none(item.getScheme()) : quoted;
@@ -503,6 +570,18 @@ public class SettlementService {
         expired.forEach(item -> {
             item.setStatus("FAILED");
             item.setFailureReason("NOT_CLEARED_BEFORE_EXPIRY");
+            // A debit hold expires and stops reserving funds; a prepaid wallet decrement is given back the
+            // same way (backlog 15c) — clearing later would be a late presentment, decided by operations.
+            if (isPrepaid(item) && item.getCardId() != null && item.getAmount() != null) {
+                Currency currency = CardAuthorizationService.currency(item.getCurrencyCode());
+                if (currency != null) {
+                    BigDecimal back = CardAuthorizationService.toMajorUnits(item.getAmount(), currency);
+                    walletRepository.findByCardIdForUpdate(item.getCardId()).ifPresent(w -> {
+                        w.setBalance(w.getBalance().add(back));
+                        walletRepository.save(w);
+                    });
+                }
+            }
         });
         itemRepository.saveAll(expired);
         log.info("CoB: expired {} unmatched settlement items older than {} days",

@@ -3,10 +3,12 @@ import { ActivatedRoute } from '@angular/router';
 import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { CardDetailComponent } from './card-detail';
-import { CardsService, Card, CardBalance, CardLimit, AuthorizationLog } from '../cards.service';
+import { CardsService, Card, CardBalance, CardLimit, AuthorizationLog, WalletView, WalletMovement } from '../cards.service';
+import { AccountService } from '../../operations/accounts/account.service';
 
 type Svc = Record<
-  'getCard' | 'getCardBalance' | 'listAuthorizations' | 'updateCardLimits' | 'commandCard' | 'updateControls',
+  'getCard' | 'getCardBalance' | 'listAuthorizations' | 'updateCardLimits' | 'commandCard' | 'updateControls'
+    | 'getWallet' | 'loadWallet' | 'unloadWallet',
   ReturnType<typeof vi.fn>
 >;
 
@@ -33,8 +35,17 @@ function auth(over: Partial<AuthorizationLog> = {}): AuthorizationLog {
   };
 }
 
+function walletView(over: Partial<WalletView> = {}): WalletView {
+  return { cardId: 'card-1', walletId: 'w1', balance: 75, currencyCode: 'USD', status: 'ACTIVE', movements: [], ...over };
+}
+function movement(over: Partial<WalletMovement> = {}): WalletMovement {
+  return { id: 'm1', cardId: 'card-1', movementType: 'LOAD', reference: 'WLD-1', accountId: 'acc-usd', amount: 25,
+    currencyCode: 'USD', status: 'COMPLETED', createdAt: '2026-11-09', ...over };
+}
+
 describe('CardDetailComponent', () => {
   let svc: Svc;
+  let accounts: { list: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     svc = {
@@ -44,12 +55,21 @@ describe('CardDetailComponent', () => {
       updateCardLimits: vi.fn().mockReturnValue(of({ ...limit, dailyPurchaseLimit: 999 })),
       commandCard: vi.fn().mockReturnValue(of(card({ status: 'BLOCKED' }))),
       updateControls: vi.fn().mockReturnValue(of(card({ contactlessEnabled: false }))),
+      getWallet: vi.fn().mockReturnValue(of(walletView())),
+      loadWallet: vi.fn().mockReturnValue(of(movement())),
+      unloadWallet: vi.fn().mockReturnValue(of(movement({ movementType: 'UNLOAD' }))),
     };
+    accounts = { list: vi.fn().mockReturnValue(of({ content: [
+      { id: 'acc-usd', accountNumber: '001-SAV-1', status: 'ACTIVE', currencyCode: 'USD', balance: 900 },
+      { id: 'acc-eur', accountNumber: '001-SAV-2', status: 'ACTIVE', currencyCode: 'EUR', balance: 50 },
+      { id: 'acc-frozen', accountNumber: '001-SAV-3', status: 'FROZEN', currencyCode: 'USD', balance: 10 },
+    ], totalElements: 3 })) };
     TestBed.configureTestingModule({
       imports: [CardDetailComponent],
       providers: [
         provideRouter([]),
         { provide: CardsService, useValue: svc },
+        { provide: AccountService, useValue: accounts },
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => 'card-1' } } } },
       ],
     });
@@ -160,6 +180,85 @@ describe('CardDetailComponent', () => {
       fixture.detectChanges();
       const rows = (fixture.nativeElement as HTMLElement).querySelectorAll('.controls-card__row input');
       expect(rows.length).toBe(3);
+    });
+  });
+  describe('prepaid wallet (backlog 15c)', () => {
+    beforeEach(() => svc.getCard.mockReturnValue(of(card({ cardType: 'PREPAID' }))));
+
+    it('loads the wallet only for a prepaid card and shows it', () => {
+      const fixture = TestBed.createComponent(CardDetailComponent);
+      fixture.detectChanges();
+      expect(svc.getWallet).toHaveBeenCalledWith('card-1');
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('Wallet');
+    });
+
+    it('does not ask for a wallet for a debit card', () => {
+      svc.getCard.mockReturnValue(of(card()));
+      make();
+      expect(svc.getWallet).not.toHaveBeenCalled();
+    });
+
+    it('offers only the customer\'s ACTIVE accounts in the wallet currency', () => {
+      const c = make();
+      c.openWalletModal('LOAD');
+      expect(accounts.list).toHaveBeenCalledWith(0, 100, 'cust-1');
+      expect(c.eligibleAccounts.map(a => a.id)).toEqual(['acc-usd']);
+    });
+
+    it('loads with the wallet currency and refreshes; a PENDING answer shows the retry notice', () => {
+      const c = make();
+      c.openWalletModal('LOAD');
+      c.walletAccountId = 'acc-usd';
+      c.walletAmount = 25;
+      svc.loadWallet.mockReturnValue(of(movement({ status: 'PENDING' })));
+      c.submitWallet();
+      expect(svc.loadWallet).toHaveBeenCalledWith('card-1', { sourceAccountId: 'acc-usd', amount: 25, currencyCode: 'USD' });
+      expect(c.walletModal).toBeNull();
+      expect(c.walletNotice).toContain('retried');
+      expect(svc.getWallet).toHaveBeenCalledTimes(2);
+    });
+
+    it('unloads to the chosen account', () => {
+      const c = make();
+      c.openWalletModal('UNLOAD');
+      c.walletAccountId = 'acc-usd';
+      c.walletAmount = 10;
+      c.submitWallet();
+      expect(svc.unloadWallet).toHaveBeenCalledWith('card-1', { destinationAccountId: 'acc-usd', amount: 10 });
+    });
+
+    it('explains a refusal in plain words and keeps the modal open', () => {
+      svc.loadWallet.mockReturnValue(throwError(() => ({ error: { errors: [{ code: 'INSUFFICIENT_FUNDS', message: 'x' }] } })));
+      const c = make();
+      c.openWalletModal('LOAD');
+      c.walletAccountId = 'acc-usd';
+      c.walletAmount = 5000;
+      c.submitWallet();
+      expect(c.walletError).toContain('enough available balance');
+      expect(c.walletModal).toBe('LOAD');
+      expect(c.walletWorking).toBe(false);
+    });
+
+    it('does nothing without an account or a positive amount', () => {
+      const c = make();
+      c.openWalletModal('LOAD');
+      c.walletAmount = 5;
+      c.submitWallet();
+      c.walletAccountId = 'acc-usd';
+      c.walletAmount = 0;
+      c.submitWallet();
+      expect(svc.loadWallet).not.toHaveBeenCalled();
+    });
+
+    it('a first load (no wallet yet) takes the account\'s currency', () => {
+      svc.getWallet.mockReturnValue(of(walletView({ walletId: undefined, currencyCode: undefined, balance: 0 })));
+      const c = make();
+      c.openWalletModal('LOAD');
+      expect(c.eligibleAccounts.map(a => a.id)).toEqual(['acc-usd', 'acc-eur']);
+      c.walletAccountId = 'acc-eur';
+      c.walletAmount = 20;
+      c.submitWallet();
+      expect(svc.loadWallet).toHaveBeenCalledWith('card-1', { sourceAccountId: 'acc-eur', amount: 20, currencyCode: 'EUR' });
     });
   });
 });

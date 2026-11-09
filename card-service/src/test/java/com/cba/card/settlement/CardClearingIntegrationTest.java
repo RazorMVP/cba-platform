@@ -70,6 +70,42 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
         registerPattern("POST", accounts + "/card-holds/[^/]+/release", hold(true, "REFUNDED", null));
         register("POST", "/api/v1/card-settlements", Map.of("data", Map.of("approved", true, "repeat", false,
                 "reference", "CSR", "journalTransactionId", "GL-IT"), "errors", List.of()));
+        Map<String, Object> prepaidOk = Map.of("data", Map.of("approved", true, "repeat", false, "reference", "P",
+                "journalTransactionId", "GL-PP"), "errors", List.of());
+        register("POST", "/api/v1/card-prepaid/loads", prepaidOk);
+        register("POST", "/api/v1/card-prepaid/clearings", prepaidOk);
+    }
+
+    static final UUID PREPAID_PRODUCT = UUID.fromString("11111111-0001-0001-0001-000000000003");
+
+    @Test
+    @DisplayName("prepaid (15c): load over HTTP → wallet credited; a purchase lands PENDING under PPD-; close clears it on the backend")
+    void prepaidLoadSpendClear() {
+        String pan = "4300" + String.format("%012d", ThreadLocalRandom.current().nextLong(1_000_000_000_000L));
+        Card card = cardService.issueCard(PREPAID_PRODUCT, UUID.randomUUID(), null, true, pan, "2912", "123", "USD");
+
+        HttpHeaders h = new HttpHeaders();
+        h.setContentType(MediaType.APPLICATION_JSON);
+        h.setBearerAuth(ROLES_TOKEN + ".ADMIN.TELLER");
+        var load = rest.exchange("/api/v1/cards/" + card.getId() + "/wallet/loads", HttpMethod.POST,
+                new HttpEntity<>(Map.of("sourceAccountId", ACCOUNT, "amount", 100, "currencyCode", "USD"), h), Map.class);
+        assertThat(load.getStatusCode().value()).as(String.valueOf(load.getBody())).isEqualTo(201);
+        assertThat(requests("/card-prepaid/loads")).anySatisfy(body -> assertThat(body)
+                .contains(card.getId().toString()).contains("\"currencyCode\":\"USD\""));
+
+        assertThat(authorize(pan, "930001", "000000", false, 2500)).isEqualTo("00");
+        SettlementItem item = itemFor("930001");
+        assertThat(item.getStatus()).isEqualTo("PENDING");
+        assertThat(item.getHoldReference()).startsWith("PPD-");
+        assertThat(jdbc.queryForObject("SELECT balance FROM prepaid_wallets WHERE card_id = ?", BigDecimal.class, card.getId()))
+                .isEqualByComparingTo("75.00");
+
+        settlementService.closeBatch(batchOf(item));
+
+        SettlementItem cleared = itemRepository.findById(item.getId()).orElseThrow();
+        assertThat(cleared.getStatus()).isEqualTo("SETTLED");
+        assertThat(cleared.getGlNet()).isNotNull();   // in the scheme's expected net from now on
+        assertThat(requests("/card-prepaid/clearings")).anySatisfy(body -> assertThat(body).contains(item.getHoldReference()));
     }
 
     @Autowired TestRestTemplate rest;

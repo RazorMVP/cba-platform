@@ -54,3 +54,16 @@
   display: flex; align-items: center; gap: $space-2; font-size: $text-sm; cursor: pointer;
   input { width: 16px; height: 16px; }
 }
+
+// Prepaid wallet (backlog 15c)
+.wallet-card {
+  margin-top: 1rem;
+  padding: 1.25rem;
+
+  &__header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: .75rem; }
+  &__title { margin: 0 0 .25rem; font-size: 1rem; }
+  &__balance { font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  &__hint { margin-left: .5rem; color: #888; font-size: .8rem; }
+  &__actions { display: flex; gap: .5rem; }
+  &__notice { margin-bottom: .75rem; padding: .5rem .75rem; border-radius: 6px; background: #fff8e1; color: #5c4400; font-size: .85rem; }
+}

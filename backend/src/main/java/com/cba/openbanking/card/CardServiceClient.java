@@ -128,6 +128,27 @@ public class CardServiceClient {
     }
 
     /**
+     * Prepaid wallet balances per currency (ISO 4217 alphabetic → total, major units) — the customer side of
+     * the PREPAID opening balance and the GL 2500 reconciliation (backlog 15c). Empty when card-service can't
+     * be reached: the caller must not read that as "no wallets".
+     */
+    @SuppressWarnings("unchecked")
+    public Optional<Map<String, BigDecimal>> getWalletTotals() {
+        try {
+            ResponseEntity<Map<String, Object>> resp = rest.exchange(
+                    "/api/v1/cards/wallets/totals", HttpMethod.GET, null, new ParameterizedTypeReference<>() {});
+            Object data = resp.getBody() == null ? null : resp.getBody().get("data");
+            if (!(data instanceof Map<?, ?> map)) return Optional.empty();
+            Map<String, BigDecimal> totals = new java.util.TreeMap<>();
+            ((Map<String, Object>) map).forEach((ccy, v) -> totals.put(ccy, toBigDecimal(v)));
+            return Optional.of(totals);
+        } catch (RestClientException e) {
+            log.warn("card-service wallet totals unavailable: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
      * Returns authorization history for a card (approved and declined).
      */
     public List<CardAuthDto> getCardAuthorizations(UUID cardId) {

@@ -116,10 +116,14 @@ class FepSocketRoundTripTest {
         when(schemeAdapterFactory.getAdapter(any())).thenReturn(adapter);
         when(cardServiceClient.authorize(any())).thenReturn(AuthorizationResult.approve("A1B2C3"));
 
+        // The ARQC is taken as verified (the dev-key derivation is covered by ArqcValidatorTest):
+        // tag 91 is only issued for a verified ARQC.
+        ArqcValidator arqcValidator = mock(ArqcValidator.class);
+        when(arqcValidator.validate(any(), any(), any())).thenReturn(true);
         AuthorizationHandler authHandler = new AuthorizationHandler(
                 cardServiceClient, schemeAdapterFactory,
                 mock(HsmAdapter.class), new EmvDataParser(),
-                mock(ArqcValidator.class), new ArpcGenerator());
+                arqcValidator, new ArpcGenerator());
 
         // 0100 → authHandler, 0800 → NetworkHandler; financial/reversal unused here.
         MessageRouter router = new MessageRouter(authHandler, null, null, new NetworkHandler());

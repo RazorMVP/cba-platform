@@ -102,6 +102,7 @@ public class AuthorizationHandler {
         // Pass the scheme adapter's cryptogram algorithm so UnionPay domestic cards
         // (QPBOC/SM4) are validated with SM4 CBC-MAC rather than 3DES.
         byte[] arqcBytes = null;
+        boolean arqcVerified = false;
         if (request.hasField(IsoField.ICC_DATA)) {
             byte[] iccData = request.getBytes(IsoField.ICC_DATA);
             var emvTags = emvDataParser.parse(iccData);
@@ -109,6 +110,9 @@ public class AuthorizationHandler {
             boolean arqcValid = arqcValidator.validate(
                     emvTags, effectivePan, adapter.getCryptogramAlgorithm());
             authReq = authReq.withEmvData(emvTags).withArqcValid(arqcValid);
+            // An ARPC is issued only for an online cryptogram (CID = ARQC, or no CID) that verified.
+            // ArqcValidator answers true for a TC without checking it, so a CID of TC doesn't count.
+            arqcVerified = arqcValid && isOnlineCryptogram(emvTags.getTag(EmvTag.CRYPTOGRAM_INFORMATION_DATA));
         }
 
         // Forward to card-service
@@ -118,9 +122,15 @@ public class AuthorizationHandler {
         ISOMsg response = buildAuthResponse(request, result);
         adapter.finalizeResponse(response, result, scheme);
 
-        // Chip transaction: DE55 = tag 91 (ARPC || ARC), for declines as well as approvals. The ARC is
-        // the final DE39, so it's computed after finalizeResponse (which may still set the RC).
-        if (arqcBytes != null) {
+        // Chip transaction: DE55 = tag 91 (ARPC || ARC), for declines as well as approvals — but only
+        // when the ARQC verified. An ARPC computed over an unverified ARQC would make this an oracle:
+        // anyone could send chosen 9F26 values and collect MACs under the card's session key (an HSM
+        // such as a Thales payShield refuses to produce an ARPC when ARQC verification fails). The ARC
+        // is the final DE39, so it's computed after finalizeResponse (which may still set the RC).
+        if (arqcBytes != null && !arqcVerified) {
+            log.warn("AUTH 0110: STAN={} ARQC not verified — no ARPC, DE55 omitted", stan);
+        }
+        if (arqcBytes != null && arqcVerified) {
             String responseCode = response.getString(IsoField.RESPONSE_CODE);
             byte[] arc  = ArpcGenerator.arc(responseCode);
             byte[] arpc = arpcGenerator.generate(arqcBytes, responseCode);
@@ -131,6 +141,11 @@ public class AuthorizationHandler {
             }
         }
         return response;
+    }
+
+    /** CID (9F27) bits 8-7: 10 = ARQC. No CID: the validator checked the cryptogram as an ARQC. */
+    static boolean isOnlineCryptogram(byte[] cid) {
+        return cid == null || cid.length == 0 || (cid[0] & 0xC0) == 0x80;
     }
 
     public ISOMsg handleAdvice(ISOMsg request) throws ISOException {

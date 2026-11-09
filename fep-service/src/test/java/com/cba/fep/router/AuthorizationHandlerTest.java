@@ -193,6 +193,40 @@ class AuthorizationHandlerTest {
     }
 
     @Test
+    @DisplayName("ARQC fails verification → no ARPC is computed and no DE55 is sent (no ARPC oracle)")
+    void unverifiedArqcGetsNoArpc() throws Exception {
+        chipTransactionAnswering(AuthorizationResult.decline("05"));
+        when(arqcValidator.validate(any(), anyString(), any())).thenReturn(false);
+
+        ISOMsg resp = handler.handleRequest(chipRequest());
+
+        assertThat(resp.hasField(IsoField.ICC_DATA)).isFalse();
+        verifyNoInteractions(arpcGenerator);
+    }
+
+    @Test
+    @DisplayName("CID = TC (offline approval, accepted without a cryptogram check) → no ARPC")
+    void tcGetsNoArpc() throws Exception {
+        chipTransactionAnswering(AuthorizationResult.approve("A1B2C3"));
+        when(emvDataParser.parse(REQUEST_ICC)).thenReturn(new EmvData(Map.of(
+                EmvTag.ARQC, ARQC, EmvTag.CRYPTOGRAM_INFORMATION_DATA, new byte[]{0x40})));
+
+        ISOMsg resp = handler.handleRequest(chipRequest());
+
+        assertThat(resp.hasField(IsoField.ICC_DATA)).isFalse();
+        verifyNoInteractions(arpcGenerator);
+    }
+
+    @Test
+    @DisplayName("CID: ARQC (10xx xxxx) or absent is online; TC and AAC are not")
+    void cidClassification() {
+        assertThat(AuthorizationHandler.isOnlineCryptogram(null)).isTrue();
+        assertThat(AuthorizationHandler.isOnlineCryptogram(new byte[]{(byte) 0x80})).isTrue();
+        assertThat(AuthorizationHandler.isOnlineCryptogram(new byte[]{0x40})).isFalse();
+        assertThat(AuthorizationHandler.isOnlineCryptogram(new byte[]{0x00})).isFalse();
+    }
+
+    @Test
     @DisplayName("no ARPC (generator refused) → no DE55 at all, the request ICC data is not echoed")
     void noArpcNoDe55() throws Exception {
         chipTransactionAnswering(AuthorizationResult.approve("A1B2C3"));

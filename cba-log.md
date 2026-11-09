@@ -162,7 +162,7 @@ backend: Spring Boot 3.5.16, Java 21; `-Pfull-integration` 1096. web: Angular 22
 - The ARPC math is unchanged (still the dev 3DES key); the HSM half of item 4 is open.
 
 #### Build Verification
-- fep-service `./mvnw -o test`: **145/145** (was 96; +49).
+- fep-service `./mvnw -o test`: **148/148** (was 96; +52). Commit security review: tag 91 is issued only for a **verified** ARQC (CID = ARQC or absent) — an ARPC over any 9F26 would be a MAC oracle under the card session key; +3 tests (unverified ARQC, CID = TC, CID classification).
 - API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
 
 ---

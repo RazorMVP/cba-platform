@@ -4000,6 +4000,8 @@ components:
           type: number
         expectedNet:
           type: number
+        difference:
+          type: number
         itemCount:
           type: integer
           format: int32

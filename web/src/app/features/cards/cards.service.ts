@@ -175,6 +175,58 @@ export interface SettlementTransmission {
   errorMessage?: string | null;
 }
 
+/**
+ * A scheme's settlement report (backlog 15b/15d): the cash leg for one scheme, settlement date and currency.
+ * Amounts are major units, signed — positive = the bank pays the scheme.
+ */
+export interface SchemeReportRequest {
+  scheme: SchemeType;
+  settlementDate: string;
+  currency: string;
+  netAmount: number;
+}
+
+/**
+ * The outcome of recording a report, or the expected net for a preview. A refusal is a result: `reason`
+ * is e.g. DIFFERENCE_OVER_TOLERANCE (the backend's tolerance on reported − expected), ALREADY_RECORDED,
+ * BATCH_NOT_CLOSED, DATE_NOT_CLOSED, BACKEND_UNAVAILABLE.
+ */
+export interface SchemeReportResult {
+  recorded: boolean;
+  repeat: boolean;
+  reason: string | null;
+  scheme: string;
+  settlementDate: string;
+  currency: string;
+  expectedNet: number | null;
+  reportedNet: number | null;
+  /** reported − expected; when recorded, posted to GL 1004 Card Settlement Differences. */
+  difference: number | null;
+  itemCount: number;
+  refundCount: number;
+  backendReference: string | null;
+  journalTransactionId: string | null;
+}
+
+/** A recorded (or still posting) scheme settlement report. */
+export interface SchemeSettlementReport {
+  id: string;
+  scheme: string;
+  settlementDate: string;
+  currencyCode: string;
+  reportedNet: number;
+  expectedNet: number;
+  difference: number;
+  itemCount: number;
+  refundCount: number;
+  status: 'POSTING' | 'RECORDED';
+  backendReference: string;
+  journalTransactionId: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  recordedAt: string | null;
+}
+
 // ── Disputes ──────────────────────────────────────────────────────────────────
 export type DisputeStatus = 'RAISED' | 'RETRIEVAL_REQUESTED' | 'CHARGEBACK_INITIATED' |
                             'REPRESENTMENT' | 'PRE_ARBITRATION' | 'RESOLVED' | 'WITHDRAWN';
@@ -466,6 +518,16 @@ export class CardsService {
   closeBatch(id: string): Observable<SettlementBatch> { return this.post<SettlementBatch>(`/cards/settlement/batches/${id}/close`, {}); }
   triggerExport(batchId: string): Observable<void> { return this.post<void>(`/cards/settlement/export/${batchId}`, {}); }
   listTransmissions(): Observable<SettlementTransmission[]> { return this.get<SettlementTransmission[]>('/cards/settlement/transmissions'); }
+  /** The expected net for a scheme, settlement date and currency (nothing written). */
+  expectedSchemeNet(scheme: string, date: string, currency: string): Observable<SchemeReportResult> {
+    return this.get<SchemeReportResult>('/cards/settlement/scheme-reports/expected', { scheme, date, currency });
+  }
+  recordSchemeReport(req: SchemeReportRequest): Observable<SchemeReportResult> {
+    return this.post<SchemeReportResult>('/cards/settlement/scheme-reports', req);
+  }
+  listSchemeReports(date?: string): Observable<SchemeSettlementReport[]> {
+    return this.get<SchemeSettlementReport[]>('/cards/settlement/scheme-reports', date ? { date } : undefined);
+  }
 
   // ── Disputes ───────────────────────────────────────────────────────────────
   listDisputes(status?: string): Observable<CardDispute[]> {

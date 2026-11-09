@@ -28,8 +28,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * The cash leg of card scheme settlement over real PostgreSQL (backlog 15b): card-service posts a
- * scheme's net settlement once its settlement report matched — DR 2300 / CR 1003 when the bank paid,
- * the reverse when the scheme paid; one journal per reference.
+ * scheme's net settlement once it reconciled the report — DR 2300 / CR 1003 when the bank paid,
+ * the reverse when the scheme paid; one journal per reference. A difference within the currency's
+ * tolerance (the test profile sets USD 0.05; others default to 0) posts to 1004 (backlog 15d).
  */
 @DisplayName("Card scheme settlement — the cash leg posts once per reference")
 class CardSchemeSettlementIT extends AbstractIntegrationTest {
@@ -50,6 +51,18 @@ class CardSchemeSettlementIT extends AbstractIntegrationTest {
     private CardSchemeSettlementResult post(String reference, String amount) {
         return service.record(new CardSchemeSettlementRequest(reference, "VISA", LocalDate.now().minusDays(1), "USD",
                 new BigDecimal(amount)), "it");
+    }
+
+    private CardSchemeSettlementResult post(String reference, String currency, String amount, String expected) {
+        return service.record(new CardSchemeSettlementRequest(reference, "VISA", LocalDate.now().minusDays(1), currency,
+                new BigDecimal(amount), new BigDecimal(expected)), "it");
+    }
+
+    private BigDecimal balance1004(String currency) {
+        return jdbc.queryForObject("""
+                SELECT COALESCE(SUM(CASE je.entry_type WHEN 'DEBIT' THEN je.amount ELSE -je.amount END), 0)
+                FROM journal_entries je JOIN gl_accounts g ON g.id = je.gl_account_id
+                WHERE g.gl_code = '1004' AND je.currency_code = ?""", BigDecimal.class, currency);
     }
 
     private List<String> lines(String reference) {
@@ -82,6 +95,97 @@ class CardSchemeSettlementIT extends AbstractIntegrationTest {
         String ref = ref();
         assertThat(post(ref, "-39.45").approved()).isTrue();
         assertThat(lines(ref)).containsExactly("CREDIT 2300 39.4500 USD", "DEBIT 1003 39.4500 USD");
+    }
+
+    @Test
+    @DisplayName("within tolerance: 2300 at the expected net, 1003 at the reported net, the difference DR 1004 (a claim on the scheme)")
+    void differenceWithinTolerance() {
+        String ref = ref();
+        BigDecimal before = balance1004("USD");
+        CardSchemeSettlementResult r = post(ref, "USD", "149.21", "149.20");
+
+        assertThat(r.approved()).as(r.reason()).isTrue();
+        assertThat(r.difference()).isEqualByComparingTo("0.01");
+        assertThat(r.expectedAmount()).isEqualByComparingTo("149.20");
+        assertThat(lines(ref)).containsExactly("CREDIT 1003 149.2100 USD", "DEBIT 1004 0.0100 USD",
+                "DEBIT 2300 149.2000 USD");
+        assertThat(balance1004("USD").subtract(before)).isEqualByComparingTo("0.01");
+        assertThat(jdbc.queryForObject("SELECT amount || ' ' || expected_amount || ' ' || difference "
+                + "FROM card_scheme_settlements WHERE reference = ?", String.class, ref))
+                .isEqualTo("149.2100 149.2000 0.0100");
+        assertThat(jdbc.queryForObject("SELECT manual_entries_allowed FROM gl_accounts WHERE gl_code = '1004'",
+                Boolean.class)).as("ops clear 1004 by manual journal").isTrue();
+    }
+
+    @Test
+    @DisplayName("the scheme reported less than expected: CR 1004 (owed to the scheme), at the tolerance's edge")
+    void underpaidAtTheEdge() {
+        String ref = ref();
+        assertThat(post(ref, "USD", "99.95", "100.00").approved()).isTrue();
+        assertThat(lines(ref)).containsExactly("CREDIT 1003 99.9500 USD", "CREDIT 1004 0.0500 USD",
+                "DEBIT 2300 100.0000 USD");
+    }
+
+    @Test
+    @DisplayName("negative net with a difference: CR 2300 at the expected net, DR 1003 at what was received, DR 1004 the shortfall")
+    void negativeNetWithDifference() {
+        String ref = ref();
+        assertThat(post(ref, "USD", "-39.40", "-39.45").approved()).isTrue();
+        assertThat(lines(ref)).containsExactly("CREDIT 2300 39.4500 USD", "DEBIT 1003 39.4000 USD",
+                "DEBIT 1004 0.0500 USD");
+    }
+
+    @Test
+    @DisplayName("over tolerance: refused DIFFERENCE_OVER_TOLERANCE with the figures, nothing posted or recorded")
+    void overTolerance() {
+        String ref = ref();
+        CardSchemeSettlementResult r = post(ref, "USD", "149.26", "149.20");
+
+        assertThat(r.approved()).isFalse();
+        assertThat(r.reason()).isEqualTo("DIFFERENCE_OVER_TOLERANCE");
+        assertThat(r.difference()).isEqualByComparingTo("0.06");
+        assertThat(r.expectedAmount()).isEqualByComparingTo("149.20");
+        assertThat(r.amount()).isEqualByComparingTo("149.26");
+        assertThat(lines(ref)).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM card_scheme_settlements WHERE reference = ?",
+                Integer.class, ref)).isZero();
+    }
+
+    @Test
+    @DisplayName("no tolerance configured for the currency (default 0): any difference is refused, as before")
+    void defaultToleranceIsZero() {
+        String ref = ref();
+        CardSchemeSettlementResult r = post(ref, "EUR", "10.01", "10.00");
+        assertThat(r.reason()).isEqualTo("DIFFERENCE_OVER_TOLERANCE");
+        assertThat(lines(ref)).isEmpty();
+        String exact = ref();
+        assertThat(post(exact, "EUR", "10.00", "10.00").approved()).isTrue();
+        assertThat(lines(exact)).containsExactly("CREDIT 1003 10.0000 EUR", "DEBIT 2300 10.0000 EUR");
+    }
+
+    @Test
+    @DisplayName("a repeat must carry the same reported AND expected figures")
+    void repeatComparesBothFigures() {
+        String ref = ref();
+        CardSchemeSettlementResult first = post(ref, "USD", "20.02", "20.00");
+        CardSchemeSettlementResult again = post(ref, "USD", "20.02", "20.00");
+        CardSchemeSettlementResult otherExpected = post(ref, "USD", "20.02", "20.01");
+
+        assertThat(again.repeat()).isTrue();
+        assertThat(again.journalTransactionId()).isEqualTo(first.journalTransactionId());
+        assertThat(again.difference()).isEqualByComparingTo("0.02");
+        assertThat(otherExpected.reason()).isEqualTo("REFERENCE_CONFLICT");
+        assertThat(lines(ref)).hasSize(3);
+    }
+
+    @Test
+    @DisplayName("the scheme reported zero against a small expected net: 2300 and 1004 only; both zero is ZERO_AMOUNT")
+    void zeroReported() {
+        String ref = ref();
+        assertThat(post(ref, "USD", "0.00", "0.03").approved()).isTrue();
+        assertThat(lines(ref)).containsExactly("CREDIT 1004 0.0300 USD", "DEBIT 2300 0.0300 USD");
+        assertThat(post(ref(), "USD", "0.00", "0.00").reason()).isEqualTo("ZERO_AMOUNT");
+        assertThat(post(ref(), "USD", "1.00", "1.005").reason()).isEqualTo("INVALID_AMOUNT");
     }
 
     @Test

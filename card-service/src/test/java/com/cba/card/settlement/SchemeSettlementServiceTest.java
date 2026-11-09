@@ -24,8 +24,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * {@link SchemeSettlementService} — a scheme's settlement report is recorded only when it equals the
- * expected net of the date's cleared items and refunds (backlog 15b, decision 4a).
+ * {@link SchemeSettlementService} — a scheme's settlement report is sent to the backend with the expected
+ * net of the date's cleared items and refunds (backlog 15b, decision 4a); the backend decides whether a
+ * difference is within its tolerance (backlog 15d, decision D7a).
  */
 @ExtendWith(MockitoExtension.class)
 class SchemeSettlementServiceTest {
@@ -94,7 +95,7 @@ class SchemeSettlementServiceTest {
         SettlementItem atm = cleared("5057", "840");
         SettlementBatch batch = stubDay(List.of(purchase, atm), List.of());
         stubSave();
-        when(clearingClient.recordSchemeSettlement(any(), eq("VISA"), eq(D), eq("USD"), any()))
+        when(clearingClient.recordSchemeSettlement(any(), eq("VISA"), eq(D), eq("USD"), any(), any()))
                 .thenReturn(new BackendClearingClient.SettlementPost(true, false, "ref", "GL-1", null));
         when(reportRepository.findById(any())).thenAnswer(i -> {
             SchemeSettlementReport r = new SchemeSettlementReport();
@@ -115,23 +116,102 @@ class SchemeSettlementServiceTest {
         assertThat(atm.getSettlementReportId()).isEqualTo(purchase.getSettlementReportId());
         verify(clearingClient).recordSchemeSettlement(eq("CSR-VISA-" + D.format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE) + "-USD"),
                 eq("VISA"), eq(D), eq("USD"),
+                org.mockito.ArgumentMatchers.<BigDecimal>argThat(a -> a.compareTo(new BigDecimal("149.20")) == 0),
                 org.mockito.ArgumentMatchers.<BigDecimal>argThat(a -> a.compareTo(new BigDecimal("149.20")) == 0));
         assertThat(batch.getStatus()).isEqualTo(SettlementBatchStatus.SETTLED);
     }
 
+    /** A stored report as the second transaction re-reads it. */
+    private SchemeSettlementReport stored(String reported, String expected) {
+        SchemeSettlementReport r = new SchemeSettlementReport();
+        r.setId(UUID.randomUUID());
+        r.setScheme("VISA"); r.setSettlementDate(D); r.setCurrencyCode("USD");
+        r.setReportedNet(new BigDecimal(reported)); r.setExpectedNet(new BigDecimal(expected));
+        r.setDifference(new BigDecimal(reported).subtract(new BigDecimal(expected)));
+        r.setBackendReference("CSR-REF"); r.setStatus(SchemeSettlementReport.POSTING);
+        return r;
+    }
+
     @Test
-    @DisplayName("mismatch: refused with expected, reported and the difference — nothing written, nothing posted")
-    void mismatch_writesNothing() {
-        stubDay(List.of(cleared("9863", "840"), cleared("5057", "840")), List.of());
+    @DisplayName("a difference is no longer refused here: sent with expectedAmount; the backend refusing it over tolerance "
+            + "undoes the report and the stamps and returns expected, reported and the difference")
+    void differenceOverTolerance_backendRefuses_undone() {
+        SettlementItem purchase = cleared("9863", "840");
+        SettlementItem atm = cleared("5057", "840");
+        stubDay(List.of(purchase, atm), List.of());
+        stubSave();
+        when(clearingClient.recordSchemeSettlement(any(), any(), any(), any(), any(), any()))
+                .thenReturn(new BackendClearingClient.SettlementPost(false, false, "ref", null, "DIFFERENCE_OVER_TOLERANCE",
+                        new BigDecimal("149.20"), new BigDecimal("149.30"), new BigDecimal("0.10")));
+        SchemeSettlementReport stored = stored("149.30", "149.20");
+        when(reportRepository.findById(any())).thenReturn(Optional.of(stored));
+        when(itemRepository.findBySettlementReportId(stored.getId())).thenReturn(List.of(purchase, atm));
+        when(itemRepository.findByRefundReportId(stored.getId())).thenReturn(List.of());
+
+        SchemeReportResult r = service.record(report("149.30"), "ops");
+
+        assertThat(r.recorded()).isFalse();
+        assertThat(r.reason()).isEqualTo("DIFFERENCE_OVER_TOLERANCE");
+        assertThat(r.expectedNet()).isEqualByComparingTo("149.20");
+        assertThat(r.reportedNet()).isEqualByComparingTo("149.30");
+        assertThat(r.difference()).isEqualByComparingTo("0.10");
+        assertThat(purchase.getSettlementReportId()).isNull();
+        assertThat(atm.getSettlementReportId()).isNull();
+        verify(reportRepository).delete(stored);
+        verify(clearingClient).recordSchemeSettlement(any(), eq("VISA"), eq(D), eq("USD"),
+                org.mockito.ArgumentMatchers.<BigDecimal>argThat(a -> a.compareTo(new BigDecimal("149.30")) == 0),
+                org.mockito.ArgumentMatchers.<BigDecimal>argThat(a -> a.compareTo(new BigDecimal("149.20")) == 0));
+    }
+
+    @Test
+    @DisplayName("a difference within the backend's tolerance: RECORDED with the difference, batch SETTLED")
+    void differenceWithinTolerance_recorded() {
+        SettlementItem purchase = cleared("9863", "840");
+        SettlementItem atm = cleared("5057", "840");
+        SettlementBatch batch = stubDay(List.of(purchase, atm), List.of());
+        org.mockito.ArgumentCaptor<SchemeSettlementReport> saved = org.mockito.ArgumentCaptor.forClass(SchemeSettlementReport.class);
+        when(reportRepository.saveAndFlush(saved.capture())).thenAnswer(i -> {
+            SchemeSettlementReport r = i.getArgument(0);
+            r.setId(UUID.randomUUID());
+            return r;
+        });
+        when(clearingClient.recordSchemeSettlement(any(), any(), any(), any(), any(), any()))
+                .thenReturn(new BackendClearingClient.SettlementPost(true, false, "ref", "GL-3", null,
+                        new BigDecimal("149.20"), new BigDecimal("149.21"), new BigDecimal("0.01")));
+        SchemeSettlementReport stored = stored("149.21", "149.20");
+        when(reportRepository.findById(any())).thenReturn(Optional.of(stored));
+        when(itemRepository.countUnsettledGlItems(batch)).thenReturn(0L);
 
         SchemeReportResult r = service.record(report("149.21"), "ops");
 
-        assertThat(r.recorded()).isFalse();
-        assertThat(r.reason()).isEqualTo("AMOUNT_MISMATCH");
-        assertThat(r.expectedNet()).isEqualByComparingTo("149.20");
+        assertThat(r.recorded()).as(r.reason()).isTrue();
         assertThat(r.difference()).isEqualByComparingTo("0.01");
-        verify(reportRepository, never()).saveAndFlush(any());
-        verify(clearingClient, never()).recordSchemeSettlement(any(), any(), any(), any(), any());
+        assertThat(saved.getValue().getDifference()).isEqualByComparingTo("0.01");
+        assertThat(saved.getValue().getStatus()).isEqualTo(SchemeSettlementReport.POSTING);
+        assertThat(stored.getStatus()).isEqualTo(SchemeSettlementReport.RECORDED);
+        assertThat(stored.getJournalTransactionId()).isEqualTo("GL-3");
+        assertThat(batch.getStatus()).isEqualTo(SettlementBatchStatus.SETTLED);
+    }
+
+    @Test
+    @DisplayName("nothing expected but the scheme reports a net: sent to the backend (not recorded locally without a journal)")
+    void zeroExpected_nonZeroReported_goesToBackend() {
+        stubDay(List.of(), List.of());
+        stubSave();
+        when(clearingClient.recordSchemeSettlement(any(), any(), any(), any(), any(), any()))
+                .thenReturn(new BackendClearingClient.SettlementPost(false, false, "ref", null, "DIFFERENCE_OVER_TOLERANCE"));
+        SchemeSettlementReport stored = stored("0.02", "0.00");
+        when(reportRepository.findById(any())).thenReturn(Optional.of(stored));
+        when(itemRepository.findBySettlementReportId(stored.getId())).thenReturn(List.of());
+        when(itemRepository.findByRefundReportId(stored.getId())).thenReturn(List.of());
+
+        SchemeReportResult r = service.record(report("0.02"), "ops");
+
+        assertThat(r.reason()).isEqualTo("DIFFERENCE_OVER_TOLERANCE");
+        assertThat(r.difference()).isEqualByComparingTo("0.02");
+        verify(clearingClient).recordSchemeSettlement(any(), any(), any(), any(),
+                org.mockito.ArgumentMatchers.<BigDecimal>argThat(a -> a.compareTo(new BigDecimal("0.02")) == 0),
+                org.mockito.ArgumentMatchers.<BigDecimal>argThat(a -> a.signum() == 0));
     }
 
     @Test
@@ -150,7 +230,7 @@ class SchemeSettlementServiceTest {
         assertThat(again.repeat()).isTrue();
         assertThat(other.recorded()).isFalse();
         assertThat(other.reason()).isEqualTo("ALREADY_RECORDED");
-        verify(clearingClient, never()).recordSchemeSettlement(any(), any(), any(), any(), any());
+        verify(clearingClient, never()).recordSchemeSettlement(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -168,7 +248,7 @@ class SchemeSettlementServiceTest {
         when(batchRepository.findBySettlementDateOrderByOpenedAtDesc(D)).thenReturn(List.of(closedBatch()));
         when(itemRepository.countByDateAndStatusIn(eq(D), any())).thenReturn(1L);
         assertThat(service.record(report("1.00"), "ops").reason()).isEqualTo("BATCH_NOT_CLOSED");
-        verify(clearingClient, never()).recordSchemeSettlement(any(), any(), any(), any(), any());
+        verify(clearingClient, never()).recordSchemeSettlement(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -177,7 +257,7 @@ class SchemeSettlementServiceTest {
         SettlementItem purchase = cleared("9863", "840");
         stubDay(List.of(purchase), List.of());
         stubSave();
-        when(clearingClient.recordSchemeSettlement(any(), any(), any(), any(), any()))
+        when(clearingClient.recordSchemeSettlement(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new BackendClearingClient.SettlementPost(false, false, "ref", null, "REFERENCE_CONFLICT"));
         SchemeSettlementReport stored = new SchemeSettlementReport();
         stored.setId(UUID.randomUUID());
@@ -206,7 +286,7 @@ class SchemeSettlementServiceTest {
         stored.setReportedNet(new BigDecimal("98.63")); stored.setExpectedNet(new BigDecimal("98.63"));
         stored.setBackendReference("CSR-REF"); stored.setStatus(SchemeSettlementReport.POSTING);
         when(reportRepository.findById(any())).thenReturn(Optional.of(stored));
-        when(clearingClient.recordSchemeSettlement(any(), any(), any(), any(), any()))
+        when(clearingClient.recordSchemeSettlement(any(), any(), any(), any(), any(), any()))
                 .thenReturn(null)
                 .thenReturn(new BackendClearingClient.SettlementPost(true, true, "CSR-REF", "GL-9", null));
 
@@ -221,8 +301,8 @@ class SchemeSettlementServiceTest {
         assertThat(retry.recorded()).isTrue();
         assertThat(stored.getStatus()).isEqualTo(SchemeSettlementReport.RECORDED);
         // The first attempt sends the reference it generated; the retry the stored report's — the same key.
-        verify(clearingClient, org.mockito.Mockito.times(2)).recordSchemeSettlement(any(), any(), any(), any(), any());
-        verify(clearingClient).recordSchemeSettlement(eq("CSR-REF"), any(), any(), any(), any());
+        verify(clearingClient, org.mockito.Mockito.times(2)).recordSchemeSettlement(any(), any(), any(), any(), any(), any());
+        verify(clearingClient).recordSchemeSettlement(eq("CSR-REF"), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -230,7 +310,7 @@ class SchemeSettlementServiceTest {
     void refunds_negativeNet() {
         stubDay(List.of(), List.of(refund("-3945")));
         stubSave();
-        when(clearingClient.recordSchemeSettlement(any(), any(), any(), any(), any()))
+        when(clearingClient.recordSchemeSettlement(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new BackendClearingClient.SettlementPost(true, false, "ref", "GL-2", null));
         SchemeSettlementReport stored = new SchemeSettlementReport();
         stored.setId(UUID.randomUUID());
@@ -243,6 +323,7 @@ class SchemeSettlementServiceTest {
         assertThat(r.recorded()).as(r.reason()).isTrue();
         assertThat(r.refundCount()).isZero();   // from the stored report
         verify(clearingClient).recordSchemeSettlement(any(), any(), any(), any(),
+                org.mockito.ArgumentMatchers.<BigDecimal>argThat(a -> a.compareTo(new BigDecimal("-39.45")) == 0),
                 org.mockito.ArgumentMatchers.<BigDecimal>argThat(a -> a.compareTo(new BigDecimal("-39.45")) == 0));
     }
 
@@ -257,7 +338,7 @@ class SchemeSettlementServiceTest {
 
         assertThat(r.recorded()).as(r.reason()).isTrue();
         assertThat(r.itemCount()).isZero();
-        verify(clearingClient, never()).recordSchemeSettlement(any(), any(), any(), any(), any());
+        verify(clearingClient, never()).recordSchemeSettlement(any(), any(), any(), any(), any(), any());
         verify(itemRepository, org.mockito.Mockito.times(2)).saveAll(anyList());
     }
 

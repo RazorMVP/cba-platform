@@ -29,13 +29,17 @@ public class CardSchemeSettlementController {
     @PostMapping
     // card-service only: it posts after reconciling the scheme's report with its expected net. GL 2300 and
     // 1003 refuse manual journals, so no person may post here directly (that would skip the reconciliation).
+    // The tolerance on a difference is decided here, by the GL owner (app.cards.settlement.difference-tolerance).
     @PreAuthorize("hasRole('CARD_SERVICE')")
-    @Operation(summary = "Post a card scheme's net settlement (card-service, after the scheme report matched)",
+    @Operation(summary = "Post a card scheme's net settlement (card-service, after reconciling the scheme report)",
                description = "Role CARD_SERVICE only. Positive amount: the bank paid the scheme — DR 2300 Card Scheme Settlement Payable / "
                        + "CR 1003 Card Scheme Settlement Account; negative: the scheme paid the bank — DR 1003 / CR 2300. "
-                       + "Journal dated today. Idempotent on reference (repeat=true, no second journal). reasons: "
+                       + "Optional expectedAmount (card-service's expected net; absent = amount): 2300 is cleared at the expected net, "
+                       + "1003 moves by the reported amount and the difference posts to 1004 Card Settlement Differences, "
+                       + "when |amount − expectedAmount| is within the currency's tolerance (app.cards.settlement.difference-tolerance, "
+                       + "default 0). Journal dated today. Idempotent on reference (repeat=true, no second journal). reasons: "
                        + "REFERENCE_CONFLICT, UNKNOWN_SCHEME, DATE_NOT_CLOSED (settlement date not before today), ZERO_AMOUNT, "
-                       + "INVALID_AMOUNT, UNKNOWN_CURRENCY.")
+                       + "INVALID_AMOUNT, UNKNOWN_CURRENCY, DIFFERENCE_OVER_TOLERANCE.")
     public ResponseEntity<ApiResponse<CardSchemeSettlementResult>> record(
             @Valid @RequestBody CardSchemeSettlementRequest request,
             @AuthenticationPrincipal Jwt jwt) {

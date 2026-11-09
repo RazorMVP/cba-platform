@@ -19,7 +19,10 @@ import java.util.UUID;
 /**
  * Posts a card scheme's net settlement (the cash leg, backlog 15b): what GL 2300 holds for the scheme
  * is paid from the settlement-bank account 1003, or received into it when the scheme owes the bank.
- * card-service calls this only after the scheme's settlement report matched its expected net.
+ * card-service sends the scheme's reported net and its own expected net; the backend, which owns the GL,
+ * decides whether their difference is within the currency's tolerance ({@link CardSettlementProperties},
+ * default 0). Within it the difference posts to 1004 Card Settlement Differences (backlog 15d, decision
+ * D7a); above it the request is refused DIFFERENCE_OVER_TOLERANCE and nothing is written.
  */
 @Service
 @RequiredArgsConstructor
@@ -33,6 +36,7 @@ public class CardSchemeSettlementService {
     private final AccountGlPosting accountGlPosting;
     private final JdbcTemplate jdbcTemplate;
     private final AuditLogService auditLogService;
+    private final CardSettlementProperties properties;
 
     /**
      * Idempotent on {@code reference}: the same figures again return the first posting; other figures
@@ -46,21 +50,30 @@ public class CardSchemeSettlementService {
         jdbcTemplate.query("SELECT pg_advisory_xact_lock(hashtext(?))", rs -> { }, "card-scheme-settlement:" + reference);
         String scheme = request.scheme().trim().toUpperCase(Locale.ROOT);
         String currency = request.currencyCode().trim().toUpperCase(Locale.ROOT);
+        BigDecimal amount = request.amount();
+        BigDecimal expected = request.expected();
+        BigDecimal difference = amount.subtract(expected);
 
         var existing = repository.findByReference(reference);
         if (existing.isPresent()) {
             CardSchemeSettlement s = existing.get();
             boolean same = s.getScheme().equals(scheme) && s.getSettlementDate().equals(request.settlementDate())
-                    && s.getCurrencyCode().equals(currency) && s.getAmount().compareTo(request.amount()) == 0;
+                    && s.getCurrencyCode().equals(currency) && s.getAmount().compareTo(amount) == 0
+                    && s.getExpectedAmount().compareTo(expected) == 0;
             return new CardSchemeSettlementResult(same, same, reference, s.getJournalTransactionId(),
-                    same ? null : "REFERENCE_CONFLICT");
+                    same ? null : "REFERENCE_CONFLICT", s.getExpectedAmount(), s.getAmount(), s.getDifference());
         }
 
         String reason = !SCHEMES.contains(scheme) ? "UNKNOWN_SCHEME"
                 : !request.settlementDate().isBefore(LocalDate.now()) ? "DATE_NOT_CLOSED"
-                : invalid(request.amount(), currency);
+                : invalid(amount, expected, currency);
+        if (reason == null && difference.abs().compareTo(properties.toleranceFor(currency)) > 0) {
+            log.warn("Card scheme settlement {} refused: reported {} − expected {} = {} {} is over the tolerance {}",
+                    reference, amount, expected, difference, currency, properties.toleranceFor(currency));
+            reason = "DIFFERENCE_OVER_TOLERANCE";
+        }
         if (reason != null) {
-            return new CardSchemeSettlementResult(false, false, reference, null, reason);
+            return new CardSchemeSettlementResult(false, false, reference, null, reason, expected, amount, difference);
         }
 
         CardSchemeSettlement settlement = new CardSchemeSettlement();
@@ -69,29 +82,33 @@ public class CardSchemeSettlementService {
         settlement.setScheme(scheme);
         settlement.setSettlementDate(request.settlementDate());
         settlement.setCurrencyCode(currency);
-        settlement.setAmount(request.amount());
+        settlement.setAmount(amount);
+        settlement.setExpectedAmount(expected);
+        settlement.setDifference(difference);
         settlement.setCreatedBy(actor);
-        String journal = accountGlPosting.postCardSchemeSettlement(request.amount(), currency, LocalDate.now(),
+        String journal = accountGlPosting.postCardSchemeSettlement(amount, expected, currency, LocalDate.now(),
                 "Card scheme settlement " + scheme + " " + request.settlementDate() + " " + currency,
                 settlement.getId(), reference);
         settlement.setJournalTransactionId(journal);
         repository.save(settlement);
         auditLogService.log("CARD_SCHEME_SETTLEMENT", settlement.getId().toString(), "CARD_SCHEME_SETTLED", null,
-                "scheme=" + scheme + " date=" + request.settlementDate() + " amount=" + request.amount() + " " + currency
-                        + " reference=" + reference);
-        log.info("Card scheme settlement {} {} {} {} posted ({})", scheme, request.settlementDate(),
-                request.amount(), currency, journal);
-        return new CardSchemeSettlementResult(true, false, reference, journal, null);
+                "scheme=" + scheme + " date=" + request.settlementDate() + " amount=" + amount + " expected=" + expected
+                        + " difference=" + difference + " " + currency + " reference=" + reference);
+        log.info("Card scheme settlement {} {} {} {} (expected {}, difference {}) posted ({})", scheme,
+                request.settlementDate(), amount, currency, expected, difference, journal);
+        return new CardSchemeSettlementResult(true, false, reference, journal, null, expected, amount, difference);
     }
 
-    private static String invalid(BigDecimal amount, String currency) {
-        if (amount.signum() == 0) return "ZERO_AMOUNT";
+    private static String invalid(BigDecimal amount, BigDecimal expected, String currency) {
+        if (amount.signum() == 0 && expected.signum() == 0) return "ZERO_AMOUNT";
         int digits;
         try {
             digits = Currency.getInstance(currency).getDefaultFractionDigits();
         } catch (IllegalArgumentException e) {
             return "UNKNOWN_CURRENCY";
         }
-        return amount.stripTrailingZeros().scale() > Math.max(digits, 0) ? "INVALID_AMOUNT" : null;
+        int max = Math.max(digits, 0);
+        return amount.stripTrailingZeros().scale() > max || expected.stripTrailingZeros().scale() > max
+                ? "INVALID_AMOUNT" : null;
     }
 }

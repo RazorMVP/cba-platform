@@ -38,6 +38,12 @@ public class FinancialActivityAccount {
         LIABILITY_PREPAID_CARD,
         /** The bank's account at its card settlement bank: scheme net settlements go through it (GL 1003, V64). */
         ASSET_CARD_SCHEME_SETTLEMENT,
+        /**
+         * A scheme's reported net settlement minus the expected net, within tolerance (GL 1004, V69; backlog
+         * 15d): a claim on (debit) or an obligation to (credit) the scheme pending investigation, never netted
+         * into 2300 (IAS 1 §32; IFRS 9 §3.1.1). Cleared by manual journal, written off if unrecoverable (IFRS 9 §5.4.4).
+         */
+        ASSET_CARD_SETTLEMENT_DIFFERENCES,
         /** Interchange earned as card issuer on cleared purchases (GL 4005, V64; IFRS 15 B35, B37, §38). */
         INCOME_CARD_INTERCHANGE,
         /** Card scheme assessment and network fees (GL 5006, V64; shown gross, IAS 1 §32). */

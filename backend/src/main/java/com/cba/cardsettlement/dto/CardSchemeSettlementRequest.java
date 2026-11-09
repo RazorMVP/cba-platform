@@ -15,11 +15,27 @@ import java.time.LocalDate;
  * @param settlementDate the business date the scheme settled
  * @param currencyCode   ISO 4217 alphabetic
  * @param amount         signed, major units: positive = the bank paid the scheme; negative = the scheme paid the bank
+ *                       (the scheme's reported net — what moved on 1003)
+ * @param expectedAmount card-service's expected net, same sign convention (what 2300 holds for the date); absent =
+ *                       {@code amount}. A difference within {@code app.cards.settlement.difference-tolerance} posts to
+ *                       GL 1004 (backlog 15d); above it the request is refused DIFFERENCE_OVER_TOLERANCE
  */
 public record CardSchemeSettlementRequest(
         @NotBlank @Size(max = 64) String reference,
         @NotBlank @Size(max = 20) String scheme,
         @NotNull LocalDate settlementDate,
         @NotBlank @Size(max = 3) String currencyCode,
-        @NotNull BigDecimal amount
-) {}
+        @NotNull BigDecimal amount,
+        BigDecimal expectedAmount
+) {
+    /** The four-field form (no difference): expected = reported. */
+    public CardSchemeSettlementRequest(String reference, String scheme, LocalDate settlementDate, String currencyCode,
+                                       BigDecimal amount) {
+        this(reference, scheme, settlementDate, currencyCode, amount, null);
+    }
+
+    /** The expected net; the reported amount when card-service sent none. */
+    public BigDecimal expected() {
+        return expectedAmount != null ? expectedAmount : amount;
+    }
+}

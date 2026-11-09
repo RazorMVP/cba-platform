@@ -152,12 +152,44 @@ public class AccountGlPosting {
      */
     public String postCardSchemeSettlement(BigDecimal amount, String currency, LocalDate date, String description,
                                            UUID settlementId, String reference) {
+        return postCardSchemeSettlement(amount, amount, currency, date, description, settlementId, reference);
+    }
+
+    /**
+     * A card scheme's net settlement when the scheme's figure differs from the expected net within
+     * tolerance (backlog 15d, decision D7a). 2300 is cleared at what the bank owed ({@code expected}),
+     * 1003 moves by what was actually paid or received ({@code amount}), and the difference goes to
+     * 1004 Card Settlement Differences on whichever side balances — never netted into 2300 (IAS 1 §32).
+     * A debit on 1004 is a claim on the scheme, a credit an obligation to it, pending investigation
+     * (IFRS 9 §3.1.1). Signs: positive = the bank pays the scheme.
+     * <pre>
+     *   expected  &gt; 0: DR 2300 |expected|      expected &lt; 0: CR 2300 |expected|
+     *   amount    &gt; 0: CR 1003 |amount|        amount   &lt; 0: DR 1003 |amount|
+     *   rest:     DR or CR 1004
+     * </pre>
+     * Zero lines are left out, so equal figures give the two-line journal of {@link
+     * #postCardSchemeSettlement(BigDecimal, String, LocalDate, String, UUID, String)} and 1004 needn't be mapped.
+     */
+    public String postCardSchemeSettlement(BigDecimal amount, BigDecimal expected, String currency, LocalDate date,
+                                           String description, UUID settlementId, String reference) {
         GlAccount payable = gl.activityAccount(FinancialActivity.LIABILITY_CARD_SETTLEMENT);
         GlAccount bank = gl.activityAccount(FinancialActivity.ASSET_CARD_SCHEME_SETTLEMENT);
-        BigDecimal abs = amount.abs();
-        List<JournalLine> lines = amount.signum() > 0
-                ? List.of(JournalLine.debit(payable, abs, currency), JournalLine.credit(bank, abs, currency))
-                : List.of(JournalLine.debit(bank, abs, currency), JournalLine.credit(payable, abs, currency));
+        List<JournalLine> lines = new ArrayList<>(3);
+        if (expected.signum() != 0) {
+            lines.add(expected.signum() > 0 ? JournalLine.debit(payable, expected.abs(), currency)
+                                            : JournalLine.credit(payable, expected.abs(), currency));
+        }
+        if (amount.signum() != 0) {
+            lines.add(amount.signum() > 0 ? JournalLine.credit(bank, amount.abs(), currency)
+                                          : JournalLine.debit(bank, amount.abs(), currency));
+        }
+        // Debits − credits so far: expected − amount. What's left balances on 1004.
+        BigDecimal rest = expected.subtract(amount);
+        if (rest.signum() != 0) {
+            GlAccount differences = gl.activityAccount(FinancialActivity.ASSET_CARD_SETTLEMENT_DIFFERENCES);
+            lines.add(rest.signum() > 0 ? JournalLine.credit(differences, rest, currency)
+                                        : JournalLine.debit(differences, rest.negate(), currency));
+        }
         return gl.postJournal(lines, date, description, JournalEntry.EntityType.CARD, settlementId, reference);
     }
 

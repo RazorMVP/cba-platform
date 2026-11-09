@@ -268,6 +268,79 @@ class AccountGlPostingTest {
             line(FinancialActivity.EXPENSE_CASH_OVER_SHORT, "CREDIT", "3.7000", "USD"));
     }
 
+    // ── Card scheme settlement (backlog 15b / 15d) ──────────────────────────
+
+    @Test
+    @DisplayName("scheme settlement, figures equal: DR 2300 / CR 1003 only; 1004 isn't even resolved")
+    void schemeSettlementExact() {
+        posting.postCardSchemeSettlement(new BigDecimal("50.00"), new BigDecimal("50.00"), "USD", LocalDate.now(),
+                "s", UUID.randomUUID(), "CSR-1");
+
+        assertThat(lines()).containsExactly(
+            line(FinancialActivity.LIABILITY_CARD_SETTLEMENT, "DEBIT", "50.00", "USD"),
+            line(FinancialActivity.ASSET_CARD_SCHEME_SETTLEMENT, "CREDIT", "50.00", "USD"));
+        verify(gl, never()).activityAccount(FinancialActivity.ASSET_CARD_SETTLEMENT_DIFFERENCES);
+    }
+
+    @Test
+    @DisplayName("scheme settlement, the bank paid more than expected: 2300 at expected, 1003 at reported, DR 1004")
+    void schemeSettlementOverpaid() {
+        posting.postCardSchemeSettlement(new BigDecimal("149.21"), new BigDecimal("149.20"), "USD", LocalDate.now(),
+                "s", UUID.randomUUID(), "CSR-2");
+
+        assertThat(lines()).containsExactly(
+            line(FinancialActivity.LIABILITY_CARD_SETTLEMENT, "DEBIT", "149.20", "USD"),
+            line(FinancialActivity.ASSET_CARD_SCHEME_SETTLEMENT, "CREDIT", "149.21", "USD"),
+            line(FinancialActivity.ASSET_CARD_SETTLEMENT_DIFFERENCES, "DEBIT", "0.01", "USD"));
+    }
+
+    @Test
+    @DisplayName("scheme settlement, the bank paid less than expected: CR 1004 (owed to the scheme)")
+    void schemeSettlementUnderpaid() {
+        posting.postCardSchemeSettlement(new BigDecimal("149.18"), new BigDecimal("149.20"), "USD", LocalDate.now(),
+                "s", UUID.randomUUID(), "CSR-3");
+
+        assertThat(lines()).containsExactly(
+            line(FinancialActivity.LIABILITY_CARD_SETTLEMENT, "DEBIT", "149.20", "USD"),
+            line(FinancialActivity.ASSET_CARD_SCHEME_SETTLEMENT, "CREDIT", "149.18", "USD"),
+            line(FinancialActivity.ASSET_CARD_SETTLEMENT_DIFFERENCES, "CREDIT", "0.02", "USD"));
+    }
+
+    @Test
+    @DisplayName("scheme settlement, the scheme paid the bank and paid more than expected: CR 1004")
+    void schemeSettlementNegativeOverReceived() {
+        posting.postCardSchemeSettlement(new BigDecimal("-39.50"), new BigDecimal("-39.45"), "USD", LocalDate.now(),
+                "s", UUID.randomUUID(), "CSR-4");
+
+        assertThat(lines()).containsExactly(
+            line(FinancialActivity.LIABILITY_CARD_SETTLEMENT, "CREDIT", "39.45", "USD"),
+            line(FinancialActivity.ASSET_CARD_SCHEME_SETTLEMENT, "DEBIT", "39.50", "USD"),
+            line(FinancialActivity.ASSET_CARD_SETTLEMENT_DIFFERENCES, "CREDIT", "0.05", "USD"));
+    }
+
+    @Test
+    @DisplayName("scheme settlement across zero (expected to pay, the scheme paid instead): both legs and 1004")
+    void schemeSettlementAcrossZero() {
+        posting.postCardSchemeSettlement(new BigDecimal("-0.02"), new BigDecimal("0.01"), "USD", LocalDate.now(),
+                "s", UUID.randomUUID(), "CSR-5");
+
+        assertThat(lines()).containsExactly(
+            line(FinancialActivity.LIABILITY_CARD_SETTLEMENT, "DEBIT", "0.01", "USD"),
+            line(FinancialActivity.ASSET_CARD_SCHEME_SETTLEMENT, "DEBIT", "0.02", "USD"),
+            line(FinancialActivity.ASSET_CARD_SETTLEMENT_DIFFERENCES, "CREDIT", "0.03", "USD"));
+    }
+
+    @Test
+    @DisplayName("scheme settlement, nothing expected but something moved: 1003 and 1004 only")
+    void schemeSettlementNothingExpected() {
+        posting.postCardSchemeSettlement(new BigDecimal("0.04"), BigDecimal.ZERO, "USD", LocalDate.now(),
+                "s", UUID.randomUUID(), "CSR-6");
+
+        assertThat(lines()).containsExactly(
+            line(FinancialActivity.ASSET_CARD_SCHEME_SETTLEMENT, "CREDIT", "0.04", "USD"),
+            line(FinancialActivity.ASSET_CARD_SETTLEMENT_DIFFERENCES, "DEBIT", "0.04", "USD"));
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────────
 
     /** The posted lines; also asserts the journal balances in every currency. */

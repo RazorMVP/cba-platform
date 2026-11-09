@@ -1663,10 +1663,10 @@
                 "card-settlements"
               ]
             },
-            "description": "The cash leg of card scheme settlement (backlog 15b; role CARD_SERVICE only \u2014 not ADMIN: 2300/1003 refuse manual journals and a person posting here would skip card-service's reconciliation). card-service calls it once a scheme's settlement report matched its expected net. Positive amount (the bank paid the scheme): DR 2300 Card Scheme Settlement Payable / CR 1003 Card Scheme Settlement Account; negative: DR 1003 / CR 2300. Journal dated today, entity type CARD. Idempotent on reference (repeat=true, no second journal); other figures under it \u2192 REFERENCE_CONFLICT. Refusals (200, approved=false): REFERENCE_CONFLICT, UNKNOWN_SCHEME, DATE_NOT_CLOSED, ZERO_AMOUNT, INVALID_AMOUNT, UNKNOWN_CURRENCY. GL 1003/2300 unmapped \u2192 400 ACTIVITY_NOT_MAPPED.",
+            "description": "The cash leg of card scheme settlement (backlog 15b; role CARD_SERVICE only \u2014 not ADMIN: 2300/1003 refuse manual journals and a person posting here would skip card-service's reconciliation). card-service calls it with the scheme's reported net (amount) and its expected net (expectedAmount, optional \u2014 absent = amount). Positive amount (the bank paid the scheme): DR 2300 Card Scheme Settlement Payable / CR 1003 Card Scheme Settlement Account; negative: DR 1003 / CR 2300. A difference within the currency's tolerance (app.cards.settlement.difference-tolerance, default 0; backlog 15d) posts 2300 at the expected net, 1003 at the reported net and the rest to 1004 Card Settlement Differences (DR = claim on the scheme, CR = owed to it; never netted into 2300, IAS 1 \u00a732; cleared by manual journal, IFRS 9 \u00a73.1.1/\u00a75.4.4); above it \u2192 DIFFERENCE_OVER_TOLERANCE with expectedAmount, amount and difference, nothing written. Journal dated today, entity type CARD. Idempotent on reference (repeat=true, no second journal); other figures under it \u2192 REFERENCE_CONFLICT. Refusals (200, approved=false): REFERENCE_CONFLICT, UNKNOWN_SCHEME, DATE_NOT_CLOSED, ZERO_AMOUNT, INVALID_AMOUNT, UNKNOWN_CURRENCY, DIFFERENCE_OVER_TOLERANCE. GL 1003/2300 unmapped \u2192 400 ACTIVITY_NOT_MAPPED.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"reference\": \"CSR-VISA-20261023-USD\",\n  \"scheme\": \"VISA\",\n  \"settlementDate\": \"2026-10-23\",\n  \"currencyCode\": \"USD\",\n  \"amount\": 149.2\n}",
+              "raw": "{\n  \"reference\": \"CSR-VISA-20261023-USD\",\n  \"scheme\": \"VISA\",\n  \"settlementDate\": \"2026-10-23\",\n  \"currencyCode\": \"USD\",\n  \"amount\": 149.21,\n  \"expectedAmount\": 149.2\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1692,37 +1692,56 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"data\": {\n    \"approved\": true,\n    \"repeat\": false,\n    \"reference\": \"CSR-VISA-20261023-USD\",\n    \"journalTransactionId\": \"GL-\\u2026\",\n    \"reason\": null\n  },\n  \"errors\": []\n}"
+              "body": "{\n  \"data\": {\n    \"approved\": true,\n    \"repeat\": false,\n    \"reference\": \"CSR-VISA-20261023-USD\",\n    \"journalTransactionId\": \"GL-\\u2026\",\n    \"reason\": null,\n    \"expectedAmount\": 149.2,\n    \"amount\": 149.21,\n    \"difference\": 0.01\n  },\n  \"errors\": []\n}"
+            },
+            {
+              "name": "200 OK \u2014 DIFFERENCE_OVER_TOLERANCE",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/api/v1/card-settlements"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"approved\": false,\n    \"repeat\": false,\n    \"reference\": \"CSR-VISA-20261023-USD\",\n    \"journalTransactionId\": null,\n    \"reason\": \"DIFFERENCE_OVER_TOLERANCE\",\n    \"expectedAmount\": 149.2,\n    \"amount\": 149.3,\n    \"difference\": 0.1\n  },\n  \"errors\": []\n}"
             }
           ],
           "x-code-samples": [
             {
               "lang": "cURL",
-              "source": "curl -X POST '{{base_url}}/api/v1/card-settlements' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"reference\": \"CSR-VISA-20261023-USD\", \"scheme\": \"VISA\", \"settlementDate\": \"2026-10-23\", \"currencyCode\": \"USD\", \"amount\": 149.2}'"
+              "source": "curl -X POST '{{base_url}}/api/v1/card-settlements' \\\n  -H 'Authorization: Bearer {{access_token}}' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"reference\": \"CSR-VISA-20261023-USD\", \"scheme\": \"VISA\", \"settlementDate\": \"2026-10-23\", \"currencyCode\": \"USD\", \"amount\": 149.21, \"expectedAmount\": 149.2}'"
             },
             {
               "lang": "JavaScript (fetch)",
-              "source": "fetch('{{base_url}}/api/v1/card-settlements', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json'\n  },\n  body: JSON.stringify({\"reference\": \"CSR-VISA-20261023-USD\", \"scheme\": \"VISA\", \"settlementDate\": \"2026-10-23\", \"currencyCode\": \"USD\", \"amount\": 149.2})\n}).then(r => r.json()).then(console.log);"
+              "source": "fetch('{{base_url}}/api/v1/card-settlements', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{access_token}}',\n    'Content-Type': 'application/json'\n  },\n  body: JSON.stringify({\"reference\": \"CSR-VISA-20261023-USD\", \"scheme\": \"VISA\", \"settlementDate\": \"2026-10-23\", \"currencyCode\": \"USD\", \"amount\": 149.21, \"expectedAmount\": 149.2})\n}).then(r => r.json()).then(console.log);"
             },
             {
               "lang": "Python (requests)",
-              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/api/v1/card-settlements',\n    headers={'Authorization': 'Bearer {{access_token}}'},\n    json={\"reference\": \"CSR-VISA-20261023-USD\", \"scheme\": \"VISA\", \"settlementDate\": \"2026-10-23\", \"currencyCode\": \"USD\", \"amount\": 149.2}\n)\nprint(response.json())"
+              "source": "import requests\n\nresponse = requests.post(\n    '{{base_url}}/api/v1/card-settlements',\n    headers={'Authorization': 'Bearer {{access_token}}'},\n    json={\"reference\": \"CSR-VISA-20261023-USD\", \"scheme\": \"VISA\", \"settlementDate\": \"2026-10-23\", \"currencyCode\": \"USD\", \"amount\": 149.21, \"expectedAmount\": 149.2}\n)\nprint(response.json())"
             },
             {
               "lang": "Java (HttpClient)",
-              "source": "HttpRequest request = HttpRequest.newBuilder()\n    .uri(URI.create(\"{{base_url}}/api/v1/card-settlements\"))\n    .header(\"Authorization\", \"Bearer \" + accessToken)\n    .header(\"Content-Type\", \"application/json\")\n    .method(\"POST\", HttpRequest.BodyPublishers.ofString(\"{\\\"reference\\\": \\\"CSR-VISA-20261023-USD\\\", \\\"scheme\\\": \\\"VISA\\\", \\\"settlementDate\\\": \\\"2026-10-23\\\", \\\"currencyCode\\\": \\\"USD\\\", \\\"amount\\\": 149.2}\"))\n    .build();\nHttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());"
+              "source": "HttpRequest request = HttpRequest.newBuilder()\n    .uri(URI.create(\"{{base_url}}/api/v1/card-settlements\"))\n    .header(\"Authorization\", \"Bearer \" + accessToken)\n    .header(\"Content-Type\", \"application/json\")\n    .method(\"POST\", HttpRequest.BodyPublishers.ofString(\"{\\\"reference\\\": \\\"CSR-VISA-20261023-USD\\\", \\\"scheme\\\": \\\"VISA\\\", \\\"settlementDate\\\": \\\"2026-10-23\\\", \\\"currencyCode\\\": \\\"USD\\\", \\\"amount\\\": 149.21, \\\"expectedAmount\\\": 149.2}\"))\n    .build();\nHttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());"
             },
             {
               "lang": "Go (net/http)",
-              "source": "req, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/card-settlements\", strings.NewReader(`{\"reference\": \"CSR-VISA-20261023-USD\", \"scheme\": \"VISA\", \"settlementDate\": \"2026-10-23\", \"currencyCode\": \"USD\", \"amount\": 149.2}`))\nreq.Header.Set(\"Authorization\", \"Bearer \"+accessToken)\nreq.Header.Set(\"Content-Type\", \"application/json\")\nresp, err := http.DefaultClient.Do(req)"
+              "source": "req, _ := http.NewRequest(\"POST\", \"{{base_url}}/api/v1/card-settlements\", strings.NewReader(`{\"reference\": \"CSR-VISA-20261023-USD\", \"scheme\": \"VISA\", \"settlementDate\": \"2026-10-23\", \"currencyCode\": \"USD\", \"amount\": 149.21, \"expectedAmount\": 149.2}`))\nreq.Header.Set(\"Authorization\", \"Bearer \"+accessToken)\nreq.Header.Set(\"Content-Type\", \"application/json\")\nresp, err := http.DefaultClient.Do(req)"
             },
             {
               "lang": "Ruby (net/http)",
-              "source": "uri = URI('{{base_url}}/api/v1/card-settlements')\nreq = Net::HTTP::Post.new(uri, 'Authorization' => \"Bearer #{token}\", 'Content-Type' => 'application/json')\nreq.body = '{\"reference\": \"CSR-VISA-20261023-USD\", \"scheme\": \"VISA\", \"settlementDate\": \"2026-10-23\", \"currencyCode\": \"USD\", \"amount\": 149.2}'\nres = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https') { |http| http.request(req) }"
+              "source": "uri = URI('{{base_url}}/api/v1/card-settlements')\nreq = Net::HTTP::Post.new(uri, 'Authorization' => \"Bearer #{token}\", 'Content-Type' => 'application/json')\nreq.body = '{\"reference\": \"CSR-VISA-20261023-USD\", \"scheme\": \"VISA\", \"settlementDate\": \"2026-10-23\", \"currencyCode\": \"USD\", \"amount\": 149.21, \"expectedAmount\": 149.2}'\nres = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https') { |http| http.request(req) }"
             },
             {
               "lang": "C# (HttpClient)",
-              "source": "var request = new HttpRequestMessage(new HttpMethod(\"POST\"), \"{{base_url}}/api/v1/card-settlements\");\nrequest.Headers.Authorization = new AuthenticationHeaderValue(\"Bearer\", accessToken);\nrequest.Content = new StringContent(\"{\\\"reference\\\": \\\"CSR-VISA-20261023-USD\\\", \\\"scheme\\\": \\\"VISA\\\", \\\"settlementDate\\\": \\\"2026-10-23\\\", \\\"currencyCode\\\": \\\"USD\\\", \\\"amount\\\": 149.2}\", Encoding.UTF8, \"application/json\");\nvar response = await new HttpClient().SendAsync(request);"
+              "source": "var request = new HttpRequestMessage(new HttpMethod(\"POST\"), \"{{base_url}}/api/v1/card-settlements\");\nrequest.Headers.Authorization = new AuthenticationHeaderValue(\"Bearer\", accessToken);\nrequest.Content = new StringContent(\"{\\\"reference\\\": \\\"CSR-VISA-20261023-USD\\\", \\\"scheme\\\": \\\"VISA\\\", \\\"settlementDate\\\": \\\"2026-10-23\\\", \\\"currencyCode\\\": \\\"USD\\\", \\\"amount\\\": 149.21, \\\"expectedAmount\\\": 149.2}\", Encoding.UTF8, \"application/json\");\nvar response = await new HttpClient().SendAsync(request);"
             }
           ]
         },

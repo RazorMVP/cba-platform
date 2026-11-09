@@ -22,9 +22,12 @@ import java.util.List;
  * Records card schemes' settlement reports (the cash leg, backlog 15b, decision 4a). For one scheme,
  * settlement date and currency, the expected net is what the bank owes the scheme: the {@code glNet} of
  * that day's cleared items plus the {@code refundGlNet} of that day's refunds. Operations enter the
- * scheme's reported net; only an exact match is recorded — the backend then posts DR 2300 / CR 1003
- * (or the reverse) and the day's batches become SETTLED. A mismatch is refused with the difference and
- * writes nothing; there is no tolerance (backlog 15d).
+ * scheme's reported net; card-service sends it with the expected net to the backend, which owns the GL
+ * and the tolerance (backlog 15d, decision D7a): equal figures post DR 2300 / CR 1003 (or the reverse);
+ * a difference within the currency's tolerance posts 2300 at the expected net, 1003 at the reported net
+ * and the rest to GL 1004 Card Settlement Differences; above it the backend refuses
+ * DIFFERENCE_OVER_TOLERANCE and the report is undone (stamps removed, row deleted) with the figures
+ * returned. Once recorded, the day's batches become SETTLED.
  *
  * <p>The date must be over (before today): refunds are dated the day they happen and new items join
  * today's batch, so the set of items for an earlier date can't change once its batches are closed.
@@ -46,7 +49,8 @@ public class SchemeSettlementService {
     private record Expected(List<SettlementItem> items, List<SettlementItem> refunds, BigDecimal net) {}
 
     /** What has to be posted after the first transaction: the report row's figures. */
-    private record Pending(java.util.UUID reportId, String reference, BigDecimal amount, SchemeReportResult early) {}
+    private record Pending(java.util.UUID reportId, String reference, BigDecimal amount, BigDecimal expected,
+                           SchemeReportResult early) {}
 
     /** The expected net for a scheme, date and currency (preview; nothing written). */
     @Transactional(readOnly = true)
@@ -66,8 +70,8 @@ public class SchemeSettlementService {
     }
 
     /**
-     * Records a scheme's settlement report: refused unless it equals the expected net; on a match the cash
-     * leg posts on the backend (idempotent) and the date's batches become SETTLED when fully reported.
+     * Records a scheme's settlement report: the cash leg posts on the backend (idempotent) unless it refuses
+     * the difference from the expected net, and the date's batches become SETTLED when fully reported.
      */
     public SchemeReportResult record(SchemeReportRequest request, String actor) {
         String scheme = Schemes.normalize(request.scheme());
@@ -92,11 +96,11 @@ public class SchemeSettlementService {
 
         // The backend call runs with no transaction open; the report stays POSTING until it answers.
         BackendClearingClient.SettlementPost post = clearingClient.recordSchemeSettlement(
-                pending.reference(), scheme, date, currency, pending.amount());
+                pending.reference(), scheme, date, currency, pending.amount(), pending.expected());
         return new TransactionTemplate(transactionManager).execute(tx -> finish(pending, post));
     }
 
-    /** First transaction: decide, and on a match write the report (POSTING) and stamp its items. */
+    /** First transaction: write the report (POSTING) and stamp its items; the backend decides on any difference. */
     private Pending prepare(String scheme, LocalDate date, Currency ccy, BigDecimal reported, String actor) {
         String currency = ccy.getCurrencyCode();
         var existing = reportRepository.findForUpdate(scheme, date, currency).orElse(null);
@@ -110,7 +114,8 @@ public class SchemeSettlementService {
             }
             // POSTING: an earlier attempt lost the backend's answer — finish it with the same figures.
             if (!same) return early(refused("REPORT_IN_PROGRESS", scheme, date, currency, existing.getExpectedNet(), reported, null));
-            return new Pending(existing.getId(), existing.getBackendReference(), existing.getReportedNet(), null);
+            return new Pending(existing.getId(), existing.getBackendReference(), existing.getReportedNet(),
+                    existing.getExpectedNet(), null);
         }
 
         boolean openBatch = batchRepository.findBySettlementDateOrderByOpenedAtDesc(date).stream()
@@ -119,10 +124,10 @@ public class SchemeSettlementService {
             return early(refused("BATCH_NOT_CLOSED", scheme, date, currency, null, reported, null));
         }
         Expected e = expectedFor(scheme, date, ccy);
-        if (e.net().compareTo(reported) != 0) {
-            log.warn("Scheme report {} {} {} refused: reported {} ≠ expected {}", scheme, date, currency, reported, e.net());
-            return early(new SchemeReportResult(false, false, "AMOUNT_MISMATCH", scheme, date, currency, e.net(), reported,
-                    reported.subtract(e.net()), e.items().size(), e.refunds().size(), null, null));
+        BigDecimal difference = reported.subtract(e.net());
+        if (difference.signum() != 0) {
+            log.info("Scheme report {} {} {}: reported {} differs from expected {} by {} — the backend decides on the tolerance",
+                    scheme, date, currency, reported, e.net(), difference);
         }
 
         SchemeSettlementReport report = new SchemeSettlementReport();
@@ -131,12 +136,13 @@ public class SchemeSettlementService {
         report.setCurrencyCode(currency);
         report.setReportedNet(reported);
         report.setExpectedNet(e.net());
+        report.setDifference(difference);
         report.setItemCount(e.items().size());
         report.setRefundCount(e.refunds().size());
         report.setBackendReference("CSR-" + scheme + "-" + date.format(BASIC) + "-" + currency);
         report.setCreatedBy(actor);
-        // Nothing to move: recorded without a journal.
-        boolean nothingToPost = e.net().signum() == 0;
+        // Nothing expected and nothing reported: recorded without a journal.
+        boolean nothingToPost = e.net().signum() == 0 && reported.signum() == 0;
         report.setStatus(nothingToPost ? SchemeSettlementReport.RECORDED : SchemeSettlementReport.POSTING);
         if (nothingToPost) report.setRecordedAt(OffsetDateTime.now());
         SchemeSettlementReport saved = reportRepository.saveAndFlush(report);
@@ -149,7 +155,7 @@ public class SchemeSettlementService {
             return early(new SchemeReportResult(true, false, null, scheme, date, currency, e.net(), reported,
                     BigDecimal.ZERO, e.items().size(), e.refunds().size(), saved.getBackendReference(), null));
         }
-        return new Pending(saved.getId(), saved.getBackendReference(), reported, null);
+        return new Pending(saved.getId(), saved.getBackendReference(), reported, e.net(), null);
     }
 
     /** Second transaction: the backend's answer. */
@@ -160,7 +166,8 @@ public class SchemeSettlementService {
             return result(report, false, false, "BACKEND_UNAVAILABLE");
         }
         if (!post.approved()) {
-            // Refused (nothing posted): undo the report so operations can correct and record again.
+            // Refused (nothing posted — e.g. DIFFERENCE_OVER_TOLERANCE): undo the report so operations can
+            // correct and record again; the result carries expected, reported and the difference.
             itemRepository.findBySettlementReportId(report.getId()).forEach(i -> i.setSettlementReportId(null));
             itemRepository.findByRefundReportId(report.getId()).forEach(i -> i.setRefundReportId(null));
             itemRepository.flush();
@@ -173,8 +180,8 @@ public class SchemeSettlementService {
         report.setRecordedAt(OffsetDateTime.now());
         reportRepository.save(report);
         markBatchesSettled(report.getSettlementDate());
-        log.info("Scheme report {} recorded: {} {} ({})", report.getBackendReference(), report.getReportedNet(),
-                report.getCurrencyCode(), post.journalTransactionId());
+        log.info("Scheme report {} recorded: {} {} (difference {}, {})", report.getBackendReference(),
+                report.getReportedNet(), report.getCurrencyCode(), report.getDifference(), post.journalTransactionId());
         return result(report, true, false, null);
     }
 
@@ -202,7 +209,7 @@ public class SchemeSettlementService {
     }
 
     private static Pending early(SchemeReportResult result) {
-        return new Pending(null, null, null, result);
+        return new Pending(null, null, null, null, result);
     }
 
     private static SchemeReportResult result(SchemeSettlementReport r, boolean recorded, boolean repeat, String reason) {

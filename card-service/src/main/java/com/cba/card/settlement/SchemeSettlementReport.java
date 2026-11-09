@@ -18,7 +18,8 @@ import java.util.UUID;
 
 /**
  * A card scheme's settlement report for one date and currency, as operations recorded it (backlog 15b).
- * It is recorded only when it equals the expected net of that day's items and refunds; RECORDED once the
+ * It is recorded when it equals the expected net of that day's items and refunds, or differs from it
+ * within the backend's tolerance (the difference goes to GL 1004, backlog 15d); RECORDED once the
  * backend posted the cash leg, POSTING while that call is outstanding (a retry of the same report
  * finishes it).
  */
@@ -50,6 +51,10 @@ public class SchemeSettlementReport {
 
     @Column(name = "expected_net", nullable = false, precision = 19, scale = 4)
     private BigDecimal expectedNet;
+
+    /** reported − expected (major units); posted to the backend's GL 1004 when recorded. */
+    @Column(nullable = false, precision = 19, scale = 4)
+    private BigDecimal difference = BigDecimal.ZERO;
 
     @Column(name = "item_count", nullable = false)
     private int itemCount;

@@ -120,6 +120,15 @@ app:
     http:
       url: ${PUSH_HTTP_URL:}          # push relay POST endpoint
       api-key: ${PUSH_HTTP_API_KEY:}  # Bearer token
+  # Card scheme settlement (backlog 15d): how far a scheme's reported net may differ from card-service's expected
+  # net and still be recorded — the difference posts to GL 1004 Card Settlement Differences. Major units per
+  # ISO 4217 alphabetic code, plus "default". Unset = 0: the report must match exactly.
+  # cards:
+  #   settlement:
+  #     difference-tolerance:
+  #       USD: 0.05
+  #       NGN: 5
+  #       default: 0
 
 keycloak:
   auth-server-url: http://${KEYCLOAK_HOST:localhost}:${KEYCLOAK_PORT:8180}
@@ -371,6 +380,10 @@ app:
   payments:
     external:
       callback-secret: it-callback-secret   # ExternalPaymentIT signs its callbacks with it
+  cards:
+    settlement:
+      difference-tolerance:
+        USD: 0.05   # CardSchemeSettlementIT; other currencies keep the default 0
 
 cba:
   encryption:

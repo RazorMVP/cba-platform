@@ -5510,6 +5510,16 @@ components:
           format: "date-time"
           type: "string"
       type: "object"
+    ExternalPaymentOutcomeRequest:
+      properties:
+        outcome:
+          minLength: 1
+          type: "string"
+        reason:
+          maxLength: 500
+          minLength: 0
+          type: "string"
+      type: "object"
     ExternalPaymentRequest:
       properties:
         amount:
@@ -5584,6 +5594,8 @@ components:
           - "LIABILITY_INCOME_IN_SUSPENSE"
           - "LIABILITY_SAVINGS_CONTROL"
           - "LIABILITY_TRANSFER_IN_SUSPENSE"
+          - "LIABILITY_EXTERNAL_PAYMENT_IN_TRANSIT"
+          - "ASSET_EXTERNAL_PAYMENT_NOSTRO"
           - "LIABILITY_CARD_SETTLEMENT"
           - "ASSET_CARD_SCHEME_SETTLEMENT"
           - "INCOME_CARD_INTERCHANGE"
@@ -5626,6 +5638,8 @@ components:
           - "LIABILITY_INCOME_IN_SUSPENSE"
           - "LIABILITY_SAVINGS_CONTROL"
           - "LIABILITY_TRANSFER_IN_SUSPENSE"
+          - "LIABILITY_EXTERNAL_PAYMENT_IN_TRANSIT"
+          - "ASSET_EXTERNAL_PAYMENT_NOSTRO"
           - "LIABILITY_CARD_SETTLEMENT"
           - "ASSET_CARD_SCHEME_SETTLEMENT"
           - "INCOME_CARD_INTERCHANGE"
@@ -9917,8 +9931,14 @@ components:
           type: "string"
         externalReference:
           type: "string"
+        failureReason:
+          type: "string"
         id:
           format: "uuid"
+          type: "string"
+        networkReference:
+          type: "string"
+        outcomeSource:
           type: "string"
         paymentType:
           enum:
@@ -9928,6 +9948,9 @@ components:
           - "BILL_PAYMENT"
           type: "string"
         referenceNumber:
+          type: "string"
+        settledAt:
+          format: "date-time"
           type: "string"
         sourceAccountId:
           format: "uuid"
@@ -9945,6 +9968,9 @@ components:
           - "COMPLETED"
           - "FAILED"
           - "REVERSED"
+          - "RETURNED"
+          type: "string"
+        submitOutcome:
           type: "string"
       type: "object"
     PdRateRequest:
@@ -19155,6 +19181,18 @@ paths:
       operationId: "listExternalPayments"
       parameters:
       - in: "query"
+        name: "status"
+        required: false
+        schema:
+          enum:
+          - "PENDING"
+          - "PROCESSING"
+          - "COMPLETED"
+          - "FAILED"
+          - "REVERSED"
+          - "RETURNED"
+          type: "string"
+      - in: "query"
         name: "pageable"
         required: true
         schema:
@@ -19172,8 +19210,11 @@ paths:
       tags:
       - "Payments"
     post:
-      description: "Debits the source account and records the outbound payment. Actual\
-        \ network transmission is handled by the external payments gateway."
+      description: "Debits the source account (withdrawal rules; DR deposit / CR 2400\
+        \ Outgoing Payments in Transit) and submits it to the external payments gateway.\
+        \ The payment stays PROCESSING until the gateway's signed callback (or ops)\
+        \ settles or returns it. Source account must be in the payment currency (400\
+        \ CURRENCY_MISMATCH)."
       operationId: "initiateExternalPayment"
       requestBody:
         content:
@@ -19191,6 +19232,41 @@ paths:
       security:
       - oauth2: []
       summary: "Initiate an external SWIFT or SEPA payment"
+      tags:
+      - "Payments"
+  /api/v1/payments/external/callbacks:
+    post:
+      description: "Headers X-Gateway-Timestamp (epoch seconds, within 5 minutes)\
+        \ and X-Gateway-Signature: sha256=hex(HMAC-SHA256(secret, timestamp + '.'\
+        \ + body)). SETTLED completes a PROCESSING payment; RETURNED/REJECTED credit\
+        \ the source back."
+      operationId: "callback"
+      parameters:
+      - in: "header"
+        name: "X-Gateway-Timestamp"
+        required: false
+        schema:
+          type: "string"
+      - in: "header"
+        name: "X-Gateway-Signature"
+        required: false
+        schema:
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              format: "byte"
+              type: "string"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseMapStringObject"
+          description: "OK"
+      summary: "External payment settlement callback (signed by the gateway)"
       tags:
       - "Payments"
   /api/v1/payments/qr/decode-and-pay:
@@ -19336,6 +19412,37 @@ paths:
       security:
       - oauth2: []
       summary: "Get payment details by ID"
+      tags:
+      - "Payments"
+  /api/v1/payments/{id}/external-outcome:
+    post:
+      description: "For a PROCESSING external payment the gateway hasn't reported\
+        \ on: SETTLED posts DR 2400 / CR nostro; RETURNED credits the source back.\
+        \ Reason required; not by the user who initiated the payment (403 SAME_USER)."
+      operationId: "recordExternalOutcome"
+      parameters:
+      - in: "path"
+        name: "id"
+        required: true
+        schema:
+          format: "uuid"
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExternalPaymentOutcomeRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePaymentResponse"
+          description: "OK"
+      security:
+      - oauth2: []
+      summary: "Record an external payment's outcome by hand (ops)"
       tags:
       - "Payments"
   /api/v1/payments/{id}/reverse:

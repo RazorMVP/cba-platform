@@ -51,6 +51,7 @@ public class PaymentService {
     private final ApplicationEventPublisher     eventPublisher;
     private final com.cba.payment.gateway.ExternalPaymentGateway externalPaymentGateway;
     private final com.cba.account.AccountGlPosting accountGlPosting;
+    private final com.cba.account.AccountService accountService;
 
     @Lazy
     @Autowired(required = false)
@@ -244,6 +245,11 @@ public class PaymentService {
         if (original.getReversalOf() != null)
             throw CbaException.badRequest("ALREADY_A_REVERSAL",
                     "Cannot reverse a reversal payment");
+        if (original.getPaymentType() == PaymentType.EXTERNAL_PAYMENT)
+            // Money that left the bank isn't pulled back by reversing a journal: a return comes from
+            // the beneficiary's bank, through the gateway callback or ops (ExternalPaymentOutcomeService).
+            throw CbaException.badRequest("EXTERNAL_PAYMENT_NOT_REVERSIBLE",
+                    "External payments can't be reversed; a return is recorded through the gateway callback or the external-outcome endpoint");
 
         // Lock accounts in consistent order
         UUID srcId = original.getSourceAccount().getId();
@@ -352,89 +358,115 @@ public class PaymentService {
             p.getDestinationCurrency(), p.getDestinationAmount(), p.getExchangeRateUsed(),
             p.getExternalNetwork(), p.getBeneficiaryName(), p.getBeneficiaryIban(),
             p.getBeneficiaryBic(), p.getBeneficiaryBankName(), p.getBeneficiaryCountryCode(),
-            p.getExternalReference(), p.getChargeType()
+            p.getExternalReference(), p.getChargeType(),
+            p.getNetworkReference(), p.getSubmitOutcome(), p.getSettledAt(), p.getOutcomeSource(),
+            p.getFailureReason()
         );
     }
 
     // ── External / SWIFT / SEPA Payments ─────────────────────────────────────
 
+    /**
+     * An outbound SWIFT/SEPA/ACH payment (backlog 1). In one transaction:
+     * <ol>
+     *   <li>debit the source under the withdrawal rules (row lock, holds, floor, lock-in) and post
+     *       DR deposit / CR 2400 Outgoing Payments in Transit;</li>
+     *   <li>submit to the gateway. REJECTED (a definite refusal) throws and everything rolls back.
+     *       ACCEPTED leaves the payment PROCESSING until the gateway's signed callback or ops settle
+     *       or return it ({@link ExternalPaymentOutcomeService}); a gateway that settles at once
+     *       (the simulated one) also posts DR 2400 / CR nostro and completes. UNKNOWN (timeout, 5xx)
+     *       keeps the debit and waits too: the instruction may have gone out, and rolling back could
+     *       let money leave the bank with no debit.</li>
+     * </ol>
+     * The debit comes before the submit so that a refused debit never reaches the network.
+     */
     @Transactional
     public PaymentResponse initiateExternalPayment(
             com.cba.payment.dto.ExternalPaymentRequest req, String actor) {
 
         Account source = accountRepository.findById(req.sourceAccountId())
                 .orElseThrow(() -> CbaException.notFound("Account", req.sourceAccountId().toString()));
-        validateAccountActive(source);
-
-        if (source.getBalance().compareTo(req.amount()) < 0) {
-            throw CbaException.badRequest("INSUFFICIENT_FUNDS",
-                    "Insufficient funds for external payment");
+        String currency = req.currencyCode().trim().toUpperCase(Locale.ROOT);
+        if (!currency.equals(source.getCurrencyCode())) {
+            throw CbaException.badRequest("CURRENCY_MISMATCH",
+                    "The source account is in " + source.getCurrencyCode() + "; external payments are made in the account's currency");
         }
 
         String ref = "EXT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT);
-
-        // Submit to the external network BEFORE debiting. A rejection throws, which rolls
-        // back this @Transactional method — so a refused payment never leaves a phantom
-        // debit. In dev the SimulatedExternalPaymentGateway accepts unconditionally.
-        com.cba.payment.gateway.GatewayResult gw = externalPaymentGateway.submit(
-                new com.cba.payment.gateway.ExternalPaymentInstruction(
-                        req.network(), req.amount(), req.currencyCode(),
-                        req.beneficiaryName(), req.beneficiaryIban(), req.beneficiaryBic(),
-                        req.beneficiaryBankName(), req.beneficiaryCountryCode(),
-                        req.chargeType() != null ? req.chargeType().toUpperCase(Locale.ROOT) : "SHA", ref));
-        if (!gw.accepted()) {
-            throw CbaException.badRequest("EXTERNAL_PAYMENT_REJECTED",
-                    "External payments gateway rejected the transfer: " + gw.errorMessage());
-        }
-
-        // Debit source account
-        BigDecimal holdSum = accountHoldRepository.sumActiveHoldsByAccount(source.getId());
-        BigDecimal available = source.getBalance().subtract(holdSum).subtract(source.computeEffectiveFloor());
-        source.debit(req.amount(), available);
-        accountRepository.save(source);
-
-        transactionRepository.save(Transaction.of(source, TransactionType.TRANSFER_DEBIT,
-                req.amount(), source.getBalance(),
-                "External " + req.network() + " payment to " + req.beneficiaryName(), ref, actor));
+        String network = req.network().toUpperCase(Locale.ROOT);
+        String chargeType = req.chargeType() != null ? req.chargeType().toUpperCase(Locale.ROOT) : "SHA";
 
         Payment payment = new Payment();
         payment.setPaymentType(PaymentType.EXTERNAL_PAYMENT);
         payment.setSourceAccount(source);
         payment.setAmount(req.amount());
-        payment.setCurrencyCode(req.currencyCode());
+        payment.setCurrencyCode(currency);
         payment.setDescription(req.description());
-        payment.setStatus(PaymentStatus.COMPLETED);
-        payment.setExecutedDate(Instant.now());
+        payment.setStatus(PaymentStatus.PROCESSING);
         payment.setReferenceNumber(ref);
         payment.setCreatedBy(actor);
-
-        // External fields
-        payment.setExternalNetwork(req.network().toUpperCase(Locale.ROOT));
+        payment.setExternalNetwork(network);
         payment.setBeneficiaryName(req.beneficiaryName());
         payment.setBeneficiaryIban(req.beneficiaryIban());
         payment.setBeneficiaryBic(req.beneficiaryBic());
         payment.setBeneficiaryBankName(req.beneficiaryBankName());
         payment.setBeneficiaryCountryCode(req.beneficiaryCountryCode());
-        // Prefer the caller's own reference; fall back to the gateway's network reference (e.g. SWIFT UETR).
-        payment.setExternalReference(
-                (req.externalReference() != null && !req.externalReference().isBlank())
-                        ? req.externalReference() : gw.networkReference());
-        payment.setChargeType(req.chargeType() != null ? req.chargeType().toUpperCase(Locale.ROOT) : "SHA");
+        payment.setExternalReference(req.externalReference() != null && !req.externalReference().isBlank()
+                ? req.externalReference() : null);
+        payment.setChargeType(chargeType);
+        payment = paymentRepository.save(payment);
 
+        com.cba.account.AccountService.BalanceChange debit = accountService.debitForSubledger(
+                source.getId(), req.amount(), TransactionType.TRANSFER_DEBIT,
+                "External " + network + " payment to " + req.beneficiaryName(), ref, actor);
+        LocalDate today = LocalDate.now();
+        accountGlPosting.postExternalPaymentMovement(debit.account(), debit.before(), today,
+                "External " + network + " payment " + ref, ref, payment.getId());
+
+        com.cba.payment.gateway.GatewayResult gw = externalPaymentGateway.submit(
+                new com.cba.payment.gateway.ExternalPaymentInstruction(
+                        network, req.amount(), currency,
+                        req.beneficiaryName(), req.beneficiaryIban(), req.beneficiaryBic(),
+                        req.beneficiaryBankName(), req.beneficiaryCountryCode(), chargeType, ref));
+        if (gw.status() == com.cba.payment.gateway.GatewayResult.Status.REJECTED) {
+            throw CbaException.badRequest("EXTERNAL_PAYMENT_REJECTED",
+                    "External payments gateway rejected the transfer: " + gw.errorMessage());
+        }
+
+        payment.setSubmitOutcome(gw.accepted() ? "ACCEPTED" : "UNKNOWN");
+        if (gw.networkReference() != null && !gw.networkReference().isBlank()) {
+            payment.setNetworkReference(gw.networkReference());
+            if (payment.getExternalReference() == null) payment.setExternalReference(gw.networkReference());
+        }
+        if (gw.settled()) {
+            accountGlPosting.postExternalPaymentSettlement(req.amount(), currency, today,
+                    "External payment " + ref + " settled", ref, payment.getId());
+            payment.setStatus(PaymentStatus.COMPLETED);
+            payment.setExecutedDate(Instant.now());
+            payment.setSettledAt(Instant.now());
+            payment.setOutcomeSource("GATEWAY");
+        }
         Payment saved = paymentRepository.save(payment);
 
+        UUID customerId = source.getCustomer() != null ? source.getCustomer().getId() : null;
+        eventPublisher.publishEvent(new TransactionFraudEvent(
+                customerId, source.getId(), saved.getId(), req.amount(), currency, "EXTERNAL_PAYMENT"));
         auditLogService.log("PAYMENT", saved.getId().toString(), "EXTERNAL_PAYMENT_INITIATED",
-                null, "network=" + req.network() + ",beneficiary=" + req.beneficiaryName()
+                null, "network=" + network + ",status=" + saved.getStatus()
                         + ",gateway=" + externalPaymentGateway.gatewayId()
-                        + ",networkRef=" + gw.networkReference());
-
+                        + ",submit=" + gw.status() + ",networkRef=" + gw.networkReference());
+        if (gw.status() == com.cba.payment.gateway.GatewayResult.Status.UNKNOWN) {
+            log.warn("External payment {} submit outcome unknown ({}): kept PROCESSING with the debit", ref, gw.errorCode());
+        }
         return toResponse(saved);
     }
 
     @Transactional(readOnly = true)
     public org.springframework.data.domain.Page<PaymentResponse> listExternalPayments(
-            org.springframework.data.domain.Pageable pageable) {
-        return paymentRepository.findByPaymentType(PaymentType.EXTERNAL_PAYMENT, pageable)
+            PaymentStatus status, org.springframework.data.domain.Pageable pageable) {
+        return (status == null
+                ? paymentRepository.findByPaymentType(PaymentType.EXTERNAL_PAYMENT, pageable)
+                : paymentRepository.findByPaymentTypeAndStatus(PaymentType.EXTERNAL_PAYMENT, status, pageable))
                 .map(this::toResponse);
     }
 }

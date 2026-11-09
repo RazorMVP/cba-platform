@@ -137,6 +137,26 @@ describe('PaymentsListComponent', () => {
     expect(c.extFormValid).toBe(false);
   });
 
+  it('Send Abroad: a PROCESSING result shows the awaiting-settlement notice; a refusal shows the server message', () => {
+    const c = TestBed.createComponent(PaymentsListComponent).componentInstance;
+    paymentSvc.initiateExternalPayment.mockReturnValue(of({
+      id: 'e1', sourceAccountId: 's', referenceNumber: 'EXT-1', status: 'PROCESSING', externalNetwork: 'SWIFT',
+    }));
+    c.extSrcAccount = acct('s') as never;
+    c.extAmount = 1000;
+    c.extBeneficiaryName = 'ACME';
+    c.submitExternalPayment();
+    expect(c.externalNotice).toContain('EXT-1');
+    expect(c.externalNotice).toContain('awaiting settlement');
+
+    paymentSvc.initiateExternalPayment.mockReturnValue(throwError(() => ({
+      error: { errors: [{ code: 'CURRENCY_MISMATCH', message: 'The source account is in USD' }] },
+    })));
+    c.submitExternalPayment();
+    expect(c.modalError).toContain('The source account is in USD');
+    expect(c.statuses).toContain('RETURNED');
+  });
+
   it('display helpers: statusVariant + isCredit', () => {
     const c = TestBed.createComponent(PaymentsListComponent).componentInstance;
     expect(c.statusVariant('COMPLETED')).toBe('success');

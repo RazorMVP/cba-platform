@@ -5,6 +5,7 @@ import com.cba.payment.dto.PaymentResponse;
 import com.cba.payment.dto.ReversePaymentRequest;
 import com.cba.payment.dto.StandingOrderRequest;
 import com.cba.payment.dto.StandingOrderResponse;
+import com.cba.payment.dto.ExternalPaymentOutcomeRequest;
 import com.cba.payment.dto.ExternalPaymentRequest;
 import com.cba.payment.dto.TransferRequest;
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,6 +34,7 @@ import java.util.UUID;
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private final ExternalPaymentOutcomeService outcomeService;
 
     @PostMapping("/transfer")
     @PreAuthorize("hasAnyRole('ADMIN','TELLER') or (hasRole('CUSTOMER') and @customerAccess.isAccountOwner(#request.sourceAccountId()))")
@@ -95,8 +97,10 @@ public class PaymentController {
     @PostMapping("/external")
     @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
     @Operation(summary = "Initiate an external SWIFT or SEPA payment",
-               description = "Debits the source account and records the outbound payment. " +
-                             "Actual network transmission is handled by the external payments gateway.")
+               description = "Debits the source account (withdrawal rules; DR deposit / CR 2400 Outgoing Payments " +
+                             "in Transit) and submits it to the external payments gateway. The payment stays PROCESSING " +
+                             "until the gateway's signed callback (or ops) settles or returns it. Source account must be " +
+                             "in the payment currency (400 CURRENCY_MISMATCH).")
     public ResponseEntity<ApiResponse<PaymentResponse>> initiateExternalPayment(
             @Valid @RequestBody ExternalPaymentRequest request,
             @AuthenticationPrincipal Jwt jwt) {
@@ -109,10 +113,29 @@ public class PaymentController {
     @PreAuthorize("hasAnyRole('ADMIN', 'TELLER')")
     @Operation(summary = "List all external payments (SWIFT/SEPA/ACH)")
     public ResponseEntity<ApiResponse<Page<PaymentResponse>>> listExternalPayments(
+            @RequestParam(required = false) PaymentStatus status,
             @PageableDefault(size = 20) Pageable pageable) {
-        Page<PaymentResponse> page = paymentService.listExternalPayments(pageable);
+        Page<PaymentResponse> page = paymentService.listExternalPayments(status, pageable);
         return ResponseEntity.ok(ApiResponse.ok(page,
                 ApiResponse.PageMeta.of(page.getNumber(), page.getSize(), page.getTotalElements())));
+    }
+
+    @PostMapping("/{id}/external-outcome")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Record an external payment's outcome by hand (ops)",
+               description = "For a PROCESSING external payment the gateway hasn't reported on: SETTLED posts "
+                       + "DR 2400 / CR nostro; RETURNED credits the source back. Reason required; not by the user "
+                       + "who initiated the payment (403 SAME_USER).")
+    public ResponseEntity<ApiResponse<PaymentResponse>> recordExternalOutcome(
+            @PathVariable UUID id,
+            @Valid @RequestBody ExternalPaymentOutcomeRequest request) {
+        ExternalPaymentOutcomeService.Outcome outcome;
+        try {
+            outcome = ExternalPaymentOutcomeService.Outcome.valueOf(request.outcome().trim().toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw com.cba.common.exception.CbaException.badRequest("INVALID_OUTCOME", "outcome must be SETTLED or RETURNED");
+        }
+        return ResponseEntity.ok(ApiResponse.ok(outcomeService.applyManual(id, outcome, request.reason()).payment()));
     }
 
     // ── Payment Reversal ─────────────────────────────────────────────────────

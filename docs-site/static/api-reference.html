@@ -1496,7 +1496,53 @@ Where:
         <tr><td><code>externalReference</code></td><td>string(100)</td><td></td><td>Caller's reference (invoice no., etc.)</td></tr>
       </tbody>
     </table>
-    <p>Debits the source account immediately. Actual network transmission to the SWIFT/SEPA gateway is handled externally. Reference is auto-generated as <code>EXT-XXXXXXXX</code>.</p>
+    <p><strong>Lifecycle (cont. 59, backlog 1).</strong> In one transaction the source is debited under the withdrawal rules (row lock, holds, minimum balance, lock-in) and the journal <code>DR customer deposit / CR 2400 Outgoing Payments in Transit</code> is posted; then the instruction is submitted to the gateway with the reference <code>EXT-XXXXXXXX</code> (the gateway's idempotency key).</p>
+    <ul>
+      <li><strong>Gateway refuses (4xx):</strong> <code>400 EXTERNAL_PAYMENT_REJECTED</code> — nothing is debited or posted.</li>
+      <li><strong>Gateway accepts:</strong> <code>201</code>, <code>status: PROCESSING</code>, <code>submitOutcome: ACCEPTED</code>, <code>networkReference</code> (e.g. SWIFT UETR). Settlement or a return arrives by the signed callback below, or ops record it.</li>
+      <li><strong>Timeout / 5xx:</strong> <code>201</code>, <code>status: PROCESSING</code>, <code>submitOutcome: UNKNOWN</code> — the debit is kept, because the payment may have gone out.</li>
+      <li><strong>Simulated gateway (dev):</strong> settles at once — <code>status: COMPLETED</code>, <code>outcomeSource: GATEWAY</code>, and <code>DR 2400 / CR nostro (1002)</code> is posted too.</li>
+    </ul>
+    <p><strong>Errors:</strong> <code>400 CURRENCY_MISMATCH</code> (payment currency ≠ source account currency — cross-currency external payments aren't supported), <code>400 INSUFFICIENT_BALANCE</code> / <code>ACCOUNT_NOT_ACTIVE</code> / lock-in errors from the withdrawal rules. <code>POST /payments/{id}/reverse</code> on an external payment → <code>400 EXTERNAL_PAYMENT_NOT_REVERSIBLE</code>.</p>
+    <p><strong>Response adds:</strong> <code>networkReference</code>, <code>submitOutcome</code> (<code>ACCEPTED</code>|<code>UNKNOWN</code>), <code>settledAt</code>, <code>outcomeSource</code> (<code>GATEWAY</code>|<code>CALLBACK</code>|<code>MANUAL</code>), <code>failureReason</code>.</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/payments/external/callbacks</span>
+    <span class="endpoint-summary">Settlement callback from the external payments gateway (signed)</span>
+  </summary>
+  <div class="endpoint-body">
+    <p><strong>Auth:</strong> no user token (send no <code>Authorization</code> header). The gateway signs the raw body with the shared secret <code>EXTERNAL_PAYMENT_CALLBACK_SECRET</code>:</p>
+    <pre>X-Gateway-Timestamp: 1794240000            (epoch seconds; must be within 5 minutes of now)
+X-Gateway-Signature: sha256=&lt;hex(HMAC-SHA256(secret, timestamp + "." + rawBody))&gt;</pre>
+    <pre>{ "reference": "EXT-4F2A91C0", "networkReference": "eb6305c9-1f7f-49de-aed0-16487c27b42d", "status": "SETTLED", "reason": null }</pre>
+    <table class="field-table">
+      <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td><code>reference</code></td><td>string</td><td>one of</td><td>Our <code>EXT-</code> reference, sent with the submit</td></tr>
+        <tr><td><code>networkReference</code></td><td>string</td><td>one of</td><td>The network's reference; must match the stored one when both are sent (<code>409 REFERENCE_MISMATCH</code>)</td></tr>
+        <tr><td><code>status</code></td><td>enum</td><td>✓</td><td><code>SETTLED</code> — paid out: <code>DR 2400 / CR nostro</code>, payment <code>COMPLETED</code>. <code>RETURNED</code> — the beneficiary's bank sent it back: source credited, <code>DR 2400 / CR deposit</code>, payment <code>RETURNED</code>. <code>REJECTED</code> — refused after acceptance: same postings, payment <code>FAILED</code></td></tr>
+        <tr><td><code>reason</code></td><td>string</td><td></td><td>Return / rejection reason (stored as <code>failureReason</code>)</td></tr>
+      </tbody>
+    </table>
+    <p><strong>200:</strong> <code>{ "result": "APPLIED" | "REPEAT", "paymentId", "reference", "status" }</code> — the same outcome sent again is a <code>REPEAT</code> (nothing posted twice; the payment row is locked).</p>
+    <p><strong>Errors:</strong> <code>401 INVALID_SIGNATURE</code> (missing, wrong or stale), <code>503 CALLBACK_NOT_CONFIGURED</code> (secret unset — fails closed), <code>400 INVALID_CALLBACK</code>, <code>404</code> unknown payment, <code>409 PAYMENT_NOT_PROCESSING</code> (a different outcome after the payment left PROCESSING — a return after settlement is an incoming credit, not handled here). Every callback is stored in <code>external_payment_callbacks</code>, whatever its result. Not rate-limited.</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/payments/{id}/external-outcome</span>
+    <span class="endpoint-summary">Record an external payment's outcome by hand (ops)</span>
+  </summary>
+  <div class="endpoint-body">
+    <pre>{ "outcome": "RETURNED", "reason": "Correspondent confirmed return AC04" }</pre>
+    <p><strong>Roles:</strong> ADMIN — and <strong>not the user who initiated the payment</strong> (<code>403 SAME_USER</code>).</p>
+    <p>For a <code>PROCESSING</code> external payment the gateway hasn't reported on. <code>outcome</code>: <code>SETTLED</code> | <code>RETURNED</code>; <code>reason</code> required (≤ 500). Same postings and rules as the callback; <code>outcomeSource: MANUAL</code>; audited. Errors: <code>400 INVALID_OUTCOME</code>, <code>400 REASON_REQUIRED</code>, <code>409 PAYMENT_NOT_PROCESSING</code>.</p>
   </div>
 </details>
 
@@ -1508,7 +1554,7 @@ Where:
   </summary>
   <div class="endpoint-body">
     <p><strong>Roles:</strong> ADMIN, TELLER</p>
-    <p><strong>Query params:</strong> <code>page</code> (default 0), <code>size</code> (default 20)</p>
+    <p><strong>Query params:</strong> <code>status</code> (optional — e.g. <code>PROCESSING</code> for payments awaiting settlement), <code>page</code> (default 0), <code>size</code> (default 20)</p>
     <p>Returns all payments of type <code>EXTERNAL_PAYMENT</code> ordered by creation date descending, including full beneficiary detail fields.</p>
   </div>
 </details>
@@ -3416,7 +3462,9 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <tr><td>POST</td><td>/api/v1/payments/standing-orders</td><td>Create standing order</td><td>ADMIN, TELLER</td></tr>
 <tr><td>DELETE</td><td>/api/v1/payments/standing-orders/{id}</td><td>Cancel standing order</td><td>ADMIN, TELLER</td></tr>
 <tr><td>POST</td><td>/api/v1/payments/external</td><td>Initiate external SWIFT/SEPA/ACH payment</td><td>ADMIN, TELLER</td></tr>
-<tr><td>GET</td><td>/api/v1/payments/external</td><td>List external payments</td><td>ADMIN, TELLER</td></tr>
+<tr><td>GET</td><td>/api/v1/payments/external</td><td>List external payments (<code>?status=</code>)</td><td>ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/api/v1/payments/external/callbacks</td><td>Gateway settlement callback (HMAC-signed)</td><td>None — signed by the gateway</td></tr>
+<tr><td>POST</td><td>/api/v1/payments/{id}/external-outcome</td><td>Ops record an external payment's outcome</td><td>ADMIN (not the initiator)</td></tr>
 <!-- Products -->
 <tr><td>GET</td><td>/api/v1/loan-products</td><td>List loan products</td><td>All roles</td></tr>
 <tr><td>GET</td><td>/api/v1/loan-products/{id}</td><td>Get loan product</td><td>All roles</td></tr>

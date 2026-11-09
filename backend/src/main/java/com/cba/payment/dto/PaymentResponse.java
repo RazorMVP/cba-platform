@@ -38,5 +38,12 @@ public record PaymentResponse(
         String beneficiaryBankName,
         String beneficiaryCountryCode,
         String externalReference,
-        String chargeType
+        String chargeType,
+
+        // External payment settlement (V67; null for internal transfers)
+        String networkReference,
+        String submitOutcome,
+        Instant settledAt,
+        String outcomeSource,
+        String failureReason
 ) {}

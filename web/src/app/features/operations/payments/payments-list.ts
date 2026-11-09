@@ -41,7 +41,7 @@ export class PaymentsListComponent implements OnInit, OnDestroy {
 
   // ── Status filter ─────────────────────────────────────────────────────────
   statusFilter: string = '';
-  readonly statuses = ['', 'PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'REVERSED'];
+  readonly statuses = ['', 'PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'REVERSED', 'RETURNED'];
 
   // ── Modal state ────────────────────────────────────────────────────────────
   activeModal: ModalType = null;
@@ -352,6 +352,9 @@ export class PaymentsListComponent implements OnInit, OnDestroy {
     return !!this.extSrcAccount && this.extAmount > 0 && !!this.extBeneficiaryName;
   }
 
+  /** Shown after Send Abroad: an external payment usually waits for the gateway to settle it. */
+  externalNotice = '';
+
   submitExternalPayment(): void {
     if (!this.extFormValid) return;
     this.modalWorking = true;
@@ -374,12 +377,19 @@ export class PaymentsListComponent implements OnInit, OnDestroy {
       next: p => {
         this.modalWorking = false;
         this.activeModal  = null;
+        this.externalNotice = p.status === 'PROCESSING'
+          ? `${p.referenceNumber} sent to the ${p.externalNetwork ?? 'payment'} network — awaiting settlement. The account has been debited.`
+          : `${p.referenceNumber} settled.`;
         if (this.selectedAccount && p.sourceAccountId === this.selectedAccount.id) {
           this.page = 0;
           this.loadPayments();
         }
       },
-      error: () => { this.modalError = 'External payment failed. Check the details and try again.'; this.modalWorking = false; },
+      error: err => {
+        const msg = err?.error?.errors?.[0]?.message;
+        this.modalError = msg ? `External payment failed: ${msg}` : 'External payment failed. Check the details and try again.';
+        this.modalWorking = false;
+      },
     });
   }
 
@@ -393,7 +403,7 @@ export class PaymentsListComponent implements OnInit, OnDestroy {
     if (s === 'COMPLETED') return 'success';
     if (s === 'PENDING' || s === 'PROCESSING') return 'warning';
     if (s === 'FAILED') return 'error';
-    return 'neutral';   // REVERSED
+    return 'neutral';   // REVERSED, RETURNED (money back on the source account)
   }
 
   isCredit(p: Payment): boolean {

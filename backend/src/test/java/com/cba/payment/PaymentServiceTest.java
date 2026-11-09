@@ -47,6 +47,7 @@ class PaymentServiceTest {
     @Mock ApplicationEventPublisher eventPublisher;
     @Mock com.cba.payment.gateway.ExternalPaymentGateway externalPaymentGateway;
     @Mock com.cba.account.AccountGlPosting accountGlPosting;
+    @Mock AccountService accountService;
 
     @InjectMocks PaymentService paymentService;
 
@@ -317,76 +318,135 @@ class PaymentServiceTest {
     }
 
     @Nested
-    @DisplayName("initiateExternalPayment")
+    @DisplayName("initiateExternalPayment (backlog 1: debit + 2400 journal, then submit)")
     class ExternalPayment {
 
         private com.cba.payment.dto.ExternalPaymentRequest req(String externalRef) {
+            return req("USD", externalRef);
+        }
+
+        private com.cba.payment.dto.ExternalPaymentRequest req(String ccy, String externalRef) {
             return new com.cba.payment.dto.ExternalPaymentRequest(
-                    srcId, new BigDecimal("100.00"), "USD", "SWIFT", "Jane Doe",
+                    srcId, new BigDecimal("100.00"), ccy, "SWIFT", "Jane Doe",
                     "GB33BUKB20201555555555", "BUKBGB22", "Barclays", "GBR", "SHA", "invoice-1", externalRef);
         }
 
-        @Test
-        @DisplayName("gateway accepted → debits source, completes, stores network reference")
-        void accepted_debitsAndCompletes() {
+        private void stubDebitAndSaves() {
             when(accountRepository.findById(srcId)).thenReturn(Optional.of(source));
-            when(accountHoldRepository.sumActiveHoldsByAccount(srcId)).thenReturn(BigDecimal.ZERO);
-            when(externalPaymentGateway.submit(any())).thenReturn(
-                    com.cba.payment.gateway.GatewayResult.accepted("NET-REF-1"));
-            when(externalPaymentGateway.gatewayId()).thenReturn("SIMULATED");
-            when(transactionRepository.save(any())).thenReturn(mock(Transaction.class));
+            when(accountService.debitForSubledger(eq(srcId), any(), eq(TransactionType.TRANSFER_DEBIT), any(), any(), any()))
+                    .thenAnswer(inv -> {
+                        BigDecimal before = source.getBalance();
+                        source.setBalance(before.subtract(inv.getArgument(1)));
+                        return new AccountService.BalanceChange(source, before, null);
+                    });
             when(paymentRepository.save(any())).thenAnswer(inv -> {
                 Payment p = inv.getArgument(0);
                 if (p.getId() == null) p.setId(UUID.randomUUID());
                 return p;
             });
+            lenient().when(externalPaymentGateway.gatewayId()).thenReturn("TEST");
+        }
 
-            // externalReference blank → the gateway's network reference is stored
-            paymentService.initiateExternalPayment(req(null), "teller1");
-
+        private Payment lastSaved() {
             ArgumentCaptor<Payment> cap = ArgumentCaptor.forClass(Payment.class);
-            verify(paymentRepository).save(cap.capture());
-            assertThat(cap.getValue().getStatus()).isEqualTo(PaymentStatus.COMPLETED);
-            assertThat(cap.getValue().getExternalReference()).isEqualTo("NET-REF-1");
+            verify(paymentRepository, atLeastOnce()).save(cap.capture());
+            return cap.getValue();
+        }
+
+        @Test
+        @DisplayName("gateway settles at once (simulated) → debit, DR deposit/CR 2400, DR 2400/CR nostro, COMPLETED")
+        void settledAtOnce_bothJournals() {
+            stubDebitAndSaves();
+            when(externalPaymentGateway.submit(any())).thenReturn(com.cba.payment.gateway.GatewayResult.settled("NET-REF-1"));
+
+            PaymentResponse r = paymentService.initiateExternalPayment(req(null), "teller1");
+
+            assertThat(r.status()).isEqualTo(PaymentStatus.COMPLETED);
+            assertThat(r.networkReference()).isEqualTo("NET-REF-1");
+            assertThat(r.externalReference()).isEqualTo("NET-REF-1");
+            assertThat(r.outcomeSource()).isEqualTo("GATEWAY");
             assertThat(source.getBalance()).isEqualByComparingTo("900.00");
+            verify(accountGlPosting).postExternalPaymentMovement(eq(source), eq(new BigDecimal("1000.00")), any(), any(), startsWith("EXT-"), any());
+            verify(accountGlPosting).postExternalPaymentSettlement(eq(new BigDecimal("100.00")), eq("USD"), any(), any(), startsWith("EXT-"), any());
         }
 
         @Test
-        @DisplayName("caller-supplied externalReference is preserved over the gateway reference")
-        void accepted_keepsCallerReference() {
-            when(accountRepository.findById(srcId)).thenReturn(Optional.of(source));
-            when(accountHoldRepository.sumActiveHoldsByAccount(srcId)).thenReturn(BigDecimal.ZERO);
-            when(externalPaymentGateway.submit(any())).thenReturn(
-                    com.cba.payment.gateway.GatewayResult.accepted("NET-REF-1"));
-            when(externalPaymentGateway.gatewayId()).thenReturn("SIMULATED");
-            when(transactionRepository.save(any())).thenReturn(mock(Transaction.class));
-            when(paymentRepository.save(any())).thenAnswer(inv -> {
-                Payment p = inv.getArgument(0);
-                if (p.getId() == null) p.setId(UUID.randomUUID());
-                return p;
-            });
+        @DisplayName("gateway accepted, not settled → PROCESSING, debit kept, no settlement journal yet")
+        void accepted_processing() {
+            stubDebitAndSaves();
+            when(externalPaymentGateway.submit(any())).thenReturn(com.cba.payment.gateway.GatewayResult.accepted("UETR-1"));
 
-            paymentService.initiateExternalPayment(req("MY-INVOICE-99"), "teller1");
+            PaymentResponse r = paymentService.initiateExternalPayment(req(null), "teller1");
 
-            ArgumentCaptor<Payment> cap = ArgumentCaptor.forClass(Payment.class);
-            verify(paymentRepository).save(cap.capture());
-            assertThat(cap.getValue().getExternalReference()).isEqualTo("MY-INVOICE-99");
+            assertThat(r.status()).isEqualTo(PaymentStatus.PROCESSING);
+            assertThat(r.submitOutcome()).isEqualTo("ACCEPTED");
+            assertThat(lastSaved().getNetworkReference()).isEqualTo("UETR-1");
+            verify(accountGlPosting).postExternalPaymentMovement(any(), any(), any(), any(), any(), any());
+            verify(accountGlPosting, never()).postExternalPaymentSettlement(any(), any(), any(), any(), any(), any());
         }
 
         @Test
-        @DisplayName("gateway rejected → throws and never debits (rolls back)")
-        void rejected_throwsNoDebit() {
-            when(accountRepository.findById(srcId)).thenReturn(Optional.of(source));
+        @DisplayName("submit outcome unknown (timeout / 5xx) → PROCESSING with the debit kept, not rolled back (D2a)")
+        void unknown_keepsDebit() {
+            stubDebitAndSaves();
+            when(externalPaymentGateway.submit(any())).thenReturn(com.cba.payment.gateway.GatewayResult.unknown("HTTP_503", "x"));
+
+            PaymentResponse r = paymentService.initiateExternalPayment(req(null), "teller1");
+
+            assertThat(r.status()).isEqualTo(PaymentStatus.PROCESSING);
+            assertThat(r.submitOutcome()).isEqualTo("UNKNOWN");
+            assertThat(source.getBalance()).isEqualByComparingTo("900.00");
+            assertThat(r.externalReference()).isNull();
+        }
+
+        @Test
+        @DisplayName("caller-supplied externalReference is kept; the network reference has its own field")
+        void callerReferenceKept() {
+            stubDebitAndSaves();
+            when(externalPaymentGateway.submit(any())).thenReturn(com.cba.payment.gateway.GatewayResult.accepted("UETR-9"));
+
+            PaymentResponse r = paymentService.initiateExternalPayment(req("MY-INVOICE-99"), "teller1");
+
+            assertThat(r.externalReference()).isEqualTo("MY-INVOICE-99");
+            assertThat(r.networkReference()).isEqualTo("UETR-9");
+        }
+
+        @Test
+        @DisplayName("gateway rejected (4xx) → throws, so the transaction (debit and journal) rolls back")
+        void rejected_throws() {
+            stubDebitAndSaves();
             when(externalPaymentGateway.submit(any())).thenReturn(
-                    com.cba.payment.gateway.GatewayResult.rejected("TRANSPORT_ERROR", "gateway down"));
+                    com.cba.payment.gateway.GatewayResult.rejected("HTTP_422", "bad beneficiary"));
 
             assertThatThrownBy(() -> paymentService.initiateExternalPayment(req(null), "teller1"))
                     .isInstanceOf(CbaException.class)
-                    .hasMessageContaining("rejected");
+                    .hasFieldOrPropertyWithValue("errorCode", "EXTERNAL_PAYMENT_REJECTED");
+            verify(accountGlPosting, never()).postExternalPaymentSettlement(any(), any(), any(), any(), any(), any());
+        }
 
-            verify(accountRepository, never()).save(any());
-            verify(paymentRepository, never()).save(any());
-            assertThat(source.getBalance()).isEqualByComparingTo("1000.00");
+        @Test
+        @DisplayName("payment currency other than the account's → 400 CURRENCY_MISMATCH, nothing debited or sent")
+        void currencyMismatch() {
+            when(accountRepository.findById(srcId)).thenReturn(Optional.of(source));
+
+            assertThatThrownBy(() -> paymentService.initiateExternalPayment(req("EUR", null), "teller1"))
+                    .hasFieldOrPropertyWithValue("errorCode", "CURRENCY_MISMATCH");
+            verifyNoInteractions(accountService, externalPaymentGateway);
+        }
+
+        @Test
+        @DisplayName("an external payment can't be reversed (it was a NullPointerException) — returns go through the outcome path")
+        void reverseRefused() {
+            Payment p = new Payment();
+            p.setId(UUID.randomUUID());
+            p.setPaymentType(PaymentType.EXTERNAL_PAYMENT);
+            p.setStatus(PaymentStatus.COMPLETED);
+            p.setSourceAccount(source);
+            when(paymentRepository.findById(p.getId())).thenReturn(Optional.of(p));
+
+            assertThatThrownBy(() -> paymentService.reversePayment(p.getId(),
+                    new com.cba.payment.dto.ReversePaymentRequest("oops"), "admin"))
+                    .hasFieldOrPropertyWithValue("errorCode", "EXTERNAL_PAYMENT_NOT_REVERSIBLE");
         }
     }
 

@@ -124,6 +124,33 @@ public class AccountGlPosting {
     }
 
     /**
+     * An external payment's customer leg (backlog 1): the counter-entry is 2400 Outgoing Payments in
+     * Transit. The submit debit moves part of the deposit to an obligation to remit (DR deposit /
+     * CR 2400); a return credits it back (DR 2400 / CR deposit). The obligation ends only when the
+     * bank pays out ({@link #postExternalPaymentSettlement}; IFRS 9 §3.3.1, B3.3.1(a); IAS 32 §11).
+     */
+    public String postExternalPaymentMovement(Account account, BigDecimal balanceBefore, LocalDate date,
+                                              String description, String reference, UUID paymentId) {
+        List<JournalLine> lines = new ArrayList<>(balanceChangeLines(account, balanceBefore));
+        lines.add(counterLine(gl.activityAccount(FinancialActivity.LIABILITY_EXTERNAL_PAYMENT_IN_TRANSIT),
+                account.getBalance().subtract(balanceBefore), account.getCurrencyCode()));
+        return gl.postJournal(lines, date, description, JournalEntry.EntityType.PAYMENT, paymentId, reference);
+    }
+
+    /**
+     * An external payment settled: the bank paid it out of its nostro, so the obligation to remit
+     * is discharged (DR 2400 / CR nostro). One currency, no FX.
+     */
+    public String postExternalPaymentSettlement(BigDecimal amount, String currency, LocalDate date,
+                                                String description, String reference, UUID paymentId) {
+        GlAccount inTransit = gl.activityAccount(FinancialActivity.LIABILITY_EXTERNAL_PAYMENT_IN_TRANSIT);
+        GlAccount nostro = gl.activityAccount(FinancialActivity.ASSET_EXTERNAL_PAYMENT_NOSTRO);
+        return gl.postJournal(List.of(JournalLine.debit(inTransit, amount, currency),
+                        JournalLine.credit(nostro, amount, currency)),
+                date, description, JournalEntry.EntityType.PAYMENT, paymentId, reference);
+    }
+
+    /**
      * Interest credited to the customer: an interest expense of the bank, recorded in the
      * functional currency (see {@link #balanceWith}).
      */

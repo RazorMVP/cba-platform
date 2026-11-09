@@ -21,7 +21,17 @@ Legend — **Effort**: S / M / L. **Risk**: what makes it non-trivial.
 
 ---
 
-## 1. Async external-payment settlement lifecycle
+## 1. ✅ DONE (cont. 60) — Async external-payment settlement lifecycle
+
+> **Done in backlog set 2 PR A** (plan `docs/plans/2026-11-09-backlog-set-2.md`; decisions D1–D4 "a"). Debit first under
+> the withdrawal rules + DR deposit / CR new GL 2400 Outgoing Payments in Transit, then submit; 4xx rolls back, 5xx/timeout
+> keeps the debit (`submit_outcome=UNKNOWN`); `PROCESSING` until the HMAC-signed callback
+> (`POST /api/v1/payments/external/callbacks`, `EXTERNAL_PAYMENT_CALLBACK_SECRET`, unset → 503) or ops
+> (`POST /api/v1/payments/{id}/external-outcome`, not the initiator) settle it (DR 2400 / CR nostro, default 1002) or return it
+> (credited back, status `RETURNED`). `network_reference` has its own column. Reversing an external payment is refused (it
+> was an NPE). Still not built: a return **after** settlement (an incoming credit — no incoming payments yet), fees
+> (OUR/SHA charges), cross-currency external payments. The text below is the original scoping.
+
 
 **Effort: L · Risk: money path + external contract**
 

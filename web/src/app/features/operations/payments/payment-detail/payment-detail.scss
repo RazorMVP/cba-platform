@@ -375,3 +375,20 @@
   animation: spin 0.7s linear infinite;
 }
 
+
+// External payment waiting for the gateway (backlog 1)
+.settlement-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin: 1rem 0;
+  padding: 0.875rem 1rem;
+  border-radius: 8px;
+  background: #fff8e1;
+  border: 1px solid #f5d27a;
+  color: #5c4400;
+  font-size: 0.875rem;
+
+  &__text { flex: 1; line-height: 1.45; }
+  &__actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
+}

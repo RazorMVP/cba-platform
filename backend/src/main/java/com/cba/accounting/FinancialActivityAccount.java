@@ -28,6 +28,10 @@ public class FinancialActivityAccount {
         LIABILITY_INCOME_IN_SUSPENSE,
         LIABILITY_SAVINGS_CONTROL,
         LIABILITY_TRANSFER_IN_SUSPENSE,
+        /** External payments debited to customers and not yet paid out of the nostro (GL 2400, V67). */
+        LIABILITY_EXTERNAL_PAYMENT_IN_TRANSIT,
+        /** The bank's account at its correspondent: external payments are paid out of it (default 1002, V67). */
+        ASSET_EXTERNAL_PAYMENT_NOSTRO,
         /** Cleared card transactions owed to the card schemes until they settle (GL 2300, V63). */
         LIABILITY_CARD_SETTLEMENT,
         /** The bank's account at its card settlement bank: scheme net settlements go through it (GL 1003, V64). */

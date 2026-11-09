@@ -710,3 +710,27 @@
   animation: spin 0.7s linear infinite;
 }
 
+
+// Send Abroad result: the payment usually waits for the gateway's settlement (backlog 1)
+.notice-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: #fff8e1;
+  border: 1px solid #f5d27a;
+  color: #5c4400;
+  font-size: 0.875rem;
+
+  > span:nth-child(2) { flex: 1; }
+
+  &__close {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    color: inherit;
+    display: inline-flex;
+  }
+}

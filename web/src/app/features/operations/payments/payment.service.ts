@@ -3,7 +3,9 @@ import { Observable } from 'rxjs';
 import { ApiService } from '../../../core/api/api.service';
 import { PageResponse } from '../../../core/models/api-response.model';
 
-export type PaymentStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'REVERSED';
+export type PaymentStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'REVERSED' | 'RETURNED';
+/** How ops close an external payment the gateway hasn't reported on. */
+export type ExternalOutcome = 'SETTLED' | 'RETURNED';
 export type PaymentType   = 'INTERNAL_TRANSFER' | 'EXTERNAL_PAYMENT' | 'STANDING_ORDER' | 'BILL_PAYMENT';
 export type SOFrequency   = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY';
 export type SOStatus      = 'ACTIVE' | 'PAUSED' | 'CANCELLED' | 'COMPLETED';
@@ -29,6 +31,23 @@ export interface Payment {
   destinationCurrency?: string;
   destinationAmount?: number;
   exchangeRateUsed?: number;
+  // External (SWIFT/SEPA/ACH) fields — null for internal transfers
+  externalNetwork?: string;
+  beneficiaryName?: string;
+  beneficiaryIban?: string;
+  beneficiaryBic?: string;
+  beneficiaryBankName?: string;
+  beneficiaryCountryCode?: string;
+  externalReference?: string;
+  chargeType?: string;
+  /** The gateway's reference (e.g. SWIFT UETR) */
+  networkReference?: string;
+  /** ACCEPTED, or UNKNOWN when the submit timed out (the payment may have gone out) */
+  submitOutcome?: 'ACCEPTED' | 'UNKNOWN';
+  settledAt?: string;
+  /** GATEWAY (settled at submit), CALLBACK or MANUAL */
+  outcomeSource?: string;
+  failureReason?: string;
 }
 
 export interface TransferRequest {
@@ -122,5 +141,10 @@ export class PaymentService {
   /** POST /payments/external */
   initiateExternalPayment(body: ExternalPaymentRequest): Observable<Payment> {
     return this.api.post<Payment>('/payments/external', body);
+  }
+
+  /** POST /payments/{id}/external-outcome — ops settle or return a PROCESSING external payment (ADMIN, not the initiator) */
+  recordExternalOutcome(id: string, outcome: ExternalOutcome, reason: string): Observable<Payment> {
+    return this.api.post<Payment>(`/payments/${id}/external-outcome`, { outcome, reason });
   }
 }

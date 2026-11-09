@@ -22,6 +22,7 @@ class SimulatedExternalPaymentGatewayTest {
     void accepts() {
         GatewayResult r = gateway.submit(swift());
         assertThat(r.accepted()).isTrue();
+        assertThat(r.settled()).as("dev settles at once: no callback will come").isTrue();
         assertThat(r.networkReference()).startsWith("SIM-SWIFT-");
     }
 

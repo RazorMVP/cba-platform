@@ -3227,6 +3227,8 @@ components:
           maxLength: 3
           minLength: 0
           type: "string"
+        expectedAmount:
+          type: "number"
         reference:
           maxLength: 64
           minLength: 0
@@ -3244,8 +3246,14 @@ components:
       type: "object"
     CardSchemeSettlementResult:
       properties:
+        amount:
+          type: "number"
         approved:
           type: "boolean"
+        difference:
+          type: "number"
+        expectedAmount:
+          type: "number"
         journalTransactionId:
           type: "string"
         reason:
@@ -5610,6 +5618,7 @@ components:
           - "LIABILITY_CARD_SETTLEMENT"
           - "LIABILITY_PREPAID_CARD"
           - "ASSET_CARD_SCHEME_SETTLEMENT"
+          - "ASSET_CARD_SETTLEMENT_DIFFERENCES"
           - "INCOME_CARD_INTERCHANGE"
           - "EXPENSE_CARD_SCHEME_FEES"
           - "EXPENSE_CARD_INTERCHANGE"
@@ -5655,6 +5664,7 @@ components:
           - "LIABILITY_CARD_SETTLEMENT"
           - "LIABILITY_PREPAID_CARD"
           - "ASSET_CARD_SCHEME_SETTLEMENT"
+          - "ASSET_CARD_SETTLEMENT_DIFFERENCES"
           - "INCOME_CARD_INTERCHANGE"
           - "EXPENSE_CARD_SCHEME_FEES"
           - "EXPENSE_CARD_INTERCHANGE"
@@ -13796,10 +13806,15 @@ paths:
     post:
       description: "Role CARD_SERVICE only. Positive amount: the bank paid the scheme\
         \ — DR 2300 Card Scheme Settlement Payable / CR 1003 Card Scheme Settlement\
-        \ Account; negative: the scheme paid the bank — DR 1003 / CR 2300. Journal\
-        \ dated today. Idempotent on reference (repeat=true, no second journal). reasons:\
-        \ REFERENCE_CONFLICT, UNKNOWN_SCHEME, DATE_NOT_CLOSED (settlement date not\
-        \ before today), ZERO_AMOUNT, INVALID_AMOUNT, UNKNOWN_CURRENCY."
+        \ Account; negative: the scheme paid the bank — DR 1003 / CR 2300. Optional\
+        \ expectedAmount (card-service's expected net; absent = amount): 2300 is cleared\
+        \ at the expected net, 1003 moves by the reported amount and the difference\
+        \ posts to 1004 Card Settlement Differences, when |amount − expectedAmount|\
+        \ is within the currency's tolerance (app.cards.settlement.difference-tolerance,\
+        \ default 0). Journal dated today. Idempotent on reference (repeat=true, no\
+        \ second journal). reasons: REFERENCE_CONFLICT, UNKNOWN_SCHEME, DATE_NOT_CLOSED\
+        \ (settlement date not before today), ZERO_AMOUNT, INVALID_AMOUNT, UNKNOWN_CURRENCY,\
+        \ DIFFERENCE_OVER_TOLERANCE."
       operationId: "record"
       requestBody:
         content:
@@ -13816,8 +13831,8 @@ paths:
           description: "OK"
       security:
       - oauth2: []
-      summary: "Post a card scheme's net settlement (card-service, after the scheme\
-        \ report matched)"
+      summary: "Post a card scheme's net settlement (card-service, after reconciling\
+        \ the scheme report)"
       tags:
       - "Card Scheme Settlement"
   /api/v1/centers:

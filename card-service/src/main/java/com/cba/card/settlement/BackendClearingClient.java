@@ -60,9 +60,18 @@ public class BackendClearingClient {
     record BackendHold(boolean approved, String status, String reason,
                        BigDecimal interchangeAmount, String interchangeDirection, BigDecimal schemeFeeAmount) {}
 
-    /** The backend's {@code CardSchemeSettlementResult}; null from {@link #recordSchemeSettlement} when unreachable. */
+    /**
+     * The backend's {@code CardSchemeSettlementResult}; null from {@link #recordSchemeSettlement} when unreachable.
+     * {@code expectedAmount}/{@code amount}/{@code difference} echo the figures the backend decided on.
+     */
     public record SettlementPost(boolean approved, boolean repeat, String reference,
-                                 String journalTransactionId, String reason) {}
+                                 String journalTransactionId, String reason,
+                                 BigDecimal expectedAmount, BigDecimal amount, BigDecimal difference) {
+
+        public SettlementPost(boolean approved, boolean repeat, String reference, String journalTransactionId, String reason) {
+            this(approved, repeat, reference, journalTransactionId, reason, null, null, null);
+        }
+    }
 
     /** The backend's {@code ApiResponse} envelope — only {@code data} is read. */
     record Envelope<T>(T data) {}
@@ -98,16 +107,20 @@ public class BackendClearingClient {
     }
 
     /**
-     * Posts a scheme's net settlement on the backend (the cash leg).
+     * Posts a scheme's net settlement on the backend (the cash leg). The backend decides whether a difference
+     * between the reported and expected nets is within its tolerance (backlog 15d); above it it refuses
+     * DIFFERENCE_OVER_TOLERANCE.
      *
-     * @param amountMajor signed: positive = the bank pays the scheme
+     * @param amountMajor   the scheme's reported net, signed: positive = the bank pays the scheme
+     * @param expectedMajor card-service's expected net, same convention
      * @return the backend's result, or null when it couldn't be reached (the report stays POSTING; a retry finishes it)
      */
     public SettlementPost recordSchemeSettlement(String reference, String scheme, LocalDate settlementDate,
-                                                 String currencyAlpha, BigDecimal amountMajor) {
+                                                 String currencyAlpha, BigDecimal amountMajor, BigDecimal expectedMajor) {
         try {
             Map<String, Object> body = Map.of("reference", reference, "scheme", scheme,
-                    "settlementDate", settlementDate.toString(), "currencyCode", currencyAlpha, "amount", amountMajor);
+                    "settlementDate", settlementDate.toString(), "currencyCode", currencyAlpha, "amount", amountMajor,
+                    "expectedAmount", expectedMajor);
             ResponseEntity<Envelope<SettlementPost>> resp = backendRestTemplate.exchange(
                     restClientConfig.getBackendBaseUrl() + "/api/v1/card-settlements", HttpMethod.POST,
                     new HttpEntity<>(body), new ParameterizedTypeReference<Envelope<SettlementPost>>() {});

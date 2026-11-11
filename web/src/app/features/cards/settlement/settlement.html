@@ -14,9 +14,11 @@
 
   <div class="tab-bar">
     <button class="tab-item" [class.tab-item--active]="activeTab === 'batches'"
-            (click)="activeTab = 'batches'">Batches</button>
+            (click)="setTab('batches')">Batches</button>
     <button class="tab-item" [class.tab-item--active]="activeTab === 'transmissions'"
-            (click)="activeTab = 'transmissions'">Transmissions</button>
+            (click)="setTab('transmissions')">Transmissions</button>
+    <button class="tab-item" [class.tab-item--active]="activeTab === 'reports'"
+            (click)="setTab('reports')">Scheme Reports</button>
   </div>
 
   @if (activeTab === 'batches') {
@@ -126,6 +128,129 @@
                 <td class="muted small" [attr.title]="t.errorMessage ?? null">
                   {{ t.nextRetryAt ? (t.nextRetryAt | date:'short') : '—' }}
                 </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </div>
+  }
+
+  @if (activeTab === 'reports') {
+    <div class="card report-card">
+      <div class="report-card__title">Scheme settlement report</div>
+      <p class="muted small report-card__hint">
+        Enter the net from the scheme's settlement report (major units; positive = the bank pays the scheme).
+        A difference from the expected net within the currency's tolerance is recorded and posted to
+        GL 1004 Card Settlement Differences; above it the report is refused.
+      </p>
+      <div class="form-row">
+        <div class="form-field">
+          <label class="form-label" for="sr-scheme">Scheme</label>
+          <select id="sr-scheme" class="form-input" [(ngModel)]="reportForm.scheme">
+            @for (s of schemes; track s) { <option [value]="s">{{ s }}</option> }
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="sr-date">Settlement date</label>
+          <input id="sr-date" class="form-input" type="date" [(ngModel)]="reportForm.settlementDate" />
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="sr-ccy">Currency</label>
+          <input id="sr-ccy" class="form-input mono" maxlength="3" [(ngModel)]="reportForm.currency" placeholder="USD" />
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="sr-net">Reported net</label>
+          <input id="sr-net" class="form-input mono" type="number" step="0.01" [(ngModel)]="reportForm.netAmount" />
+        </div>
+      </div>
+      <div class="report-actions">
+        <button class="btn-secondary" (click)="lookupExpected()">
+          <span class="material-icons">calculate</span> Expected net
+        </button>
+        <button class="btn-primary" [disabled]="recording" (click)="recordReport()">
+          <span class="material-icons">task_alt</span> Record report
+        </button>
+      </div>
+
+      @if (expectedError) {
+        <div class="error-banner"><span class="material-icons">error_outline</span> {{ expectedError }}</div>
+      } @else if (expected) {
+        <div class="figures" data-testid="expected">
+          <div><div class="detail-item__label">Expected net</div>
+               <div class="detail-item__value mono">{{ amount(expected.expectedNet) }} {{ expected.currency }}</div></div>
+          <div><div class="detail-item__label">Items</div><div class="detail-item__value">{{ expected.itemCount }}</div></div>
+          <div><div class="detail-item__label">Refunds</div><div class="detail-item__value">{{ expected.refundCount }}</div></div>
+        </div>
+      }
+
+      @if (recordError) {
+        <div class="error-banner"><span class="material-icons">error_outline</span> {{ recordError }}</div>
+      }
+      @if (recordResult) {
+        <div class="result" [class.result--ok]="recordResult.recorded" [class.result--refused]="!recordResult.recorded"
+             data-testid="record-result">
+          <div class="result__title">
+            @if (recordResult.recorded) {
+              <span class="material-icons">check_circle</span>
+              {{ recordResult.repeat ? 'Already recorded — nothing posted again' : 'Recorded' }}
+            } @else {
+              <span class="material-icons">block</span> Refused: {{ recordResult.reason }}
+            }
+          </div>
+          @if (!recordResult.recorded && recordResult.reason) {
+            <p class="small">{{ reasonText(recordResult.reason) }}</p>
+          }
+          <div class="figures">
+            <div><div class="detail-item__label">Expected</div>
+                 <div class="detail-item__value mono">{{ amount(recordResult.expectedNet) }}</div></div>
+            <div><div class="detail-item__label">Reported</div>
+                 <div class="detail-item__value mono">{{ amount(recordResult.reportedNet) }}</div></div>
+            <div><div class="detail-item__label">Difference</div>
+                 <div class="detail-item__value mono">{{ signedAmount(recordResult.difference) }}</div></div>
+            @if (recordResult.journalTransactionId) {
+              <div><div class="detail-item__label">Journal</div>
+                   <div class="detail-item__value mono small">{{ recordResult.journalTransactionId }}</div></div>
+            }
+          </div>
+        </div>
+      }
+    </div>
+
+    <div class="card">
+      <div class="report-list-header">
+        <label class="form-label" for="sr-list-date">Reports for</label>
+        <input id="sr-list-date" class="form-input" type="date" [(ngModel)]="reportsDate" (change)="loadReports()" />
+      </div>
+      @if (reportsLoading) {
+        <div class="skeleton-card">
+          @for (i of [1,2]; track i) { <div class="skeleton skeleton--row"></div> }
+        </div>
+      } @else if (reports.length === 0) {
+        <div class="empty-state">
+          <span class="material-icons">receipt_long</span>
+          <p>No scheme reports for this date.</p>
+        </div>
+      } @else {
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Scheme</th><th>Date</th><th>Currency</th><th>Expected</th><th>Reported</th>
+              <th>Difference</th><th>Items + refunds</th><th>Status</th><th>Journal</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of reports; track r.id) {
+              <tr class="table-row">
+                <td><span class="method-chip">{{ r.scheme }}</span></td>
+                <td class="muted small">{{ r.settlementDate }}</td>
+                <td class="mono">{{ r.currencyCode }}</td>
+                <td class="mono">{{ amount(r.expectedNet) }}</td>
+                <td class="mono">{{ amount(r.reportedNet) }}</td>
+                <td class="mono" [class.diff]="r.difference !== 0">{{ signedAmount(r.difference) }}</td>
+                <td>{{ r.itemCount }} + {{ r.refundCount }}</td>
+                <td><app-status-badge [label]="r.status" [variant]="statusVariant(r.status)" /></td>
+                <td class="mono muted small">{{ r.journalTransactionId ?? '—' }}</td>
               </tr>
             }
           </tbody>

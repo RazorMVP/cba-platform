@@ -40,9 +40,17 @@ public class CardSchemeSettlement {
     @Column(name = "currency_code", nullable = false, length = 3)
     private String currencyCode;
 
-    /** Signed, major units: positive = the bank paid the scheme (DR 2300 / CR 1003). */
+    /** The scheme's reported net. Signed, major units: positive = the bank paid the scheme (CR 1003). */
     @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal amount;
+
+    /** card-service's expected net (what 2300 held for the date), same sign; equals {@code amount} unless a difference was recorded. */
+    @Column(name = "expected_amount", nullable = false, precision = 19, scale = 4)
+    private BigDecimal expectedAmount;
+
+    /** amount − expectedAmount, posted to GL 1004 Card Settlement Differences (backlog 15d). */
+    @Column(nullable = false, precision = 19, scale = 4)
+    private BigDecimal difference = BigDecimal.ZERO;
 
     @Column(name = "journal_transaction_id", nullable = false, length = 64)
     private String journalTransactionId;

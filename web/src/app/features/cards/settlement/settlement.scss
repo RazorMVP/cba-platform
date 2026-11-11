@@ -42,3 +42,29 @@
   background: #fafafa;
   padding-top: 1rem;
 }
+
+// ── Scheme reports (backlog 15b/15d) ──
+.report-card { padding: $space-4 $space-5; margin-bottom: $space-4; }
+.report-card__title { font-weight: 600; margin-bottom: $space-2; }
+.report-card__hint { margin-bottom: $space-3; }
+
+.report-actions { display: flex; gap: $space-3; margin: $space-3 0; }
+
+.figures { display: flex; flex-wrap: wrap; gap: $space-6; margin-top: $space-3; }
+
+.result {
+  margin-top: $space-3; padding: $space-3 $space-4; border-radius: $radius-sm; border: 1px solid #e2e8f0;
+  &--ok { background: #f0fdf4; border-color: #bbf7d0; }
+  &--refused { background: #fff5f5; border-color: $color-error-100; }
+}
+.result__title {
+  display: flex; align-items: center; gap: $space-2; font-weight: 600;
+  .material-icons { font-size: 18px; }
+}
+
+.report-list-header {
+  display: flex; align-items: center; gap: $space-3; padding: $space-3 $space-4;
+  .form-input { max-width: 200px; }
+}
+
+.diff { color: $color-error-600; font-weight: 600; }

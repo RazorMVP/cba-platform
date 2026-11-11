@@ -70,6 +70,12 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
         registerPattern("POST", accounts + "/card-holds/[^/]+/release", hold(true, "REFUNDED", null));
         register("POST", "/api/v1/card-settlements", Map.of("data", Map.of("approved", true, "repeat", false,
                 "reference", "CSR", "journalTransactionId", "GL-IT"), "errors", List.of()));
+        // The backend owns the tolerance (15d): a reported 149.30 against 149.20 is over it.
+        priorityMapping(Map.of("method", "POST", "urlPath", "/api/v1/card-settlements",
+                        "bodyPatterns", List.of(Map.of("contains", "\"amount\":149.30"))),
+                Map.of("data", Map.of("approved", false, "repeat", false, "reference", "CSR",
+                        "reason", "DIFFERENCE_OVER_TOLERANCE", "expectedAmount", 149.20, "amount", 149.30,
+                        "difference", 0.10), "errors", List.of()));
         Map<String, Object> prepaidOk = Map.of("data", Map.of("approved", true, "repeat", false, "reference", "P",
                 "journalTransactionId", "GL-PP"), "errors", List.of());
         register("POST", "/api/v1/card-prepaid/loads", prepaidOk);
@@ -200,7 +206,8 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
     }
 
     @Test
-    @DisplayName("15b: a scheme report equal to the expected net posts the cash leg once and settles the batch; a mismatch posts nothing")
+    @DisplayName("15b/15d: a difference over the backend's tolerance is undone; within it the report is recorded once "
+            + "with its difference and the batch settles")
     void schemeReportPostsOnceAndSettles() {
         // A closed batch of an earlier day (no other test uses this date), two cleared Visa USD items.
         java.time.LocalDate day = java.time.LocalDate.of(2001, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(3000));
@@ -213,21 +220,30 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
         }
         int before = requests("/api/v1/card-settlements").size();
 
-        SchemeReportResult wrong = schemeSettlementService.record(new SchemeReportRequest("VISA", day, "USD", new BigDecimal("149.21")), "it");
-        assertThat(wrong.reason()).isEqualTo("AMOUNT_MISMATCH");
-        assertThat(wrong.expectedNet()).isEqualByComparingTo("149.20");
-        assertThat(requests("/api/v1/card-settlements")).hasSize(before);
+        SchemeReportResult over = schemeSettlementService.record(new SchemeReportRequest("VISA", day, "USD", new BigDecimal("149.30")), "it");
+        assertThat(over.recorded()).isFalse();
+        assertThat(over.reason()).isEqualTo("DIFFERENCE_OVER_TOLERANCE");
+        assertThat(over.expectedNet()).isEqualByComparingTo("149.20");
+        assertThat(over.difference()).isEqualByComparingTo("0.10");
+        assertThat(requests("/api/v1/card-settlements")).hasSize(before + 1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM scheme_settlement_reports WHERE settlement_date = ?",
+                Integer.class, day)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM settlement_items WHERE batch_id = ? AND settlement_report_id IS NOT NULL",
+                Integer.class, batch)).isZero();
 
-        SchemeReportResult right = schemeSettlementService.record(new SchemeReportRequest("VISA", day, "840", new BigDecimal("149.20")), "it");
+        SchemeReportResult right = schemeSettlementService.record(new SchemeReportRequest("VISA", day, "840", new BigDecimal("149.21")), "it");
         assertThat(right.recorded()).as(right.reason()).isTrue();
         assertThat(right.journalTransactionId()).isEqualTo("GL-IT");
-        SchemeReportResult again = schemeSettlementService.record(new SchemeReportRequest("VISA", day, "USD", new BigDecimal("149.20")), "it");
+        assertThat(right.difference()).isEqualByComparingTo("0.01");
+        SchemeReportResult again = schemeSettlementService.record(new SchemeReportRequest("VISA", day, "USD", new BigDecimal("149.21")), "it");
         assertThat(again.repeat()).isTrue();
 
         List<String> calls = requests("/api/v1/card-settlements");
-        assertThat(calls).hasSize(before + 1);
-        assertThat(calls).anySatisfy(body -> assertThat(body).contains("\"amount\":149.20").contains("\"currencyCode\":\"USD\"")
-                .contains("\"scheme\":\"VISA\""));
+        assertThat(calls).hasSize(before + 2);
+        assertThat(calls).anySatisfy(body -> assertThat(body).contains("\"amount\":149.21").contains("\"expectedAmount\":149.20")
+                .contains("\"currencyCode\":\"USD\"").contains("\"scheme\":\"VISA\""));
+        assertThat(jdbc.queryForObject("SELECT difference FROM scheme_settlement_reports WHERE settlement_date = ?",
+                BigDecimal.class, day)).isEqualByComparingTo("0.01");
         assertThat(jdbc.queryForObject("SELECT status FROM settlement_batches WHERE id = ?", String.class, batch)).isEqualTo("SETTLED");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM settlement_items WHERE batch_id = ? AND settlement_report_id IS NOT NULL",
                 Integer.class, batch)).isEqualTo(2);
@@ -302,6 +318,13 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
 
     private static void mapping(Map<String, Object> request, Map<String, Object> body) {
         ADMIN.postForEntity(backendUrl() + "/__admin/mappings", new HttpEntity<>(Map.of("request", request,
+                "response", Map.of("status", 200, "headers", Map.of("Content-Type", "application/json"),
+                        "jsonBody", body)), json()), String.class);
+    }
+
+    /** A stub that wins over the default ones (WireMock: lower priority number first). */
+    private static void priorityMapping(Map<String, Object> request, Map<String, Object> body) {
+        ADMIN.postForEntity(backendUrl() + "/__admin/mappings", new HttpEntity<>(Map.of("priority", 1, "request", request,
                 "response", Map.of("status", 200, "headers", Map.of("Content-Type", "application/json"),
                         "jsonBody", body)), json()), String.class);
     }

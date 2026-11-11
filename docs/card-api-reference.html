@@ -246,7 +246,7 @@ It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port
   <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/settlement/batches/{id}/close</code></td><td>ADMIN</td><td>Close settlement batch</td></tr>
   <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/settlement/export/{batchId}</code></td><td>ADMIN</td><td>Manual scheme file export</td></tr>
   <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/settlement/transmissions</code></td><td>ADMIN/TELLER</td><td>List transmission records</td></tr>
-  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/settlement/scheme-reports</code></td><td>ADMIN</td><td>Record a scheme settlement report (posts the cash leg on a match)</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/settlement/scheme-reports</code></td><td>ADMIN</td><td>Record a scheme settlement report (the backend posts the cash leg; a difference within tolerance to GL 1004)</td></tr>
   <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/settlement/scheme-reports?date=</code></td><td>ADMIN</td><td>List recorded scheme reports</td></tr>
   <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/settlement/scheme-reports/expected?scheme=&amp;date=&amp;currency=</code></td><td>ADMIN</td><td>Expected net a scheme report must show</td></tr>
   <!-- Disputes -->
@@ -627,19 +627,19 @@ next day: operations record each scheme's settlement report → backend POST /ap
     <span class="endpoint-summary">Record a scheme settlement report (the cash leg)</span>
   </summary>
   <div class="endpoint-body">
-    <p>Operations enter the net a card scheme reports for one settlement date and currency (ADMIN). The expected net is the <code>glNet</code> of that date's cleared items plus the <code>refundGlNet</code> of that date's refunds, for the scheme and currency. <strong>Only an exact match is recorded</strong> (no tolerance yet — backlog 15d): the backend then posts <code>DR 2300 / CR 1003 Card Scheme Settlement Account</code> (negative net: the reverse) through <code>POST /api/v1/card-settlements</code>, and the date's batches become <code>SETTLED</code> once all their GL items are in recorded reports. A mismatch returns <code>recorded=false</code>, <code>reason=AMOUNT_MISMATCH</code> with <code>expectedNet</code>, <code>reportedNet</code> and <code>difference</code>, and <strong>writes nothing</strong>. Other refusals: <code>DATE_NOT_CLOSED</code> (the date must be before today), <code>BATCH_NOT_CLOSED</code> (a batch of the date still OPEN, or items PENDING/CLEARING), <code>ALREADY_RECORDED</code> (another amount after recording), <code>REPORT_IN_PROGRESS</code>, <code>UNKNOWN_CURRENCY</code>, <code>INVALID_AMOUNT</code>. The same report again: <code>recorded=true, repeat=true</code>, nothing posted. Backend unreachable → <code>BACKEND_UNAVAILABLE</code>; the report stays <code>POSTING</code> and recording it again finishes it with the same backend reference. Expected net 0 → recorded with no journal.</p>
+    <p>Operations enter the net a card scheme reports for one settlement date and currency (ADMIN). The expected net is the <code>glNet</code> of that date's cleared items plus the <code>refundGlNet</code> of that date's refunds, for the scheme and currency. card-service sends the reported and the expected net to the backend (<code>POST /api/v1/card-settlements</code> with <code>amount</code> and <code>expectedAmount</code>); <strong>the backend, which owns the GL, decides on any difference</strong> (backlog 15d). Equal figures post <code>DR 2300 / CR 1003 Card Scheme Settlement Account</code> (negative net: the reverse). A difference within the currency's tolerance (backend <code>app.cards.settlement.difference-tolerance</code>, default 0) is recorded: 2300 at the expected net, 1003 at the reported net, the rest to <code>GL 1004 Card Settlement Differences</code>; the report keeps its <code>difference</code>. Either way the date's batches become <code>SETTLED</code> once all their GL items are in recorded reports. Above the tolerance the backend refuses: <code>recorded=false</code>, <code>reason=DIFFERENCE_OVER_TOLERANCE</code> with <code>expectedNet</code>, <code>reportedNet</code> and <code>difference</code> — the report row is deleted and its items un-stamped, so <strong>nothing is kept</strong> and operations can record a corrected figure. (Until cont. 61 card-service refused any mismatch itself with <code>AMOUNT_MISMATCH</code>.) Any other backend refusal is returned the same way. Other refusals: <code>DATE_NOT_CLOSED</code> (the date must be before today), <code>BATCH_NOT_CLOSED</code> (a batch of the date still OPEN, or items PENDING/CLEARING), <code>ALREADY_RECORDED</code> (another amount after recording), <code>REPORT_IN_PROGRESS</code>, <code>UNKNOWN_CURRENCY</code>, <code>INVALID_AMOUNT</code>. The same report again: <code>recorded=true, repeat=true</code>, nothing posted. Backend unreachable → <code>BACKEND_UNAVAILABLE</code>; the report stays <code>POSTING</code> and recording it again finishes it with the same backend reference. Expected net 0 and reported 0 → recorded with no journal (expected 0 with a reported figure goes to the backend).</p>
     <pre><code>// Request — netAmount major units, signed (+ = the bank pays the scheme); currency alphabetic or numeric
 { "scheme": "VISA", "settlementDate": "2026-10-23", "currency": "USD", "netAmount": 149.20 }
 
-// Response (200) — match
+// Response (200) — recorded with a difference within tolerance (1004 DR 0.01)
 { "data": { "recorded": true, "repeat": false, "reason": null, "scheme": "VISA",
-  "settlementDate": "2026-10-23", "currency": "USD", "expectedNet": 149.20, "reportedNet": 149.20,
-  "difference": 0.00, "itemCount": 2, "refundCount": 0,
+  "settlementDate": "2026-10-23", "currency": "USD", "expectedNet": 149.20, "reportedNet": 149.21,
+  "difference": 0.01, "itemCount": 2, "refundCount": 0,
   "backendReference": "CSR-VISA-20261023-USD", "journalTransactionId": "GL-…" } }
 
-// Response (200) — mismatch: nothing written
-{ "data": { "recorded": false, "reason": "AMOUNT_MISMATCH", "expectedNet": 149.20,
-  "reportedNet": 149.21, "difference": 0.01, ... } }</code></pre>
+// Response (200) — refused by the backend over tolerance: nothing kept
+{ "data": { "recorded": false, "reason": "DIFFERENCE_OVER_TOLERANCE", "expectedNet": 149.20,
+  "reportedNet": 149.30, "difference": 0.10, ... } }</code></pre>
   </div>
 </details>
 
@@ -650,7 +650,7 @@ next day: operations record each scheme's settlement report → backend POST /ap
     <span class="endpoint-summary">Expected net for a scheme, date and currency</span>
   </summary>
   <div class="endpoint-body">
-    <p>The amount a scheme report must show to be recorded — same shape as the report result, with <code>recorded=false</code> and no reported figure. Nothing is written. <code>GET /api/v1/cards/settlement/scheme-reports?date=</code> lists recorded (and POSTING) reports.</p>
+    <p>The amount a scheme report is reconciled against — same shape as the report result, with <code>recorded=false</code> and no reported figure. Nothing is written. <code>GET /api/v1/cards/settlement/scheme-reports?date=</code> lists recorded (and POSTING) reports, each with <code>expectedNet</code>, <code>reportedNet</code> and <code>difference</code>. The web Settlement screen's <em>Scheme Reports</em> tab uses all three endpoints.</p>
   </div>
 </details>
 </section>

@@ -60,10 +60,12 @@ public class SettlementController {
     }
 
     /**
-     * Records a card scheme's settlement report (backlog 15b). Only an exact match with the expected net
-     * of the date's cleared items and refunds is recorded: the backend then posts the cash leg (DR 2300 /
-     * CR 1003, or the reverse) and the date's batches become SETTLED. A mismatch returns recorded=false,
-     * reason AMOUNT_MISMATCH and the difference, and writes nothing. Idempotent for the same report.
+     * Records a card scheme's settlement report (backlog 15b). The reported net and the expected net of the
+     * date's cleared items and refunds go to the backend, which posts the cash leg (DR 2300 / CR 1003, or the
+     * reverse) — a difference within its per-currency tolerance to GL 1004 (backlog 15d) — and the date's
+     * batches become SETTLED. Above the tolerance the backend refuses: recorded=false, reason
+     * DIFFERENCE_OVER_TOLERANCE with expected, reported and the difference, nothing kept. Idempotent for the
+     * same report.
      */
     @PostMapping("/scheme-reports")
     public ResponseEntity<ApiResponse<SchemeReportResult>> recordSchemeReport(

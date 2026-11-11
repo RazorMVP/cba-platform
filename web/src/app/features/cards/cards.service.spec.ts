@@ -112,6 +112,33 @@ describe('CardsService', () => {
     httpMock.expectOne(`${CARDAPI}/webhooks`).flush(envelope([]));
   });
 
+  it('scheme reports: expected net, record and list on the internal base', () => {
+    service.expectedSchemeNet('VISA', '2026-11-08', 'USD').subscribe(r => expect(r.expectedNet).toBe(149.2));
+    const exp = httpMock.expectOne(r => r.url === `${BASE}/cards/settlement/scheme-reports/expected`);
+    expect(exp.request.method).toBe('GET');
+    expect(exp.request.params.get('scheme')).toBe('VISA');
+    expect(exp.request.params.get('date')).toBe('2026-11-08');
+    expect(exp.request.params.get('currency')).toBe('USD');
+    exp.flush(envelope({ expectedNet: 149.2 }));
+
+    service.recordSchemeReport({ scheme: 'VISA', settlementDate: '2026-11-08', currency: 'USD', netAmount: 149.21 })
+      .subscribe(r => expect(r.difference).toBe(0.01));
+    const rec = httpMock.expectOne(`${BASE}/cards/settlement/scheme-reports`);
+    expect(rec.request.method).toBe('POST');
+    expect(rec.request.body).toEqual({ scheme: 'VISA', settlementDate: '2026-11-08', currency: 'USD', netAmount: 149.21 });
+    rec.flush(envelope({ recorded: true, difference: 0.01 }));
+
+    service.listSchemeReports('2026-11-08').subscribe();
+    const list = httpMock.expectOne(r => r.url === `${BASE}/cards/settlement/scheme-reports` && r.method === 'GET');
+    expect(list.request.params.get('date')).toBe('2026-11-08');
+    list.flush(envelope([]));
+
+    service.listSchemeReports().subscribe();
+    const all = httpMock.expectOne(r => r.url === `${BASE}/cards/settlement/scheme-reports` && r.method === 'GET');
+    expect(all.request.params.has('date')).toBe(false);
+    all.flush(envelope([]));
+  });
+
   it('settlement, BIN, interchange, simulator use the internal base', () => {
     service.listBatches().subscribe();
     httpMock.expectOne(`${BASE}/cards/settlement/batches`).flush(envelope([]));

@@ -9,10 +9,11 @@ import java.time.LocalDate;
  *
  * @param recorded    true when the report is recorded and the cash leg posted (now, or by an earlier identical report)
  * @param repeat      true when an identical report was already recorded (nothing posted again)
- * @param reason      why not: AMOUNT_MISMATCH, ALREADY_RECORDED, REPORT_IN_PROGRESS, DATE_NOT_CLOSED,
- *                    BATCH_NOT_CLOSED, UNKNOWN_CURRENCY, INVALID_AMOUNT, BACKEND_UNAVAILABLE, or the backend's refusal
+ * @param reason      why not: ALREADY_RECORDED, REPORT_IN_PROGRESS, DATE_NOT_CLOSED, BATCH_NOT_CLOSED,
+ *                    UNKNOWN_CURRENCY, INVALID_AMOUNT, BACKEND_UNAVAILABLE, or the backend's refusal —
+ *                    DIFFERENCE_OVER_TOLERANCE when reported − expected is above the currency's tolerance
  * @param expectedNet what the bank owes the scheme for the date (major units, signed)
- * @param difference  reported − expected
+ * @param difference  reported − expected; when recorded, posted to the backend's GL 1004 (backlog 15d)
  */
 public record SchemeReportResult(boolean recorded, boolean repeat, String reason, String scheme,
                                  LocalDate settlementDate, String currency, BigDecimal expectedNet,

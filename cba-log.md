@@ -96,6 +96,43 @@ backend: Spring Boot 3.5.16, Java 21; `-Pfull-integration` 1102. card-service: S
 
 ---
 
+### Session 125 (cont. 61) — 2026-11-09
+**Backlog set 2, PR C — item 15d (tolerance part): scheme settlement differences within tolerance post to GL 1004 (plan `docs/plans/2026-11-09-backlog-set-2.md`, D7a). A scheme's settlement report had to equal card-service's expected net to the cent, so a one-cent rounding difference blocked the whole date (batches never SETTLED). Now the backend, which owns the GL, records a difference within a per-currency tolerance and posts it to a new suspense account; above it the report is refused with the figures.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/…/db/migration/V69__card_settlement_differences.sql` | NEW — GL **1004 Card Settlement Differences** (asset, `manual_entries_allowed TRUE`, id `…000e`) → `ASSET_CARD_SETTLEMENT_DIFFERENCES`; `card_scheme_settlements.expected_amount` (backfilled = amount, NOT NULL) + `difference`; CHECK `amount <> 0` → `amount <> 0 OR expected_amount <> 0` |
+| `backend/…/accounting/FinancialActivityAccount.java` | `ASSET_CARD_SETTLEMENT_DIFFERENCES` (next to `ASSET_CARD_SCHEME_SETTLEMENT`) |
+| `backend/…/account/AccountGlPosting.java` | `postCardSchemeSettlement(amount, expected, …)`: 2300 at expected, 1003 at reported, residual on 1004; zero lines skipped (equal figures = the old two lines, 1004 not resolved) |
+| `backend/…/cardsettlement/CardSettlementProperties.java` | NEW — `app.cards.settlement.difference-tolerance` (currency → major units, `default`; case-insensitive; unset/negative = 0) |
+| `backend/…/cardsettlement/CardSchemeSettlementService.java`, `CardSchemeSettlement.java`, `CardSchemeSettlementController.java`, `dto/*` | optional `expectedAmount`; `DIFFERENCE_OVER_TOLERANCE`; `ZERO_AMOUNT` only when both zero; scale check on both; repeat compares both figures; result carries `expectedAmount`/`amount`/`difference`; audit includes them |
+| `backend/…/resources/application.yml` | commented example under `app:`; test profile `app.cards.settlement.difference-tolerance.USD: 0.05` |
+| backend tests | `CardSchemeSettlementIT` +7, `AccountGlPostingTest` +6, NEW `CardSchemeSettlementServiceTest` (6) |
+| `card-service/…/db/migration/V18__scheme_report_difference.sql` | NEW — `scheme_settlement_reports.difference` |
+| `card-service/…/settlement/SchemeSettlementService.java`, `SchemeSettlementReport.java`, `SchemeReportResult.java`, `BackendClearingClient.java`, `SettlementController.java` | no local mismatch refusal (`AMOUNT_MISMATCH` gone); sends `expectedAmount`; stores the difference; no-journal shortcut only when expected **and** reported are 0; backend refusal (incl. over tolerance) undoes the report with the figures |
+| card-service tests | `SchemeSettlementServiceTest` (mismatch test → backend refuses over tolerance; + recorded with a difference; + expected 0 / reported ≠ 0 goes to the backend), `CardClearingIntegrationTest` (WireMock refuses 149.30, approves 149.21; difference stored) |
+| `backend/docs/openapi-snapshot.yaml`, `card-service/docs/openapi-snapshot.yaml` | new request/result fields; `difference` on the report |
+| `web/…/cards/cards.service.ts`, `settlement/*` | NEW **Scheme Reports** tab: expected-net lookup, record form with result/refusal (expected, reported, difference, reason in words), reports per date; `expectedSchemeNet` / `recordSchemeReport` / `listSchemeReports`; specs |
+| `docs/api-reference.html`, `docs/card-api-reference.html`, Postman (+ `docs-site/static` copies), `CLAUDE.md`, `docs/deferred-backlog.md` | 3-line journal, 1004, `expectedAmount`, `DIFFERENCE_OVER_TOLERANCE`; item 15 tolerance ✅ |
+
+#### Key Patterns / Decisions
+- **D7a — where the difference goes.** 2300 is cleared at the *expected* net (what the bank owed for that day's items), 1003 moves by the *reported* net (what actually left or reached the settlement bank), the rest goes to 1004. Never netted into 2300: that would hide a difference inside the payable (IAS 1 §32, no offsetting). The difference is a claim on, or an obligation to, the scheme until investigated (IFRS 9 §3.1.1); ops clear 1004 by manual journal — back to the scheme, or written off to P&L when unrecoverable (IFRS 9 §5.4.4). So 1004 allows manual journals; 1003 and 2300 still don't.
+- **The tolerance lives in the backend** (the GL owner), not card-service: card-service sends both figures and treats `DIFFERENCE_OVER_TOLERANCE` like any backend refusal (stamps removed, row deleted). Default 0 → nothing changes until configured.
+- **Signs:** positive = the bank pays the scheme. Expected > 0 → DR 2300, < 0 → CR 2300; reported > 0 → CR 1003, < 0 → DR 1003; residual = expected − reported → CR 1004 when positive, DR when negative. Covered across zero and with either figure zero.
+- **Flyway numbering:** backend V69 / card-service V18 leave V67/V68 and V17 to PRs A and B; this PR must merge after them (an existing database that ran V69 would refuse a later V67/V68 without `outOfOrder`).
+
+#### Build Verification
+- backend `-Pfull-integration -Dupdate.api.snapshot=true`: **1091/1091** (main 1072 + 19); **1121/1121** after rebasing on cont. 60 (#237) + cont. 62 (#239), snapshot unchanged.
+- card-service `-Pfull-integration -Dupdate.api.snapshot=true`: **304/304** (main 302 + 2); **320/320** after rebasing on cont. 62, snapshot unchanged.
+- web: **1186/1186** (115 files; main 1176 + 10); **1204/1204** after rebasing; change detection OK; production build OK; eslint on the touched files: 0 errors (1 pre-existing warning).
+- Gate grep (`@*Mapping` / `@RequestParam` / `@PathVariable`): (none) — request/response fields changed only; documented in api-reference, card-api-reference and Postman.
+
+#### Confirmed Platform Versions
+backend: Spring Boot 3.5.16, Java 21; `-Pfull-integration` 1121. card-service: Spring Boot 3.5.16; 320. web: Angular 22.2.3; 1204. No dependency changes.
+
+---
+
 ### Session 125 (cont. 60) — 2026-11-09
 **Backlog set 2, PR A — item 1: external payments settle asynchronously and post to the GL (plan `docs/plans/2026-11-09-backlog-set-2.md`, D1a–D4a). An external payment was `COMPLETED` on the gateway's acknowledgement and posted no journal at all (GL 2001 drifted from the deposit sub-ledger); the debit skipped the row lock and hold check; a gateway timeout rolled the debit back although the payment may have left; reversing one was a NullPointerException.**
 

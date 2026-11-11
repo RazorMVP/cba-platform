@@ -1,6 +1,6 @@
 # Backlog set 2: items 1, 15c, 4 (TLV), 15d (tolerance)
 
-> Status: approved 2026-11-09 (user: "1 + 15c + 4 (TLV) + 15d (tolerance)"; every decision a). PR A (1) and PR D (#236, 4 TLV) open; B (15c) and C (15d) next.
+> Status: merged — PR A (1) #237 `1e5f4d6`, PR B (15c) #239 `9c84761`, PR C (15d tolerance) #238 `9bc9e31`, PR D (4 TLV) #236 `5a6630e` (2026-11-09 to 2026-11-11). Approved 2026-11-09 (user: "1 + 15c + 4 (TLV) + 15d (tolerance)"; every decision a).
 > Set 1's plan is already in `docs/plans/2026-11-06-backlog-set-1.md`.
 
 ## Context

@@ -87,6 +87,7 @@ _None — all Phase 1 backend modules are now complete._
 #### Build Verification
 - backend `./mvnw -o test`: 921 green; `-Pfull-integration` with `-Dupdate.api.snapshot=true`: **1078/1078** (was 1072; `CardPrepaidIT` 6/6); **1102/1102** after rebasing on cont. 60 (#237), snapshot unchanged.
 - card-service `./mvnw -o test`: **285/285** (was 270); `-Pfull-integration` with snapshot update: **318/318** (was 302).
+- SpotBugs (CI) flagged `CardServiceClient.getWalletTotals` NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE (`resp.getBody()` read twice); fixed by reading the body once — no behaviour change. API surface unchanged by the fix — verified via gate grep; no api-reference/postman edits owed. backend unit **939/939**.
 - web: **1185/1185** (was 1176); **1194/1194** after rebasing on cont. 60; change detection OK; `tsc` clean.
 - Gate grep (untracked new controllers): `@RequestMapping /api/v1/card-prepaid` + `/loads`, `/unloads`, `/clearings`, `/clearings/{reference}/refund`; card-service `/{id}/wallet`, `/{id}/wallet/loads`, `/{id}/wallet/unloads`, `/wallets/totals`; opening-balances scope PREPAID — all documented in api-reference, card-api-reference and Postman.
 

@@ -137,7 +137,8 @@ public class CardServiceClient {
         try {
             ResponseEntity<Map<String, Object>> resp = rest.exchange(
                     "/api/v1/cards/wallets/totals", HttpMethod.GET, null, new ParameterizedTypeReference<>() {});
-            Object data = resp.getBody() == null ? null : resp.getBody().get("data");
+            Map<String, Object> body = resp.getBody();
+            Object data = body == null ? null : body.get("data");
             if (!(data instanceof Map<?, ?> map)) return Optional.empty();
             Map<String, BigDecimal> totals = new java.util.TreeMap<>();
             ((Map<String, Object>) map).forEach((ccy, v) -> totals.put(ccy, toBigDecimal(v)));

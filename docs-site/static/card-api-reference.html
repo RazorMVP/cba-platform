@@ -211,6 +211,10 @@ It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port
   <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/{id}</code></td><td>ADMIN/TELLER/CARD_READER</td><td>Card details</td></tr>
   <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/{id}?command=</code></td><td>ADMIN/TELLER</td><td>Lifecycle command (block/unblock/cancel/activate/replace)</td></tr>
   <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/{id}/balance</code></td><td>ADMIN/TELLER/CARD_READER</td><td>Available balance (debit/prepaid/credit)</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/{id}/wallet</code></td><td>ADMIN/TELLER</td><td>Prepaid wallet balance + last 50 loads/unloads</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/{id}/wallet/loads</code></td><td>ADMIN/TELLER</td><td>Load the wallet from the customer's account (201 / 202 PENDING / 400 reason)</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/{id}/wallet/unloads</code></td><td>ADMIN/TELLER</td><td>Redeem the wallet to the customer's account</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/wallets/totals</code></td><td>ADMIN/CARD_READER</td><td>Wallet balances per currency (backend GL 2500 reconciliation)</td></tr>
   <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/{id}/authorizations</code></td><td>ADMIN/TELLER/CARD_READER</td><td>Authorization history, newest first (backend Open Banking card transactions)</td></tr>
   <tr><td><span class="badge badge-put">PUT</span></td><td><code>/api/v1/cards/{id}/limits</code></td><td>ADMIN/TELLER</td><td>Update spending limits</td></tr>
   <!-- Fraud -->
@@ -343,6 +347,44 @@ It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port
     <p>Returns available balance in minor units. Debit/prepaid reads wallet balance; credit reads <code>creditLimit − outstandingBalance</code>.</p>
     <h4>Response (200)</h4>
     <pre><code>{ "data": { "availableBalance": 250000, "cardType": "DEBIT", "currency": "840" }, "errors": [] }</code></pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/cards/{id}/wallet/loads</span>
+    <span class="endpoint-summary">Load a prepaid wallet (backlog 15c)</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>ADMIN, TELLER. Moves money from the cardholder's backend account into the wallet; the backend debits the account and posts <code>DR deposit / CR 2500 Prepaid Card Liabilities</code>. The movement is claimed first (PENDING), the backend is called, then the answer is written: <strong>201</strong> COMPLETED (wallet credited), <strong>202</strong> PENDING (no answer — retried every minute with the same reference until answered; never failed automatically), <strong>400</strong> with the backend's reason (<code>INSUFFICIENT_FUNDS</code>, <code>ACCOUNT_NOT_FOUND</code>, <code>CURRENCY_MISMATCH</code>, <code>ACCOUNT_NOT_ACTIVE</code>, …; the movement is kept FAILED). A card's first load opens its wallet in <code>currencyCode</code> (required then: <code>400 CURRENCY_REQUIRED</code>); later loads must be in the wallet's currency. Also <code>400 NOT_A_PREPAID_CARD</code>, <code>CARD_NOT_LOADABLE</code> (cancelled/expired), <code>INVALID_AMOUNT</code>.</p>
+    <pre><code>{ "sourceAccountId": "…", "amount": 100.00, "currencyCode": "USD" }</code></pre>
+    <h4>Response (201 / 202)</h4>
+    <pre><code>{ "data": { "id": "…", "cardId": "…", "movementType": "LOAD", "reference": "WLD-…", "accountId": "…",
+  "amount": 100.00, "currencyCode": "USD", "status": "COMPLETED", "failureReason": null, "attempts": 0 }, "errors": [] }</code></pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/cards/{id}/wallet/unloads</span>
+    <span class="endpoint-summary">Redeem a prepaid wallet to the customer's account</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>ADMIN, TELLER. Body <code>{ "destinationAccountId", "amount" }</code>. The amount leaves the wallet <strong>first</strong> (so card spend can't use it in flight); the backend credits the account and posts <code>DR 2500 / CR deposit</code>. A refusal gives the amount back to the wallet. <code>400 INSUFFICIENT_WALLET_BALANCE</code>, <code>NO_WALLET</code>. Same 201/202/400 answers as a load.</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/cards/{id}/wallet</span>
+    <span class="endpoint-summary">Prepaid wallet and its movements</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>ADMIN, TELLER. <code>{ cardId, walletId, balance, currencyCode, status, movements[] }</code> — the last 50 loads/unloads, newest first; <code>walletId</code> null until the first load. <code>GET /api/v1/cards/wallets/totals</code> (ADMIN, CARD_READER) returns balances per currency, which the backend's <code>opening-balances?scope=PREPAID</code> reconciles against GL 2500.</p>
+    <p><strong>Prepaid spend (backlog 15c, D5a):</strong> approval decrements the wallet (the hold) and adds a PENDING settlement item under a <code>PPD-</code> reference; batch close clears it on the backend (<code>POST /api/v1/card-prepaid/clearings</code>: DR 2500 / CR 2300, with interchange — prepaid now earns like debit — and scheme fees), so it enters the scheme report's expected net. A reversal before clearing gives the wallet back; after clearing the backend refunds first (pro rata, once), then the wallet is credited — unreachable → RC 96. An item still uncleared after 7 days is FAILED and its wallet decrement given back. A card never loaded declines <strong>RC 51</strong> (was 91).</p>
   </div>
 </details>
 

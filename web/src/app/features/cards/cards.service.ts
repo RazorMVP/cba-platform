@@ -84,6 +84,29 @@ export interface UpdateLimitsRequest {
   monthlyLimit: number;
 }
 
+/** A prepaid wallet load or unload (backlog 15c); PENDING = the backend didn't answer yet and it is retried. */
+export interface WalletMovement {
+  id: string;
+  cardId: string;
+  movementType: 'LOAD' | 'UNLOAD';
+  reference: string;
+  accountId: string;
+  amount: number;
+  currencyCode: string;
+  status: 'PENDING' | 'COMPLETED' | 'FAILED';
+  failureReason?: string;
+  createdAt: string;
+}
+
+export interface WalletView {
+  cardId: string;
+  walletId?: string;
+  balance: number;
+  currencyCode?: string;
+  status?: string;
+  movements: WalletMovement[];
+}
+
 export interface CardBalance {
   availableBalance: number;
   cardType: CardType;
@@ -410,6 +433,18 @@ export class CardsService {
     return this.put<Card>(`/cards/${id}/controls`, req, true);
   }
   getCardBalance(id: string): Observable<CardBalance> { return this.get<CardBalance>(`/cards/${id}/balance`); }
+
+  // ── Prepaid wallet (backlog 15c) ─────────────────────────────────────────
+  /** GET /cards/{id}/wallet — balance and the last 50 loads/unloads */
+  getWallet(id: string): Observable<WalletView> { return this.get<WalletView>(`/cards/${id}/wallet`); }
+  /** POST /cards/{id}/wallet/loads — 201 COMPLETED, 202 PENDING (retried), 400 with the backend's reason */
+  loadWallet(id: string, body: { sourceAccountId: string; amount: number; currencyCode?: string }): Observable<WalletMovement> {
+    return this.post<WalletMovement>(`/cards/${id}/wallet/loads`, body);
+  }
+  /** POST /cards/{id}/wallet/unloads — redeem to the customer's account */
+  unloadWallet(id: string, body: { destinationAccountId: string; amount: number }): Observable<WalletMovement> {
+    return this.post<WalletMovement>(`/cards/${id}/wallet/unloads`, body);
+  }
   getCardLimits(id: string): Observable<CardLimit> {
     return this.http.get<ApiResponse<CardLimit>>(`${this.cardApi}/cards/${id}/limits`).pipe(map(r => r.data));
   }

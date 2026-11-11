@@ -2479,6 +2479,17 @@ components:
         meta:
           $ref: "#/components/schemas/PageMeta"
       type: "object"
+    ApiResponsePrepaidMovementResult:
+      properties:
+        data:
+          $ref: "#/components/schemas/PrepaidMovementResult"
+        errors:
+          items:
+            $ref: "#/components/schemas/ApiError"
+          type: "array"
+        meta:
+          $ref: "#/components/schemas/PageMeta"
+      type: "object"
     ApiResponseProvisioningCriteria:
       properties:
         data:
@@ -5597,6 +5608,7 @@ components:
           - "LIABILITY_EXTERNAL_PAYMENT_IN_TRANSIT"
           - "ASSET_EXTERNAL_PAYMENT_NOSTRO"
           - "LIABILITY_CARD_SETTLEMENT"
+          - "LIABILITY_PREPAID_CARD"
           - "ASSET_CARD_SCHEME_SETTLEMENT"
           - "INCOME_CARD_INTERCHANGE"
           - "EXPENSE_CARD_SCHEME_FEES"
@@ -5641,6 +5653,7 @@ components:
           - "LIABILITY_EXTERNAL_PAYMENT_IN_TRANSIT"
           - "ASSET_EXTERNAL_PAYMENT_NOSTRO"
           - "LIABILITY_CARD_SETTLEMENT"
+          - "LIABILITY_PREPAID_CARD"
           - "ASSET_CARD_SCHEME_SETTLEMENT"
           - "INCOME_CARD_INTERCHANGE"
           - "EXPENSE_CARD_SCHEME_FEES"
@@ -8025,6 +8038,7 @@ components:
           enum:
           - "DEPOSITS"
           - "LOANS"
+          - "PREPAID"
           type: "string"
         transactionId:
           type: "string"
@@ -10071,6 +10085,82 @@ components:
         totalBalance:
           type: "number"
       type: "object"
+    PrepaidClearingRequest:
+      properties:
+        amount:
+          type: "number"
+        cardId:
+          format: "uuid"
+          type: "string"
+        currencyCode:
+          type: "string"
+        interchangeAmount:
+          type: "number"
+        interchangeDirection:
+          enum:
+          - "EARNED"
+          - "PAID"
+          type: "string"
+        reference:
+          minLength: 1
+          type: "string"
+        scheme:
+          type: "string"
+        schemeFeeAmount:
+          type: "number"
+      type: "object"
+    PrepaidMovementResult:
+      properties:
+        approved:
+          type: "boolean"
+        interchangeAmount:
+          type: "number"
+        interchangeDirection:
+          type: "string"
+        interchangeReversed:
+          type: "number"
+        journalTransactionId:
+          type: "string"
+        reason:
+          type: "string"
+        reference:
+          type: "string"
+        repeat:
+          type: "boolean"
+        schemeFeeAmount:
+          type: "number"
+        schemeFeeReversed:
+          type: "number"
+      type: "object"
+    PrepaidRefundRequest:
+      properties:
+        amount:
+          type: "number"
+        currencyCode:
+          type: "string"
+        refundReference:
+          minLength: 1
+          type: "string"
+      type: "object"
+    PrepaidTransferRequest:
+      properties:
+        accountId:
+          format: "uuid"
+          type: "string"
+        amount:
+          type: "number"
+        cardId:
+          format: "uuid"
+          type: "string"
+        currencyCode:
+          type: "string"
+        customerId:
+          format: "uuid"
+          type: "string"
+        reference:
+          minLength: 1
+          type: "string"
+      type: "object"
     ProvisioningCriteria:
       properties:
         active:
@@ -11920,6 +12010,8 @@ components:
           - "CARD_PURCHASE"
           - "CARD_CASH_WITHDRAWAL"
           - "CARD_REFUND"
+          - "PREPAID_CARD_LOAD"
+          - "PREPAID_CARD_UNLOAD"
           type: "string"
         valueDate:
           format: "date"
@@ -13242,6 +13334,8 @@ paths:
           - "CARD_PURCHASE"
           - "CARD_CASH_WITHDRAWAL"
           - "CARD_REFUND"
+          - "PREPAID_CARD_LOAD"
+          - "PREPAID_CARD_UNLOAD"
           type: "string"
       - in: "query"
         name: "pageable"
@@ -13592,6 +13686,112 @@ paths:
       summary: "Download CSV template"
       tags:
       - "Bulk Import"
+  /api/v1/card-prepaid/clearings:
+    post:
+      description: "DR 2500 / CR 2300 Card Scheme Settlement Payable, with interchange\
+        \ (EARNED: DR 2300 / CR 4005; PAID: DR 5007 / CR 2300) and scheme fees (DR\
+        \ 5006 / CR 2300) in the same journal. Idempotent on reference (a repeat returns\
+        \ the first figures). Reasons: REFERENCE_CONFLICT, INVALID_AMOUNT, UNKNOWN_CURRENCY,\
+        \ INVALID_CARD_FEES."
+      operationId: "clearing"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrepaidClearingRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePrepaidMovementResult"
+          description: "OK"
+      security:
+      - oauth2: []
+      summary: "Clear prepaid card spend (card-service batch close)"
+      tags:
+      - "Prepaid Card Wallets"
+  /api/v1/card-prepaid/clearings/{reference}/refund:
+    post:
+      description: "The opposite of the clearing for amount (≤ cleared), interchange\
+        \ and fees pro rata (HALF_UP); once per clearing. Idempotent on refundReference.\
+        \ Reasons: CLEARING_NOT_FOUND, CURRENCY_MISMATCH, ALREADY_REFUNDED, AMOUNT_EXCEEDS_CLEARED,\
+        \ INVALID_AMOUNT, REFERENCE_CONFLICT."
+      operationId: "refund"
+      parameters:
+      - in: "path"
+        name: "reference"
+        required: true
+        schema:
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrepaidRefundRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePrepaidMovementResult"
+          description: "OK"
+      security:
+      - oauth2: []
+      summary: "Refund a cleared prepaid purchase (card-service reversal)"
+      tags:
+      - "Prepaid Card Wallets"
+  /api/v1/card-prepaid/loads:
+    post:
+      description: "Debits accountId under the withdrawal rules: DR customer deposit\
+        \ / CR 2500 Prepaid Card Liabilities. The account must be the customer's (else\
+        \ ACCOUNT_NOT_FOUND) and in the wallet currency. Idempotent on reference.\
+        \ Reasons: REFERENCE_CONFLICT, ACCOUNT_NOT_FOUND, CURRENCY_MISMATCH, ACCOUNT_NOT_ACTIVE,\
+        \ ACCOUNT_IN_LOCKIN_PERIOD, INSUFFICIENT_FUNDS, INVALID_AMOUNT, UNKNOWN_CURRENCY."
+      operationId: "load"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrepaidTransferRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePrepaidMovementResult"
+          description: "OK"
+      security:
+      - oauth2: []
+      summary: "Load a prepaid wallet from the customer's account (card-service)"
+      tags:
+      - "Prepaid Card Wallets"
+  /api/v1/card-prepaid/unloads:
+    post:
+      description: "Credits accountId: DR 2500 / CR customer deposit. Same rules and\
+        \ reasons as a load, without the funds check."
+      operationId: "unload"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrepaidTransferRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponsePrepaidMovementResult"
+          description: "OK"
+      security:
+      - oauth2: []
+      summary: "Redeem a prepaid wallet to the customer's account (card-service)"
+      tags:
+      - "Prepaid Card Wallets"
   /api/v1/card-settlements:
     post:
       description: "Role CARD_SERVICE only. Positive amount: the bank paid the scheme\
@@ -17085,6 +17285,7 @@ paths:
           enum:
           - "DEPOSITS"
           - "LOANS"
+          - "PREPAID"
           type: "string"
       responses:
         "200":
@@ -17112,6 +17313,7 @@ paths:
           enum:
           - "DEPOSITS"
           - "LOANS"
+          - "PREPAID"
           type: "string"
       responses:
         "200":
@@ -23493,6 +23695,8 @@ tags:
   name: "Notes"
 - description: "UK Open Banking v3.1 Account Information"
   name: "Open Banking — AISP"
+- description: "Prepaid wallet loads, unloads, clearing and refunds (card-service)"
+  name: "Prepaid Card Wallets"
 - description: "Payment method catalogue — cash and non-cash payment types displayed\
     \ in transaction forms"
   name: "Payment Types"

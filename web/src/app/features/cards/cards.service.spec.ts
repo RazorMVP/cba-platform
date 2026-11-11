@@ -127,4 +127,17 @@ describe('CardsService', () => {
     }).subscribe();
     httpMock.expectOne(`${BASE}/simulate/purchase`).flush(envelope({}));
   });
+
+  describe('prepaid wallet (backlog 15c)', () => {
+    it('getWallet / loadWallet / unloadWallet hit the card-service wallet endpoints', () => {
+      service.getWallet('c1').subscribe();
+      httpMock.expectOne(r => r.method === 'GET' && r.url.endsWith('/api/v1/cards/c1/wallet')).flush({ data: {} });
+      service.loadWallet('c1', { sourceAccountId: 'a1', amount: 10, currencyCode: 'USD' }).subscribe();
+      const load = httpMock.expectOne(r => r.method === 'POST' && r.url.endsWith('/api/v1/cards/c1/wallet/loads'));
+      expect(load.request.body).toEqual({ sourceAccountId: 'a1', amount: 10, currencyCode: 'USD' });
+      load.flush({ data: {} });
+      service.unloadWallet('c1', { destinationAccountId: 'a1', amount: 5 }).subscribe();
+      httpMock.expectOne(r => r.method === 'POST' && r.url.endsWith('/api/v1/cards/c1/wallet/unloads')).flush({ data: {} });
+    });
+  });
 });

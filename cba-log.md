@@ -57,6 +57,45 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 62) — 2026-11-09
+**Backlog set 2, PR B — item 15c: prepaid card wallets on the GL (plan `docs/plans/2026-11-09-backlog-set-2.md`, D5a + D6a). Wallets had no funding path (seed data only) and posted nothing; prepaid spend was in the scheme files but not in the expected net; a partial reversal left the settlement item at its full amount.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/…/db/migration/V68__prepaid_card_gl.sql` | GL **2500 Prepaid Card Liabilities** (`LIABILITY_PREPAID_CARD`); `prepaid_card_movements` (LOAD/UNLOAD/CLEARING/REFUND, unique reference, charges, one refund per clearing) |
+| `backend/…/cardprepaid/*` | NEW — `CardPrepaidService` + controller: `POST /api/v1/card-prepaid/loads`, `/unloads`, `/clearings`, `/clearings/{reference}/refund`; CARD_SERVICE only; advisory lock + idempotent on reference; refusals 200 `approved=false`; `CardServiceWalletTotals` |
+| `backend/…/account/AccountGlPosting.java` | `postPrepaidCardMovement`, `postPrepaidCardClearing`; 15b charge lines extracted to `addCardChargeLines` (shared with `postCardSettlement`) |
+| `backend/…/accounting/OpeningBalanceService.java`, `PrepaidWalletTotals.java`, `openbanking/card/CardServiceClient.java` | scope **PREPAID**: card-service wallet totals vs 2500, 503 `PREPAID_TOTALS_UNAVAILABLE` |
+| `backend/…/account/TransactionType.java`, `config/SecurityConfig.java`, `RateLimitFilter.java` | `PREPAID_CARD_LOAD/UNLOAD`; `/api/v1/card-prepaid/**` CARD_SERVICE, not rate-limited |
+| `card-service/…/db/migration/V17__prepaid_wallet_movements.sql`, `wallet/*` | NEW `WalletMovement`, `WalletService` (claim → call → write; retry poller; unload takes the money out first), `WalletController` (`/cards/{id}/wallet`, `/loads`, `/unloads`, `/cards/wallets/totals`) |
+| `card-service/…/settlement/SettlementService.java`, `BackendClearingClient.java` | prepaid items PENDING under `PPD-` refs and cleared at batch close (`prepaidClearing`); `reversePrepaidItem`; expiry gives the wallet back; prepaid client calls |
+| `card-service/…/auth/CardAuthorizationService.java`, `interchange/InterchangeQualificationEngine.java` | never-loaded → RC 51; prepaid reversal: before clearing restore, after clearing backend refund first; prepaid earns interchange |
+| tests | backend NEW `CardPrepaidIT` (6); card-service NEW `WalletServiceTest` (6), `CardAuthorizationServiceTest` +4 (3 updated), `SettlementServiceTest` +4, `InterchangeQualificationEngineTest` +1, `CardClearingIntegrationTest` +1 (load → spend → close over WireMock) |
+| `backend/docs/openapi-snapshot.yaml`, `card-service/docs/openapi-snapshot.yaml` | new endpoints |
+| `web/…/cards/cards.service.ts`, `card-detail/*` | Wallet block on prepaid cards: balance, Load / Unload modals (the customer's ACTIVE accounts in the wallet currency), movements with RETRYING; specs |
+| `docs/api-reference.html`, `docs/card-api-reference.html`, Postman (+ static copies), `CLAUDE.md`, `docs/deferred-backlog.md` | prepaid endpoints, PREPAID scope; §14 GL, card types, interchange note; 15c ✅ |
+
+#### Key Patterns / Decisions
+- **D5a — spend posts at clearing, like a debit purchase.** The wallet decrement is the hold; batch close posts DR 2500 / CR 2300 (IFRS 9 §3.3.1: the obligation moves from the cardholder to the scheme) with the 15b interchange/fee lines, so prepaid spend is now in the scheme report's expected net (before, it was exported to the scheme but expected nowhere — a report including it could never match).
+- **The wallet is a separate liability, not savings control:** CBN *Guidelines on Stored Value/Prepaid Card Issuance and Operations* (2010, revised 2012) — funds on deposit with the issuer, not in a current/savings account; §3.7 refund on request → financial liability (IAS 32 §11) at amortised cost (IFRS 9 §4.2.1). No breakage income (IFRS 15 §5(c) excludes IFRS 9 instruments); no fees taken from the balance (the guidelines forbid it). **D6a:** unload included for the §3.7 refund right.
+- **A load the backend didn't answer is never failed automatically** — it may have posted; it stays PENDING and is retried with the same reference (the backend's repeat answers it). An unload takes the money out of the wallet in its claim, so card spend can't use it in flight; a refusal gives it back.
+- **Reversal of a prepaid approval decides under the item's row lock** (`reversePrepaidItem`): a batch close can't clear it between the check and the wallet credit; a cleared one is refunded on the backend first (RC 96 if unreachable, rolled back).
+- **Expiry:** a prepaid item uncleared after 7 days gives its wallet decrement back, as a debit hold expires; a later reversal doesn't give it twice.
+- **Opening balance PREPAID** reads card-service through the backend's service token; an unreachable card-service is a 503, never read as "no wallets". The demo wallet (50,000 USD) enters 2500 this way.
+
+#### Build Verification
+- backend `./mvnw -o test`: 921 green; `-Pfull-integration` with `-Dupdate.api.snapshot=true`: **1078/1078** (was 1072; `CardPrepaidIT` 6/6); **1102/1102** after rebasing on cont. 60 (#237), snapshot unchanged.
+- card-service `./mvnw -o test`: **285/285** (was 270); `-Pfull-integration` with snapshot update: **318/318** (was 302).
+- SpotBugs (CI) flagged `CardServiceClient.getWalletTotals` NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE (`resp.getBody()` read twice); fixed by reading the body once — no behaviour change. API surface unchanged by the fix — verified via gate grep; no api-reference/postman edits owed. backend unit **939/939**.
+- web: **1185/1185** (was 1176); **1194/1194** after rebasing on cont. 60; change detection OK; `tsc` clean.
+- Gate grep (untracked new controllers): `@RequestMapping /api/v1/card-prepaid` + `/loads`, `/unloads`, `/clearings`, `/clearings/{reference}/refund`; card-service `/{id}/wallet`, `/{id}/wallet/loads`, `/{id}/wallet/unloads`, `/wallets/totals`; opening-balances scope PREPAID — all documented in api-reference, card-api-reference and Postman.
+
+#### Confirmed Platform Versions
+backend: Spring Boot 3.5.16, Java 21; `-Pfull-integration` 1102. card-service: Spring Boot 3.5.16; 318. web: Angular 22.2.3, 1194. No dependency changes.
+
+---
+
 ### Session 125 (cont. 60) — 2026-11-09
 **Backlog set 2, PR A — item 1: external payments settle asynchronously and post to the GL (plan `docs/plans/2026-11-09-backlog-set-2.md`, D1a–D4a). An external payment was `COMPLETED` on the gateway's acknowledgement and posted no journal at all (GL 2001 drifted from the deposit sub-ledger); the debit skipped the row lock and hold check; a gateway timeout rolled the debit back although the payment may have left; reversing one was a NullPointerException.**
 

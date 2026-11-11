@@ -501,7 +501,7 @@ amortising term loans (no credit limit, no draws). What's needed:
 
 ---
 
-## 15. Card settlement posts nothing to the GL (approvals now reserve funds — cont. 35) — 15a ✅ DONE (cont. 45); 15b ✅ DONE (cont. 46); 15c and 15d open
+## 15. Card settlement posts nothing to the GL (approvals now reserve funds — cont. 35) — 15a ✅ DONE (cont. 45); 15b ✅ DONE (cont. 46); 15c ✅ DONE (cont. 62); 15d open
 
 > **15a done in cont. 45** (plan `docs/plans/2026-10-22-backlog-15a-card-clearing-gl.md`; decisions "1a 2a 3a 4a" in memory
 > `project_gl_posting_decisions`): approvals fill the settlement batch; batch close clears each debit purchase via backend
@@ -516,6 +516,11 @@ amortising term loans (no credit limit, no draws). What's needed:
 >   (`POST /api/v1/card-settlements`, card-service `…/cards/settlement/scheme-reports`), batch → SETTLED. Engine fixes:
 >   issuer direction, DE22 channel codes, fixed fees in major units of the row's currency, ASSESSMENT + NETWORK only,
 >   `UNIONPAY` canonical (V13).
+> - **15c ✅ done in cont. 62** (backlog set 2 PR B; plan `docs/plans/2026-11-09-backlog-set-2.md`, D5a + D6a): wallets are
+>   loaded from / unloaded to the cardholder's backend account (DR deposit / CR new GL 2500 Prepaid Card Liabilities, or the
+>   reverse; CBN stored-value guidelines, IAS 32 §11, IFRS 9 §4.2.1); prepaid spend clears at batch close DR 2500 / CR 2300 with
+>   interchange and fees and enters the scheme reports; refunds pro rata; expired items give the wallet back; PREPAID opening
+>   scope. Not built: load fees, the CBN balance limit (N250,000), breakage.
 > - **15d — clearing-file intake and what 15b left out.** Clearing still presents at the authorized amount: a scheme
 >   clearing-file intake (amount differences, incremental presentments, presentment-driven refunds). Cross-border and
 >   international-service fees need the merchant's country (DE19/DE43). Scheme reports must match to the cent — a

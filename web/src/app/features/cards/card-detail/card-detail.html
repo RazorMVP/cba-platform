@@ -126,6 +126,49 @@
           Use outside the card's home country
         </label>
       </div>
+
+      @if (card.cardType === 'PREPAID') {
+        <div class="card wallet-card">
+          <div class="wallet-card__header">
+            <div>
+              <h3 class="wallet-card__title">Wallet</h3>
+              <span class="wallet-card__balance">
+                {{ (wallet?.balance ?? 0) | number:'1.2-2' }} {{ wallet?.currencyCode ?? '' }}
+              </span>
+              @if (!wallet?.walletId) { <span class="wallet-card__hint">Not loaded yet</span> }
+            </div>
+            <div class="wallet-card__actions">
+              <button class="btn-primary" (click)="openWalletModal('LOAD')"
+                      [disabled]="card.status === 'CANCELLED' || card.status === 'EXPIRED'">
+                <span class="material-icons">add_card</span> Load
+              </button>
+              <button class="btn-secondary" (click)="openWalletModal('UNLOAD')" [disabled]="!wallet?.walletId || !wallet?.balance">
+                <span class="material-icons">account_balance</span> Unload
+              </button>
+            </div>
+          </div>
+          @if (walletNotice) { <div class="wallet-card__notice" role="status">{{ walletNotice }}</div> }
+          @if (wallet?.movements?.length) {
+            <table class="data-table">
+              <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Status</th><th>Reference</th></tr></thead>
+              <tbody>
+                @for (m of wallet!.movements; track m.id) {
+                  <tr>
+                    <td>{{ m.createdAt | date:'short' }}</td>
+                    <td>{{ m.movementType === 'LOAD' ? 'Load' : 'Unload' }}</td>
+                    <td class="mono">{{ m.amount | number:'1.2-2' }} {{ m.currencyCode }}</td>
+                    <td>
+                      <app-status-badge [label]="m.status === 'PENDING' ? 'RETRYING' : m.status" [variant]="movementVariant(m.status)" />
+                      @if (m.failureReason) { <span class="small"> {{ m.failureReason }}</span> }
+                    </td>
+                    <td class="mono small">{{ m.reference }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </div>
+      }
     }
 
     @if (activeTab === 'authorizations') {
@@ -248,6 +291,43 @@
         <button [class]="confirmCommand === 'cancel' ? 'btn-danger' : 'btn-primary'"
                 (click)="executeCommand()">
           {{ confirmCommand | titlecase }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (walletModal) {
+  <div class="modal-backdrop" (click)="closeWalletModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <div class="modal__header">{{ walletModal === 'LOAD' ? 'Load wallet' : 'Unload wallet' }}</div>
+      <div class="modal__body">
+        <p class="modal__hint">
+          {{ walletModal === 'LOAD'
+            ? 'Moves money from the customer\'s account into the prepaid wallet.'
+            : 'Pays the wallet balance back into the customer\'s account.' }}
+        </p>
+        <div class="form-field">
+          <label class="form-label">{{ walletModal === 'LOAD' ? 'From account' : 'To account' }} <span class="required">*</span></label>
+          <select class="form-input" [(ngModel)]="walletAccountId">
+            <option value="">Choose an account</option>
+            @for (a of eligibleAccounts; track a.id) {
+              <option [value]="a.id">{{ a.accountNumber }} · {{ a.balance | number:'1.2-2' }} {{ a.currencyCode }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Amount <span class="required">*</span></label>
+          <input type="number" class="form-input" min="0.01" step="0.01" [(ngModel)]="walletAmount" />
+        </div>
+        @if (walletError) { <div class="modal__error">{{ walletError }}</div> }
+      </div>
+      <div class="modal__footer">
+        <button class="btn-secondary" (click)="closeWalletModal()" [disabled]="walletWorking">Cancel</button>
+        <button class="btn-primary" (click)="submitWallet()"
+                [disabled]="walletWorking || !walletAccountId || !walletAmount || walletAmount <= 0">
+          @if (walletWorking) { <span class="spinner"></span> }
+          {{ walletModal === 'LOAD' ? 'Load' : 'Unload' }}
         </button>
       </div>
     </div>

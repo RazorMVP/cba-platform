@@ -15,4 +15,9 @@ public interface PrepaidWalletRepository extends JpaRepository<PrepaidWallet, UU
     Optional<PrepaidWallet> findByCardIdForUpdate(UUID cardId);
 
     Optional<PrepaidWallet> findByCustomerId(UUID customerId);
+
+    /** Wallet balances per currency (ISO alpha → total, major units): the backend's GL 2500 reconciliation. */
+    @org.springframework.data.jpa.repository.Query(
+            "SELECT w.currencyCode, SUM(w.balance) FROM PrepaidWallet w GROUP BY w.currencyCode")
+    java.util.List<Object[]> sumBalancesByCurrency();
 }

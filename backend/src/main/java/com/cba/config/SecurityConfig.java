@@ -125,6 +125,9 @@ public class SecurityConfig {
                 // Service role only: it reconciles the scheme report first; no person posts to 2300/1003 here.
                 .requestMatchers(HttpMethod.POST, "/api/v1/card-settlements")
                     .hasRole("CARD_SERVICE")
+                // card-service posts prepaid wallet loads, unloads, clearing and refunds (backlog 15c) — service role only
+                .requestMatchers(HttpMethod.POST, "/api/v1/card-prepaid/**")
+                    .hasRole("CARD_SERVICE")
 
                 // Read-only access for all authenticated roles
                 .requestMatchers(HttpMethod.GET, "/api/v1/**")

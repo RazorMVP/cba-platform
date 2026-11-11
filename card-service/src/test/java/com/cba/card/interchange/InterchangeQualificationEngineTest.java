@@ -95,11 +95,20 @@ class InterchangeQualificationEngineTest {
     }
 
     @Test
-    @DisplayName("refunds, prepaid cards and a zero amount carry no interchange or fees")
+    @DisplayName("refunds and a zero amount carry no interchange or fees")
     void nothingApplies() {
         assertThat(engine.quote("VISA", CardType.DEBIT, "200000", "051", null, BigDecimal.TEN, USD).interchange()).isZero();
-        assertThat(engine.quote("VISA", CardType.PREPAID, "000000", "051", null, BigDecimal.TEN, USD).schemeFee()).isZero();
         assertThat(engine.quote("VISA", CardType.DEBIT, "000000", "051", null, BigDecimal.ZERO, USD).rateApplied()).isEqualTo("NONE");
+    }
+
+    @Test
+    @DisplayName("prepaid earns interchange and pays fees like debit, now that prepaid spend posts to the GL (backlog 15c)")
+    void prepaidEarns() {
+        visaRates();
+        IssuerCharges c = engine.quote("VISA", CardType.PREPAID, "000000", "051", "5999", new BigDecimal("100.00"), USD);
+        assertThat(c.interchange()).isEqualByComparingTo("1.50");
+        assertThat(c.direction()).isEqualTo(InterchangeDirection.EARNED);
+        assertThat(c.schemeFee()).isEqualByComparingTo("0.13");
     }
 
     @Test

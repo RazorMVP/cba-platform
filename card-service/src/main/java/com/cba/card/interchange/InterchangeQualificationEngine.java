@@ -30,7 +30,7 @@ import java.util.UUID;
  *
  * <h3>Qualification</h3>
  * <ol>
- *   <li>Card type from the card; PREPAID gets nothing until prepaid has a GL (backlog 15c).</li>
+ *   <li>Card type from the card; prepaid earns like debit since prepaid spend posts to the GL (backlog 15c).</li>
  *   <li>Channel from the POS entry mode — DE22 codes (05x chip, 07x contactless, 02x/90x magstripe = card
  *       present; 01x manual, 81x e-commerce = card not present) or the simulator's names.</li>
  *   <li>Transaction type from DE3: 01 cash, 20 refund (no interchange), else purchase.</li>
@@ -65,7 +65,7 @@ public class InterchangeQualificationEngine {
                                String mcc, BigDecimal grossMajor, Currency currency) {
         String s = Schemes.normalize(scheme);
         try {
-            if (cardType == CardType.PREPAID || grossMajor == null || grossMajor.signum() <= 0 || currency == null) {
+            if (grossMajor == null || grossMajor.signum() <= 0 || currency == null) {
                 return IssuerCharges.none(s);
             }
             TransactionType txn = mapTransactionType(processingCode);

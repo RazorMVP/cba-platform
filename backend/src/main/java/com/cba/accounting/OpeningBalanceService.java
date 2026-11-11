@@ -39,8 +39,11 @@ import java.util.UUID;
 @Slf4j
 public class OpeningBalanceService {
 
-    /** Which sub-ledger to bring forward. Term deposits and shares follow with their GL posting. */
-    public enum Scope { DEPOSITS, LOANS }
+    /**
+     * Which sub-ledger to bring forward. PREPAID: card-service's wallet balances against GL 2500 (backlog 15c).
+     * Term deposits and shares follow with their GL posting.
+     */
+    public enum Scope { DEPOSITS, LOANS, PREPAID }
 
     /**
      * Customer balances vs ledger, per control account and currency, in one statement so
@@ -178,6 +181,7 @@ public class OpeningBalanceService {
     private final FinancialActivityAccountRepository financialActivityRepo;
     private final JournalEntryRepository journalEntryRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final PrepaidWalletTotals prepaidWalletTotals;
 
     /**
      * One control account in one currency. Balances are debit-positive (a deposit
@@ -238,7 +242,11 @@ public class OpeningBalanceService {
     }
 
     private List<OpeningLine> compute(Scope scope) {
-        List<OpeningLine> lines = scope == Scope.LOANS ? computeLoans() : computeDeposits();
+        List<OpeningLine> lines = switch (scope) {
+            case LOANS -> computeLoans();
+            case PREPAID -> computePrepaid();
+            case DEPOSITS -> computeDeposits();
+        };
         lines.sort(Comparator.comparing(OpeningLine::glCode).thenComparing(OpeningLine::currency));
         return lines;
     }
@@ -262,6 +270,31 @@ public class OpeningBalanceService {
             lines.add(new OpeningLine(account.getId(), account.getGlCode(), account.getName(), ccy,
                     customer, ledger, customer.subtract(ledger)));
         }, savingsDefault, overdraftDefault, savingsDefault, overdraftDefault);
+        return lines;
+    }
+
+    /**
+     * Wallet balances (card-service) vs GL 2500, per currency. A wallet is a credit balance, so the customer
+     * side is {@code -total}. card-service unreachable → 503: an empty answer must never read as "no wallets".
+     */
+    private List<OpeningLine> computePrepaid() {
+        java.util.Map<String, BigDecimal> wallets = prepaidWalletTotals.totals().orElseThrow(() ->
+                new CbaException("PREPAID_TOTALS_UNAVAILABLE", "Prepaid wallet balances could not be read from card-service",
+                        org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE));
+        GlAccount liability = gl.activityAccount(FinancialActivity.LIABILITY_PREPAID_CARD);
+        java.util.Map<String, BigDecimal> ledger = new TreeMap<>();
+        jdbcTemplate.query(CLEARING_SQL, rs -> {
+            ledger.put(rs.getString("ccy"), rs.getBigDecimal("net"));
+        }, liability.getId());
+        java.util.Set<String> currencies = new java.util.TreeSet<>(wallets.keySet());
+        currencies.addAll(ledger.keySet());
+        List<OpeningLine> lines = new ArrayList<>();
+        for (String ccy : currencies) {
+            BigDecimal customer = wallets.getOrDefault(ccy, BigDecimal.ZERO).negate();
+            BigDecimal posted = ledger.getOrDefault(ccy, BigDecimal.ZERO);
+            lines.add(new OpeningLine(liability.getId(), liability.getGlCode(), liability.getName(), ccy,
+                    customer, posted, customer.subtract(posted)));
+        }
         return lines;
     }
 

@@ -78,7 +78,46 @@ public class AccountGlPosting {
         GlAccount payable = gl.activityAccount(FinancialActivity.LIABILITY_CARD_SETTLEMENT);
         List<JournalLine> lines = new ArrayList<>(balanceChangeLines(account, balanceBefore));
         lines.add(counterLine(payable, account.getBalance().subtract(balanceBefore), ccy));
+        addCardChargeLines(lines, payable, charges, reversal, ccy);
+        return gl.postJournal(lines, date, description, JournalEntry.EntityType.CARD, account.getId(), reference);
+    }
 
+    /**
+     * A prepaid wallet load or unload (backlog 15c): the counter-entry is 2500 Prepaid Card Liabilities.
+     * A load moves part of the deposit to the wallet (DR deposit / CR 2500); an unload redeems it (DR 2500 /
+     * CR deposit). The wallet is money on deposit not linked to a current or savings account (CBN
+     * stored-value guidelines), a separate financial liability (IAS 32 §11; IFRS 9 §4.2.1).
+     */
+    public String postPrepaidCardMovement(Account account, BigDecimal balanceBefore, LocalDate date,
+                                          String description, String reference, UUID cardId) {
+        List<JournalLine> lines = new ArrayList<>(balanceChangeLines(account, balanceBefore));
+        lines.add(counterLine(gl.activityAccount(FinancialActivity.LIABILITY_PREPAID_CARD),
+                account.getBalance().subtract(balanceBefore), account.getCurrencyCode()));
+        return gl.postJournal(lines, date, description, JournalEntry.EntityType.CARD, cardId, reference);
+    }
+
+    /**
+     * Prepaid spend cleared (backlog 15c, D5a): the bank's obligation to the cardholder moves to the scheme
+     * (IFRS 9 §3.3.1) — DR 2500 / CR 2300 — with interchange and scheme fees exactly as a debit card's
+     * clearing (backlog 15b). A refund ({@code reversal}) posts the opposite for the figures it reverses.
+     */
+    public String postPrepaidCardClearing(BigDecimal amount, String currency, CardCharges charges, boolean reversal,
+                                          LocalDate date, String description, String reference, UUID cardId) {
+        GlAccount wallet = gl.activityAccount(FinancialActivity.LIABILITY_PREPAID_CARD);
+        GlAccount payable = gl.activityAccount(FinancialActivity.LIABILITY_CARD_SETTLEMENT);
+        List<JournalLine> lines = new ArrayList<>();
+        lines.add(reversal ? JournalLine.credit(wallet, amount, currency) : JournalLine.debit(wallet, amount, currency));
+        lines.add(reversal ? JournalLine.debit(payable, amount, currency) : JournalLine.credit(payable, amount, currency));
+        addCardChargeLines(lines, payable, charges, reversal, currency);
+        return gl.postJournal(lines, date, description, JournalEntry.EntityType.CARD, cardId, reference);
+    }
+
+    /**
+     * Interchange and scheme-fee lines on 2300 and the P&amp;L (backlog 15b), after the journal's other
+     * balance-sheet lines (addProfitOrLoss needs them in first).
+     */
+    private void addCardChargeLines(List<JournalLine> lines, GlAccount payable, CardCharges charges, boolean reversal,
+                                    String ccy) {
         BigDecimal interchange = charges.interchange();
         boolean earned = charges.direction() == CardInterchangeDirection.EARNED;
         BigDecimal fee = charges.schemeFee();
@@ -104,7 +143,6 @@ public class AccountGlPosting {
             addProfitOrLoss(lines, gl.activityAccount(FinancialActivity.EXPENSE_CARD_SCHEME_FEES), fee,
                     reversal ? JournalEntry.EntryType.CREDIT : JournalEntry.EntryType.DEBIT, ccy);
         }
-        return gl.postJournal(lines, date, description, JournalEntry.EntityType.CARD, account.getId(), reference);
     }
 
     /**

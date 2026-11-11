@@ -172,6 +172,38 @@ backend: Spring Boot 3.5.16, Java 21; `-Pfull-integration` 1096. web: Angular 22
 
 ---
 
+### Session 125 cont. 59 — EMV BER-TLV (backlog set 2 PR D: item 4 TLV half) — 2026-11-09
+**fep-service DE55 is now read and written as real BER-TLV (EMV 4.4 Book 3 Annex B). The parser misread 3-byte tags (`DF8101`), ignored padding, let a later duplicate `9F26` replace the first, and kept a half-parsed buffer; the 0110 echoed the request's whole ICC data with a second `9F26` (the ARPC, 1-byte length) appended, and only on approvals; the ARC inside the ARPC was the first two characters of the DE38 approval code. The HSM half of item 4 (real session keys / IMK) stays open.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `fep-service/…/emv/tlv/Tlv.java`, `TlvParseException.java` | NEW — immutable TLV record (tag, value, children; `constructed()` from b6 of the first tag byte) |
+| `fep-service/…/emv/tlv/BerTlvParser.java` | NEW — tags of 1–4 bytes (b8 "more follows"), lengths short / `81` / `82` (`80`, `83`+ refused), `00`/`FF` padding skipped at every level, templates decoded into children, order and duplicates kept, nesting ≤ 16; anything truncated → `TlvParseException` |
+| `fep-service/…/emv/tlv/BerTlvBuilder.java` | NEW — minimal length encoding (≥ 65,536 refused), tag validation, recursive templates (issuer scripts 71/72 can be nested; none are generated) |
+| `fep-service/…/emv/EmvDataParser.java` | rebuilt on `BerTlvParser`; templates flattened, **first occurrence wins**, malformed → empty `EmvData` (no ARQC → validation fails closed) |
+| `fep-service/…/emv/ArpcGenerator.java` | `generate(arqc, responseCode)` — ARC = the two ASCII bytes of DE39 (`arc("05")` = `30 35`); invalid ARQC / RC → empty array (was 8 zero bytes) |
+| `fep-service/…/emv/EmvTag.java` | `ISSUER_AUTH_DATA` 91, `ARC` 8A, `ISSUER_SCRIPT_71/72` |
+| `fep-service/…/scheme/SchemeAdapter.java`, `AbstractSchemeAdapter.java`, `UnknownSchemeAdapter.java` | `embedArpc(response, arpc, arc)` sets DE55 = `91 0A` ARPC ‖ ARC (replaces, never appends); `appendArpcTag` deleted; Unknown still a no-op |
+| `fep-service/…/scheme/UnionPaySchemeAdapter.java` | QPBOC tags through `BerTlvParser` (long-form lengths, templates); `9F79` now read into `cup.vlp_available` |
+| `fep-service/…/router/AuthorizationHandler.java` | DE55 removed from every response; when the request had an ARQC, tag 91 is added for **approvals and declines**, ARC = final DE39 (computed after `finalizeResponse`) |
+| `fep-service/…/router/FinancialHandler.java`, `ReversalHandler.java` | 0210/0230/0410/0430 no longer echo the request's DE55 |
+| fep-service tests | NEW `BerTlvParserTest` (19), `BerTlvBuilderTest` (9), `AbstractSchemeAdapterTest` (4), `UnionPaySchemeAdapterTest` (2); `EmvDataParserTest` +5, `ArpcGeneratorTest` +2 (ARC semantics), `AuthorizationHandlerTest` +6, `FinancialHandlerTest` +1, `FepSocketRoundTripTest` +1 (chip 0100 over TCP with the real parser + ARPC generator: the 0110 DE55 parses to exactly one tag 91 of 10 bytes) |
+| `CLAUDE.md`, `docs/deferred-backlog.md` | fep notes + test count; item 4 TLV half ✅ |
+
+#### Key Patterns / Decisions
+- **D8a — response DE55 = tag 91 only:** Issuer Authentication Data = ARPC (8) ‖ ARC (2) (EMV Book 2 §8.2.1 ARPC Method 1; Book 3 Annex A tag 91), ARC = DE39's two ASCII characters. Sent for approvals and declines whenever the request carried `9F26`; no DE55 otherwise. Issuer scripts 71/72 are not generated; the builder nests them.
+- **ARC is the final DE39**, so tag 91 is built after `finalizeResponse` (an adapter may still set the RC); the handler embeds the same ARC bytes the ARPC was computed with (`ArpcGenerator.arc`).
+- **Duplicates: first wins** — an appended second `9F26` can't replace the cryptogram that gets validated. **Malformed: empty**, never a partial map.
+- 0200 (`FinancialHandler`) does no ARQC check, so a 0210 carries no tag 91 yet — it only stops echoing DE55.
+- The ARPC math is unchanged (still the dev 3DES key); the HSM half of item 4 is open.
+
+#### Build Verification
+- fep-service `./mvnw -o test`: **148/148** (was 96; +52). Commit security review: tag 91 is issued only for a **verified** ARQC (CID = ARQC or absent) — an ARPC over any 9F26 would be a MAC oracle under the card session key; +3 tests (unverified ARQC, CID = TC, CID classification).
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
+---
+
 ### Session 125 (cont. 58) — 2026-11-06
 **Backlog set 1, PR C — item 10: report SQL runs in a sandbox, and custom reports (plan `docs/plans/2026-11-06-backlog-set-1.md`, D5a + D6a). Report SQL ran as the app user (the database owner) behind a keyword filter, and report parameters were pasted into the SQL text behind a 3-character filter — a TELLER could inject SQL through any report parameter.**
 

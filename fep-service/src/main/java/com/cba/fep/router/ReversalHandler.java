@@ -50,6 +50,7 @@ public class ReversalHandler {
                 request.getString(IsoField.CURRENCY_BILLING));
 
         ISOMsg response = (ISOMsg) request.clone();
+        response.unset(IsoField.ICC_DATA);   // never echo the request's ICC data
         response.setMTI("0410");
         response.set(IsoField.RESPONSE_CODE, responseCode);
         response.set(IsoField.TRANSMISSION_DATETIME, LocalDateTime.now().format(DATETIME_FMT));
@@ -70,6 +71,7 @@ public class ReversalHandler {
                 request.getString(IsoField.CURRENCY_BILLING));
 
         ISOMsg response = (ISOMsg) request.clone();
+        response.unset(IsoField.ICC_DATA);   // never echo the request's ICC data
         response.setMTI("0430");
         response.set(IsoField.RESPONSE_CODE, "00");
         response.set(IsoField.TRANSMISSION_DATETIME, LocalDateTime.now().format(DATETIME_FMT));

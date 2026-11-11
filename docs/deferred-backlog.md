@@ -145,7 +145,13 @@ Two of the 17 partner webhook events never fire — there's no clean domain trig
 
 ---
 
-## 4. FEP EMV cryptogram + TLV handling is simplified for dev
+## 4. FEP EMV cryptogram + TLV handling is simplified for dev — TLV half ✅ DONE (cont. 59), HSM half open
+
+> TLV half closed in Session 125 cont. 59 (decision D8a): `emv/tlv` `BerTlvParser` / `BerTlvBuilder` (EMV Book 3
+> Annex B — multi-byte tags, `81`/`82` lengths, padding, nested templates); `EmvDataParser` and the UnionPay QPBOC
+> parser use it (first occurrence wins, malformed → nothing). The 0110 DE55 is now only tag 91 = ARPC ‖ ARC, ARC =
+> DE39, for approvals and declines whenever the request had an ARQC; responses no longer echo the request's ICC
+> data. **Still open: point 1 below** — the ARPC/ARQC crypto still uses the hardcoded dev key, not HSM session keys.
 
 **Effort: M · Risk: EMV correctness / crypto — real schemes reject malformed cryptograms & TLV**
 

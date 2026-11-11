@@ -6,6 +6,7 @@ import com.cba.fep.auth.CardServiceClient;
 import com.cba.fep.emv.ArpcGenerator;
 import com.cba.fep.emv.ArqcValidator;
 import com.cba.fep.emv.EmvDataParser;
+import com.cba.fep.emv.EmvTag;
 import com.cba.fep.hsm.HsmAdapter;
 import com.cba.fep.iso.IsoField;
 import com.cba.fep.scheme.SchemeAdapter;
@@ -31,7 +32,8 @@ import java.time.format.DateTimeFormatter;
  *   <li>If DE55 present → validate ARQC via HSM / EMV parser</li>
  *   <li>De-tokenize DPAN → PAN if token BIN prefix 9999xx detected</li>
  *   <li>Forward enriched auth request to card-service REST API</li>
- *   <li>Generate ARPC and populate DE55 in response if chip transaction</li>
+ *   <li>Chip transaction (request had an ARQC, tag 9F26): response DE55 = tag 91 only, ARPC || ARC
+ *       (ARC = DE39), for approvals and declines; otherwise the response has no DE55</li>
  *   <li>Return 0110 response with authorization code (DE38) or decline RC (DE39)</li>
  * </ol>
  *
@@ -100,29 +102,50 @@ public class AuthorizationHandler {
         // Pass the scheme adapter's cryptogram algorithm so UnionPay domestic cards
         // (QPBOC/SM4) are validated with SM4 CBC-MAC rather than 3DES.
         byte[] arqcBytes = null;
+        boolean arqcVerified = false;
         if (request.hasField(IsoField.ICC_DATA)) {
             byte[] iccData = request.getBytes(IsoField.ICC_DATA);
             var emvTags = emvDataParser.parse(iccData);
-            arqcBytes = emvTags.getTag("9F26");
+            arqcBytes = emvTags.getTag(EmvTag.ARQC);
             boolean arqcValid = arqcValidator.validate(
                     emvTags, effectivePan, adapter.getCryptogramAlgorithm());
             authReq = authReq.withEmvData(emvTags).withArqcValid(arqcValid);
+            // An ARPC is issued only for an online cryptogram (CID = ARQC, or no CID) that verified.
+            // ArqcValidator answers true for a TC without checking it, so a CID of TC doesn't count.
+            arqcVerified = arqcValid && isOnlineCryptogram(emvTags.getTag(EmvTag.CRYPTOGRAM_INFORMATION_DATA));
         }
 
         // Forward to card-service
         AuthorizationResult result = cardServiceClient.authorize(authReq);
 
-        // Build 0110 response
+        // Build 0110 response (DE55 cleared — the request's ICC data is never echoed)
         ISOMsg response = buildAuthResponse(request, result);
-
-        // Generate and embed ARPC for chip transactions
-        if (arqcBytes != null && result.approved()) {
-            byte[] arpc = arpcGenerator.generate(arqcBytes, result.authorizationCode());
-            adapter.embedArpc(response, arpc);
-        }
-
         adapter.finalizeResponse(response, result, scheme);
+
+        // Chip transaction: DE55 = tag 91 (ARPC || ARC), for declines as well as approvals — but only
+        // when the ARQC verified. An ARPC computed over an unverified ARQC would make this an oracle:
+        // anyone could send chosen 9F26 values and collect MACs under the card's session key (an HSM
+        // such as a Thales payShield refuses to produce an ARPC when ARQC verification fails). The ARC
+        // is the final DE39, so it's computed after finalizeResponse (which may still set the RC).
+        if (arqcBytes != null && !arqcVerified) {
+            log.warn("AUTH 0110: STAN={} ARQC not verified — no ARPC, DE55 omitted", stan);
+        }
+        if (arqcBytes != null && arqcVerified) {
+            String responseCode = response.getString(IsoField.RESPONSE_CODE);
+            byte[] arc  = ArpcGenerator.arc(responseCode);
+            byte[] arpc = arpcGenerator.generate(arqcBytes, responseCode);
+            if (arc != null && arpc != null && arpc.length == 8) {
+                adapter.embedArpc(response, arpc, arc);
+            } else {
+                log.warn("AUTH 0110: STAN={} no ARPC for RC={} — DE55 omitted", stan, responseCode);
+            }
+        }
         return response;
+    }
+
+    /** CID (9F27) bits 8-7: 10 = ARQC. No CID: the validator checked the cryptogram as an ARQC. */
+    static boolean isOnlineCryptogram(byte[] cid) {
+        return cid == null || cid.length == 0 || (cid[0] & 0xC0) == 0x80;
     }
 
     public ISOMsg handleAdvice(ISOMsg request) throws ISOException {
@@ -136,6 +159,7 @@ public class AuthorizationHandler {
                 stan);
 
         ISOMsg response = (ISOMsg) request.clone();
+        response.unset(IsoField.ICC_DATA);
         response.setMTI("0130");
         response.set(IsoField.RESPONSE_CODE, result.responseCode());
         setTransmissionDateTime(response);
@@ -144,6 +168,7 @@ public class AuthorizationHandler {
 
     private ISOMsg buildAuthResponse(ISOMsg request, AuthorizationResult result) throws ISOException {
         ISOMsg response = (ISOMsg) request.clone();
+        response.unset(IsoField.ICC_DATA);
         response.setMTI("0110");
         response.set(IsoField.RESPONSE_CODE, result.responseCode());
         if (result.approved()) {

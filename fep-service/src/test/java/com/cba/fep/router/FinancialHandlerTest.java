@@ -117,4 +117,15 @@ class FinancialHandlerTest {
         assertThat(sent.getValue().merchantName()).isEqualTo("ATM LAGOS");
         assertThat(sent.getValue().acquiringCountry()).isEqualTo("566");
     }
+
+    @Test
+    @DisplayName("0210 does not echo the request's ICC data (DE55)")
+    void doesNotEchoIcc() throws Exception {
+        when(schemeAdapterFactory.detectScheme(anyString())).thenReturn(SchemeType.VISA);
+        when(cardServiceClient.authorize(any())).thenReturn(AuthorizationResult.approve("AUTH01"));
+        ISOMsg msg = financialRequest("010000");
+        msg.set(IsoField.ICC_DATA, new byte[]{(byte) 0x9F, 0x27, 0x01, (byte) 0x80});
+
+        assertThat(handler.handleRequest(msg).hasField(IsoField.ICC_DATA)).isFalse();
+    }
 }

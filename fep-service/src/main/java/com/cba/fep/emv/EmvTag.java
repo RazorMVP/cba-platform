@@ -17,6 +17,16 @@ public final class EmvTag {
     public static final String ARQC                            = "9F26"; // Application Request Cryptogram
     public static final String CRYPTOGRAM_INFORMATION_DATA     = "9F27"; // CID
 
+    // --- Issuer response (EMV Book 3 Annex A) ---
+    /** Issuer Authentication Data: ARPC (8) || ARC (2) for ARPC Method 1 — the only tag in our 0110/0210 DE55. */
+    public static final String ISSUER_AUTH_DATA                = "91";
+    /** Authorisation Response Code — set by the terminal from DE39; the ARC inside tag 91 must match it. */
+    public static final String ARC                             = "8A";
+    /** Issuer Script Template 1 (scripts run before the second GENERATE AC). Not generated yet. */
+    public static final String ISSUER_SCRIPT_71                = "71";
+    /** Issuer Script Template 2 (scripts run after the second GENERATE AC). Not generated yet. */
+    public static final String ISSUER_SCRIPT_72                = "72";
+
     // --- Card risk management ---
     public static final String CARD_RISK_MANAGEMENT_DATA_1     = "9F13";
     public static final String CARD_RISK_MANAGEMENT_DATA_2     = "9F17";

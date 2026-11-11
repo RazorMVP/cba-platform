@@ -123,13 +123,13 @@ backend: Spring Boot 3.5.16, Java 21; `-Pfull-integration` 1102. card-service: S
 - **Flyway numbering:** backend V69 / card-service V18 leave V67/V68 and V17 to PRs A and B; this PR must merge after them (an existing database that ran V69 would refuse a later V67/V68 without `outOfOrder`).
 
 #### Build Verification
-- backend `-Pfull-integration -Dupdate.api.snapshot=true`: **1091/1091** (main 1072 + 19).
-- card-service `-Pfull-integration -Dupdate.api.snapshot=true`: **304/304** (main 302 + 2).
-- web: **1186/1186** (115 files; main 1176 + 10); change detection OK; production build OK; eslint on the touched files: 0 errors (1 pre-existing warning).
+- backend `-Pfull-integration -Dupdate.api.snapshot=true`: **1091/1091** (main 1072 + 19); **1121/1121** after rebasing on cont. 60 (#237) + cont. 62 (#239), snapshot unchanged.
+- card-service `-Pfull-integration -Dupdate.api.snapshot=true`: **304/304** (main 302 + 2); **320/320** after rebasing on cont. 62, snapshot unchanged.
+- web: **1186/1186** (115 files; main 1176 + 10); **1204/1204** after rebasing; change detection OK; production build OK; eslint on the touched files: 0 errors (1 pre-existing warning).
 - Gate grep (`@*Mapping` / `@RequestParam` / `@PathVariable`): (none) — request/response fields changed only; documented in api-reference, card-api-reference and Postman.
 
 #### Confirmed Platform Versions
-backend: Spring Boot 3.5.16, Java 21; `-Pfull-integration` 1091. card-service: Spring Boot 3.5.16; 304. web: Angular 22.2.3; 1186. No dependency changes.
+backend: Spring Boot 3.5.16, Java 21; `-Pfull-integration` 1121. card-service: Spring Boot 3.5.16; 320. web: Angular 22.2.3; 1204. No dependency changes.
 
 ---
 

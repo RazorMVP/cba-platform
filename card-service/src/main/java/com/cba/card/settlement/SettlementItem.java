@@ -81,6 +81,21 @@ public class SettlementItem {
     @Column(name = "scheme_fee_amount", precision = 19, scale = 4)
     private BigDecimal schemeFeeAmount;
 
+    /** The cross-border part of {@link #schemeFeeAmount} (minor units; backlog 15d). */
+    @Column(name = "cross_border_fee", precision = 19, scale = 4)
+    private BigDecimal crossBorderFee;
+
+    /** The currency-conversion (international service) part of {@link #schemeFeeAmount} (minor units). */
+    @Column(name = "currency_fee", precision = 19, scale = 4)
+    private BigDecimal currencyFee;
+
+    /**
+     * The acquirer's country couldn't be compared with the card's (no DE19, an unknown code, a BIN range
+     * without a country, or an authorization logged before V20): no cross-border fee was charged.
+     */
+    @Column(name = "country_unknown", nullable = false)
+    private boolean countryUnknown;
+
     /**
      * What the bank owes the scheme for this item once cleared (minor units): amount − interchange earned
      * + interchange paid + fees. Null when it moved no GL (prepaid, not cleared).

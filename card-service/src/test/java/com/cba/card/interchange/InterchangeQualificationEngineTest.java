@@ -2,6 +2,9 @@ package com.cba.card.interchange;
 
 import com.cba.card.auth.AuthorizationLog;
 import com.cba.card.auth.AuthorizationLogRepository;
+import com.cba.card.auth.CardCountry;
+import com.cba.card.bin.BinService;
+import com.cba.card.card.Card;
 import com.cba.card.card.CardRepository;
 import com.cba.card.card.CardType;
 import com.cba.card.common.CbaException;
@@ -41,6 +44,7 @@ class InterchangeQualificationEngineTest {
     @Mock InterchangeLogRepository logRepo;
     @Mock CardRepository cardRepo;
     @Mock AuthorizationLogRepository authRepo;
+    @Mock BinService binService;
 
     @InjectMocks InterchangeQualificationEngine engine;
 
@@ -144,16 +148,142 @@ class InterchangeQualificationEngineTest {
         assertThat(c.schemeFee().scale()).isZero();
     }
 
-    @Test
-    @DisplayName("only ASSESSMENT and NETWORK fees apply — cross-border needs the merchant's country (15d)")
-    void onlyAssessmentAndNetwork() {
+    // ── Cross-border and currency-conversion fees (backlog 15d, decision D2a) ────────────────────
+
+    static final Currency EUR = Currency.getInstance("EUR");
+
+    /** Visa seed figures (V3): assessment 0.11 %, cross-border 0.40 %, international service 0.90 %. */
+    private void visaAllFees() {
         when(rateRepo.findBestMatch(any(), any(), any(), any(), any(), any())).thenReturn(List.of());
         when(feeRepo.findActiveByScheme(any(), any())).thenReturn(List.of(
                 fee(SchemeFeeType.ASSESSMENT, "0.11", "0", "USD"),
                 fee(SchemeFeeType.CROSS_BORDER, "0.40", "0", "USD"),
                 fee(SchemeFeeType.INTERNATIONAL_SERVICE, "0.90", "0", "USD")));
-        assertThat(engine.quote("VISA", CardType.DEBIT, "000000", "051", null, new BigDecimal("100.00"), USD).schemeFee())
-                .isEqualByComparingTo("0.11");
+    }
+
+    private IssuerCharges purchase(CardCountry country, Currency transactionCurrency) {
+        return engine.quote("VISA", CardType.DEBIT, "000000", "051", null, new BigDecimal("100.00"), USD,
+                country, transactionCurrency);
+    }
+
+    @Test
+    @DisplayName("domestic, card currency: assessment only — no cross-border or currency fee")
+    void domestic_noExtraFees() {
+        visaAllFees();
+        IssuerCharges c = purchase(CardCountry.DOMESTIC, USD);
+        assertThat(c.schemeFee()).isEqualByComparingTo("0.11");
+        assertThat(c.crossBorderFee()).isZero();
+        assertThat(c.currencyFee()).isZero();
+        assertThat(c.countryUnknown()).isFalse();
+    }
+
+    @Test
+    @DisplayName("the 7-argument quote is a domestic transaction in the card's currency")
+    void legacyQuote_isDomestic() {
+        visaAllFees();
+        IssuerCharges c = engine.quote("VISA", CardType.DEBIT, "000000", "051", null, new BigDecimal("100.00"), USD);
+        assertThat(c.schemeFee()).isEqualByComparingTo("0.11");
+        assertThat(c.countryUnknown()).isFalse();
+    }
+
+    @Test
+    @DisplayName("acquirer abroad, card currency: + 0.40 % cross-border, in the scheme fee total")
+    void crossBorderOnly() {
+        visaAllFees();
+        IssuerCharges c = purchase(CardCountry.CROSS_BORDER, USD);
+        assertThat(c.crossBorderFee()).isEqualByComparingTo("0.40");
+        assertThat(c.currencyFee()).isZero();
+        assertThat(c.schemeFee()).isEqualByComparingTo("0.51");
+        assertThat(c.owedToScheme(new BigDecimal("100.00"))).isEqualByComparingTo("100.51");
+    }
+
+    @Test
+    @DisplayName("domestic acquirer, transaction in another currency (DE49 ≠ DE51): + 0.90 % international service")
+    void currencyOnly() {
+        visaAllFees();
+        IssuerCharges c = purchase(CardCountry.DOMESTIC, EUR);
+        assertThat(c.crossBorderFee()).isZero();
+        assertThat(c.currencyFee()).isEqualByComparingTo("0.90");
+        assertThat(c.schemeFee()).isEqualByComparingTo("1.01");
+    }
+
+    @Test
+    @DisplayName("abroad and in another currency: both fees, and the parts add up to the total")
+    void crossBorderAndCurrency() {
+        visaAllFees();
+        IssuerCharges c = purchase(CardCountry.CROSS_BORDER, EUR);
+        assertThat(c.crossBorderFee()).isEqualByComparingTo("0.40");
+        assertThat(c.currencyFee()).isEqualByComparingTo("0.90");
+        assertThat(c.schemeFee()).isEqualByComparingTo("1.41");
+    }
+
+    @Test
+    @DisplayName("country unknown: no cross-border fee and the charges say so; the currency fee still applies on its own rule")
+    void unknownCountry_noCrossBorder_flagged() {
+        visaAllFees();
+        IssuerCharges c = purchase(CardCountry.UNKNOWN, EUR);
+        assertThat(c.crossBorderFee()).isZero();
+        assertThat(c.currencyFee()).isEqualByComparingTo("0.90");
+        assertThat(c.schemeFee()).isEqualByComparingTo("1.01");
+        assertThat(c.countryUnknown()).isTrue();
+        assertThat(purchase(null, USD).countryUnknown()).isTrue();
+    }
+
+    @Test
+    @DisplayName("a refund carries no fees, abroad or not")
+    void refund_stillNone() {
+        IssuerCharges c = engine.quote("VISA", CardType.DEBIT, "200000", "051", null, new BigDecimal("100.00"), USD,
+                CardCountry.CROSS_BORDER, EUR);
+        assertThat(c.schemeFee()).isZero();
+        assertThat(c.crossBorderFee()).isZero();
+        assertThat(c.currencyFee()).isZero();
+    }
+
+    @Test
+    @DisplayName("fixed parts of cross-border / currency fees still apply only in their own currency")
+    void crossBorderFixedFee_currencyRule() {
+        when(rateRepo.findBestMatch(any(), any(), any(), any(), any(), any())).thenReturn(List.of());
+        when(feeRepo.findActiveByScheme(any(), any())).thenReturn(List.of(
+                fee(SchemeFeeType.CROSS_BORDER, "0.10", "0.50", "USD"),
+                fee(SchemeFeeType.INTERNATIONAL_SERVICE, "0", "1.00", "NGN")));
+        IssuerCharges c = purchase(CardCountry.CROSS_BORDER, EUR);
+        assertThat(c.crossBorderFee()).isEqualByComparingTo("0.60");   // 0.10 % of 100 + 0.50 USD
+        assertThat(c.currencyFee()).isZero();                          // NGN fixed fee on a USD card amount: skipped
+        assertThat(c.schemeFee()).isEqualByComparingTo("0.60");
+    }
+
+    @Test
+    @DisplayName("countryOf: the card's BIN-range country against DE19; UNKNOWN without DE19, card or country")
+    void countryOf() {
+        Card card = new Card();
+        card.setPanPrefix("41000000");
+        UUID cardId = UUID.randomUUID();
+        when(cardRepo.findById(cardId)).thenReturn(Optional.of(card));
+        when(binService.issuingCountry("41000000")).thenReturn("USA");
+        assertThat(engine.countryOf(cardId, "840")).isEqualTo(CardCountry.DOMESTIC);
+        assertThat(engine.countryOf(cardId, "566")).isEqualTo(CardCountry.CROSS_BORDER);
+        assertThat(engine.countryOf(cardId, "999")).isEqualTo(CardCountry.UNKNOWN);
+        assertThat(engine.countryOf(cardId, null)).isEqualTo(CardCountry.UNKNOWN);
+        assertThat(engine.countryOf(null, "840")).isEqualTo(CardCountry.UNKNOWN);
+    }
+
+    @Test
+    @DisplayName("diagnostic calculate: a pre-V20 authorization (no DE19) reports country unknown and no cross-border fee")
+    void calculate_noCountry_reportsUnknown() {
+        visaAllFees();
+        AuthorizationLog a = new AuthorizationLog();
+        a.setId(UUID.randomUUID());
+        a.setAmount(new BigDecimal("10000"));
+        a.setCurrencyCode("840");
+        a.setScheme("VISA");
+        a.setProcessingCode("000000");
+        a.setCardId(UUID.randomUUID());
+
+        InterchangeResult r = engine.calculate(a);
+
+        assertThat(r.countryUnknown()).isTrue();
+        assertThat(r.crossBorderFee()).isZero();
+        assertThat(r.schemeFeeAmount()).isEqualByComparingTo("0.11");
     }
 
     @Test

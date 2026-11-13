@@ -3,12 +3,12 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   CardsService, SettlementBatch, SettlementTransmission, BatchStatus,
-  SchemeReportResult, SchemeSettlementReport, SchemeType,
+  SchemeReportResult, SchemeSettlementReport, SchemeType, ReconciliationView, UnresolvedHold,
 } from '../cards.service';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge';
 
 type V = 'success' | 'warning' | 'error' | 'info' | 'neutral' | 'primary';
-type Tab = 'batches' | 'transmissions' | 'reports';
+type Tab = 'batches' | 'transmissions' | 'reports' | 'reconciliation';
 
 /** Local yyyy-MM-dd of the day before today (a scheme report is for a date that's over). */
 function yesterday(): string {
@@ -28,6 +28,28 @@ const REASONS: Record<string, string> = {
   UNKNOWN_CURRENCY: 'Unknown currency.',
   INVALID_AMOUNT: 'The amount has more decimals than the currency allows.',
   BACKEND_UNAVAILABLE: 'The core banking system could not be reached. Record the same report again to finish it.',
+};
+
+/** Plain-language text for a retried hold release that didn't resolve the hold (backlog 15d). */
+const RELEASE_REASONS: Record<string, string> = {
+  BACKEND_UNAVAILABLE: 'The core banking system could not be reached. Nothing was changed — try again later.',
+  HOLD_ALREADY_RESOLVED: 'Someone has already resolved this hold.',
+  UNRESOLVED_HOLD_NOT_FOUND: 'This authorization has no unresolved hold any more.',
+  CARD_NOT_LINKED: 'The card has no linked account to release the hold against.',
+  UNKNOWN_CURRENCY: 'The authorization\'s currency is unknown.',
+  ACCOUNT_CLOSED: 'The account is closed, so the core banking system cannot credit the money back.',
+  ALREADY_REFUNDED: 'The core banking system already refunded this debit with another amount — check the account.',
+  AMOUNT_EXCEEDS_CAPTURED: 'The amount is more than the core banking system took — check the account.',
+  CURRENCY_MISMATCH: 'The account is in another currency — check the account.',
+  RELEASE_REFUSED: 'The core banking system refused the release without a reason.',
+};
+
+/** What a resolved hold came to, in plain words. */
+const RESOLUTIONS: Record<string, string> = {
+  RELEASED: 'Released — the held money is available to the customer again.',
+  REFUNDED: 'Refunded — the debit had gone through after all and has been credited back.',
+  NOT_FOUND_TOMBSTONED: 'The core banking system never placed it; it is now recorded as released, so it can\'t be taken later.',
+  ALREADY_INACTIVE: 'Already released or expired — nothing was held.',
 };
 
 @Component({
@@ -61,6 +83,17 @@ export class SettlementComponent implements OnInit {
   reports: SchemeSettlementReport[] = [];
   reportsLoading = false;
 
+  // ── Reconciliation (backlog 15d) ──
+  reconFrom = '';
+  reconTo = '';
+  recon: ReconciliationView | null = null;
+  reconLoading = false;
+  reconError: string | null = null;
+  /** Per authorization id: a release in flight, its result (plain words), or why it didn't resolve. */
+  releasing: Record<string, boolean> = {};
+  releaseResult: Record<string, string> = {};
+  releaseError: Record<string, string> = {};
+
   ngOnInit(): void { this.load(); }
 
   load(): void {
@@ -82,6 +115,46 @@ export class SettlementComponent implements OnInit {
   setTab(tab: Tab): void {
     this.activeTab = tab;
     if (tab === 'reports') this.loadReports();
+    if (tab === 'reconciliation') this.loadReconciliation();
+  }
+
+  loadReconciliation(): void {
+    this.reconLoading = true;
+    this.reconError = null;
+    this.svc.reconciliation(this.reconFrom || undefined, this.reconTo || undefined).subscribe({
+      next: v => { this.recon = v; this.reconLoading = false; },
+      error: e => {
+        this.recon = null;
+        this.reconLoading = false;
+        this.reconError = e?.error?.errors?.[0]?.message ?? 'Could not load the reconciliation lists';
+      },
+    });
+  }
+
+  /** Retries the backend release of one unresolved hold; shows what it came to, or why it didn't resolve. */
+  retryRelease(h: UnresolvedHold): void {
+    const id = h.authorizationId;
+    if (this.releasing[id] || this.releaseResult[id]) return;
+    this.releasing[id] = true;
+    delete this.releaseError[id];
+    this.svc.retryHoldRelease(id).subscribe({
+      next: r => {
+        this.releasing[id] = false;
+        this.releaseResult[id] = RESOLUTIONS[r.resolution] ?? r.resolution;
+      },
+      error: e => {
+        this.releasing[id] = false;
+        const err = e?.error?.errors?.[0];
+        const code: string | undefined = err?.code;
+        this.releaseError[id] = (code && RELEASE_REASONS[code]) ?? err?.message ?? 'The release failed';
+      },
+    });
+  }
+
+  /** Opens the stuck item's batch on the Batches tab (closing it again retries the capture). */
+  showBatch(batchId: string): void {
+    this.activeTab = 'batches';
+    this.expandedBatch = batchId;
   }
 
   /** Expected net for the form's scheme, date and currency: what the scheme's report should show. */
@@ -156,7 +229,7 @@ export class SettlementComponent implements OnInit {
   statusVariant(s: BatchStatus | string): V {
     const m: Record<string, V> = {
       OPEN: 'info', CLOSED: 'warning', SETTLED: 'success', FAILED: 'error', TRANSMITTED: 'success', PENDING: 'info',
-      SENDING: 'info', ACKNOWLEDGED: 'success', POSTING: 'warning', RECORDED: 'success',
+      SENDING: 'info', ACKNOWLEDGED: 'success', POSTING: 'warning', RECORDED: 'success', CLEARING: 'warning',
     };
     return m[s] ?? 'neutral';
   }

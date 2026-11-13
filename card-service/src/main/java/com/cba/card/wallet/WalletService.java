@@ -2,6 +2,8 @@ package com.cba.card.wallet;
 
 import com.cba.card.auth.CardAuthorizationService;
 import com.cba.card.card.Card;
+import com.cba.card.card.CardProduct;
+import com.cba.card.card.CardProductRepository;
 import com.cba.card.card.CardService;
 import com.cba.card.card.CardStatus;
 import com.cba.card.card.CardType;
@@ -17,7 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
@@ -37,6 +41,12 @@ import java.util.UUID;
  *       idempotent on it) until it is answered. It is never failed automatically: the backend may have posted it.</li>
  * </ul>
  * An unload takes the money out of the wallet in the claim, so card spend can't use it while it is in flight.
+ *
+ * <p>Loads are limited (decision D4a): the claim takes a per-card advisory lock, then refuses a load that would
+ * take balance + pending loads above the maximum balance ({@code WALLET_BALANCE_LIMIT}) or today's loads above the
+ * daily limit ({@code DAILY_LOAD_LIMIT}). Limits come from the card product, else {@code card.prepaid.limits} for
+ * the wallet's currency (NGN: the CBN stored-value limits). Nothing that gives money back — a reversal, a refund,
+ * an expired item, a refused unload — is ever limited: it is already the holder's money (CBN 2012 §3.7).
  */
 @Slf4j
 @Service
@@ -48,17 +58,28 @@ public class WalletService {
     private final WalletMovementRepository movementRepository;
     private final BackendClearingClient backend;
     private final PlatformTransactionManager transactionManager;
+    private final CardProductRepository productRepository;
+    private final PrepaidLimitProperties limitProperties;
 
-    /** A wallet and its last 50 movements. */
+    /** A wallet, its load limits and its last 50 movements. */
     public record WalletView(UUID cardId, UUID walletId, BigDecimal balance, String currencyCode, String status,
-                             List<WalletMovement> movements) {}
+                             WalletLimits limits, List<WalletMovement> movements) {}
+
+    /**
+     * Load limits in the wallet's currency, major units; {@code maxBalance} / {@code dailyLoad} null = not limited.
+     * {@code loadedToday}: loads claimed today (pending or completed) in the limit zone's calendar day.
+     */
+    public record WalletLimits(BigDecimal maxBalance, BigDecimal dailyLoad, BigDecimal loadedToday) {}
 
     @Transactional(readOnly = true)
     public WalletView wallet(UUID cardId) {
         Card card = prepaidCard(cardId);
         PrepaidWallet w = walletRepository.findByCardId(card.getId()).orElse(null);
+        WalletLimits configured = limits(card.getId(), w == null ? null : w.getCurrencyCode());
+        WalletLimits limits = new WalletLimits(configured.maxBalance(), configured.dailyLoad(),
+                nz(movementRepository.sumLoadsSince(card.getId(), startOfToday())));
         return new WalletView(card.getId(), w == null ? null : w.getId(), w == null ? BigDecimal.ZERO : w.getBalance(),
-                w == null ? null : w.getCurrencyCode(), w == null ? null : w.getStatus(),
+                w == null ? null : w.getCurrencyCode(), w == null ? null : w.getStatus(), limits,
                 movementRepository.findTop50ByCardIdOrderByCreatedAtDesc(card.getId()));
     }
 
@@ -89,9 +110,60 @@ public class WalletService {
         checkAmount(amount, currency);
         if (accountId == null) throw CbaException.badRequest("ACCOUNT_REQUIRED", "Choose the account to load from");
 
-        WalletMovement claimed = tx().execute(s -> movementRepository.save(
-                movement(card, existing == null ? null : existing.getId(), WalletMovement.LOAD, accountId, amount, currency, actor)));
+        WalletMovement claimed = tx().execute(s -> {
+            movementRepository.lockCardLoads(card.getId());   // until commit: concurrent loads queue here
+            checkLoadLimits(card.getId(), currency, amount);
+            return movementRepository.save(
+                    movement(card, existing == null ? null : existing.getId(), WalletMovement.LOAD, accountId, amount, currency, actor));
+        });
         return send(claimed, card);
+    }
+
+    /**
+     * Refuses a load over the wallet's limits. Runs under the card's advisory lock, so the sums include every
+     * load claimed before this one; FAILED loads moved nothing and don't count.
+     */
+    private void checkLoadLimits(UUID cardId, String currency, BigDecimal amount) {
+        WalletLimits limits = limits(cardId, currency);
+        if (limits.maxBalance() != null) {
+            BigDecimal balance = walletRepository.findByCardId(cardId).map(PrepaidWallet::getBalance).orElse(BigDecimal.ZERO);
+            BigDecimal pending = nz(movementRepository.sumPendingLoads(cardId));
+            if (balance.add(pending).add(amount).compareTo(limits.maxBalance()) > 0) {
+                throw CbaException.badRequest("WALLET_BALANCE_LIMIT", "The wallet may hold at most "
+                        + limits.maxBalance().stripTrailingZeros().toPlainString() + " " + currency + "; it holds "
+                        + balance.stripTrailingZeros().toPlainString()
+                        + (pending.signum() > 0 ? " with " + pending.stripTrailingZeros().toPlainString() + " still loading" : ""));
+            }
+        }
+        if (limits.dailyLoad() != null) {
+            BigDecimal today = nz(movementRepository.sumLoadsSince(cardId, startOfToday()));
+            if (today.add(amount).compareTo(limits.dailyLoad()) > 0) {
+                throw CbaException.badRequest("DAILY_LOAD_LIMIT", "At most "
+                        + limits.dailyLoad().stripTrailingZeros().toPlainString() + " " + currency
+                        + " may be loaded a day; " + today.stripTrailingZeros().toPlainString() + " loaded today");
+            }
+        }
+    }
+
+    /** The product's limits, each falling back to the currency's ({@code loadedToday} not filled). */
+    private WalletLimits limits(UUID cardId, String currency) {
+        CardProduct product = productRepository.findByCardId(cardId).orElse(null);
+        PrepaidLimitProperties.Limit byCurrency = limitProperties.forCurrency(currency);
+        BigDecimal max = product != null && product.getMaxWalletBalance() != null ? product.getMaxWalletBalance()
+                : byCurrency == null ? null : byCurrency.getMaxBalance();
+        BigDecimal daily = product != null && product.getDailyWalletLoad() != null ? product.getDailyWalletLoad()
+                : byCurrency == null ? null : byCurrency.getDailyLoad();
+        return new WalletLimits(max, daily, null);
+    }
+
+    /** Midnight today in the limit zone. */
+    private OffsetDateTime startOfToday() {
+        ZoneId zone = limitProperties.zone();
+        return LocalDate.now(zone).atStartOfDay(zone).toOffsetDateTime();
+    }
+
+    private static BigDecimal nz(BigDecimal v) {
+        return v == null ? BigDecimal.ZERO : v;
     }
 
     /** Redeems {@code amount} of the wallet to {@code accountId}. */

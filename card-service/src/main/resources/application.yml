@@ -103,6 +103,17 @@ card:
     default-currency: "840"     # ISO 4217 numeric code used when test requests omit currency field — override per deployment
   bureau:
     name: ${BUREAU_NAME:CBA_BUREAU}   # Configured bureau name — e.g. THALES_HID, IDEMIA, HID_GLOBAL
+  prepaid:
+    # Wallet load limits (backlog 15c, D4a) per wallet currency — ISO 4217 ALPHA keys (wallets store
+    # alpha codes), major units. Enforced on loads only; money coming back (reversals, refunds) is never
+    # refused (CBN 2012 §3.7). A card product's max_wallet_balance / daily_wallet_load override these.
+    # NGN = the CBN stored-value limits (§4.2, §4.3), which bind prepaid cards until full KYC (§5.2).
+    # Currencies not listed are not limited (§5.1: the issuer sets prepaid limits).
+    limit-zone: Africa/Lagos      # calendar day of the daily load limit
+    limits:
+      NGN:
+        max-balance: 250000
+        daily-load: 50000
   settlement:
     auth-expiry-days: 7         # Unmatched authorizations reversed after 7 days
     export:

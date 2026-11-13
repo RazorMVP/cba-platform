@@ -119,6 +119,35 @@ describe('InterchangeComponent', () => {
     expect(svc.listRates).toHaveBeenCalled();
   });
 
+  describe('scheme fee types', () => {
+    it('labels cross-border and currency-conversion fees in plain words with when they apply', () => {
+      const c = make();
+      expect(c.feeTypeLabel('CROSS_BORDER')).toBe('Cross-border');
+      expect(c.feeTypeHint('CROSS_BORDER')).toContain('another country');
+      expect(c.feeTypeHint('CROSS_BORDER')).toContain('unknown');
+      expect(c.feeTypeLabel('INTERNATIONAL_SERVICE')).toBe('Currency conversion');
+      expect(c.feeTypeHint('INTERNATIONAL_SERVICE')).toContain("card's currency");
+    });
+
+    it('falls back to the raw type for an unknown one', () => {
+      const c = make();
+      expect(c.feeTypeLabel('SOMETHING_NEW')).toBe('SOMETHING_NEW');
+      expect(c.feeTypeHint('SOMETHING_NEW')).toBe('');
+    });
+
+    it('renders the label and hint on the Scheme Fees tab', () => {
+      svc.listSchemeFees.mockReturnValue(of([fee({ feeType: 'CROSS_BORDER' }), fee({ id: 'f2', feeType: 'INTERNATIONAL_SERVICE' })]));
+      const fixture = TestBed.createComponent(InterchangeComponent);
+      fixture.componentInstance.activeTab = 'fees';
+      fixture.detectChanges();
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('Cross-border');
+      expect(text).toContain('Currency conversion');
+      expect(text).toContain("the cardholder doesn't pay them");
+      expect(text).not.toContain('INTERNATIONAL_SERVICE');
+    });
+  });
+
   it('totalFeePercent adds the fixed fee as a percentage of the amount', () => {
     const c = make();
     // 1.5% + (5 / 1000 * 100) = 1.5 + 0.5 = 2.0

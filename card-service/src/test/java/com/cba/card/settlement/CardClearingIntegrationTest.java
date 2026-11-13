@@ -206,6 +206,65 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
     }
 
     @Test
+    @DisplayName("15d: a 0200 at a Nigerian acquirer (DE19 566) on a USA card carries the cross-border fee in card-debits; "
+            + "the item keeps the split")
+    void foreignAtmCarriesCrossBorderFee() {
+        String pan = debitPan();
+        cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(ACCOUNT), true, pan, "2912", "123", "USD");
+        // V3 seed, 40.00 USD: assessment 0.11 % + 0.0195 = 0.0635 → 0.06; cross-border 0.40 % = 0.16 → 0.22.
+        // (Domestic it would be 0.06.) The backend echoes what it posted.
+        priorityMapping(Map.of("method", "POST", "urlPath", "/api/v1/accounts/" + ACCOUNT + "/card-debits",
+                        "bodyPatterns", List.of(Map.of("contains", "\"schemeFeeAmount\":0.22"))),
+                postedHold("CAPTURED", 0.65, "PAID", 0.22));
+
+        assertThat(authorize(pan, "950001", "010000", true, 4000, "566")).isEqualTo("00");
+
+        assertThat(requests("/card-debits")).anySatisfy(body -> assertThat(body)
+                .contains("\"schemeFeeAmount\":0.22").contains("\"interchangeDirection\":\"PAID\""));
+        assertThat(jdbc.queryForObject("SELECT acquiring_country FROM authorization_log WHERE stan = '950001' AND mti = '0200'",
+                String.class)).isEqualTo("566");
+        SettlementItem item = itemFor("950001");
+        assertThat(item.getSchemeFeeAmount()).isEqualByComparingTo("22");
+        assertThat(item.getCrossBorderFee()).isEqualByComparingTo("16");
+        assertThat(item.getCurrencyFee()).isZero();
+        assertThat(item.isCountryUnknown()).isFalse();
+        assertThat(item.getGlNet()).isEqualByComparingTo("4087");   // 4000 + 65 paid + 22 fees: in the expected net
+    }
+
+    @Test
+    @DisplayName("15d: batch close quotes the cross-border fee for a foreign 0100 and stores the split; "
+            + "one without DE19 is flagged country unknown")
+    void batchCloseStoresSplitAndFlag() {
+        String pan = debitPan();
+        cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(ACCOUNT), true, pan, "2912", "123", "USD");
+        assertThat(authorize(pan, "960001", "000000", false, 2500, "566")).isEqualTo("00");
+        assertThat(authorize(pan, "960002", "000000", false, 2500)).isEqualTo("00");
+        SettlementItem foreign = itemFor("960001");
+        SettlementItem unknown = itemFor("960002");
+        // 25.00 USD: interchange 0.23 earned (MCC 5411); fees 0.0275 + 0.0195 → 0.05, cross-border 0.10 → 0.15.
+        register("POST", "/api/v1/accounts/" + ACCOUNT + "/card-holds/" + foreign.getHoldReference() + "/capture",
+                postedHold("CAPTURED", 0.23, "EARNED", 0.15));
+        register("POST", "/api/v1/accounts/" + ACCOUNT + "/card-holds/" + unknown.getHoldReference() + "/capture",
+                postedHold("CAPTURED", 0.23, "EARNED", 0.05));
+
+        settlementService.closeBatch(batchOf(foreign));
+        if (!batchOf(unknown).equals(batchOf(foreign))) settlementService.closeBatch(batchOf(unknown));
+
+        assertThat(requests("/card-holds/" + foreign.getHoldReference() + "/capture"))
+                .anySatisfy(body -> assertThat(body).contains("\"schemeFeeAmount\":0.15"));
+        SettlementItem f = itemRepository.findById(foreign.getId()).orElseThrow();
+        assertThat(f.getStatus()).isEqualTo("SETTLED");
+        assertThat(f.getCrossBorderFee()).isEqualByComparingTo("10");
+        assertThat(f.getCurrencyFee()).isZero();
+        assertThat(f.isCountryUnknown()).isFalse();
+        assertThat(f.getGlNet()).isEqualByComparingTo("2492");   // 2500 − 23 + 15
+        SettlementItem u = itemRepository.findById(unknown.getId()).orElseThrow();
+        assertThat(u.isCountryUnknown()).isTrue();
+        assertThat(u.getCrossBorderFee()).isZero();
+        assertThat(u.getSchemeFeeAmount()).isEqualByComparingTo("5");
+    }
+
+    @Test
     @DisplayName("15b/15d: a difference over the backend's tolerance is undone; within it the report is recorded once "
             + "with its difference and the batch settles")
     void schemeReportPostsOnceAndSettles() {
@@ -267,14 +326,33 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
     }
 
     private String authorize(String pan, String stan, String processingCode, boolean financial, long amountMinor) {
-        Map<String, Object> body = Map.ofEntries(
+        return authorize(pan, stan, processingCode, financial, amountMinor, null);
+    }
+
+    /** As above, with DE19 (acquiring institution country, ISO 3166 numeric) when not null. */
+    private String authorize(String pan, String stan, String processingCode, boolean financial, long amountMinor,
+                             String acquiringCountry) {
+        Map<String, Object> body = new java.util.HashMap<>(Map.ofEntries(
                 Map.entry("pan", pan), Map.entry("processingCode", processingCode), Map.entry("amount", amountMinor),
                 Map.entry("currencyCode", "840"), Map.entry("stan", stan), Map.entry("terminalId", "TERM0002"),
                 Map.entry("merchantId", "M" + stan), Map.entry("merchantName", "Shop " + stan),
                 Map.entry("mcc", financial ? "6011" : "5411"), Map.entry("posEntryMode", "051"),
                 Map.entry("rrn", "7123" + stan + "00"), Map.entry("scheme", "VISA"), Map.entry("pinVerified", true),
-                Map.entry("arqcValid", true), Map.entry("isFinancial", financial));
+                Map.entry("arqcValid", true), Map.entry("isFinancial", financial)));
+        if (acquiringCountry != null) body.put("acquiringCountry", acquiringCountry);
         return (String) post("/api/v1/internal/authorize", body).get("responseCode");
+    }
+
+    /** A backend hold result that echoes the interchange and scheme fee it posted. */
+    private static Map<String, Object> postedHold(String status, double interchange, String direction, double schemeFee) {
+        Map<String, Object> posted = new java.util.HashMap<>(hold(true, status, null));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = new java.util.HashMap<>((Map<String, Object>) posted.get("data"));
+        data.put("interchangeAmount", interchange);
+        data.put("interchangeDirection", direction);
+        data.put("schemeFeeAmount", schemeFee);
+        posted.put("data", data);
+        return posted;
     }
 
     @SuppressWarnings("unchecked")

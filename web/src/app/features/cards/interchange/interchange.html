@@ -87,6 +87,7 @@
           <p>No scheme fees configured.</p>
         </div>
       } @else {
+        <p class="muted small fees-note">The scheme charges these fees to the bank on each card transaction; the cardholder doesn't pay them.</p>
         <table class="data-table">
           <thead>
             <tr><th>Scheme</th><th>Fee Type</th><th>Rate %</th><th>Fixed Fee</th><th>Effective From</th><th>Active</th></tr>
@@ -95,7 +96,12 @@
             @for (f of fees; track f.id) {
               <tr class="table-row">
                 <td><span class="method-chip">{{ f.scheme }}</span></td>
-                <td>{{ f.feeType }}</td>
+                <td>
+                  <div>{{ feeTypeLabel(f.feeType) }}</div>
+                  @if (feeTypeHint(f.feeType)) {
+                    <div class="muted small fee-hint">{{ feeTypeHint(f.feeType) }}</div>
+                  }
+                </td>
                 <td class="mono">{{ f.ratePercent }}%</td>
                 <td class="mono">{{ f.fixedFee | number:'1.2-4' }}</td>
                 <td class="muted small">{{ f.effectiveFrom }}</td>

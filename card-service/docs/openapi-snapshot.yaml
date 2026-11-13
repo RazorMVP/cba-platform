@@ -3693,6 +3693,8 @@ components:
           type: string
         walletDebit:
           type: number
+        acquiringCountry:
+          type: string
         createdAt:
           type: string
           format: date-time
@@ -3898,6 +3900,12 @@ components:
           enum:
           - EARNED
           - PAID
+        crossBorderFee:
+          type: number
+        currencyFee:
+          type: number
+        countryUnknown:
+          type: boolean
     ApiResponseWalletView:
       type: object
       properties:
@@ -4094,6 +4102,12 @@ components:
           - PAID
         schemeFeeAmount:
           type: number
+        crossBorderFee:
+          type: number
+        currencyFee:
+          type: number
+        countryUnknown:
+          type: boolean
         glNet:
           type: number
         refundedAmount:

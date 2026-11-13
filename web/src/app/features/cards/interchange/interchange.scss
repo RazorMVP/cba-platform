@@ -4,6 +4,10 @@
 
 .rate-cell { font-weight: 600; color: var(--color-primary); }
 
+.fee-hint { max-width: 320px; margin-top: 2px; white-space: normal; }
+
+.fees-note { margin: 0 0 $space-3; }
+
 .danger-icon {
   color: #ef4444;
   &:hover { color: #dc2626; }

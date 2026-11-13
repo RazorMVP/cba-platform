@@ -3198,6 +3198,10 @@ components:
           type: "string"
         reference:
           type: "string"
+        refund:
+          $ref: "#/components/schemas/Refund"
+        refundedAmount:
+          type: "number"
         schemeFeeAmount:
           type: "number"
         schemeFeeReversed:
@@ -10508,6 +10512,19 @@ components:
           format: "int64"
           type: "integer"
       type: "object"
+    Refund:
+      properties:
+        amount:
+          type: "number"
+        interchangeReversed:
+          type: "number"
+        reference:
+          type: "string"
+        repeat:
+          type: "boolean"
+        schemeFeeReversed:
+          type: "number"
+      type: "object"
     RegisterDeviceRequest:
       properties:
         deviceLabel:
@@ -13056,9 +13073,14 @@ paths:
     post:
       description: "Idempotent: an already released, expired or unknown hold is reported\
         \ with approved=false (HOLD_NOT_ACTIVE / HOLD_NOT_FOUND). On a completed debit\
-        \ (CAPTURED) it refunds the body's amount (at most what was captured, once):\
-        \ DR 2300 / CR deposit, and the debit's interchange and scheme fees reversed\
-        \ in proportion (interchangeReversed, schemeFeeReversed in the result)."
+        \ (CAPTURED) it refunds the body's amount: DR 2300 / CR deposit, with this\
+        \ refund's share of the debit's interchange and scheme fees (cumulative pro\
+        \ rata, so a full refund reverses them exactly). Any number of refunds up\
+        \ to what was captured, each keyed by reversalReference — the same key again\
+        \ is a repeat (refund.repeat=true, nothing posted); more than is left is AMOUNT_EXCEEDS_CAPTURED.\
+        \ The hold stays CAPTURED until fully refunded, then REFUNDED. The result's\
+        \ refund block is this refund; refundedAmount, interchangeReversed and schemeFeeReversed\
+        \ are running totals."
       operationId: "releaseCardHold"
       parameters:
       - in: "path"
@@ -13724,10 +13746,11 @@ paths:
       - "Prepaid Card Wallets"
   /api/v1/card-prepaid/clearings/{reference}/refund:
     post:
-      description: "The opposite of the clearing for amount (≤ cleared), interchange\
-        \ and fees pro rata (HALF_UP); once per clearing. Idempotent on refundReference.\
-        \ Reasons: CLEARING_NOT_FOUND, CURRENCY_MISMATCH, ALREADY_REFUNDED, AMOUNT_EXCEEDS_CLEARED,\
-        \ INVALID_AMOUNT, REFERENCE_CONFLICT."
+      description: "The opposite of the clearing for amount, with this refund's share\
+        \ of interchange and fees (cumulative pro rata, HALF_UP; a full refund reverses\
+        \ them exactly). Any number of refunds per clearing until the cleared amount\
+        \ is used up. Idempotent on refundReference. Reasons: CLEARING_NOT_FOUND,\
+        \ CURRENCY_MISMATCH, AMOUNT_EXCEEDS_CLEARED, INVALID_AMOUNT, REFERENCE_CONFLICT."
       operationId: "refund"
       parameters:
       - in: "path"

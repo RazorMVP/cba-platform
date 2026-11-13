@@ -240,7 +240,7 @@ class CardClearingIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("partial reversal refunds only its amount, once; more than captured or another currency is refused")
+    @DisplayName("partial reversal refunds only its amount; without a reversal key once; more than captured or another currency is refused")
     void partialRefund() {
         UUID id = account("500.00");
         BigDecimal before = balance(id);
@@ -255,7 +255,7 @@ class CardClearingIT extends AbstractIntegrationTest {
                 new CardReleaseRequest(new BigDecimal("50.00"), "USD", null), "it");
         assertThat(partial.approved()).isTrue();
         assertThat(balance(id)).isEqualByComparingTo(before.subtract(new BigDecimal("150.00")));
-        // the same reversal again is done; a second, different refund is refused
+        // the same keyless reversal again is done; a second, different keyless refund is refused
         assertThat(accountService.releaseCardHold(id, "CARD-PR-1",
                 new CardReleaseRequest(new BigDecimal("50.00"), "USD", null), "it").approved()).isTrue();
         assertThat(accountService.releaseCardHold(id, "CARD-PR-1",
@@ -266,21 +266,162 @@ class CardClearingIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("refund keyed on the reversal: its retry is done; another reversal of the same amount is refused, not credited")
+    @DisplayName("15d (D1a): refunds keyed on the reversal — a retry is a repeat; another key is a new refund, up to the captured amount")
     void refundKeyedOnReversal() {
         UUID id = account("500.00");
         BigDecimal before = balance(id);
         accountService.cardDebit(id, new CardDebitRequest("CARD-RK-1", new BigDecimal("100.00"), "USD", true), "it");
 
-        assertThat(accountService.releaseCardHold(id, "CARD-RK-1",
-                new CardReleaseRequest(new BigDecimal("40.00"), "USD", "REV-a"), "it").approved()).isTrue();
-        assertThat(accountService.releaseCardHold(id, "CARD-RK-1",
-                new CardReleaseRequest(new BigDecimal("40.00"), "USD", "REV-a"), "it").approved()).isTrue();
-        CardHoldResult other = accountService.releaseCardHold(id, "CARD-RK-1",
-                new CardReleaseRequest(new BigDecimal("40.00"), "USD", "REV-b"), "it");
-        assertThat(other.approved()).isFalse();
-        assertThat(other.reason()).isEqualTo("ALREADY_REFUNDED");
-        assertThat(balance(id)).isEqualByComparingTo(before.subtract(new BigDecimal("60.00")));
+        CardHoldResult a = accountService.releaseCardHold(id, "CARD-RK-1",
+                new CardReleaseRequest(new BigDecimal("40.00"), "USD", "REV-RK-a"), "it");
+        assertThat(a.approved()).isTrue();
+        assertThat(a.status()).isEqualTo("CAPTURED");   // partly refunded: still CAPTURED
+        assertThat(a.refund().reference()).isEqualTo("REV-RK-a");
+        assertThat(a.refund().repeat()).isFalse();
+        CardHoldResult retry = accountService.releaseCardHold(id, "CARD-RK-1",
+                new CardReleaseRequest(new BigDecimal("40.00"), "USD", "REV-RK-a"), "it");
+        assertThat(retry.approved()).isTrue();
+        assertThat(retry.refund().repeat()).isTrue();
+        assertThat(retry.refund().amount()).isEqualByComparingTo("40.00");
+
+        CardHoldResult b = accountService.releaseCardHold(id, "CARD-RK-1",
+                new CardReleaseRequest(new BigDecimal("40.00"), "USD", "REV-RK-b"), "it");
+        assertThat(b.approved()).as(b.reason()).isTrue();
+        assertThat(b.refundedAmount()).isEqualByComparingTo("80.00");
+        CardHoldResult tooMuch = accountService.releaseCardHold(id, "CARD-RK-1",
+                new CardReleaseRequest(new BigDecimal("20.01"), "USD", "REV-RK-c"), "it");
+        assertThat(tooMuch.approved()).isFalse();
+        assertThat(tooMuch.reason()).isEqualTo("AMOUNT_EXCEEDS_CAPTURED");
+        assertThat(tooMuch.refund()).isNull();
+        CardHoldResult rest = accountService.releaseCardHold(id, "CARD-RK-1",
+                new CardReleaseRequest(new BigDecimal("20.00"), "USD", "REV-RK-c"), "it");
+        assertThat(rest.status()).isEqualTo("REFUNDED");
+        assertThat(balance(id)).isEqualByComparingTo(before);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM card_hold_refunds r JOIN account_holds h ON h.id = r.hold_id "
+                + "WHERE h.external_reference = 'CARD-RK-1'", Integer.class)).isEqualTo(3);
+        assertCardJournalsBalanced(id);
+    }
+
+    @Test
+    @DisplayName("15d (D1a): two partial refunds summing to the capture reverse interchange and fees exactly (cumulative pro rata)")
+    void twoPartials_reverseFeesExactly() {
+        UUID id = account("500.00");
+        hold(id, "CARD-F-10", "100.00");
+        captureWithFees(id, "CARD-F-10", "100.00", "USD", "1.50", CardInterchangeDirection.EARNED, "0.13");
+
+        CardHoldResult a = accountService.releaseCardHold(id, "CARD-F-10",
+                new CardReleaseRequest(new BigDecimal("33.33"), "USD", "REV-F-10a"), "it");
+        CardHoldResult b = accountService.releaseCardHold(id, "CARD-F-10",
+                new CardReleaseRequest(new BigDecimal("66.67"), "USD", "REV-F-10b"), "it");
+
+        assertThat(a.approved()).as(a.reason()).isTrue();
+        assertThat(b.approved()).as(b.reason()).isTrue();
+        assertThat(a.refund().interchangeReversed()).isEqualByComparingTo("0.50");   // 0.49995 → 0.50
+        assertThat(a.refund().schemeFeeReversed()).isEqualByComparingTo("0.04");
+        // The second share is what is left of the cumulative pro rata (full refund → the posted figure).
+        assertThat(b.refund().interchangeReversed()).isEqualByComparingTo("1.00");
+        assertThat(b.refund().schemeFeeReversed()).isEqualByComparingTo("0.09");
+        assertThat(b.interchangeReversed()).isEqualByComparingTo("1.50");            // running totals
+        assertThat(b.schemeFeeReversed()).isEqualByComparingTo("0.13");
+        assertThat(b.status()).isEqualTo("REFUNDED");
+        for (String gl : new String[]{"2300", "4005", "5006"}) {
+            assertThat(net(id, "CARD-F-10", gl)).as(gl).isEqualByComparingTo("0");
+        }
+        assertThat(accountService.releaseCardHold(id, "CARD-F-10",
+                new CardReleaseRequest(new BigDecimal("0.01"), "USD", "REV-F-10c"), "it").reason())
+                .isEqualTo("AMOUNT_EXCEEDS_CAPTURED");
+        assertBalancedPerCurrency(id);
+    }
+
+    @Test
+    @DisplayName("15d (D1a): fees reverse cumulatively — three refunds of 1/3 add up to the posted 0.10 (not 3 × 0.03)")
+    void thirds_noRoundingDrift() {
+        UUID id = account("500.00");
+        hold(id, "CARD-F-11", "30.00");
+        captureWithFees(id, "CARD-F-11", "30.00", "USD", "0.10", CardInterchangeDirection.EARNED, "0.10");
+        for (String key : new String[]{"REV-F-11a", "REV-F-11b", "REV-F-11c"}) {
+            assertThat(accountService.releaseCardHold(id, "CARD-F-11",
+                    new CardReleaseRequest(new BigDecimal("10.00"), "USD", key), "it").approved()).isTrue();
+        }
+        assertThat(jdbc.queryForList("SELECT r.interchange_reversed FROM card_hold_refunds r JOIN account_holds h ON h.id = r.hold_id "
+                + "WHERE h.external_reference = 'CARD-F-11' ORDER BY r.created_at", BigDecimal.class))
+                .usingElementComparator(BigDecimal::compareTo)
+                .containsExactly(new BigDecimal("0.03"), new BigDecimal("0.04"), new BigDecimal("0.03"));
+        for (String gl : new String[]{"2300", "4005", "5006"}) {
+            assertThat(net(id, "CARD-F-11", gl)).as(gl).isEqualByComparingTo("0");
+        }
+        assertBalancedPerCurrency(id);
+    }
+
+    @Test
+    @DisplayName("15d (D1a): a hold refunded before V70 (backfilled row, LEGACY- key) is refunded further, and its keyless retry stays a repeat")
+    void legacyRefundedHold_refundsFurther() {
+        UUID id = account("500.00");
+        BigDecimal before = balance(id);
+        accountService.cardDebit(id, new CardDebitRequest("CARD-LG-1", new BigDecimal("100.00"), "USD", true), "it");
+        // As the pre-V70 code left a keyless partial refund of 30.00 (status REFUNDED), plus the row V70's backfill writes.
+        assertThat(accountService.releaseCardHold(id, "CARD-LG-1",
+                new CardReleaseRequest(new BigDecimal("30.00"), "USD", null), "it").approved()).isTrue();
+        UUID holdId = jdbc.queryForObject("SELECT id FROM account_holds WHERE external_reference = 'CARD-LG-1'", UUID.class);
+        jdbc.update("DELETE FROM card_hold_refunds WHERE hold_id = ?", holdId);
+        jdbc.update("UPDATE account_holds SET status = 'REFUNDED', refund_reference = NULL WHERE id = ?", holdId);
+        jdbc.update("""
+                INSERT INTO card_hold_refunds (hold_id, refund_reference, amount, interchange_reversed, scheme_fee_reversed,
+                                               created_by, created_at)
+                SELECT h.id, COALESCE(h.refund_reference, 'LEGACY-' || h.id), h.refunded_amount,
+                       h.interchange_reversed, h.scheme_fee_reversed, h.released_by, COALESCE(h.released_at, now())
+                FROM account_holds h
+                WHERE h.id = ? AND h.status = 'REFUNDED' AND h.refunded_amount IS NOT NULL AND h.refunded_amount > 0
+                ON CONFLICT (refund_reference) DO NOTHING""", holdId);
+
+        CardHoldResult retry = accountService.releaseCardHold(id, "CARD-LG-1",
+                new CardReleaseRequest(new BigDecimal("30.00"), "USD", null), "it");
+        assertThat(retry.approved()).isTrue();
+        assertThat(retry.refund().repeat()).isTrue();
+        CardHoldResult more = accountService.releaseCardHold(id, "CARD-LG-1",
+                new CardReleaseRequest(new BigDecimal("70.00"), "USD", "REV-LG-2"), "it");
+        assertThat(more.approved()).as(more.reason()).isTrue();
+        assertThat(more.refundedAmount()).isEqualByComparingTo("100.00");
+        assertThat(more.status()).isEqualTo("REFUNDED");
+        assertThat(balance(id)).isEqualByComparingTo(before);
+        assertCardJournalsBalanced(id);
+    }
+
+    @Test
+    @DisplayName("15d (D1a): refunds racing on one debit are serialised by the account lock — their total never passes the capture")
+    void concurrentRefunds_neverExceedCapture() throws Exception {
+        UUID id = account("500.00");
+        BigDecimal before = balance(id);
+        accountService.cardDebit(id, new CardDebitRequest("CARD-CC-1", new BigDecimal("100.00"), "USD", true), "it");
+
+        int n = 6;   // six reversals of 30.00 against a 100.00 debit: three fit
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(n);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        List<java.util.concurrent.Future<CardHoldResult>> results = new java.util.ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            String key = "REV-CC-" + i;
+            results.add(pool.submit(() -> {
+                start.await();
+                return accountService.releaseCardHold(id, "CARD-CC-1",
+                        new CardReleaseRequest(new BigDecimal("30.00"), "USD", key), "it");
+            }));
+        }
+        start.countDown();
+        int approved = 0;
+        for (var f : results) {
+            CardHoldResult r = f.get(60, java.util.concurrent.TimeUnit.SECONDS);
+            if (r.approved()) approved++;
+            else assertThat(r.reason()).isEqualTo("AMOUNT_EXCEEDS_CAPTURED");
+        }
+        pool.shutdown();
+
+        assertThat(approved).isEqualTo(3);
+        assertThat(jdbc.queryForObject("SELECT refunded_amount FROM account_holds WHERE external_reference = 'CARD-CC-1'",
+                BigDecimal.class)).isEqualByComparingTo("90.00");
+        assertThat(jdbc.queryForObject("SELECT SUM(r.amount) FROM card_hold_refunds r JOIN account_holds h ON h.id = r.hold_id "
+                + "WHERE h.external_reference = 'CARD-CC-1'", BigDecimal.class)).isEqualByComparingTo("90.00");
+        assertThat(balance(id)).isEqualByComparingTo(before.subtract(new BigDecimal("10.00")));
+        assertCardJournalsBalanced(id);
     }
 
     @Test

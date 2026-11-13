@@ -257,9 +257,13 @@ public class AccountController {
     @PreAuthorize("hasRole('CARD_SERVICE') or hasRole('ADMIN')")
     @Operation(summary = "Release a card authorization's hold (card-service reversal)",
                description = "Idempotent: an already released, expired or unknown hold is reported with approved=false "
-                       + "(HOLD_NOT_ACTIVE / HOLD_NOT_FOUND). On a completed debit (CAPTURED) it refunds the body's amount "
-                       + "(at most what was captured, once): DR 2300 / CR deposit, and the debit's interchange and scheme "
-                       + "fees reversed in proportion (interchangeReversed, schemeFeeReversed in the result).")
+                       + "(HOLD_NOT_ACTIVE / HOLD_NOT_FOUND). On a completed debit (CAPTURED) it refunds the body's amount: "
+                       + "DR 2300 / CR deposit, with this refund's share of the debit's interchange and scheme fees (cumulative "
+                       + "pro rata, so a full refund reverses them exactly). Any number of refunds up to what was captured, each "
+                       + "keyed by reversalReference — the same key again is a repeat (refund.repeat=true, nothing posted); more "
+                       + "than is left is AMOUNT_EXCEEDS_CAPTURED. The hold stays CAPTURED until fully refunded, then REFUNDED. "
+                       + "The result's refund block is this refund; refundedAmount, interchangeReversed and schemeFeeReversed "
+                       + "are running totals.")
     public ResponseEntity<ApiResponse<CardHoldResult>> releaseCardHold(
             @PathVariable UUID id,
             @PathVariable String reference,

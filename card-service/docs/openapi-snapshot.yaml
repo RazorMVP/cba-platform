@@ -3693,6 +3693,8 @@ components:
           type: string
         walletDebit:
           type: number
+        reversedAmount:
+          type: number
         createdAt:
           type: string
           format: date-time
@@ -4098,19 +4100,7 @@ components:
           type: number
         refundedAmount:
           type: number
-        interchangeReversed:
-          type: number
-        schemeFeeReversed:
-          type: number
-        refundGlNet:
-          type: number
-        refundSettlementDate:
-          type: string
-          format: date
         settlementReportId:
-          type: string
-          format: uuid
-        refundReportId:
           type: string
           format: uuid
         version:

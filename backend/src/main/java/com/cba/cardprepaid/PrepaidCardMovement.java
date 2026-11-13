@@ -61,11 +61,11 @@ public class PrepaidCardMovement {
     @Column(name = "scheme_fee_amount", precision = 19, scale = 4)
     private BigDecimal schemeFeeAmount;
 
-    /** CLEARING: what its one refund gave back. */
+    /** CLEARING: what its refunds gave back so far (running total, at most {@link #amount}). */
     @Column(name = "refunded_amount", precision = 19, scale = 4)
     private BigDecimal refundedAmount;
 
-    /** CLEARING: the reference of the refund that reversed it. */
+    /** CLEARING: the reference of its latest refund (every refund is a REFUND row naming it in originalReference). */
     @Column(name = "refund_reference", length = 80)
     private String refundReference;
 

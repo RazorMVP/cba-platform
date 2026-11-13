@@ -404,17 +404,29 @@ public class CardAuthorizationService {
                 return "00";
             }
 
-            // Locate the original authorization/advice for this (card, STAN).
+            // Locate the original authorization/advice: DE90 names its STAN (a reversal has its own DE11 —
+            // the second partial reversal of a purchase has a STAN of its own); without DE90, the same STAN.
             Optional<AuthorizationLog> originalOpt =
                     authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(
-                            card.getId(), stan, "0400");
+                            card.getId(), originalStan(stan, originalDataElements), "0400");
             if (originalOpt.isEmpty()) {
                 log.warn("Reversal: no original found for card={} STAN={}", card.getId(), stan);
                 return "25"; // unable to locate original
             }
             AuthorizationLog original = originalOpt.get();
 
-            // Give back what the approval reserved — once: the 0400 guard above stops a repeat. If the
+            // Lock the original for the whole reversal and read what earlier reversals already gave back
+            // (backlog 15d): reversals with STANs of their own can all name this original through DE90, so the
+            // 0400 guard (one per reversal STAN) no longer bounds the total — this running total does. A retry
+            // that waited on the lock sees the 0400 its first attempt committed.
+            BigDecimal reversedBefore = authLogRepository.lockReversedAmount(original.getId());
+            if (reversedBefore == null) reversedBefore = BigDecimal.ZERO;
+            if (authLogRepository.existsByCardIdAndStanAndMti(card.getId(), stan, "0400")) {
+                log.info("Reversal already processed for card={} STAN={} — idempotent no-op", card.getId(), stan);
+                return "00";
+            }
+
+            // Give back what the approval reserved — at most what is left of it. If the
             // backend hold can't be released, don't record the reversal: answer 96 so the network
             // retries (a recorded 0400 would block every retry and leave the funds held).
             // DE4 is a positive whole number of minor units; anything else is not a reversal amount.
@@ -435,10 +447,19 @@ public class CardAuthorizationService {
                 // Everything below is in the card's currency: what the original moved (DE6 if it had one).
                 java.util.Currency ccy = currency(original.cardCurrencyCode());
                 BigDecimal originalCardMinor = original.cardAmount();
-                BigDecimal reversalMinor = reversalCardMinor(original, amount, billingAmount);
+                BigDecimal reversalMinor = amount == null && billingAmount == null && originalCardMinor != null
+                        ? originalCardMinor.subtract(reversedBefore)          // no amount: what is left, not the original
+                        : reversalCardMinor(original, amount, billingAmount);
+                if (originalCardMinor != null && reversalMinor != null
+                        && (reversalMinor.signum() <= 0 || reversedBefore.add(reversalMinor).compareTo(originalCardMinor) > 0)) {
+                    log.warn("Reversal refused for card={} STAN={}: {} with {} of {} already reversed",
+                            card.getId(), stan, reversalMinor, reversedBefore, originalCardMinor);
+                    return "13";   // nothing changed yet
+                }
                 BigDecimal reversalMajor = ccy == null || reversalMinor == null ? null : toMajorUnits(reversalMinor, ccy);
+                // "Full" = this reversal takes all that is left of the original.
                 boolean full = originalCardMinor == null || reversalMinor == null
-                        || reversalMinor.compareTo(originalCardMinor) >= 0;
+                        || reversedBefore.add(reversalMinor).compareTo(originalCardMinor) >= 0;
                 // A full reversal takes the item out of clearing first (row-locked until this commits), so a
                 // batch close can't capture the purchase between the release below and the 0400 record.
                 boolean prepaid = original.getWalletDebit() != null && original.getWalletDebit().signum() > 0;
@@ -455,17 +476,22 @@ public class CardAuthorizationService {
                     SettlementService.PrepaidItemReversal pr = settlementService.reversePrepaidItem(original.getId(), reversalMinor, full);
                     switch (pr.outcome()) {
                         case IN_CLEARING -> { return "96"; }
+                        case EXCEEDS -> {   // earlier reversals already gave back what this one asks for
+                            log.warn("Reversal refused for card={} STAN={}: more than is left of the original", card.getId(), stan);
+                            return "13";
+                        }
                         case ALREADY_RETURNED -> walletBack = false;   // expired: the wallet already had it back
                         case CLEARED -> {
+                            String refundKey = reversalReference(pr.clearingReference(), stan, reversalMinor);
                             com.cba.card.settlement.BackendClearingClient.PrepaidPost refund = clearingClient.prepaidRefund(pr.clearingReference(),
-                                    reversalReference(pr.clearingReference(), stan, reversalMinor), reversalMajor,
-                                    ccy == null ? null : ccy.getCurrencyCode());
+                                    refundKey, reversalMajor, ccy == null ? null : ccy.getCurrencyCode());
                             if (refund == null || !refund.approved()) {
                                 rollbackOnly();   // undo the REVERSED mark: nothing was given back
                                 if (refund != null) log.warn("Prepaid refund refused for card={} STAN={}: {}", card.getId(), stan, refund.reason());
                                 return refund == null ? "96" : "13";
                             }
-                            settlementService.recordRefund(original.getId(), reversalMinor,
+                            // One refund of possibly several (backlog 15d): recorded under the key the backend refunded it by.
+                            settlementService.recordRefund(original.getId(), refundKey, reversalMinor,
                                     refund.reversed(Schemes.normalize(original.getScheme())));
                         }
                         default -> { }
@@ -479,33 +505,46 @@ public class CardAuthorizationService {
                     if (reduced == SettlementService.PendingReduction.IN_CLEARING) {
                         return "96";
                     }
+                    if (reduced == SettlementService.PendingReduction.EXCEEDS) {
+                        log.warn("Reversal refused for card={} STAN={}: more than is left of the original", card.getId(), stan);
+                        return "13";
+                    }
                     if (reduced != SettlementService.PendingReduction.REDUCED) {
-                        Release release = releaseWithResult(card, original.getHoldReference(), reversalMajor, ccy,
-                                reversalReference(original.getHoldReference(), stan, reversalMinor));
+                        // Not pending (cleared or completed: a refund — one of possibly several), or the last part
+                        // of a pending purchase (EMPTIED: the hold is released).
+                        String refundKey = reversalReference(original.getHoldReference(), stan, reversalMinor);
+                        Release release = releaseWithResult(card, original.getHoldReference(), reversalMajor, ccy, refundKey);
                         ReleaseOutcome released = release.outcome();
-                        if (released == ReleaseOutcome.DONE && release.hold() != null
-                                && "REFUNDED".equals(release.hold().status())) {
-                            // A cleared (or completed) debit was refunded: what it takes back from the scheme
-                            // counts in today's scheme settlement (backlog 15b).
-                            settlementService.recordRefund(original.getId(), reversalMinor,
-                                    release.hold().reversedCharges(Schemes.normalize(original.getScheme())));
-                        }
                         if (released != ReleaseOutcome.DONE) {
-                            // Nothing was given back: undo the REVERSED mark so the purchase still clears.
-                            if (marked == SettlementService.ItemReversal.MARKED) rollbackOnly();
+                            // Nothing was given back: undo what this reversal changed (a REVERSED mark, a reduced
+                            // item) so the purchase still clears.
+                            rollbackOnly();
                             return released == ReleaseOutcome.UNREACHABLE ? "96"
-                                    : "13";   // amount/currency don't match the original
+                                    : "13";   // amount/currency don't match what is left of the original
+                        }
+                        IssuerCharges refunded = refundedCharges(release.hold(), refundKey, Schemes.normalize(original.getScheme()));
+                        if (refunded != null) {
+                            // A cleared (or completed) debit was refunded: what it takes back from the scheme
+                            // counts in today's scheme settlement (backlog 15b), one row per refund (15d).
+                            settlementService.recordRefund(original.getId(), refundKey, reversalMinor, refunded);
                         }
                     }
                 }
                 if (walletBack && original.getWalletDebit() != null && original.getWalletDebit().signum() > 0) {
-                    BigDecimal restore = reversalMajor == null ? original.getWalletDebit()
-                            : reversalMajor.min(original.getWalletDebit()).max(BigDecimal.ZERO);
-                    walletRepository.findByCardIdForUpdate(card.getId()).ifPresent(w -> {
-                        w.setBalance(w.getBalance().add(restore));
-                        walletRepository.save(w);
-                    });
+                    // Never more than is left of the wallet decrement after earlier reversals.
+                    BigDecimal restoredBefore = ccy == null ? BigDecimal.ZERO : toMajorUnits(reversedBefore, ccy);
+                    BigDecimal left = original.getWalletDebit().subtract(restoredBefore).max(BigDecimal.ZERO);
+                    BigDecimal restore = reversalMajor == null ? left : reversalMajor.min(left).max(BigDecimal.ZERO);
+                    if (restore.signum() > 0) {
+                        walletRepository.findByCardIdForUpdate(card.getId()).ifPresent(w -> {
+                            w.setBalance(w.getBalance().add(restore));
+                            walletRepository.save(w);
+                        });
+                    }
                 }
+                // Every step above succeeded: this reversal counts against the original (rolled back with
+                // the reversal on any 96 / 13 that undoes it).
+                if (reversalMinor != null) authLogRepository.addReversedAmount(original.getId(), reversalMinor);
             }
 
             // Record the reversal (0400). The reserved funds were given back above.
@@ -671,6 +710,31 @@ public class CardAuthorizationService {
         } catch (java.security.NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 unavailable", e);
         }
+    }
+
+    /**
+     * The STAN of the original a reversal reverses: DE90 positions 5–10 (original MTI ‖ STAN ‖ …) when DE90 is
+     * there and well formed, else the reversal's own STAN (a network that reuses the original's STAN).
+     */
+    static String originalStan(String stan, String originalDataElements) {
+        if (originalDataElements != null && originalDataElements.length() >= 10) {
+            String s = originalDataElements.substring(4, 10);
+            if (s.chars().allMatch(Character::isDigit)) return s;
+        }
+        return stan;
+    }
+
+    /**
+     * What a backend release refunded, as charges to record — null when it refunded nothing. The backend names
+     * the refund it made (or repeated) in its {@code refund} block, which must carry the key sent; a backend
+     * from before backlog 15d sends no block and reports REFUNDED (its one refund) with the reversed figures.
+     */
+    static IssuerCharges refundedCharges(BackendHold hold, String refundKey, String scheme) {
+        if (hold == null || !hold.approved()) return null;
+        if (hold.refund() != null) {
+            return refundKey.equals(hold.refund().reference()) ? hold.refund().charges(hold.direction(), scheme) : null;
+        }
+        return "REFUNDED".equals(hold.status()) ? hold.reversedCharges(scheme) : null;
     }
 
     /**
@@ -926,11 +990,30 @@ public class CardAuthorizationService {
     /** The backend's {@code CardHoldResult}, with the interchange and fees it posted / reversed (backlog 15b). */
     record BackendHold(boolean approved, UUID holdId, String reference, String status, String reason,
                        BigDecimal availableBalance, BigDecimal interchangeAmount, String interchangeDirection,
-                       BigDecimal schemeFeeAmount, BigDecimal interchangeReversed, BigDecimal schemeFeeReversed) {
+                       BigDecimal schemeFeeAmount, BigDecimal interchangeReversed, BigDecimal schemeFeeReversed,
+                       BigDecimal refundedAmount, Refund refund) {
 
         BackendHold(boolean approved, UUID holdId, String reference, String status, String reason,
                     BigDecimal availableBalance) {
-            this(approved, holdId, reference, status, reason, availableBalance, null, null, null, null, null);
+            this(approved, holdId, reference, status, reason, availableBalance, null, null, null, null, null, null, null);
+        }
+
+        BackendHold(boolean approved, UUID holdId, String reference, String status, String reason,
+                    BigDecimal availableBalance, BigDecimal interchangeAmount, String interchangeDirection,
+                    BigDecimal schemeFeeAmount, BigDecimal interchangeReversed, BigDecimal schemeFeeReversed) {
+            this(approved, holdId, reference, status, reason, availableBalance, interchangeAmount, interchangeDirection,
+                    schemeFeeAmount, interchangeReversed, schemeFeeReversed, null, null);
+        }
+
+        /**
+         * The refund a release made (or repeated) — backend 15d: one of possibly several, keyed by the reversal
+         * reference card-service sent. Figures in major units.
+         */
+        record Refund(String reference, BigDecimal amount, BigDecimal interchangeReversed, BigDecimal schemeFeeReversed,
+                      boolean repeat) {
+            IssuerCharges charges(com.cba.card.interchange.InterchangeDirection direction, String scheme) {
+                return new IssuerCharges(scheme, interchangeReversed, direction, schemeFeeReversed, "BACKEND");
+            }
         }
 
         private com.cba.card.interchange.InterchangeDirection direction() {

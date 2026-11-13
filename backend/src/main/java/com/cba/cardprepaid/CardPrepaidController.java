@@ -70,8 +70,9 @@ public class CardPrepaidController {
     @PostMapping("/clearings/{reference}/refund")
     @PreAuthorize("hasRole('CARD_SERVICE')")
     @Operation(summary = "Refund a cleared prepaid purchase (card-service reversal)",
-            description = "The opposite of the clearing for amount (≤ cleared), interchange and fees pro rata (HALF_UP); once per "
-                    + "clearing. Idempotent on refundReference. Reasons: CLEARING_NOT_FOUND, CURRENCY_MISMATCH, ALREADY_REFUNDED, "
+            description = "The opposite of the clearing for amount, with this refund's share of interchange and fees (cumulative pro "
+                    + "rata, HALF_UP; a full refund reverses them exactly). Any number of refunds per clearing until the cleared "
+                    + "amount is used up. Idempotent on refundReference. Reasons: CLEARING_NOT_FOUND, CURRENCY_MISMATCH, "
                     + "AMOUNT_EXCEEDS_CLEARED, INVALID_AMOUNT, REFERENCE_CONFLICT.")
     public ResponseEntity<ApiResponse<PrepaidMovementResult>> refund(@PathVariable String reference,
                                                                      @Valid @RequestBody PrepaidRefundRequest request,

@@ -761,7 +761,8 @@ class CardAuthorizationServiceTest {
         when(cardService.findByPanHash(PAN)).thenReturn(card);
         when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
         when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
-        when(interchangeEngine.quote(eq("VISA"), eq(card.getCardType()), eq("010000"), eq("CHIP"), eq("6011"), any(), any()))
+        when(interchangeEngine.quote(eq("VISA"), eq(card.getCardType()), eq("010000"), eq("CHIP"), eq("6011"), any(), any(),
+                any(), any()))
                 .thenReturn(new com.cba.card.interchange.IssuerCharges("VISA", new BigDecimal("2.00"),
                         com.cba.card.interchange.InterchangeDirection.PAID, new BigDecimal("0.24"), "TEST"));
         doReturn(ResponseEntity.ok(new CardAuthorizationService.Envelope<>(new CardAuthorizationService.BackendHold(
@@ -796,7 +797,7 @@ class CardAuthorizationServiceTest {
         when(cardService.findByPanHash(PAN)).thenReturn(card);
         when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
         when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
-        when(interchangeEngine.quote(any(), any(), any(), any(), any(), any(), any()))
+        when(interchangeEngine.quote(any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenThrow(new IllegalStateException("rates unavailable"));
         doReturn(ResponseEntity.ok(new CardAuthorizationService.Envelope<>(new CardAuthorizationService.BackendHold(
                 true, UUID.randomUUID(), "ref", "CAPTURED", null, BigDecimal.ZERO))))
@@ -813,6 +814,84 @@ class CardAuthorizationServiceTest {
         @SuppressWarnings("unchecked")
         java.util.Map<String, Object> body = (java.util.Map<String, Object>) captor.getValue().getBody();
         assertThat(body).doesNotContainKeys("interchangeAmount", "schemeFeeAmount");
+    }
+
+    @Test
+    @DisplayName("15d: a 0200 at a foreign acquirer (DE19 566 on a USA card) is quoted cross-border, and the split reaches the item")
+    void atm0200_foreignAcquirer_quotedCrossBorder() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(cardService.issuingCountry(card)).thenReturn("USA");
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+        when(interchangeEngine.quote(eq("VISA"), eq(card.getCardType()), eq("010000"), eq("CHIP"), eq("6011"), any(),
+                eq(java.util.Currency.getInstance("USD")), eq(CardCountry.CROSS_BORDER), eq(java.util.Currency.getInstance("USD"))))
+                .thenReturn(new com.cba.card.interchange.IssuerCharges("VISA", new BigDecimal("2.00"),
+                        com.cba.card.interchange.InterchangeDirection.PAID, new BigDecimal("1.04"), "TEST",
+                        new BigDecimal("0.80"), BigDecimal.ZERO, false));
+        doReturn(ResponseEntity.ok(new CardAuthorizationService.Envelope<>(new CardAuthorizationService.BackendHold(
+                true, UUID.randomUUID(), "ref", "CAPTURED", null, BigDecimal.ZERO,
+                new BigDecimal("2.00"), "PAID", new BigDecimal("1.04"), null, null))))
+                .when(backendRestTemplate).exchange(contains("/card-debits"), eq(HttpMethod.POST), any(HttpEntity.class),
+                        any(ParameterizedTypeReference.class));
+        CardAuthRequest atm = new CardAuthRequest(PAN, "010000", new BigDecimal("20000"), "840", "000004",
+                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0004", "VISA", true, true, true, null, "566");
+
+        assertThat(service.authorize(atm).responseCode()).isEqualTo("00");
+
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<HttpEntity> captor = org.mockito.ArgumentCaptor.forClass(HttpEntity.class);
+        verify(backendRestTemplate).exchange(contains("/card-debits"), eq(HttpMethod.POST), captor.capture(),
+                any(ParameterizedTypeReference.class));
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> body = (java.util.Map<String, Object>) captor.getValue().getBody();
+        assertThat((BigDecimal) body.get("schemeFeeAmount")).isEqualByComparingTo("1.04");
+        verify(settlementService).addAuthorization(any(AuthorizationLog.class), eq(card), any(String.class), eq(true),
+                org.mockito.ArgumentMatchers.<com.cba.card.interchange.IssuerCharges>argThat(c ->
+                        c.schemeFee().compareTo(new BigDecimal("1.04")) == 0
+                                && c.crossBorderFee().compareTo(new BigDecimal("0.80")) == 0
+                                && !c.countryUnknown()));
+    }
+
+    @Test
+    @DisplayName("15d: a 0200 without DE19 is quoted country-unknown, and the backend is never asked for the card's country")
+    void atm0200_noDe19_countryUnknown() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(fraudEngine.evaluate(any(FraudContext.class))).thenReturn(approve());
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+        when(interchangeEngine.quote(any(), any(), any(), any(), any(), any(), any(), eq(CardCountry.UNKNOWN), any()))
+                .thenReturn(new com.cba.card.interchange.IssuerCharges("VISA", BigDecimal.ZERO, null,
+                        new BigDecimal("0.24"), "TEST", BigDecimal.ZERO, BigDecimal.ZERO, true));
+        doReturn(ResponseEntity.ok(new CardAuthorizationService.Envelope<>(new CardAuthorizationService.BackendHold(
+                true, UUID.randomUUID(), "ref", "CAPTURED", null, BigDecimal.ZERO,
+                BigDecimal.ZERO, null, new BigDecimal("0.24"), null, null))))
+                .when(backendRestTemplate).exchange(contains("/card-debits"), eq(HttpMethod.POST), any(HttpEntity.class),
+                        any(ParameterizedTypeReference.class));
+        CardAuthRequest atm = new CardAuthRequest(PAN, "010000", new BigDecimal("20000"), "840", "000005",
+                "ATM00001", "MERCH01", "ATM", "6011", "CHIP", "00", "RRN0005", "VISA", true, true, true, null, null);
+
+        assertThat(service.authorize(atm).responseCode()).isEqualTo("00");
+        verify(cardService, never()).issuingCountry(any());
+        verify(settlementService).addAuthorization(any(AuthorizationLog.class), eq(card), any(String.class), eq(true),
+                org.mockito.ArgumentMatchers.<com.cba.card.interchange.IssuerCharges>argThat(
+                        com.cba.card.interchange.IssuerCharges::countryUnknown));
+    }
+
+    @Test
+    @DisplayName("15d: DE19 is stored on the authorization log as sent; a value longer than n3 is stored as none")
+    void acquiringCountryPersisted() {
+        Card card = cardWithClearFraud(CardType.PREPAID);
+        when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(wallet("1000")));
+
+        service.authorize(controlled("051", "566"));
+        service.authorize(controlled("051", "56600"));
+
+        org.mockito.ArgumentCaptor<AuthorizationLog> logged = org.mockito.ArgumentCaptor.forClass(AuthorizationLog.class);
+        verify(authLogRepository, org.mockito.Mockito.atLeast(2)).save(logged.capture());
+        assertThat(logged.getAllValues()).extracting(AuthorizationLog::getAcquiringCountry).containsSubsequence("566", null);
+        assertThat(CardAuthorizationService.storedCountry(" 840 ")).isEqualTo("840");
+        assertThat(CardAuthorizationService.storedCountry("")).isNull();
     }
 
     @Test

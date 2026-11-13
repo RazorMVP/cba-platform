@@ -3,6 +3,7 @@ package com.cba.card.settlement;
 import com.cba.card.auth.AuthorizationLog;
 import com.cba.card.auth.AuthorizationLogRepository;
 import com.cba.card.auth.CardAuthorizationService;
+import com.cba.card.auth.CardCountry;
 import com.cba.card.card.Card;
 import com.cba.card.card.CardType;
 import com.cba.card.common.CbaException;
@@ -124,6 +125,7 @@ public class SettlementService {
         Currency currency = CardAuthorizationService.currency(item.getCurrencyCode());
         if (completed && movesGl(item) && currency != null && item.getAmount() != null) {
             applyPosted(item, posted, currency);   // a 0200 debit: already on the backend, with its fees
+            if (posted != null) applySplit(item, posted, currency);
         }
         SettlementItem saved = addItem(item);
         if (item.getGlNet() != null) {
@@ -466,20 +468,39 @@ public class SettlementService {
         });
     }
 
-    /** Interchange and scheme fees for an item about to be cleared (backlog 15b), stored in minor units. */
+    /**
+     * Interchange and scheme fees for an item about to be cleared (backlog 15b), stored in minor units —
+     * with the cross-border and currency-conversion parts (15d): the authorization's DE19 against the card's
+     * home country (none stored, as before V20 → country unknown: no cross-border fee, item flagged) and its
+     * DE49 against the item's (card) currency.
+     */
     private void quoteCharges(SettlementItem item) {
         Currency currency = CardAuthorizationService.currency(item.getCurrencyCode());
         if (currency == null || item.getAmount() == null) return;
         AuthorizationLog auth = item.getAuthorizationLogId() == null ? null
                 : authLogRepository.findById(item.getAuthorizationLogId()).orElse(null);
         CardType cardType = isPrepaid(item) ? CardType.PREPAID : CardType.DEBIT;
-        IssuerCharges quoted = auth == null ? null : interchangeEngine.quote(item.getScheme(), cardType,
-                auth.getProcessingCode(), auth.getEntryMode(), auth.getMcc(),
-                CardAuthorizationService.toMajorUnits(item.getAmount(), currency), currency);
+        IssuerCharges quoted = null;
+        if (auth != null) {
+            CardCountry country = interchangeEngine.countryOf(item.getCardId(), auth.getAcquiringCountry());
+            quoted = interchangeEngine.quote(item.getScheme(), cardType,
+                    auth.getProcessingCode(), auth.getEntryMode(), auth.getMcc(),
+                    CardAuthorizationService.toMajorUnits(item.getAmount(), currency), currency,
+                    country == null ? CardCountry.UNKNOWN : country,
+                    CardAuthorizationService.currency(auth.getCurrencyCode()));
+        }
         IssuerCharges q = quoted == null ? IssuerCharges.none(item.getScheme()) : quoted;
         item.setInterchangeAmount(toMinor(q.interchange(), currency));
         item.setInterchangeDirection(q.interchange().signum() > 0 ? q.direction() : null);
         item.setSchemeFeeAmount(toMinor(q.schemeFee(), currency));
+        applySplit(item, q, currency);
+    }
+
+    /** The cross-border / currency-conversion parts of the item's scheme fee (minor units) and the country flag. */
+    private static void applySplit(SettlementItem item, IssuerCharges charges, Currency currency) {
+        item.setCrossBorderFee(toMinor(charges.crossBorderFee(), currency));
+        item.setCurrencyFee(toMinor(charges.currencyFee(), currency));
+        item.setCountryUnknown(charges.countryUnknown());
     }
 
     /**
@@ -501,7 +522,15 @@ public class SettlementService {
             if ("SETTLED".equals(status)) {
                 item.setClearedAt(OffsetDateTime.now());
                 if (result != null && movesGl(item) && currency != null) {
+                    BigDecimal quotedFee = item.getSchemeFeeAmount();
                     applyPosted(item, result.posted(item.getScheme()), currency);
+                    if (quotedFee != null && quotedFee.compareTo(item.getSchemeFeeAmount()) != 0) {
+                        // The backend posted other fees than quoted: our split no longer adds up to them.
+                        log.warn("Settlement item {}: backend posted scheme fee {} ≠ quoted {} — fee split dropped",
+                                item.getId(), item.getSchemeFeeAmount(), quotedFee);
+                        item.setCrossBorderFee(null);
+                        item.setCurrencyFee(null);
+                    }
                 }
             }
             itemRepository.save(item);

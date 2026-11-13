@@ -424,7 +424,7 @@ class SettlementServiceTest {
         stubBatch(batch, item);
         stubReread(item);
         when(authLogRepository.findById(item.getAuthorizationLogId())).thenReturn(Optional.of(auth));
-        when(interchangeEngine.quote(eq("VISA"), eq(CardType.DEBIT), eq("000000"), eq("051"), eq("5999"), any(), any()))
+        when(interchangeEngine.quote(eq("VISA"), eq(CardType.DEBIT), eq("000000"), eq("051"), eq("5999"), any(), any(), any(), any()))
                 .thenReturn(charges("0.38", InterchangeDirection.EARNED, "0.05"));
         when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
         org.mockito.ArgumentCaptor<IssuerCharges> sent = org.mockito.ArgumentCaptor.forClass(IssuerCharges.class);
@@ -464,9 +464,133 @@ class SettlementServiceTest {
 
         service.closeBatch(batch.getId());
 
-        verify(interchangeEngine, never()).quote(any(), any(), any(), any(), any(), any(), any());
+        verify(interchangeEngine, never()).quote(any(), any(), any(), any(), any(), any(), any(), any(), any());
         assertThat(sent.getValue().interchange()).isEqualByComparingTo("0.38");
         assertThat(item.getGlNet()).isEqualByComparingTo("2467");
+    }
+
+    /** A EUR purchase (DE49 978) billed to the USD card, at an acquirer in Nigeria (DE19 566). */
+    private static AuthorizationLog foreignAuth(String acquiringCountry) {
+        AuthorizationLog auth = new AuthorizationLog();
+        auth.setProcessingCode("000000");
+        auth.setEntryMode("051");
+        auth.setMcc("5999");
+        auth.setCurrencyCode("978");
+        auth.setAcquiringCountry(acquiringCountry);
+        return auth;
+    }
+
+    @Test
+    @DisplayName("15d: close quotes cross-border (DE19 vs the card's country) and currency (DE49 vs card) fees and stores the split")
+    void close_storesCrossBorderAndCurrencySplit() {
+        SettlementBatch batch = openBatch();
+        SettlementItem item = debitItem("PENDING");
+        item.setScheme("VISA");
+        item.setCardId(UUID.randomUUID());
+        item.setAuthorizationLogId(UUID.randomUUID());
+        stubBatch(batch, item);
+        stubReread(item);
+        when(authLogRepository.findById(item.getAuthorizationLogId())).thenReturn(Optional.of(foreignAuth("566")));
+        when(interchangeEngine.countryOf(item.getCardId(), "566")).thenReturn(com.cba.card.auth.CardCountry.CROSS_BORDER);
+        when(interchangeEngine.quote(eq("VISA"), eq(CardType.DEBIT), eq("000000"), eq("051"), eq("5999"), any(),
+                eq(java.util.Currency.getInstance("USD")), eq(com.cba.card.auth.CardCountry.CROSS_BORDER),
+                eq(java.util.Currency.getInstance("EUR"))))
+                .thenReturn(new IssuerCharges("VISA", new BigDecimal("0.38"), InterchangeDirection.EARNED,
+                        new BigDecimal("0.40"), "TEST", new BigDecimal("0.10"), new BigDecimal("0.25"), false));
+        when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
+        org.mockito.ArgumentCaptor<IssuerCharges> sent = org.mockito.ArgumentCaptor.forClass(IssuerCharges.class);
+        when(clearingClient.capture(any(), any(), any(), any(), sent.capture()))
+                .thenReturn(new BackendClearingClient.Result(true, "CAPTURED", null,
+                        new BigDecimal("0.38"), "EARNED", new BigDecimal("0.40")));
+
+        service.closeBatch(batch.getId());
+
+        assertThat(sent.getValue().schemeFee()).isEqualByComparingTo("0.40");   // the backend gets one total
+        assertThat(item.getSchemeFeeAmount()).isEqualByComparingTo("40");
+        assertThat(item.getCrossBorderFee()).isEqualByComparingTo("10");
+        assertThat(item.getCurrencyFee()).isEqualByComparingTo("25");
+        assertThat(item.isCountryUnknown()).isFalse();
+        // 25.00 − 0.38 + 0.40 owed to the scheme: the fees are in the expected scheme net
+        assertThat(item.getGlNet()).isEqualByComparingTo("2502");
+    }
+
+    @Test
+    @DisplayName("15d: an authorization without DE19 (as before V20) is quoted country-unknown and the item flagged")
+    void close_noCountry_flagsItem() {
+        SettlementBatch batch = openBatch();
+        SettlementItem item = debitItem("PENDING");
+        item.setScheme("VISA");
+        item.setAuthorizationLogId(UUID.randomUUID());
+        stubBatch(batch, item);
+        stubReread(item);
+        AuthorizationLog auth = foreignAuth(null);
+        auth.setCurrencyCode("840");
+        when(authLogRepository.findById(item.getAuthorizationLogId())).thenReturn(Optional.of(auth));
+        when(interchangeEngine.quote(any(), any(), any(), any(), any(), any(), any(),
+                eq(com.cba.card.auth.CardCountry.UNKNOWN), any()))
+                .thenReturn(new IssuerCharges("VISA", new BigDecimal("0.38"), InterchangeDirection.EARNED,
+                        new BigDecimal("0.05"), "TEST", BigDecimal.ZERO, BigDecimal.ZERO, true));
+        when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
+        when(clearingClient.capture(any(), any(), any(), any(), any()))
+                .thenReturn(new BackendClearingClient.Result(true, "CAPTURED", null,
+                        new BigDecimal("0.38"), "EARNED", new BigDecimal("0.05")));
+
+        service.closeBatch(batch.getId());
+
+        assertThat(item.isCountryUnknown()).isTrue();
+        assertThat(item.getCrossBorderFee()).isZero();
+        assertThat(item.getStatus()).isEqualTo("SETTLED");
+    }
+
+    @Test
+    @DisplayName("15d: when the backend posted other fees than quoted, the split is dropped (it would no longer add up)")
+    void close_backendFeeDiffers_dropsSplit() {
+        SettlementBatch batch = openBatch();
+        SettlementItem item = debitItem("CLEARING");
+        item.setScheme("VISA");
+        item.setInterchangeAmount(new BigDecimal("38"));
+        item.setInterchangeDirection(InterchangeDirection.EARNED);
+        item.setSchemeFeeAmount(new BigDecimal("40"));
+        item.setCrossBorderFee(new BigDecimal("10"));
+        item.setCurrencyFee(new BigDecimal("25"));
+        stubBatch(batch, item);
+        stubReread(item);
+        when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
+        when(clearingClient.capture(any(), any(), any(), any(), any()))
+                .thenReturn(new BackendClearingClient.Result(true, "CAPTURED", null,
+                        new BigDecimal("0.38"), "EARNED", new BigDecimal("0.05")));
+
+        service.closeBatch(batch.getId());
+
+        assertThat(item.getSchemeFeeAmount()).isEqualByComparingTo("5");
+        assertThat(item.getCrossBorderFee()).isNull();
+        assertThat(item.getCurrencyFee()).isNull();
+    }
+
+    @Test
+    @DisplayName("15d: a 0200 debit keeps the posted fees' cross-border / currency split and country flag on its item")
+    void addAuthorization_completed_keepsSplit() {
+        AuthorizationLog auth = new AuthorizationLog();
+        auth.setId(UUID.randomUUID());
+        auth.setScheme("VISA");
+        auth.setAmount(new BigDecimal("20000"));
+        auth.setCurrencyCode("840");
+        Card card = new Card();
+        card.setId(UUID.randomUUID());
+        card.setCardType(CardType.DEBIT);
+        card.setLinkedEntityId(UUID.randomUUID());
+        when(batchRepository.findBySettlementDateAndStatus(any(LocalDate.class), eq(SettlementBatchStatus.OPEN)))
+                .thenReturn(Optional.of(openBatch()));
+        when(itemRepository.save(any(SettlementItem.class))).thenAnswer(i -> i.getArgument(0));
+
+        SettlementItem item = service.addAuthorization(auth, card, "CARD-x", true,
+                new IssuerCharges("VISA", new BigDecimal("2.00"), InterchangeDirection.PAID, new BigDecimal("1.04"),
+                        "BACKEND", new BigDecimal("0.80"), BigDecimal.ZERO, false));
+
+        assertThat(item.getSchemeFeeAmount()).isEqualByComparingTo("104");
+        assertThat(item.getCrossBorderFee()).isEqualByComparingTo("80");
+        assertThat(item.getCurrencyFee()).isZero();
+        assertThat(item.isCountryUnknown()).isFalse();
     }
 
     @Test
@@ -566,7 +690,7 @@ class SettlementServiceTest {
         stubReread(item);
         when(itemRepository.save(any(SettlementItem.class))).thenAnswer(i -> i.getArgument(0));
         when(batchRepository.save(any(SettlementBatch.class))).thenAnswer(i -> i.getArgument(0));
-        when(interchangeEngine.quote(any(), eq(com.cba.card.card.CardType.PREPAID), any(), any(), any(), any(), any()))
+        when(interchangeEngine.quote(any(), eq(com.cba.card.card.CardType.PREPAID), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(new com.cba.card.interchange.IssuerCharges("VISA", new BigDecimal("0.38"),
                         com.cba.card.interchange.InterchangeDirection.EARNED, new BigDecimal("0.03"), "Q"));
         when(authLogRepository.findById(any())).thenReturn(Optional.of(new com.cba.card.auth.AuthorizationLog()));

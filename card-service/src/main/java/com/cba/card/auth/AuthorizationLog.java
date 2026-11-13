@@ -111,6 +111,21 @@ public class AuthorizationLog {
     @Column(name = "acquiring_country", length = 3)
     private String acquiringCountry;
 
+    /**
+     * Reconciliation (V21): when an admin's retried release of an RC 91 decline's unresolved
+     * {@link #holdReference} got a backend answer, who did it and what the backend did
+     * (RELEASED / REFUNDED / NOT_FOUND_TOMBSTONED / ALREADY_INACTIVE). Written only by a conditional
+     * update ({@code AuthorizationLogRepository.markHoldResolved}).
+     */
+    @Column(name = "hold_resolved_at")
+    private OffsetDateTime holdResolvedAt;
+
+    @Column(name = "hold_resolved_by", length = 100)
+    private String holdResolvedBy;
+
+    @Column(name = "hold_resolution", length = 40)
+    private String holdResolution;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
 }

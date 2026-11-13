@@ -507,7 +507,7 @@ amortising term loans (no credit limit, no draws). What's needed:
 
 ---
 
-## 15. Card settlement posts nothing to the GL (approvals now reserve funds — cont. 35) — 15a ✅ DONE (cont. 45); 15b ✅ DONE (cont. 46); 15c ✅ DONE (cont. 62); 15d tolerance ✅ DONE (cont. 61); 15d cross-border/currency fees ✅ DONE (cont. 64); the rest of 15d open
+## 15. Card settlement posts nothing to the GL (approvals now reserve funds — cont. 35) — 15a ✅ DONE (cont. 45); 15b ✅ DONE (cont. 46); 15c ✅ DONE (cont. 62); 15d tolerance ✅ DONE (cont. 61); 15d cross-border/currency fees ✅ DONE (cont. 64); 15d reconciliation views ✅ DONE (cont. 65); the rest of 15d open
 
 > **15a done in cont. 45** (plan `docs/plans/2026-10-22-backlog-15a-card-clearing-gl.md`; decisions "1a 2a 3a 4a" in memory
 > `project_gl_posting_decisions`): approvals fill the settlement batch; batch close clears each debit purchase via backend
@@ -535,7 +535,7 @@ amortising term loans (no credit limit, no draws). What's needed:
 >   `INTERNATIONAL_SERVICE` when DE49 isn't the card currency (DE51). Both are inside `schemeFeeAmount` (DR 5006 /
 >   CR 2300 — no backend change), split on the settlement item (`cross_border_fee`, `currency_fee`, minor units); not
 >   passed to the cardholder. Country unknown (no DE19, unknown code, BIN range without a country, or logged before V20)
->   → no cross-border fee, item flagged `country_unknown` (to be listed by the reconciliation view, set 3 PR C). ~~Scheme reports must match to the cent — a
+>   → no cross-border fee, item flagged `country_unknown` (listed by the reconciliation view, cont. 65). ~~Scheme reports must match to the cent — a
 >   configurable tolerance (and a suspense for small differences) needs its own accounting decision.~~ **✅ Tolerance
 >   done (cont. 61, backlog set 2 PR C, decision D7a):** card-service sends reported + expected; the backend records a
 >   difference within `app.cards.settlement.difference-tolerance` (per currency, default 0) — 2300 at the expected net,
@@ -544,9 +544,14 @@ amortising term loans (no credit limit, no draws). What's needed:
 >   open: clearing-file intake and the items below. A captured debit is
 >   refunded only once on the backend, so a second partial reversal of the same cleared purchase is refused
 >   (`ALREADY_REFUNDED`). Partial refunds of cleared debits made before V13 (15a) aren't in card-service's settlement
->   items — reconcile by hand. Also a reconciliation view for declined authorizations whose compensating release couldn't
+>   items — reconcile by hand. ~~Also a reconciliation view for declined authorizations whose compensating release couldn't
 >   reach the backend (`authorization_log` rows with RC 91 and a `hold_reference`), and for items left `CLEARING` by a
->   close that died.
+>   close that died.~~ **✅ Reconciliation views done (cont. 65, backlog set 3 PR C, decision D3a):**
+>   `GET /api/v1/cards/settlement/reconciliation` (ADMIN, optional `from`/`to`) lists unresolved holds (RC 91 + reference,
+>   not resolved), items `CLEARING` on an earlier date (`claimedSince` = V21 `settlement_items.claimed_at`) and items
+>   flagged `country_unknown`; `POST …/reconciliation/holds/{authorizationId}/release` retries the backend release with the
+>   original amount and stamps `hold_resolved_at/by` + `hold_resolution` (RELEASED / REFUNDED / NOT_FOUND_TOMBSTONED /
+>   ALREADY_INACTIVE) — 503 when unreachable, 409 on a refusal, nothing stamped. Web: Settlement → Reconciliation tab.
 > - **15c — prepaid.** Wallets have no funding path (only seed data) and no GL; CBN treats prepaid balances as deposit
 >   liabilities of the issuer (Guidelines on Stored Value/Prepaid Card Issuance). Needs a load path and a liability
 >   account before wallet spend can post.

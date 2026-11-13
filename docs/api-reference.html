@@ -3306,6 +3306,24 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/settlement/batches/{id}/close</code></td><td>Close batch and settle all pending items; triggers nightly CoB at 23:58</td><td>ADMIN</td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/settlement/batches/{id}/items</code></td><td>List all items in a batch</td><td>ADMIN</td></tr>
 </table>
+<h4>Settlement Reconciliation <em>(backlog 15d, cont. 65)</em></h4>
+<p>What the automatic paths left for a person. Three read-only lists over card-service's own tables (card's last four only, no PAN or customer data; amounts major units, alphabetic currency; at most 500 rows each, oldest first) and one action. Web: Settlement screen → <em>Reconciliation</em> tab.</p>
+<table>
+<tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
+<tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/settlement/reconciliation</code></td><td>Optional <code>?from=&amp;to=</code> (ISO dates, inclusive; authorization date for holds, batch settlement date for items; <code>400 INVALID_DATE_RANGE</code> if reversed). Returns <code>{from, to, maxRows, unresolvedHolds[], stuckClearing[], countryUnknown[]}</code>:
+<ul>
+<li><code>unresolvedHolds</code> — RC 91 declines whose backend hold / 0200 debit call failed and whose compensating release couldn't reach the backend (reference kept, not resolved): <code>authorizationId, cardId, panLast4, mti, stan, rrn, amount, currency, holdReference, createdAt</code>.</li>
+<li><code>stuckClearing</code> — items in <code>CLEARING</code> on an earlier settlement date (capture never answered; closing the batch again retries it): <code>itemId, batchId, batchRef, settlementDate, batchStatus, cardId, panLast4, scheme, amount, currency, holdReference, authorizationId, claimedSince</code>.</li>
+<li><code>countryUnknown</code> — items cleared without DE19, so no cross-border fee was quoted: <code>itemId, batchId, settlementDate, scheme, status, amount, currency, authorizationId, cardId, panLast4</code>.</li>
+</ul>
+<pre><code>{ "data": { "from": null, "to": null, "maxRows": 500,
+  "unresolvedHolds": [ { "authorizationId": "…", "panLast4": "4242", "stan": "910001", "amount": 25.00,
+      "currency": "USD", "holdReference": "CARD-4e0694e3…", "createdAt": "2026-11-10T10:00:00Z", … } ],
+  "stuckClearing": [ { "itemId": "…", "batchRef": "BATCH-20261110", "settlementDate": "2026-11-10",
+      "batchStatus": "OPEN", "amount": 12.50, "currency": "USD", "claimedSince": "2026-11-10T23:57:01Z", … } ],
+  "countryUnknown": [] } }</code></pre></td><td>ADMIN</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/settlement/reconciliation/holds/{authorizationId}/release</code></td><td>Retries the backend release (<code>POST /api/v1/accounts/{id}/card-holds/{ref}/release</code>, original card-side amount + currency; idempotent, tombstones a reference the backend never saw). When the backend answers, stamps the authorization (V21 <code>hold_resolved_at/by</code>, <code>hold_resolution</code>) with <code>RELEASED</code>, <code>REFUNDED</code>, <code>NOT_FOUND_TOMBSTONED</code> (backend <code>HOLD_NOT_FOUND</code>) or <code>ALREADY_INACTIVE</code> (<code>HOLD_NOT_ACTIVE</code>) and returns <code>{authorizationId, holdReference, resolution, resolvedAt, resolvedBy, backendStatus, backendReason}</code>. Nothing stamped on: <code>404 UNRESOLVED_HOLD_NOT_FOUND</code>; <code>409 HOLD_ALREADY_RESOLVED</code> (also the loser of two concurrent retries — conditional update); <code>409 CARD_NOT_LINKED</code> / <code>UNKNOWN_CURRENCY</code>; <code>409</code> with the backend's refusal (<code>ACCOUNT_CLOSED</code>, <code>ALREADY_REFUNDED</code>, …); <code>503 BACKEND_UNAVAILABLE</code>.</td><td>ADMIN</td></tr>
+</table>
 <h4>Settlement File Export Framework</h4>
 <p>Pluggable <code>SettlementFileExporter</code> interface — one implementation per scheme (Visa BASE II, Mastercard IPM, Verve NIBSS, Afrigo PAPSS, UnionPay CUPS). Nightly scheduler transmits via SFTP (Visa/MC/Verve/CUP) or HTTPS (Afrigo/PAPSS). Enable per scheme in <code>application.yml</code> (<code>card.settlement.export.schemes.visa.enabled: true</code>). All stubs disabled by default — zero code changes needed for production.</p>
 <table>
@@ -3979,6 +3997,8 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <tr><td>POST</td><td>/api/v1/cards/settlement/batches/open</td><td>Open today's batch (idempotent)</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/cards/settlement/batches/{id}/close</td><td>Close and settle batch</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/api/v1/cards/settlement/batches/{id}/items</td><td>List batch items</td><td>ADMIN</td></tr>
+<tr><td>GET</td><td>/api/v1/cards/settlement/reconciliation</td><td>Reconciliation lists: unresolved holds, stuck clearing, unknown country; ?from&amp;to</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/cards/settlement/reconciliation/holds/{authorizationId}/release</td><td>Retry an unresolved hold's backend release; stamps the resolution</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/cards/settlement/export/{batchId}</td><td>Manual settlement file export trigger</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/api/v1/cards/settlement/transmissions</td><td>List transmission records; ?status filter</td><td>ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/api/v1/cards/settlement/transmissions/{id}</td><td>Get transmission record</td><td>ADMIN, TELLER</td></tr>

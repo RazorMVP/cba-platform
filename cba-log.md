@@ -57,6 +57,44 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 65) — 2026-11-13
+**Backlog set 3, PR C — item 15d reconciliation (decision D3a), stacked on PR B (#242). RC 91 declines whose compensating backend release never got through, items left `CLEARING` by a close whose capture never answered, and items cleared without the acquirer's country were visible only by querying the database; there was no way to retry the release and record that it was done.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/…/db/migration/V21__reconciliation_hold_resolution.sql` | `authorization_log.hold_resolved_at`, `hold_resolved_by`, `hold_resolution` + partial index on the unresolved set; `settlement_items.claimed_at`; partial indexes for CLEARING and `country_unknown` items |
+| `card-service/…/settlement/ReconciliationService.java` | NEW — three lists by `NamedParameterJdbcTemplate` (DTO records, card last four only, ≤ 500 rows each, oldest first, amounts major units + alphabetic currency); `retryHoldRelease` (404 / 409 / 503 rules, conditional stamp, log with the admin's name); `resolution()` mapping |
+| `card-service/…/settlement/SettlementController.java` | `GET /api/v1/cards/settlement/reconciliation?from&to`, `POST /api/v1/cards/settlement/reconciliation/holds/{authorizationId}/release` (ADMIN; actor = `preferred_username`) |
+| `card-service/…/auth/CardAuthorizationService.java` | `retryUnresolvedRelease(card, reference, amount, currency)` → public `HoldReleaseAnswer(answered, approved, status, reason)` over the existing `releaseWithResult` |
+| `card-service/…/auth/AuthorizationLog.java`, `AuthorizationLogRepository.java` | resolution fields; `markHoldResolved` (`@Modifying` conditional update, `WHERE hold_resolved_at IS NULL AND response_code='91' AND hold_reference IS NOT NULL`) |
+| `card-service/…/settlement/SettlementItem.java`, `SettlementService.java` | `claimedAt`, set on the first PENDING → CLEARING claim only |
+| `card-service/…/common/CbaException.java` | `serviceUnavailable` (503) |
+| tests | `ReconciliationIntegrationTest` (8, WireMock backend + real PostgreSQL): exact lists (resolved / approved / no-reference / out-of-range holds and current-day CLEARING / PENDING / known-country items excluded); a real RC 91 decline whose hold and release both 503 is listed → retry 503, nothing stamped → backend back → RELEASED, the three release calls all carry 25.00 USD → retry again 409; HOLD_NOT_FOUND → NOT_FOUND_TOMBSTONED; refusal 409 `ACCOUNT_CLOSED` and unreachable 503 stamp nothing; 404 for an approved row / unknown id; two concurrent retries → one 200, one 409; TELLER → 403; reversed range → 400. `ReconciliationServiceTest` (2): resolution mapping, money conversion |
+| `card-service/docs/openapi-snapshot.yaml` | regenerated (two endpoints, five DTO schemas) |
+| `web/…/cards/cards.service.ts` (+ spec) | `UnresolvedHold`, `StuckClearingItem`, `CountryUnknownItem`, `ReconciliationView`, `ResolvedHold`; `reconciliation(from?, to?)`, `retryHoldRelease(id)`; spec +1 |
+| `web/…/cards/settlement/settlement.ts/.html/.scss` (+ spec) | fourth tab **Reconciliation**: date range + Refresh, skeleton → empty → tables, `.error-banner`; Retry release per hold (disabled while working, result / refusal in plain words via `RESOLUTIONS` / `RELEASE_REASONS`); stuck items link to their batch (Batches tab, expanded); `CLEARING` badge variant; spec +9. Still `ChangeDetectionStrategy.Eager` |
+| `docs/card-api-reference.html`, `docs/api-reference.html`, `docs/cba-postman-collection-v2.json` (+ `docs-site/static` copies) | both endpoints (summary rows, endpoint detail, API matrix; Postman items with 200/400/409/503 examples and 7 code samples each) |
+| `CLAUDE.md`, `docs/deferred-backlog.md` | settlement reconciliation note; card-service + web "Last git commit" rows; component map; item 15 reconciliation views ✅ |
+
+#### Key Patterns / Decisions
+- **D3a — a view plus one action, nothing automatic.** A retried release is the same backend call the decline made (original card-side amount and currency, no reversal key): idempotent, refunds a 0200 debit that committed after all, tombstones a reference the backend never saw. A stamp needs a backend answer: approved → RELEASED / REFUNDED, `HOLD_NOT_FOUND` → NOT_FOUND_TOMBSTONED, `HOLD_NOT_ACTIVE` → ALREADY_INACTIVE. Any other refusal (e.g. `ACCOUNT_CLOSED`, `ALREADY_REFUNDED`) is a 409 with that reason — a person has to look at the account; unreachable is a 503. Nothing is stamped in either case.
+- **No lock across HTTP.** The plan allowed `SELECT … FOR UPDATE` or a version check; the stamp is a conditional update instead (`… WHERE hold_resolved_at IS NULL`), so no transaction spans the backend call (same rule as batch close). Of two concurrent admins one stamps and the other gets `409 HOLD_ALREADY_RESOLVED`; the second backend release was harmless (idempotent).
+- **Deviation — `claimed_at`.** The plan said "claimed since (`updated_at`)", but `settlement_items` has no `updated_at`; V21 adds `claimed_at`, set on the first claim only (a retried close keeps it). Items claimed before V21 show their `created_at`.
+- **Stuck clearing = batch date before today.** Today's CLEARING items are left out: a close may be capturing them right now. Closing the batch again is the retry (the hint on the tab says so) — no separate endpoint.
+- **No PII:** DTO records only; the card's last four from `cards.pan_suffix`; no customer id.
+- **Migration numbering:** V21 (V19 = PR A, V20 = PR B, V22 = PR D). This PR is stacked on #242 and must merge after it.
+
+#### Build Verification
+- card-service `./mvnw -o test`: **305/305**; `clean verify -Pfull-integration` with `-Dupdate.api.snapshot=true`, then again without it: **348/348** (was 338 on PR B).
+- web: `ng test` **1217/1217** (first run had 5 cold-start timeouts in unrelated specs — accounting-rules, financial-activity-accounts, blacklist, notifications, standing-instructions; the rerun was green); `check:change-detection` OK (95 components Eager); `npm run build` OK.
+- Gate grep: two new endpoints (`@GetMapping("/reconciliation")`, `@PostMapping("/reconciliation/holds/{authorizationId}/release")` + `@PathVariable`) — documented in card-api-reference, api-reference (section + matrix) and the Postman collection.
+
+#### Confirmed Platform Versions
+backend: unchanged (Spring Boot 3.5.16, Java 21). card-service: Spring Boot 3.5.16; 348. web: Angular 22.2.3, 1217. No dependency changes.
+
+---
+
 ### Session 125 (cont. 64) — 2026-11-13
 **Backlog set 3, PR B — item 15d fees: cross-border and currency-conversion scheme fees (decision D2a). The engine applied only ASSESSMENT + NETWORK: the seeded CROSS_BORDER / INTERNATIONAL_SERVICE rows were never charged because DE19 wasn't kept, so the expected scheme net understated what the scheme takes from the bank on foreign transactions.**
 

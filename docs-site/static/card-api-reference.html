@@ -249,6 +249,8 @@ It works alongside the <strong>fep-service</strong> (ISO 8583 TCP server on port
   <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/settlement/scheme-reports</code></td><td>ADMIN</td><td>Record a scheme settlement report (the backend posts the cash leg; a difference within tolerance to GL 1004)</td></tr>
   <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/settlement/scheme-reports?date=</code></td><td>ADMIN</td><td>List recorded scheme reports</td></tr>
   <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/settlement/scheme-reports/expected?scheme=&amp;date=&amp;currency=</code></td><td>ADMIN</td><td>Expected net a scheme report must show</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/settlement/reconciliation?from=&amp;to=</code></td><td>ADMIN</td><td>Reconciliation lists: unresolved holds, items stuck in clearing, items without the acquirer's country</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/settlement/reconciliation/holds/{authorizationId}/release</code></td><td>ADMIN</td><td>Retry the backend release of an unresolved hold; stamps it resolved when the backend answers</td></tr>
   <!-- Disputes -->
   <tr><td><span class="badge badge-get">GET</span></td><td><code>/api/v1/cards/disputes</code></td><td>ADMIN/TELLER</td><td>List disputes</td></tr>
   <tr><td><span class="badge badge-post">POST</span></td><td><code>/api/v1/cards/disputes</code></td><td>ADMIN/TELLER</td><td>Raise dispute</td></tr>
@@ -651,6 +653,59 @@ next day: operations record each scheme's settlement report → backend POST /ap
   </summary>
   <div class="endpoint-body">
     <p>The amount a scheme report is reconciled against — same shape as the report result, with <code>recorded=false</code> and no reported figure. Nothing is written. <code>GET /api/v1/cards/settlement/scheme-reports?date=</code> lists recorded (and POSTING) reports, each with <code>expectedNet</code>, <code>reportedNet</code> and <code>difference</code>. The web Settlement screen's <em>Scheme Reports</em> tab uses all three endpoints.</p>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method GET">GET</span>
+    <span class="endpoint-path">/api/v1/cards/settlement/reconciliation?from=&amp;to=</span>
+    <span class="endpoint-summary">Settlement reconciliation lists (backlog 15d)</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>What the automatic paths left for a person (ADMIN). Optional <code>from</code>/<code>to</code> (ISO dates, inclusive) bound the authorization date for holds and the batch settlement date for items; <code>from</code> after <code>to</code> → <code>400 INVALID_DATE_RANGE</code>. At most 500 rows per list, oldest first. Amounts are major units with the alphabetic currency (the card side — DE6/DE51 when the scheme sent them). No PAN or customer data: the card's last four only.</p>
+    <ul>
+      <li><code>unresolvedHolds</code> — RC 91 declines whose backend hold / 0200 debit call failed and whose compensating release couldn't reach the backend either (<code>authorization_log.response_code='91'</code>, <code>hold_reference</code> kept, not yet resolved). The customer's money may still be held — or, for a 0200, taken.</li>
+      <li><code>stuckClearing</code> — items in <code>CLEARING</code> whose batch settlement date is before today: batch close claimed them and the backend capture never answered. <code>claimedSince</code> is the first claim (V21 <code>claimed_at</code>; the item's creation time for items claimed before V21). Closing the batch again retries the capture (idempotent).</li>
+      <li><code>countryUnknown</code> — items cleared without DE19 (<code>country_unknown</code>), so no cross-border fee was quoted (15d fees, cont. 64).</li>
+    </ul>
+    <pre><code>// Response (200)
+{ "data": { "from": "2026-11-01", "to": "2026-11-12", "maxRows": 500,
+  "unresolvedHolds": [ { "authorizationId": "…", "cardId": "…", "panLast4": "4242", "mti": "0100",
+      "stan": "910001", "rrn": "712391000100", "amount": 25.00, "currency": "USD",
+      "holdReference": "CARD-4e0694e3…", "createdAt": "2026-11-10T10:00:00Z" } ],
+  "stuckClearing": [ { "itemId": "…", "batchId": "…", "batchRef": "BATCH-20261110", "settlementDate": "2026-11-10",
+      "batchStatus": "OPEN", "cardId": "…", "panLast4": "4242", "scheme": "VISA", "amount": 12.50,
+      "currency": "USD", "holdReference": "CARD-…", "authorizationId": "…",
+      "claimedSince": "2026-11-10T23:57:01Z" } ],
+  "countryUnknown": [ { "itemId": "…", "batchId": "…", "settlementDate": "2026-11-10", "scheme": "MASTERCARD",
+      "status": "SETTLED", "amount": 40.00, "currency": "NGN", "authorizationId": "…", "cardId": "…",
+      "panLast4": "1111" } ] } }</code></pre>
+  </div>
+</details>
+
+<details class="endpoint">
+  <summary class="endpoint-header">
+    <span class="method POST">POST</span>
+    <span class="endpoint-path">/api/v1/cards/settlement/reconciliation/holds/{authorizationId}/release</span>
+    <span class="endpoint-summary">Retry the release of an unresolved hold</span>
+  </summary>
+  <div class="endpoint-body">
+    <p>ADMIN, no body. Calls the backend's <code>POST /api/v1/accounts/{account}/card-holds/{holdReference}/release</code> with the decline's original card-side amount and currency — the same call the decline made. The backend release is idempotent: an active hold is released, a 0200 debit that committed after all is refunded, and a reference it never saw is recorded as released (a tombstone, so a hold or debit committing late is refused). When the backend answers with one of those, the authorization is stamped (V21 <code>hold_resolved_at</code>, <code>hold_resolved_by</code> = the admin's <code>preferred_username</code>, <code>hold_resolution</code>) and leaves the unresolved list:</p>
+    <ul>
+      <li><code>RELEASED</code> — the hold was given back; <code>REFUNDED</code> — the debit was credited back;</li>
+      <li><code>NOT_FOUND_TOMBSTONED</code> — backend <code>HOLD_NOT_FOUND</code>; <code>ALREADY_INACTIVE</code> — backend <code>HOLD_NOT_ACTIVE</code> (released or expired before).</li>
+    </ul>
+    <p>Errors (nothing stamped): <code>404 UNRESOLVED_HOLD_NOT_FOUND</code> (unknown id, or not an RC 91 with a reference); <code>409 HOLD_ALREADY_RESOLVED</code> (already stamped — also the answer to the second of two admins retrying at once: the stamp is a conditional update, the backend call idempotent); <code>409 CARD_NOT_LINKED</code>, <code>409 UNKNOWN_CURRENCY</code>; <code>409</code> with the backend's refusal as the code (<code>ACCOUNT_CLOSED</code>, <code>ALREADY_REFUNDED</code>, <code>AMOUNT_EXCEEDS_CAPTURED</code>, <code>CURRENCY_MISMATCH</code>, or <code>RELEASE_REFUSED</code> without a reason); <code>503 BACKEND_UNAVAILABLE</code> when the backend can't be reached — try again. Each resolution is logged with the admin's name.</p>
+    <pre><code>// Response (200)
+{ "data": { "authorizationId": "…", "holdReference": "CARD-4e0694e3…", "resolution": "RELEASED",
+  "resolvedAt": "2026-11-13T10:15:00Z", "resolvedBy": "ops.admin", "backendStatus": "RELEASED",
+  "backendReason": null } }
+
+// Response (503)
+{ "data": null, "errors": [ { "code": "BACKEND_UNAVAILABLE",
+  "message": "The core banking system could not be reached; nothing was changed. Try again." } ] }</code></pre>
+    <p>The web Settlement screen's <em>Reconciliation</em> tab shows the three lists, with <em>Retry release</em> per hold and a link from each stuck item to its batch.</p>
   </div>
 </details>
 </section>

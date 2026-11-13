@@ -25458,6 +25458,261 @@
                   "source": "var request = new HttpRequestMessage(new HttpMethod(\"GET\"), \"http://{{cardServiceHost}}/api/v1/cards/settlement/scheme-reports/expected?scheme=VISA&date=2026-10-23&currency=USD\");\nrequest.Headers.Authorization = new AuthenticationHeaderValue(\"Bearer\", accessToken);\nvar response = await new HttpClient().SendAsync(request);"
                 }
               ]
+            },
+            {
+              "name": "Settlement Reconciliation",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/reconciliation?from=2026-11-01&to=2026-11-12",
+                  "host": [
+                    "http://{{cardServiceHost}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "cards",
+                    "settlement",
+                    "reconciliation"
+                  ],
+                  "query": [
+                    {
+                      "key": "from",
+                      "value": "2026-11-01",
+                      "description": "Optional, inclusive \u2014 authorization date (holds) / batch settlement date (items)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "to",
+                      "value": "2026-11-12",
+                      "description": "Optional, inclusive",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Settlement reconciliation (backlog 15d, cont. 65; ADMIN). Three lists, at most 500 rows each, oldest first; card's last four only, amounts major units with the alphabetic currency. unresolvedHolds: RC 91 declines whose backend hold / 0200 debit call failed and whose release couldn't reach the backend (hold_reference kept, not resolved). stuckClearing: items in CLEARING on an earlier settlement date \u2014 the capture never answered; closing the batch again retries it. countryUnknown: items cleared without DE19 (no cross-border fee quoted). from after to \u2192 400 INVALID_DATE_RANGE."
+              },
+              "response": [
+                {
+                  "name": "200 OK",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/reconciliation?from=2026-11-01&to=2026-11-12"
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"data\": {\n    \"from\": \"2026-11-01\",\n    \"to\": \"2026-11-12\",\n    \"maxRows\": 500,\n    \"unresolvedHolds\": [\n      {\n        \"authorizationId\": \"5b1d3c2e-9a41-4c8e-b6a2-0f7d9e3c1a10\",\n        \"cardId\": \"622f1ab0-c918-47ba-bc95-5ceaec224258\",\n        \"panLast4\": \"4242\",\n        \"mti\": \"0100\",\n        \"stan\": \"910001\",\n        \"rrn\": \"712391000100\",\n        \"amount\": 25.0,\n        \"currency\": \"USD\",\n        \"holdReference\": \"CARD-4e0694e34d576f6b528a5230324cdb0562af9ba3\",\n        \"createdAt\": \"2026-11-10T10:00:00Z\"\n      }\n    ],\n    \"stuckClearing\": [\n      {\n        \"itemId\": \"8c2f6a1d-3b7e-4d5a-9e10-2a4b6c8d0e12\",\n        \"batchId\": \"1f3e5d7c-9b0a-4c2e-8d6f-4a2c0e8b6d14\",\n        \"batchRef\": \"BATCH-20261110\",\n        \"settlementDate\": \"2026-11-10\",\n        \"batchStatus\": \"OPEN\",\n        \"cardId\": \"622f1ab0-c918-47ba-bc95-5ceaec224258\",\n        \"panLast4\": \"4242\",\n        \"scheme\": \"VISA\",\n        \"amount\": 12.5,\n        \"currency\": \"USD\",\n        \"holdReference\": \"CARD-9d1c\u2026\",\n        \"authorizationId\": \"3a5c7e9b-1d2f-4a6c-8e0b-2d4f6a8c0e16\",\n        \"claimedSince\": \"2026-11-10T23:57:01Z\"\n      }\n    ],\n    \"countryUnknown\": [\n      {\n        \"itemId\": \"6e8a0c2b-4d6f-4b8a-9c1e-3f5a7c9e1b18\",\n        \"batchId\": \"1f3e5d7c-9b0a-4c2e-8d6f-4a2c0e8b6d14\",\n        \"settlementDate\": \"2026-11-10\",\n        \"scheme\": \"MASTERCARD\",\n        \"status\": \"SETTLED\",\n        \"amount\": 40.0,\n        \"currency\": \"NGN\",\n        \"authorizationId\": \"7f9b1d3e-5a7c-4e9a-8b2d-4f6a8c0e2a20\",\n        \"cardId\": \"9a0b1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c22\",\n        \"panLast4\": \"1111\"\n      }\n    ]\n  },\n  \"errors\": []\n}"
+                },
+                {
+                  "name": "400 Bad Request \u2014 from after to",
+                  "originalRequest": {
+                    "method": "GET",
+                    "url": {
+                      "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/reconciliation?from=2026-11-12&to=2026-11-01"
+                    }
+                  },
+                  "status": "Bad Request",
+                  "code": 400,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"INVALID_DATE_RANGE\",\n      \"message\": \"from must not be after to\",\n      \"field\": null\n    }\n  ]\n}"
+                }
+              ],
+              "x-code-samples": [
+                {
+                  "lang": "cURL",
+                  "source": "curl -X GET 'http://{{cardServiceHost}}/api/v1/cards/settlement/reconciliation?from=2026-11-01&to=2026-11-12' \\\n  -H 'Authorization: Bearer {{admin_token}}'"
+                },
+                {
+                  "lang": "JavaScript (fetch)",
+                  "source": "fetch('http://{{cardServiceHost}}/api/v1/cards/settlement/reconciliation?from=2026-11-01&to=2026-11-12', {\n  method: 'GET',\n  headers: {\n    'Authorization': 'Bearer {{admin_token}}',\n    'Content-Type': 'application/json'\n  }\n}).then(r => r.json()).then(console.log);"
+                },
+                {
+                  "lang": "Python (requests)",
+                  "source": "import requests\n\nresponse = requests.get(\n    'http://{{cardServiceHost}}/api/v1/cards/settlement/reconciliation?from=2026-11-01&to=2026-11-12',\n    headers={'Authorization': 'Bearer {{admin_token}}'}\n)\nprint(response.json())"
+                },
+                {
+                  "lang": "Java (HttpClient)",
+                  "source": "HttpRequest request = HttpRequest.newBuilder()\n    .uri(URI.create(\"http://{{cardServiceHost}}/api/v1/cards/settlement/reconciliation?from=2026-11-01&to=2026-11-12\"))\n    .header(\"Authorization\", \"Bearer \" + accessToken)\n    .header(\"Content-Type\", \"application/json\")\n    .method(\"GET\", HttpRequest.BodyPublishers.noBody())\n    .build();\nHttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());"
+                },
+                {
+                  "lang": "Go (net/http)",
+                  "source": "req, _ := http.NewRequest(\"GET\", \"http://{{cardServiceHost}}/api/v1/cards/settlement/reconciliation?from=2026-11-01&to=2026-11-12\", strings.NewReader(``))\nreq.Header.Set(\"Authorization\", \"Bearer \"+accessToken)\nreq.Header.Set(\"Content-Type\", \"application/json\")\nresp, err := http.DefaultClient.Do(req)"
+                },
+                {
+                  "lang": "Ruby (net/http)",
+                  "source": "uri = URI('http://{{cardServiceHost}}/api/v1/cards/settlement/reconciliation?from=2026-11-01&to=2026-11-12')\nreq = Net::HTTP::Get.new(uri, 'Authorization' => \"Bearer #{token}\", 'Content-Type' => 'application/json')\nres = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https') { |http| http.request(req) }"
+                },
+                {
+                  "lang": "C# (HttpClient)",
+                  "source": "var request = new HttpRequestMessage(new HttpMethod(\"GET\"), \"http://{{cardServiceHost}}/api/v1/cards/settlement/reconciliation?from=2026-11-01&to=2026-11-12\");\nrequest.Headers.Authorization = new AuthenticationHeaderValue(\"Bearer\", accessToken);\nvar response = await new HttpClient().SendAsync(request);"
+                }
+              ]
+            },
+            {
+              "name": "Retry Unresolved Hold Release",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{admin_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/reconciliation/holds/5b1d3c2e-9a41-4c8e-b6a2-0f7d9e3c1a10/release",
+                  "host": [
+                    "http://{{cardServiceHost}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "cards",
+                    "settlement",
+                    "reconciliation",
+                    "holds",
+                    "5b1d3c2e-9a41-4c8e-b6a2-0f7d9e3c1a10",
+                    "release"
+                  ]
+                },
+                "description": "Retries the backend release of an unresolved hold (ADMIN, no body): POST /api/v1/accounts/{account}/card-holds/{holdReference}/release with the decline's card-side amount and currency (idempotent; a reference the backend never saw is tombstoned so a late commit is refused). When the backend answers, the authorization is stamped resolved (hold_resolved_at / by / resolution): RELEASED, REFUNDED, NOT_FOUND_TOMBSTONED (HOLD_NOT_FOUND) or ALREADY_INACTIVE (HOLD_NOT_ACTIVE). Nothing is stamped on 404 UNRESOLVED_HOLD_NOT_FOUND, 409 HOLD_ALREADY_RESOLVED (also the loser of two concurrent retries), 409 CARD_NOT_LINKED / UNKNOWN_CURRENCY, 409 with the backend's refusal reason (ACCOUNT_CLOSED, ALREADY_REFUNDED, \u2026) or 503 BACKEND_UNAVAILABLE."
+              },
+              "response": [
+                {
+                  "name": "200 OK \u2014 released",
+                  "originalRequest": {
+                    "method": "POST",
+                    "url": {
+                      "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/reconciliation/holds/5b1d3c2e-9a41-4c8e-b6a2-0f7d9e3c1a10/release"
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"data\": {\n    \"authorizationId\": \"5b1d3c2e-9a41-4c8e-b6a2-0f7d9e3c1a10\",\n    \"holdReference\": \"CARD-4e0694e34d576f6b528a5230324cdb0562af9ba3\",\n    \"resolution\": \"RELEASED\",\n    \"resolvedAt\": \"2026-11-13T10:15:00Z\",\n    \"resolvedBy\": \"ops.admin\",\n    \"backendStatus\": \"RELEASED\",\n    \"backendReason\": null\n  },\n  \"errors\": []\n}"
+                },
+                {
+                  "name": "200 OK \u2014 never placed (tombstoned)",
+                  "originalRequest": {
+                    "method": "POST",
+                    "url": {
+                      "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/reconciliation/holds/5b1d3c2e-9a41-4c8e-b6a2-0f7d9e3c1a10/release"
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"data\": {\n    \"authorizationId\": \"5b1d3c2e-9a41-4c8e-b6a2-0f7d9e3c1a10\",\n    \"holdReference\": \"CARD-4e0694e34d576f6b528a5230324cdb0562af9ba3\",\n    \"resolution\": \"NOT_FOUND_TOMBSTONED\",\n    \"resolvedAt\": \"2026-11-13T10:15:00Z\",\n    \"resolvedBy\": \"ops.admin\",\n    \"backendStatus\": null,\n    \"backendReason\": \"HOLD_NOT_FOUND\"\n  },\n  \"errors\": []\n}"
+                },
+                {
+                  "name": "409 Conflict \u2014 already resolved",
+                  "originalRequest": {
+                    "method": "POST",
+                    "url": {
+                      "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/reconciliation/holds/5b1d3c2e-9a41-4c8e-b6a2-0f7d9e3c1a10/release"
+                    }
+                  },
+                  "status": "Conflict",
+                  "code": 409,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"HOLD_ALREADY_RESOLVED\",\n      \"message\": \"Resolved RELEASED by ops.admin at 2026-11-13T10:15Z\",\n      \"field\": null\n    }\n  ]\n}"
+                },
+                {
+                  "name": "503 Service Unavailable \u2014 backend unreachable",
+                  "originalRequest": {
+                    "method": "POST",
+                    "url": {
+                      "raw": "http://{{cardServiceHost}}/api/v1/cards/settlement/reconciliation/holds/5b1d3c2e-9a41-4c8e-b6a2-0f7d9e3c1a10/release"
+                    }
+                  },
+                  "status": "Service Unavailable",
+                  "code": 503,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"data\": null,\n  \"meta\": {},\n  \"errors\": [\n    {\n      \"code\": \"BACKEND_UNAVAILABLE\",\n      \"message\": \"The core banking system could not be reached; nothing was changed. Try again.\",\n      \"field\": null\n    }\n  ]\n}"
+                }
+              ],
+              "x-code-samples": [
+                {
+                  "lang": "cURL",
+                  "source": "curl -X POST 'http://{{cardServiceHost}}/api/v1/cards/settlement/reconciliation/holds/5b1d3c2e-9a41-4c8e-b6a2-0f7d9e3c1a10/release' \\\n  -H 'Authorization: Bearer {{admin_token}}'"
+                },
+                {
+                  "lang": "JavaScript (fetch)",
+                  "source": "fetch('http://{{cardServiceHost}}/api/v1/cards/settlement/reconciliation/holds/5b1d3c2e-9a41-4c8e-b6a2-0f7d9e3c1a10/release', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer {{admin_token}}',\n    'Content-Type': 'application/json'\n  }\n}).then(r => r.json()).then(console.log);"
+                },
+                {
+                  "lang": "Python (requests)",
+                  "source": "import requests\n\nresponse = requests.post(\n    'http://{{cardServiceHost}}/api/v1/cards/settlement/reconciliation/holds/5b1d3c2e-9a41-4c8e-b6a2-0f7d9e3c1a10/release',\n    headers={'Authorization': 'Bearer {{admin_token}}'}\n)\nprint(response.json())"
+                },
+                {
+                  "lang": "Java (HttpClient)",
+                  "source": "HttpRequest request = HttpRequest.newBuilder()\n    .uri(URI.create(\"http://{{cardServiceHost}}/api/v1/cards/settlement/reconciliation/holds/5b1d3c2e-9a41-4c8e-b6a2-0f7d9e3c1a10/release\"))\n    .header(\"Authorization\", \"Bearer \" + accessToken)\n    .header(\"Content-Type\", \"application/json\")\n    .method(\"POST\", HttpRequest.BodyPublishers.noBody())\n    .build();\nHttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());"
+                },
+                {
+                  "lang": "Go (net/http)",
+                  "source": "req, _ := http.NewRequest(\"POST\", \"http://{{cardServiceHost}}/api/v1/cards/settlement/reconciliation/holds/5b1d3c2e-9a41-4c8e-b6a2-0f7d9e3c1a10/release\", strings.NewReader(``))\nreq.Header.Set(\"Authorization\", \"Bearer \"+accessToken)\nreq.Header.Set(\"Content-Type\", \"application/json\")\nresp, err := http.DefaultClient.Do(req)"
+                },
+                {
+                  "lang": "Ruby (net/http)",
+                  "source": "uri = URI('http://{{cardServiceHost}}/api/v1/cards/settlement/reconciliation/holds/5b1d3c2e-9a41-4c8e-b6a2-0f7d9e3c1a10/release')\nreq = Net::HTTP::Post.new(uri, 'Authorization' => \"Bearer #{token}\", 'Content-Type' => 'application/json')\nres = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https') { |http| http.request(req) }"
+                },
+                {
+                  "lang": "C# (HttpClient)",
+                  "source": "var request = new HttpRequestMessage(new HttpMethod(\"POST\"), \"http://{{cardServiceHost}}/api/v1/cards/settlement/reconciliation/holds/5b1d3c2e-9a41-4c8e-b6a2-0f7d9e3c1a10/release\");\nrequest.Headers.Authorization = new AuthenticationHeaderValue(\"Bearer\", accessToken);\nvar response = await new HttpClient().SendAsync(request);"
+                }
+              ]
             }
           ]
         },

@@ -698,6 +698,30 @@ public class CardAuthorizationService {
     /** A release's outcome and, when the backend answered, its result (to see whether it refunded). */
     record Release(ReleaseOutcome outcome, BackendHold hold) {}
 
+    /**
+     * What the backend said to a reconciliation retry of a release: {@code answered=false} when it couldn't
+     * be reached (or sent no result); otherwise its verdict — approved with the hold's status
+     * (RELEASED / REFUNDED), or not approved with its reason (HOLD_NOT_FOUND, HOLD_NOT_ACTIVE, a refusal).
+     */
+    public record HoldReleaseAnswer(boolean answered, boolean approved, String status, String reason) {}
+
+    /**
+     * Retries the release of an RC 91 decline's backend reference that the decline itself couldn't release
+     * (settlement reconciliation, backlog 15d). Same call as at the decline — the original card-side amount
+     * and currency, no reversal key — so the backend releases a hold, refunds a 0200 debit that committed
+     * after all, or records a reference it never saw as released (a tombstone a late commit is refused on).
+     * Never inside a transaction: it is one HTTP call.
+     */
+    public HoldReleaseAnswer retryUnresolvedRelease(Card card, String reference, BigDecimal amountMajor,
+                                                    java.util.Currency currency) {
+        Release release = releaseWithResult(card, reference, amountMajor, currency, null);
+        if (release.outcome() == ReleaseOutcome.UNREACHABLE || release.hold() == null) {
+            return new HoldReleaseAnswer(false, false, null, null);
+        }
+        BackendHold hold = release.hold();
+        return new HoldReleaseAnswer(true, hold.approved(), hold.status(), hold.reason());
+    }
+
     /** Rolls back the reversal's transaction (when there is one) so changes made before a refusal are undone. */
     private static void rollbackOnly() {
         if (TransactionSynchronizationManager.isActualTransactionActive()) {

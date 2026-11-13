@@ -1,14 +1,15 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { of, throwError, Subject } from 'rxjs';
 import { SettlementComponent } from './settlement';
 import {
   CardsService, SettlementBatch, SettlementTransmission, SchemeReportResult, SchemeSettlementReport,
+  ReconciliationView, UnresolvedHold,
 } from '../cards.service';
 
 type Svc = Record<
   'listBatches' | 'listTransmissions' | 'closeBatch' | 'triggerExport'
-    | 'expectedSchemeNet' | 'recordSchemeReport' | 'listSchemeReports',
+    | 'expectedSchemeNet' | 'recordSchemeReport' | 'listSchemeReports' | 'reconciliation' | 'retryHoldRelease',
   ReturnType<typeof vi.fn>
 >;
 
@@ -25,6 +26,30 @@ function report(over: Partial<SchemeSettlementReport> = {}): SchemeSettlementRep
     expectedNet: 149.2, difference: 0.01, itemCount: 2, refundCount: 0, status: 'RECORDED',
     backendReference: 'CSR-VISA-20261108-USD', journalTransactionId: 'GL-1', createdBy: 'ops',
     createdAt: '2026-11-09', recordedAt: '2026-11-09', ...over,
+  };
+}
+
+function hold(over: Partial<UnresolvedHold> = {}): UnresolvedHold {
+  return {
+    authorizationId: 'a1', cardId: 'c1', panLast4: '4242', mti: '0100', stan: '910001', rrn: '712391000100',
+    amount: 25, currency: 'USD', holdReference: 'CARD-4e0694e34d576f6b528a5230', createdAt: '2026-11-10T10:00:00Z',
+    ...over,
+  };
+}
+function recon(over: Partial<ReconciliationView> = {}): ReconciliationView {
+  return {
+    from: null, to: null, maxRows: 500,
+    unresolvedHolds: [hold()],
+    stuckClearing: [{
+      itemId: 'i1', batchId: 'b9', batchRef: 'BATCH-9', settlementDate: '2026-11-10', batchStatus: 'OPEN',
+      cardId: 'c1', panLast4: '4242', scheme: 'VISA', amount: 12.5, currency: 'USD', holdReference: 'CARD-x',
+      authorizationId: 'a9', claimedSince: '2026-11-10T23:57:00Z',
+    }],
+    countryUnknown: [{
+      itemId: 'i2', batchId: 'b9', settlementDate: '2026-11-10', scheme: 'MASTERCARD', status: 'SETTLED',
+      amount: 40, currency: 'NGN', authorizationId: 'a8', cardId: 'c2', panLast4: '1111',
+    }],
+    ...over,
   };
 }
 
@@ -53,6 +78,11 @@ describe('SettlementComponent', () => {
       expectedSchemeNet: vi.fn().mockReturnValue(of(result({ recorded: false, reportedNet: null, difference: null }))),
       recordSchemeReport: vi.fn().mockReturnValue(of(result())),
       listSchemeReports: vi.fn().mockReturnValue(of([report()])),
+      reconciliation: vi.fn().mockReturnValue(of(recon())),
+      retryHoldRelease: vi.fn().mockReturnValue(of({
+        authorizationId: 'a1', holdReference: 'CARD-4e06', resolution: 'RELEASED', resolvedAt: '2026-11-13',
+        resolvedBy: 'ops', backendStatus: 'RELEASED', backendReason: null,
+      })),
     };
     TestBed.configureTestingModule({
       imports: [SettlementComponent],
@@ -233,6 +263,123 @@ describe('SettlementComponent', () => {
       expect(c.reasonText('SOMETHING_NEW')).toBe('SOMETHING_NEW');
       expect(c.statusVariant('RECORDED')).toBe('success');
       expect(c.statusVariant('POSTING')).toBe('warning');
+    });
+  });
+
+  describe('Reconciliation tab', () => {
+    function open() {
+      const fixture = TestBed.createComponent(SettlementComponent);
+      fixture.detectChanges();
+      const c = fixture.componentInstance;
+      c.setTab('reconciliation');
+      fixture.detectChanges();
+      return { fixture, c, el: fixture.nativeElement as HTMLElement };
+    }
+
+    it('opening the tab loads all three lists and renders them (last four only)', () => {
+      const { c, el } = open();
+      expect(svc.reconciliation).toHaveBeenCalledWith(undefined, undefined);
+      expect(c.recon?.unresolvedHolds).toHaveLength(1);
+      expect(el.querySelector('[data-testid="recon-holds"]')?.textContent).toContain('•••• 4242');
+      expect(el.querySelector('[data-testid="recon-holds"]')?.textContent).toContain('25.00 USD');
+      expect(el.querySelector('[data-testid="recon-clearing"]')?.textContent).toContain('BATCH-9');
+      expect(el.querySelector('[data-testid="recon-clearing"]')?.textContent).toContain('Closing the batch again retries');
+      expect(el.querySelector('[data-testid="recon-country"]')?.textContent).toContain('40.00 NGN');
+    });
+
+    it('the date filter is sent when set', () => {
+      const { c } = open();
+      c.reconFrom = '2026-11-01';
+      c.reconTo = '2026-11-12';
+      c.loadReconciliation();
+      expect(svc.reconciliation).toHaveBeenLastCalledWith('2026-11-01', '2026-11-12');
+    });
+
+    it('empty lists show empty states', () => {
+      svc.reconciliation.mockReturnValue(of(recon({ unresolvedHolds: [], stuckClearing: [], countryUnknown: [] })));
+      const { el } = open();
+      expect(el.textContent).toContain('No unresolved holds.');
+      expect(el.textContent).toContain('Nothing stuck in clearing.');
+      expect(el.textContent).toContain('No items without a country.');
+    });
+
+    it('a failed load shows the error banner', () => {
+      svc.reconciliation.mockReturnValue(throwError(() => ({
+        error: { errors: [{ code: 'INVALID_DATE_RANGE', message: 'from must not be after to' }] },
+      })));
+      const { c, el } = open();
+      expect(c.reconError).toBe('from must not be after to');
+      expect(el.querySelector('.error-banner')?.textContent).toContain('from must not be after to');
+      expect(c.reconLoading).toBe(false);
+    });
+
+    it('Retry release shows what the release came to and replaces the button', () => {
+      const { fixture, c, el } = open();
+      (el.querySelector('[data-testid="retry-a1"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(svc.retryHoldRelease).toHaveBeenCalledWith('a1');
+      expect(c.releaseResult['a1']).toContain('Released');
+      expect(el.querySelector('[data-testid="retry-a1"]')).toBeNull();
+      expect(el.querySelector('[data-testid="hold-a1"]')?.textContent).toContain('RESOLVED');
+      // A resolved hold isn't sent again.
+      c.retryRelease(hold());
+      expect(svc.retryHoldRelease).toHaveBeenCalledTimes(1);
+    });
+
+    it('a tombstoned reference is explained in plain words', () => {
+      svc.retryHoldRelease.mockReturnValue(of({
+        authorizationId: 'a1', holdReference: 'x', resolution: 'NOT_FOUND_TOMBSTONED', resolvedAt: '', resolvedBy: 'ops',
+        backendStatus: null, backendReason: 'HOLD_NOT_FOUND',
+      }));
+      const { c } = open();
+      c.retryRelease(hold());
+      expect(c.releaseResult['a1']).toContain('never placed');
+    });
+
+    it('the button is disabled while the release is in flight', () => {
+      const pending = new Subject<never>();
+      svc.retryHoldRelease.mockReturnValue(pending.asObservable());
+      const { fixture, c, el } = open();
+      c.retryRelease(hold());
+      fixture.detectChanges();
+      const btn = el.querySelector('[data-testid="retry-a1"]') as HTMLButtonElement;
+      expect(btn.disabled).toBe(true);
+      expect(btn.textContent).toContain('Releasing');
+      c.retryRelease(hold());
+      expect(svc.retryHoldRelease).toHaveBeenCalledTimes(1);
+    });
+
+    it('an outage or refusal is shown in plain words and the button stays for another try', () => {
+      svc.retryHoldRelease.mockReturnValue(throwError(() => ({
+        status: 503, error: { errors: [{ code: 'BACKEND_UNAVAILABLE', message: 'unreachable' }] },
+      })));
+      const { fixture, c, el } = open();
+      c.retryRelease(hold());
+      fixture.detectChanges();
+      expect(c.releaseError['a1']).toContain('could not be reached');
+      expect(el.querySelector('[data-testid="retry-a1"]')).not.toBeNull();
+      expect(c.releasing['a1']).toBe(false);
+
+      svc.retryHoldRelease.mockReturnValue(throwError(() => ({
+        status: 409, error: { errors: [{ code: 'ACCOUNT_CLOSED', message: 'refused: ACCOUNT_CLOSED' }] },
+      })));
+      c.retryRelease(hold());
+      expect(c.releaseError['a1']).toContain('account is closed');
+
+      svc.retryHoldRelease.mockReturnValue(throwError(() => ({
+        status: 409, error: { errors: [{ code: 'SOMETHING_NEW', message: 'refused: SOMETHING_NEW' }] },
+      })));
+      c.retryRelease(hold());
+      expect(c.releaseError['a1']).toBe('refused: SOMETHING_NEW');
+    });
+
+    it('a stuck item links to its batch on the Batches tab', () => {
+      const { fixture, c, el } = open();
+      (el.querySelector('[data-testid="batch-link-i1"]') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(c.activeTab).toBe('batches');
+      expect(c.expandedBatch).toBe('b9');
+      expect(c.statusVariant('CLEARING')).toBe('warning');
     });
   });
 

@@ -130,6 +130,10 @@ public class SettlementItem {
     private UUID refundReportId;
 
     /** Batch close and reversals can race on an item; the later writer re-reads instead of overwriting. */
+    /** When batch close first claimed it (PENDING → CLEARING); reconciliation's "claimed since" (V21). */
+    @Column(name = "claimed_at")
+    private OffsetDateTime claimedAt;
+
     @Version
     private Long version;
 

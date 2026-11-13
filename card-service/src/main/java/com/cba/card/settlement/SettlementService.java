@@ -459,6 +459,7 @@ public class SettlementService {
                         item == null ? "missing" : item.getStatus());
                 return null;
             }
+            if (item.getClaimedAt() == null) item.setClaimedAt(OffsetDateTime.now());   // first claim only
             item.setStatus(CLEARING);
             if (movesGl(item) && item.getInterchangeAmount() == null) {
                 quoteCharges(item);

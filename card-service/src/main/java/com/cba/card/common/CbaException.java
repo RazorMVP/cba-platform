@@ -29,6 +29,10 @@ public class CbaException extends RuntimeException {
         return new CbaException(code, message, HttpStatus.FORBIDDEN);
     }
 
+    public static CbaException serviceUnavailable(String code, String message) {
+        return new CbaException(code, message, HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
     public String getCode()       { return code;   }
     public HttpStatus getStatus() { return status; }
 }

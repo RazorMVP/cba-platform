@@ -1,6 +1,6 @@
 # Backlog set 3: 15d (the buildable rest) + 15c (leftovers)
 
-> Status: approved 2026-11-13 (user: "set 3 = 15d+15c", "start 15d and 15c", plan approved; every decision a). PR A (15d partial refunds, D1a) in progress — `feat/card-partial-refunds`.
+> Status: approved 2026-11-13 (user: "set 3 = 15d+15c", "start 15d and 15c", plan approved; every decision a). PR A (15d partial refunds, D1a) in progress — #243, `feat/card-partial-refunds`.
 
 ## Context
 

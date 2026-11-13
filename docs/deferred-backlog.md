@@ -526,7 +526,19 @@ amortising term loans (no credit limit, no draws). What's needed:
 >   loaded from / unloaded to the cardholder's backend account (DR deposit / CR new GL 2500 Prepaid Card Liabilities, or the
 >   reverse; CBN stored-value guidelines, IAS 32 §11, IFRS 9 §4.2.1); prepaid spend clears at batch close DR 2500 / CR 2300 with
 >   interchange and fees and enters the scheme reports; refunds pro rata; expired items give the wallet back; PREPAID opening
->   scope. Not built: load fees, the CBN balance limit (N250,000), breakage.
+>   scope. Not built: breakage (IFRS 15 §5(c): out of scope for an IFRS 9 liability).
+>   - **Wallet limits ✅ done in cont. 66** (backlog set 3 PR D, decision D4a): loads are refused above the maximum balance
+>     (`WALLET_BALANCE_LIMIT`: balance + pending loads + this load) or the daily load (`DAILY_LOAD_LIMIT`: today's pending or
+>     completed loads, `Africa/Lagos` day), under a per-card advisory lock. Defaults per wallet currency in
+>     `card.prepaid.limits` — **NGN 250,000 / 50,000 a day**, the CBN stored-value limits (*Revised Guidelines on Stored
+>     Value/Prepaid Card Issuance and Operations*, 2012, §4.2/§4.3), which bind prepaid cards until full KYC (§5.2); other
+>     currencies unlimited (§5.1). A card product overrides both (`max_wallet_balance`, `daily_wallet_load`, V22) — for a
+>     full-KYC product. Money coming back (reversals, refunds, expired items, refused unloads) is never limited (§3.7). A KYC
+>     tier on the customer (to lift the NGN cap per customer rather than per product) is not built.
+>   - **Load fees — won't do (decision D5a, cont. 66):** CBN *Guide to Charges by Banks, Other Financial and Non-Bank
+>     Financial Institutions* (effective 1 Jan 2020) §10.6.4 "Prepaid Card Loading/Unloading — **No charge**"; any charge not
+>     in the Guide needs CBN's prior written approval (Preface). **Re-check against the final 2026 revised Guide** (exposure
+>     draft April 2026, reported effective 1 May 2026; its prepaid row wasn't found) before revisiting.
 > - **15d — clearing-file intake and what 15b left out.** Clearing still presents at the authorized amount: a scheme
 >   clearing-file intake (amount differences, incremental presentments, presentment-driven refunds). Cross-border and
 >   international-service fees need the merchant's country (DE19/DE43). ~~Scheme reports must match to the cent — a

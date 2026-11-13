@@ -1,6 +1,8 @@
 package com.cba.card.wallet;
 
 import com.cba.card.card.Card;
+import com.cba.card.card.CardProduct;
+import com.cba.card.card.CardProductRepository;
 import com.cba.card.card.CardService;
 import com.cba.card.card.CardStatus;
 import com.cba.card.card.CardType;
@@ -12,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.PlatformTransactionManager;
 
@@ -34,6 +37,8 @@ class WalletServiceTest {
     @Mock WalletMovementRepository movementRepository;
     @Mock BackendClearingClient backend;
     @Mock PlatformTransactionManager transactionManager;   // TransactionTemplate runs the callback
+    @Mock CardProductRepository productRepository;
+    @Spy PrepaidLimitProperties limitProperties = new PrepaidLimitProperties();
 
     @InjectMocks WalletService service;
 
@@ -172,5 +177,149 @@ class WalletServiceTest {
         assertThatThrownBy(() -> service.wallet(card.getId()))
                 .hasFieldOrPropertyWithValue("code", "NOT_A_PREPAID_CARD");
         verifyNoInteractions(backend);
+    }
+
+    // ── Load limits (decision D4a) ────────────────────────────────────────────
+
+    private PrepaidWallet ngnWallet(String balance) {
+        PrepaidWallet w = wallet(balance);
+        w.setCurrencyCode("NGN");
+        lenient().when(walletRepository.findByCardId(card.getId())).thenReturn(Optional.of(w));
+        lenient().when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(w));
+        return w;
+    }
+
+    private void ngnDefaults() {
+        PrepaidLimitProperties.Limit ngn = new PrepaidLimitProperties.Limit();
+        ngn.setMaxBalance(new BigDecimal("250000"));
+        ngn.setDailyLoad(new BigDecimal("50000"));
+        limitProperties.getLimits().put("NGN", ngn);
+    }
+
+    private void loadedToday(String amount) {
+        lenient().when(movementRepository.sumLoadsSince(eq(card.getId()), any())).thenReturn(new BigDecimal(amount));
+    }
+
+    @Test
+    @DisplayName("balance limit: balance + this load above the maximum → WALLET_BALANCE_LIMIT, nothing claimed or sent")
+    void balanceLimit() {
+        ngnDefaults();
+        ngnWallet("230000.00");
+        loadedToday("0");
+
+        assertThatThrownBy(() -> service.load(card.getId(), account, new BigDecimal("20000.01"), null, "t"))
+                .hasFieldOrPropertyWithValue("code", "WALLET_BALANCE_LIMIT");
+        verify(movementRepository).lockCardLoads(card.getId());
+        verify(movementRepository, never()).save(any());
+        verifyNoInteractions(backend);
+
+        when(backend.prepaidLoad(any(), any(), any(), any(), any(), any())).thenReturn(approved());
+        assertThat(service.load(card.getId(), account, new BigDecimal("20000.00"), null, "t").getStatus())
+                .isEqualTo(WalletMovement.COMPLETED);   // exactly at the maximum is allowed
+    }
+
+    @Test
+    @DisplayName("balance limit counts loads still pending (claimed, not answered yet)")
+    void pendingLoadsCounted() {
+        ngnDefaults();
+        ngnWallet("200000.00");
+        loadedToday("0");
+        when(movementRepository.sumPendingLoads(card.getId())).thenReturn(new BigDecimal("40000.00"));
+
+        assertThatThrownBy(() -> service.load(card.getId(), account, new BigDecimal("10000.01"), null, "t"))
+                .hasFieldOrPropertyWithValue("code", "WALLET_BALANCE_LIMIT")
+                .hasMessageContaining("still loading");
+        verifyNoInteractions(backend);
+    }
+
+    @Test
+    @DisplayName("daily limit: today's loads (pending or completed) + this load above it → DAILY_LOAD_LIMIT; FAILED loads aren't in the sum")
+    void dailyLimit() {
+        ngnDefaults();
+        ngnWallet("0.00");
+        loadedToday("45000.00");   // the repository sums only non-FAILED loads since midnight in the limit zone
+
+        assertThatThrownBy(() -> service.load(card.getId(), account, new BigDecimal("5000.01"), null, "t"))
+                .hasFieldOrPropertyWithValue("code", "DAILY_LOAD_LIMIT");
+        verifyNoInteractions(backend);
+
+        when(backend.prepaidLoad(any(), any(), any(), any(), any(), any())).thenReturn(approved());
+        assertThat(service.load(card.getId(), account, new BigDecimal("5000.00"), null, "t").getStatus())
+                .isEqualTo(WalletMovement.COMPLETED);
+        // the day starts at midnight in Africa/Lagos
+        verify(movementRepository, atLeastOnce()).sumLoadsSince(eq(card.getId()), argThat(since ->
+                since.toLocalTime().equals(java.time.LocalTime.MIDNIGHT) && since.getOffset().getTotalSeconds() == 3600));
+    }
+
+    @Test
+    @DisplayName("a refused (FAILED) load doesn't use up the day: the sum the limit reads leaves it out")
+    void failedLoadsNotCounted() {
+        ngnDefaults();
+        ngnWallet("0.00");
+        // First load refused by the backend; the repository's sum (status <> FAILED) stays 0.
+        loadedToday("0");
+        when(backend.prepaidLoad(any(), any(), any(), any(), any(), any())).thenReturn(
+                new PrepaidPost(false, false, "R", "INSUFFICIENT_FUNDS", null, null, null, null, null, null), approved());
+
+        assertThat(service.load(card.getId(), account, new BigDecimal("50000"), null, "t").getStatus())
+                .isEqualTo(WalletMovement.FAILED);
+        assertThat(service.load(card.getId(), account, new BigDecimal("50000"), null, "t").getStatus())
+                .isEqualTo(WalletMovement.COMPLETED);
+    }
+
+    @Test
+    @DisplayName("product override wins in both directions: a full-KYC product lifts the NGN default, another tightens it")
+    void productOverride() {
+        ngnDefaults();
+        PrepaidWallet w = ngnWallet("0.00");
+        loadedToday("0");
+        when(backend.prepaidLoad(any(), any(), any(), any(), any(), any())).thenReturn(approved());
+
+        CardProduct fullKyc = new CardProduct();
+        fullKyc.setMaxWalletBalance(new BigDecimal("5000000"));
+        fullKyc.setDailyWalletLoad(new BigDecimal("1000000"));
+        when(productRepository.findByCardId(card.getId())).thenReturn(Optional.of(fullKyc));
+        assertThat(service.load(card.getId(), account, new BigDecimal("900000"), null, "t").getStatus())
+                .isEqualTo(WalletMovement.COMPLETED);
+
+        w.setBalance(BigDecimal.ZERO);
+        CardProduct tight = new CardProduct();
+        tight.setDailyWalletLoad(new BigDecimal("1000"));   // only the daily limit; the balance limit stays NGN's
+        when(productRepository.findByCardId(card.getId())).thenReturn(Optional.of(tight));
+        assertThatThrownBy(() -> service.load(card.getId(), account, new BigDecimal("1000.01"), null, "t"))
+                .hasFieldOrPropertyWithValue("code", "DAILY_LOAD_LIMIT");
+        assertThat(service.wallet(card.getId()).limits())
+                .isEqualTo(new WalletService.WalletLimits(new BigDecimal("250000"), new BigDecimal("1000"), BigDecimal.ZERO));
+    }
+
+    @Test
+    @DisplayName("currencies without a configured limit (USD) are not limited; the view shows nulls")
+    void otherCurrenciesUnlimited() {
+        ngnDefaults();
+        PrepaidWallet w = wallet("9999999.00");   // USD
+        when(walletRepository.findByCardId(card.getId())).thenReturn(Optional.of(w));
+        when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(w));
+        when(backend.prepaidLoad(any(), any(), any(), any(), any(), any())).thenReturn(approved());
+
+        assertThat(service.load(card.getId(), account, new BigDecimal("1000000"), null, "t").getStatus())
+                .isEqualTo(WalletMovement.COMPLETED);
+        verify(movementRepository, never()).sumPendingLoads(any());
+        WalletService.WalletLimits limits = service.wallet(card.getId()).limits();
+        assertThat(limits.maxBalance()).isNull();
+        assertThat(limits.dailyLoad()).isNull();
+    }
+
+    @Test
+    @DisplayName("unloads are never limited — and leave the load sums alone")
+    void unloadNotLimited() {
+        ngnDefaults();
+        PrepaidWallet w = ngnWallet("300000.00");   // above the maximum already (e.g. after a reversal)
+        when(backend.prepaidUnload(any(), any(), any(), any(), any(), any())).thenReturn(approved());
+
+        assertThat(service.unload(card.getId(), account, new BigDecimal("1000.00"), "t").getStatus())
+                .isEqualTo(WalletMovement.COMPLETED);
+        assertThat(w.getBalance()).isEqualByComparingTo("299000.00");
+        verify(movementRepository, never()).lockCardLoads(any());
+        verify(movementRepository, never()).sumLoadsSince(any(), any());
     }
 }

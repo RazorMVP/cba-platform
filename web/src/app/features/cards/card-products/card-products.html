@@ -27,6 +27,8 @@
             <th>Type</th>
             <th>BIN Range</th>
             <th>Default Daily Limit</th>
+            <th>Wallet Limits</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -36,6 +38,8 @@
               <td><span class="method-chip">{{ p.cardType }}</span></td>
               <td class="mono muted small">{{ p.binRangeStart }} – {{ p.binRangeEnd }}</td>
               <td class="mono">{{ p.defaultDailyLimit | number:'1.0-0' }}</td>
+              <td class="mono small">{{ walletLimits(p) }}</td>
+              <td><button class="btn-secondary" (click)="openEdit(p)">Edit</button></td>
             </tr>
           }
         </tbody>
@@ -50,7 +54,7 @@
     <div class="modal" (click)="$event.stopPropagation()">
       <div class="modal__header">
         <span class="material-icons modal__icon">style</span>
-        New Card Product
+        {{ editing ? 'Edit Card Product' : 'New Card Product' }}
       </div>
       <div class="modal__body">
         <div class="form-field">
@@ -59,28 +63,45 @@
         </div>
         <div class="form-field">
           <label class="form-label">Card Type <span class="required">*</span></label>
-          <select class="form-input" [(ngModel)]="form.cardType">
+          <select class="form-input" [(ngModel)]="form.cardType" [disabled]="!!editing">
             @for (t of types; track t) { <option [value]="t">{{ t }}</option> }
           </select>
         </div>
         <div class="form-row">
           <div class="form-field">
             <label class="form-label">BIN Range Start (8 digits)</label>
-            <input class="form-input mono" [(ngModel)]="form.binRangeStart" maxlength="8" placeholder="40000000" />
+            <input class="form-input mono" [(ngModel)]="form.binRangeStart" maxlength="8" placeholder="40000000" [disabled]="!!editing" />
           </div>
           <div class="form-field">
             <label class="form-label">BIN Range End (8 digits)</label>
-            <input class="form-input mono" [(ngModel)]="form.binRangeEnd" maxlength="8" placeholder="40999999" />
+            <input class="form-input mono" [(ngModel)]="form.binRangeEnd" maxlength="8" placeholder="40999999" [disabled]="!!editing" />
           </div>
         </div>
         <div class="form-field">
           <label class="form-label">Default Daily Limit (minor units)</label>
           <input class="form-input" type="number" [(ngModel)]="form.defaultDailyLimit" />
         </div>
+        @if (form.cardType === 'PREPAID') {
+          <div class="form-row" data-test="wallet-limit-fields">
+            <div class="form-field">
+              <label class="form-label">Max Wallet Balance (major units)</label>
+              <input class="form-input" type="number" min="0" [(ngModel)]="form.maxWalletBalance" placeholder="Currency default" />
+            </div>
+            <div class="form-field">
+              <label class="form-label">Daily Wallet Load (major units)</label>
+              <input class="form-input" type="number" min="0" [(ngModel)]="form.dailyWalletLoad" placeholder="Currency default" />
+            </div>
+          </div>
+          <div class="form-hint">
+            In the wallet's currency. Leave blank for the currency default (NGN: 250,000 maximum, 50,000 a day —
+            the CBN stored-value limits, which apply until the holder has full KYC). Set them for a full-KYC product.
+          </div>
+        }
+        @if (error) { <div class="form-hint form-hint--error" role="alert">{{ error }}</div> }
       </div>
       <div class="modal__footer">
         <button class="btn-secondary" (click)="closeModal()">Cancel</button>
-        <button class="btn-primary" (click)="submit()">Create</button>
+        <button class="btn-primary" (click)="submit()" [disabled]="saving">{{ editing ? 'Save' : 'Create' }}</button>
       </div>
     </div>
   </div>

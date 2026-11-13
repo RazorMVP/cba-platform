@@ -2198,6 +2198,10 @@ components:
           type: object
           additionalProperties:
             type: object
+        maxWalletBalance:
+          type: number
+        dailyWalletLoad:
+          type: number
         active:
           type: boolean
         version:
@@ -3909,6 +3913,15 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ApiError"
+    WalletLimits:
+      type: object
+      properties:
+        maxBalance:
+          type: number
+        dailyLoad:
+          type: number
+        loadedToday:
+          type: number
     WalletView:
       type: object
       properties:
@@ -3924,6 +3937,8 @@ components:
           type: string
         status:
           type: string
+        limits:
+          $ref: "#/components/schemas/WalletLimits"
         movements:
           type: array
           items:

@@ -23527,7 +23527,7 @@
                         "products"
                       ]
                     },
-                    "description": "Create a new card product.",
+                    "description": "Create a new card product. PREPAID only: optional maxWalletBalance / dailyWalletLoad (major units of the wallet currency; null = the currency default; 400 INVALID_WALLET_LIMIT if <= 0 or not prepaid) \u2014 backlog 15c, cont. 66.",
                     "body": {
                       "mode": "raw",
                       "raw": "{\n  \"name\": \"Standard Debit\",\n  \"cardType\": \"DEBIT\",\n  \"binRangeStart\": \"51000000\",\n  \"binRangeEnd\": \"51009999\",\n  \"defaultDailyLimit\": 500000,\n  \"features\": {}\n}",
@@ -23573,7 +23573,7 @@
                         ":productId"
                       ]
                     },
-                    "description": "Update card product \u2014 full replacement.",
+                    "description": "Update card product \u2014 name, defaultDailyLimit, features, active and (prepaid) maxWalletBalance / dailyWalletLoad; the wallet limits sent replace the stored ones (omitted = currency default).",
                     "body": {
                       "mode": "raw",
                       "raw": "{\n  \"name\": \"Premium Debit\",\n  \"cardType\": \"DEBIT\",\n  \"binRangeStart\": \"51000000\",\n  \"binRangeEnd\": \"51009999\",\n  \"defaultDailyLimit\": 1000000,\n  \"features\": {\n    \"contactless\": true\n  }\n}",
@@ -23953,7 +23953,7 @@
                         }
                       ]
                     },
-                    "description": "ADMIN, TELLER. Wallet balance + last 50 loads/unloads (backlog 15c); walletId null until the first load."
+                    "description": "ADMIN, TELLER. Wallet balance, load limits and last 50 loads/unloads (backlog 15c); walletId null until the first load. limits {maxBalance, dailyLoad, loadedToday} in the wallet currency, major units; maxBalance/dailyLoad null when not limited (product override, else card.prepaid.limits per currency \u2014 NGN 250000 / 50000 a day by default; cont. 66)."
                   },
                   "response": []
                 },
@@ -23987,7 +23987,7 @@
                         }
                       ]
                     },
-                    "description": "ADMIN, TELLER. From the cardholder's backend account (DR deposit / CR 2500 on the backend). 201 COMPLETED, 202 PENDING (retried every minute with the same reference), 400 with the backend's reason (movement kept FAILED). First load opens the wallet in currencyCode (400 CURRENCY_REQUIRED without it); later loads must match. 400 NOT_A_PREPAID_CARD / CARD_NOT_LOADABLE / INVALID_AMOUNT.",
+                    "description": "ADMIN, TELLER. From the cardholder's backend account (DR deposit / CR 2500 on the backend). 201 COMPLETED, 202 PENDING (retried every minute with the same reference), 400 with the backend's reason (movement kept FAILED). First load opens the wallet in currencyCode (400 CURRENCY_REQUIRED without it); later loads must match. 400 NOT_A_PREPAID_CARD / CARD_NOT_LOADABLE / INVALID_AMOUNT. Limits (cont. 66, CBN stored-value guidelines 2012 \u00a74.2/\u00a74.3/\u00a75.2): 400 WALLET_BALANCE_LIMIT when balance + pending loads + amount exceeds the maximum balance; 400 DAILY_LOAD_LIMIT when today's loads (pending or completed; Africa/Lagos day) + amount exceed the daily limit. No load fee (CBN Guide to Charges 2020 \u00a710.6.4).",
                     "body": {
                       "mode": "raw",
                       "raw": "{\n  \"sourceAccountId\": \"{{account_id}}\",\n  \"amount\": 100.0,\n  \"currencyCode\": \"USD\"\n}",

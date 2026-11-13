@@ -136,6 +136,16 @@
                 {{ (wallet?.balance ?? 0) | number:'1.2-2' }} {{ wallet?.currencyCode ?? '' }}
               </span>
               @if (!wallet?.walletId) { <span class="wallet-card__hint">Not loaded yet</span> }
+              @if (wallet?.limits?.maxBalance != null || wallet?.limits?.dailyLoad != null) {
+                <div class="wallet-card__limits" data-test="wallet-limits">
+                  @if (wallet?.limits?.maxBalance != null) {
+                    <span>Maximum balance {{ wallet!.limits!.maxBalance | number:'1.0-2' }} {{ wallet?.currencyCode ?? '' }}</span>
+                  }
+                  @if (wallet?.limits?.dailyLoad != null) {
+                    <span>Can load today {{ loadableToday() | number:'1.0-2' }} of {{ wallet!.limits!.dailyLoad | number:'1.0-2' }} {{ wallet?.currencyCode ?? '' }}</span>
+                  }
+                </div>
+              }
             </div>
             <div class="wallet-card__actions">
               <button class="btn-primary" (click)="openWalletModal('LOAD')"

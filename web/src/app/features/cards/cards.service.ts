@@ -20,6 +20,11 @@ export interface CardProduct {
   binRangeEnd: string;
   defaultDailyLimit: number;
   features: Record<string, unknown>;
+  active?: boolean;
+  /** Prepaid only (backlog 15c): most a wallet may hold, major units; null = the currency default */
+  maxWalletBalance?: number | null;
+  /** Prepaid only: most that may be loaded a day, major units; null = the currency default */
+  dailyWalletLoad?: number | null;
 }
 
 export interface CardProductRequest {
@@ -28,6 +33,8 @@ export interface CardProductRequest {
   binRangeStart: string;
   binRangeEnd: string;
   defaultDailyLimit: number;
+  maxWalletBalance?: number | null;
+  dailyWalletLoad?: number | null;
 }
 
 // ── Cards ─────────────────────────────────────────────────────────────────────
@@ -98,12 +105,21 @@ export interface WalletMovement {
   createdAt: string;
 }
 
+/** Wallet load limits (backlog 15c, D4a), major units; null = not limited. */
+export interface WalletLimits {
+  maxBalance: number | null;
+  dailyLoad: number | null;
+  /** Loads claimed today (pending or completed), Africa/Lagos calendar day by default */
+  loadedToday: number | null;
+}
+
 export interface WalletView {
   cardId: string;
   walletId?: string;
   balance: number;
   currencyCode?: string;
   status?: string;
+  limits?: WalletLimits;
   movements: WalletMovement[];
 }
 
@@ -471,6 +487,8 @@ export class CardsService {
   // ── Card Products ──────────────────────────────────────────────────────────
   listProducts(): Observable<CardProduct[]> { return this.get<CardProduct[]>('/cards/products'); }
   createProduct(req: CardProductRequest): Observable<CardProduct> { return this.post<CardProduct>('/cards/products', req); }
+  /** PUT /cards/products/{id} — replaces name, daily limit, features, active and the wallet limits */
+  updateProduct(id: string, req: CardProduct): Observable<CardProduct> { return this.put<CardProduct>(`/cards/products/${id}`, req); }
 
   // ── Cards ──────────────────────────────────────────────────────────────────
   listCards(params?: Record<string, string>): Observable<Card[]> {

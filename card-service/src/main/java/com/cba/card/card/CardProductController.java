@@ -39,6 +39,7 @@ public class CardProductController {
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<CardProduct>> create(@RequestBody CardProduct product) {
+        checkWalletLimits(product.getMaxWalletBalance(), product.getDailyWalletLoad(), product.getCardType());
         CardProduct saved = cardProductRepository.save(product);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(saved));
     }
@@ -53,6 +54,21 @@ public class CardProductController {
         p.setDefaultDailyLimit(req.getDefaultDailyLimit());
         p.setFeatures(req.getFeatures());
         p.setActive(req.isActive());
+        checkWalletLimits(req.getMaxWalletBalance(), req.getDailyWalletLoad(), p.getCardType());
+        p.setMaxWalletBalance(req.getMaxWalletBalance());
+        p.setDailyWalletLoad(req.getDailyWalletLoad());
         return ResponseEntity.ok(ApiResponse.ok(cardProductRepository.save(p)));
+    }
+
+    /** Wallet limits (V22) are positive amounts, for prepaid products only; null = the currency default. */
+    private static void checkWalletLimits(BigDecimal maxBalance, BigDecimal dailyLoad, CardType type) {
+        for (BigDecimal v : new BigDecimal[] {maxBalance, dailyLoad}) {
+            if (v != null && v.signum() <= 0) {
+                throw CbaException.badRequest("INVALID_WALLET_LIMIT", "Wallet limits must be positive (leave blank for the currency default)");
+            }
+        }
+        if ((maxBalance != null || dailyLoad != null) && type != CardType.PREPAID) {
+            throw CbaException.badRequest("INVALID_WALLET_LIMIT", "Only prepaid products have wallet limits");
+        }
     }
 }

@@ -57,6 +57,44 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 66) — 2026-11-13
+**Backlog set 3, PR D — item 15c: prepaid wallet balance and daily load limits; load fees closed as won't-do (plan "backlog set 3", D4a + D5a). Wallets could be loaded without limit — above the CBN stored-value caps that bind prepaid cards until full KYC.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/…/db/migration/V22__prepaid_wallet_limits.sql` | `card_products.max_wallet_balance`, `daily_wallet_load` (NUMERIC(19,4), nullable, > 0); partial index on a card's non-FAILED loads |
+| `card-service/…/wallet/PrepaidLimitProperties.java` | NEW `@ConfigurationProperties("card.prepaid")`: `limits.<ALPHA>.{max-balance,daily-load}` (major units), `limit-zone` (default `Africa/Lagos`) |
+| `card-service/…/wallet/WalletService.java` | `load`: claim transaction takes `lockCardLoads` (advisory lock) then refuses `WALLET_BALANCE_LIMIT` / `DAILY_LOAD_LIMIT` before saving the movement; `WalletView.limits` (`WalletLimits {maxBalance, dailyLoad, loadedToday}`) |
+| `card-service/…/wallet/WalletMovementRepository.java` | `lockCardLoads` (`pg_advisory_xact_lock(hashtext('wallet:'‖cardId))`), `sumPendingLoads`, `sumLoadsSince` (non-FAILED) |
+| `card-service/…/card/CardProduct.java`, `CardProductController.java`, `CardProductRepository.java` | the two override fields; POST/PUT accept them (`400 INVALID_WALLET_LIMIT` if ≤ 0 or not PREPAID); `findByCardId` |
+| `card-service/…/application.yml` | `card.prepaid` block: NGN 250000 / 50000, `limit-zone: Africa/Lagos` |
+| tests | `WalletServiceTest` +7 (balance cap, pending counted, daily cap + Lagos midnight, FAILED not counted, product override both ways, USD unlimited, unload unaffected); NEW `WalletLimitsIntegrationTest` (3: 8 concurrent first NGN loads → exactly one; 2 concurrent loads over a product max → one refused; a reversal takes the wallet over its max and is credited, the next load refused) |
+| `card-service/docs/openapi-snapshot.yaml` | `CardProduct.maxWalletBalance/dailyWalletLoad`, `WalletLimits`, `WalletView.limits` |
+| `web/…/cards/cards.service.ts` (+spec) | `WalletLimits`, `WalletView.limits`, product limit fields, `updateProduct` (PUT) |
+| `web/…/cards/card-detail/*` | Wallet block shows maximum balance and "Can load today X of Y"; `WALLET_BALANCE_LIMIT` / `DAILY_LOAD_LIMIT` messages with the server's figures; specs |
+| `web/…/cards/card-products/*` | Edit modal; PREPAID products get Max Wallet Balance / Daily Wallet Load (blank = currency default); Wallet Limits column; specs |
+| `docs/card-api-reference.html`, `docs/api-reference.html`, Postman (+ `docs-site/static` copies) | wallet `limits`, load refusals, product fields, no load fee |
+| `docs/deferred-backlog.md` | 15c: limits ✅ (cont. 66); load fees won't do (CBN Guide to Charges 2020 §10.6.4) |
+| `CLAUDE.md` | §14 prepaid note, Card Types table, card-service + web Last git commit rows |
+
+#### Key Patterns / Decisions
+- **D4a — NGN default 250,000 balance / 50,000 a day.** CBN *Revised Guidelines on Stored Value/Prepaid Card Issuance and Operations* (BPS/DIR/GEN/CIR/01/011, 2012): §4.2/§4.3 stored-value limits; §5.2 "no prepaid card shall be issued beyond the limits of a stored value card … Full KYC would be required"; the backend has no KYC tier, so the cap applies until a product says otherwise (§5.1/§5.3: the issuer sets prepaid limits). Other currencies have no default.
+- **Loads only.** A reversal, a prepaid refund, an expired item's give-back and a refused unload credit the wallet whatever its balance — it's already the holder's money (§3.7). Those paths are untouched; the integration test proves a reversal over the max succeeds.
+- **The lock is advisory, per card, in the claim transaction** — a first load has no wallet row to `FOR UPDATE`. Pending loads count toward the balance cap (they will be credited); FAILED loads count toward nothing. The day is the calendar day in `card.prepaid.limit-zone`. `WalletLimitsIntegrationTest` fails without the lock (verified by removing it: 2 of 3 failed).
+- **D5a — no load fees:** CBN *Guide to Charges* (effective 1 Jan 2020) §10.6.4 "Prepaid Card Loading/Unloading — No charge"; a charge not in the Guide needs CBN's prior written approval (Preface). Re-check against the final 2026 revised Guide.
+- A product's limits are in its wallets' currency (one number, whatever the currency); set them only on products whose wallets share a currency.
+
+#### Build Verification
+- card-service `-Pfull-integration` with `-Dupdate.api.snapshot=true`: **330/330** (was 320); rerun without the flag: **330/330**, snapshot stable. `./mvnw -o test` (unit): **294/294**.
+- web: `ng test` **1213/1213**; `check:change-detection` OK (95 components Eager); `npm run build` OK.
+- API surface unchanged — verified via gate grep (no `@*Mapping`/param lines); response shapes changed (wallet `limits`, product fields, two new 400 codes), documented in card-api-reference, api-reference and Postman.
+
+#### Confirmed Platform Versions
+card-service: Spring Boot 3.5.16, Java 21; `-Pfull-integration` 330. web: Angular 22.2.3, 1213. backend unchanged. No dependency changes.
+
+---
+
 ### Session 125 (cont. 62) — 2026-11-09
 **Backlog set 2, PR B — item 15c: prepaid card wallets on the GL (plan `docs/plans/2026-11-09-backlog-set-2.md`, D5a + D6a). Wallets had no funding path (seed data only) and posted nothing; prepaid spend was in the scheme files but not in the expected net; a partial reversal left the settlement item at its full amount.**
 

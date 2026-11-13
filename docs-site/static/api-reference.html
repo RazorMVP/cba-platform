@@ -3207,8 +3207,8 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/products</code></td><td>List all card products (DEBIT, PREPAID, CREDIT) including BIN range and default limits</td><td>ADMIN, TELLER</td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/products/{id}</code></td><td>Single card product by UUID</td><td>ADMIN, TELLER</td></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/products</code></td><td>Create card product — fields: name, cardType, binRangeStart, binRangeEnd, defaultDailyLimit, features (JSONB)</td><td>ADMIN</td></tr>
-<tr><td><span class="method put">PUT</span></td><td><code>/api/v1/cards/products/{id}</code></td><td>Update card product</td><td>ADMIN</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/products</code></td><td>Create card product — fields: name, cardType, binRangeStart, binRangeEnd, defaultDailyLimit, features (JSONB); PREPAID only: optional <code>maxWalletBalance</code>, <code>dailyWalletLoad</code> (major units of the wallet currency; null = the currency default, NGN 250,000 / 50,000 a day — CBN stored-value limits; <code>400 INVALID_WALLET_LIMIT</code> if ≤ 0 or not prepaid) (backlog 15c, cont. 66)</td><td>ADMIN</td></tr>
+<tr><td><span class="method put">PUT</span></td><td><code>/api/v1/cards/products/{id}</code></td><td>Update card product — name, defaultDailyLimit, features, active, <code>maxWalletBalance</code>, <code>dailyWalletLoad</code> (the wallet limits sent replace the stored ones)</td><td>ADMIN</td></tr>
 <tr><td><span class="method delete">DELETE</span></td><td><code>/api/v1/cards/products/{id}</code></td><td>Delete card product</td><td>ADMIN</td></tr>
 </table>
 <h4>Cards</h4>

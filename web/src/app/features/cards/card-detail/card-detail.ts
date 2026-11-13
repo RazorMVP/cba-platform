@@ -156,7 +156,10 @@ export class CardDetailComponent implements OnInit {
       },
       error: (e: { error?: { errors?: { code?: string; message?: string }[] } }) => {
         const err = e?.error?.errors?.[0];
-        this.walletError = this.walletErrorText(err?.code) ?? err?.message ?? 'The request failed.';
+        const text = this.walletErrorText(err?.code);
+        // A limit refusal's own message carries the figures (limit, balance or today's loads): show both.
+        const limit = err?.code === 'WALLET_BALANCE_LIMIT' || err?.code === 'DAILY_LOAD_LIMIT';
+        this.walletError = (limit && text && err?.message ? `${text} ${err.message}.` : text) ?? err?.message ?? 'The request failed.';
         this.walletWorking = false;
       },
     });
@@ -170,8 +173,17 @@ export class CardDetailComponent implements OnInit {
       ACCOUNT_NOT_ACTIVE: 'The account isn\'t active.',
       ACCOUNT_NOT_FOUND: 'That account doesn\'t belong to the card\'s customer.',
       CARD_NOT_LOADABLE: 'A cancelled or expired card can\'t be loaded.',
+      WALLET_BALANCE_LIMIT: 'That load would take the wallet above its maximum balance (loads still being confirmed count too).',
+      DAILY_LOAD_LIMIT: 'That load would go over the wallet\'s daily load limit.',
     };
     return code ? m[code] ?? null : null;
+  }
+
+  /** What can still be loaded today under the daily limit (never below 0); null when there is no daily limit. */
+  loadableToday(): number | null {
+    const l = this.wallet?.limits;
+    if (l?.dailyLoad == null) return null;
+    return Math.max(0, l.dailyLoad - (l.loadedToday ?? 0));
   }
 
   movementVariant(s: string): V {

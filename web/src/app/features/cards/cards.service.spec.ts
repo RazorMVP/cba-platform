@@ -41,6 +41,16 @@ describe('CardsService', () => {
     req.flush(envelope([]));
   });
 
+  it('updateProduct PUTs the whole product (wallet limits included) to /cards/products/{id}', () => {
+    const p = { id: 'p1', name: 'Prepaid', cardType: 'PREPAID' as const, binRangeStart: '43000000', binRangeEnd: '43999999',
+      defaultDailyLimit: 1, features: {}, maxWalletBalance: 1000000, dailyWalletLoad: null };
+    service.updateProduct('p1', p).subscribe();
+    const req = httpMock.expectOne(`${BASE}/cards/products/p1`);
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual(p);
+    req.flush(envelope(p));
+  });
+
   it('listCards hits the /card-api/v1 base (NOT /api/v1)', () => {
     service.listCards({ customerId: 'c1' }).subscribe();
     const req = httpMock.expectOne(r => r.url === `${CARDAPI}/cards`);

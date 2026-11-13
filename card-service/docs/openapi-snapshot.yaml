@@ -3693,6 +3693,8 @@ components:
           type: string
         walletDebit:
           type: number
+        reversedAmount:
+          type: number
         createdAt:
           type: string
           format: date-time

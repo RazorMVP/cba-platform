@@ -415,7 +415,18 @@ public class CardAuthorizationService {
             }
             AuthorizationLog original = originalOpt.get();
 
-            // Give back what the approval reserved — once: the 0400 guard above stops a repeat. If the
+            // Lock the original for the whole reversal and read what earlier reversals already gave back
+            // (backlog 15d): reversals with STANs of their own can all name this original through DE90, so the
+            // 0400 guard (one per reversal STAN) no longer bounds the total — this running total does. A retry
+            // that waited on the lock sees the 0400 its first attempt committed.
+            BigDecimal reversedBefore = authLogRepository.lockReversedAmount(original.getId());
+            if (reversedBefore == null) reversedBefore = BigDecimal.ZERO;
+            if (authLogRepository.existsByCardIdAndStanAndMti(card.getId(), stan, "0400")) {
+                log.info("Reversal already processed for card={} STAN={} — idempotent no-op", card.getId(), stan);
+                return "00";
+            }
+
+            // Give back what the approval reserved — at most what is left of it. If the
             // backend hold can't be released, don't record the reversal: answer 96 so the network
             // retries (a recorded 0400 would block every retry and leave the funds held).
             // DE4 is a positive whole number of minor units; anything else is not a reversal amount.
@@ -436,10 +447,19 @@ public class CardAuthorizationService {
                 // Everything below is in the card's currency: what the original moved (DE6 if it had one).
                 java.util.Currency ccy = currency(original.cardCurrencyCode());
                 BigDecimal originalCardMinor = original.cardAmount();
-                BigDecimal reversalMinor = reversalCardMinor(original, amount, billingAmount);
+                BigDecimal reversalMinor = amount == null && billingAmount == null && originalCardMinor != null
+                        ? originalCardMinor.subtract(reversedBefore)          // no amount: what is left, not the original
+                        : reversalCardMinor(original, amount, billingAmount);
+                if (originalCardMinor != null && reversalMinor != null
+                        && (reversalMinor.signum() <= 0 || reversedBefore.add(reversalMinor).compareTo(originalCardMinor) > 0)) {
+                    log.warn("Reversal refused for card={} STAN={}: {} with {} of {} already reversed",
+                            card.getId(), stan, reversalMinor, reversedBefore, originalCardMinor);
+                    return "13";   // nothing changed yet
+                }
                 BigDecimal reversalMajor = ccy == null || reversalMinor == null ? null : toMajorUnits(reversalMinor, ccy);
+                // "Full" = this reversal takes all that is left of the original.
                 boolean full = originalCardMinor == null || reversalMinor == null
-                        || reversalMinor.compareTo(originalCardMinor) >= 0;
+                        || reversedBefore.add(reversalMinor).compareTo(originalCardMinor) >= 0;
                 // A full reversal takes the item out of clearing first (row-locked until this commits), so a
                 // batch close can't capture the purchase between the release below and the 0400 record.
                 boolean prepaid = original.getWalletDebit() != null && original.getWalletDebit().signum() > 0;
@@ -511,13 +531,20 @@ public class CardAuthorizationService {
                     }
                 }
                 if (walletBack && original.getWalletDebit() != null && original.getWalletDebit().signum() > 0) {
-                    BigDecimal restore = reversalMajor == null ? original.getWalletDebit()
-                            : reversalMajor.min(original.getWalletDebit()).max(BigDecimal.ZERO);
-                    walletRepository.findByCardIdForUpdate(card.getId()).ifPresent(w -> {
-                        w.setBalance(w.getBalance().add(restore));
-                        walletRepository.save(w);
-                    });
+                    // Never more than is left of the wallet decrement after earlier reversals.
+                    BigDecimal restoredBefore = ccy == null ? BigDecimal.ZERO : toMajorUnits(reversedBefore, ccy);
+                    BigDecimal left = original.getWalletDebit().subtract(restoredBefore).max(BigDecimal.ZERO);
+                    BigDecimal restore = reversalMajor == null ? left : reversalMajor.min(left).max(BigDecimal.ZERO);
+                    if (restore.signum() > 0) {
+                        walletRepository.findByCardIdForUpdate(card.getId()).ifPresent(w -> {
+                            w.setBalance(w.getBalance().add(restore));
+                            walletRepository.save(w);
+                        });
+                    }
                 }
+                // Every step above succeeded: this reversal counts against the original (rolled back with
+                // the reversal on any 96 / 13 that undoes it).
+                if (reversalMinor != null) authLogRepository.addReversedAmount(original.getId(), reversalMinor);
             }
 
             // Record the reversal (0400). The reserved funds were given back above.

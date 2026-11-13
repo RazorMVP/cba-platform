@@ -624,6 +624,49 @@ class CardAuthorizationServiceTest {
         verify(settlementService, never()).markReversed(any());
     }
 
+    @Test
+    @DisplayName("15d bound: more than is left of the original after earlier reversals → RC 13, nothing given back or counted")
+    void reverse_overRemainder_13() {
+        Card card = prepaidCard();
+        AuthorizationLog original = prepaidOriginal(card);   // 3000 minor, wallet debit 30.00
+        when(authLogRepository.lockReversedAmount(original.getId())).thenReturn(new BigDecimal("2000"));
+
+        assertThat(service.reverse(PAN, new BigDecimal("1001"), REV_STAN, "x")).isEqualTo("13");
+        verifyNoInteractions(walletRepository);
+        verify(settlementService, never()).reversePrepaidItem(any(), any(), org.mockito.ArgumentMatchers.anyBoolean());
+        verify(authLogRepository, never()).addReversedAmount(any(), any());
+        verify(authLogRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("15d bound: a reversal without an amount after a partial one gives back only what is left, and counts it")
+    void reverse_noAmount_givesTheRemainder() {
+        Card card = prepaidCard();
+        AuthorizationLog original = prepaidOriginal(card);
+        when(authLogRepository.lockReversedAmount(original.getId())).thenReturn(new BigDecimal("2000"));
+        PrepaidWallet w = wallet("20.00");
+        when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(w));
+        when(settlementService.reversePrepaidItem(original.getId(), new BigDecimal("1000"), true))
+                .thenReturn(new SettlementService.PrepaidItemReversal(SettlementService.PrepaidItemReversal.Outcome.NONE, null));
+
+        assertThat(service.reverse(PAN, null, REV_STAN, "x")).isEqualTo("00");
+        assertThat(w.getBalance()).isEqualByComparingTo("30.00");   // 10.00 left of the 30.00 decrement
+        verify(authLogRepository).addReversedAmount(original.getId(), new BigDecimal("1000"));
+    }
+
+    @Test
+    @DisplayName("15d bound: a retry that waited on the original's lock sees its first attempt's 0400 → no-op")
+    void reverse_retryAfterLock_noop() {
+        Card card = prepaidCard();
+        AuthorizationLog original = prepaidOriginal(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false, true);
+
+        assertThat(service.reverse(PAN, new BigDecimal("1000"), REV_STAN, "x")).isEqualTo("00");
+        verify(authLogRepository).lockReversedAmount(original.getId());
+        verifyNoInteractions(walletRepository);
+        verify(authLogRepository, never()).addReversedAmount(any(), any());
+    }
+
     private AuthorizationLog prepaidOriginal(Card card) {
         when(cardService.findByPanHash(PAN)).thenReturn(card);
         when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
@@ -1086,6 +1129,7 @@ class CardAuthorizationServiceTest {
         when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
         AuthorizationLog original = originalAuth(card.getId());
         original.setHoldReference("CARD-refused");
+        original.setAmount(new BigDecimal("10000"));   // the reversal is for all of it
         when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
                 .thenReturn(Optional.of(original));
         when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
@@ -1108,6 +1152,7 @@ class CardAuthorizationServiceTest {
         when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
         AuthorizationLog original = originalAuth(card.getId());
         original.setHoldReference("CARD-noreason");
+        original.setAmount(new BigDecimal("10000"));   // the reversal is for all of it
         when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
                 .thenReturn(Optional.of(original));
         when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");

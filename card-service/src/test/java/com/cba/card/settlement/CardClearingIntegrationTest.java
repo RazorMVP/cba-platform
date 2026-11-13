@@ -340,6 +340,127 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
                 java.time.LocalDate.class, itemId)).isEqualTo(d1.plusDays(1));
     }
 
+    @Test
+    @DisplayName("15d bound: prepaid approval with no settlement item (pre-V12) — reversals via DE90 give back at most the "
+            + "original; one over what is left → RC 13; one without an amount gives the rest; the wallet gets it once in total")
+    void prepaidWithoutItem_reversalsBoundedByOriginal() {
+        Card card = loadedPrepaid("100");
+        String pan = panOf(card);
+        assertThat(authorize(pan, "970001", "000000", false, 4000)).isEqualTo("00");
+        UUID auth = approvedAuth("970001");
+        jdbc.update("DELETE FROM settlement_items WHERE authorization_log_id = ?", auth);   // as before V12: no item
+        assertThat(wallet(card)).isEqualByComparingTo("60.00");
+
+        assertThat(reverse(pan, 3000L, "970002", "0100970001")).isEqualTo("00");
+        assertThat(wallet(card)).isEqualByComparingTo("90.00");
+        assertThat(reverse(pan, 4000L, "970003", "0100970001")).isEqualTo("13");   // only 1000 left
+        assertThat(reverse(pan, null, "970004", "0100970001")).isEqualTo("00");    // no amount: the rest
+        assertThat(reverse(pan, 1L, "970005", "0100970001")).isEqualTo("13");      // nothing left
+        assertThat(reverse(pan, 3000L, "970002", "0100970001")).isEqualTo("00");   // retry of the first: no-op
+
+        assertThat(wallet(card)).isEqualByComparingTo("100.00");   // 40.00 back in total, exactly once
+        assertThat(reversedAmount(auth)).isEqualByComparingTo("4000");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM authorization_log WHERE card_id = ? AND mti = '0400'",
+                Integer.class, card.getId())).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("15d bound: debit pending hold — a partial reversal lowers the item, one without an amount releases the "
+            + "rest of the hold once, a further one → RC 13")
+    void debitPending_reversalsBoundedByOriginal() {
+        String pan = debitPan();
+        cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(ACCOUNT), true, pan, "2912", "123", "USD");
+        assertThat(authorize(pan, "980001", "000000", false, 10000)).isEqualTo("00");
+        UUID auth = approvedAuth("980001");
+        SettlementItem item = itemRepository.findByAuthorizationLogId(auth).orElseThrow();
+
+        assertThat(reverse(pan, 6000L, "980002", "0100980001")).isEqualTo("00");
+        assertThat(itemRepository.findById(item.getId()).orElseThrow().getAmount()).isEqualByComparingTo("4000");
+        assertThat(requests("/card-holds/" + item.getHoldReference() + "/release")).isEmpty();   // hold kept for the rest
+        assertThat(reverse(pan, 10000L, "980003", "0100980001")).isEqualTo("13");   // more than is left
+        assertThat(reverse(pan, null, "980004", "0100980001")).isEqualTo("00");     // the rest: hold released
+        assertThat(reverse(pan, 1L, "980005", "0100980001")).isEqualTo("13");
+
+        assertThat(itemRepository.findById(item.getId()).orElseThrow().getStatus()).isEqualTo("REVERSED");
+        assertThat(requests("/card-holds/" + item.getHoldReference() + "/release")).hasSize(1)
+                .allSatisfy(body -> assertThat(body).contains("\"amount\":40"));
+        assertThat(reversedAmount(auth)).isEqualByComparingTo("10000");
+    }
+
+    @Test
+    @DisplayName("15d bound: six concurrent reversals of one original (own STANs, DE90) — the original's lock lets three "
+            + "through; the wallet gets 90.00 of the 100.00, never more")
+    void concurrentReversals_neverExceedOriginal() throws Exception {
+        Card card = loadedPrepaid("100");
+        String pan = panOf(card);
+        assertThat(authorize(pan, "990001", "000000", false, 10000)).isEqualTo("00");
+        UUID auth = approvedAuth("990001");
+        jdbc.update("DELETE FROM settlement_items WHERE authorization_log_id = ?", auth);
+        assertThat(wallet(card)).isEqualByComparingTo("0.00");
+
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(6);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        List<java.util.concurrent.Future<String>> results = new java.util.ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            String stan = "99010" + i;
+            results.add(pool.submit(() -> {
+                start.await();
+                return reverse(pan, 3000L, stan, "0100990001");
+            }));
+        }
+        start.countDown();
+        List<String> codes = new java.util.ArrayList<>();
+        for (var f : results) codes.add(f.get(60, java.util.concurrent.TimeUnit.SECONDS));
+        pool.shutdown();
+
+        assertThat(codes).containsOnly("00", "13");
+        assertThat(codes.stream().filter("00"::equals).count()).isEqualTo(3);
+        assertThat(wallet(card)).isEqualByComparingTo("90.00");
+        assertThat(reversedAmount(auth)).isEqualByComparingTo("9000");
+    }
+
+    /** A prepaid card whose wallet was loaded with {@code major} USD over HTTP (the backend is WireMock). */
+    private Card loadedPrepaid(String major) {
+        String pan = "4300" + String.format("%012d", ThreadLocalRandom.current().nextLong(1_000_000_000_000L));
+        Card card = cardService.issueCard(PREPAID_PRODUCT, UUID.randomUUID(), null, true, pan, "2912", "123", "USD");
+        pans.put(card.getId(), pan);
+        HttpHeaders h = new HttpHeaders();
+        h.setContentType(MediaType.APPLICATION_JSON);
+        h.setBearerAuth(ROLES_TOKEN + ".ADMIN.TELLER");
+        assertThat(rest.exchange("/api/v1/cards/" + card.getId() + "/wallet/loads", HttpMethod.POST,
+                new HttpEntity<>(Map.of("sourceAccountId", ACCOUNT, "amount", new BigDecimal(major), "currencyCode", "USD"), h),
+                Map.class).getStatusCode().value()).isEqualTo(201);
+        return card;
+    }
+
+    private final java.util.Map<UUID, String> pans = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private String panOf(Card card) {
+        return pans.get(card.getId());
+    }
+
+    private UUID approvedAuth(String stan) {
+        return jdbc.queryForObject("SELECT id FROM authorization_log WHERE stan = ? AND response_code = '00' AND mti <> '0400' "
+                + "ORDER BY created_at DESC LIMIT 1", UUID.class, stan);
+    }
+
+    private BigDecimal reversedAmount(UUID auth) {
+        return jdbc.queryForObject("SELECT reversed_amount FROM authorization_log WHERE id = ?", BigDecimal.class, auth);
+    }
+
+    /** A 0400 with its own STAN naming the original in DE90; {@code amountMinor} null = no DE4. */
+    @SuppressWarnings("unchecked")
+    private String reverse(String pan, Long amountMinor, String stan, String de90) {
+        Map<String, Object> body = new java.util.HashMap<>(Map.of("pan", pan, "stan", stan, "originalDataElements", de90));
+        if (amountMinor != null) body.put("amount", amountMinor);
+        HttpHeaders h = new HttpHeaders();
+        h.setContentType(MediaType.APPLICATION_JSON);
+        h.setBearerAuth(ROLES_TOKEN + ".FEP_SERVICE");
+        var r = rest.exchange("/api/v1/internal/reverse", HttpMethod.POST, new HttpEntity<>(body, h), Map.class);
+        assertThat(r.getStatusCode().value()).as(String.valueOf(r.getBody())).isEqualTo(200);
+        return (String) r.getBody().get("responseCode");
+    }
+
     private BigDecimal wallet(Card card) {
         return jdbc.queryForObject("SELECT balance FROM prepaid_wallets WHERE card_id = ?", BigDecimal.class, card.getId());
     }

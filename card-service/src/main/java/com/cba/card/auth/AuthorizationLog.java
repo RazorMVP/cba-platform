@@ -107,6 +107,14 @@ public class AuthorizationLog {
     @Column(name = "wallet_debit", precision = 19, scale = 4)
     private BigDecimal walletDebit;
 
+    /**
+     * What reversals have given back of this approval so far (card-side minor units, as {@link #cardAmount()}).
+     * Reversals can name the original through DE90 with STANs of their own, so this — not the 0400 guard —
+     * bounds the total (backlog 15d). Written only by {@link AuthorizationLogRepository#addReversedAmount}.
+     */
+    @Column(name = "reversed_amount", nullable = false, precision = 19, scale = 4, insertable = false, updatable = false)
+    private BigDecimal reversedAmount = BigDecimal.ZERO;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
 }

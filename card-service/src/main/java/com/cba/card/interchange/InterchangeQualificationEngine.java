@@ -3,6 +3,8 @@ package com.cba.card.interchange;
 import com.cba.card.auth.AuthorizationLog;
 import com.cba.card.auth.AuthorizationLogRepository;
 import com.cba.card.auth.CardAuthorizationService;
+import com.cba.card.auth.CardCountry;
+import com.cba.card.bin.BinService;
 import com.cba.card.auth.PosEntryModes;
 import com.cba.card.card.Card;
 import com.cba.card.card.CardRepository;
@@ -35,12 +37,18 @@ import java.util.UUID;
  *       present; 01x manual, 81x e-commerce = card not present) or the simulator's names.</li>
  *   <li>Transaction type from DE3: 01 cash, 20 refund (no interchange), else purchase.</li>
  *   <li>The most specific active rate (exact MCC first, then the catch-all); none → zero, logged.</li>
- *   <li>Scheme fees: ASSESSMENT and NETWORK only — cross-border and currency-conversion fees need the
- *       merchant's country, which isn't captured yet (backlog 15d).</li>
+ *   <li>Scheme fees (backlog 15d, decision D2a): ASSESSMENT and NETWORK always;
+ *       {@link SchemeFeeType#CROSS_BORDER} when the acquirer (DE19) is outside the card's home country
+ *       (its BIN range) — none when that can't be told ({@link CardCountry#UNKNOWN}), and the charges say
+ *       so; {@link SchemeFeeType#INTERNATIONAL_SERVICE} when the transaction currency (DE49) isn't the card's
+ *       currency (DE51). All are scheme charges to the issuer, in {@link IssuerCharges#schemeFee()}, never
+ *       passed to the cardholder.</li>
  * </ol>
- * Fixed fees are major units of the row's currency and apply only to transactions in that currency
- * (card-service has no FX). Figures are rounded once, to the currency's digits. {@link #quote} never
- * throws: authorization and clearing must not fail on fee configuration.
+ * Percentages apply to the card amount (DE6 when sent, else DE4). Fixed fees are major units of the row's
+ * currency and apply only to transactions in that currency (card-service has no FX). Interchange is
+ * rounded once; scheme fees are rounded once per group (base, cross-border, currency), so the parts add
+ * up to the total. {@link #quote} never throws: authorization and clearing must not fail on fee
+ * configuration.
  */
 @Slf4j
 @Component
@@ -48,21 +56,37 @@ import java.util.UUID;
 public class InterchangeQualificationEngine {
 
     private static final BigDecimal HUNDRED = new BigDecimal("100");
-    private static final Set<SchemeFeeType> APPLIED_FEES = EnumSet.of(SchemeFeeType.ASSESSMENT, SchemeFeeType.NETWORK);
+    /** Fees every transaction pays the scheme. */
+    private static final Set<SchemeFeeType> BASE_FEES = EnumSet.of(SchemeFeeType.ASSESSMENT, SchemeFeeType.NETWORK);
 
     private final InterchangeRateRepository rateRepo;
     private final SchemeFeeRepository       feeRepo;
     private final InterchangeLogRepository  logRepo;
     private final CardRepository            cardRepo;
     private final AuthorizationLogRepository authRepo;
+    private final BinService                binService;
+
+    /**
+     * As {@link #quote(String, CardType, String, String, String, BigDecimal, Currency, CardCountry, Currency)}
+     * for a domestic transaction in the card's currency (no cross-border or currency fee).
+     */
+    public IssuerCharges quote(String scheme, CardType cardType, String processingCode, String entryMode,
+                               String mcc, BigDecimal grossMajor, Currency currency) {
+        return quote(scheme, cardType, processingCode, entryMode, mcc, grossMajor, currency,
+                CardCountry.DOMESTIC, currency);
+    }
 
     /**
      * The issuer's interchange and scheme fees on one transaction (no persistence).
      *
-     * @param grossMajor transaction amount, major units of {@code currency}
+     * @param grossMajor          the card amount, major units of {@code currency}
+     * @param currency            the card's currency (DE51 when sent, else DE49)
+     * @param country             the acquirer's country against the card's ({@link CardCountry#of}); null = unknown
+     * @param transactionCurrency the merchant's transaction currency (DE49); null = the card's
      */
     public IssuerCharges quote(String scheme, CardType cardType, String processingCode, String entryMode,
-                               String mcc, BigDecimal grossMajor, Currency currency) {
+                               String mcc, BigDecimal grossMajor, Currency currency,
+                               CardCountry country, Currency transactionCurrency) {
         String s = Schemes.normalize(scheme);
         try {
             if (grossMajor == null || grossMajor.signum() <= 0 || currency == null) {
@@ -94,14 +118,35 @@ public class InterchangeQualificationEngine {
                         s, cardType, txn, channel, mcc);
             }
 
-            BigDecimal feeRaw = BigDecimal.ZERO;
+            CardCountry where = country == null ? CardCountry.UNKNOWN : country;
+            boolean crossBorder = where == CardCountry.CROSS_BORDER;
+            boolean otherCurrency = transactionCurrency != null && !transactionCurrency.equals(currency);
+            BigDecimal baseRaw = BigDecimal.ZERO;
+            BigDecimal crossBorderRaw = BigDecimal.ZERO;
+            BigDecimal currencyRaw = BigDecimal.ZERO;
             for (SchemeFee f : feeRepo.findActiveByScheme(s, LocalDate.now())) {
-                if (!APPLIED_FEES.contains(f.getFeeType())) continue;
-                feeRaw = feeRaw.add(percent(grossMajor, f.getRatePercent()));
-                if (fixedFeeApplies(f.getCurrencyCode(), ccy)) feeRaw = feeRaw.add(f.getFixedFee());
+                SchemeFeeType type = f.getFeeType();
+                boolean applies = BASE_FEES.contains(type)
+                        || (type == SchemeFeeType.CROSS_BORDER && crossBorder)
+                        || (type == SchemeFeeType.INTERNATIONAL_SERVICE && otherCurrency);
+                if (!applies) continue;
+                BigDecimal raw = percent(grossMajor, f.getRatePercent());
+                if (fixedFeeApplies(f.getCurrencyCode(), ccy)) raw = raw.add(f.getFixedFee());
+                switch (type) {
+                    case CROSS_BORDER -> crossBorderRaw = crossBorderRaw.add(raw);
+                    case INTERNATIONAL_SERVICE -> currencyRaw = currencyRaw.add(raw);
+                    default -> baseRaw = baseRaw.add(raw);
+                }
+            }
+            BigDecimal crossBorderFee = crossBorderRaw.setScale(digits, RoundingMode.HALF_UP);
+            BigDecimal currencyFee = currencyRaw.setScale(digits, RoundingMode.HALF_UP);
+            BigDecimal schemeFee = baseRaw.setScale(digits, RoundingMode.HALF_UP).add(crossBorderFee).add(currencyFee);
+            if (where == CardCountry.UNKNOWN) {
+                log.debug("Acquirer country unknown for a {} {} transaction — no cross-border fee", s, txn);
             }
             InterchangeDirection direction = txn == TransactionType.CASH ? InterchangeDirection.PAID : InterchangeDirection.EARNED;
-            return new IssuerCharges(s, interchange, direction, feeRaw.setScale(digits, RoundingMode.HALF_UP), applied);
+            return new IssuerCharges(s, interchange, direction, schemeFee, applied,
+                    crossBorderFee, currencyFee, where == CardCountry.UNKNOWN);
         } catch (RuntimeException e) {
             log.error("Interchange quote failed for scheme={} — posting no interchange or fees", s, e);
             return IssuerCharges.none(s);
@@ -147,10 +192,32 @@ public class InterchangeQualificationEngine {
         BigDecimal grossMajor = currency == null || auth.cardAmount() == null
                 ? BigDecimal.ZERO : CardAuthorizationService.toMajorUnits(auth.cardAmount(), currency);
         IssuerCharges charges = quote(auth.getScheme(), resolveCardType(auth.getCardId()), auth.getProcessingCode(),
-                auth.getEntryMode(), auth.getMcc(), grossMajor, currency);
+                auth.getEntryMode(), auth.getMcc(), grossMajor, currency,
+                countryOf(auth.getCardId(), auth.getAcquiringCountry()),
+                CardAuthorizationService.currency(auth.getCurrencyCode()));
         record(auth.getId(), null, charges, grossMajor, currency == null ? null : currency.getCurrencyCode());
         return new InterchangeResult(charges.interchange(), charges.schemeFee(), charges.owedToScheme(grossMajor),
-                charges.rateApplied(), charges.direction());
+                charges.rateApplied(), charges.direction(), charges.crossBorderFee(), charges.currencyFee(),
+                charges.countryUnknown());
+    }
+
+    /**
+     * Where an authorization happened against the card's home country: its BIN range's country vs DE19
+     * ({@code acquiringCountry}, numeric). {@link CardCountry#UNKNOWN} when either is missing — including
+     * authorizations logged before DE19 was stored (V20) — or the card can't be found.
+     */
+    @Transactional(readOnly = true)
+    public CardCountry countryOf(UUID cardId, String acquiringCountry) {
+        if (cardId == null || acquiringCountry == null || acquiringCountry.isBlank()) return CardCountry.UNKNOWN;
+        try {
+            String home = cardRepo.findById(cardId)
+                    .map(card -> binService.issuingCountry(card.getPanPrefix()))
+                    .orElse(null);
+            return CardCountry.of(home, acquiringCountry);
+        } catch (RuntimeException e) {
+            log.warn("Card {} home country lookup failed — country unknown: {}", cardId, e.getMessage());
+            return CardCountry.UNKNOWN;
+        }
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

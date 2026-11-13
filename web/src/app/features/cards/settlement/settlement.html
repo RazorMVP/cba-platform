@@ -19,6 +19,8 @@
             (click)="setTab('transmissions')">Transmissions</button>
     <button class="tab-item" [class.tab-item--active]="activeTab === 'reports'"
             (click)="setTab('reports')">Scheme Reports</button>
+    <button class="tab-item" [class.tab-item--active]="activeTab === 'reconciliation'"
+            (click)="setTab('reconciliation')" data-testid="tab-reconciliation">Reconciliation</button>
   </div>
 
   @if (activeTab === 'batches') {
@@ -257,5 +259,161 @@
         </table>
       }
     </div>
+  }
+  @if (activeTab === 'reconciliation') {
+    <div class="card">
+      <div class="report-list-header">
+        <label class="form-label" for="rc-from">From</label>
+        <input id="rc-from" class="form-input" type="date" [(ngModel)]="reconFrom" />
+        <label class="form-label" for="rc-to">To</label>
+        <input id="rc-to" class="form-input" type="date" [(ngModel)]="reconTo" />
+        <button class="btn-secondary" (click)="loadReconciliation()" data-testid="recon-refresh">
+          <span class="material-icons">refresh</span> Refresh
+        </button>
+      </div>
+      <p class="muted small recon-hint">
+        The dates bound the authorization date (holds) or the batch settlement date (items); leave them empty for all.
+        At most {{ recon?.maxRows ?? 500 }} rows per list, oldest first.
+      </p>
+    </div>
+
+    @if (reconError) {
+      <div class="error-banner"><span class="material-icons">error_outline</span> {{ reconError }}</div>
+    }
+
+    @if (reconLoading) {
+      <div class="card">
+        <div class="skeleton-card">
+          @for (i of [1,2,3]; track i) { <div class="skeleton skeleton--row"></div> }
+        </div>
+      </div>
+    } @else if (recon) {
+      <div class="card recon-section" data-testid="recon-holds">
+        <div class="report-card__title recon-section__title">
+          Unresolved holds <span class="muted small">({{ recon.unresolvedHolds.length }})</span>
+        </div>
+        <p class="muted small recon-section__hint">
+          Declined 91: the core banking system didn't answer when the money was reserved, and giving it back
+          failed too — the customer's money may still be held (or, for a cash withdrawal, taken).
+          Retry release gives it back; the core banking system ignores a reference it never saw and blocks it from
+          being used later.
+        </p>
+        @if (recon.unresolvedHolds.length === 0) {
+          <div class="empty-state">
+            <span class="material-icons">task_alt</span>
+            <p>No unresolved holds.</p>
+          </div>
+        } @else {
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Declined</th><th>Card</th><th>STAN / RRN</th><th>Amount</th><th>Hold reference</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (h of recon.unresolvedHolds; track h.authorizationId) {
+                <tr class="table-row" [attr.data-testid]="'hold-' + h.authorizationId">
+                  <td class="muted small">{{ h.createdAt | date:'short' }}</td>
+                  <td class="mono">{{ h.panLast4 ? '•••• ' + h.panLast4 : '—' }}</td>
+                  <td class="mono small">{{ h.stan }} / {{ h.rrn ?? '—' }}</td>
+                  <td class="mono">{{ amount(h.amount) }} {{ h.currency }}</td>
+                  <td class="mono muted small" [attr.title]="h.holdReference">{{ h.holdReference.slice(0, 18) }}…</td>
+                  <td class="recon-action">
+                    @if (releaseResult[h.authorizationId]) {
+                      <app-status-badge label="RESOLVED" variant="success" />
+                      <div class="small recon-note">{{ releaseResult[h.authorizationId] }}</div>
+                    } @else {
+                      <button class="btn-secondary" [disabled]="releasing[h.authorizationId]"
+                              (click)="retryRelease(h)" [attr.data-testid]="'retry-' + h.authorizationId">
+                        <span class="material-icons">replay</span>
+                        {{ releasing[h.authorizationId] ? 'Releasing…' : 'Retry release' }}
+                      </button>
+                      @if (releaseError[h.authorizationId]) {
+                        <div class="small recon-note recon-note--error">{{ releaseError[h.authorizationId] }}</div>
+                      }
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+
+      <div class="card recon-section" data-testid="recon-clearing">
+        <div class="report-card__title recon-section__title">
+          Stuck in clearing <span class="muted small">({{ recon.stuckClearing.length }})</span>
+        </div>
+        <p class="muted small recon-section__hint">
+          Claimed by a batch close on an earlier date, but the core banking system never answered the capture.
+          Closing the batch again retries the capture (it is safe to repeat).
+        </p>
+        @if (recon.stuckClearing.length === 0) {
+          <div class="empty-state">
+            <span class="material-icons">task_alt</span>
+            <p>Nothing stuck in clearing.</p>
+          </div>
+        } @else {
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Batch</th><th>Date</th><th>Batch status</th><th>Card</th><th>Scheme</th><th>Amount</th>
+                <th>Claimed since</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (i of recon.stuckClearing; track i.itemId) {
+                <tr class="table-row">
+                  <td>
+                    <button class="link-button mono" (click)="showBatch(i.batchId)"
+                            [attr.data-testid]="'batch-link-' + i.itemId">{{ i.batchRef }}</button>
+                  </td>
+                  <td class="muted small">{{ i.settlementDate }}</td>
+                  <td><app-status-badge [label]="i.batchStatus" [variant]="statusVariant(i.batchStatus)" /></td>
+                  <td class="mono">{{ i.panLast4 ? '•••• ' + i.panLast4 : '—' }}</td>
+                  <td><span class="method-chip">{{ i.scheme ?? '—' }}</span></td>
+                  <td class="mono">{{ amount(i.amount) }} {{ i.currency }}</td>
+                  <td class="muted small">{{ i.claimedSince ? (i.claimedSince | date:'short') : '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+
+      <div class="card recon-section" data-testid="recon-country">
+        <div class="report-card__title recon-section__title">
+          Acquirer country unknown <span class="muted small">({{ recon.countryUnknown.length }})</span>
+        </div>
+        <p class="muted small recon-section__hint">
+          Cleared without the acquirer's country (DE19), so no cross-border fee was quoted. Check these against
+          the scheme's report: a cross-border fee the scheme charges shows up as a settlement difference.
+        </p>
+        @if (recon.countryUnknown.length === 0) {
+          <div class="empty-state">
+            <span class="material-icons">task_alt</span>
+            <p>No items without a country.</p>
+          </div>
+        } @else {
+          <table class="data-table">
+            <thead>
+              <tr><th>Date</th><th>Scheme</th><th>Card</th><th>Amount</th><th>Status</th><th>Authorization</th></tr>
+            </thead>
+            <tbody>
+              @for (i of recon.countryUnknown; track i.itemId) {
+                <tr class="table-row">
+                  <td class="muted small">{{ i.settlementDate }}</td>
+                  <td><span class="method-chip">{{ i.scheme ?? '—' }}</span></td>
+                  <td class="mono">{{ i.panLast4 ? '•••• ' + i.panLast4 : '—' }}</td>
+                  <td class="mono">{{ amount(i.amount) }} {{ i.currency }}</td>
+                  <td><app-status-badge [label]="i.status" [variant]="statusVariant(i.status)" /></td>
+                  <td class="mono muted small">{{ i.authorizationId ? i.authorizationId.slice(0, 8) + '…' : '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+    }
   }
 </div>

@@ -155,10 +155,11 @@ public class CardAuthorizationService {
                     // 0200 (single message, e.g. ATM cash) is approved and completed at once: debit now, with
                     // its interchange and scheme fees in the same journal (backlog 15b).
                     // 0100 reserves with a hold that batch close clears (backlog 15a, decisions 1a/2a).
+                    IssuerCharges quoted = req.isFinancial() ? quoteCharges(card, req, amountMajor, txCurrency) : null;
                     BackendHold hold = req.isFinancial()
                             ? postSingleMessageDebit(card, reference, amountMajor, txCurrency,
                                     req.processingCode() != null && req.processingCode().startsWith("01"),
-                                    quoteCharges(card, req, amountMajor, txCurrency))
+                                    quoted)
                             : placeDebitHold(card, reference, amountMajor, txCurrency);
                     if (hold == null) {
                         // The call failed or timed out — the backend may still have placed the hold or (0200)
@@ -183,7 +184,8 @@ public class CardAuthorizationService {
                                 fraud.totalScore(), fraud.decision());
                     }
                     holdRef = reference;
-                    if (req.isFinancial()) posted = hold.postedCharges(Schemes.normalize(req.scheme()));
+                    // The backend's figures are what it posted; the cross-border / currency split is ours (15d).
+                    if (req.isFinancial()) posted = hold.postedCharges(Schemes.normalize(req.scheme())).withSplitFrom(quoted);
                     // If this transaction rolls back after the hold was placed (including a failed
                     // commit), the approval never happened — give the hold back (a completed 0200
                     // debit is refunded by the same release).
@@ -674,13 +676,18 @@ public class CardAuthorizationService {
     }
 
     /**
-     * The issuer's interchange and scheme fees for a single-message debit (backlog 15b). Never fails the
-     * authorization: no engine answer means none.
+     * The issuer's interchange and scheme fees for a single-message debit (backlog 15b), cross-border and
+     * currency-conversion fees included (15d): the acquirer's country (DE19) against the card's home
+     * country, and the transaction currency (DE49) against the card's ({@code currency}, DE51 when sent).
+     * Never fails the authorization: no engine answer means none.
      */
     private IssuerCharges quoteCharges(Card card, CardAuthRequest req, BigDecimal amountMajor, java.util.Currency currency) {
         try {
+            CardCountry country = req.acquiringCountry() == null || req.acquiringCountry().isBlank()
+                    ? CardCountry.UNKNOWN
+                    : CardCountry.of(cardService.issuingCountry(card), req.acquiringCountry());
             IssuerCharges c = interchangeEngine.quote(req.scheme(), card.getCardType(), req.processingCode(),
-                    req.posEntryMode(), req.mcc(), amountMajor, currency);
+                    req.posEntryMode(), req.mcc(), amountMajor, currency, country, currency(req.currencyCode()));
             return c != null ? c : IssuerCharges.none(Schemes.normalize(req.scheme()));
         } catch (RuntimeException e) {
             log.warn("Interchange quote failed for card {}: {}", card.getId(), e.getMessage());
@@ -690,6 +697,30 @@ public class CardAuthorizationService {
 
     /** A release's outcome and, when the backend answered, its result (to see whether it refunded). */
     record Release(ReleaseOutcome outcome, BackendHold hold) {}
+
+    /**
+     * What the backend said to a reconciliation retry of a release: {@code answered=false} when it couldn't
+     * be reached (or sent no result); otherwise its verdict — approved with the hold's status
+     * (RELEASED / REFUNDED), or not approved with its reason (HOLD_NOT_FOUND, HOLD_NOT_ACTIVE, a refusal).
+     */
+    public record HoldReleaseAnswer(boolean answered, boolean approved, String status, String reason) {}
+
+    /**
+     * Retries the release of an RC 91 decline's backend reference that the decline itself couldn't release
+     * (settlement reconciliation, backlog 15d). Same call as at the decline — the original card-side amount
+     * and currency, no reversal key — so the backend releases a hold, refunds a 0200 debit that committed
+     * after all, or records a reference it never saw as released (a tombstone a late commit is refused on).
+     * Never inside a transaction: it is one HTTP call.
+     */
+    public HoldReleaseAnswer retryUnresolvedRelease(Card card, String reference, BigDecimal amountMajor,
+                                                    java.util.Currency currency) {
+        Release release = releaseWithResult(card, reference, amountMajor, currency, null);
+        if (release.outcome() == ReleaseOutcome.UNREACHABLE || release.hold() == null) {
+            return new HoldReleaseAnswer(false, false, null, null);
+        }
+        BackendHold hold = release.hold();
+        return new HoldReleaseAnswer(true, hold.approved(), hold.status(), hold.reason());
+    }
 
     /** Rolls back the reversal's transaction (when there is one) so changes made before a refusal are undone. */
     private static void rollbackOnly() {
@@ -756,10 +787,9 @@ public class CardAuthorizationService {
     String blockingControl(Card card, CardAuthRequest req) {
         if (!card.isContactlessEnabled() && PosEntryModes.isContactless(req.posEntryMode())) return "contactless";
         if (!card.isCnpEnabled() && !PosEntryModes.isCardPresent(req.posEntryMode())) return "card-not-present";
-        if (!card.isInternationalEnabled()) {
-            String acquirer = CountryCodes.alpha3(req.acquiringCountry());
-            String home = cardService.issuingCountry(card);
-            if (acquirer == null || home == null || !acquirer.equals(home)) return "international";
+        if (!card.isInternationalEnabled()
+                && CardCountry.of(cardService.issuingCountry(card), req.acquiringCountry()) != CardCountry.DOMESTIC) {
+            return "international";   // CROSS_BORDER, or UNKNOWN — fails closed
         }
         return null;
     }
@@ -824,6 +854,7 @@ public class CardAuthorizationService {
         entry.setDecision(decision);
         entry.setHoldReference(holdReference);
         entry.setWalletDebit(walletDebit);
+        entry.setAcquiringCountry(storedCountry(req.acquiringCountry()));
         if (req.billingSent()) {
             entry.setBillingAmount(req.billingAmount());
             entry.setBillingCurrencyCode(req.billingCurrencyCode());
@@ -881,6 +912,16 @@ public class CardAuthorizationService {
             log.warn("Webhook publish failed for PIN_CHANGED: {}", e.getMessage());
         }
         return true;
+    }
+
+    /**
+     * DE19 as sent, for {@code authorization_log.acquiring_country} (VARCHAR 3). DE19 is n3; anything longer
+     * isn't a country code and would fail the log write, so it is stored as none (= country unknown).
+     */
+    static String storedCountry(String de19) {
+        if (de19 == null || de19.isBlank()) return null;
+        String c = de19.trim();
+        return c.length() <= 3 ? c : null;
     }
 
     private AuthorizationLog buildAuthLog(Card card, String stan, String mti,

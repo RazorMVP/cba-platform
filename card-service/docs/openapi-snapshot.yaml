@@ -889,6 +889,25 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseSchemeReportResult"
+  /api/v1/cards/settlement/reconciliation/holds/{authorizationId}/release:
+    post:
+      tags:
+      - settlement-controller
+      operationId: retryHoldRelease
+      parameters:
+      - name: authorizationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseResolvedHold"
   /api/v1/cards/settlement/export/{batchId}:
     post:
       tags:
@@ -1713,6 +1732,31 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseSchemeReportResult"
+  /api/v1/cards/settlement/reconciliation:
+    get:
+      tags:
+      - settlement-controller
+      operationId: reconciliation
+      parameters:
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      - name: to
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiResponseReconciliationView"
   /api/v1/cards/settlement/batches:
     get:
       tags:
@@ -3076,6 +3120,36 @@ components:
           type: string
         journalTransactionId:
           type: string
+    ApiResponseResolvedHold:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/ResolvedHold"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    ResolvedHold:
+      type: object
+      properties:
+        authorizationId:
+          type: string
+          format: uuid
+        holdReference:
+          type: string
+        resolution:
+          type: string
+        resolvedAt:
+          type: string
+          format: date-time
+        resolvedBy:
+          type: string
+        backendStatus:
+          type: string
+        backendReason:
+          type: string
     ApiResponseListSettlementTransmission:
       type: object
       properties:
@@ -3693,6 +3767,15 @@ components:
           type: string
         walletDebit:
           type: number
+        acquiringCountry:
+          type: string
+        holdResolvedAt:
+          type: string
+          format: date-time
+        holdResolvedBy:
+          type: string
+        holdResolution:
+          type: string
         createdAt:
           type: string
           format: date-time
@@ -3898,6 +3981,12 @@ components:
           enum:
           - EARNED
           - PAID
+        crossBorderFee:
+          type: number
+        currencyFee:
+          type: number
+        countryUnknown:
+          type: boolean
     ApiResponseWalletView:
       type: object
       properties:
@@ -4025,6 +4114,130 @@ components:
         version:
           type: integer
           format: int64
+    ApiResponseReconciliationView:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/ReconciliationView"
+        meta:
+          $ref: "#/components/schemas/Meta"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiError"
+    CountryUnknownItem:
+      type: object
+      properties:
+        itemId:
+          type: string
+          format: uuid
+        batchId:
+          type: string
+          format: uuid
+        settlementDate:
+          type: string
+          format: date
+        scheme:
+          type: string
+        status:
+          type: string
+        amount:
+          type: number
+        currency:
+          type: string
+        authorizationId:
+          type: string
+          format: uuid
+        cardId:
+          type: string
+          format: uuid
+        panLast4:
+          type: string
+    ReconciliationView:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        unresolvedHolds:
+          type: array
+          items:
+            $ref: "#/components/schemas/UnresolvedHold"
+        stuckClearing:
+          type: array
+          items:
+            $ref: "#/components/schemas/StuckClearingItem"
+        countryUnknown:
+          type: array
+          items:
+            $ref: "#/components/schemas/CountryUnknownItem"
+        maxRows:
+          type: integer
+          format: int32
+    StuckClearingItem:
+      type: object
+      properties:
+        itemId:
+          type: string
+          format: uuid
+        batchId:
+          type: string
+          format: uuid
+        batchRef:
+          type: string
+        settlementDate:
+          type: string
+          format: date
+        batchStatus:
+          type: string
+        cardId:
+          type: string
+          format: uuid
+        panLast4:
+          type: string
+        scheme:
+          type: string
+        amount:
+          type: number
+        currency:
+          type: string
+        holdReference:
+          type: string
+        authorizationId:
+          type: string
+          format: uuid
+        claimedSince:
+          type: string
+          format: date-time
+    UnresolvedHold:
+      type: object
+      properties:
+        authorizationId:
+          type: string
+          format: uuid
+        cardId:
+          type: string
+          format: uuid
+        panLast4:
+          type: string
+        mti:
+          type: string
+        stan:
+          type: string
+        rrn:
+          type: string
+        amount:
+          type: number
+        currency:
+          type: string
+        holdReference:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
     ApiResponseListSettlementBatch:
       type: object
       properties:
@@ -4094,6 +4307,12 @@ components:
           - PAID
         schemeFeeAmount:
           type: number
+        crossBorderFee:
+          type: number
+        currencyFee:
+          type: number
+        countryUnknown:
+          type: boolean
         glNet:
           type: number
         refundedAmount:
@@ -4113,6 +4332,9 @@ components:
         refundReportId:
           type: string
           format: uuid
+        claimedAt:
+          type: string
+          format: date-time
         version:
           type: integer
           format: int64

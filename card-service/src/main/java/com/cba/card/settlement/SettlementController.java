@@ -27,6 +27,7 @@ public class SettlementController {
 
     private final SettlementService settlementService;
     private final SchemeSettlementService schemeSettlementService;
+    private final ReconciliationService reconciliationService;
 
     /** List settlement batches, optionally filtered by date. */
     @GetMapping("/batches")
@@ -79,6 +80,42 @@ public class SettlementController {
     public ResponseEntity<ApiResponse<List<SchemeSettlementReport>>> listSchemeReports(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return ResponseEntity.ok(ApiResponse.ok(schemeSettlementService.list(date)));
+    }
+
+    /**
+     * Settlement reconciliation (backlog 15d): RC 91 declines whose backend hold was never released, items
+     * claimed for clearing on an earlier date whose capture never answered, and items cleared without the
+     * acquirer's country (no cross-border fee). {@code from}/{@code to} (inclusive) bound the authorization
+     * date (holds) or the batch settlement date (items). Last four of the card only; at most 500 rows each.
+     */
+    @GetMapping("/reconciliation")
+    public ResponseEntity<ApiResponse<ReconciliationService.ReconciliationView>> reconciliation(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return ResponseEntity.ok(ApiResponse.ok(reconciliationService.view(from, to)));
+    }
+
+    /**
+     * Retries the backend release of an unresolved hold (an RC 91 decline's reference) with the original
+     * card-side amount and currency. When the backend answers — released, refunded (a 0200 debit that
+     * committed after all), never seen (tombstoned so a late commit is refused) or already inactive — the
+     * authorization is stamped resolved with the admin's name. 404 not an unresolved hold; 409
+     * HOLD_ALREADY_RESOLVED or the backend's refusal reason; 503 BACKEND_UNAVAILABLE (nothing stamped).
+     */
+    @PostMapping("/reconciliation/holds/{authorizationId}/release")
+    public ResponseEntity<ApiResponse<ReconciliationService.ResolvedHold>> retryHoldRelease(
+            @PathVariable UUID authorizationId, Principal principal) {
+        return ResponseEntity.ok(ApiResponse.ok(reconciliationService.retryHoldRelease(authorizationId, actor(principal))));
+    }
+
+    /** The admin's name for the stamp: the token's preferred_username when present, else the principal name. */
+    private static String actor(Principal principal) {
+        if (principal == null) return "system";
+        if (principal instanceof org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken jwt) {
+            String username = jwt.getToken().getClaimAsString("preferred_username");
+            if (username != null && !username.isBlank()) return username;
+        }
+        return principal.getName();
     }
 
     /** The expected net for a scheme, settlement date and currency — what the scheme's report must show. */

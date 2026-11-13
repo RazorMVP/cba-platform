@@ -45,6 +45,22 @@ public interface AuthorizationLogRepository extends JpaRepository<AuthorizationL
            """)
     List<AuthorizationLog> findUnmatchedAuthsOlderThan(@Param("cutoff") OffsetDateTime cutoff);
 
+    /**
+     * Stamps an unresolved hold as resolved — only if no one has (reconciliation, backlog 15d). The
+     * condition is the concurrency guard: of two admins retrying the same release, one stamps (1) and the
+     * other gets 0 (the backend release itself is idempotent, so the second call did no harm).
+     */
+    @org.springframework.transaction.annotation.Transactional
+    @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+           UPDATE AuthorizationLog a
+              SET a.holdResolvedAt = :at, a.holdResolvedBy = :by, a.holdResolution = :resolution
+            WHERE a.id = :id AND a.holdResolvedAt IS NULL
+              AND a.responseCode = '91' AND a.holdReference IS NOT NULL
+           """)
+    int markHoldResolved(@Param("id") UUID id, @Param("at") OffsetDateTime at,
+                         @Param("by") String by, @Param("resolution") String resolution);
+
     /** Idempotency guard for reversals — has a 0400 already been recorded for this (card, STAN)? */
     boolean existsByCardIdAndStanAndMti(UUID cardId, String stan, String mti);
 

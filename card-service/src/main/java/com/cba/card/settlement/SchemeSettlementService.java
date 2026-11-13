@@ -21,7 +21,8 @@ import java.util.List;
 /**
  * Records card schemes' settlement reports (the cash leg, backlog 15b, decision 4a). For one scheme,
  * settlement date and currency, the expected net is what the bank owes the scheme: the {@code glNet} of
- * that day's cleared items plus the {@code refundGlNet} of that day's refunds. Operations enter the
+ * that day's cleared items plus the {@code refundGlNet} of that day's refunds (each {@link SettlementRefund} on the
+ * day it happened — an item refunded in parts counts on each refund's day). Operations enter the
  * scheme's reported net; card-service sends it with the expected net to the backend, which owns the GL
  * and the tolerance (backlog 15d, decision D7a): equal figures post DR 2300 / CR 1003 (or the reverse);
  * a difference within the currency's tolerance posts 2300 at the expected net, 1003 at the reported net
@@ -41,12 +42,13 @@ public class SchemeSettlementService {
 
     private final SchemeSettlementReportRepository reportRepository;
     private final SettlementItemRepository itemRepository;
+    private final SettlementRefundRepository refundRepository;
     private final SettlementBatchRepository batchRepository;
     private final BackendClearingClient clearingClient;
     private final PlatformTransactionManager transactionManager;
 
     /** The items and refunds a report would settle, and their net in major units. */
-    private record Expected(List<SettlementItem> items, List<SettlementItem> refunds, BigDecimal net) {}
+    private record Expected(List<SettlementItem> items, List<SettlementRefund> refunds, BigDecimal net) {}
 
     /** What has to be posted after the first transaction: the report row's figures. */
     private record Pending(java.util.UUID reportId, String reference, BigDecimal amount, BigDecimal expected,
@@ -149,7 +151,7 @@ public class SchemeSettlementService {
         e.items().forEach(i -> i.setSettlementReportId(saved.getId()));
         e.refunds().forEach(i -> i.setRefundReportId(saved.getId()));
         itemRepository.saveAll(e.items());
-        itemRepository.saveAll(e.refunds());
+        refundRepository.saveAll(e.refunds());
         if (nothingToPost) {
             markBatchesSettled(date);
             return early(new SchemeReportResult(true, false, null, scheme, date, currency, e.net(), reported,
@@ -169,8 +171,9 @@ public class SchemeSettlementService {
             // Refused (nothing posted — e.g. DIFFERENCE_OVER_TOLERANCE): undo the report so operations can
             // correct and record again; the result carries expected, reported and the difference.
             itemRepository.findBySettlementReportId(report.getId()).forEach(i -> i.setSettlementReportId(null));
-            itemRepository.findByRefundReportId(report.getId()).forEach(i -> i.setRefundReportId(null));
+            refundRepository.findByRefundReportId(report.getId()).forEach(r -> r.setRefundReportId(null));
             itemRepository.flush();
+            refundRepository.flush();
             reportRepository.delete(report);
             log.warn("Scheme report {} refused by the backend: {}", report.getBackendReference(), post.reason());
             return result(report, false, false, post.reason());
@@ -199,10 +202,11 @@ public class SchemeSettlementService {
     private Expected expectedFor(String scheme, LocalDate date, Currency ccy) {
         List<SettlementItem> items = itemRepository.findUnreportedCleared(scheme, date).stream()
                 .filter(i -> ccy.equals(CardAuthorizationService.currency(i.getCurrencyCode()))).toList();
-        List<SettlementItem> refunds = itemRepository.findUnreportedRefunds(scheme, date).stream()
-                .filter(i -> ccy.equals(CardAuthorizationService.currency(i.getCurrencyCode()))).toList();
+        // Every refund of the date counts on its own (an item can have several, on different days).
+        List<SettlementRefund> refunds = refundRepository.findUnreported(scheme, date).stream()
+                .filter(r -> ccy.equals(CardAuthorizationService.currency(r.getItem().getCurrencyCode()))).toList();
         BigDecimal minor = items.stream().map(SettlementItem::getGlNet).reduce(BigDecimal.ZERO, BigDecimal::add)
-                .add(refunds.stream().map(SettlementItem::getRefundGlNet).reduce(BigDecimal.ZERO, BigDecimal::add));
+                .add(refunds.stream().map(SettlementRefund::getRefundGlNet).reduce(BigDecimal.ZERO, BigDecimal::add));
         int digits = Math.max(ccy.getDefaultFractionDigits(), 0);
         BigDecimal net = CardAuthorizationService.toMajorUnits(minor, ccy).setScale(digits, RoundingMode.HALF_UP);
         return new Expected(items, refunds, net);

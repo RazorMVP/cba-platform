@@ -57,6 +57,49 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 63) — 2026-11-13
+**Backlog set 3, PR A — item 15d (partial refunds, decision D1a; plan `docs/plans/2026-11-13-backlog-set-3.md`). A captured card debit or a cleared prepaid purchase could be refunded only once: a second partial reversal of the same purchase was refused `ALREADY_REFUNDED` (RC 13), and card-service kept one refund slot per settlement item. Now any number of partial refunds work, up to the captured / cleared amount, each with its own journal, its own share of interchange and fees, and its own row in the scheme report's expected net on its own day.**
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `backend/…/db/migration/V70__card_partial_refunds.sql` | NEW `card_hold_refunds` (hold, `refund_reference` UNIQUE, amount, interchange/fee reversed, journal id); backfill one row per REFUNDED hold (`refund_reference`, else `LEGACY-<hold id>`); `account_holds.refunded_amount` / `interchange_reversed` / `scheme_fee_reversed` become running totals |
+| `backend/…/account/CardHoldRefund.java`, `CardHoldRefundRepository.java` | NEW entity + repository |
+| `backend/…/account/AccountService.java` | `releaseCardHold`: CAPTURED **or** REFUNDED → `refundCardDebit`; known key = repeat (original figures, nothing posted), other key = new refund up to `captured − refunded`; keyless = `LEGACY-<hold id>` (once); cumulative pro rata `prorate(posted, refundedBefore + amount) − reversedBefore`; hold CAPTURED until fully refunded; `postCardMovement` returns the journal id |
+| `backend/…/account/dto/CardHoldResult.java` | `refundedAmount` (running total) + `refund {reference, amount, interchangeReversed, schemeFeeReversed, repeat}`; `interchangeReversed` / `schemeFeeReversed` now running totals |
+| `backend/…/cardprepaid/CardPrepaidService.java`, `PrepaidCardMovementRepository.java` | "once" rule dropped; `refunded_amount` running total; earlier REFUND rows' sums give "reversed so far" (`findRefundsOf`); `proRata` aligned with the debit one (`.min(figure)`, `part ≥ whole` → figure, digits fallback 4) |
+| `backend/…/account/AccountController.java`, `cardprepaid/CardPrepaidController.java` | OpenAPI descriptions |
+| `card-service/…/db/migration/V19__settlement_refunds.sql` | NEW `settlement_refunds` (item, `reversal_reference` UNIQUE, amount, interchange/fee reversed, `refund_gl_net`, `refund_settlement_date`, `refund_report_id`; partial index for the expected-net query); copy the one-slot refunds (`LEGACY-<item id>`), drop the five refund columns from `settlement_items` (`refunded_amount` stays, running total) |
+| `card-service/…/settlement/SettlementRefund.java`, `SettlementRefundRepository.java` | NEW |
+| `card-service/…/settlement/SettlementService.java` | `recordRefund(authLogId, reversalReference, minor, reversed)` writes a row, idempotent on the key; `reducePendingItem` → `EXCEEDS` (more than is left) / `EMPTIED` (the rest: item REVERSED, the caller releases the hold); `reversePrepaidItem` → `EXCEEDS` for a REVERSED item or more than is left |
+| `card-service/…/settlement/SchemeSettlementService.java`, `SettlementItem.java`, `SettlementItemRepository.java` | expected net and report stamping read `settlement_refunds` by their own date |
+| `card-service/…/auth/CardAuthorizationService.java` | original found by DE90's STAN (`originalStan`); refund recorded from the backend's `refund` block naming this reversal's key (`refundedCharges`; pre-15d backend: status REFUNDED); EXCEEDS → RC 13; a refused/unreachable release always rolls the reversal back; `BackendHold` gains `refundedAmount` + `Refund` |
+| tests | backend `CardClearingIT` +4 (two partials reverse fees exactly, thirds without drift, backfilled legacy hold refunds further, 6 concurrent refunds → 3 approved, total 90.00 of 100.00), `refundKeyedOnReversal` rewritten; `CardPrepaidIT` +1 (two partials then `AMOUNT_EXCEEDS_CLEARED`), `clearingAndRefund` updated. card-service `CardClearingIntegrationTest` +3 (two debit reversals with own STANs → both RC 00, two rows; prepaid → wallet credited twice; refunds on two days in their own day's expected net, report stamps only its day's rows), refused-release stub now `AMOUNT_EXCEEDS_CAPTURED`; `CardAuthorizationServiceTest` +4; `SettlementServiceTest` +1 (one row per reversal replaces "once"); `SchemeSettlementServiceTest` on refund rows |
+| `backend/docs/openapi-snapshot.yaml`, `card-service/docs/openapi-snapshot.yaml` | `CardHoldResult.refundedAmount` + `Refund`; `SettlementItem` loses the five refund fields |
+| `docs/api-reference.html`, `docs/cba-postman-collection-v2.json`, `docs/card-api-reference.html` (+ `docs-site/static` copies) | release: partial refunds, `refund` block, running totals, new examples; prepaid refund: any number; card-service reversals, settlement item JSON change, expected net per refund row |
+| `docs/plans/2026-11-13-backlog-set-3.md`, `docs/plans/README.md` | NEW plan copy (approved 2026-11-13, every decision a; PR A in progress) + index row |
+| `CLAUDE.md`, `docs/deferred-backlog.md` | Last git commit rows; §14 prepaid note; RBAC card-clearing / interchange bullets; 15d partial refunds ✅ |
+
+#### Key Patterns / Decisions
+- **D1a.** Each refund is its own row keyed by card-service's reversal reference (`REV-` + SHA-256 of hold ref, STAN, amount): the same key again is a repeat — the original refund's figures, nothing posted; another key is a new refund until the captured / cleared amount is used up, then `AMOUNT_EXCEEDS_CAPTURED` / `AMOUNT_EXCEEDS_CLEARED` (RC 13). No new accounting: each refund posts the 15b refund journal for its own share (IFRS 15 §38, as 15b).
+- **Charges reverse cumulatively**, so there is no rounding drift: share = `prorate(posted, refundedBefore + amount, captured) − reversedBefore` (HALF_UP to the currency's digits). Three refunds of a third of 0.10 reverse 0.03 + 0.04 + 0.03, not 3 × 0.03.
+- **Races.** Backend refunds of one debit serialise on the account row lock (`findByIdWithLock`); a prepaid refund locks the clearing row. card-service holds the settlement item's row lock for the whole reversal (`reducePendingItem` / `markReversed` / `reversePrepaidItem` lock it), so two reversals of one purchase are serialised there too; a reversal of an item being cleared still answers 96. Proved by `concurrentRefunds_neverExceedCapture` (6 × 30.00 against 100.00 → 3 approved).
+- **card-service records only what the backend posted:** a refund is recorded from the `refund` block, and only when it names this reversal's key; a backend from before 15d (no block) is read as before (status REFUNDED). A refused or unreachable release now always rolls the reversal back (it rolled back only a REVERSED mark, so an `EMPTIED`/reduced item would have stayed changed).
+- **Deviation from the plan, needed for D1a to be reachable:** card-service looked up the original by the reversal's own STAN, so a reversal with a STAN of its own (how a second partial reversal arrives — DE11 is per message) found no original (RC 25), and one reusing the original's STAN was stopped by the 0400 guard. The original is now found by DE90's STAN (`originalStan`: positions 5–10 when well formed, else DE11); the 0400 guard stays on the reversal's own STAN.
+- **Also fixed on the way:** with more than one partial reversal possible, the pending paths needed caps — a pending item can no longer be reduced below zero (`EXCEEDS` → RC 13); the reversal that takes the rest releases the hold (`EMPTIED`; before, the item went REVERSED and the hold stayed until expiry); a prepaid item already REVERSED gives the wallet nothing more.
+- **Response shape changes.** Backend release result: `refundedAmount`, `refund` added; `interchangeReversed` / `schemeFeeReversed` are now running totals. card-service `GET …/settlement/batches/{id}/items`: `interchangeReversed`, `schemeFeeReversed`, `refundGlNet`, `refundSettlementDate`, `refundReportId` removed (the web doesn't read them).
+- Not in this PR (plan, "Not in this set"): pre-V13 partial refunds that aren't in card-service's settlement items still reconcile by hand.
+
+#### Build Verification
+- backend `./mvnw clean verify -Pfull-integration -Djacoco.skip=true -Dupdate.api.snapshot=true`: **1126/1126** (main 1121 + 5); rerun without the flag: **1126/1126**, snapshot stable.
+- card-service `./mvnw clean verify -Pfull-integration -Dupdate.api.snapshot=true`: **328/328** (main 320 + 8); rerun without the flag: **328/328**, snapshot stable.
+- Gate grep: no endpoint or param lines (`(none — no endpoint/param surface change)`); response shapes changed (release result `refundedAmount` + `refund`, running totals; prepaid refund semantics; card-service settlement item JSON) → `api-reference.html`, Postman, `card-api-reference.html` and the static copies updated.
+
+#### Confirmed Platform Versions
+backend: Spring Boot 3.5.16, Java 21; `-Pfull-integration` 1126. card-service: Spring Boot 3.5.16; 328. web: Angular 22.2.3, unchanged. No dependency changes.
+
+---
+
 ### Session 125 (cont. 62) — 2026-11-09
 **Backlog set 2, PR B — item 15c: prepaid card wallets on the GL (plan `docs/plans/2026-11-09-backlog-set-2.md`, D5a + D6a). Wallets had no funding path (seed data only) and posted nothing; prepaid spend was in the scheme files but not in the expected net; a partial reversal left the settlement item at its full amount.**
 

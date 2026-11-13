@@ -46,6 +46,7 @@ public class AccountService {
     private final CustomerRepository customerRepository;
     private final DepositProductRepository depositProductRepository;
     private final AccountHoldRepository accountHoldRepository;
+    private final CardHoldRefundRepository cardHoldRefundRepository;
     private final AccountNumberAlgorithmService accountNumberAlgorithmService;
     private final AuditLogService auditLogService;
     private final ApplicationEventPublisher eventPublisher;
@@ -563,7 +564,7 @@ public class AccountService {
      * fees it carries — all in the caller's transaction. A debit is checked only against the spendable
      * balance (status and lock-in were decided by the caller).
      */
-    private void postCardMovement(Account account, BigDecimal amount, boolean debit, TransactionType type,
+    private String postCardMovement(Account account, BigDecimal amount, boolean debit, TransactionType type,
                                   String description, String reference, String actor,
                                   CardCharges charges, boolean reversal) {
         BigDecimal before = account.getBalance();
@@ -575,7 +576,7 @@ public class AccountService {
         accountRepository.save(account);
         transactionRepository.save(Transaction.of(account, type, amount, account.getBalance(),
             description, reference, actor));
-        accountGlPosting.postCardSettlement(account, before, charges, reversal, LocalDate.now(), description, reference);
+        return accountGlPosting.postCardSettlement(account, before, charges, reversal, LocalDate.now(), description, reference);
     }
 
     /**
@@ -590,8 +591,9 @@ public class AccountService {
     }
 
     /**
-     * As {@link #releaseCardHold(UUID, String, String)}, with the reversal's amount and currency (optional):
-     * a completed debit is refunded for at most that amount, once; and a reference never seen is recorded
+     * As {@link #releaseCardHold(UUID, String, String)}, with the reversal's amount, currency and key (optional):
+     * a completed debit is refunded for that amount — any number of refunds, each keyed by its reversal
+     * reference, up to the captured amount; and a reference never seen is recorded
      * as released (a tombstone), so a hold or debit for it that commits late — after card-service gave up
      * waiting and reversed — is refused instead of taking the customer's money.
      */
@@ -620,22 +622,8 @@ public class AccountService {
             return new CardHoldResult(false, null, reference, null, "HOLD_NOT_FOUND", spendable(account).max(BigDecimal.ZERO));
         }
         AccountHold hold = existing.get();
-        if (hold.getStatus() == AccountHoldStatus.CAPTURED) {
+        if (hold.getStatus() == AccountHoldStatus.CAPTURED || hold.getStatus() == AccountHoldStatus.REFUNDED) {
             return refundCardDebit(account, hold, request, releasedBy);
-        }
-        if (hold.getStatus() == AccountHoldStatus.REFUNDED) {
-            // Only a retry of the reversal that refunded it is done (same reversal key, or — without keys —
-            // the same amount); any other reversal is a second refund, refused, never reported as credited.
-            boolean repeat;
-            if (request != null && request.reversalReference() != null) {
-                repeat = request.reversalReference().equals(hold.getRefundReference());
-            } else {
-                BigDecimal asked = request == null || request.amount() == null ? hold.getRefundedAmount() : request.amount();
-                repeat = hold.getRefundReference() == null
-                        && (hold.getRefundedAmount() == null || asked.compareTo(hold.getRefundedAmount()) == 0);
-            }
-            return new CardHoldResult(repeat, hold.getId(), reference, hold.getStatus().name(),
-                    repeat ? null : "ALREADY_REFUNDED", spendable(account).max(BigDecimal.ZERO)).withCharges(hold);
         }
         if (hold.getStatus() != AccountHoldStatus.ACTIVE) {
             return new CardHoldResult(false, hold.getId(), reference, hold.getStatus().name(), "HOLD_NOT_ACTIVE",
@@ -652,47 +640,93 @@ public class AccountService {
     }
 
     /**
-     * Reverses a completed card debit: credits the amount back and posts DR card scheme settlement
-     * payable / CR deposit. Money owed back to the customer is credited whatever the account's status,
-     * except a closed account, which can't take it (reported, nothing posted).
+     * Refunds (part of) a completed card debit: credits the amount back and posts DR card scheme settlement
+     * payable / CR deposit, with this refund's share of the interchange and scheme fees. Any number of refunds
+     * up to the captured amount (backlog 15d, decision D1a), each keyed by card-service's reversal reference:
+     * the same reference again is a repeat (the original refund, nothing posted), any other is a new refund.
+     * A release without a reference is keyed {@code LEGACY-<hold id>}, so it refunds at most once. Money owed
+     * back to the customer is credited whatever the account's status, except a closed account, which can't
+     * take it (reported, nothing posted). Runs under the account's row lock, so two refunds of one debit are
+     * serialised and their total never passes the captured amount.
      */
     private CardHoldResult refundCardDebit(Account account, AccountHold hold, CardReleaseRequest request,
                                            String releasedBy) {
         String reference = hold.getExternalReference();
-        // The reversal's amount: never more than was captured (a partial reversal refunds only its part).
-        BigDecimal amount = request == null || request.amount() == null ? hold.getCapturedAmount() : request.amount();
+        BigDecimal captured = hold.getCapturedAmount();
+        BigDecimal refundedBefore = hold.getRefundedAmount() == null ? BigDecimal.ZERO : hold.getRefundedAmount();
+        String key = request != null && request.reversalReference() != null && !request.reversalReference().isBlank()
+                ? request.reversalReference().trim() : "LEGACY-" + hold.getId();
+
+        var known = cardHoldRefundRepository.findByRefundReference(key);
+        if (known.isPresent()) {
+            CardHoldRefund r = known.get();
+            // A retry of a refund already made: done, with its own figures. The same key for another amount
+            // (or another hold's refund) is not a retry — refused, never reported as credited.
+            boolean repeat = r.getHoldId().equals(hold.getId())
+                    && (request == null || request.amount() == null || request.amount().compareTo(r.getAmount()) == 0);
+            CardHoldResult result = new CardHoldResult(repeat, hold.getId(), reference, hold.getStatus().name(),
+                    repeat ? null : "ALREADY_REFUNDED", spendable(account).max(BigDecimal.ZERO)).withCharges(hold);
+            return repeat ? result.withRefund(CardHoldResult.Refund.of(r, true)) : result;
+        }
+
+        // The reversal's amount: by default whatever is left; never more than is left to refund.
+        BigDecimal left = captured.subtract(refundedBefore);
+        BigDecimal amount = request == null || request.amount() == null ? left : request.amount();
         String reason = account.getStatus() == AccountStatus.CLOSED ? "ACCOUNT_CLOSED"
                 : request != null && request.currencyCode() != null
                   && !account.getCurrencyCode().equalsIgnoreCase(request.currencyCode()) ? "CURRENCY_MISMATCH"
-                : amount.compareTo(hold.getCapturedAmount()) > 0 ? "AMOUNT_EXCEEDS_CAPTURED"
+                : amount.signum() <= 0 || amount.compareTo(left) > 0 ? "AMOUNT_EXCEEDS_CAPTURED"
                 : null;
         if (reason != null) {
             return new CardHoldResult(false, hold.getId(), reference, hold.getStatus().name(), reason,
-                    reason.equals("ACCOUNT_CLOSED") ? BigDecimal.ZERO : spendable(account).max(BigDecimal.ZERO));
+                    reason.equals("ACCOUNT_CLOSED") ? BigDecimal.ZERO : spendable(account).max(BigDecimal.ZERO))
+                    .withCharges(hold);
         }
-        // Interchange and scheme fees reverse in proportion to the amount refunded (a full refund
-        // reverses them exactly). A captured debit is refunded once, so there is no remainder to track.
+
+        // Interchange and scheme fees reverse cumulatively: this refund's share is the pro rata of everything
+        // refunded so far less what earlier refunds reversed — the shares add up exactly to the posted figures
+        // once the debit is fully refunded (no rounding drift).
+        BigDecimal refundedAfter = refundedBefore.add(amount);
         CardCharges posted = CardCharges.of(hold);
         int digits = currencyDigits(account.getCurrencyCode());
-        CardCharges reversed = new CardCharges(
-                prorate(posted.interchange(), amount, hold.getCapturedAmount(), digits), posted.direction(),
-                prorate(posted.schemeFee(), amount, hold.getCapturedAmount(), digits));
-        hold.setStatus(AccountHoldStatus.REFUNDED);
-        hold.setRefundedAmount(amount);
-        hold.setRefundReference(request != null ? request.reversalReference() : null);
+        BigDecimal interchangeBefore = hold.getInterchangeReversed() == null ? BigDecimal.ZERO : hold.getInterchangeReversed();
+        BigDecimal feeBefore = hold.getSchemeFeeReversed() == null ? BigDecimal.ZERO : hold.getSchemeFeeReversed();
+        BigDecimal interchangeShare = prorate(posted.interchange(), refundedAfter, captured, digits)
+                .subtract(interchangeBefore).max(BigDecimal.ZERO);
+        BigDecimal feeShare = prorate(posted.schemeFee(), refundedAfter, captured, digits)
+                .subtract(feeBefore).max(BigDecimal.ZERO);
+        CardCharges reversed = new CardCharges(interchangeShare, posted.direction(), feeShare);
+
+        boolean full = refundedAfter.compareTo(captured) >= 0;
+        hold.setStatus(full ? AccountHoldStatus.REFUNDED : AccountHoldStatus.CAPTURED);
+        hold.setRefundedAmount(refundedAfter);
+        hold.setRefundReference(key);
         hold.setReleasedAt(Instant.now());
         hold.setReleasedBy(releasedBy);
         if (!posted.isZero()) {
-            hold.setInterchangeReversed(reversed.interchange());
-            hold.setSchemeFeeReversed(reversed.schemeFee());
+            hold.setInterchangeReversed(interchangeBefore.add(interchangeShare));
+            hold.setSchemeFeeReversed(feeBefore.add(feeShare));
         }
         accountHoldRepository.saveAndFlush(hold);
-        postCardMovement(account, amount, false, TransactionType.CARD_REFUND,
+        String journal = postCardMovement(account, amount, false, TransactionType.CARD_REFUND,
                 "Card refund " + reference, reference, releasedBy, reversed, true);
+
+        CardHoldRefund refund = new CardHoldRefund();
+        refund.setId(UUID.randomUUID());
+        refund.setHoldId(hold.getId());
+        refund.setRefundReference(key);
+        refund.setAmount(amount);
+        refund.setInterchangeReversed(posted.isZero() ? null : interchangeShare);
+        refund.setSchemeFeeReversed(posted.isZero() ? null : feeShare);
+        refund.setJournalTransactionId(journal);
+        refund.setCreatedBy(releasedBy);
+        cardHoldRefundRepository.saveAndFlush(refund);
         auditLogService.log("ACCOUNT_HOLD", hold.getId().toString(), "CARD_DEBIT_REFUNDED", null,
-            "amount=" + amount + " of " + hold.getCapturedAmount() + " reference=" + reference + chargesAudit(reversed));
+            "amount=" + amount + " refunded=" + refundedAfter + " of " + captured + " reference=" + reference
+                + " refundReference=" + key + chargesAudit(reversed));
         return new CardHoldResult(true, hold.getId(), reference, hold.getStatus().name(), null,
-                spendable(account).max(BigDecimal.ZERO)).withCharges(hold);
+                spendable(account).max(BigDecimal.ZERO)).withCharges(hold)
+                .withRefund(CardHoldResult.Refund.of(refund, false));
     }
 
     // ── Holds ─────────────────────────────────────────────────────────────────

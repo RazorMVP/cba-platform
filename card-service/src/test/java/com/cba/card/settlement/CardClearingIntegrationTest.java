@@ -80,6 +80,7 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
                 "journalTransactionId", "GL-PP"), "errors", List.of());
         register("POST", "/api/v1/card-prepaid/loads", prepaidOk);
         register("POST", "/api/v1/card-prepaid/clearings", prepaidOk);
+        registerPattern("POST", "/api/v1/card-prepaid/clearings/[^/]+/refund", prepaidOk);
     }
 
     static final UUID PREPAID_PRODUCT = UUID.fromString("11111111-0001-0001-0001-000000000003");
@@ -168,7 +169,7 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
         SettlementItem item = itemFor("930001");
         // The most recently added WireMock stub wins: this hold's release is refused.
         register("POST", "/api/v1/accounts/" + ACCOUNT + "/card-holds/" + item.getHoldReference() + "/release",
-                hold(false, "CAPTURED", "ALREADY_REFUNDED"));
+                hold(false, "CAPTURED", "AMOUNT_EXCEEDS_CAPTURED"));
 
         assertThat(post("/api/v1/internal/reverse", Map.of("pan", pan, "amount", 3000, "stan", "930001",
                 "originalDataElements", "0100930001")).get("responseCode")).isEqualTo("13");
@@ -247,6 +248,100 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT status FROM settlement_batches WHERE id = ?", String.class, batch)).isEqualTo("SETTLED");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM settlement_items WHERE batch_id = ? AND settlement_report_id IS NOT NULL",
                 Integer.class, batch)).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("15d (D1a): two partial reversals of one completed debit (own STANs, DE90 names the original) → both RC 00, "
+            + "two refund rows; the item's refunded amount is their total")
+    void twoPartialReversalsOfDebit() {
+        String pan = debitPan();
+        cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(ACCOUNT), true, pan, "2912", "123", "USD");
+        assertThat(authorize(pan, "950001", "010000", true, 10000)).isEqualTo("00");
+        SettlementItem item = itemFor("950001");
+        assertThat(item.getStatus()).isEqualTo("SETTLED");
+
+        assertThat(post("/api/v1/internal/reverse", Map.of("pan", pan, "amount", 3000, "stan", "950002",
+                "originalDataElements", "0200950001")).get("responseCode")).isEqualTo("00");
+        assertThat(post("/api/v1/internal/reverse", Map.of("pan", pan, "amount", 7000, "stan", "950003",
+                "originalDataElements", "0200950001")).get("responseCode")).isEqualTo("00");
+        // A retried second reversal (same STAN) is the 0400 already recorded: nothing more.
+        assertThat(post("/api/v1/internal/reverse", Map.of("pan", pan, "amount", 7000, "stan", "950003",
+                "originalDataElements", "0200950001")).get("responseCode")).isEqualTo("00");
+
+        List<Map<String, Object>> refunds = jdbc.queryForList(
+                "SELECT reversal_reference, amount_minor, refund_settlement_date FROM settlement_refunds WHERE item_id = ? "
+                        + "ORDER BY created_at", item.getId());
+        assertThat(refunds).hasSize(2);
+        assertThat(refunds).extracting(r -> ((BigDecimal) r.get("amount_minor")).stripTrailingZeros().toPlainString())
+                .containsExactly("3000", "7000");
+        assertThat(refunds).extracting(r -> (String) r.get("reversal_reference")).allMatch(k -> k.startsWith("REV-"))
+                .doesNotHaveDuplicates();
+        assertThat(itemRepository.findById(item.getId()).orElseThrow().getRefundedAmount()).isEqualByComparingTo("10000");
+        assertThat(requests("/card-holds/" + item.getHoldReference() + "/release")).hasSize(2)
+                .anySatisfy(body -> assertThat(body).contains("\"amount\":30"))
+                .anySatisfy(body -> assertThat(body).contains("\"amount\":70"));
+    }
+
+    @Test
+    @DisplayName("15d (D1a): prepaid — two partial reversals after clearing → two backend refunds, the wallet credited twice")
+    void twoPartialReversalsOfPrepaid() {
+        String pan = "4300" + String.format("%012d", ThreadLocalRandom.current().nextLong(1_000_000_000_000L));
+        Card card = cardService.issueCard(PREPAID_PRODUCT, UUID.randomUUID(), null, true, pan, "2912", "123", "USD");
+        HttpHeaders h = new HttpHeaders();
+        h.setContentType(MediaType.APPLICATION_JSON);
+        h.setBearerAuth(ROLES_TOKEN + ".ADMIN.TELLER");
+        assertThat(rest.exchange("/api/v1/cards/" + card.getId() + "/wallet/loads", HttpMethod.POST,
+                new HttpEntity<>(Map.of("sourceAccountId", ACCOUNT, "amount", 100, "currencyCode", "USD"), h), Map.class)
+                .getStatusCode().value()).isEqualTo(201);
+        assertThat(authorize(pan, "960001", "000000", false, 4000)).isEqualTo("00");
+        SettlementItem item = itemFor("960001");
+        settlementService.closeBatch(batchOf(item));
+        assertThat(itemRepository.findById(item.getId()).orElseThrow().getGlNet()).isNotNull();
+        assertThat(wallet(card)).isEqualByComparingTo("60.00");
+
+        assertThat(post("/api/v1/internal/reverse", Map.of("pan", pan, "amount", 1000, "stan", "960002",
+                "originalDataElements", "0100960001")).get("responseCode")).isEqualTo("00");
+        assertThat(post("/api/v1/internal/reverse", Map.of("pan", pan, "amount", 500, "stan", "960003",
+                "originalDataElements", "0100960001")).get("responseCode")).isEqualTo("00");
+
+        assertThat(wallet(card)).isEqualByComparingTo("75.00");
+        assertThat(requests("/clearings/" + item.getHoldReference() + "/refund")).hasSize(2);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM settlement_refunds WHERE item_id = ?", Integer.class, item.getId()))
+                .isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("15d (D1a): refunds count on their own day's expected net; recording a report stamps that day's refund rows only")
+    void refundsLandOnTheirOwnDay() {
+        java.time.LocalDate d1 = java.time.LocalDate.of(2001, 1, 1).plusDays(ThreadLocalRandom.current().nextInt(3000));
+        java.time.LocalDate d2 = d1.minusDays(9000);
+        UUID batch = UUID.randomUUID();
+        jdbc.update("INSERT INTO settlement_batches (id, batch_ref, status, settlement_date, closed_at) VALUES (?, ?, 'CLOSED', ?, now())",
+                batch, batch.toString(), d2);
+        UUID itemId = UUID.randomUUID();
+        jdbc.update("INSERT INTO settlement_items (id, batch_id, amount, currency_code, status, card_type, scheme, gl_net, cleared_at) "
+                + "VALUES (?, ?, 10000, '840', 'SETTLED', 'DEBIT', 'VISA', 9863, now())", itemId, batch);
+        // Two refunds of the one item, on two different days.
+        jdbc.update("INSERT INTO settlement_refunds (item_id, reversal_reference, amount_minor, refund_gl_net, refund_settlement_date) "
+                + "VALUES (?, ?, 3000, -2955, ?)", itemId, "REV-" + UUID.randomUUID(), d1);
+        jdbc.update("INSERT INTO settlement_refunds (item_id, reversal_reference, amount_minor, refund_gl_net, refund_settlement_date) "
+                + "VALUES (?, ?, 1000, -985, ?)", itemId, "REV-" + UUID.randomUUID(), d1.plusDays(1));
+
+        assertThat(schemeSettlementService.expected("VISA", d1, "USD").expectedNet()).isEqualByComparingTo("-29.55");
+        assertThat(schemeSettlementService.expected("VISA", d1.plusDays(1), "USD").expectedNet()).isEqualByComparingTo("-9.85");
+        assertThat(schemeSettlementService.expected("VISA", d2, "USD").expectedNet()).isEqualByComparingTo("98.63");
+
+        SchemeReportResult r = schemeSettlementService.record(new SchemeReportRequest("VISA", d1, "USD", new BigDecimal("-29.55")), "it");
+        assertThat(r.recorded()).as(r.reason()).isTrue();
+        assertThat(r.refundCount()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM settlement_refunds WHERE item_id = ? AND refund_report_id IS NOT NULL",
+                Integer.class, itemId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT refund_settlement_date FROM settlement_refunds WHERE item_id = ? AND refund_report_id IS NULL",
+                java.time.LocalDate.class, itemId)).isEqualTo(d1.plusDays(1));
+    }
+
+    private BigDecimal wallet(Card card) {
+        return jdbc.queryForObject("SELECT balance FROM prepaid_wallets WHERE card_id = ?", BigDecimal.class, card.getId());
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

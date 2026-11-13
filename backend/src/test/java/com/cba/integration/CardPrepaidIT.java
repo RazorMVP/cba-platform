@@ -76,7 +76,7 @@ class CardPrepaidIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("clearing: DR 2500 / CR 2300, interchange earned DR 2300 / CR 4005, fees DR 5006 / CR 2300; refund reverses pro rata, once")
+    @DisplayName("clearing: DR 2500 / CR 2300, interchange earned DR 2300 / CR 4005, fees DR 5006 / CR 2300; refund reverses pro rata")
     void clearingAndRefund() {
         String ref = "PPD-" + UUID.randomUUID();
         PrepaidMovementResult c = service.clearing(new PrepaidClearingRequest(ref, card, new BigDecimal("100.00"), "USD",
@@ -99,10 +99,50 @@ class CardPrepaidIT extends AbstractIntegrationTest {
                 "CREDIT 5006 0.0800 USD", "DEBIT 2300 0.0800 USD");
 
         assertThat(service.refund(ref, new PrepaidRefundRequest(refundRef, new BigDecimal("40.00"), "USD"), "cs").repeat()).isTrue();
-        assertThat(service.refund(ref, new PrepaidRefundRequest("REV-" + UUID.randomUUID(), BigDecimal.ONE, "USD"), "cs").reason())
-                .isEqualTo("ALREADY_REFUNDED");
+        assertThat(service.refund(ref, new PrepaidRefundRequest("REV-" + UUID.randomUUID(), new BigDecimal("60.01"), "USD"), "cs")
+                .reason()).isEqualTo("AMOUNT_EXCEEDS_CLEARED");
         assertThat(service.refund("PPD-none", new PrepaidRefundRequest("REV-" + UUID.randomUUID(), BigDecimal.ONE, "USD"), "cs").reason())
                 .isEqualTo("CLEARING_NOT_FOUND");
+    }
+
+    @Test
+    @DisplayName("15d (D1a): two partial refunds of one clearing reverse its fees exactly; a third over what's left is refused")
+    void partialRefunds_reverseFeesExactly() {
+        String ref = "PPD-" + UUID.randomUUID();
+        assertThat(service.clearing(new PrepaidClearingRequest(ref, card, new BigDecimal("100.00"), "USD",
+                "VISA", new BigDecimal("1.50"), CardInterchangeDirection.EARNED, new BigDecimal("0.13")), "cs").approved()).isTrue();
+
+        String first = "REV-" + UUID.randomUUID();
+        PrepaidMovementResult a = service.refund(ref, new PrepaidRefundRequest(first, new BigDecimal("33.33"), "USD"), "cs");
+        String second = "REV-" + UUID.randomUUID();
+        PrepaidMovementResult b = service.refund(ref, new PrepaidRefundRequest(second, new BigDecimal("66.67"), "USD"), "cs");
+
+        assertThat(a.approved()).as(a.reason()).isTrue();
+        assertThat(b.approved()).as(b.reason()).isTrue();
+        assertThat(a.interchangeReversed()).isEqualByComparingTo("0.50");   // 1.50 × 33.33 / 100 = 0.49995 → 0.50
+        assertThat(a.schemeFeeReversed()).isEqualByComparingTo("0.04");     // 0.0433 → 0.04
+        assertThat(b.interchangeReversed()).isEqualByComparingTo("1.00");   // 1.50 − 0.50
+        assertThat(b.schemeFeeReversed()).isEqualByComparingTo("0.09");     // 0.13 − 0.04
+        assertThat(jdbc.queryForObject("SELECT refunded_amount FROM prepaid_card_movements WHERE reference = ?",
+                BigDecimal.class, ref)).isEqualByComparingTo("100.00");
+        for (String gl : new String[]{"2300", "2500", "4005", "5006"}) {
+            assertThat(net(List.of(ref, first, second), gl)).as(gl).isEqualByComparingTo("0");
+        }
+        assertThat(service.refund(ref, new PrepaidRefundRequest("REV-" + UUID.randomUUID(), new BigDecimal("0.01"), "USD"), "cs")
+                .reason()).isEqualTo("AMOUNT_EXCEEDS_CLEARED");
+        assertThat(service.refund(ref, new PrepaidRefundRequest(first, new BigDecimal("33.33"), "USD"), "cs").repeat()).isTrue();
+    }
+
+    /** Net (debits − credits) of a GL account over the journals with these references. */
+    private BigDecimal net(List<String> references, String glCode) {
+        BigDecimal total = BigDecimal.ZERO;
+        for (String reference : references) {
+            total = total.add(jdbc.queryForObject("""
+                    SELECT COALESCE(SUM(CASE WHEN je.entry_type = 'DEBIT' THEN je.amount ELSE -je.amount END), 0)
+                    FROM journal_entries je JOIN gl_accounts g ON g.id = je.gl_account_id
+                    WHERE je.reference_number = ? AND g.gl_code = ?""", BigDecimal.class, reference, glCode));
+        }
+        return total;
     }
 
     @Test

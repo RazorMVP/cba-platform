@@ -650,7 +650,7 @@ class CardAuthorizationServiceTest {
 
         assertThat(service.reverse(PAN, new BigDecimal("3000"), REV_STAN, "x")).isEqualTo("00");
         assertThat(w.getBalance()).isEqualByComparingTo("50.00");
-        verify(settlementService).recordRefund(eq(original.getId()), eq(new BigDecimal("3000")), any());
+        verify(settlementService).recordRefund(eq(original.getId()), startsWith("REV-"), eq(new BigDecimal("3000")), any());
     }
 
     @Test
@@ -962,7 +962,8 @@ class CardAuthorizationServiceTest {
     }
 
     @Test
-    @DisplayName("15b: a partial reversal of a cleared debit records the refund's reversed interchange and fees")
+    @DisplayName("15b: a partial reversal of a cleared debit records the refund's reversed interchange and fees "
+            + "(a backend from before 15d: no refund block, status REFUNDED)")
     void partialReversalOfCleared_recordsRefundFigures() {
         Card card = debitCard(UUID.randomUUID());
         when(cardService.findByPanHash(PAN)).thenReturn(card);
@@ -984,11 +985,87 @@ class CardAuthorizationServiceTest {
 
         assertThat(service.reverse(PAN, new BigDecimal("4000"), REV_STAN, "x")).isEqualTo("00");
 
-        verify(settlementService).recordRefund(eq(original.getId()), eq(new BigDecimal("4000")),
+        verify(settlementService).recordRefund(eq(original.getId()), startsWith("REV-"), eq(new BigDecimal("4000")),
                 org.mockito.ArgumentMatchers.<com.cba.card.interchange.IssuerCharges>argThat(c ->
                         c.interchange().compareTo(new BigDecimal("0.60")) == 0
                                 && c.schemeFee().compareTo(new BigDecimal("0.05")) == 0
                                 && c.direction() == com.cba.card.interchange.InterchangeDirection.EARNED));
+    }
+
+    @Test
+    @DisplayName("15d: a second partial reversal (its own STAN, DE90 naming the original) refunds again — the backend's "
+            + "refund block, keyed by this reversal, is what card-service records; the hold stays CAPTURED")
+    void secondPartialReversal_recordsFromRefundBlock() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), "000777", "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setId(UUID.randomUUID());
+        original.setAmount(new BigDecimal("10000"));
+        original.setHoldReference("CARD-twice");
+        // DE90: original MTI 0100 + original STAN (REV_STAN) + date …
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+        when(settlementService.reducePendingItem(original.getId(), new BigDecimal("3000")))
+                .thenReturn(com.cba.card.settlement.SettlementService.PendingReduction.NOT_PENDING);
+        when(restClientConfig.getBackendBaseUrl()).thenReturn("http://localhost:8080");
+        String key = CardAuthorizationService.reversalReference("CARD-twice", "000777", new BigDecimal("3000"));
+        doReturn(ResponseEntity.ok(new CardAuthorizationService.Envelope<>(new CardAuthorizationService.BackendHold(
+                true, UUID.randomUUID(), "CARD-twice", "CAPTURED", null, BigDecimal.ZERO,
+                new BigDecimal("1.50"), "EARNED", new BigDecimal("0.13"), new BigDecimal("1.05"), new BigDecimal("0.09"),
+                new BigDecimal("70.00"), new CardAuthorizationService.BackendHold.Refund(key, new BigDecimal("30.00"),
+                        new BigDecimal("0.45"), new BigDecimal("0.04"), false)))))
+                .when(backendRestTemplate).exchange(contains("/release"), eq(HttpMethod.POST), any(),
+                        any(ParameterizedTypeReference.class));
+
+        assertThat(service.reverse(PAN, new BigDecimal("3000"), "000777", "0100" + REV_STAN + "1113120000")).isEqualTo("00");
+
+        verify(settlementService).recordRefund(eq(original.getId()), eq(key), eq(new BigDecimal("3000")),
+                org.mockito.ArgumentMatchers.<com.cba.card.interchange.IssuerCharges>argThat(c ->
+                        c.interchange().compareTo(new BigDecimal("0.45")) == 0      // this refund's share, not the totals
+                                && c.schemeFee().compareTo(new BigDecimal("0.04")) == 0));
+    }
+
+    @Test
+    @DisplayName("15d: a refund block for another key (not this reversal's) records nothing")
+    void refundedCharges_onlyForThisKey() {
+        var other = new CardAuthorizationService.BackendHold(true, UUID.randomUUID(), "CARD-x", "CAPTURED", null,
+                BigDecimal.ZERO, null, null, null, null, null, new BigDecimal("10"),
+                new CardAuthorizationService.BackendHold.Refund("REV-other", BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.ZERO, true));
+        assertThat(CardAuthorizationService.refundedCharges(other, "REV-mine", "VISA")).isNull();
+        assertThat(CardAuthorizationService.refundedCharges(other, "REV-other", "VISA")).isNotNull();
+        var released = new CardAuthorizationService.BackendHold(true, UUID.randomUUID(), "CARD-x", "RELEASED", null, BigDecimal.ZERO);
+        assertThat(CardAuthorizationService.refundedCharges(released, "REV-mine", "VISA")).isNull();
+    }
+
+    @Test
+    @DisplayName("15d: the original is found by DE90's STAN; without a well-formed DE90, by the reversal's STAN")
+    void originalStan_fromDe90() {
+        assertThat(CardAuthorizationService.originalStan("000777", "0100000123111312000000000000000")).isEqualTo("000123");
+        assertThat(CardAuthorizationService.originalStan("000777", "0200000456")).isEqualTo("000456");
+        assertThat(CardAuthorizationService.originalStan("000777", null)).isEqualTo("000777");
+        assertThat(CardAuthorizationService.originalStan("000777", "x")).isEqualTo("000777");
+        assertThat(CardAuthorizationService.originalStan("000777", "0100ABCDEF")).isEqualTo("000777");
+    }
+
+    @Test
+    @DisplayName("15d: a partial reversal for more than is left of a pending purchase → RC 13, nothing released or recorded")
+    void reverse_pendingExceeds_13() {
+        Card card = debitCard(UUID.randomUUID());
+        when(cardService.findByPanHash(PAN)).thenReturn(card);
+        when(authLogRepository.existsByCardIdAndStanAndMti(card.getId(), REV_STAN, "0400")).thenReturn(false);
+        AuthorizationLog original = originalAuth(card.getId());
+        original.setId(UUID.randomUUID());
+        original.setAmount(new BigDecimal("10000"));
+        original.setHoldReference("CARD-pending");
+        when(authLogRepository.findFirstByCardIdAndStanAndMtiNotOrderByCreatedAtDesc(card.getId(), REV_STAN, "0400"))
+                .thenReturn(Optional.of(original));
+        when(settlementService.reducePendingItem(original.getId(), new BigDecimal("5000")))
+                .thenReturn(com.cba.card.settlement.SettlementService.PendingReduction.EXCEEDS);
+
+        assertThat(service.reverse(PAN, new BigDecimal("5000"), REV_STAN, "x")).isEqualTo("13");
+        verifyNoInteractions(backendRestTemplate);
+        verify(authLogRepository, never()).save(any());
     }
 
     @Test

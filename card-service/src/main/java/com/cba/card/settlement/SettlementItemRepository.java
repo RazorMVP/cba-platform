@@ -43,14 +43,7 @@ public interface SettlementItemRepository extends JpaRepository<SettlementItem, 
             + "AND i.glNet IS NOT NULL AND i.settlementReportId IS NULL")
     List<SettlementItem> findUnreportedCleared(String scheme, java.time.LocalDate date);
 
-    /** Refunds of a scheme made on a date, not yet in a scheme report. */
-    @Query("SELECT i FROM SettlementItem i WHERE i.scheme = :scheme AND i.refundSettlementDate = :date "
-            + "AND i.refundGlNet IS NOT NULL AND i.refundReportId IS NULL")
-    List<SettlementItem> findUnreportedRefunds(String scheme, java.time.LocalDate date);
-
     List<SettlementItem> findBySettlementReportId(UUID reportId);
-
-    List<SettlementItem> findByRefundReportId(UUID reportId);
 
     /** Items of a settlement date in the given statuses (e.g. still PENDING or CLEARING). */
     @Query("SELECT COUNT(i) FROM SettlementItem i WHERE i.batch.settlementDate = :date AND i.status IN :statuses")

@@ -45,6 +45,18 @@ public interface AuthorizationLogRepository extends JpaRepository<AuthorizationL
            """)
     List<AuthorizationLog> findUnmatchedAuthsOlderThan(@Param("cutoff") OffsetDateTime cutoff);
 
+    /**
+     * Locks an original authorization for a reversal ({@code FOR UPDATE}) and returns what earlier reversals gave
+     * back (card-side minor units) — read from the row, not from an entity already in the persistence context.
+     */
+    @Query(value = "SELECT reversed_amount FROM authorization_log WHERE id = :id FOR UPDATE", nativeQuery = true)
+    BigDecimal lockReversedAmount(@Param("id") UUID id);
+
+    /** Adds a completed reversal to the original's running total (in the reversal's transaction). */
+    @org.springframework.data.jpa.repository.Modifying
+    @Query(value = "UPDATE authorization_log SET reversed_amount = reversed_amount + :amount WHERE id = :id", nativeQuery = true)
+    int addReversedAmount(@Param("id") UUID id, @Param("amount") BigDecimal amount);
+
     /** Idempotency guard for reversals — has a 0400 already been recorded for this (card, STAN)? */
     boolean existsByCardIdAndStanAndMti(UUID cardId, String stan, String mti);
 

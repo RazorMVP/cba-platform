@@ -34,7 +34,7 @@ import java.util.UUID;
  *   <li><b>load</b> — debit the customer's account under the withdrawal rules, DR deposit / CR 2500;</li>
  *   <li><b>unload</b> — redeem the wallet to the customer's account, DR 2500 / CR deposit;</li>
  *   <li><b>clearing</b> — prepaid spend cleared at batch close, DR 2500 / CR 2300 plus interchange and fees;</li>
- *   <li><b>refund</b> — a cleared purchase reversed, the opposite, pro rata; once per clearing.</li>
+ *   <li><b>refund</b> — a cleared purchase reversed, the opposite, pro rata; any number of refunds up to the cleared amount.</li>
  * </ul>
  * Each is idempotent on its reference (an advisory lock serialises two requests with one reference). A
  * problem is a decline with a reason, never a 4xx: card-service treats a 4xx as "unreachable" and retries.
@@ -151,8 +151,11 @@ public class CardPrepaidService {
     }
 
     /**
-     * A cleared prepaid purchase reversed: the opposite of its clearing for {@code amount}, interchange and fees
-     * pro rata (HALF_UP; exact on a full refund). One refund per clearing, as a captured debit-card debit.
+     * A cleared prepaid purchase reversed: the opposite of its clearing for {@code amount}, with this refund's share
+     * of interchange and fees. Any number of refunds per clearing until the cleared amount is used up (backlog 15d,
+     * decision D1a); the shares are cumulative — pro rata of everything refunded so far less what earlier refunds
+     * reversed (HALF_UP) — so they add up exactly to the clearing's figures once it is fully refunded. The clearing
+     * row is locked while a refund is decided, so two refunds are serialised.
      */
     @Transactional
     public PrepaidMovementResult refund(String clearingReference, PrepaidRefundRequest req, String actor) {
@@ -175,20 +178,27 @@ public class CardPrepaidService {
         }
         String invalid = invalidAmount(req.amount(), currency);
         if (invalid != null) return PrepaidMovementResult.declined(refundReference, invalid);
-        if (clearing.getRefundReference() != null) {
-            return PrepaidMovementResult.declined(refundReference, "ALREADY_REFUNDED");
-        }
-        if (req.amount().compareTo(clearing.getAmount()) > 0) {
+        BigDecimal refundedBefore = clearing.getRefundedAmount() == null ? BigDecimal.ZERO : clearing.getRefundedAmount();
+        BigDecimal refundedAfter = refundedBefore.add(req.amount());
+        if (refundedAfter.compareTo(clearing.getAmount()) > 0) {
             return PrepaidMovementResult.declined(refundReference, "AMOUNT_EXCEEDS_CLEARED");
         }
+        BigDecimal interchangeBefore = BigDecimal.ZERO;
+        BigDecimal feeBefore = BigDecimal.ZERO;
+        for (PrepaidCardMovement earlier : movements.findRefundsOf(clearingReference)) {
+            if (earlier.getInterchangeAmount() != null) interchangeBefore = interchangeBefore.add(earlier.getInterchangeAmount());
+            if (earlier.getSchemeFeeAmount() != null) feeBefore = feeBefore.add(earlier.getSchemeFeeAmount());
+        }
         int digits = digits(currency);
-        BigDecimal interchange = proRata(clearing.getInterchangeAmount(), req.amount(), clearing.getAmount(), digits);
-        BigDecimal fee = proRata(clearing.getSchemeFeeAmount(), req.amount(), clearing.getAmount(), digits);
+        BigDecimal interchange = proRata(clearing.getInterchangeAmount(), refundedAfter, clearing.getAmount(), digits)
+                .subtract(interchangeBefore).max(BigDecimal.ZERO);
+        BigDecimal fee = proRata(clearing.getSchemeFeeAmount(), refundedAfter, clearing.getAmount(), digits)
+                .subtract(feeBefore).max(BigDecimal.ZERO);
         CardCharges reversed = new CardCharges(interchange, clearing.getInterchangeDirection(), fee);
         String journal = accountGlPosting.postPrepaidCardClearing(req.amount(), currency, reversed, true, LocalDate.now(),
                 "Prepaid card refund " + refundReference + " of " + clearingReference, refundReference, clearing.getCardId());
 
-        clearing.setRefundedAmount(req.amount());
+        clearing.setRefundedAmount(refundedAfter);
         clearing.setRefundReference(refundReference);
         movements.save(clearing);
         PrepaidCardMovement m = movement(refundReference, PrepaidCardMovement.Type.REFUND, req.amount(), currency, journal, actor);
@@ -258,10 +268,11 @@ public class CardPrepaidService {
         return charges.interchange().signum() > 0 && charges.direction() == null;
     }
 
+    /** {@code figure × part / whole}, at the currency's digits (HALF_UP); never more than {@code figure} (as the debit refund). */
     private static BigDecimal proRata(BigDecimal figure, BigDecimal part, BigDecimal whole, int digits) {
         if (figure == null || figure.signum() == 0) return BigDecimal.ZERO;
-        if (part.compareTo(whole) == 0) return figure;
-        return figure.multiply(part).divide(whole, digits, RoundingMode.HALF_UP);
+        if (part.compareTo(whole) >= 0) return figure;
+        return figure.multiply(part).divide(whole, digits, RoundingMode.HALF_UP).min(figure);
     }
 
     private static Integer digitsOrNull(String currency) {
@@ -272,9 +283,10 @@ public class CardPrepaidService {
         }
     }
 
+    /** The currency's minor-unit digits; 4 for a currency the JDK doesn't know (as the debit refund). */
     private static int digits(String currency) {
         Integer d = digitsOrNull(currency);
-        return d == null ? 2 : d;
+        return d == null ? 4 : d;
     }
 
     private static String upper(String s) {

@@ -35,6 +35,7 @@ class SchemeSettlementServiceTest {
 
     @Mock SchemeSettlementReportRepository reportRepository;
     @Mock SettlementItemRepository itemRepository;
+    @Mock SettlementRefundRepository refundRepository;
     @Mock SettlementBatchRepository batchRepository;
     @Mock BackendClearingClient clearingClient;
     @Mock PlatformTransactionManager transactionManager;
@@ -50,10 +51,13 @@ class SchemeSettlementServiceTest {
         return i;
     }
 
-    private static SettlementItem refund(String refundGlNetMinor) {
-        SettlementItem i = cleared("1000", "840");
-        i.setRefundGlNet(new BigDecimal(refundGlNetMinor));
-        return i;
+    private static SettlementRefund refund(String refundGlNetMinor) {
+        SettlementRefund r = new SettlementRefund();
+        r.setItem(cleared("1000", "840"));
+        r.setReversalReference("REV-" + UUID.randomUUID());
+        r.setRefundGlNet(new BigDecimal(refundGlNetMinor));
+        r.setRefundSettlementDate(D);
+        return r;
     }
 
     private static SettlementBatch closedBatch() {
@@ -70,13 +74,13 @@ class SchemeSettlementServiceTest {
     }
 
     /** The worked example: purchase 98.63 + ATM 50.57 owed = 149.20; no open batch, nothing clearing. */
-    private SettlementBatch stubDay(List<SettlementItem> items, List<SettlementItem> refunds) {
+    private SettlementBatch stubDay(List<SettlementItem> items, List<SettlementRefund> refunds) {
         SettlementBatch batch = closedBatch();
         when(reportRepository.findForUpdate("VISA", D, "USD")).thenReturn(Optional.empty());
         when(batchRepository.findBySettlementDateOrderByOpenedAtDesc(D)).thenReturn(List.of(batch));
         when(itemRepository.countByDateAndStatusIn(eq(D), any())).thenReturn(0L);
         when(itemRepository.findUnreportedCleared("VISA", D)).thenReturn(items);
-        when(itemRepository.findUnreportedRefunds("VISA", D)).thenReturn(refunds);
+        when(refundRepository.findUnreported("VISA", D)).thenReturn(refunds);
         return batch;
     }
 
@@ -146,7 +150,7 @@ class SchemeSettlementServiceTest {
         SchemeSettlementReport stored = stored("149.30", "149.20");
         when(reportRepository.findById(any())).thenReturn(Optional.of(stored));
         when(itemRepository.findBySettlementReportId(stored.getId())).thenReturn(List.of(purchase, atm));
-        when(itemRepository.findByRefundReportId(stored.getId())).thenReturn(List.of());
+        when(refundRepository.findByRefundReportId(stored.getId())).thenReturn(List.of());
 
         SchemeReportResult r = service.record(report("149.30"), "ops");
 
@@ -203,7 +207,7 @@ class SchemeSettlementServiceTest {
         SchemeSettlementReport stored = stored("0.02", "0.00");
         when(reportRepository.findById(any())).thenReturn(Optional.of(stored));
         when(itemRepository.findBySettlementReportId(stored.getId())).thenReturn(List.of());
-        when(itemRepository.findByRefundReportId(stored.getId())).thenReturn(List.of());
+        when(refundRepository.findByRefundReportId(stored.getId())).thenReturn(List.of());
 
         SchemeReportResult r = service.record(report("0.02"), "ops");
 
@@ -265,7 +269,7 @@ class SchemeSettlementServiceTest {
         stored.setReportedNet(new BigDecimal("98.63")); stored.setExpectedNet(new BigDecimal("98.63"));
         when(reportRepository.findById(any())).thenReturn(Optional.of(stored));
         when(itemRepository.findBySettlementReportId(stored.getId())).thenReturn(List.of(purchase));
-        when(itemRepository.findByRefundReportId(stored.getId())).thenReturn(List.of());
+        when(refundRepository.findByRefundReportId(stored.getId())).thenReturn(List.of());
 
         SchemeReportResult r = service.record(report("98.63"), "ops");
 
@@ -339,7 +343,8 @@ class SchemeSettlementServiceTest {
         assertThat(r.recorded()).as(r.reason()).isTrue();
         assertThat(r.itemCount()).isZero();
         verify(clearingClient, never()).recordSchemeSettlement(any(), any(), any(), any(), any(), any());
-        verify(itemRepository, org.mockito.Mockito.times(2)).saveAll(anyList());
+        verify(itemRepository).saveAll(anyList());
+        verify(refundRepository).saveAll(anyList());
     }
 
     @Test

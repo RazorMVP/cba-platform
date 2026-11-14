@@ -88,31 +88,16 @@ public class SettlementItem {
     @Column(name = "gl_net", precision = 19, scale = 4)
     private BigDecimal glNet;
 
-    /** A refund of the cleared debit (minor units) and the interchange / fees it reversed. */
+    /**
+     * What the item's refunds gave back so far (minor units; running total). Each refund — with the interchange
+     * and fees it reversed, what it takes back from the scheme and its date — is a {@link SettlementRefund}.
+     */
     @Column(name = "refunded_amount", precision = 19, scale = 4)
     private BigDecimal refundedAmount;
-
-    @Column(name = "interchange_reversed", precision = 19, scale = 4)
-    private BigDecimal interchangeReversed;
-
-    @Column(name = "scheme_fee_reversed", precision = 19, scale = 4)
-    private BigDecimal schemeFeeReversed;
-
-    /** What the refund took back from the scheme (minor units, negative). */
-    @Column(name = "refund_gl_net", precision = 19, scale = 4)
-    private BigDecimal refundGlNet;
-
-    /** The date the refund counts in a scheme settlement. */
-    @Column(name = "refund_settlement_date")
-    private java.time.LocalDate refundSettlementDate;
 
     /** The scheme report that settled this item's clearing. */
     @Column(name = "settlement_report_id")
     private UUID settlementReportId;
-
-    /** The scheme report that settled its refund. */
-    @Column(name = "refund_report_id")
-    private UUID refundReportId;
 
     /** Batch close and reversals can race on an item; the later writer re-reads instead of overwriting. */
     @Version

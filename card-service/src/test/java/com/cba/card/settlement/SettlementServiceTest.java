@@ -40,6 +40,7 @@ class SettlementServiceTest {
 
     @Mock SettlementBatchRepository batchRepository;
     @Mock SettlementItemRepository itemRepository;
+    @Mock SettlementRefundRepository refundRepository;
     @Mock AuthorizationLogRepository authLogRepository;
     @Mock BackendClearingClient clearingClient;
     @Mock PlatformTransactionManager transactionManager;   // TransactionTemplate runs the callback
@@ -194,7 +195,7 @@ class SettlementServiceTest {
     }
 
     @Test
-    @DisplayName("reducePendingItem: PENDING drops by the reversal (to zero → REVERSED); CLEARING untouched; cleared → NOT_PENDING")
+    @DisplayName("reducePendingItem: PENDING drops by the reversal (to zero → REVERSED, EMPTIED: the caller releases the hold); CLEARING untouched; cleared → NOT_PENDING")
     void reducePendingItem() {
         UUID auth = UUID.randomUUID();
         SettlementItem item = debitItem("PENDING");   // 2500 minor units
@@ -202,7 +203,7 @@ class SettlementServiceTest {
 
         assertThat(service.reducePendingItem(auth, new BigDecimal("1000"))).isEqualTo(SettlementService.PendingReduction.REDUCED);
         assertThat(item.getAmount()).isEqualByComparingTo("1500");
-        assertThat(service.reducePendingItem(auth, new BigDecimal("1500"))).isEqualTo(SettlementService.PendingReduction.REDUCED);
+        assertThat(service.reducePendingItem(auth, new BigDecimal("1500"))).isEqualTo(SettlementService.PendingReduction.EMPTIED);
         assertThat(item.getStatus()).isEqualTo("REVERSED");
 
         UUID cleared = UUID.randomUUID();
@@ -515,31 +516,58 @@ class SettlementServiceTest {
     }
 
     @Test
-    @DisplayName("15b: a refund of a cleared debit records what it takes back from the scheme, once, dated today")
-    void recordRefund_setsRefundGlNet_once() {
+    @DisplayName("15b/15d: each refund of a cleared debit is its own row — what it takes back from the scheme, dated today; "
+            + "a retried reversal (same key) records nothing more")
+    void recordRefund_oneRowPerReversal() {
         UUID auth = UUID.randomUUID();
-        SettlementItem item = debitItem("REVERSED");
+        SettlementItem item = debitItem("SETTLED");
         item.setScheme("VISA");
         item.setInterchangeAmount(new BigDecimal("38"));
         item.setInterchangeDirection(InterchangeDirection.EARNED);
         item.setSchemeFeeAmount(new BigDecimal("5"));
         item.setGlNet(new BigDecimal("2467"));
         when(itemRepository.findByAuthorizationLogIdForUpdate(auth)).thenReturn(Optional.of(item));
+        List<SettlementRefund> saved = new java.util.ArrayList<>();
+        when(refundRepository.save(any(SettlementRefund.class))).thenAnswer(i -> {
+            saved.add(i.getArgument(0));
+            return i.getArgument(0);
+        });
+        when(refundRepository.findByReversalReference(any())).thenAnswer(i -> saved.stream()
+                .filter(r -> r.getReversalReference().equals(i.getArgument(0))).findFirst());
 
-        service.recordRefund(auth, new BigDecimal("1000"), charges("0.15", InterchangeDirection.EARNED, "0.02"));
+        service.recordRefund(auth, "REV-1", new BigDecimal("1000"), charges("0.15", InterchangeDirection.EARNED, "0.02"));
+        service.recordRefund(auth, "REV-2", new BigDecimal("1500"), charges("0.23", InterchangeDirection.EARNED, "0.03"));
+        service.recordRefund(auth, "REV-1", new BigDecimal("1000"), charges("0.15", InterchangeDirection.EARNED, "0.02"));
 
-        assertThat(item.getRefundGlNet()).isEqualByComparingTo("-987");   // −(1000 − 15 + 2)
-        assertThat(item.getRefundSettlementDate()).isEqualTo(LocalDate.now());
-        assertThat(item.getRefundedAmount()).isEqualByComparingTo("1000");
-
-        service.recordRefund(auth, new BigDecimal("2500"), charges("0.38", InterchangeDirection.EARNED, "0.05"));
-        assertThat(item.getRefundGlNet()).isEqualByComparingTo("-987");
+        assertThat(saved).hasSize(2);
+        assertThat(saved.get(0).getRefundGlNet()).isEqualByComparingTo("-987");    // −(1000 − 15 + 2)
+        assertThat(saved.get(1).getRefundGlNet()).isEqualByComparingTo("-1480");   // −(1500 − 23 + 3)
+        assertThat(saved.get(0).getRefundSettlementDate()).isEqualTo(LocalDate.now());
+        assertThat(saved.get(1).getInterchangeReversed()).isEqualByComparingTo("23");
+        assertThat(item.getRefundedAmount()).isEqualByComparingTo("2500");   // running total
 
         UUID notCleared = UUID.randomUUID();
         SettlementItem pending = debitItem("REVERSED");
         when(itemRepository.findByAuthorizationLogIdForUpdate(notCleared)).thenReturn(Optional.of(pending));
-        service.recordRefund(notCleared, new BigDecimal("100"), charges("0", InterchangeDirection.EARNED, "0"));
-        assertThat(pending.getRefundGlNet()).isNull();
+        service.recordRefund(notCleared, "REV-3", new BigDecimal("100"), charges("0", InterchangeDirection.EARNED, "0"));
+        assertThat(saved).hasSize(2);
+        assertThat(pending.getRefundedAmount()).isNull();
+    }
+
+    @Test
+    @DisplayName("15d: a partial reversal of a pending item can't take more than is left; the one that takes the rest empties it")
+    void reducePendingItem_capsAndEmpties() {
+        UUID auth = UUID.randomUUID();
+        SettlementItem item = debitItem("PENDING");
+        item.setAmount(new BigDecimal("10000"));
+        when(itemRepository.findByAuthorizationLogIdForUpdate(auth)).thenReturn(Optional.of(item));
+
+        assertThat(service.reducePendingItem(auth, new BigDecimal("6000"))).isEqualTo(SettlementService.PendingReduction.REDUCED);
+        assertThat(item.getAmount()).isEqualByComparingTo("4000");
+        assertThat(service.reducePendingItem(auth, new BigDecimal("4001"))).isEqualTo(SettlementService.PendingReduction.EXCEEDS);
+        assertThat(item.getAmount()).isEqualByComparingTo("4000");
+        assertThat(service.reducePendingItem(auth, new BigDecimal("4000"))).isEqualTo(SettlementService.PendingReduction.EMPTIED);
+        assertThat(item.getStatus()).isEqualTo("REVERSED");
     }
 
     // ── Prepaid (backlog 15c) ────────────────────────────────────────────────

@@ -60,6 +60,7 @@ public class SettlementService {
 
     private final SettlementBatchRepository batchRepository;
     private final SettlementItemRepository  itemRepository;
+    private final SettlementRefundRepository refundRepository;
     private final AuthorizationLogRepository authLogRepository;
     private final BackendClearingClient     clearingClient;
     private final PlatformTransactionManager transactionManager;
@@ -133,29 +134,39 @@ public class SettlementService {
     }
 
     /**
-     * A refund of a cleared (or completed) debit, as the backend posted it: what it took back from the
-     * scheme counts in the scheme settlement of the day it happened. Once per item (a captured debit is
-     * refunded once); nothing for an item that never moved the GL.
+     * A refund of a cleared (or completed) debit or of cleared prepaid spend, as the backend posted it: what it
+     * took back from the scheme counts in the scheme settlement of the day it happened. Any number per item
+     * (backlog 15d, decision D1a) — each is its own {@link SettlementRefund}, keyed by the reversal reference
+     * the backend refunded under, so recording a retried reversal again changes nothing. Nothing for an item
+     * that never moved the GL.
      *
-     * @param refundMinor the refunded amount (DE4 minor units)
-     * @param reversed    interchange and fees the backend reversed (major units)
+     * @param reversalReference the backend's key for this refund (debit {@code reversalReference}, prepaid
+     *                          {@code refundReference})
+     * @param refundMinor       the refunded amount (minor units of the item's currency)
+     * @param reversed          interchange and fees the backend reversed for this refund (major units)
      */
     @Transactional
-    public void recordRefund(UUID authLogId, BigDecimal refundMinor, IssuerCharges reversed) {
-        if (authLogId == null || refundMinor == null) return;
+    public void recordRefund(UUID authLogId, String reversalReference, BigDecimal refundMinor, IssuerCharges reversed) {
+        if (authLogId == null || reversalReference == null || refundMinor == null || refundMinor.signum() <= 0) return;
         SettlementItem item = itemRepository.findByAuthorizationLogIdForUpdate(authLogId).orElse(null);
-        if (item == null || item.getGlNet() == null || item.getRefundGlNet() != null) return;
+        if (item == null || item.getGlNet() == null) return;
+        if (refundRepository.findByReversalReference(reversalReference).isPresent()) return;   // already recorded
         Currency currency = CardAuthorizationService.currency(item.getCurrencyCode());
         if (currency == null) return;
         IssuerCharges r = reversed == null ? IssuerCharges.none(item.getScheme()) : reversed;
         BigDecimal interchange = toMinor(r.interchange(), currency);
         BigDecimal fee = toMinor(r.schemeFee(), currency);
-        item.setRefundedAmount(refundMinor);
-        item.setInterchangeReversed(interchange);
-        item.setSchemeFeeReversed(fee);
-        item.setRefundGlNet(new IssuerCharges(item.getScheme(), interchange, item.getInterchangeDirection(), fee, null)
+        SettlementRefund refund = new SettlementRefund();
+        refund.setItem(item);
+        refund.setReversalReference(reversalReference);
+        refund.setAmountMinor(refundMinor);
+        refund.setInterchangeReversed(interchange);
+        refund.setSchemeFeeReversed(fee);
+        refund.setRefundGlNet(new IssuerCharges(item.getScheme(), interchange, item.getInterchangeDirection(), fee, null)
                 .owedToScheme(refundMinor).negate());
-        item.setRefundSettlementDate(LocalDate.now());
+        refund.setRefundSettlementDate(LocalDate.now());
+        refundRepository.save(refund);
+        item.setRefundedAmount((item.getRefundedAmount() == null ? BigDecimal.ZERO : item.getRefundedAmount()).add(refundMinor));
         itemRepository.save(item);
     }
 
@@ -245,11 +256,15 @@ public class SettlementService {
         if (CLEARING.equals(item.getStatus())) return PendingReduction.IN_CLEARING;
         if (!"PENDING".equals(item.getStatus())) return PendingReduction.NOT_PENDING;
         BigDecimal rest = item.getAmount().subtract(reversalMinor);
-        if (rest.signum() <= 0) {
+        if (rest.signum() < 0) return PendingReduction.EXCEEDS;   // earlier partial reversals left less than this
+        if (rest.signum() == 0) {
+            // Earlier partial reversals plus this one take all of it: nothing will clear, so the caller
+            // releases the hold (rolled back with the reversal if that fails).
             item.setStatus("REVERSED");
-        } else {
-            item.setAmount(rest);
+            itemRepository.save(item);
+            return PendingReduction.EMPTIED;
         }
+        item.setAmount(rest);
         itemRepository.save(item);   // @Version: a close that read the item before this can't move it to CLEARING
         return PendingReduction.REDUCED;
     }
@@ -260,6 +275,10 @@ public class SettlementService {
         REDUCED,
         /** The item is being cleared at this moment: retry the reversal. */
         IN_CLEARING,
+        /** The reversal takes all that was left: the item is REVERSED and the caller releases the hold. */
+        EMPTIED,
+        /** More than is left after earlier partial reversals: refused, nothing changed. */
+        EXCEEDS,
         /** No PENDING item (already cleared, completed, or none): release / refund on the backend. */
         NOT_PENDING
     }
@@ -308,8 +327,14 @@ public class SettlementService {
         if ("FAILED".equals(status) && "NOT_CLEARED_BEFORE_EXPIRY".equals(item.getFailureReason())) {
             return new PrepaidItemReversal(PrepaidItemReversal.Outcome.ALREADY_RETURNED, null);
         }
+        if ("REVERSED".equals(status)) {
+            // Reversed in full already (or emptied by partial reversals): nothing more to give back.
+            return new PrepaidItemReversal(PrepaidItemReversal.Outcome.EXCEEDS, null);
+        }
         if ("PENDING".equals(status)) {
-            BigDecimal rest = full || reversalMinor == null ? BigDecimal.ZERO : item.getAmount().subtract(reversalMinor);
+            // Measured against what is left, full reversal or not: earlier partial reversals already gave part back.
+            BigDecimal rest = reversalMinor == null ? BigDecimal.ZERO : item.getAmount().subtract(reversalMinor);
+            if (rest.signum() < 0) return new PrepaidItemReversal(PrepaidItemReversal.Outcome.EXCEEDS, null);
             if (rest.signum() <= 0) {
                 item.setStatus("REVERSED");
             } else {
@@ -334,7 +359,8 @@ public class SettlementService {
 
     /** Outcome of {@link #reversePrepaidItem}; {@code clearingReference} set for CLEARED. */
     public record PrepaidItemReversal(Outcome outcome, String clearingReference) {
-        public enum Outcome { NOT_CLEARED, CLEARED, IN_CLEARING, ALREADY_RETURNED, NONE }
+        /** EXCEEDS: more than is left to give back (earlier reversals took it) — refused, nothing changed. */
+        public enum Outcome { NOT_CLEARED, CLEARED, IN_CLEARING, ALREADY_RETURNED, EXCEEDS, NONE }
     }
 
     /** Outcome of {@link #markReversed}. */

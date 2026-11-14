@@ -507,7 +507,7 @@ amortising term loans (no credit limit, no draws). What's needed:
 
 ---
 
-## 15. Card settlement posts nothing to the GL (approvals now reserve funds — cont. 35) — 15a ✅ DONE (cont. 45); 15b ✅ DONE (cont. 46); 15c ✅ DONE (cont. 62); 15d tolerance ✅ DONE (cont. 61); the rest of 15d open
+## 15. Card settlement posts nothing to the GL (approvals now reserve funds — cont. 35) — 15a ✅ DONE (cont. 45); 15b ✅ DONE (cont. 46); 15c ✅ DONE (cont. 62); 15d tolerance ✅ DONE (cont. 61); 15d partial refunds ✅ DONE (cont. 63); the rest of 15d open
 
 > **15a done in cont. 45** (plan `docs/plans/2026-10-22-backlog-15a-card-clearing-gl.md`; decisions "1a 2a 3a 4a" in memory
 > `project_gl_posting_decisions`): approvals fill the settlement batch; batch close clears each debit purchase via backend
@@ -535,9 +535,15 @@ amortising term loans (no credit limit, no draws). What's needed:
 >   difference within `app.cards.settlement.difference-tolerance` (per currency, default 0) — 2300 at the expected net,
 >   1003 at the reported net, the rest to new GL 1004 Card Settlement Differences (IAS 1 §32; IFRS 9 §3.1.1, cleared by
 >   manual journal, §5.4.4 write-off) — and refuses above it (`DIFFERENCE_OVER_TOLERANCE`). The rest of 15d stays
->   open: clearing-file intake, cross-border/international-service fees, and the items below. A captured debit is
+>   open: clearing-file intake, cross-border/international-service fees, and the items below. ~~A captured debit is
 >   refunded only once on the backend, so a second partial reversal of the same cleared purchase is refused
->   (`ALREADY_REFUNDED`). Partial refunds of cleared debits made before V13 (15a) aren't in card-service's settlement
+>   (`ALREADY_REFUNDED`).~~ **✅ Partial refunds done (cont. 63, backlog set 3 PR A, decision D1a; plan
+>   `docs/plans/2026-11-13-backlog-set-3.md`):** any number of refunds of a captured debit (backend V70
+>   `card_hold_refunds`) or a cleared prepaid purchase (its REFUND movements) up to the captured / cleared amount, each
+>   keyed by card-service's reversal reference (same key = repeat); interchange and fees reverse cumulatively, so the
+>   shares add up exactly once fully refunded; the hold stays CAPTURED until fully refunded; each refund is its own
+>   card-service `settlement_refunds` row (V19) counted on its own day's scheme report; a reversal finds its original by
+>   DE90's STAN. Partial refunds of cleared debits made before V13 (15a) aren't in card-service's settlement
 >   items — reconcile by hand. Also a reconciliation view for declined authorizations whose compensating release couldn't
 >   reach the backend (`authorization_log` rows with RC 91 and a `hold_reference`), and for items left `CLEARING` by a
 >   close that died.

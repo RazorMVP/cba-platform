@@ -115,6 +115,10 @@ public class AuthorizationLog {
     @Column(name = "reversed_amount", nullable = false, precision = 19, scale = 4, insertable = false, updatable = false)
     private BigDecimal reversedAmount = BigDecimal.ZERO;
 
+    /** DE19 acquiring institution country, ISO 3166 numeric, as sent; null when not sent (or logged before V20). */
+    @Column(name = "acquiring_country", length = 3)
+    private String acquiringCountry;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
 }

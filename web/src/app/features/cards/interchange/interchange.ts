@@ -60,4 +60,28 @@ export class InterchangeComponent implements OnInit {
   deleteRate(id: string): void { this.svc.deleteRate(id).subscribe({ next: () => this.load() }); }
 
   totalFeePercent(amount: number, rate: InterchangeRate): number { return rate.ratePercent + (rate.fixedFee / amount * 100); }
+
+  /** Plain-words name of a scheme fee type. */
+  feeTypeLabel(type: string): string {
+    return FEE_TYPES[type]?.label ?? type;
+  }
+
+  /** When a scheme fee type is charged (card-service, backlog 15d). */
+  feeTypeHint(type: string): string {
+    return FEE_TYPES[type]?.hint ?? '';
+  }
 }
+
+/** Scheme fee types: every one is charged to the bank by the scheme, never to the cardholder. */
+const FEE_TYPES: Record<string, { label: string; hint: string }> = {
+  ASSESSMENT: { label: 'Assessment', hint: 'Every transaction, as a percentage of the amount.' },
+  NETWORK: { label: 'Network', hint: 'Every transaction, a fixed processing fee.' },
+  CROSS_BORDER: {
+    label: 'Cross-border',
+    hint: "When the merchant's acquirer is in another country than the card's. Not charged when the country is unknown.",
+  },
+  INTERNATIONAL_SERVICE: {
+    label: 'Currency conversion',
+    hint: "When the transaction currency is different from the card's currency.",
+  },
+};

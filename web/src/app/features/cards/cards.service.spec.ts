@@ -139,6 +139,26 @@ describe('CardsService', () => {
     all.flush(envelope([]));
   });
 
+  it('reconciliation: lists with an optional date range, retry release posts to the hold', () => {
+    service.reconciliation('2026-11-01', '2026-11-12').subscribe(v => expect(v.unresolvedHolds).toHaveLength(1));
+    const ranged = httpMock.expectOne(r => r.url === `${BASE}/cards/settlement/reconciliation`);
+    expect(ranged.request.method).toBe('GET');
+    expect(ranged.request.params.get('from')).toBe('2026-11-01');
+    expect(ranged.request.params.get('to')).toBe('2026-11-12');
+    ranged.flush(envelope({ unresolvedHolds: [{ authorizationId: 'a1' }], stuckClearing: [], countryUnknown: [] }));
+
+    service.reconciliation().subscribe();
+    const all = httpMock.expectOne(r => r.url === `${BASE}/cards/settlement/reconciliation`);
+    expect(all.request.params.has('from')).toBe(false);
+    expect(all.request.params.has('to')).toBe(false);
+    all.flush(envelope({ unresolvedHolds: [], stuckClearing: [], countryUnknown: [] }));
+
+    service.retryHoldRelease('a1').subscribe(r => expect(r.resolution).toBe('RELEASED'));
+    const retry = httpMock.expectOne(`${BASE}/cards/settlement/reconciliation/holds/a1/release`);
+    expect(retry.request.method).toBe('POST');
+    retry.flush(envelope({ authorizationId: 'a1', resolution: 'RELEASED' }));
+  });
+
   it('settlement, BIN, interchange, simulator use the internal base', () => {
     service.listBatches().subscribe();
     httpMock.expectOne(`${BASE}/cards/settlement/batches`).flush(envelope([]));

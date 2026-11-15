@@ -227,6 +227,76 @@ export interface SchemeSettlementReport {
   recordedAt: string | null;
 }
 
+// ── Settlement reconciliation (backlog 15d) ──────────────────────────────────
+/**
+ * An RC 91 decline whose backend hold (or 0200 debit) call failed and whose release couldn't reach the
+ * backend either: the customer's money may still be held. Amounts are major units of `currency`.
+ */
+export interface UnresolvedHold {
+  authorizationId: string;
+  cardId: string | null;
+  panLast4: string | null;
+  mti: string;
+  stan: string;
+  rrn: string | null;
+  amount: number | null;
+  currency: string | null;
+  holdReference: string;
+  createdAt: string;
+}
+
+/** An item batch close claimed for clearing on an earlier date whose backend capture never answered. */
+export interface StuckClearingItem {
+  itemId: string;
+  batchId: string;
+  batchRef: string;
+  settlementDate: string;
+  batchStatus: BatchStatus;
+  cardId: string | null;
+  panLast4: string | null;
+  scheme: string | null;
+  amount: number | null;
+  currency: string | null;
+  holdReference: string | null;
+  authorizationId: string | null;
+  claimedSince: string | null;
+}
+
+/** An item cleared without the acquirer's country (DE19): no cross-border fee was quoted. */
+export interface CountryUnknownItem {
+  itemId: string;
+  batchId: string;
+  settlementDate: string;
+  scheme: string | null;
+  status: string;
+  amount: number | null;
+  currency: string | null;
+  authorizationId: string | null;
+  cardId: string | null;
+  panLast4: string | null;
+}
+
+export interface ReconciliationView {
+  from: string | null;
+  to: string | null;
+  unresolvedHolds: UnresolvedHold[];
+  stuckClearing: StuckClearingItem[];
+  countryUnknown: CountryUnknownItem[];
+  /** Rows per list at most (oldest first). */
+  maxRows: number;
+}
+
+/** A retried release the backend answered: RELEASED, REFUNDED, NOT_FOUND_TOMBSTONED or ALREADY_INACTIVE. */
+export interface ResolvedHold {
+  authorizationId: string;
+  holdReference: string;
+  resolution: 'RELEASED' | 'REFUNDED' | 'NOT_FOUND_TOMBSTONED' | 'ALREADY_INACTIVE';
+  resolvedAt: string;
+  resolvedBy: string;
+  backendStatus: string | null;
+  backendReason: string | null;
+}
+
 // ── Disputes ──────────────────────────────────────────────────────────────────
 export type DisputeStatus = 'RAISED' | 'RETRIEVAL_REQUESTED' | 'CHARGEBACK_INITIATED' |
                             'REPRESENTMENT' | 'PRE_ARBITRATION' | 'RESOLVED' | 'WITHDRAWN';
@@ -524,6 +594,17 @@ export class CardsService {
   }
   recordSchemeReport(req: SchemeReportRequest): Observable<SchemeReportResult> {
     return this.post<SchemeReportResult>('/cards/settlement/scheme-reports', req);
+  }
+  /** Settlement reconciliation lists, optionally for an authorization / batch date range (inclusive). */
+  reconciliation(from?: string, to?: string): Observable<ReconciliationView> {
+    const params: Record<string, string> = {};
+    if (from) params['from'] = from;
+    if (to) params['to'] = to;
+    return this.get<ReconciliationView>('/cards/settlement/reconciliation', params);
+  }
+  /** Retries the backend release of an unresolved hold; a refusal or outage comes back as an HTTP error. */
+  retryHoldRelease(authorizationId: string): Observable<ResolvedHold> {
+    return this.post<ResolvedHold>(`/cards/settlement/reconciliation/holds/${authorizationId}/release`, {});
   }
   listSchemeReports(date?: string): Observable<SchemeSettlementReport[]> {
     return this.get<SchemeSettlementReport[]>('/cards/settlement/scheme-reports', date ? { date } : undefined);

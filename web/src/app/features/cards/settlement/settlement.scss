@@ -68,3 +68,16 @@
 }
 
 .diff { color: $color-error-600; font-weight: 600; }
+
+// ── Reconciliation (backlog 15d) ──
+.recon-hint { padding: 0 $space-4 $space-3; }
+.recon-section { margin-bottom: $space-4; }
+.recon-section__title { padding: $space-4 $space-5 0; }
+.recon-section__hint { padding: 0 $space-5 $space-3; }
+.recon-action { min-width: 180px; }
+.recon-note { margin-top: $space-1; max-width: 320px; }
+.recon-note--error { color: $color-error-600; }
+.link-button {
+  background: none; border: none; padding: 0; cursor: pointer;
+  color: inherit; text-decoration: underline;
+}

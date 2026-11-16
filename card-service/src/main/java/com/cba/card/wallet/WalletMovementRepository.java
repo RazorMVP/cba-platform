@@ -31,6 +31,20 @@ public interface WalletMovementRepository extends JpaRepository<WalletMovement, 
     @Query(value = "SELECT 1 FROM pg_advisory_xact_lock(hashtext('wallet:' || CAST(:cardId AS text)))", nativeQuery = true)
     Integer lockCardLoads(UUID cardId);
 
+    /**
+     * The wallet balance plus the loads not answered yet, in <b>one statement</b> — what the balance limit is
+     * checked against. Under READ COMMITTED each statement takes its own snapshot: read separately, a load whose
+     * {@code finish} commits between the two reads (credited and no longer PENDING) is counted in neither, and a
+     * concurrent load passes the limit. The advisory lock serialises claims, not {@code finish}. A NULL result
+     * (no wallet, nothing pending) is 0.
+     */
+    @Query(value = """
+            SELECT COALESCE((SELECT w.balance FROM prepaid_wallets w WHERE w.card_id = :cardId), 0)
+                 + COALESCE((SELECT SUM(m.amount) FROM wallet_movements m
+                              WHERE m.card_id = :cardId AND m.movement_type = 'LOAD' AND m.status = 'PENDING'), 0)
+            """, nativeQuery = true)
+    BigDecimal balanceWithPendingLoads(UUID cardId);
+
     /** Loads not answered yet (major units) — counted against the balance limit as if credited. */
     @Query("SELECT COALESCE(SUM(m.amount), 0) FROM WalletMovement m "
             + "WHERE m.cardId = :cardId AND m.movementType = 'LOAD' AND m.status = 'PENDING'")

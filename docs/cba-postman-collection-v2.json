@@ -26537,7 +26537,7 @@
               "response": []
             },
             {
-              "name": "Detokenize (Resolve DPAN \u2192 PAN)",
+              "name": "Detokenize (Resolve DPAN \u2192 PAN) \u2014 fep-service only",
               "request": {
                 "method": "POST",
                 "header": [
@@ -26555,7 +26555,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "http://{{cardServiceHost}}/api/v1/tokens/detokenize",
+                  "raw": "http://{{cardServiceHost}}/api/v1/internal/detokenize",
                   "host": [
                     "http:"
                   ],
@@ -26564,11 +26564,11 @@
                     "{{cardServiceHost}}",
                     "api",
                     "v1",
-                    "tokens",
+                    "internal",
                     "detokenize"
                   ]
                 },
-                "description": "Resolve a DPAN back to its real PAN. Returns 404 if token is SUSPENDED or DELETED.",
+                "description": "Resolve a DPAN back to its real PAN. Called by fep-service only: the bearer token must carry the FEP_SERVICE realm role (Keycloak client cba-fep-service); anything else is 401/403. Returns 404 if the token is SUSPENDED or DELETED. There is no de-tokenize endpoint for people \u2014 the ADMIN GET /api/v1/tokens/detokenize?dpan= returned a full PAN and was removed (backlog 2 PR A).",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"dpan\": \"9999001234567890\"\n}",

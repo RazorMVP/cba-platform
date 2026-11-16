@@ -25,15 +25,8 @@ public class TokenController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(resp));
     }
 
-    /**
-     * De-tokenize a DPAN back to the real PAN.
-     * Called by fep-service via the internal controller — also exposed here for admin use.
-     */
-    @GetMapping("/detokenize")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<String>> detokenize(@RequestParam String dpan) {
-        return ResponseEntity.ok(ApiResponse.ok(tokenService.detokenize(dpan)));
-    }
+    // No public de-tokenize endpoint: it returned a full PAN and took the DPAN in the URL (access logs).
+    // fep-service de-tokenizes through POST /api/v1/internal/detokenize (FEP_SERVICE token only).
 
     @PostMapping("/{tokenRef}/suspend")
     @PreAuthorize("hasAnyRole('ADMIN','TELLER')")

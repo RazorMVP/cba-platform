@@ -3257,7 +3257,7 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
 <tr><td><span class="method post">POST</span></td><td><code>/api/v1/tokens</code></td><td>Generate a DPAN for a PAN — body: <code>{"pan","expiryDate","customerId","cardId"}</code>. Returns: <code>{"dpan","expiryDate","tokenRef"}</code>. Raw key shown once.</td><td>ADMIN, TELLER</td></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/api/v1/tokens/detokenize</code></td><td>Resolve a DPAN to its real PAN — body: <code>{"dpan"}</code>. Returns: <code>{"pan","cardId","status"}</code>. Returns 404 if token is SUSPENDED or DELETED.</td><td>ADMIN</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/internal/detokenize</code></td><td>Resolve a DPAN to its real PAN — body: <code>{"dpan"}</code>. Called by fep-service only, with its <code>FEP_SERVICE</code> token; 404 if the token is SUSPENDED or DELETED. There is no de-tokenize endpoint for people: the ADMIN <code>GET /api/v1/tokens/detokenize?dpan=</code> returned a full PAN and put the DPAN in the URL, and was removed (backlog 2 PR A).</td><td>FEP_SERVICE</td></tr>
 <tr><td><span class="method post">POST</span></td><td><code>/api/v1/tokens/{tokenRef}/suspend</code></td><td>Suspend token — called on card block event. DPAN is no longer accepted by FEP until unsuspended.</td><td>ADMIN, TELLER</td></tr>
 <tr><td><span class="method delete">DELETE</span></td><td><code>/api/v1/tokens/{tokenRef}</code></td><td>Delete token permanently — called on card cancel. DPAN removed from vault lookup.</td><td>ADMIN</td></tr>
 </table>
@@ -3977,7 +3977,7 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <tr><td>GET</td><td>/api/v1/cards/fraud/rules</td><td>List fraud rules with weights + params</td><td>ADMIN</td></tr>
 <tr><td>PUT</td><td>/api/v1/cards/fraud/rules/{id}</td><td>Update fraud rule weight/enabled/params</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/tokens</td><td>Generate DPAN (tokenize PAN)</td><td>ADMIN, TELLER</td></tr>
-<tr><td>POST</td><td>/api/v1/tokens/detokenize</td><td>Resolve DPAN to PAN</td><td>ADMIN</td></tr>
+<tr><td>POST</td><td>/api/v1/internal/detokenize</td><td>Resolve DPAN to PAN (fep-service only)</td><td>FEP_SERVICE</td></tr>
 <tr><td>POST</td><td>/api/v1/tokens/{tokenRef}/suspend</td><td>Suspend token</td><td>ADMIN, TELLER</td></tr>
 <tr><td>DELETE</td><td>/api/v1/tokens/{tokenRef}</td><td>Delete token permanently</td><td>ADMIN</td></tr>
 <tr><td>POST</td><td>/api/v1/bureau/jobs</td><td>Create bureau batch from ORDERED cards</td><td>ADMIN</td></tr>

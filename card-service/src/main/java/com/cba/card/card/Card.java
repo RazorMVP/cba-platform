@@ -1,5 +1,6 @@
 package com.cba.card.card;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
@@ -19,7 +20,12 @@ public class Card {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    /** Jasypt AES-256 encrypted full PAN. */
+    /**
+     * Full PAN. Never serialised: {@code Card} is returned as JSON by the card APIs, and a full PAN must not
+     * leave in a response (PCI DSS 4.0 §3.4.1 — masked to BIN + last four; use {@code panPrefix} /
+     * {@code panSuffix}). The column is not yet encrypted at rest despite its name — backlog 2, PR B.
+     */
+    @JsonIgnore
     @Column(name = "pan_encrypted", nullable = false)
     private String panEncrypted;
 
@@ -39,7 +45,11 @@ public class Card {
     @Column(name = "expiry_date", nullable = false, length = 4)
     private String expiryDate;
 
-    /** Jasypt AES-256 encrypted CVV. */
+    /**
+     * CVV. Never serialised (PCI DSS 4.0 §3.3 — sensitive authentication data). Not yet encrypted at rest
+     * despite the column name — backlog 2, PR B.
+     */
+    @JsonIgnore
     @Column(name = "cvv_encrypted", nullable = false)
     private String cvvEncrypted;
 

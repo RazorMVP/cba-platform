@@ -1541,24 +1541,6 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiResponseMonthlySummary"
-  /api/v1/tokens/detokenize:
-    get:
-      tags:
-      - token-controller
-      operationId: detokenize_1
-      parameters:
-      - name: dpan
-        in: query
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ApiResponseString"
   /api/v1/interchange/log/{authId}:
     get:
       tags:
@@ -2126,8 +2108,6 @@ components:
         id:
           type: string
           format: uuid
-        panEncrypted:
-          type: string
         panHash:
           type: string
         panPrefix:
@@ -2135,8 +2115,6 @@ components:
         panSuffix:
           type: string
         expiryDate:
-          type: string
-        cvvEncrypted:
           type: string
         cardSequenceNo:
           type: integer
@@ -3878,17 +3856,6 @@ components:
           type: number
         currencyCode:
           type: string
-    ApiResponseString:
-      type: object
-      properties:
-        data:
-          type: string
-        meta:
-          $ref: "#/components/schemas/Meta"
-        errors:
-          type: array
-          items:
-            $ref: "#/components/schemas/ApiError"
     ApiResponseListInterchangeRate:
       type: object
       properties:

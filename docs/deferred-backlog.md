@@ -75,7 +75,26 @@ controller, `PispController` event firing, `PaymentReversedEvent`/reversal for t
 
 ---
 
-## 2. Full-PAN decrypt in card settlement export
+## 2. Full-PAN decrypt in card settlement export — PR A ✅ DONE (cont. 67); PR B (encrypt at rest), PR C (full PAN in the file) open
+
+> **Found while scoping this item (2026-11-16): card-service's PAN, CVV and DPAN columns were never encrypted,
+> and the PAN and CVV were returned by the card APIs.** `cards.pan_encrypted`, `cards.cvv_encrypted` and
+> `token_vault.dpan_encrypted` are plain `String` columns — card-service has no JPA `AttributeConverter` at all;
+> `@EnableEncryptableProperties` (which the code comments relied on) only decrypts `ENC(...)` *config* values. And
+> `Card` is returned as JSON with no `@JsonIgnore`, so `GET /api/v1/cards…` and `/card-api/v1/cards…` (API-key
+> partners too) carried `panEncrypted` / `cvvEncrypted` — the clear values (PCI DSS 4.0 §3.5.1, §3.4.1, §3.3.3).
+> Plan agreed with the user ("A now / B, then C"):
+> - **PR A ✅ (cont. 67):** both fields (and `TokenVault.dpanEncrypted`) `@JsonIgnore`; the ADMIN
+>   `GET /api/v1/tokens/detokenize?dpan=` (full PAN out, DPAN in the URL, no caller) removed — fep-service uses
+>   `POST /api/v1/internal/detokenize` (a GET there now matches only `DELETE /api/v1/tokens/{tokenRef}`, so it
+  answers 405); unknown paths 404 / wrong methods 405 instead of 500.
+>   `CardPanExposureIntegrationTest`.
+> - **PR B (open):** a Jasypt JPA converter on the PAN and DPAN columns, a one-time migration that encrypts the
+>   existing rows (lookups use `pan_hash` / `dpan_hash`, unaffected); stop storing the CVV (verified by the HSM, `CW`)
+>   or encrypt it — decision in PR B's plan. Copies taken before PR B (backups, dumps) still hold clear values.
+> - **PR C (open, after B):** the full PAN in the settlement file body only, behind the existing
+>   `card.settlement.export.role=ACQUIRER` switch — under the default `ISSUER` nothing is exported (item 21), so PCI
+>   scope grows only the day acquiring is switched on, which still needs the compliance decision below.
 
 **Effort: M · Risk: PCI-DSS scope — requires compliance sign-off before building**
 
@@ -87,7 +106,8 @@ The export currently emits **masked PAN only** (first6 + mask + last4); the full
 - `SettlementFileExportService.buildExportRecords` uses a **pure JdbcTemplate SQL** path.
   `card-service/.../settlement/SettlementFileExportService.java:279` →
   `"",  // pan — masked-only; full PAN decrypt deferred (Gap 7 decision)`.
-- The PAN is stored **encrypted** (`cards.pan_encrypted`, Jasypt/`FieldEncryptor`) — **cannot be decrypted in SQL**.
+- ~~The PAN is stored **encrypted** (`cards.pan_encrypted`, Jasypt/`FieldEncryptor`) — **cannot be decrypted in SQL**.~~
+  Wrong: it is stored in clear (see the note above); once PR B encrypts it, SQL can't decrypt it.
 - The 5 exporters already carry a `pan` field on `SettlementExportRecord`; they'd receive the real value.
 
 ### What's needed
@@ -266,10 +286,12 @@ Card personalization data (CDP) is generated but **never serialised, encrypted, 
   `CdpRecord`, stores its hash, sets `productionRequestDate`, and stops. Nothing turns CDP
   into bytes and nothing sends it anywhere — so there is no "before transmission" to encrypt at.
 - **`panEncryptedForBureau` is mislabelled.** `CdpGenerator.java:101` sets it to
-  `card.getPanEncrypted()` — the **Jasypt** ciphertext under *card-service's own* key — while the
-  adjacent comment claims "bureau HSM decrypts using shared ZMK". A bureau cannot decrypt that;
-  it has no access to our Jasypt key. Not a raw-PAN exposure (it is ciphertext), but the stated
-  contract is wrong and will break on first real bureau onboarding.
+  `card.getPanEncrypted()`, while the adjacent comment claims "bureau HSM decrypts using shared ZMK".
+  ~~It is Jasypt ciphertext under card-service's own key~~ — **corrected 2026-11-16: it is the clear PAN**,
+  because `cards.pan_encrypted` was never encrypted (item 2). Nothing transmits it yet (no
+  `BureauFileTransport`) and the CDP preview endpoint strips it, but any transport built on this today would
+  send raw PANs. After item 2 PR B it becomes card-service ciphertext, which a bureau still can't decrypt —
+  the key wrapping below is still needed.
 
 ### What's needed
 1. The bureau's actual CDP file specification (Thales / Idemia / HID each publish their own).

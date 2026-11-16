@@ -1,6 +1,6 @@
 # Backlog set 3: 15d (the buildable rest) + 15c (leftovers)
 
-> Status: approved 2026-11-13 (user: "set 3 = 15d+15c", "start 15d and 15c", plan approved; every decision a). PR A (15d partial refunds, D1a) in progress — #243, `feat/card-partial-refunds`.
+> Status: merged — PR A (15d partial refunds) #243 `4d3537c`, PR B (15d cross-border / currency fees) #242 `7d805c6`, PR C (15d reconciliation) #244 `d3ebba8`, PR D (15c wallet limits; load fees won't do) #241 `2ad02ac` (2026-11-14 to 2026-11-16). Approved 2026-11-13 (user: "set 3 = 15d+15c", "start 15d and 15c", plan approved; every decision a).
 
 ## Context
 

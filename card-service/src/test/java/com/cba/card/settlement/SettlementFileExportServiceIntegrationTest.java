@@ -1,6 +1,7 @@
 package com.cba.card.settlement;
 
 import com.cba.card.integration.AbstractCardIntegrationTest;
+import com.cba.card.card.CardSecrets;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +34,10 @@ class SettlementFileExportServiceIntegrationTest extends AbstractCardIntegration
     @Autowired SettlementTransmissionRepository transmissionRepository;
     @Autowired UnionPayCupsExporter unionPayExporter;
     @Autowired JdbcTemplate jdbc;
+    @Autowired CardSecrets cardSecrets;
+    @Autowired SettlementExportProperties exportProps;
+
+    static final String FULL_PAN = "6212345678901111";
 
     @Test
     @DisplayName("buildExportRecords resolves UNION_PAY→UNIONPAY, masks PAN, nets interchange, SETTLED-only")
@@ -56,8 +61,8 @@ class SettlementFileExportServiceIntegrationTest extends AbstractCardIntegration
         jdbc.update("""
                 INSERT INTO cards (id, pan_encrypted, pan_hash, pan_prefix, pan_suffix, expiry_date,
                                    card_type, status, customer_id, product_id)
-                VALUES (?, 'ENC1:fixture-never-decrypted', ?, '62123456', '1111', '2612', 'DEBIT', 'ACTIVE', ?, ?)
-                """, cardId, "hash-" + cardId, UUID.randomUUID(), productId);
+                VALUES (?, ?, ?, '62123456', '1111', '2612', 'DEBIT', 'ACTIVE', ?, ?)
+                """, cardId, cardSecrets.encrypt(FULL_PAN), "hash-" + cardId, UUID.randomUUID(), productId);
 
         // ── Seed: an approved authorization + its interchange_log ──
         jdbc.update("""
@@ -99,7 +104,7 @@ class SettlementFileExportServiceIntegrationTest extends AbstractCardIntegration
         SettlementExportRecord r = records.get(0);
         assertThat(r.scheme()).isEqualTo("UNIONPAY");                 // UNION_PAY normalized
         assertThat(r.maskedPan()).isEqualTo("621234******1111");     // first 6 + mask + last 4
-        assertThat(r.pan()).isEmpty();                                // full PAN never serialized in SQL path
+        assertThat(r.pan()).as("ISSUER (the default): no clear PAN").isEmpty();
         assertThat(r.grossAmount()).isEqualByComparingTo("10000");
         assertThat(r.interchangeAmount()).isEqualByComparingTo("150");
         assertThat(r.schemeFeeAmount()).isEqualByComparingTo("13");
@@ -112,6 +117,20 @@ class SettlementFileExportServiceIntegrationTest extends AbstractCardIntegration
         byte[] file = unionPayExporter.export(records, batch, java.time.LocalDate.now());
         assertThat(new String(file, 300 + 34, 12, java.nio.charset.StandardCharsets.US_ASCII))
                 .isEqualTo("000000010000");
+        assertThat(new String(file, java.nio.charset.StandardCharsets.ISO_8859_1)).doesNotContain(FULL_PAN);
+
+        // ── Backlog 2 PR C: as an ACQUIRER the full PAN is decrypted into the record and the file body ──
+        exportProps.setRole("ACQUIRER");
+        try {
+            SettlementExportRecord acq = service.buildExportRecords(batch, java.time.LocalDate.now()).get(0);
+            assertThat(acq.pan()).isEqualTo(FULL_PAN);
+            assertThat(acq.maskedPan()).isEqualTo("621234******1111");
+            assertThat(acq.toString()).doesNotContain(FULL_PAN);
+            byte[] acquirerFile = unionPayExporter.export(List.of(acq), batch, java.time.LocalDate.now());
+            assertThat(new String(acquirerFile, java.nio.charset.StandardCharsets.ISO_8859_1)).contains(FULL_PAN);
+        } finally {
+            exportProps.setRole("ISSUER");
+        }
     }
 
     @Test
@@ -159,8 +178,8 @@ class SettlementFileExportServiceIntegrationTest extends AbstractCardIntegration
         jdbc.update("""
                 INSERT INTO cards (id, pan_encrypted, pan_hash, pan_prefix, pan_suffix, expiry_date,
                                    card_type, status, customer_id, product_id)
-                VALUES (?, 'ENC1:fixture-never-decrypted', ?, '70123456', '2222', '2612', 'DEBIT', 'ACTIVE', ?, ?)
-                """, cardId, "hash-" + cardId, UUID.randomUUID(), productId);
+                VALUES (?, ?, ?, '70123456', '2222', '2612', 'DEBIT', 'ACTIVE', ?, ?)
+                """, cardId, cardSecrets.encrypt("7012345678902222"), "hash-" + cardId, UUID.randomUUID(), productId);
         jdbc.update("""
                 INSERT INTO authorization_log (id, card_id, stan, mti, amount, currency_code, response_code)
                 VALUES (?, ?, '000124', '0100', 2000, '840', '00')

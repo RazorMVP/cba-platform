@@ -74,7 +74,38 @@ _None — all Phase 1 backend modules are now complete._
 - API surface unchanged — verified via gate grep; behaviour now matches what the docs already said (a load over the maximum is refused).
 
 #### Confirmed Platform Versions
-card-service: Spring Boot 3.5.16, Java 21. No dependency changes. (Test-count rows in CLAUDE.md are set when this and #255 are both merged.)
+card-service: Spring Boot 3.5.16, Java 21. No dependency changes. Counts with #255 (rebased on this): `-Pfull-integration` 390, unit 331.
+
+---
+
+### Session 125 (cont. 69) — 2026-11-16
+**Backlog 2 PR C — the full PAN in acquirer settlement files; backlog 2 closed** (plan `docs/plans/2026-11-16-backlog-2-card-secrets.md`). The five scheme files carry the full card number, which the export left empty. Now that PANs are `ENC1:` ciphertext (PR B, #254), the export decrypts it — into the file body only, and only for an acquirer.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/…/settlement/SettlementFileExportService.java` | SQL selects `c.pan_encrypted`; `filePan` → `CardSecrets.decrypt` only under `card.settlement.export.role=ACQUIRER`, else `""`; `CardSecrets` injected |
+| `card-service/…/settlement/SettlementExportRecord.java` | `toString()` overridden: masked PAN only (a record's generated `toString` prints every field) |
+| `card-service/…/settlement/SettlementFileTransmitter.java` | `requireHttps` (commit security review): an HTTPS scheme endpoint that isn't `https://` with a host is refused before any request — the file and the bearer key would go in clear; the message doesn't echo the URL (it can embed credentials). `SettlementFileTransmitterMtlsTest.refusesPlainHttpEndpoint` (http, HTTP, ftp, no host, not a URL; nothing posted) |
+| `card-service/…/settlement/SettlementFileExportServiceTest.java` | +3: ACQUIRER-only decrypt; a clear stored value refused without echo; full export with a failed send — the exporter gets the PAN, the logs (`OutputCaptureExtension`), transmission error and `toString` don't |
+| `card-service/…/settlement/SettlementFileExportServiceIntegrationTest.java` | fixtures store real ciphertext; under ISSUER no PAN in record or CUPS file; under ACQUIRER the record and the CUPS file body carry it, `toString` doesn't |
+| `docs/card-api-reference.html`, `docs/api-reference.html`, Postman (+ `docs-site/static` copies) | "Card numbers in the files": ACQUIRER only, in-memory file body only, PCI scope note |
+| `docs/integration-runbook.md` §9 | switching to ACQUIRER needs the compliance sign-off first |
+| `docs/deferred-backlog.md` | item 2 ✅ DONE (cont. 67–69); what remains is the compliance decision, not code |
+| `CLAUDE.md` | card-service Last git commit + counts; settlement export note (no longer masked-only) |
+| `docs/plans/…-backlog-2-card-secrets.md`, `README.md` | status: B merged, C open |
+
+#### Key Patterns / Decisions
+- **Two role checks**: `exportBatch` / the schedulers refuse under ISSUER, and `filePan` checks again — a future caller of `buildExportRecords` still can't decrypt for an issuer.
+- **The clear PAN exists only in the record handed to the exporter and the in-memory file** (no file bytes stored; pinned SFTP / HTTPS + optional mTLS unchanged).
+- PCI DSS 4.0 §4.2.1 (strong cryptography in transmission) is met by the existing transport; §3.4.1 masking in logs kept. Turning ACQUIRER on is the scope decision item 2 always required.
+
+#### Build Verification
+- card-service `clean verify -Pfull-integration` **388/388** (unit 330, integration 58); OpenAPI snapshot unchanged (no API change). After rebasing on cont. 70 (#256): **390/390** (unit 331, integration 59). CI had failed twice on `concurrentLoadsBalanceLimit` before the rebase — the wallet race #256 fixes.
+- API surface unchanged — verified via gate grep (no `@*Mapping`/param lines); the export's file content changed under ACQUIRER and is documented in card-api-reference, api-reference and Postman.
+
+#### Confirmed Platform Versions
+card-service: Spring Boot 3.5.16, Java 21; `-Pfull-integration` 388. backend, web, fep-service unchanged. No dependency changes.
 
 ---
 

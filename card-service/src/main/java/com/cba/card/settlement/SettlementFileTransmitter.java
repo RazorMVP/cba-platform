@@ -176,6 +176,7 @@ public class SettlementFileTransmitter {
             throw new SettlementTransmissionException(
                     "HTTPS endpoint not configured for scheme: " + scheme);
         }
+        requireHttps(endpoint, scheme);
 
         // A scheme-specific mutually-authenticated client when a client keystore is
         // configured; otherwise the shared template (one-way TLS + bearer). Built outside
@@ -207,6 +208,26 @@ public class SettlementFileTransmitter {
             throw new SettlementTransmissionException(
                     "HTTPS transmission failed for scheme=" + scheme
                     + " endpoint=" + endpoint + ": " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Fails closed unless the endpoint is an {@code https://} URL with a host. The file can carry full card numbers
+     * (acquirer role, backlog 2 PR C) and the request carries the scheme's bearer key: an {@code http://} endpoint
+     * would send both in clear (PCI DSS 4.0 §4.2.1). Nothing is sent. The endpoint isn't echoed — a URL can
+     * embed credentials.
+     */
+    static void requireHttps(String endpoint, String scheme) {
+        java.net.URI uri;
+        try {
+            uri = java.net.URI.create(endpoint.trim());
+        } catch (IllegalArgumentException e) {
+            throw new SettlementTransmissionException(
+                    "HTTPS endpoint for scheme " + scheme + " is not a valid URL — nothing sent");
+        }
+        if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null || uri.getHost().isBlank()) {
+            throw new SettlementTransmissionException("Refusing to send the " + scheme + " settlement file: "
+                    + "the endpoint must be an https:// URL — card data and the API key would travel in clear");
         }
     }
 }

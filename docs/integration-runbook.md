@@ -140,6 +140,9 @@ Legend for **State**:
     versions, with the clear values, until vacuumed (it locks both tables while it runs); (2) expire or re-encrypt backups,
     dumps and WAL archives taken before the deploy — they still hold clear card numbers and CVVs (PCI DSS 4.0 §3.2.1, §3.5.1).
     Neither step can be done from the code.
+  - **Settlement files carry the full PAN under `CARD_SETTLEMENT_EXPORT_ROLE=ACQUIRER`** (backlog 2 PR C): switching that on brings
+    cardholder-data transmission to the schemes into PCI DSS scope — get the compliance sign-off first (`docs/deferred-backlog.md` item 2).
+    An HTTPS scheme's `https-endpoint` must be an `https://` URL: anything else is refused and nothing is sent (PCI DSS 4.0 §4.2.1).
 - **backend ↔ card-service:** `CARD_SERVICE_BASE_URL` (compose/k8s; `CARD_SERVICE_HOST/PORT` still honoured) (REST).
 - **backend → card-service service token** (cont. 33): card-service accepts only Keycloak JWTs, so the backend uses the
   `client_credentials` grant of Keycloak client **`cba-backend-service`** (realm role **`CARD_READER`** only: list/get card,

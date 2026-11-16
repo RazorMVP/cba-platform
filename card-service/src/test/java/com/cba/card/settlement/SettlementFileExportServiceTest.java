@@ -1,10 +1,14 @@
 package com.cba.card.settlement;
 
+import com.cba.card.card.CardSecrets;
+import com.cba.card.card.CardSecretsTestSupport;
 import com.cba.card.common.CbaException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -39,7 +43,7 @@ import static org.mockito.Mockito.when;
  * their own date; a failed attempt is retried later by the poller — never by sleeping; a claim that loses the
  * race skips; a send interrupted mid-way is closed, not resent.
  */
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 @MockitoSettings(strictness = Strictness.LENIENT)
 class SettlementFileExportServiceTest {
 
@@ -48,6 +52,9 @@ class SettlementFileExportServiceTest {
     @Mock SettlementFileTransmitter transmitter;
     @Mock JdbcTemplate jdbc;
     @Mock SettlementFileExporter exporter;
+
+    static final CardSecrets SECRETS = CardSecretsTestSupport.cardSecrets();
+    static final String FULL_PAN = "4111117777771111";
 
     private final SettlementExportProperties props = new SettlementExportProperties();
     private final LocalDate today = LocalDate.now();
@@ -69,7 +76,7 @@ class SettlementFileExportServiceTest {
         when(batchRepository.findById(batch.getId())).thenReturn(Optional.of(batch));
 
         service = spy(new SettlementFileExportService(batchRepository, transmissionRepository, List.of(exporter),
-                transmitter, props, jdbc));
+                transmitter, props, jdbc, SECRETS));
         doReturn(List.of(record("VISA"))).when(service).buildExportRecords(any(), any());
     }
 
@@ -298,5 +305,52 @@ class SettlementFileExportServiceTest {
 
         assertThat(due.getStatus()).isEqualTo("FAILED");
         verify(transmitter, never()).transmit(any(), anyString(), anyString(), anyString());
+    }
+
+    // ── Backlog 2 PR C: the full PAN in the file body, nowhere else ─────────────────────────────
+
+    @Test
+    @DisplayName("filePan: the clear PAN only under ACQUIRER; ISSUER or no card → empty")
+    void filePanOnlyForAcquirer() {
+        String stored = SECRETS.encrypt(FULL_PAN);
+        assertThat(service.filePan(stored)).isEqualTo(FULL_PAN);
+        assertThat(service.filePan(null)).isEmpty();
+
+        props.setRole("ISSUER");
+        assertThat(service.filePan(stored)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("a stored value that isn't ENC1 ciphertext is refused, not exported")
+    void clearStoredValueRefused() {
+        assertThatThrownBy(() -> service.filePan(FULL_PAN)).isInstanceOf(IllegalStateException.class)
+                .hasMessageNotContaining("4111");
+    }
+
+    @Test
+    @DisplayName("the full PAN reaches the exporter but not the logs, the record's toString or the transmission")
+    void fullPanStaysInTheFile(CapturedOutput output) {
+        SettlementExportRecord r = withPan(record("VISA"), FULL_PAN);
+        assertThat(r.toString()).doesNotContain(FULL_PAN).contains("411111******1111");
+        doReturn(List.of(r)).when(service).buildExportRecords(any(), any());
+        doThrow(new SettlementTransmissionException("connection refused"))
+                .when(transmitter).transmit(any(), anyString(), anyString(), anyString());
+
+        List<SettlementTransmission> result = service.exportBatch(batch.getId(), null);
+
+        org.mockito.ArgumentCaptor<List<SettlementExportRecord>> sent = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(exporter).export(sent.capture(), any(), any());
+        assertThat(sent.getValue()).singleElement().extracting(SettlementExportRecord::pan).isEqualTo(FULL_PAN);
+        assertThat(result).singleElement().satisfies(tx ->
+                assertThat(String.valueOf(tx.getErrorMessage())).doesNotContain(FULL_PAN));
+        assertThat(output.getAll()).doesNotContain(FULL_PAN);
+    }
+
+    private static SettlementExportRecord withPan(SettlementExportRecord r, String pan) {
+        return new SettlementExportRecord(r.settlementItemId(), r.authorizationLogId(), r.maskedPan(), pan,
+                r.cardType(), r.scheme(), r.mti(), r.stan(), r.rrn(), r.authCode(), r.processingCode(),
+                r.entryMode(), r.grossAmount(), r.interchangeAmount(), r.schemeFeeAmount(), r.netAmount(),
+                r.currencyCode(), r.merchantId(), r.merchantName(), r.mcc(), r.terminalId(), r.acquirerBin(),
+                r.transactionDate(), r.settlementDate());
     }
 }

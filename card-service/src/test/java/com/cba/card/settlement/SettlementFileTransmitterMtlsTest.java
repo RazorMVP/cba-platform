@@ -151,6 +151,28 @@ class SettlementFileTransmitterMtlsTest {
     }
 
     @Test
+    @DisplayName("a non-https endpoint is refused before anything is sent (backlog 2 PR C: files carry full PANs)")
+    void refusesPlainHttpEndpoint() {
+        for (String endpoint : new String[] {"http://scheme.example/settle", "HTTP://scheme.example/x",
+                "ftp://scheme.example/x", "https:///no-host", "not a url"}) {
+            SettlementExportProperties props = propsForAfrigo(false, null);
+            props.getSchemes().get("afrigo").setHttpsEndpoint(endpoint);
+            RestTemplate rest = org.mockito.Mockito.mock(RestTemplate.class);
+            SettlementFileTransmitter transmitter = new SettlementFileTransmitter(props, rest);
+
+            assertThatThrownBy(() -> transmitter.transmit(
+                        "4111111111111111".getBytes(StandardCharsets.UTF_8), "f.json", "afrigo", "HTTPS"))
+                    .as(endpoint)
+                    .isInstanceOf(SettlementTransmissionException.class)
+                    .hasMessageNotContaining("scheme.example");
+            org.mockito.Mockito.verifyNoInteractions(rest);
+        }
+        org.assertj.core.api.Assertions.assertThatCode(
+                () -> SettlementFileTransmitter.requireHttps("https://scheme.example/settle", "afrigo"))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
     @DisplayName("an mTLS-requiring endpoint rejects a client with no certificate (guards the test's own premise)")
     void rejectsClientWithoutCertificate() {
         SettlementFileTransmitter transmitter =

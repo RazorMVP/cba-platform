@@ -260,5 +260,43 @@ describe('CardDetailComponent', () => {
       c.submitWallet();
       expect(svc.loadWallet).toHaveBeenCalledWith('card-1', { sourceAccountId: 'acc-eur', amount: 20, currencyCode: 'EUR' });
     });
+
+    it('shows the maximum balance and what can still be loaded today', () => {
+      svc.getWallet.mockReturnValue(of(walletView({ currencyCode: 'NGN', balance: 1000,
+        limits: { maxBalance: 250000, dailyLoad: 50000, loadedToday: 30000 } })));
+      const fixture = TestBed.createComponent(CardDetailComponent);
+      fixture.detectChanges();
+      expect(fixture.componentInstance.loadableToday()).toBe(20000);
+      const text = (fixture.nativeElement as HTMLElement).querySelector('[data-test="wallet-limits"]')?.textContent ?? '';
+      expect(text).toContain('Maximum balance 250,000 NGN');
+      expect(text).toContain('Can load today 20,000 of 50,000 NGN');
+    });
+
+    it('no limits block when the wallet is not limited; loadableToday never goes below 0', () => {
+      svc.getWallet.mockReturnValue(of(walletView({ limits: { maxBalance: null, dailyLoad: null, loadedToday: 0 } })));
+      const fixture = TestBed.createComponent(CardDetailComponent);
+      fixture.detectChanges();
+      expect((fixture.nativeElement as HTMLElement).querySelector('[data-test="wallet-limits"]')).toBeNull();
+      expect(fixture.componentInstance.loadableToday()).toBeNull();
+      fixture.componentInstance.wallet = walletView({ limits: { maxBalance: null, dailyLoad: 100, loadedToday: 150 } });
+      expect(fixture.componentInstance.loadableToday()).toBe(0);
+    });
+
+    it('a limit refusal shows the plain words and the server\'s figures', () => {
+      svc.loadWallet.mockReturnValue(throwError(() => ({ error: { errors: [{ code: 'DAILY_LOAD_LIMIT',
+        message: 'At most 50000 NGN may be loaded a day; 45000 loaded today' }] } })));
+      const c = make();
+      c.openWalletModal('LOAD');
+      c.walletAccountId = 'acc-usd';
+      c.walletAmount = 10000;
+      c.submitWallet();
+      expect(c.walletError).toContain('daily load limit');
+      expect(c.walletError).toContain('45000 loaded today');
+      expect(c.walletModal).toBe('LOAD');
+
+      svc.loadWallet.mockReturnValue(throwError(() => ({ error: { errors: [{ code: 'WALLET_BALANCE_LIMIT', message: 'm' }] } })));
+      c.submitWallet();
+      expect(c.walletError).toContain('maximum balance');
+    });
   });
 });

@@ -41,6 +41,17 @@ public class CardProduct {
     @Column(nullable = false, columnDefinition = "jsonb")
     private Map<String, Object> features;
 
+    /**
+     * Prepaid only (V22, backlog 15c): most a wallet may hold after a load, major units of the wallet's
+     * currency. Null = the currency default in {@code card.prepaid.limits}.
+     */
+    @Column(name = "max_wallet_balance", precision = 19, scale = 4)
+    private BigDecimal maxWalletBalance;
+
+    /** Prepaid only (V22): most that may be loaded in one calendar day. Null = the currency default. */
+    @Column(name = "daily_wallet_load", precision = 19, scale = 4)
+    private BigDecimal dailyWalletLoad;
+
     @Column(nullable = false)
     private boolean active = true;
 

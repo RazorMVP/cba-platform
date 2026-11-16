@@ -57,6 +57,27 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 70) — 2026-11-16
+**Fix: prepaid wallet balance limit could be exceeded by two concurrent loads** (bug from cont. 66, #241; caught by CI on #255 — `WalletLimitsIntegrationTest.concurrentLoadsBalanceLimit` saw both loads of 60 pass a 100 limit). `checkLoadLimits` read the wallet balance and the pending loads in two statements; under READ COMMITTED each takes its own snapshot, and a load whose `finish` committed between them (credited and no longer PENDING, in one transaction) was counted in neither. The advisory lock serialises claims, not `finish`.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/…/wallet/WalletMovementRepository.java` | NEW `balanceWithPendingLoads(cardId)`: balance + PENDING loads in one native statement (one snapshot) |
+| `card-service/…/wallet/WalletService.java` | `checkLoadLimits` decides on it; the parts are read again only to word the refusal |
+| `card-service/…/wallet/WalletServiceTest.java` | NEW `limitUsesOneSnapshot` — models the two inconsistent reads (stale balance, pending already 0) and expects a refusal: **fails on the old code, passes with the fix**; helpers stub the new query |
+| `card-service/…/wallet/WalletLimitsIntegrationTest.java` | NEW `balanceLimitHoldsAcrossFinish`: 20 rounds of the two-load race on real PostgreSQL. It passes locally with and without the fix (the window is microseconds on this machine) — CI's slower runners are where it can bite; the unit test is the deterministic proof |
+| `CLAUDE.md` | prepaid limits note: one-statement read |
+
+#### Build Verification
+- card-service `clean verify -Pfull-integration` with the fix: **385/385** (before `limitUsesOneSnapshot` was added); `WalletServiceTest` 14/14 with the fix, `limitUsesOneSnapshot` FAILS against `main`'s `WalletService`. Total 386.
+- API surface unchanged — verified via gate grep; behaviour now matches what the docs already said (a load over the maximum is refused).
+
+#### Confirmed Platform Versions
+card-service: Spring Boot 3.5.16, Java 21. No dependency changes. (Test-count rows in CLAUDE.md are set when this and #255 are both merged.)
+
+---
+
 ### Session 125 (cont. 68) — 2026-11-16
 **Backlog 2 PR B — card numbers encrypted at rest, CVV no longer stored, startup key check** (plan `docs/plans/2026-11-16-backlog-2-card-secrets.md`, approved; decisions D1a + D2a). Until now `cards.pan_encrypted` and `token_vault.dpan_encrypted` held clear digits (card-service had no converter; found in cont. 67), `cards.cvv_encrypted` held a random 3-digit number nothing read, and card-service started with any key, including the public dev default.
 

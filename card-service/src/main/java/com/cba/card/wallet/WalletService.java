@@ -126,9 +126,12 @@ public class WalletService {
     private void checkLoadLimits(UUID cardId, String currency, BigDecimal amount) {
         WalletLimits limits = limits(cardId, currency);
         if (limits.maxBalance() != null) {
-            BigDecimal balance = walletRepository.findByCardId(cardId).map(PrepaidWallet::getBalance).orElse(BigDecimal.ZERO);
-            BigDecimal pending = nz(movementRepository.sumPendingLoads(cardId));
-            if (balance.add(pending).add(amount).compareTo(limits.maxBalance()) > 0) {
+            // One snapshot for balance + pending (see balanceWithPendingLoads): two reads could miss a load that
+            // finished between them. The parts below are read again only to word the refusal.
+            BigDecimal held = nz(movementRepository.balanceWithPendingLoads(cardId));
+            if (held.add(amount).compareTo(limits.maxBalance()) > 0) {
+                BigDecimal balance = walletRepository.findByCardId(cardId).map(PrepaidWallet::getBalance).orElse(BigDecimal.ZERO);
+                BigDecimal pending = nz(movementRepository.sumPendingLoads(cardId));
                 throw CbaException.badRequest("WALLET_BALANCE_LIMIT", "The wallet may hold at most "
                         + limits.maxBalance().stripTrailingZeros().toPlainString() + " " + currency + "; it holds "
                         + balance.stripTrailingZeros().toPlainString()

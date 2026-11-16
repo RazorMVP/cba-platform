@@ -186,6 +186,8 @@ class WalletServiceTest {
         w.setCurrencyCode("NGN");
         lenient().when(walletRepository.findByCardId(card.getId())).thenReturn(Optional.of(w));
         lenient().when(walletRepository.findByCardIdForUpdate(card.getId())).thenReturn(Optional.of(w));
+        // The limit is decided on balance + pending read in one statement (no pending loads here)
+        lenient().when(movementRepository.balanceWithPendingLoads(card.getId())).thenReturn(new BigDecimal(balance));
         return w;
     }
 
@@ -219,12 +221,30 @@ class WalletServiceTest {
     }
 
     @Test
+    @DisplayName("the limit is decided on balance + pending from one snapshot, not two reads a finishing load can fall between")
+    void limitUsesOneSnapshot() {
+        // Another load of 40,000 finished between two separate reads: the balance read saw 200,000 (before its
+        // credit), the pending read saw 0 (after it left PENDING). Adding those reads lets 10,000.01 through
+        // (210,000.01); the one-statement read sees 240,000 and refuses (250,000.01 > 250,000). Cont. 69.
+        ngnDefaults();
+        ngnWallet("200000.00");
+        loadedToday("0");
+        when(movementRepository.sumPendingLoads(card.getId())).thenReturn(BigDecimal.ZERO);
+        when(movementRepository.balanceWithPendingLoads(card.getId())).thenReturn(new BigDecimal("240000.00"));
+
+        assertThatThrownBy(() -> service.load(card.getId(), account, new BigDecimal("10000.01"), null, "t"))
+                .hasFieldOrPropertyWithValue("code", "WALLET_BALANCE_LIMIT");
+        verifyNoInteractions(backend);
+    }
+
+    @Test
     @DisplayName("balance limit counts loads still pending (claimed, not answered yet)")
     void pendingLoadsCounted() {
         ngnDefaults();
         ngnWallet("200000.00");
         loadedToday("0");
         when(movementRepository.sumPendingLoads(card.getId())).thenReturn(new BigDecimal("40000.00"));
+        when(movementRepository.balanceWithPendingLoads(card.getId())).thenReturn(new BigDecimal("240000.00"));
 
         assertThatThrownBy(() -> service.load(card.getId(), account, new BigDecimal("10000.01"), null, "t"))
                 .hasFieldOrPropertyWithValue("code", "WALLET_BALANCE_LIMIT")
@@ -304,6 +324,7 @@ class WalletServiceTest {
         assertThat(service.load(card.getId(), account, new BigDecimal("1000000"), null, "t").getStatus())
                 .isEqualTo(WalletMovement.COMPLETED);
         verify(movementRepository, never()).sumPendingLoads(any());
+        verify(movementRepository, never()).balanceWithPendingLoads(any());
         WalletService.WalletLimits limits = service.wallet(card.getId()).limits();
         assertThat(limits.maxBalance()).isNull();
         assertThat(limits.dailyLoad()).isNull();

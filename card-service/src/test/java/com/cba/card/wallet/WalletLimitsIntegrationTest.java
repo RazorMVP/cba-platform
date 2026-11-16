@@ -96,6 +96,22 @@ class WalletLimitsIntegrationTest extends AbstractCardIntegrationTest {
     }
 
     @Test
+    @DisplayName("the balance limit holds while the first load is finishing — 20 rounds (balance + pending read in one snapshot)")
+    void balanceLimitHoldsAcrossFinish() throws Exception {
+        // The race CI caught (cont. 69): the check read the balance and the pending loads in two statements, so a
+        // load whose finish committed between them (credited, no longer PENDING) was counted in neither.
+        for (int round = 0; round < 20; round++) {
+            Card card = card(product(new BigDecimal("100"), null));
+            walletService.load(card.getId(), account, new BigDecimal("1"), "USD", "it");
+
+            List<Object> outcomes = race(2, () -> walletService.load(card.getId(), account, new BigDecimal("60"), null, "it"));
+
+            assertThat(outcomes).as("round " + round).filteredOn(o -> o instanceof WalletMovement).hasSize(1);
+            assertThat(balance(card)).as("round " + round).isEqualByComparingTo("61");
+        }
+    }
+
+    @Test
     @DisplayName("a reversal that takes the wallet over its maximum is still credited; the next load is refused")
     void reversalOverTheLimitSucceeds() {
         String pan = pan();

@@ -1,6 +1,6 @@
 # Backlog 2, PR B (encrypt card secrets at rest) and PR C (full PAN in acquirer files)
 
-> Status: approved 2026-11-16 (user: "A now / B, then C"; plan approved; decisions D1a, D2a). PR A (#253, `7496e7d`) merged before this plan. PR B #254 merged `38710ab` (2026-11-16). In progress: PR C. Backlog 14 stays on the backlog.
+> Status: approved 2026-11-16 (user: "A now / B, then C"; plan approved; decisions D1a, D2a). PR A (#253, `7496e7d`) merged before this plan. PR B #254 merged `38710ab` (2026-11-16). PR C #255 merged `3001968` (2026-11-16); its CI run surfaced a wallet-limit race from #241, fixed first in #256 (`999972c`). Backlog 2 done. Backlog 14 stays on the backlog.
 
 ## Context
 

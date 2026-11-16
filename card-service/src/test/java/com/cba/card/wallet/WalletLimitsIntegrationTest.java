@@ -99,7 +99,7 @@ class WalletLimitsIntegrationTest extends AbstractCardIntegrationTest {
     @DisplayName("a reversal that takes the wallet over its maximum is still credited; the next load is refused")
     void reversalOverTheLimitSucceeds() {
         String pan = pan();
-        Card card = cardService.issueCard(product(new BigDecimal("100"), null), UUID.randomUUID(), null, true, pan, "2912", "123", "USD");
+        Card card = cardService.issueCard(product(new BigDecimal("100"), null), UUID.randomUUID(), null, true, pan, "2912", "USD");
         walletService.load(card.getId(), account, new BigDecimal("100"), "USD", "it");
 
         assertThat(authorize(pan, "870001", 2500)).isEqualTo("00");
@@ -151,7 +151,7 @@ class WalletLimitsIntegrationTest extends AbstractCardIntegrationTest {
     }
 
     private Card card(UUID product) {
-        return cardService.issueCard(product, UUID.randomUUID(), null, true, pan(), "2912", "123", "USD");
+        return cardService.issueCard(product, UUID.randomUUID(), null, true, pan(), "2912", "USD");
     }
 
     private static String pan() {

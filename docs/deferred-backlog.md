@@ -75,7 +75,7 @@ controller, `PispController` event firing, `PaymentReversedEvent`/reversal for t
 
 ---
 
-## 2. Full-PAN decrypt in card settlement export — PR A ✅ DONE (cont. 67); PR B (encrypt at rest), PR C (full PAN in the file) open
+## 2. Full-PAN decrypt in card settlement export — PR A ✅ DONE (cont. 67); PR B ✅ DONE (cont. 68, encrypt at rest); PR C (full PAN in the file) open
 
 > **Found while scoping this item (2026-11-16): card-service's PAN, CVV and DPAN columns were never encrypted,
 > and the PAN and CVV were returned by the card APIs.** `cards.pan_encrypted`, `cards.cvv_encrypted` and
@@ -89,9 +89,14 @@ controller, `PispController` event firing, `PaymentReversedEvent`/reversal for t
 >   `POST /api/v1/internal/detokenize` (a GET there now matches only `DELETE /api/v1/tokens/{tokenRef}`, so it
   answers 405); unknown paths 404 / wrong methods 405 instead of 500.
 >   `CardPanExposureIntegrationTest`.
-> - **PR B (open):** a Jasypt JPA converter on the PAN and DPAN columns, a one-time migration that encrypts the
->   existing rows (lookups use `pan_hash` / `dpan_hash`, unaffected); stop storing the CVV (verified by the HSM, `CW`)
->   or encrypt it — decision in PR B's plan. Copies taken before PR B (backups, dumps) still hold clear values.
+> - **PR B ✅ (cont. 68; plan `docs/plans/2026-11-16-backlog-2-card-secrets.md`, D1a + D2a):** `card.CardSecrets`
+>   encrypts the PAN and DPAN on write as `ENC1:` + Jasypt AES-256 (random IV) and decrypts only where the clear
+>   value is needed (de-tokenize; PR C's file) — explicit, not a JPA converter, so card loads never decrypt; anything
+>   without `ENC1:` is refused. `V24__EncryptCardSecrets` (a Spring-bean Flyway Java migration) encrypted the existing
+>   rows; lookups use `pan_hash` / `dpan_hash`, unaffected. The CVV is no longer stored (V23 drops the column; it was a
+>   random number nothing read — the HSM derives the real one). card-service refuses to start with a blank, short or
+>   publicly known key unless `CARD_ALLOW_DEV_ENCRYPTION_KEY=true` (local/test only). **Still manual:** `VACUUM FULL`
+>   and expiring backups taken before the deploy (`docs/integration-runbook.md` §9).
 > - **PR C (open, after B):** the full PAN in the settlement file body only, behind the existing
 >   `card.settlement.export.role=ACQUIRER` switch — under the default `ISSUER` nothing is exported (item 21), so PCI
 >   scope grows only the day acquiring is switched on, which still needs the compliance decision below.
@@ -290,7 +295,7 @@ Card personalization data (CDP) is generated but **never serialised, encrypted, 
   ~~It is Jasypt ciphertext under card-service's own key~~ — **corrected 2026-11-16: it is the clear PAN**,
   because `cards.pan_encrypted` was never encrypted (item 2). Nothing transmits it yet (no
   `BureauFileTransport`) and the CDP preview endpoint strips it, but any transport built on this today would
-  send raw PANs. After item 2 PR B it becomes card-service ciphertext, which a bureau still can't decrypt —
+  send raw PANs. Since item 2 PR B (cont. 68) it is card-service's `ENC1:` ciphertext, which a bureau still can't decrypt —
   the key wrapping below is still needed.
 
 ### What's needed

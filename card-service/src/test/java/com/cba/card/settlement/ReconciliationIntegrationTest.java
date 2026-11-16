@@ -136,7 +136,7 @@ class ReconciliationIntegrationTest extends AbstractCardIntegrationTest {
     void endToEndDeclineThenRetry() {
         String pan = debitPan();
         Card card = cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(ACC_FLAKY), true, pan,
-                "2912", "123", "USD");
+                "2912", "USD");
         String stan = String.format("%06d", ThreadLocalRandom.current().nextInt(1_000_000));
         assertThat(authorize(pan, stan, 2500)).isEqualTo("91");
         UUID authId = jdbc.queryForObject("SELECT id FROM authorization_log WHERE card_id = ? AND stan = ?",
@@ -242,7 +242,7 @@ class ReconciliationIntegrationTest extends AbstractCardIntegrationTest {
 
     private Card debitCard(String account) {
         return cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(account), true, debitPan(),
-                "2912", "123", "USD");
+                "2912", "USD");
     }
 
     private static String debitPan() {

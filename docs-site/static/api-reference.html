@@ -3224,7 +3224,7 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards</code></td><td>List cards; optional <code>?customerId=</code> filter</td><td>ADMIN, TELLER</td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/api/v1/cards/{id}</code></td><td>Card detail: PAN last-4 (never full), status, card type, expiry YYMM, PIN state, product</td><td>ADMIN, TELLER</td></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards</code></td><td>Issue card — fields: customerId, productId, linkedEntityId (accountId or loanId), virtualFlag</td><td>ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards</code></td><td>Issue card with a bureau-supplied PAN — body: <code>{"productId","customerId","linkedEntityId","virtual","pan","expiryDate","currencyCode"}</code>. No <code>cvv</code>: card-service doesn't store it (the HSM derives and checks it); a <code>cvv</code> sent by an older client is ignored. The PAN is stored as <code>ENC1:</code> ciphertext (backlog 2 PR B)</td><td>ADMIN, TELLER</td></tr>
 <tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/{id}?command=block</code></td><td>Block card (status → BLOCKED). Card remains in the system; can be unblocked.</td><td>ADMIN, TELLER</td></tr>
 <tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/{id}?command=unblock</code></td><td>Unblock card (status → ACTIVE)</td><td>ADMIN, TELLER</td></tr>
 <tr><td><span class="method post">POST</span></td><td><code>/api/v1/cards/{id}?command=cancel</code></td><td>Cancel card permanently (terminal state)</td><td>ADMIN</td></tr>
@@ -3385,7 +3385,7 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <h4>Card Issuance (API Key / BaaS)</h4>
 <table>
 <tr><th>Method</th><th>Path</th><th>Description</th><th>Role</th></tr>
-<tr><td><span class="method post">POST</span></td><td><code>/card-api/v1/cards</code></td><td>Issue virtual or physical card — PAN/expiry/CVV auto-generated from product BIN in dev; bureau-provided in production. virtual=true → ACTIVE; virtual=false → ISSUED + physical order created</td><td>API_KEY, ADMIN, TELLER</td></tr>
+<tr><td><span class="method post">POST</span></td><td><code>/card-api/v1/cards</code></td><td>Issue virtual or physical card — PAN/expiry auto-generated from product BIN in dev; bureau-provided in production. No CVV is stored (the HSM derives it); the PAN is stored as <code>ENC1:</code> ciphertext. virtual=true → ACTIVE; virtual=false → ISSUED + physical order created</td><td>API_KEY, ADMIN, TELLER</td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/cards</code></td><td>List cards; optional <code>?customerId=</code> filter</td><td>API_KEY, ADMIN, TELLER</td></tr>
 <tr><td><span class="method get">GET</span></td><td><code>/card-api/v1/cards/{id}</code></td><td>Full card detail including status, PIN state, limit summary</td><td>API_KEY, ADMIN, TELLER</td></tr>
 </table>
@@ -4044,7 +4044,7 @@ V59 seeds placeholders: stage 1 0–30 days 2%, stage 2 31–90 20%, stage 3 91+
 <tr><td>POST</td><td>/card-api/v1/api-keys</td><td>Issue API key — raw key shown once; SHA-256 stored</td><td>ADMIN</td></tr>
 <tr><td>GET</td><td>/card-api/v1/api-keys</td><td>List active API keys (hashed)</td><td>ADMIN</td></tr>
 <tr><td>DELETE</td><td>/card-api/v1/api-keys/{id}</td><td>Revoke API key</td><td>ADMIN</td></tr>
-<tr><td>POST</td><td>/card-api/v1/cards</td><td>Issue card (BaaS — auto PAN/expiry/CVV from BIN)</td><td>API_KEY, ADMIN, TELLER</td></tr>
+<tr><td>POST</td><td>/card-api/v1/cards</td><td>Issue card (BaaS — auto PAN/expiry from BIN; no CVV stored)</td><td>API_KEY, ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/card-api/v1/cards</td><td>List cards; optional ?customerId= filter</td><td>API_KEY, ADMIN, TELLER</td></tr>
 <tr><td>GET</td><td>/card-api/v1/cards/{id}</td><td>Get card detail</td><td>API_KEY, ADMIN, TELLER</td></tr>
 <tr><td>PUT</td><td>/card-api/v1/cards/{id}/controls</td><td>Freeze/unfreeze; contactless, card-not-present and international switches (enforced, RC 57)</td><td>API_KEY, ADMIN, TELLER</td></tr>

@@ -89,7 +89,7 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
     @DisplayName("prepaid (15c): load over HTTP → wallet credited; a purchase lands PENDING under PPD-; close clears it on the backend")
     void prepaidLoadSpendClear() {
         String pan = "4300" + String.format("%012d", ThreadLocalRandom.current().nextLong(1_000_000_000_000L));
-        Card card = cardService.issueCard(PREPAID_PRODUCT, UUID.randomUUID(), null, true, pan, "2912", "123", "USD");
+        Card card = cardService.issueCard(PREPAID_PRODUCT, UUID.randomUUID(), null, true, pan, "2912", "USD");
 
         HttpHeaders h = new HttpHeaders();
         h.setContentType(MediaType.APPLICATION_JSON);
@@ -126,7 +126,7 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
     @DisplayName("0100 → PENDING item; batch close captures it (25.00 USD) → SETTLED; batch CLOSED")
     void purchaseClearedAtBatchClose() {
         String pan = debitPan();
-        cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(ACCOUNT), true, pan, "2912", "123", "USD");
+        cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(ACCOUNT), true, pan, "2912", "USD");
 
         assertThat(authorize(pan, "910001", "000000", false, 2500)).isEqualTo("00");
         SettlementItem item = itemFor("910001");
@@ -146,7 +146,7 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
     @DisplayName("0200 ATM cash debits at once (card-debits, cash=true) → item SETTLED; a 0400 refunds it → REVERSED")
     void atmCashDebitedAndRefunded() {
         String pan = debitPan();
-        cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(ACCOUNT), true, pan, "2912", "123", "USD");
+        cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(ACCOUNT), true, pan, "2912", "USD");
 
         assertThat(authorize(pan, "920001", "010000", true, 4000)).isEqualTo("00");
         SettlementItem item = itemFor("920001");
@@ -163,7 +163,7 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
     @DisplayName("full reversal the backend refuses → 13; the REVERSED mark rolls back, the purchase still clears")
     void refusedFullReversalLeavesItemPending() {
         String pan = debitPan();
-        cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(ACCOUNT), true, pan, "2912", "123", "USD");
+        cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(ACCOUNT), true, pan, "2912", "USD");
 
         assertThat(authorize(pan, "930001", "000000", false, 3000)).isEqualTo("00");
         SettlementItem item = itemFor("930001");
@@ -182,7 +182,7 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
     @DisplayName("15b: the capture carries the issuer's interchange + fees (Visa debit MCC 5411, chip) and the item keeps glNet")
     void captureCarriesInterchangeAndFees() {
         String pan = debitPan();
-        cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(ACCOUNT), true, pan, "2912", "123", "USD");
+        cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(ACCOUNT), true, pan, "2912", "USD");
         assertThat(authorize(pan, "940001", "000000", false, 2500)).isEqualTo("00");
         SettlementItem item = itemFor("940001");
         assertThat(item.getScheme()).isEqualTo("VISA");
@@ -211,7 +211,7 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
             + "the item keeps the split")
     void foreignAtmCarriesCrossBorderFee() {
         String pan = debitPan();
-        cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(ACCOUNT), true, pan, "2912", "123", "USD");
+        cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(ACCOUNT), true, pan, "2912", "USD");
         // V3 seed, 40.00 USD: assessment 0.11 % + 0.0195 = 0.0635 → 0.06; cross-border 0.40 % = 0.16 → 0.22.
         // (Domestic it would be 0.06.) The backend echoes what it posted.
         priorityMapping(Map.of("method", "POST", "urlPath", "/api/v1/accounts/" + ACCOUNT + "/card-debits",
@@ -237,7 +237,7 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
             + "one without DE19 is flagged country unknown")
     void batchCloseStoresSplitAndFlag() {
         String pan = debitPan();
-        cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(ACCOUNT), true, pan, "2912", "123", "USD");
+        cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(ACCOUNT), true, pan, "2912", "USD");
         assertThat(authorize(pan, "960001", "000000", false, 2500, "566")).isEqualTo("00");
         assertThat(authorize(pan, "960002", "000000", false, 2500)).isEqualTo("00");
         SettlementItem foreign = itemFor("960001");
@@ -314,7 +314,7 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
             + "two refund rows; the item's refunded amount is their total")
     void twoPartialReversalsOfDebit() {
         String pan = debitPan();
-        cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(ACCOUNT), true, pan, "2912", "123", "USD");
+        cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(ACCOUNT), true, pan, "2912", "USD");
         assertThat(authorize(pan, "950001", "010000", true, 10000)).isEqualTo("00");
         SettlementItem item = itemFor("950001");
         assertThat(item.getStatus()).isEqualTo("SETTLED");
@@ -345,7 +345,7 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
     @DisplayName("15d (D1a): prepaid — two partial reversals after clearing → two backend refunds, the wallet credited twice")
     void twoPartialReversalsOfPrepaid() {
         String pan = "4300" + String.format("%012d", ThreadLocalRandom.current().nextLong(1_000_000_000_000L));
-        Card card = cardService.issueCard(PREPAID_PRODUCT, UUID.randomUUID(), null, true, pan, "2912", "123", "USD");
+        Card card = cardService.issueCard(PREPAID_PRODUCT, UUID.randomUUID(), null, true, pan, "2912", "USD");
         HttpHeaders h = new HttpHeaders();
         h.setContentType(MediaType.APPLICATION_JSON);
         h.setBearerAuth(ROLES_TOKEN + ".ADMIN.TELLER");
@@ -428,7 +428,7 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
             + "rest of the hold once, a further one → RC 13")
     void debitPending_reversalsBoundedByOriginal() {
         String pan = debitPan();
-        cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(ACCOUNT), true, pan, "2912", "123", "USD");
+        cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), UUID.fromString(ACCOUNT), true, pan, "2912", "USD");
         assertThat(authorize(pan, "980001", "000000", false, 10000)).isEqualTo("00");
         UUID auth = approvedAuth("980001");
         SettlementItem item = itemRepository.findByAuthorizationLogId(auth).orElseThrow();
@@ -481,7 +481,7 @@ class CardClearingIntegrationTest extends AbstractCardIntegrationTest {
     /** A prepaid card whose wallet was loaded with {@code major} USD over HTTP (the backend is WireMock). */
     private Card loadedPrepaid(String major) {
         String pan = "4300" + String.format("%012d", ThreadLocalRandom.current().nextLong(1_000_000_000_000L));
-        Card card = cardService.issueCard(PREPAID_PRODUCT, UUID.randomUUID(), null, true, pan, "2912", "123", "USD");
+        Card card = cardService.issueCard(PREPAID_PRODUCT, UUID.randomUUID(), null, true, pan, "2912", "USD");
         pans.put(card.getId(), pan);
         HttpHeaders h = new HttpHeaders();
         h.setContentType(MediaType.APPLICATION_JSON);

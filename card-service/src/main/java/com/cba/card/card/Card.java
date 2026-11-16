@@ -21,9 +21,9 @@ public class Card {
     private UUID id;
 
     /**
-     * Full PAN. Never serialised: {@code Card} is returned as JSON by the card APIs, and a full PAN must not
-     * leave in a response (PCI DSS 4.0 §3.4.1 — masked to BIN + last four; use {@code panPrefix} /
-     * {@code panSuffix}). The column is not yet encrypted at rest despite its name — backlog 2, PR B.
+     * The PAN as stored: {@code ENC1:} ciphertext from {@link CardSecrets} (PCI DSS 4.0 §3.5.1; clear text until
+     * backlog 2 PR B). Decrypt only through {@link CardSecrets#decrypt}. Never serialised: a full PAN must not
+     * leave in a response (§3.4.1 — use {@code panPrefix} / {@code panSuffix}).
      */
     @JsonIgnore
     @Column(name = "pan_encrypted", nullable = false)
@@ -45,13 +45,7 @@ public class Card {
     @Column(name = "expiry_date", nullable = false, length = 4)
     private String expiryDate;
 
-    /**
-     * CVV. Never serialised (PCI DSS 4.0 §3.3 — sensitive authentication data). Not yet encrypted at rest
-     * despite the column name — backlog 2, PR B.
-     */
-    @JsonIgnore
-    @Column(name = "cvv_encrypted", nullable = false)
-    private String cvvEncrypted;
+    // No CVV: card-service doesn't store it (V23, backlog 2 PR B decision D1a) — the HSM derives and checks it.
 
     @Column(name = "card_sequence_no", nullable = false)
     private short cardSequenceNo = 1;

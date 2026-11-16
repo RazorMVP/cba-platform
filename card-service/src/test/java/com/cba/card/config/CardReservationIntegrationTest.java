@@ -40,7 +40,7 @@ class CardReservationIntegrationTest extends AbstractCardIntegrationTest {
     void secondAuthorizationCantSpendTheFirstOnesFunds() {
         String pan = "4300" + String.format("%012d", ThreadLocalRandom.current().nextLong(1_000_000_000_000L));
         UUID customer = UUID.randomUUID();
-        Card card = cardService.issueCard(PREPAID_PRODUCT, customer, null, true, pan, "2912", "123", "USD");
+        Card card = cardService.issueCard(PREPAID_PRODUCT, customer, null, true, pan, "2912", "USD");
         PrepaidWallet wallet = new PrepaidWallet();
         wallet.setCard(card);
         wallet.setCustomerId(customer);

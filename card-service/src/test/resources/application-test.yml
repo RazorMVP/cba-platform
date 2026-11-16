@@ -19,6 +19,8 @@ jasypt:
     password: test-encryption-key-do-not-use-in-production
 
 card:
+  crypto:
+    allow-dev-key: true   # the test key above is a known public value; CardSecrets refuses it otherwise
   pan:
     hmac-key: test-pan-hmac-key-do-not-use-in-production
   threeds:

@@ -752,7 +752,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/IssueCardRequest"
+              $ref: "#/components/schemas/StaffIssueCardRequest"
         required: true
       responses:
         "200":
@@ -2961,6 +2961,32 @@ components:
           type: number
         stan:
           type: string
+    StaffIssueCardRequest:
+      type: object
+      properties:
+        productId:
+          type: string
+          format: uuid
+        customerId:
+          type: string
+          format: uuid
+        linkedEntityId:
+          type: string
+          format: uuid
+        virtual:
+          type: boolean
+        pan:
+          type: string
+        expiryDate:
+          type: string
+        currencyCode:
+          type: string
+      required:
+      - currencyCode
+      - customerId
+      - expiryDate
+      - pan
+      - productId
     UnloadRequest:
       type: object
       properties:

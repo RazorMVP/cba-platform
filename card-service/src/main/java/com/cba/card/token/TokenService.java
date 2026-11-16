@@ -1,5 +1,6 @@
 package com.cba.card.token;
 
+import com.cba.card.card.CardSecrets;
 import com.cba.card.card.CardService;
 import com.cba.card.common.CbaException;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class TokenService {
 
     private final TokenVaultRepository tokenVaultRepository;
     private final CardService          cardService;
+    private final CardSecrets          cardSecrets;
 
     @Transactional
     public TokenResponse tokenize(UUID cardId, UUID customerId) {
@@ -43,7 +45,7 @@ public class TokenService {
         String panHash  = card.getPanHash();
 
         TokenVault token = new TokenVault();
-        token.setDpanEncrypted(dpan);   // Jasypt encrypts at persistence
+        token.setDpanEncrypted(cardSecrets.encrypt(dpan));
         token.setDpanHash(dpanHash);
         token.setPanHash(panHash);
         token.setTokenRef(tokenRef);
@@ -69,9 +71,10 @@ public class TokenService {
             throw CbaException.badRequest("TOKEN_INACTIVE",
                     "Token is " + token.getStatus() + " and cannot be used");
         }
-        // Resolve real PAN via card pan_hash → card → decrypt pan_encrypted
+        // Resolve real PAN via card pan_hash → card → decrypt pan_encrypted (the one runtime decrypt; PR C adds
+        // the acquirer settlement file)
         var card = cardService.findByPanHash(token.getPanHash());
-        return card.getPanEncrypted(); // Jasypt decrypts on read
+        return cardSecrets.decrypt(card.getPanEncrypted());
     }
 
     @Transactional

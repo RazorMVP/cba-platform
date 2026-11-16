@@ -57,6 +57,43 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 68) — 2026-11-16
+**Backlog 2 PR B — card numbers encrypted at rest, CVV no longer stored, startup key check** (plan `docs/plans/2026-11-16-backlog-2-card-secrets.md`, approved; decisions D1a + D2a). Until now `cards.pan_encrypted` and `token_vault.dpan_encrypted` held clear digits (card-service had no converter; found in cont. 67), `cards.cvv_encrypted` held a random 3-digit number nothing read, and card-service started with any key, including the public dev default.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/…/card/CardSecrets.java` | NEW — `encrypt` → `ENC1:` + Jasypt (`PBEWITHHMACSHA512ANDAES_256`, random IV; jasypt-spring-boot's `StringEncryptor`, bean `lazyJasyptStringEncryptor`, injected by type); `decrypt` refuses anything without `ENC1:`; `checkKey` in the constructor refuses a blank key, < 32 characters or a known public value unless `card.crypto.allow-dev-key` |
+| `card-service/…/card/migration/V24__EncryptCardSecrets.java` | NEW — Flyway Java migration as a Spring bean (Spring Boot passes `JavaMigration` beans to Flyway; kept outside `db/migration`, whose scan needs a no-arg constructor): rewrites every non-`ENC1:` PAN/DPAN in batches of 500, accepts 12–19 digits or the V2 `ENC(digits)` placeholder, fails on anything else naming the row but not the value; logs counts |
+| `card-service/…/db/migration/V23__drop_card_cvv.sql` | NEW — `ALTER TABLE cards DROP COLUMN cvv_encrypted` (D1a) |
+| `card-service/…/card/Card.java`, `CardService.java`, `CardController.java` | no CVV field / parameter / random CVV; `issueCard` encrypts the PAN; staff `IssueCardRequest` loses `cvv` (ignored if sent) and gets OpenAPI schema name `StaffIssueCardRequest` |
+| `card-service/…/token/TokenService.java` | tokenize stores the DPAN encrypted; `detokenize` decrypts the PAN — the one runtime decrypt |
+| `card-service/…/bureau/CdpGenerator.java` | CDP hash over `pan_hash` instead of the (now random-IV) ciphertext; comment: a bureau can't decrypt the value (backlog 7) |
+| `card-service/…/application.yml`, `application-test.yml`, `infrastructure/docker-compose.yml` | `card.crypto.allow-dev-key: ${CARD_ALLOW_DEV_ENCRYPTION_KEY:false}`; true in the test profile and compose (their keys are public) |
+| tests | NEW `CardSecretsTest` (6), `CardSecretsMigrationIntegrationTest` (3: ran at startup — Flyway v24 success, demo cards `ENC1:`, no clear PAN left, CVV column gone; clear + placeholder rows encrypt and decrypt back, rerun 0; unknown value fails without echo), `CardSecretsTestSupport`; `CardPanExposureIntegrationTest.storedEncrypted`; `TokenServiceTest` (DPAN stored encrypted); `issueCard` callers lose the CVV argument; export-test fixtures store an `ENC1:` marker (the migration test scans every row) |
+| `card-service/docs/openapi-snapshot.yaml` | `StaffIssueCardRequest` (the staff request had never been in the contract: both controllers' `IssueCardRequest` records collided by simple name) |
+| `docs/api-reference.html`, `docs/card-api-reference.html`, Postman (+ `docs-site/static` copies) | staff `POST /api/v1/cards` body corrected (`pan`, `expiryDate`, `currencyCode`, `virtual` — the docs said `virtualFlag` and omitted the rest), no `cvv`; PAN stored as `ENC1:`; no CVV stored |
+| `docs/integration-runbook.md` §9 | card-service key requirement; after the first PR B deploy: `VACUUM FULL cards, token_vault`, expire older backups/dumps/WAL |
+| `docs/deferred-backlog.md` | item 2: PR B ✅; item 7: `panEncryptedForBureau` is now ciphertext a bureau still can't decrypt |
+| `docs/plans/2026-11-16-backlog-2-card-secrets.md` + `README.md` | the approved plan, verbatim, with its status line |
+| `CLAUDE.md` | card-service Last git commit + test counts; PCI checklist; dev-run command gets `CARD_ALLOW_DEV_ENCRYPTION_KEY=true`; `cards` table row; jasypt dependency note |
+
+#### Key Patterns / Decisions
+- **PCI DSS 4.0:** §3.5.1 stored PAN unreadable; §3.3.3 / §3.2.1 no sensitive authentication data or extra cardholder data without need (the CVV); §3.6/§3.7 no default or known keys.
+- **Explicit encrypt/decrypt instead of a JPA converter** (my call, in the plan): a converter decrypts on every load, the authorization path included, and hands the clear PAN to any holder of a `Card`.
+- **`ENC1:` prefix**: reads fail closed on anything else; lets V24 skip already-encrypted rows (idempotent) and leaves room for `ENC2:` rotation.
+- **The key check runs in `CardSecrets`' constructor**, and V24 depends on that bean, so a bad key stops startup before any row is written under it.
+- **Not doable from code:** vacuuming the old row versions and expiring older backups (runbook).
+
+#### Build Verification
+- card-service `clean verify -Pfull-integration -Dupdate.api.snapshot=true` **384/384**; rerun without the flag **384/384**, snapshot stable. Unit 326, integration 58.
+- API surface unchanged by annotation — verified via gate grep (no `@*Mapping`/param lines); the staff issue request body changed (no `cvv`) and is documented in api-reference, card-api-reference and Postman.
+
+#### Confirmed Platform Versions
+card-service: Spring Boot 3.5.16, Java 21, jasypt-spring-boot 3.0.5; `-Pfull-integration` 384. backend, web, fep-service unchanged. No dependency changes.
+
+---
+
 ### Session 125 (cont. 67) — 2026-11-16
 **Backlog 2 PR A — card numbers and CVVs no longer leave card-service in API responses.** Scoping backlog 2 (full PAN in settlement files) found that card-service never encrypted the PAN, CVV or DPAN — `cards.pan_encrypted`, `cards.cvv_encrypted`, `token_vault.dpan_encrypted` are plain `String` columns (no JPA `AttributeConverter` anywhere in card-service; `@EnableEncryptableProperties` only decrypts `ENC(...)` config values) — and that `Card` was serialised as-is, so `GET /api/v1/cards…` and `/card-api/v1/cards…` (API-key partners included) returned the full PAN and CVV. The user's plan: "A now / B, then C"; backlog 14 stays on the backlog.
 

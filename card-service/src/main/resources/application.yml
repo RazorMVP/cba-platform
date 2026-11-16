@@ -59,7 +59,9 @@ spring:
     serialization:
       write-dates-as-timestamps: false
 
-# Jasypt encryption (PAN / CVV field-level encryption)
+# Jasypt encryption: the key for card.CardSecrets (PAN and DPAN at rest — ENC1: ciphertext, backlog 2 PR B).
+# card-service refuses to start with a blank, short (< 32) or publicly known key — including this default —
+# unless card.crypto.allow-dev-key is true (CARD_ALLOW_DEV_ENCRYPTION_KEY; local/test only, never Kubernetes).
 jasypt:
   encryptor:
     algorithm: PBEWITHHMACSHA512ANDAES_256
@@ -77,6 +79,9 @@ app:
 
 # Card service specific config
 card:
+  crypto:
+    # true accepts a public/short jasypt key (dev and tests only). See CardSecrets.checkKey.
+    allow-dev-key: ${CARD_ALLOW_DEV_ENCRYPTION_KEY:false}
   pan:
     hmac-key: ${PAN_HMAC_KEY:dev-pan-hmac-key-change-in-prod}
   token:

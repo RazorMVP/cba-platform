@@ -1,6 +1,8 @@
 package com.cba.card.token;
 
 import com.cba.card.card.Card;
+import com.cba.card.card.CardSecrets;
+import com.cba.card.card.CardSecretsTestSupport;
 import com.cba.card.card.CardService;
 import com.cba.card.common.CbaException;
 import org.junit.jupiter.api.BeforeEach;
@@ -8,7 +10,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -29,8 +33,11 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class TokenServiceTest {
 
+    static final CardSecrets SECRETS = CardSecretsTestSupport.cardSecrets();
+
     @Mock TokenVaultRepository tokenVaultRepository;
     @Mock CardService cardService; // concrete class
+    @Spy CardSecrets cardSecrets = SECRETS; // real encryption (backlog 2 PR B)
     @InjectMocks TokenService service;
 
     @BeforeEach
@@ -43,7 +50,7 @@ class TokenServiceTest {
         c.setPanSuffix("1111");
         c.setExpiryDate("2612");
         c.setPanHash("pan-hash");
-        c.setPanEncrypted("4111111111111111");
+        c.setPanEncrypted(SECRETS.encrypt("4111111111111111"));
         return c;
     }
 
@@ -60,6 +67,12 @@ class TokenServiceTest {
         assertThat(res.dpan()).hasSize(16).startsWith("9999").endsWith("1111");
         assertThat(res.tokenRef()).isNotBlank();
         assertThat(res.expiryDate()).isEqualTo("2612");
+
+        // The DPAN is stored as ENC1 ciphertext, never in clear (backlog 2 PR B)
+        ArgumentCaptor<TokenVault> saved = ArgumentCaptor.forClass(TokenVault.class);
+        verify(tokenVaultRepository).save(saved.capture());
+        assertThat(saved.getValue().getDpanEncrypted()).startsWith("ENC1:").doesNotContain(res.dpan());
+        assertThat(SECRETS.decrypt(saved.getValue().getDpanEncrypted())).isEqualTo(res.dpan());
     }
 
     @Test

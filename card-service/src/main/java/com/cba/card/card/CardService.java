@@ -35,6 +35,7 @@ public class CardService {
     private final PhysicalCardOrderRepository physicalCardOrderRepository;
     private final CardLimitRepository       cardLimitRepository;
     private final BinService                binService;
+    private final CardSecrets               cardSecrets;
 
     @Value("${card.pan.hmac-key}")
     private String panHmacKey;
@@ -51,7 +52,7 @@ public class CardService {
     // ── Issue Card ────────────────────────────────────────────────────────────
 
     /**
-     * BaaS-facing convenience overload — auto-generates PAN, expiry, CVV.
+     * BaaS-facing convenience overload — auto-generates PAN and expiry (no CVV: the HSM derives it).
      * Use this from the Card API when the caller provides only product/customer/entity IDs.
      * In production this data comes from the card bureau; here we generate test values.
      */
@@ -63,8 +64,7 @@ public class CardService {
         String pan    = product.getBinRangeStart() + String.format("%08d",
                 SECURE_RANDOM.nextInt(100_000_000));
         String expiry = YearMonth.now().plusYears(4).format(DateTimeFormatter.ofPattern("yyMM"));
-        String cvv    = String.format("%03d", SECURE_RANDOM.nextInt(1000));
-        Card saved    = issueCard(productId, customerId, linkedEntityId, virtual, pan, expiry, cvv, defaultCurrency);
+        Card saved    = issueCard(productId, customerId, linkedEntityId, virtual, pan, expiry, defaultCurrency);
         try {
             webhookService.publishEvent("CARD.ISSUED", Map.of("cardId", saved.getId(),
                     "customerId", customerId, "virtual", virtual));
@@ -76,7 +76,7 @@ public class CardService {
 
     @Transactional
     public Card issueCard(UUID productId, UUID customerId, UUID linkedEntityId,
-                          boolean virtual, String pan, String expiry, String cvv,
+                          boolean virtual, String pan, String expiry,
                           String currencyCode) {
         CardProduct product = cardProductRepository.findById(productId)
                 .orElseThrow(() -> CbaException.notFound("CARD_PRODUCT_NOT_FOUND",
@@ -88,12 +88,11 @@ public class CardService {
         }
 
         Card card = new Card();
-        card.setPanEncrypted(pan);  // Jasypt @EnableEncryptableProperties encrypts at persistence
+        card.setPanEncrypted(cardSecrets.encrypt(pan));
         card.setPanHash(panHash);
         card.setPanPrefix(pan.substring(0, Math.min(8, pan.length())));
         card.setPanSuffix(pan.substring(Math.max(0, pan.length() - 4)));
         card.setExpiryDate(expiry);
-        card.setCvvEncrypted(cvv);
         card.setCardType(product.getCardType());
         card.setStatus(virtual ? CardStatus.ACTIVE : CardStatus.ISSUED);
         card.setVirtualFlag(virtual);

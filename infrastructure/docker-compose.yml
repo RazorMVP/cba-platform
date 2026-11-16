@@ -228,6 +228,8 @@ services:
       FEP_TCP_HOST: fep-service
       FEP_TCP_PORT: "8583"
       JASYPT_ENCRYPTOR_PASSWORD: ${ENCRYPTION_KEY:-dev_encryption_key_at_least_32_chars}
+      # The default key above is public: card-service refuses it unless dev keys are allowed (local only).
+      CARD_ALLOW_DEV_ENCRYPTION_KEY: ${CARD_ALLOW_DEV_ENCRYPTION_KEY:-true}
       CARD_BUREAU_NAME: CBA_BUREAU
       # Mirrors the backend's docker profile (app.auth-bypass: true). Without it the
       # web portal's Cards screens 401 — it sends no Authorization header in bypass mode.

@@ -55,8 +55,8 @@ class SettlementFileExportServiceIntegrationTest extends AbstractCardIntegration
                 """);
         jdbc.update("""
                 INSERT INTO cards (id, pan_encrypted, pan_hash, pan_prefix, pan_suffix, expiry_date,
-                                   cvv_encrypted, card_type, status, customer_id, product_id)
-                VALUES (?, 'enc', ?, '62123456', '1111', '2612', 'enc', 'DEBIT', 'ACTIVE', ?, ?)
+                                   card_type, status, customer_id, product_id)
+                VALUES (?, 'ENC1:fixture-never-decrypted', ?, '62123456', '1111', '2612', 'DEBIT', 'ACTIVE', ?, ?)
                 """, cardId, "hash-" + cardId, UUID.randomUUID(), productId);
 
         // ── Seed: an approved authorization + its interchange_log ──
@@ -158,8 +158,8 @@ class SettlementFileExportServiceIntegrationTest extends AbstractCardIntegration
         // No bin_ranges row covering prefix 70123456
         jdbc.update("""
                 INSERT INTO cards (id, pan_encrypted, pan_hash, pan_prefix, pan_suffix, expiry_date,
-                                   cvv_encrypted, card_type, status, customer_id, product_id)
-                VALUES (?, 'enc', ?, '70123456', '2222', '2612', 'enc', 'DEBIT', 'ACTIVE', ?, ?)
+                                   card_type, status, customer_id, product_id)
+                VALUES (?, 'ENC1:fixture-never-decrypted', ?, '70123456', '2222', '2612', 'DEBIT', 'ACTIVE', ?, ?)
                 """, cardId, "hash-" + cardId, UUID.randomUUID(), productId);
         jdbc.update("""
                 INSERT INTO authorization_log (id, card_id, stan, mti, amount, currency_code, response_code)

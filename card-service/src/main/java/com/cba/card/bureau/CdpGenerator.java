@@ -97,7 +97,8 @@ public class CdpGenerator {
         String maskedTrack2 = buildMaskedTrack2(card.getPanPrefix(), card.getPanSuffix(),
                 card.getExpiryDate(), serviceCode);
 
-        // Pass the encrypted PAN directly — bureau HSM decrypts using shared ZMK
+        // The stored value: card-service's ENC1 ciphertext (backlog 2 PR B). A bureau can't decrypt it — wrapping
+        // the PAN under a shared ZMK or the bureau's key is backlog 7, needed before any BureauFileTransport.
         String panEncryptedForBureau = card.getPanEncrypted();
 
         CdpRecord record = new CdpRecord(
@@ -119,7 +120,7 @@ public class CdpGenerator {
                 ""   // hash placeholder — computed below
         );
 
-        String hash = hashCdp(record);
+        String hash = hashCdp(record, card.getPanHash());
         record = new CdpRecord(
                 record.cardId(), record.schemeAid(), record.schemeLabel(),
                 record.panEncryptedForBureau(), record.expiryYYMM(), record.sequenceNo(),
@@ -200,13 +201,14 @@ public class CdpGenerator {
      *
      * <p>The hash is stored in {@code bureau_job_items.personalization_data_hash}.
      * The bureau verifies this against the received CDP file to detect any
-     * transmission corruption. The encrypted PAN is included in the hash
-     * (it is not PII in plaintext form).
+     * transmission corruption. The PAN enters the hash as its HMAC ({@code cards.pan_hash}), not as the
+     * ciphertext: ENC1 ciphertext has a random IV, so it differs on every generation and the stored hash
+     * would never match a regenerated record (backlog 2 PR B).
      */
-    private String hashCdp(CdpRecord r) {
+    private String hashCdp(CdpRecord r, String panHash) {
         try {
             String data = r.cardId() + "|" + r.schemeAid() + "|" +
-                          r.panEncryptedForBureau() + "|" +
+                          panHash + "|" +
                           r.expiryYYMM() + "|" + r.sequenceNo() + "|" +
                           r.aip() + "|" + r.iacDefault() + "|" +
                           r.issuerKeyIndex() + "|" + r.cvkIndex();

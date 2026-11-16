@@ -13,6 +13,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -25,17 +26,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 class CardPanExposureIntegrationTest extends AbstractCardIntegrationTest {
 
     static final UUID DEMO_CARD = UUID.fromString("22222222-0001-0001-0001-000000000001");
+    static final UUID DEBIT_PRODUCT = UUID.fromString("11111111-0001-0001-0001-000000000002");
 
     @Autowired TestRestTemplate rest;
     @Autowired JdbcTemplate jdbc;
+    @Autowired CardSecrets cardSecrets;
+    @Autowired CardService cardService;
 
     @Test
     @DisplayName("card reads on /api/v1 and /card-api/v1: masked fields only")
     void cardReadsAreMasked() {
         Map<String, Object> row = jdbc.queryForMap(
-                "SELECT customer_id, pan_encrypted, cvv_encrypted, pan_suffix FROM cards WHERE id = ?", DEMO_CARD);
+                "SELECT customer_id, pan_encrypted, pan_suffix FROM cards WHERE id = ?", DEMO_CARD);
         String storedPan = (String) row.get("pan_encrypted");
-        String storedCvv = (String) row.get("cvv_encrypted");
         UUID customer = (UUID) row.get("customer_id");
 
         for (String path : new String[] {
@@ -46,10 +49,24 @@ class CardPanExposureIntegrationTest extends AbstractCardIntegrationTest {
             ResponseEntity<String> resp = get(path);
             assertThat(resp.getStatusCode().value()).as(path + " " + resp.getBody()).isEqualTo(200);
             String body = resp.getBody();
-            assertThat(body).as(path).doesNotContain("panEncrypted", "cvvEncrypted", storedPan, storedCvv);
+            assertThat(body).as(path).doesNotContain("panEncrypted", "cvvEncrypted", storedPan, "4111111111111111");
             assertThat(body).as(path + " still shows the masking fields")
                     .contains("\"panSuffix\":\"" + row.get("pan_suffix") + "\"", "\"panPrefix\"");
         }
+    }
+
+    @Test
+    @DisplayName("stored card numbers are ENC1 ciphertext: the migrated demo card and a newly issued one (PR B)")
+    void storedEncrypted() {
+        String demo = jdbc.queryForObject("SELECT pan_encrypted FROM cards WHERE id = ?", String.class, DEMO_CARD);
+        assertThat(demo).startsWith("ENC1:").doesNotContain("4111111111111111");
+        assertThat(cardSecrets.decrypt(demo)).isEqualTo("4111111111111111");
+
+        String pan = "42" + String.format("%014d", ThreadLocalRandom.current().nextLong(100_000_000_000_000L));
+        Card issued = cardService.issueCard(DEBIT_PRODUCT, UUID.randomUUID(), null, true, pan, "2912", "USD");
+        String stored = jdbc.queryForObject("SELECT pan_encrypted FROM cards WHERE id = ?", String.class, issued.getId());
+        assertThat(stored).startsWith("ENC1:").doesNotContain(pan);
+        assertThat(cardSecrets.decrypt(stored)).isEqualTo(pan);
     }
 
     @Test

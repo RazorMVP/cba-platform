@@ -3,6 +3,7 @@ package com.cba.card.card;
 import com.cba.card.auth.AuthorizationLog;
 import com.cba.card.auth.CardAuthorizationService;
 import com.cba.card.common.ApiResponse;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
@@ -29,7 +30,7 @@ public class CardController {
         Card card = cardService.issueCard(
                 req.productId(), req.customerId(), req.linkedEntityId(),
                 req.virtual() != null && req.virtual(),
-                req.pan(), req.expiryDate(), req.cvv(),
+                req.pan(), req.expiryDate(),
                 req.currencyCode());
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(card));
     }
@@ -96,6 +97,9 @@ public class CardController {
 
     // ── Inner DTOs ────────────────────────────────────────────────────────────
 
+    // Own schema name: springdoc names schemas by simple class name, and CardApiController also has an
+    // IssueCardRequest — without this the OpenAPI contract showed only that one for both endpoints.
+    @Schema(name = "StaffIssueCardRequest")
     public record IssueCardRequest(
             @NotNull UUID productId,
             @NotNull UUID customerId,
@@ -103,7 +107,7 @@ public class CardController {
             Boolean virtual,
             @NotNull String pan,
             @NotNull String expiryDate,
-            @NotNull String cvv,
+            // No cvv: card-service doesn't store it (backlog 2 PR B, D1a); a cvv sent by an older client is ignored.
             /** ISO 4217 numeric currency code for card limits (e.g. "840"=USD, "404"=KES, "288"=GHS). Required. */
             @NotNull String currencyCode) {}
 }

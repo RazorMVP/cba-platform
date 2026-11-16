@@ -128,6 +128,18 @@ Legend for **State**:
 
 - **PostgreSQL:** `DB_HOST/PORT/NAME/USERNAME/PASSWORD` (two DBs: main + card).
 - **Field encryption:** `ENCRYPTION_KEY` (AES-256; PII converter). Must be stable across restarts or existing ciphertext is unreadable.
+- **card-service card numbers at rest** (backlog 2 PR B, cont. 68): `cards.pan_encrypted` and `token_vault.dpan_encrypted`
+  are `ENC1:` ciphertext under card-service's key (`JASYPT_ENCRYPTOR_PASSWORD`, k8s secret `platform-secrets`; or
+  `ENCRYPTION_KEY`). card-service **refuses to start** with a blank key, one under 32 characters, or a known public value
+  (`dev-encryption-key-change-in-prod`, `dev_encryption_key_at_least_32_chars`, `<CHANGE_ME_MIN_32_CHARS>`, the test key) —
+  `CARD_ALLOW_DEV_ENCRYPTION_KEY=true` accepts them for local runs only; **never set it in Kubernetes**. The key can't be
+  changed later without re-encrypting every row (no rotation tooling yet), and losing it makes every card number unreadable:
+  keep it in the secret manager with a backup. The CVV is no longer stored (V23).
+  - **The first deploy of PR B** runs `V24__EncryptCardSecrets`, which rewrites every clear card number in one transaction
+    (logs counts only). Afterwards: (1) `VACUUM FULL cards, token_vault;` in a quiet window — PostgreSQL keeps the old row
+    versions, with the clear values, until vacuumed (it locks both tables while it runs); (2) expire or re-encrypt backups,
+    dumps and WAL archives taken before the deploy — they still hold clear card numbers and CVVs (PCI DSS 4.0 §3.2.1, §3.5.1).
+    Neither step can be done from the code.
 - **backend ↔ card-service:** `CARD_SERVICE_BASE_URL` (compose/k8s; `CARD_SERVICE_HOST/PORT` still honoured) (REST).
 - **backend → card-service service token** (cont. 33): card-service accepts only Keycloak JWTs, so the backend uses the
   `client_credentials` grant of Keycloak client **`cba-backend-service`** (realm role **`CARD_READER`** only: list/get card,

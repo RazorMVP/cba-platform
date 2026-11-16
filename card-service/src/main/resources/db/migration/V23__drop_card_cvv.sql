@@ -1,0 +1,11 @@
+-- Backlog 2 PR B (decision D1a): card-service no longer stores the CVV.
+--
+-- The value was a random 3-digit number made at issue, stored in clear (the column was never encrypted),
+-- never returned and never read. A real CVV/CVV2 is derived from the card's keys and checked by the HSM
+-- (fep-service verifyCvv, payShield CW), so the stored value could never even match.
+-- PCI DSS 4.0 §3.2.1 (keep no more cardholder data than needed) and §3.3.3 (an issuer keeps sensitive
+-- authentication data only for a legitimate issuing need).
+--
+-- Copies of the column in backups and dumps taken before this migration still hold the values: expire them
+-- (docs/integration-runbook.md, card-service encryption at rest).
+ALTER TABLE cards DROP COLUMN cvv_encrypted;

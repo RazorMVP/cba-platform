@@ -57,6 +57,37 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 67) — 2026-11-16
+**Backlog 2 PR A — card numbers and CVVs no longer leave card-service in API responses.** Scoping backlog 2 (full PAN in settlement files) found that card-service never encrypted the PAN, CVV or DPAN — `cards.pan_encrypted`, `cards.cvv_encrypted`, `token_vault.dpan_encrypted` are plain `String` columns (no JPA `AttributeConverter` anywhere in card-service; `@EnableEncryptableProperties` only decrypts `ENC(...)` config values) — and that `Card` was serialised as-is, so `GET /api/v1/cards…` and `/card-api/v1/cards…` (API-key partners included) returned the full PAN and CVV. The user's plan: "A now / B, then C"; backlog 14 stays on the backlog.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/…/card/Card.java` | `@JsonIgnore` on `panEncrypted` and `cvvEncrypted`; comments say they are not yet encrypted at rest (PR B) |
+| `card-service/…/token/TokenVault.java` | `@JsonIgnore` on `dpanEncrypted` (not returned today; defence) |
+| `card-service/…/token/TokenController.java` | **removed** ADMIN `GET /api/v1/tokens/detokenize?dpan=` — returned a full PAN, put the DPAN in the URL (access logs), no caller; fep-service uses `POST /api/v1/internal/detokenize` |
+| `card-service/…/common/GlobalExceptionHandler.java` | `NoResourceFoundException` → 404 `NOT_FOUND`, `HttpRequestMethodNotSupportedException` → 405 `METHOD_NOT_ALLOWED` (both were 500 via the catch-all) |
+| `card-service/…/card/CardPanExposureIntegrationTest.java` | NEW (2): the four card reads (`/api/v1/cards/{id}`, `?customerId=`, `/card-api/v1/cards/{id}`, `?customerId=`) carry neither field name nor the stored values, and still carry `panPrefix`/`panSuffix`; the old de-tokenize path is 405 (it now matches only `DELETE /api/v1/tokens/{tokenRef}`), an unknown path 404 |
+| `card-service/docs/openapi-snapshot.yaml` | regenerated: `Card.panEncrypted`/`cvvEncrypted`, the GET de-tokenize path and `ApiResponseString` gone |
+| `docs/api-reference.html`, `docs/card-api-reference.html`, Postman (+ `docs-site/static` copies) | de-tokenize documented as `POST /api/v1/internal/detokenize` (FEP_SERVICE) — the docs had listed a `POST /api/v1/tokens/detokenize` that never existed; card responses carry `panPrefix`/`panSuffix` only; the "PAN is stored encrypted" callout corrected |
+| `docs/deferred-backlog.md` | item 2: the finding, PR A ✅, PR B / PR C plan; item 7: `panEncryptedForBureau` is the clear PAN, not ciphertext |
+| `CLAUDE.md` | card-service Last git commit + test count; PCI-DSS checklist warning and the "never serialise a PAN/CVV/DPAN field" rule; FEP de-tokenize path |
+
+#### Key Patterns / Decisions
+- **A, then B, then C** (user). A closes the live exposure (anyone with a staff token or a partner API key could read every card's PAN and CVV); B encrypts the stored rows (backups and dumps taken before B still hold clear values); C puts the full PAN in acquirer files only, behind `card.settlement.export.role=ACQUIRER` — under the default `ISSUER` nothing is exported (item 21), so scope grows only when acquiring is switched on.
+- **PCI DSS 4.0:** §3.4.1 PAN masked when displayed (BIN + last four at most — `panPrefix` is the 8-digit BIN, `panSuffix` the last four); §3.3.3 an issuer may keep sensitive authentication data only for a legitimate issuing need, protected; §3.5.1 a stored PAN must be unreadable (PR B).
+- `@JsonIgnore` on the entity rather than a response DTO: `Card` is returned by about a dozen endpoints across two controllers; ignoring the fields at the type covers all of them and any new endpoint. Safe because nothing deserialises a `Card` from JSON or caches it as JSON (checked: no `@RequestBody Card`, the only `@Cacheable` is the BIN lookup).
+- **Backlog 14 (credit cards)** stays on the backlog (user).
+
+#### Build Verification
+- card-service `clean verify -Pfull-integration -Dupdate.api.snapshot=true`: 373/374 — `noPublicDetokenize` expected 404, got 405 (correct: the path matches `DELETE /{tokenRef}`); test fixed. Rerun without the flag: **374/374**, snapshot stable.
+- Gate grep: one endpoint line — the removed `@GetMapping("/detokenize")` (+ its `@RequestParam`); documented in api-reference, card-api-reference and Postman.
+
+#### Confirmed Platform Versions
+card-service: Spring Boot 3.5.16, Java 21; `-Pfull-integration` 374. backend, web, fep-service unchanged. No dependency changes.
+
+---
+
 ### Session 125 (cont. 66) — 2026-11-13
 **Backlog set 3, PR D — item 15c: prepaid wallet balance and daily load limits; load fees closed as won't-do (plan "backlog set 3", D4a + D5a). Wallets could be loaded without limit — above the CBN stored-value caps that bind prepaid cards until full KYC.**
 

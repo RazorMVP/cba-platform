@@ -1,5 +1,6 @@
 package com.cba.card.token;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -17,7 +18,8 @@ public class TokenVault {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    /** Jasypt AES-256 encrypted DPAN (Device PAN). */
+    /** DPAN (Device PAN). Never serialised; not yet encrypted at rest despite the column name — backlog 2, PR B. */
+    @JsonIgnore
     @Column(name = "dpan_encrypted", nullable = false)
     private String dpanEncrypted;
 

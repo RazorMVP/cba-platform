@@ -74,7 +74,7 @@ _None — all Phase 1 backend modules are now complete._
 - API surface unchanged — verified via gate grep; behaviour now matches what the docs already said (a load over the maximum is refused).
 
 #### Confirmed Platform Versions
-card-service: Spring Boot 3.5.16, Java 21. No dependency changes. (Test-count rows in CLAUDE.md are set when this and #255 are both merged.)
+card-service: Spring Boot 3.5.16, Java 21. No dependency changes. Counts with #255 (rebased on this): `-Pfull-integration` 390, unit 331.
 
 ---
 
@@ -101,7 +101,7 @@ card-service: Spring Boot 3.5.16, Java 21. No dependency changes. (Test-count ro
 - PCI DSS 4.0 §4.2.1 (strong cryptography in transmission) is met by the existing transport; §3.4.1 masking in logs kept. Turning ACQUIRER on is the scope decision item 2 always required.
 
 #### Build Verification
-- card-service `clean verify -Pfull-integration` **388/388** (unit 330, integration 58); OpenAPI snapshot unchanged (no API change).
+- card-service `clean verify -Pfull-integration` **388/388** (unit 330, integration 58); OpenAPI snapshot unchanged (no API change). After rebasing on cont. 70 (#256): **390/390** (unit 331, integration 59). CI had failed twice on `concurrentLoadsBalanceLimit` before the rebase — the wallet race #256 fixes.
 - API surface unchanged — verified via gate grep (no `@*Mapping`/param lines); the export's file content changed under ACQUIRER and is documented in card-api-reference, api-reference and Postman.
 
 #### Confirmed Platform Versions

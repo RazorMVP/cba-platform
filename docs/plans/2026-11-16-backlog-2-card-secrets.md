@@ -1,6 +1,6 @@
 # Backlog 2, PR B (encrypt card secrets at rest) and PR C (full PAN in acquirer files)
 
-> Status: approved 2026-11-16 (user: "A now / B, then C"; plan approved; decisions D1a, D2a). PR A (#253, `7496e7d`) merged before this plan. In progress: PR B. Backlog 14 stays on the backlog.
+> Status: approved 2026-11-16 (user: "A now / B, then C"; plan approved; decisions D1a, D2a). PR A (#253, `7496e7d`) merged before this plan. PR B #254 merged `38710ab` (2026-11-16). In progress: PR C. Backlog 14 stays on the backlog.
 
 ## Context
 

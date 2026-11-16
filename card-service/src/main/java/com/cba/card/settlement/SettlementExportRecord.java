@@ -29,7 +29,10 @@ public record SettlementExportRecord(
         // ── Card / Account ────────────────────────────────────────────────────
         /** Masked PAN for logging (e.g. "411111******1111"). Never the full PAN. */
         String maskedPan,
-        /** Full PAN — provided to the exporter for file serialization only. */
+        /**
+         * Full PAN, for the file body only — empty unless the role is ACQUIRER (backlog 2 PR C,
+         * {@code SettlementFileExportService.filePan}). Never logged: {@link #toString()} leaves it out.
+         */
         String pan,
         String cardType,          // DEBIT / CREDIT / PREPAID
         String scheme,            // VISA / MASTERCARD / VERVE / AFRIGO / UNIONPAY
@@ -61,6 +64,17 @@ public record SettlementExportRecord(
         LocalDate settlementDate
 
 ) {
+    /**
+     * Never prints the full PAN (a record's generated {@code toString} prints every field). Backlog 2 PR C: under
+     * the ACQUIRER role {@code pan} holds the clear card number for the file body.
+     */
+    @Override
+    public String toString() {
+        return "SettlementExportRecord[settlementItemId=" + settlementItemId + ", maskedPan=" + maskedPan
+                + ", scheme=" + scheme + ", stan=" + stan + ", grossAmount=" + grossAmount
+                + ", currencyCode=" + currencyCode + "]";
+    }
+
     /** PAN masked for safe logging: first 6 + ****** + last 4. */
     public static String maskPan(String pan) {
         if (pan == null || pan.length() < 10) return "****";

@@ -1,5 +1,6 @@
 package com.cba.card.settlement;
 
+import com.cba.card.card.CardSecrets;
 import com.cba.card.common.CbaException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -61,6 +62,7 @@ public class SettlementFileExportService {
     private final SettlementFileTransmitter          transmitter;
     private final SettlementExportProperties         props;
     private final JdbcTemplate                       jdbc;
+    private final CardSecrets                        cardSecrets;
 
     // ── Scheduled jobs ────────────────────────────────────────────────────────
 
@@ -282,6 +284,21 @@ public class SettlementFileExportService {
     // ── Record builder ────────────────────────────────────────────────────────
 
     /**
+     * The full PAN for a presentment file body (backlog 2 PR C): the schemes' clearing records carry it. Only an
+     * acquirer sends these files — {@link #exportBatch} and both schedulers refuse under the default ISSUER role
+     * (item 21) — and this checks again, so the clear PAN is never produced for an issuer. It lives only in the
+     * record handed to the exporter and the in-memory file; logs, {@code settlement_transmissions} and
+     * {@link SettlementExportRecord#toString()} carry the masked PAN. Switching to ACQUIRER is the moment PCI
+     * scope grows (cardholder data transmitted to schemes) — a compliance decision, docs/deferred-backlog.md item 2.
+     */
+    String filePan(String panEncrypted) {
+        if (!props.isAcquirer() || panEncrypted == null) {
+            return "";
+        }
+        return cardSecrets.decrypt(panEncrypted);
+    }
+
+    /**
      * Build normalized {@link SettlementExportRecord} list for a batch: its cleared (SETTLED) items, joined with
      * authorization_log and cards. Amounts are the item's own figures in DE4 minor units — gross, and since
      * backlog 15b the interchange, scheme fee and net (gl_net) the backend posted. (interchange_log isn't read:
@@ -320,7 +337,9 @@ public class SettlementFileExportService {
                         ORDER BY LENGTH(br.bin_start) DESC
                         LIMIT 1
                     ), 'UNKNOWN')          AS scheme,
-                    -- Masked PAN only (no full PAN decrypt in the SQL path): first 6 + mask + last 4
+                    -- Masked PAN for logs and audit (first 6 + mask + last 4); the full PAN is decrypted below,
+                    -- in Java, for the file body only (backlog 2 PR C)
+                    c.pan_encrypted,
                     CASE WHEN c.pan_prefix IS NOT NULL
                          THEN SUBSTRING(c.pan_prefix FROM 1 FOR 6) || '******' || c.pan_suffix
                          ELSE '****' END   AS masked_pan,
@@ -343,7 +362,7 @@ public class SettlementFileExportService {
                 rs.getString("authorization_log_id") != null
                         ? UUID.fromString(rs.getString("authorization_log_id")) : null,
                 rs.getString("masked_pan"),
-                "",                                             // pan — masked-only; full PAN decrypt deferred (backlog 2)
+                filePan(rs.getString("pan_encrypted")),
                 rs.getString("card_type"),
                 rs.getString("scheme"),
                 rs.getString("mti"),

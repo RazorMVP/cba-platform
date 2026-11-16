@@ -78,6 +78,36 @@ card-service: Spring Boot 3.5.16, Java 21. No dependency changes. (Test-count ro
 
 ---
 
+### Session 125 (cont. 69) — 2026-11-16
+**Backlog 2 PR C — the full PAN in acquirer settlement files; backlog 2 closed** (plan `docs/plans/2026-11-16-backlog-2-card-secrets.md`). The five scheme files carry the full card number, which the export left empty. Now that PANs are `ENC1:` ciphertext (PR B, #254), the export decrypts it — into the file body only, and only for an acquirer.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `card-service/…/settlement/SettlementFileExportService.java` | SQL selects `c.pan_encrypted`; `filePan` → `CardSecrets.decrypt` only under `card.settlement.export.role=ACQUIRER`, else `""`; `CardSecrets` injected |
+| `card-service/…/settlement/SettlementExportRecord.java` | `toString()` overridden: masked PAN only (a record's generated `toString` prints every field) |
+| `card-service/…/settlement/SettlementFileExportServiceTest.java` | +3: ACQUIRER-only decrypt; a clear stored value refused without echo; full export with a failed send — the exporter gets the PAN, the logs (`OutputCaptureExtension`), transmission error and `toString` don't |
+| `card-service/…/settlement/SettlementFileExportServiceIntegrationTest.java` | fixtures store real ciphertext; under ISSUER no PAN in record or CUPS file; under ACQUIRER the record and the CUPS file body carry it, `toString` doesn't |
+| `docs/card-api-reference.html`, `docs/api-reference.html`, Postman (+ `docs-site/static` copies) | "Card numbers in the files": ACQUIRER only, in-memory file body only, PCI scope note |
+| `docs/integration-runbook.md` §9 | switching to ACQUIRER needs the compliance sign-off first |
+| `docs/deferred-backlog.md` | item 2 ✅ DONE (cont. 67–69); what remains is the compliance decision, not code |
+| `CLAUDE.md` | card-service Last git commit + counts; settlement export note (no longer masked-only) |
+| `docs/plans/…-backlog-2-card-secrets.md`, `README.md` | status: B merged, C open |
+
+#### Key Patterns / Decisions
+- **Two role checks**: `exportBatch` / the schedulers refuse under ISSUER, and `filePan` checks again — a future caller of `buildExportRecords` still can't decrypt for an issuer.
+- **The clear PAN exists only in the record handed to the exporter and the in-memory file** (no file bytes stored; pinned SFTP / HTTPS + optional mTLS unchanged).
+- PCI DSS 4.0 §4.2.1 (strong cryptography in transmission) is met by the existing transport; §3.4.1 masking in logs kept. Turning ACQUIRER on is the scope decision item 2 always required.
+
+#### Build Verification
+- card-service `clean verify -Pfull-integration` **387/387** (unit 329, integration 58); OpenAPI snapshot unchanged (no API change).
+- API surface unchanged — verified via gate grep (no `@*Mapping`/param lines); the export's file content changed under ACQUIRER and is documented in card-api-reference, api-reference and Postman.
+
+#### Confirmed Platform Versions
+card-service: Spring Boot 3.5.16, Java 21; `-Pfull-integration` 387. backend, web, fep-service unchanged. No dependency changes.
+
+---
+
 ### Session 125 (cont. 68) — 2026-11-16
 **Backlog 2 PR B — card numbers encrypted at rest, CVV no longer stored, startup key check** (plan `docs/plans/2026-11-16-backlog-2-card-secrets.md`, approved; decisions D1a + D2a). Until now `cards.pan_encrypted` and `token_vault.dpan_encrypted` held clear digits (card-service had no converter; found in cont. 67), `cards.cvv_encrypted` held a random 3-digit number nothing read, and card-service started with any key, including the public dev default.
 

@@ -1,6 +1,6 @@
 # Backlog 9 — drop SonarCloud, enforce the 70% backend coverage rule with JaCoCo
 
-> Status: approved 2026-11-17 (user: "Let's Fix #9 first and use option 2"). PR pending.
+> Status: approved 2026-11-17 (user: "Let's Fix #9 first and use option 2"). Merged #260 `2342f4b` (2026-11-17); CI ran the check for the first time — 1126/1126, "All coverage checks have been met".
 
 ## Context
 

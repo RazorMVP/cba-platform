@@ -75,6 +75,7 @@ _None — all Phase 1 backend modules are now complete._
 - **One image for every environment:** the URL is decided by whoever serves the portal, not baked in at build time (Vite inlines `VITE_*`). Same origin also removes CORS.
 - **envsubst filter:** the nginx image only substitutes defined variables, but the filter makes it explicit that `$uri`/`$host` are nginx's.
 - nginx resolves `API_UPSTREAM` when it starts: the backend's DNS name must exist then (compose `depends_on: backend healthy` already guarantees it).
+- **Forwarding headers are set, never appended (commit security review):** the first version used `$proxy_add_x_forwarded_for` and `Host $http_host`. The backend trusts `X-Forwarded-*` from private-network proxies and limits anonymous callers per IP, and Tomcat walks the list leftwards past private addresses — so a caller on a private network could write its own rate-limit IP. Now `X-Forwarded-For $remote_addr`, `Host $host`, and `X-Forwarded-Host/Port/Prefix` and `Forwarded` cleared. Checked: a request carrying `X-Forwarded-For: 10.9.9.9`, `X-Forwarded-Host` and `Forwarded` reached the upstream with only the real client address and neither of the other two.
 - **Still open (item 8):** the live Vercel portal's calls are 404 until a public host exists; then one `vercel.json` rewrite. The Sandbox page still shows `sandbox.nubbank.com` in examples (planned host).
 
 #### Build Verification

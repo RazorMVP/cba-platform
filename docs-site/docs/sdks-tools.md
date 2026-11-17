@@ -9,6 +9,11 @@ description: Postman collection download, OpenAPI spec download, and development
 
 Resources to accelerate your NubBank integration.
 
+:::note Sandbox host
+`sandbox.nubbank.com` is the planned public sandbox host and is **not live yet**. Until it is, run the platform
+locally (`docker compose --profile app`) and use `http://localhost:8080` as `base_url`.
+:::
+
 ---
 
 ## Postman Collection

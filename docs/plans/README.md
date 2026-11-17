@@ -30,5 +30,6 @@ Every change that goes through plan mode has its approved plan kept here, one fi
 | 2026-11-09 | [Backlog set 2 — 1, 15c, 4 (TLV), 15d (tolerance)](2026-11-09-backlog-set-2.md) | A #237 · B #239 · C #238 · D #236 | `1e5f4d6` · `9c84761` · `9bc9e31` · `5a6630e` |
 | 2026-11-13 | [Backlog set 3 — 15d (partial refunds, fees, reconciliation) + 15c (wallet limits)](2026-11-13-backlog-set-3.md) | A #243 · B #242 · C #244 · D #241 | `4d3537c` · `7d805c6` · `d3ebba8` · `2ad02ac` |
 | 2026-11-16 | [Backlog 2 — card numbers encrypted at rest (B) and in acquirer files (C)](2026-11-16-backlog-2-card-secrets.md) | B #254 · C #255 | `38710ab` · `3001968` |
+| 2026-11-17 | [Backlog 19 — partner portal reaches its API through a same-origin `/api` path](2026-11-17-backlog-19-portal-api-path.md) | (open) | — |
 
 **Not here:** work done without an approved plan, including the overdue fix (#150, `f3f22fe`) and everything before 2026-10-13. Plans from those sessions weren't kept. `cba-log.md` is the record for them.

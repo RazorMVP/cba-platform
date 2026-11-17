@@ -1,7 +1,9 @@
 import axios from 'axios'
 import { router } from '../router'
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'https://sandbox.nubbank.com/api/v1'
+// Same-origin by default: whoever serves the portal forwards /api/ to the backend (nginx in the
+// Docker image, the Vite dev server, a Vercel rewrite). VITE_API_URL overrides it at build time.
+const BASE_URL = import.meta.env.VITE_API_URL || '/api/v1'
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,

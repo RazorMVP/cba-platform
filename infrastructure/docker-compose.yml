@@ -305,6 +305,9 @@ services:
     container_name: cba-partner-portal
     profiles: [app]
     restart: unless-stopped
+    environment:
+      # nginx forwards the portal's /api/ calls here (backlog 19); same as the image default
+      API_UPSTREAM: http://backend:8080
     ports:
       - "3000:80"
     depends_on:

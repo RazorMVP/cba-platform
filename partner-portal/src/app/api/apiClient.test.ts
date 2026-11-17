@@ -14,8 +14,23 @@ describe('apiClient', () => {
     vi.clearAllMocks()
   })
 
-  it('falls back to the sandbox base URL when VITE_API_URL is unset', () => {
-    expect(apiClient.defaults.baseURL).toBe('https://sandbox.nubbank.com/api/v1')
+  it('uses the same-origin /api/v1 when VITE_API_URL is unset (backlog 19: the old fallback host had no DNS)', () => {
+    expect(apiClient.defaults.baseURL).toBe('/api/v1')
+  })
+
+  it('VITE_API_URL overrides the base URL; an empty value falls back to /api/v1', async () => {
+    try {
+      vi.stubEnv('VITE_API_URL', 'https://api.example.test/api/v1')
+      vi.resetModules()
+      expect((await import('./apiClient')).apiClient.defaults.baseURL).toBe('https://api.example.test/api/v1')
+
+      vi.stubEnv('VITE_API_URL', '')
+      vi.resetModules()
+      expect((await import('./apiClient')).apiClient.defaults.baseURL).toBe('/api/v1')
+    } finally {
+      vi.unstubAllEnvs()
+      vi.resetModules()
+    }
   })
 
   it('request interceptor attaches the Bearer token when present', async () => {

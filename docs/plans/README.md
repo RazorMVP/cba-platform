@@ -31,6 +31,6 @@ Every change that goes through plan mode has its approved plan kept here, one fi
 | 2026-11-13 | [Backlog set 3 — 15d (partial refunds, fees, reconciliation) + 15c (wallet limits)](2026-11-13-backlog-set-3.md) | A #243 · B #242 · C #244 · D #241 | `4d3537c` · `7d805c6` · `d3ebba8` · `2ad02ac` |
 | 2026-11-16 | [Backlog 2 — card numbers encrypted at rest (B) and in acquirer files (C)](2026-11-16-backlog-2-card-secrets.md) | B #254 · C #255 | `38710ab` · `3001968` |
 | 2026-11-17 | [Backlog 19 — partner portal reaches its API through a same-origin `/api` path](2026-11-17-backlog-19-portal-api-path.md) | #258 | `7e1d234` |
-| 2026-11-17 | [Backlog 9 — drop SonarCloud, enforce the 70% backend coverage rule with JaCoCo](2026-11-17-backlog-9-coverage-gate.md) | pending | — |
+| 2026-11-17 | [Backlog 9 — drop SonarCloud, enforce the 70% backend coverage rule with JaCoCo](2026-11-17-backlog-9-coverage-gate.md) | #260 | `2342f4b` |
 
 **Not here:** work done without an approved plan, including the overdue fix (#150, `f3f22fe`) and everything before 2026-10-13. Plans from those sessions weren't kept. `cba-log.md` is the record for them.

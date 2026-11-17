@@ -295,7 +295,6 @@ returns a token whose `realm_access.roles` is exactly `["FEP_SERVICE"]` (`["CARD
 | Purpose | Secret(s) |
 |---------|-----------|
 | Vercel deploys (web / partner-portal / docs) | `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID_*` |
-| SonarCloud | `SONAR_TOKEN`, `SONAR_ORG` |
 | Snyk | `SNYK_TOKEN` |
 | OWASP NVD | `NVD_API_KEY` |
 | Kubernetes deploy | `KUBE_CONFIG_STAGING`, `KUBE_CONFIG_PROD` |

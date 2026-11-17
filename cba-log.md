@@ -57,6 +57,34 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 72) — 2026-11-17
+**Backlog 9 — SonarCloud dropped; the 70% backend coverage rule is enforced for the first time, by JaCoCo.** User: "Let's Fix #9 first and use option 2" — plan `docs/plans/2026-11-17-backlog-9-coverage-gate.md`. The `sonar` job failed on every backend run (never configured) and blocked nothing; the 70% rule CLAUDE.md promised had never run anywhere.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `.github/workflows/backend-ci.yml` | `sonar` job removed (not in the gate's `needs`); full-integration step no longer passes `-Djacoco.skip=true`, so JaCoCo `check` (≥ 70% lines) runs over unit + integration coverage and fails `Test (Java 21 + Testcontainers)` → `Backend CI gate`; NEW artifact `backend-coverage-report` (`target/site/jacoco/`) |
+| `backend/pom.xml` | `jacoco.version` 0.8.12 → **0.8.15** (instruments Java 25); comment on where the rule runs |
+| `sonar-project.properties` | deleted (only the SonarCloud scanner read it) |
+| `.env.example`, `docs/integration-runbook.md` | `SONAR_TOKEN` / `SONAR_ORG` entries removed |
+| `docs/deferred-backlog.md` item 9, `CLAUDE.md` (pipeline + coverage + test-layer tables, secrets/variables, setup checklist, Java 25 JaCoCo note, versions row), `docs/plans/` | docs |
+
+#### Key Patterns / Decisions
+- **Why the rule never ran:** JaCoCo `check` is bound to `verify`. CI ran `mvn test` (stops before `verify`) and then `mvn verify -Pfull-integration -Djacoco.skip=true` — added in `b7ccb71` (2026-04-23) on the belief that "unit tests already validated 70% coverage", which they never did. The sonar job also passed `-Djacoco.check.skip=true`.
+- **Enforced on the full suite**, not unit tests alone: the integration run already covers controllers and repositories, and it is the one step that reaches `verify`.
+- **Measured before switching on:** 82.4% under the rule's excludes (6997/8487 lines), 74.3% overall — the gate starts green with headroom.
+- Not replaced: Sonar's smells/duplication. Security analysis stays with CodeQL, SpotBugs, OWASP, Dependabot, Trivy, Gitleaks. The excludes list is unchanged.
+
+#### Build Verification
+- Backend `clean verify -Pfull-integration` with JaCoCo 0.8.15 on Java 25: **1126/1126**, `jacoco:0.8.15:check` — "All coverage checks have been met", BUILD SUCCESS.
+- `./mvnw -o jacoco:check@check` from the edited pom: 0.8.15 resolves, passes.
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
+#### Confirmed Platform Versions
+Backend: Spring Boot 3.5.16, Java 21; JaCoCo plugin 0.8.15 (was 0.8.12). No runtime dependency changes.
+
+---
+
 ### Session 125 (cont. 71) — 2026-11-17
 **Backlog 19, the part that needs no public backend: the partner portal reaches its API on its own origin.** User: "Can #19 be done now?" — plan `docs/plans/2026-11-17-backlog-19-portal-api-path.md` (D1a: keep `VITE_API_URL` as an optional override). The portal called `sandbox.nubbank.com`, a host with no DNS record, from Vercel and from the Docker image alike.
 

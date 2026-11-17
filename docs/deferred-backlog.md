@@ -390,7 +390,17 @@ repo Settings → Secrets / Variables / Environments.
 
 ---
 
-## 9. SonarCloud — token and organisation not provisioned
+## 9. ✅ DONE (cont. 72) — SonarCloud dropped; the 70% backend coverage rule enforced by JaCoCo instead
+
+> **Resolved 2026-11-17 (Session 125 cont. 72), owner's choice "option 2":** SonarCloud was never set
+> up, so it was removed (`sonar` job, `sonar-project.properties`, the `SONAR_*` entries) instead of
+> provisioned. The 70% rule already existed as a JaCoCo `check` in `backend/pom.xml` but had **never
+> run**: it sits in `verify`, `mvn test` stops before it, and CI's integration run passed
+> `-Djacoco.skip=true` (`b7ccb71`). CI now runs it on the full-integration build (unit + integration
+> tests) and blocks under the backend gate; the HTML report is the `backend-coverage-report` artifact.
+> JaCoCo 0.8.12 → 0.8.15, which instruments Java 25, so the rule runs locally too. Measured at switch-on:
+> 82.4% under the rule's excludes (74.3% with none). Not replaced: Sonar's smells/duplication.
+> Plan: `docs/plans/2026-11-17-backlog-9-coverage-gate.md`. The text below is the original record.
 
 **Effort: S · Risk: none to the product; the job is already non-blocking**
 

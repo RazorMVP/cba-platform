@@ -47,7 +47,8 @@
         <jasypt.version>3.0.5</jasypt.version>
         <springdoc.version>2.8.6</springdoc.version>
         <testcontainers.version>1.21.4</testcontainers.version>
-        <jacoco.version>0.8.12</jacoco.version>
+        <!-- 0.8.14+ instruments Java 25 class files (0.8.12 failed locally on Java 25). -->
+        <jacoco.version>0.8.15</jacoco.version>
         <spotbugs.version>4.8.6.6</spotbugs.version>
         <keycloak.version>26.0.5</keycloak.version>
     </properties>
@@ -310,7 +311,9 @@
                 </configuration>
             </plugin>
 
-            <!-- JaCoCo Coverage — 70% line minimum -->
+            <!-- JaCoCo Coverage — 70% line minimum (backlog 9). `check` runs in `verify`: CI enforces it in
+                 the full-integration run (unit + integration tests), which is where it blocks. `mvn test`
+                 alone never reaches it. Measured 2026-11-17: 82.4% under these excludes, 74.3% overall. -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>

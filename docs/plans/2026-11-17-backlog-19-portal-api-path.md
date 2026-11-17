@@ -1,6 +1,6 @@
 # Backlog 19 — partner portal reaches its API through a same-origin `/api` path
 
-> Status: approved 2026-11-17 (user: "Can #19 be done now?"; plan approved; D1 not answered → recommended D1a taken). In progress: PR open. The Vercel rewrite waits on backlog 8.
+> Status: approved 2026-11-17 (user: "Can #19 be done now?"; plan approved; D1 not answered → recommended D1a taken). Merged #258 `7e1d234` (2026-11-17), with the forwarding-header fix from its commit security review. The Vercel rewrite waits on backlog 8.
 
 ## Context
 

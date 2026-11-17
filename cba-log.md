@@ -57,6 +57,38 @@ _None — all Phase 1 backend modules are now complete._
 
 ## Change History
 
+### Session 125 (cont. 71) — 2026-11-17
+**Backlog 19, the part that needs no public backend: the partner portal reaches its API on its own origin.** User: "Can #19 be done now?" — plan `docs/plans/2026-11-17-backlog-19-portal-api-path.md` (D1a: keep `VITE_API_URL` as an optional override). The portal called `sandbox.nubbank.com`, a host with no DNS record, from Vercel and from the Docker image alike.
+
+#### New/Updated Files
+| File | Change |
+|------|--------|
+| `partner-portal/src/app/api/apiClient.ts` | base URL `VITE_API_URL \|\| '/api/v1'` (was `?? 'https://sandbox.nubbank.com/api/v1'`); an empty value falls back too |
+| `partner-portal/src/app/api/apiClient.test.ts` | default is `/api/v1`; NEW override test (`vi.stubEnv` + `vi.resetModules`) |
+| `partner-portal/nginx.conf` → `nginx.conf.template` | NEW `location /api/ { proxy_pass ${API_UPSTREAM}; … }` (Host, X-Real-IP, X-Forwarded-For/Proto); CSP `connect-src 'self'` (dropped `localhost:8080`, `*.nubbank.com`) |
+| `partner-portal/Dockerfile` | template to `/etc/nginx/templates/`; `ENV API_UPSTREAM=http://backend:8080`, `NGINX_ENVSUBST_FILTER=^API_UPSTREAM$` |
+| `partner-portal/vite.config.ts` | dev server proxies `/api` → `localhost:8080` |
+| `infrastructure/docker-compose.yml` | `partner-portal` `API_UPSTREAM: http://backend:8080` |
+| `docs/deferred-backlog.md` item 19, `docs/integration-runbook.md` ("Partner portal → backend"), `docs-site/docs/sdks-tools.md` (sandbox host not live yet), `CLAUDE.md` partner-portal rows, `docs/plans/` | docs |
+
+#### Key Patterns / Decisions
+- **One image for every environment:** the URL is decided by whoever serves the portal, not baked in at build time (Vite inlines `VITE_*`). Same origin also removes CORS.
+- **envsubst filter:** the nginx image only substitutes defined variables, but the filter makes it explicit that `$uri`/`$host` are nginx's.
+- nginx resolves `API_UPSTREAM` when it starts: the backend's DNS name must exist then (compose `depends_on: backend healthy` already guarantees it).
+- **Forwarding headers are set, never appended (commit security review):** the first version used `$proxy_add_x_forwarded_for` and `Host $http_host`. The backend trusts `X-Forwarded-*` from private-network proxies and limits anonymous callers per IP, and Tomcat walks the list leftwards past private addresses — so a caller on a private network could write its own rate-limit IP. Now `X-Forwarded-For $remote_addr`, `Host $host`, and `X-Forwarded-Host/Port/Prefix` and `Forwarded` cleared. Checked: a request carrying `X-Forwarded-For: 10.9.9.9`, `X-Forwarded-Host` and `Forwarded` reached the upstream with only the real client address and neither of the other two.
+- **Still open (item 8):** the live Vercel portal's calls are 404 until a public host exists; then one `vercel.json` rewrite. The Sandbox page still shows `sandbox.nubbank.com` in examples (planned host).
+
+#### Build Verification
+- `partner-portal`: `npm test` **81/81** (15 files), `npm run build` OK; bundle `baseURL:'/api/v1'`, no API call to `sandbox.nubbank.com` (only the Sandbox page's example text).
+- Docker: image built; entrypoint envsubst ran, `nginx -T` successful with `proxy_pass http://backend:8080;` and `try_files $uri $uri/ /index.html;` intact.
+- Proxy end to end (stub upstream, `API_UPSTREAM=http://host.docker.internal:18080`): `POST /api/v1/partners/auth/login` arrived with path, `Authorization`, body and `X-Forwarded-For`; the upstream's 401 came back unchanged; `/dashboard` still serves the SPA.
+- API surface unchanged — verified via gate grep; no api-reference/postman edits owed.
+
+#### Confirmed Platform Versions
+Partner portal: React 19.2.5, Vite 8.3.4, Vitest 4.1.12, nginx 1.27-alpine. No dependency changes.
+
+---
+
 ### Session 125 (cont. 70) — 2026-11-16
 **Fix: prepaid wallet balance limit could be exceeded by two concurrent loads** (bug from cont. 66, #241; caught by CI on #255 — `WalletLimitsIntegrationTest.concurrentLoadsBalanceLimit` saw both loads of 60 pass a 100 limit). `checkLoadLimits` read the wallet balance and the pending loads in two statements; under READ COMMITTED each takes its own snapshot, and a load whose `finish` committed between them (credited and no longer PENDING, in one transaction) was counted in neither. The advisory lock serialises claims, not `finish`.
 

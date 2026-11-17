@@ -661,9 +661,21 @@ should authorize on DE6/DE51 when present.
 
 ---
 
-## 19. Partner portal has no reachable API: `VITE_API_URL` is unset and its fallback host doesn't exist
+## 19. Partner portal has no reachable API — same-origin `/api` path ✅ DONE (cont. 71); the live Vercel portal still waits on item 8
 
 **Effort**: S once a backend URL exists (blocked on item 8) · **Risk**: the live partner portal can't log anyone in
+
+> **cont. 71 (2026-11-17), user: "Can #19 be done now?"** — everything that needs no public backend is done (pick-up
+> steps 3–4 below, step 4 resolved without failing the build): the portal calls the relative `/api/v1`
+> (`VITE_API_URL || '/api/v1'`, the variable stays as an optional override); the Docker image's nginx forwards
+> `/api/` to `API_UPSTREAM` (default `http://backend:8080`, `nginx.conf.template` filled in by the image's envsubst);
+> `npm run dev` proxies `/api` to `localhost:8080`; CSP `connect-src 'self'`. The bundle no longer calls
+> `sandbox.nubbank.com` (the Sandbox page still shows it in curl examples and Swagger links — the planned public host).
+> **Left (needs item 8):** choose the public API host, add the Vercel rewrite
+> `{ "source": "/api/(.*)", "destination": "https://<host>/api/$1" }` before the SPA rule in `partner-portal/vercel.json`,
+> redeploy, log in on the live portal; fix the Sandbox page and `docs-site/docs/sdks-tools.md` if the host isn't
+> `sandbox.nubbank.com`. Runbook: `docs/integration-runbook.md` → "Partner portal → backend". The text below is the
+> original (cont. 42) analysis.
 
 `partner-portal/src/app/api/apiClient.ts` uses `import.meta.env.VITE_API_URL ?? 'https://sandbox.nubbank.com/api/v1'`.
 Vite inlines `VITE_*` **at build time**, and nothing sets it:

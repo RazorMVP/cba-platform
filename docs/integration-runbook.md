@@ -280,6 +280,16 @@ returns a token whose `realm_access.roles` is exactly `["FEP_SERVICE"]` (`["CARD
 
 ---
 
+## Partner portal → backend (backlog 19)
+
+- **How it reaches the API:** the portal calls the relative `/api/v1` on its own origin; whoever serves it forwards `/api/` to the backend. No CORS, CSP `connect-src 'self'`. `VITE_API_URL` (build time) still overrides it.
+- **Docker image / compose:** nginx forwards `/api/` to `API_UPSTREAM` (default `http://backend:8080`, the compose service; set it to the backend's Service URL in Kubernetes). nginx resolves the name at start, so the backend's DNS name must exist when the portal starts.
+- **`npm run dev`:** Vite forwards `/api` to `localhost:8080`.
+- **Vercel — not live yet (needs a public backend, backlog 8):** add to `partner-portal/vercel.json` `rewrites`, **before** the SPA rule: `{ "source": "/api/(.*)", "destination": "https://<public-api-host>/api/$1" }`, redeploy, then log in on the live portal. Until then every portal API call on Vercel is a 404.
+- The Sandbox page and `docs-site/docs/sdks-tools.md` show `sandbox.nubbank.com`, the planned public host; it has no DNS record yet. Update both if a different host is chosen.
+
+---
+
 ## CI/CD & ops accounts (non-runtime)
 
 | Purpose | Secret(s) |

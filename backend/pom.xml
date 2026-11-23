@@ -50,7 +50,7 @@
         <!-- 0.8.14+ instruments Java 25 class files (0.8.12 failed locally on Java 25). -->
         <jacoco.version>0.8.15</jacoco.version>
         <spotbugs.version>4.8.6.6</spotbugs.version>
-        <keycloak.version>26.0.5</keycloak.version>
+        <keycloak.version>26.0.13</keycloak.version>
     </properties>
 
     <dependencies>
